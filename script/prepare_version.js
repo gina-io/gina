@@ -393,9 +393,19 @@ function PrepareVersion() {
         }
 
         // merge master with targeted branch
+        // git checkout master
+        // git merge 011-alpha1 `self.targetedBranch`
+
         console.debug('Merging master with targeted branch: '+ self.targetedBranch +' -> v'+ self.targetedVersion);
 
         // tag version from master
+        try {
+            var msg = 'Releasing v'+ self.targetedVersion;
+            cmd = execSync("git commit -am'"+ msg +"'");
+        } catch (err) {
+            console.error(err.stack||err.message||err);
+            return done(err);
+        }
 
         // remove old branch
 
