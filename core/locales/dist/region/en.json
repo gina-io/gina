@@ -1,0 +1,9492 @@
+[
+  {
+    "full": "",
+    "officialName": {
+      "short": "Channel Islands"
+    },
+    "short": "",
+    "long": "",
+    "m49": "830",
+    "itu": "",
+    "marc": "",
+    "wmo": "",
+    "ds": "",
+    "dial": [
+      ""
+    ],
+    "fifa": "",
+    "fips": "",
+    "gaul": "",
+    "ioc": "",
+    "currency": {
+      "code": "",
+      "countryName": "",
+      "minorUnit": "",
+      "name": "",
+      "numCode": ""
+    },
+    "isIndependent": "",
+    "capital": "",
+    "continent": "",
+    "tld": "",
+    "languages": [
+      ""
+    ],
+    "geoNameId": "",
+    "edgar": ""
+  },
+  {
+    "full": "",
+    "officialName": {
+      "short": "Sark"
+    },
+    "short": "",
+    "long": "",
+    "m49": "680",
+    "itu": "",
+    "marc": "",
+    "wmo": "",
+    "ds": "",
+    "dial": [
+      ""
+    ],
+    "fifa": "",
+    "fips": "",
+    "gaul": "",
+    "ioc": "",
+    "currency": {
+      "code": "",
+      "countryName": "",
+      "minorUnit": "",
+      "name": "",
+      "numCode": ""
+    },
+    "isIndependent": "",
+    "capital": "",
+    "continent": "",
+    "tld": "",
+    "languages": [
+      ""
+    ],
+    "geoNameId": "",
+    "edgar": ""
+  },
+  {
+    "full": "Afghanistan",
+    "officialName": {
+      "short": "Afghanistan"
+    },
+    "short": "AF",
+    "long": "AFG",
+    "m49": "4",
+    "itu": "AFG",
+    "marc": "af",
+    "wmo": "AF",
+    "ds": "AFG",
+    "dial": [
+      "93"
+    ],
+    "fifa": "AFG",
+    "fips": "AF",
+    "gaul": "1",
+    "ioc": "AFG",
+    "currency": {
+      "code": "AFN",
+      "countryName": "AFGHANISTAN",
+      "minorUnit": "2",
+      "name": "Afghani",
+      "numCode": "971"
+    },
+    "isIndependent": "Yes",
+    "capital": "Kabul",
+    "continent": "AS",
+    "tld": ".af",
+    "languages": [
+      "fa-AF",
+      "ps",
+      "uz-AF",
+      "tk"
+    ],
+    "geoNameId": "1149361",
+    "edgar": "B2"
+  },
+  {
+    "full": "Albania",
+    "officialName": {
+      "short": "Albania"
+    },
+    "short": "AL",
+    "long": "ALB",
+    "m49": "8",
+    "itu": "ALB",
+    "marc": "aa",
+    "wmo": "AB",
+    "ds": "AL",
+    "dial": [
+      "355"
+    ],
+    "fifa": "ALB",
+    "fips": "AL",
+    "gaul": "3",
+    "ioc": "ALB",
+    "currency": {
+      "code": "ALL",
+      "countryName": "ALBANIA",
+      "minorUnit": "2",
+      "name": "Lek",
+      "numCode": "8"
+    },
+    "isIndependent": "Yes",
+    "capital": "Tirana",
+    "continent": "EU",
+    "tld": ".al",
+    "languages": [
+      "sq",
+      "el"
+    ],
+    "geoNameId": "783754",
+    "edgar": "B3"
+  },
+  {
+    "full": "Algeria",
+    "officialName": {
+      "short": "Algeria"
+    },
+    "short": "DZ",
+    "long": "DZA",
+    "m49": "12",
+    "itu": "ALG",
+    "marc": "ae",
+    "wmo": "AL",
+    "ds": "DZ",
+    "dial": [
+      "213"
+    ],
+    "fifa": "ALG",
+    "fips": "AG",
+    "gaul": "4",
+    "ioc": "ALG",
+    "currency": {
+      "code": "DZD",
+      "countryName": "ALGERIA",
+      "minorUnit": "2",
+      "name": "Algerian Dinar",
+      "numCode": "12"
+    },
+    "isIndependent": "Yes",
+    "capital": "Algiers",
+    "continent": "AF",
+    "tld": ".dz",
+    "languages": [
+      "ar-DZ"
+    ],
+    "geoNameId": "2589581",
+    "edgar": "B4"
+  },
+  {
+    "full": "American Samoa",
+    "officialName": {
+      "short": "American Samoa"
+    },
+    "short": "AS",
+    "long": "ASM",
+    "m49": "16",
+    "itu": "SMA",
+    "marc": "as",
+    "wmo": "",
+    "ds": "USA",
+    "dial": [
+      "1-684"
+    ],
+    "fifa": "ASA",
+    "fips": "AQ",
+    "gaul": "5",
+    "ioc": "ASA",
+    "currency": {
+      "code": "USD",
+      "countryName": "AMERICAN SAMOA",
+      "minorUnit": "2",
+      "name": "US Dollar",
+      "numCode": "840"
+    },
+    "isIndependent": "Territory of US",
+    "capital": "Pago Pago",
+    "continent": "OC",
+    "tld": ".as",
+    "languages": [
+      "en-AS",
+      "sm",
+      "to"
+    ],
+    "geoNameId": "5880801",
+    "edgar": "B5"
+  },
+  {
+    "full": "Andorra",
+    "officialName": {
+      "short": "Andorra"
+    },
+    "short": "AD",
+    "long": "AND",
+    "m49": "20",
+    "itu": "AND",
+    "marc": "an",
+    "wmo": "",
+    "ds": "AND",
+    "dial": [
+      "376"
+    ],
+    "fifa": "AND",
+    "fips": "AN",
+    "gaul": "7",
+    "ioc": "AND",
+    "currency": {
+      "code": "EUR",
+      "countryName": "ANDORRA",
+      "minorUnit": "2",
+      "name": "Euro",
+      "numCode": "978"
+    },
+    "isIndependent": "Yes",
+    "capital": "Andorra la Vella",
+    "continent": "EU",
+    "tld": ".ad",
+    "languages": [
+      "ca"
+    ],
+    "geoNameId": "3041565",
+    "edgar": "B6"
+  },
+  {
+    "full": "Angola",
+    "officialName": {
+      "short": "Angola"
+    },
+    "short": "AO",
+    "long": "AGO",
+    "m49": "24",
+    "itu": "AGL",
+    "marc": "ao",
+    "wmo": "AN",
+    "ds": "AO",
+    "dial": [
+      "244"
+    ],
+    "fifa": "ANG",
+    "fips": "AO",
+    "gaul": "8",
+    "ioc": "ANG",
+    "currency": {
+      "code": "AOA",
+      "countryName": "ANGOLA",
+      "minorUnit": "2",
+      "name": "Kwanza",
+      "numCode": "973"
+    },
+    "isIndependent": "Yes",
+    "capital": "Luanda",
+    "continent": "AF",
+    "tld": ".ao",
+    "languages": [
+      "pt-AO"
+    ],
+    "geoNameId": "3351879",
+    "edgar": "B7"
+  },
+  {
+    "full": "Anguilla",
+    "officialName": {
+      "short": "Anguilla"
+    },
+    "short": "AI",
+    "long": "AIA",
+    "m49": "660",
+    "itu": "AIA",
+    "marc": "am",
+    "wmo": "",
+    "ds": "",
+    "dial": [
+      "1-264"
+    ],
+    "fifa": "AIA",
+    "fips": "AV",
+    "gaul": "9",
+    "ioc": "AIA",
+    "currency": {
+      "code": "XCD",
+      "countryName": "ANGUILLA",
+      "minorUnit": "2",
+      "name": "East Caribbean Dollar",
+      "numCode": "951"
+    },
+    "isIndependent": "Territory of GB",
+    "capital": "The Valley",
+    "continent": "NA",
+    "tld": ".ai",
+    "languages": [
+      "en-AI"
+    ],
+    "geoNameId": "3573511",
+    "edgar": "1A"
+  },
+  {
+    "full": "Antarctica",
+    "officialName": {
+      "short": ""
+    },
+    "short": "AQ",
+    "long": "ATA",
+    "m49": "10",
+    "itu": "",
+    "marc": "ay",
+    "wmo": "AA",
+    "ds": "",
+    "dial": [
+      "672"
+    ],
+    "fifa": "ROS",
+    "fips": "AY",
+    "gaul": "10",
+    "ioc": "",
+    "currency": {
+      "code": "",
+      "countryName": "",
+      "minorUnit": "",
+      "name": "",
+      "numCode": ""
+    },
+    "isIndependent": "International",
+    "capital": "",
+    "continent": "AN",
+    "tld": ".aq",
+    "languages": [
+      ""
+    ],
+    "geoNameId": "6697173",
+    "edgar": ""
+  },
+  {
+    "full": "Antigua & Barbuda",
+    "officialName": {
+      "short": "Antigua and Barbuda"
+    },
+    "short": "AG",
+    "long": "ATG",
+    "m49": "28",
+    "itu": "ATG",
+    "marc": "aq",
+    "wmo": "AT",
+    "ds": "",
+    "dial": [
+      "1-268"
+    ],
+    "fifa": "ATG",
+    "fips": "AC",
+    "gaul": "11",
+    "ioc": "ANT",
+    "currency": {
+      "code": "XCD",
+      "countryName": "ANTIGUA AND BARBUDA",
+      "minorUnit": "2",
+      "name": "East Caribbean Dollar",
+      "numCode": "951"
+    },
+    "isIndependent": "Yes",
+    "capital": "St. John's",
+    "continent": "NA",
+    "tld": ".ag",
+    "languages": [
+      "en-AG"
+    ],
+    "geoNameId": "3576396",
+    "edgar": "B9"
+  },
+  {
+    "full": "Argentina",
+    "officialName": {
+      "short": "Argentina"
+    },
+    "short": "AR",
+    "long": "ARG",
+    "m49": "32",
+    "itu": "ARG",
+    "marc": "ag",
+    "wmo": "AG",
+    "ds": "RA",
+    "dial": [
+      "54"
+    ],
+    "fifa": "ARG",
+    "fips": "AR",
+    "gaul": "12",
+    "ioc": "ARG",
+    "currency": {
+      "code": "ARS",
+      "countryName": "ARGENTINA",
+      "minorUnit": "2",
+      "name": "Argentine Peso",
+      "numCode": "32"
+    },
+    "isIndependent": "Yes",
+    "capital": "Buenos Aires",
+    "continent": "SA",
+    "tld": ".ar",
+    "languages": [
+      "es-AR",
+      "en",
+      "it",
+      "de",
+      "fr",
+      "gn"
+    ],
+    "geoNameId": "3865483",
+    "edgar": "C1"
+  },
+  {
+    "full": "Armenia",
+    "officialName": {
+      "short": "Armenia"
+    },
+    "short": "AM",
+    "long": "ARM",
+    "m49": "51",
+    "itu": "ARM",
+    "marc": "ai",
+    "wmo": "AY",
+    "ds": "AM",
+    "dial": [
+      "374"
+    ],
+    "fifa": "ARM",
+    "fips": "AM",
+    "gaul": "13",
+    "ioc": "ARM",
+    "currency": {
+      "code": "AMD",
+      "countryName": "ARMENIA",
+      "minorUnit": "2",
+      "name": "Armenian Dram",
+      "numCode": "51"
+    },
+    "isIndependent": "Yes",
+    "capital": "Yerevan",
+    "continent": "AS",
+    "tld": ".am",
+    "languages": [
+      "hy"
+    ],
+    "geoNameId": "174982",
+    "edgar": "1B"
+  },
+  {
+    "full": "Aruba",
+    "officialName": {
+      "short": "Aruba"
+    },
+    "short": "AW",
+    "long": "ABW",
+    "m49": "533",
+    "itu": "ABW",
+    "marc": "aw",
+    "wmo": "NU",
+    "ds": "AW",
+    "dial": [
+      "297"
+    ],
+    "fifa": "ARU",
+    "fips": "AA",
+    "gaul": "14",
+    "ioc": "ARU",
+    "currency": {
+      "code": "AWG",
+      "countryName": "ARUBA",
+      "minorUnit": "2",
+      "name": "Aruban Florin",
+      "numCode": "533"
+    },
+    "isIndependent": "Part of NL",
+    "capital": "Oranjestad",
+    "continent": "NA",
+    "tld": ".aw",
+    "languages": [
+      "nl-AW",
+      "es",
+      "en"
+    ],
+    "geoNameId": "3577279",
+    "edgar": "1C"
+  },
+  {
+    "full": "Australia",
+    "officialName": {
+      "short": "Australia"
+    },
+    "short": "AU",
+    "long": "AUS",
+    "m49": "36",
+    "itu": "AUS",
+    "marc": "at",
+    "wmo": "AU",
+    "ds": "AUS",
+    "dial": [
+      "61"
+    ],
+    "fifa": "AUS",
+    "fips": "AS",
+    "gaul": "17",
+    "ioc": "AUS",
+    "currency": {
+      "code": "AUD",
+      "countryName": "AUSTRALIA",
+      "minorUnit": "2",
+      "name": "Australian Dollar",
+      "numCode": "36"
+    },
+    "isIndependent": "Yes",
+    "capital": "Canberra",
+    "continent": "OC",
+    "tld": ".au",
+    "languages": [
+      "en-AU"
+    ],
+    "geoNameId": "2077456",
+    "edgar": "C3"
+  },
+  {
+    "full": "Austria",
+    "officialName": {
+      "short": "Austria"
+    },
+    "short": "AT",
+    "long": "AUT",
+    "m49": "40",
+    "itu": "AUT",
+    "marc": "au",
+    "wmo": "OS",
+    "ds": "A",
+    "dial": [
+      "43"
+    ],
+    "fifa": "AUT",
+    "fips": "AU",
+    "gaul": "18",
+    "ioc": "AUT",
+    "currency": {
+      "code": "EUR",
+      "countryName": "AUSTRIA",
+      "minorUnit": "2",
+      "name": "Euro",
+      "numCode": "978"
+    },
+    "isIndependent": "Yes",
+    "capital": "Vienna",
+    "continent": "EU",
+    "tld": ".at",
+    "languages": [
+      "de-AT",
+      "hr",
+      "hu",
+      "sl"
+    ],
+    "geoNameId": "2782113",
+    "edgar": "C4"
+  },
+  {
+    "full": "Azerbaijan",
+    "officialName": {
+      "short": "Azerbaijan"
+    },
+    "short": "AZ",
+    "long": "AZE",
+    "m49": "31",
+    "itu": "AZE",
+    "marc": "aj",
+    "wmo": "AJ",
+    "ds": "AZ",
+    "dial": [
+      "994"
+    ],
+    "fifa": "AZE",
+    "fips": "AJ",
+    "gaul": "19",
+    "ioc": "AZE",
+    "currency": {
+      "code": "AZN",
+      "countryName": "AZERBAIJAN",
+      "minorUnit": "2",
+      "name": "Azerbaijanian Manat",
+      "numCode": "944"
+    },
+    "isIndependent": "Yes",
+    "capital": "Baku",
+    "continent": "AS",
+    "tld": ".az",
+    "languages": [
+      "az",
+      "ru",
+      "hy"
+    ],
+    "geoNameId": "587116",
+    "edgar": "1D"
+  },
+  {
+    "full": "Bahamas",
+    "officialName": {
+      "short": "Bahamas"
+    },
+    "short": "BS",
+    "long": "BHS",
+    "m49": "44",
+    "itu": "BAH",
+    "marc": "bf",
+    "wmo": "BA",
+    "ds": "BS",
+    "dial": [
+      "1-242"
+    ],
+    "fifa": "BAH",
+    "fips": "BF",
+    "gaul": "20",
+    "ioc": "BAH",
+    "currency": {
+      "code": "BSD",
+      "countryName": "BAHAMAS",
+      "minorUnit": "2",
+      "name": "Bahamian Dollar",
+      "numCode": "44"
+    },
+    "isIndependent": "Yes",
+    "capital": "Nassau",
+    "continent": "NA",
+    "tld": ".bs",
+    "languages": [
+      "en-BS"
+    ],
+    "geoNameId": "3572887",
+    "edgar": "C5"
+  },
+  {
+    "full": "Bahrain",
+    "officialName": {
+      "short": "Bahrain"
+    },
+    "short": "BH",
+    "long": "BHR",
+    "m49": "48",
+    "itu": "BHR",
+    "marc": "ba",
+    "wmo": "BN",
+    "ds": "BRN",
+    "dial": [
+      "973"
+    ],
+    "fifa": "BHR",
+    "fips": "BA",
+    "gaul": "21",
+    "ioc": "BRN",
+    "currency": {
+      "code": "BHD",
+      "countryName": "BAHRAIN",
+      "minorUnit": "3",
+      "name": "Bahraini Dinar",
+      "numCode": "48"
+    },
+    "isIndependent": "Yes",
+    "capital": "Manama",
+    "continent": "AS",
+    "tld": ".bh",
+    "languages": [
+      "ar-BH",
+      "en",
+      "fa",
+      "ur"
+    ],
+    "geoNameId": "290291",
+    "edgar": "C6"
+  },
+  {
+    "full": "Bangladesh",
+    "officialName": {
+      "short": "Bangladesh"
+    },
+    "short": "BD",
+    "long": "BGD",
+    "m49": "50",
+    "itu": "BGD",
+    "marc": "bg",
+    "wmo": "BW",
+    "ds": "BD",
+    "dial": [
+      "880"
+    ],
+    "fifa": "BAN",
+    "fips": "BG",
+    "gaul": "23",
+    "ioc": "BAN",
+    "currency": {
+      "code": "BDT",
+      "countryName": "BANGLADESH",
+      "minorUnit": "2",
+      "name": "Taka",
+      "numCode": "50"
+    },
+    "isIndependent": "Yes",
+    "capital": "Dhaka",
+    "continent": "AS",
+    "tld": ".bd",
+    "languages": [
+      "bn-BD",
+      "en"
+    ],
+    "geoNameId": "1210997",
+    "edgar": "C7"
+  },
+  {
+    "full": "Barbados",
+    "officialName": {
+      "short": "Barbados"
+    },
+    "short": "BB",
+    "long": "BRB",
+    "m49": "52",
+    "itu": "BRB",
+    "marc": "bb",
+    "wmo": "BR",
+    "ds": "BDS",
+    "dial": [
+      "1-246"
+    ],
+    "fifa": "BRB",
+    "fips": "BB",
+    "gaul": "24",
+    "ioc": "BAR",
+    "currency": {
+      "code": "BBD",
+      "countryName": "BARBADOS",
+      "minorUnit": "2",
+      "name": "Barbados Dollar",
+      "numCode": "52"
+    },
+    "isIndependent": "Yes",
+    "capital": "Bridgetown",
+    "continent": "NA",
+    "tld": ".bb",
+    "languages": [
+      "en-BB"
+    ],
+    "geoNameId": "3374084",
+    "edgar": "C8"
+  },
+  {
+    "full": "Belarus",
+    "officialName": {
+      "short": "Belarus"
+    },
+    "short": "BY",
+    "long": "BLR",
+    "m49": "112",
+    "itu": "BLR",
+    "marc": "bw",
+    "wmo": "BY",
+    "ds": "BY",
+    "dial": [
+      "375"
+    ],
+    "fifa": "BLR",
+    "fips": "BO",
+    "gaul": "26",
+    "ioc": "BLR",
+    "currency": {
+      "code": "BYR",
+      "countryName": "BELARUS",
+      "minorUnit": "0",
+      "name": "Belarussian Ruble",
+      "numCode": "974"
+    },
+    "isIndependent": "Yes",
+    "capital": "Minsk",
+    "continent": "EU",
+    "tld": ".by",
+    "languages": [
+      "be",
+      "ru"
+    ],
+    "geoNameId": "630336",
+    "edgar": "1F"
+  },
+  {
+    "full": "Belgium",
+    "officialName": {
+      "short": "Belgium"
+    },
+    "short": "BE",
+    "long": "BEL",
+    "m49": "56",
+    "itu": "BEL",
+    "marc": "be",
+    "wmo": "BX",
+    "ds": "B",
+    "dial": [
+      "32"
+    ],
+    "fifa": "BEL",
+    "fips": "BE",
+    "gaul": "27",
+    "ioc": "BEL",
+    "currency": {
+      "code": "EUR",
+      "countryName": "BELGIUM",
+      "minorUnit": "2",
+      "name": "Euro",
+      "numCode": "978"
+    },
+    "isIndependent": "Yes",
+    "capital": "Brussels",
+    "continent": "EU",
+    "tld": ".be",
+    "languages": [
+      "nl-BE",
+      "fr-BE",
+      "de-BE"
+    ],
+    "geoNameId": "2802361",
+    "edgar": "C9"
+  },
+  {
+    "full": "Belize",
+    "officialName": {
+      "short": "Belize"
+    },
+    "short": "BZ",
+    "long": "BLZ",
+    "m49": "84",
+    "itu": "BLZ",
+    "marc": "bh",
+    "wmo": "BH",
+    "ds": "BH",
+    "dial": [
+      "501"
+    ],
+    "fifa": "BLZ",
+    "fips": "BH",
+    "gaul": "28",
+    "ioc": "BIZ",
+    "currency": {
+      "code": "BZD",
+      "countryName": "BELIZE",
+      "minorUnit": "2",
+      "name": "Belize Dollar",
+      "numCode": "84"
+    },
+    "isIndependent": "Yes",
+    "capital": "Belmopan",
+    "continent": "NA",
+    "tld": ".bz",
+    "languages": [
+      "en-BZ",
+      "es"
+    ],
+    "geoNameId": "3582678",
+    "edgar": "D1"
+  },
+  {
+    "full": "Benin",
+    "officialName": {
+      "short": "Benin"
+    },
+    "short": "BJ",
+    "long": "BEN",
+    "m49": "204",
+    "itu": "BEN",
+    "marc": "dm",
+    "wmo": "BJ",
+    "ds": "DY",
+    "dial": [
+      "229"
+    ],
+    "fifa": "BEN",
+    "fips": "BN",
+    "gaul": "29",
+    "ioc": "BEN",
+    "currency": {
+      "code": "XOF",
+      "countryName": "BENIN",
+      "minorUnit": "0",
+      "name": "CFA Franc BCEAO",
+      "numCode": "952"
+    },
+    "isIndependent": "Yes",
+    "capital": "Porto-Novo",
+    "continent": "AF",
+    "tld": ".bj",
+    "languages": [
+      "fr-BJ"
+    ],
+    "geoNameId": "2395170",
+    "edgar": "G6"
+  },
+  {
+    "full": "Bermuda",
+    "officialName": {
+      "short": "Bermuda"
+    },
+    "short": "BM",
+    "long": "BMU",
+    "m49": "60",
+    "itu": "BER",
+    "marc": "bm",
+    "wmo": "BE",
+    "ds": "BM",
+    "dial": [
+      "1-441"
+    ],
+    "fifa": "BER",
+    "fips": "BD",
+    "gaul": "30",
+    "ioc": "BER",
+    "currency": {
+      "code": "BMD",
+      "countryName": "BERMUDA",
+      "minorUnit": "2",
+      "name": "Bermudian Dollar",
+      "numCode": "60"
+    },
+    "isIndependent": "Territory of GB",
+    "capital": "Hamilton",
+    "continent": "NA",
+    "tld": ".bm",
+    "languages": [
+      "en-BM",
+      "pt"
+    ],
+    "geoNameId": "3573345",
+    "edgar": "D0"
+  },
+  {
+    "full": "Bhutan",
+    "officialName": {
+      "short": "Bhutan"
+    },
+    "short": "BT",
+    "long": "BTN",
+    "m49": "64",
+    "itu": "BTN",
+    "marc": "bt",
+    "wmo": "",
+    "ds": "BT",
+    "dial": [
+      "975"
+    ],
+    "fifa": "BHU",
+    "fips": "BT",
+    "gaul": "31",
+    "ioc": "BHU",
+    "currency": {
+      "code": "INR",
+      "countryName": "BHUTAN",
+      "minorUnit": "2",
+      "name": "Indian Rupee",
+      "numCode": "356"
+    },
+    "isIndependent": "Yes",
+    "capital": "Thimphu",
+    "continent": "AS",
+    "tld": ".bt",
+    "languages": [
+      "dz"
+    ],
+    "geoNameId": "1252634",
+    "edgar": "D2"
+  },
+  {
+    "full": "Bolivia",
+    "officialName": {
+      "short": "Bolivia (Plurinational State of)"
+    },
+    "short": "BO",
+    "long": "BOL",
+    "m49": "68",
+    "itu": "BOL",
+    "marc": "bo",
+    "wmo": "BO",
+    "ds": "BOL",
+    "dial": [
+      "591"
+    ],
+    "fifa": "BOL",
+    "fips": "BL",
+    "gaul": "33",
+    "ioc": "BOL",
+    "currency": {
+      "code": "BOB",
+      "countryName": "BOLIVIA, PLURINATIONAL STATE OF",
+      "minorUnit": "2",
+      "name": "Boliviano",
+      "numCode": "68"
+    },
+    "isIndependent": "Yes",
+    "capital": "Sucre",
+    "continent": "SA",
+    "tld": ".bo",
+    "languages": [
+      "es-BO",
+      "qu",
+      "ay"
+    ],
+    "geoNameId": "3923057",
+    "edgar": ""
+  },
+  {
+    "full": "Bosnia",
+    "officialName": {
+      "short": "Bosnia and Herzegovina"
+    },
+    "short": "BA",
+    "long": "BIH",
+    "m49": "70",
+    "itu": "BIH",
+    "marc": "bn",
+    "wmo": "BG",
+    "ds": "BIH",
+    "dial": [
+      "387"
+    ],
+    "fifa": "BIH",
+    "fips": "BK",
+    "gaul": "34",
+    "ioc": "BIH",
+    "currency": {
+      "code": "BAM",
+      "countryName": "BOSNIA AND HERZEGOVINA",
+      "minorUnit": "2",
+      "name": "Convertible Mark",
+      "numCode": "977"
+    },
+    "isIndependent": "Yes",
+    "capital": "Sarajevo",
+    "continent": "EU",
+    "tld": ".ba",
+    "languages": [
+      "bs",
+      "hr-BA",
+      "sr-BA"
+    ],
+    "geoNameId": "3277605",
+    "edgar": "1E"
+  },
+  {
+    "full": "Botswana",
+    "officialName": {
+      "short": "Botswana"
+    },
+    "short": "BW",
+    "long": "BWA",
+    "m49": "72",
+    "itu": "BOT",
+    "marc": "bs",
+    "wmo": "BC",
+    "ds": "BW",
+    "dial": [
+      "267"
+    ],
+    "fifa": "BOT",
+    "fips": "BC",
+    "gaul": "35",
+    "ioc": "BOT",
+    "currency": {
+      "code": "BWP",
+      "countryName": "BOTSWANA",
+      "minorUnit": "2",
+      "name": "Pula",
+      "numCode": "72"
+    },
+    "isIndependent": "Yes",
+    "capital": "Gaborone",
+    "continent": "AF",
+    "tld": ".bw",
+    "languages": [
+      "en-BW",
+      "tn-BW"
+    ],
+    "geoNameId": "933860",
+    "edgar": "B1"
+  },
+  {
+    "full": "Bouvet Island",
+    "officialName": {
+      "short": ""
+    },
+    "short": "BV",
+    "long": "BVT",
+    "m49": "74",
+    "itu": "",
+    "marc": "bv",
+    "wmo": "BV",
+    "ds": "BV",
+    "dial": [
+      "47"
+    ],
+    "fifa": "",
+    "fips": "BV",
+    "gaul": "36",
+    "ioc": "",
+    "currency": {
+      "code": "",
+      "countryName": "",
+      "minorUnit": "",
+      "name": "",
+      "numCode": ""
+    },
+    "isIndependent": "Territory of NO",
+    "capital": "",
+    "continent": "AN",
+    "tld": ".bv",
+    "languages": [
+      ""
+    ],
+    "geoNameId": "3371123",
+    "edgar": ""
+  },
+  {
+    "full": "Brazil",
+    "officialName": {
+      "short": "Brazil"
+    },
+    "short": "BR",
+    "long": "BRA",
+    "m49": "76",
+    "itu": "B",
+    "marc": "bl",
+    "wmo": "BZ",
+    "ds": "BR",
+    "dial": [
+      "55"
+    ],
+    "fifa": "BRA",
+    "fips": "BR",
+    "gaul": "37",
+    "ioc": "BRA",
+    "currency": {
+      "code": "BRL",
+      "countryName": "BRAZIL",
+      "minorUnit": "2",
+      "name": "Brazilian Real",
+      "numCode": "986"
+    },
+    "isIndependent": "Yes",
+    "capital": "Brasilia",
+    "continent": "SA",
+    "tld": ".br",
+    "languages": [
+      "pt-BR",
+      "es",
+      "en",
+      "fr"
+    ],
+    "geoNameId": "3469034",
+    "edgar": "D5"
+  },
+  {
+    "full": "British Indian Ocean Territory",
+    "officialName": {
+      "short": ""
+    },
+    "short": "IO",
+    "long": "IOT",
+    "m49": "86",
+    "itu": "BIO",
+    "marc": "bi",
+    "wmo": "",
+    "ds": "",
+    "dial": [
+      "246"
+    ],
+    "fifa": "",
+    "fips": "IO",
+    "gaul": "38",
+    "ioc": "",
+    "currency": {
+      "code": "",
+      "countryName": "",
+      "minorUnit": "",
+      "name": "",
+      "numCode": ""
+    },
+    "isIndependent": "Territory of GB",
+    "capital": "Diego Garcia",
+    "continent": "AS",
+    "tld": ".io",
+    "languages": [
+      "en-IO"
+    ],
+    "geoNameId": "1282588",
+    "edgar": ""
+  },
+  {
+    "full": "British Virgin Islands",
+    "officialName": {
+      "short": "British Virgin Islands"
+    },
+    "short": "VG",
+    "long": "VGB",
+    "m49": "92",
+    "itu": "VRG",
+    "marc": "vb",
+    "wmo": "VI",
+    "ds": "BVI",
+    "dial": [
+      "1-284"
+    ],
+    "fifa": "VGB",
+    "fips": "VI",
+    "gaul": "39",
+    "ioc": "IVB",
+    "currency": {
+      "code": "USD",
+      "countryName": "VIRGIN ISLANDS (BRITISH)",
+      "minorUnit": "2",
+      "name": "US Dollar",
+      "numCode": "840"
+    },
+    "isIndependent": "Territory of GB",
+    "capital": "Road Town",
+    "continent": "NA",
+    "tld": ".vg",
+    "languages": [
+      "en-VG"
+    ],
+    "geoNameId": "3577718",
+    "edgar": ""
+  },
+  {
+    "full": "Brunei",
+    "officialName": {
+      "short": "Brunei Darussalam"
+    },
+    "short": "BN",
+    "long": "BRN",
+    "m49": "96",
+    "itu": "BRU",
+    "marc": "bx",
+    "wmo": "BD",
+    "ds": "BRU",
+    "dial": [
+      "673"
+    ],
+    "fifa": "BRU",
+    "fips": "BX",
+    "gaul": "40",
+    "ioc": "BRU",
+    "currency": {
+      "code": "BND",
+      "countryName": "BRUNEI DARUSSALAM",
+      "minorUnit": "2",
+      "name": "Brunei Dollar",
+      "numCode": "96"
+    },
+    "isIndependent": "Yes",
+    "capital": "Bandar Seri Begawan",
+    "continent": "AS",
+    "tld": ".bn",
+    "languages": [
+      "ms-BN",
+      "en-BN"
+    ],
+    "geoNameId": "1820814",
+    "edgar": "D9"
+  },
+  {
+    "full": "Bulgaria",
+    "officialName": {
+      "short": "Bulgaria"
+    },
+    "short": "BG",
+    "long": "BGR",
+    "m49": "100",
+    "itu": "BUL",
+    "marc": "bu",
+    "wmo": "BU",
+    "ds": "BG",
+    "dial": [
+      "359"
+    ],
+    "fifa": "BUL",
+    "fips": "BU",
+    "gaul": "41",
+    "ioc": "BUL",
+    "currency": {
+      "code": "BGN",
+      "countryName": "BULGARIA",
+      "minorUnit": "2",
+      "name": "Bulgarian Lev",
+      "numCode": "975"
+    },
+    "isIndependent": "Yes",
+    "capital": "Sofia",
+    "continent": "EU",
+    "tld": ".bg",
+    "languages": [
+      "bg",
+      "tr-BG",
+      "rom"
+    ],
+    "geoNameId": "732800",
+    "edgar": "E0"
+  },
+  {
+    "full": "Burkina Faso",
+    "officialName": {
+      "short": "Burkina Faso"
+    },
+    "short": "BF",
+    "long": "BFA",
+    "m49": "854",
+    "itu": "BFA",
+    "marc": "uv",
+    "wmo": "HV",
+    "ds": "BF",
+    "dial": [
+      "226"
+    ],
+    "fifa": "BFA",
+    "fips": "UV",
+    "gaul": "42",
+    "ioc": "BUR",
+    "currency": {
+      "code": "XOF",
+      "countryName": "BURKINA FASO",
+      "minorUnit": "0",
+      "name": "CFA Franc BCEAO",
+      "numCode": "952"
+    },
+    "isIndependent": "Yes",
+    "capital": "Ouagadougou",
+    "continent": "AF",
+    "tld": ".bf",
+    "languages": [
+      "fr-BF"
+    ],
+    "geoNameId": "2361809",
+    "edgar": "X2"
+  },
+  {
+    "full": "Burundi",
+    "officialName": {
+      "short": "Burundi"
+    },
+    "short": "BI",
+    "long": "BDI",
+    "m49": "108",
+    "itu": "BDI",
+    "marc": "bd",
+    "wmo": "BI",
+    "ds": "RU",
+    "dial": [
+      "257"
+    ],
+    "fifa": "BDI",
+    "fips": "BY",
+    "gaul": "43",
+    "ioc": "BDI",
+    "currency": {
+      "code": "BIF",
+      "countryName": "BURUNDI",
+      "minorUnit": "0",
+      "name": "Burundi Franc",
+      "numCode": "108"
+    },
+    "isIndependent": "Yes",
+    "capital": "Bujumbura",
+    "continent": "AF",
+    "tld": ".bi",
+    "languages": [
+      "fr-BI",
+      "rn"
+    ],
+    "geoNameId": "433561",
+    "edgar": "E2"
+  },
+  {
+    "full": "Cambodia",
+    "officialName": {
+      "short": "Cambodia"
+    },
+    "short": "KH",
+    "long": "KHM",
+    "m49": "116",
+    "itu": "CBG",
+    "marc": "cb",
+    "wmo": "KP",
+    "ds": "K",
+    "dial": [
+      "855"
+    ],
+    "fifa": "CAM",
+    "fips": "CB",
+    "gaul": "44",
+    "ioc": "CAM",
+    "currency": {
+      "code": "KHR",
+      "countryName": "CAMBODIA",
+      "minorUnit": "2",
+      "name": "Riel",
+      "numCode": "116"
+    },
+    "isIndependent": "Yes",
+    "capital": "Phnom Penh",
+    "continent": "AS",
+    "tld": ".kh",
+    "languages": [
+      "km",
+      "fr",
+      "en"
+    ],
+    "geoNameId": "1831722",
+    "edgar": "E3"
+  },
+  {
+    "full": "Cameroon",
+    "officialName": {
+      "short": "Cameroon"
+    },
+    "short": "CM",
+    "long": "CMR",
+    "m49": "120",
+    "itu": "CME",
+    "marc": "cm",
+    "wmo": "CM",
+    "ds": "CAM",
+    "dial": [
+      "237"
+    ],
+    "fifa": "CMR",
+    "fips": "CM",
+    "gaul": "45",
+    "ioc": "CMR",
+    "currency": {
+      "code": "XAF",
+      "countryName": "CAMEROON",
+      "minorUnit": "0",
+      "name": "CFA Franc BEAC",
+      "numCode": "950"
+    },
+    "isIndependent": "Yes",
+    "capital": "Yaounde",
+    "continent": "AF",
+    "tld": ".cm",
+    "languages": [
+      "en-CM",
+      "fr-CM"
+    ],
+    "geoNameId": "2233387",
+    "edgar": "E4"
+  },
+  {
+    "full": "Canada",
+    "officialName": {
+      "short": "Canada"
+    },
+    "short": "CA",
+    "long": "CAN",
+    "m49": "124",
+    "itu": "CAN",
+    "marc": "xxc",
+    "wmo": "CN",
+    "ds": "CDN",
+    "dial": [
+      "1"
+    ],
+    "fifa": "CAN",
+    "fips": "CA",
+    "gaul": "46",
+    "ioc": "CAN",
+    "currency": {
+      "code": "CAD",
+      "countryName": "CANADA",
+      "minorUnit": "2",
+      "name": "Canadian Dollar",
+      "numCode": "124"
+    },
+    "isIndependent": "Yes",
+    "capital": "Ottawa",
+    "continent": "NA",
+    "tld": ".ca",
+    "languages": [
+      "en-CA",
+      "fr-CA",
+      "iu"
+    ],
+    "geoNameId": "6251999",
+    "edgar": ""
+  },
+  {
+    "full": "Cape Verde",
+    "officialName": {
+      "short": "Cabo Verde"
+    },
+    "short": "CV",
+    "long": "CPV",
+    "m49": "132",
+    "itu": "CPV",
+    "marc": "cv",
+    "wmo": "CV",
+    "ds": "CV",
+    "dial": [
+      "238"
+    ],
+    "fifa": "CPV",
+    "fips": "CV",
+    "gaul": "47",
+    "ioc": "CPV",
+    "currency": {
+      "code": "CVE",
+      "countryName": "CABO VERDE",
+      "minorUnit": "2",
+      "name": "Cabo Verde Escudo",
+      "numCode": "132"
+    },
+    "isIndependent": "Yes",
+    "capital": "Praia",
+    "continent": "AF",
+    "tld": ".cv",
+    "languages": [
+      "pt-CV"
+    ],
+    "geoNameId": "3374766",
+    "edgar": ""
+  },
+  {
+    "full": "Caribbean Netherlands",
+    "officialName": {
+      "short": "Bonaire, Sint Eustatius and Saba"
+    },
+    "short": "BQ",
+    "long": "BES",
+    "m49": "535",
+    "itu": "ATN",
+    "marc": "ca",
+    "wmo": "NU",
+    "ds": "NA",
+    "dial": [
+      "599"
+    ],
+    "fifa": "ANT",
+    "fips": "NL",
+    "gaul": "176",
+    "ioc": "AHO",
+    "currency": {
+      "code": "USD",
+      "countryName": "BONAIRE, SINT EUSTATIUS AND SABA",
+      "minorUnit": "2",
+      "name": "US Dollar",
+      "numCode": "840"
+    },
+    "isIndependent": "Part of NL",
+    "capital": "",
+    "continent": "NA",
+    "tld": ".bq",
+    "languages": [
+      "nl",
+      "pap",
+      "en"
+    ],
+    "geoNameId": "7626844",
+    "edgar": ""
+  },
+  {
+    "full": "Cayman Islands",
+    "officialName": {
+      "short": "Cayman Islands"
+    },
+    "short": "KY",
+    "long": "CYM",
+    "m49": "136",
+    "itu": "CYM",
+    "marc": "cj",
+    "wmo": "GC",
+    "ds": "KY",
+    "dial": [
+      "1-345"
+    ],
+    "fifa": "CAY",
+    "fips": "CJ",
+    "gaul": "48",
+    "ioc": "CAY",
+    "currency": {
+      "code": "KYD",
+      "countryName": "CAYMAN ISLANDS",
+      "minorUnit": "2",
+      "name": "Cayman Islands Dollar",
+      "numCode": "136"
+    },
+    "isIndependent": "Territory of GB",
+    "capital": "George Town",
+    "continent": "NA",
+    "tld": ".ky",
+    "languages": [
+      "en-KY"
+    ],
+    "geoNameId": "3580718",
+    "edgar": "E9"
+  },
+  {
+    "full": "Central African Republic",
+    "officialName": {
+      "short": "Central African Republic"
+    },
+    "short": "CF",
+    "long": "CAF",
+    "m49": "140",
+    "itu": "CAF",
+    "marc": "cx",
+    "wmo": "CE",
+    "ds": "RCA",
+    "dial": [
+      "236"
+    ],
+    "fifa": "CTA",
+    "fips": "CT",
+    "gaul": "49",
+    "ioc": "CAF",
+    "currency": {
+      "code": "XAF",
+      "countryName": "CENTRAL AFRICAN REPUBLIC",
+      "minorUnit": "0",
+      "name": "CFA Franc BEAC",
+      "numCode": "950"
+    },
+    "isIndependent": "Yes",
+    "capital": "Bangui",
+    "continent": "AF",
+    "tld": ".cf",
+    "languages": [
+      "fr-CF",
+      "sg",
+      "ln",
+      "kg"
+    ],
+    "geoNameId": "239880",
+    "edgar": "F0"
+  },
+  {
+    "full": "Chad",
+    "officialName": {
+      "short": "Chad"
+    },
+    "short": "TD",
+    "long": "TCD",
+    "m49": "148",
+    "itu": "TCD",
+    "marc": "cd",
+    "wmo": "CD",
+    "ds": "TCH",
+    "dial": [
+      "235"
+    ],
+    "fifa": "CHA",
+    "fips": "CD",
+    "gaul": "50",
+    "ioc": "CHA",
+    "currency": {
+      "code": "XAF",
+      "countryName": "CHAD",
+      "minorUnit": "0",
+      "name": "CFA Franc BEAC",
+      "numCode": "950"
+    },
+    "isIndependent": "Yes",
+    "capital": "N'Djamena",
+    "continent": "AF",
+    "tld": ".td",
+    "languages": [
+      "fr-TD",
+      "ar-TD",
+      "sre"
+    ],
+    "geoNameId": "2434508",
+    "edgar": "F2"
+  },
+  {
+    "full": "Chile",
+    "officialName": {
+      "short": "Chile"
+    },
+    "short": "CL",
+    "long": "CHL",
+    "m49": "152",
+    "itu": "CHL",
+    "marc": "cl",
+    "wmo": "CH",
+    "ds": "RCH",
+    "dial": [
+      "56"
+    ],
+    "fifa": "CHI",
+    "fips": "CI",
+    "gaul": "51",
+    "ioc": "CHI",
+    "currency": {
+      "code": "CLP",
+      "countryName": "CHILE",
+      "minorUnit": "0",
+      "name": "Chilean Peso",
+      "numCode": "152"
+    },
+    "isIndependent": "Yes",
+    "capital": "Santiago",
+    "continent": "SA",
+    "tld": ".cl",
+    "languages": [
+      "es-CL"
+    ],
+    "geoNameId": "3895114",
+    "edgar": "F3"
+  },
+  {
+    "full": "China",
+    "officialName": {
+      "short": "China"
+    },
+    "short": "CN",
+    "long": "CHN",
+    "m49": "156",
+    "itu": "CHN",
+    "marc": "cc",
+    "wmo": "CI",
+    "ds": "CN",
+    "dial": [
+      "86"
+    ],
+    "fifa": "CHN",
+    "fips": "CH",
+    "gaul": "53",
+    "ioc": "CHN",
+    "currency": {
+      "code": "CNY",
+      "countryName": "CHINA",
+      "minorUnit": "2",
+      "name": "Yuan Renminbi",
+      "numCode": "156"
+    },
+    "isIndependent": "Yes",
+    "capital": "Beijing",
+    "continent": "AS",
+    "tld": ".cn",
+    "languages": [
+      "zh-CN",
+      "yue",
+      "wuu",
+      "dta",
+      "ug",
+      "za"
+    ],
+    "geoNameId": "1814991",
+    "edgar": "F4"
+  },
+  {
+    "full": "Christmas Island",
+    "officialName": {
+      "short": ""
+    },
+    "short": "CX",
+    "long": "CXR",
+    "m49": "162",
+    "itu": "CHR",
+    "marc": "xa",
+    "wmo": "KI",
+    "ds": "AUS",
+    "dial": [
+      "61"
+    ],
+    "fifa": "CXR",
+    "fips": "KT",
+    "gaul": "54",
+    "ioc": "",
+    "currency": {
+      "code": "",
+      "countryName": "",
+      "minorUnit": "",
+      "name": "",
+      "numCode": ""
+    },
+    "isIndependent": "Territory of AU",
+    "capital": "Flying Fish Cove",
+    "continent": "AS",
+    "tld": ".cx",
+    "languages": [
+      "en",
+      "zh",
+      "ms-CC"
+    ],
+    "geoNameId": "2078138",
+    "edgar": ""
+  },
+  {
+    "full": "Cocos (Keeling) Islands",
+    "officialName": {
+      "short": ""
+    },
+    "short": "CC",
+    "long": "CCK",
+    "m49": "166",
+    "itu": "ICO",
+    "marc": "xb",
+    "wmo": "KK",
+    "ds": "AUS",
+    "dial": [
+      "61"
+    ],
+    "fifa": "CCK",
+    "fips": "CK",
+    "gaul": "56",
+    "ioc": "",
+    "currency": {
+      "code": "",
+      "countryName": "",
+      "minorUnit": "",
+      "name": "",
+      "numCode": ""
+    },
+    "isIndependent": "Territory of AU",
+    "capital": "West Island",
+    "continent": "AS",
+    "tld": ".cc",
+    "languages": [
+      "ms-CC",
+      "en"
+    ],
+    "geoNameId": "1547376",
+    "edgar": ""
+  },
+  {
+    "full": "Colombia",
+    "officialName": {
+      "short": "Colombia"
+    },
+    "short": "CO",
+    "long": "COL",
+    "m49": "170",
+    "itu": "CLM",
+    "marc": "ck",
+    "wmo": "CO",
+    "ds": "CO",
+    "dial": [
+      "57"
+    ],
+    "fifa": "COL",
+    "fips": "CO",
+    "gaul": "57",
+    "ioc": "COL",
+    "currency": {
+      "code": "COP",
+      "countryName": "COLOMBIA",
+      "minorUnit": "2",
+      "name": "Colombian Peso",
+      "numCode": "170"
+    },
+    "isIndependent": "Yes",
+    "capital": "Bogota",
+    "continent": "SA",
+    "tld": ".co",
+    "languages": [
+      "es-CO"
+    ],
+    "geoNameId": "3686110",
+    "edgar": "F8"
+  },
+  {
+    "full": "Comoros",
+    "officialName": {
+      "short": "Comoros"
+    },
+    "short": "KM",
+    "long": "COM",
+    "m49": "174",
+    "itu": "COM",
+    "marc": "cq",
+    "wmo": "IC",
+    "ds": "KM",
+    "dial": [
+      "269"
+    ],
+    "fifa": "COM",
+    "fips": "CN",
+    "gaul": "58",
+    "ioc": "COM",
+    "currency": {
+      "code": "KMF",
+      "countryName": "COMOROS",
+      "minorUnit": "0",
+      "name": "Comoro Franc",
+      "numCode": "174"
+    },
+    "isIndependent": "Yes",
+    "capital": "Moroni",
+    "continent": "AF",
+    "tld": ".km",
+    "languages": [
+      "ar",
+      "fr-KM"
+    ],
+    "geoNameId": "921929",
+    "edgar": "F9"
+  },
+  {
+    "full": "Congo - Brazzaville",
+    "officialName": {
+      "short": "Congo"
+    },
+    "short": "CG",
+    "long": "COG",
+    "m49": "178",
+    "itu": "COG",
+    "marc": "cf",
+    "wmo": "CG",
+    "ds": "RCB",
+    "dial": [
+      "242"
+    ],
+    "fifa": "CGO",
+    "fips": "CF",
+    "gaul": "59",
+    "ioc": "CGO",
+    "currency": {
+      "code": "XAF",
+      "countryName": "CONGO",
+      "minorUnit": "0",
+      "name": "CFA Franc BEAC",
+      "numCode": "950"
+    },
+    "isIndependent": "Yes",
+    "capital": "Brazzaville",
+    "continent": "AF",
+    "tld": ".cg",
+    "languages": [
+      "fr-CG",
+      "kg",
+      "ln-CG"
+    ],
+    "geoNameId": "2260494",
+    "edgar": "G0"
+  },
+  {
+    "full": "Congo - Kinshasa",
+    "officialName": {
+      "short": "Democratic Republic of the Congo"
+    },
+    "short": "CD",
+    "long": "COD",
+    "m49": "180",
+    "itu": "COD",
+    "marc": "cg",
+    "wmo": "ZR",
+    "ds": "ZRE",
+    "dial": [
+      "243"
+    ],
+    "fifa": "COD",
+    "fips": "CG",
+    "gaul": "68",
+    "ioc": "COD",
+    "currency": {
+      "code": "",
+      "countryName": "",
+      "minorUnit": "",
+      "name": "",
+      "numCode": ""
+    },
+    "isIndependent": "Yes",
+    "capital": "Kinshasa",
+    "continent": "AF",
+    "tld": ".cd",
+    "languages": [
+      "fr-CD",
+      "ln",
+      "kg"
+    ],
+    "geoNameId": "203312",
+    "edgar": ""
+  },
+  {
+    "full": "Cook Islands",
+    "officialName": {
+      "short": "Cook Islands"
+    },
+    "short": "CK",
+    "long": "COK",
+    "m49": "184",
+    "itu": "CKH",
+    "marc": "cw",
+    "wmo": "KU",
+    "ds": "NZ",
+    "dial": [
+      "682"
+    ],
+    "fifa": "COK",
+    "fips": "CW",
+    "gaul": "60",
+    "ioc": "COK",
+    "currency": {
+      "code": "NZD",
+      "countryName": "COOK ISLANDS",
+      "minorUnit": "2",
+      "name": "New Zealand Dollar",
+      "numCode": "554"
+    },
+    "isIndependent": "Associated with NZ",
+    "capital": "Avarua",
+    "continent": "OC",
+    "tld": ".ck",
+    "languages": [
+      "en-CK",
+      "mi"
+    ],
+    "geoNameId": "1899402",
+    "edgar": "G1"
+  },
+  {
+    "full": "Costa Rica",
+    "officialName": {
+      "short": "Costa Rica"
+    },
+    "short": "CR",
+    "long": "CRI",
+    "m49": "188",
+    "itu": "CTR",
+    "marc": "cr",
+    "wmo": "CS",
+    "ds": "CR",
+    "dial": [
+      "506"
+    ],
+    "fifa": "CRC",
+    "fips": "CS",
+    "gaul": "61",
+    "ioc": "CRC",
+    "currency": {
+      "code": "CRC",
+      "countryName": "COSTA RICA",
+      "minorUnit": "2",
+      "name": "Costa Rican Colon",
+      "numCode": "188"
+    },
+    "isIndependent": "Yes",
+    "capital": "San Jose",
+    "continent": "NA",
+    "tld": ".cr",
+    "languages": [
+      "es-CR",
+      "en"
+    ],
+    "geoNameId": "3624060",
+    "edgar": "G2"
+  },
+  {
+    "full": "Croatia",
+    "officialName": {
+      "short": "Croatia"
+    },
+    "short": "HR",
+    "long": "HRV",
+    "m49": "191",
+    "itu": "HRV",
+    "marc": "ci",
+    "wmo": "RH",
+    "ds": "HR",
+    "dial": [
+      "385"
+    ],
+    "fifa": "CRO",
+    "fips": "HR",
+    "gaul": "62",
+    "ioc": "CRO",
+    "currency": {
+      "code": "HRK",
+      "countryName": "CROATIA",
+      "minorUnit": "2",
+      "name": "Croatian Kuna",
+      "numCode": "191"
+    },
+    "isIndependent": "Yes",
+    "capital": "Zagreb",
+    "continent": "EU",
+    "tld": ".hr",
+    "languages": [
+      "hr-HR",
+      "sr"
+    ],
+    "geoNameId": "3202326",
+    "edgar": "1M"
+  },
+  {
+    "full": "Cuba",
+    "officialName": {
+      "short": "Cuba"
+    },
+    "short": "CU",
+    "long": "CUB",
+    "m49": "192",
+    "itu": "CUB",
+    "marc": "cu",
+    "wmo": "CU",
+    "ds": "C",
+    "dial": [
+      "53"
+    ],
+    "fifa": "CUB",
+    "fips": "CU",
+    "gaul": "63",
+    "ioc": "CUB",
+    "currency": {
+      "code": "CUP",
+      "countryName": "CUBA",
+      "minorUnit": "2",
+      "name": "Cuban Peso",
+      "numCode": "192"
+    },
+    "isIndependent": "Yes",
+    "capital": "Havana",
+    "continent": "NA",
+    "tld": ".cu",
+    "languages": [
+      "es-CU"
+    ],
+    "geoNameId": "3562981",
+    "edgar": "G3"
+  },
+  {
+    "full": "Curaçao",
+    "officialName": {
+      "short": "Curaçao"
+    },
+    "short": "CW",
+    "long": "CUW",
+    "m49": "531",
+    "itu": "",
+    "marc": "co",
+    "wmo": "",
+    "ds": "",
+    "dial": [
+      "599"
+    ],
+    "fifa": "",
+    "fips": "UC",
+    "gaul": "",
+    "ioc": "",
+    "currency": {
+      "code": "ANG",
+      "countryName": "CURAÇAO",
+      "minorUnit": "2",
+      "name": "Netherlands Antillean Guilder",
+      "numCode": "532"
+    },
+    "isIndependent": "Part of NL",
+    "capital": "Willemstad",
+    "continent": "NA",
+    "tld": ".cw",
+    "languages": [
+      "nl",
+      "pap"
+    ],
+    "geoNameId": "7626836",
+    "edgar": ""
+  },
+  {
+    "full": "Cyprus",
+    "officialName": {
+      "short": "Cyprus"
+    },
+    "short": "CY",
+    "long": "CYP",
+    "m49": "196",
+    "itu": "CYP",
+    "marc": "cy",
+    "wmo": "CY",
+    "ds": "CY",
+    "dial": [
+      "357"
+    ],
+    "fifa": "CYP",
+    "fips": "CY",
+    "gaul": "64",
+    "ioc": "CYP",
+    "currency": {
+      "code": "EUR",
+      "countryName": "CYPRUS",
+      "minorUnit": "2",
+      "name": "Euro",
+      "numCode": "978"
+    },
+    "isIndependent": "Yes",
+    "capital": "Nicosia",
+    "continent": "EU",
+    "tld": ".cy",
+    "languages": [
+      "el-CY",
+      "tr-CY",
+      "en"
+    ],
+    "geoNameId": "146669",
+    "edgar": "G4"
+  },
+  {
+    "full": "Czech Republic",
+    "officialName": {
+      "short": "Czechia"
+    },
+    "short": "CZ",
+    "long": "CZE",
+    "m49": "203",
+    "itu": "CZE",
+    "marc": "xr",
+    "wmo": "CZ",
+    "ds": "CZ",
+    "dial": [
+      "420"
+    ],
+    "fifa": "CZE",
+    "fips": "EZ",
+    "gaul": "65",
+    "ioc": "CZE",
+    "currency": {
+      "code": "",
+      "countryName": "",
+      "minorUnit": "",
+      "name": "",
+      "numCode": ""
+    },
+    "isIndependent": "Yes",
+    "capital": "Prague",
+    "continent": "EU",
+    "tld": ".cz",
+    "languages": [
+      "cs",
+      "sk"
+    ],
+    "geoNameId": "3077311",
+    "edgar": ""
+  },
+  {
+    "full": "Côte d’Ivoire",
+    "officialName": {
+      "short": "Côte d'Ivoire"
+    },
+    "short": "CI",
+    "long": "CIV",
+    "m49": "384",
+    "itu": "CTI",
+    "marc": "iv",
+    "wmo": "IV",
+    "ds": "CI",
+    "dial": [
+      "225"
+    ],
+    "fifa": "CIV",
+    "fips": "IV",
+    "gaul": "66",
+    "ioc": "CIV",
+    "currency": {
+      "code": "XOF",
+      "countryName": "CÔTE D'IVOIRE",
+      "minorUnit": "0",
+      "name": "CFA Franc BCEAO",
+      "numCode": "952"
+    },
+    "isIndependent": "Yes",
+    "capital": "Yamoussoukro",
+    "continent": "AF",
+    "tld": ".ci",
+    "languages": [
+      "fr-CI"
+    ],
+    "geoNameId": "2287781",
+    "edgar": ""
+  },
+  {
+    "full": "Denmark",
+    "officialName": {
+      "short": "Denmark"
+    },
+    "short": "DK",
+    "long": "DNK",
+    "m49": "208",
+    "itu": "DNK",
+    "marc": "dk",
+    "wmo": "DN",
+    "ds": "DK",
+    "dial": [
+      "45"
+    ],
+    "fifa": "DEN",
+    "fips": "DA",
+    "gaul": "69",
+    "ioc": "DEN",
+    "currency": {
+      "code": "DKK",
+      "countryName": "DENMARK",
+      "minorUnit": "2",
+      "name": "Danish Krone",
+      "numCode": "208"
+    },
+    "isIndependent": "Yes",
+    "capital": "Copenhagen",
+    "continent": "EU",
+    "tld": ".dk",
+    "languages": [
+      "da-DK",
+      "en",
+      "fo",
+      "de-DK"
+    ],
+    "geoNameId": "2623032",
+    "edgar": "G7"
+  },
+  {
+    "full": "Djibouti",
+    "officialName": {
+      "short": "Djibouti"
+    },
+    "short": "DJ",
+    "long": "DJI",
+    "m49": "262",
+    "itu": "DJI",
+    "marc": "ft",
+    "wmo": "DJ",
+    "ds": "F",
+    "dial": [
+      "253"
+    ],
+    "fifa": "DJI",
+    "fips": "DJ",
+    "gaul": "70",
+    "ioc": "DJI",
+    "currency": {
+      "code": "DJF",
+      "countryName": "DJIBOUTI",
+      "minorUnit": "0",
+      "name": "Djibouti Franc",
+      "numCode": "262"
+    },
+    "isIndependent": "Yes",
+    "capital": "Djibouti",
+    "continent": "AF",
+    "tld": ".dj",
+    "languages": [
+      "fr-DJ",
+      "ar",
+      "so-DJ",
+      "aa"
+    ],
+    "geoNameId": "223816",
+    "edgar": "1G"
+  },
+  {
+    "full": "Dominica",
+    "officialName": {
+      "short": "Dominica"
+    },
+    "short": "DM",
+    "long": "DMA",
+    "m49": "212",
+    "itu": "DMA",
+    "marc": "dq",
+    "wmo": "DO",
+    "ds": "WD",
+    "dial": [
+      "1-767"
+    ],
+    "fifa": "DMA",
+    "fips": "DO",
+    "gaul": "71",
+    "ioc": "DMA",
+    "currency": {
+      "code": "XCD",
+      "countryName": "DOMINICA",
+      "minorUnit": "2",
+      "name": "East Caribbean Dollar",
+      "numCode": "951"
+    },
+    "isIndependent": "Yes",
+    "capital": "Roseau",
+    "continent": "NA",
+    "tld": ".dm",
+    "languages": [
+      "en-DM"
+    ],
+    "geoNameId": "3575830",
+    "edgar": "G9"
+  },
+  {
+    "full": "Dominican Republic",
+    "officialName": {
+      "short": "Dominican Republic"
+    },
+    "short": "DO",
+    "long": "DOM",
+    "m49": "214",
+    "itu": "DOM",
+    "marc": "dr",
+    "wmo": "DR",
+    "ds": "DOM",
+    "dial": [
+      "1-809",
+      "1-829",
+      "1-849"
+    ],
+    "fifa": "DOM",
+    "fips": "DR",
+    "gaul": "72",
+    "ioc": "DOM",
+    "currency": {
+      "code": "DOP",
+      "countryName": "DOMINICAN REPUBLIC",
+      "minorUnit": "2",
+      "name": "Dominican Peso",
+      "numCode": "214"
+    },
+    "isIndependent": "Yes",
+    "capital": "Santo Domingo",
+    "continent": "NA",
+    "tld": ".do",
+    "languages": [
+      "es-DO"
+    ],
+    "geoNameId": "3508796",
+    "edgar": "G8"
+  },
+  {
+    "full": "Ecuador",
+    "officialName": {
+      "short": "Ecuador"
+    },
+    "short": "EC",
+    "long": "ECU",
+    "m49": "218",
+    "itu": "EQA",
+    "marc": "ec",
+    "wmo": "EQ",
+    "ds": "EC",
+    "dial": [
+      "593"
+    ],
+    "fifa": "ECU",
+    "fips": "EC",
+    "gaul": "73",
+    "ioc": "ECU",
+    "currency": {
+      "code": "USD",
+      "countryName": "ECUADOR",
+      "minorUnit": "2",
+      "name": "US Dollar",
+      "numCode": "840"
+    },
+    "isIndependent": "Yes",
+    "capital": "Quito",
+    "continent": "SA",
+    "tld": ".ec",
+    "languages": [
+      "es-EC"
+    ],
+    "geoNameId": "3658394",
+    "edgar": "H1"
+  },
+  {
+    "full": "Egypt",
+    "officialName": {
+      "short": "Egypt"
+    },
+    "short": "EG",
+    "long": "EGY",
+    "m49": "818",
+    "itu": "EGY",
+    "marc": "ua",
+    "wmo": "EG",
+    "ds": "ET",
+    "dial": [
+      "20"
+    ],
+    "fifa": "EGY",
+    "fips": "EG",
+    "gaul": "40765",
+    "ioc": "EGY",
+    "currency": {
+      "code": "EGP",
+      "countryName": "EGYPT",
+      "minorUnit": "2",
+      "name": "Egyptian Pound",
+      "numCode": "818"
+    },
+    "isIndependent": "Yes",
+    "capital": "Cairo",
+    "continent": "AF",
+    "tld": ".eg",
+    "languages": [
+      "ar-EG",
+      "en",
+      "fr"
+    ],
+    "geoNameId": "357994",
+    "edgar": "H2"
+  },
+  {
+    "full": "El Salvador",
+    "officialName": {
+      "short": "El Salvador"
+    },
+    "short": "SV",
+    "long": "SLV",
+    "m49": "222",
+    "itu": "SLV",
+    "marc": "es",
+    "wmo": "ES",
+    "ds": "ES",
+    "dial": [
+      "503"
+    ],
+    "fifa": "SLV",
+    "fips": "ES",
+    "gaul": "75",
+    "ioc": "ESA",
+    "currency": {
+      "code": "USD",
+      "countryName": "EL SALVADOR",
+      "minorUnit": "2",
+      "name": "US Dollar",
+      "numCode": "840"
+    },
+    "isIndependent": "Yes",
+    "capital": "San Salvador",
+    "continent": "NA",
+    "tld": ".sv",
+    "languages": [
+      "es-SV"
+    ],
+    "geoNameId": "3585968",
+    "edgar": "H3"
+  },
+  {
+    "full": "Equatorial Guinea",
+    "officialName": {
+      "short": "Equatorial Guinea"
+    },
+    "short": "GQ",
+    "long": "GNQ",
+    "m49": "226",
+    "itu": "GNE",
+    "marc": "eg",
+    "wmo": "GQ",
+    "ds": "EQ",
+    "dial": [
+      "240"
+    ],
+    "fifa": "EQG",
+    "fips": "EK",
+    "gaul": "76",
+    "ioc": "GEQ",
+    "currency": {
+      "code": "XAF",
+      "countryName": "EQUATORIAL GUINEA",
+      "minorUnit": "0",
+      "name": "CFA Franc BEAC",
+      "numCode": "950"
+    },
+    "isIndependent": "Yes",
+    "capital": "Malabo",
+    "continent": "AF",
+    "tld": ".gq",
+    "languages": [
+      "es-GQ",
+      "fr"
+    ],
+    "geoNameId": "2309096",
+    "edgar": "H4"
+  },
+  {
+    "full": "Eritrea",
+    "officialName": {
+      "short": "Eritrea"
+    },
+    "short": "ER",
+    "long": "ERI",
+    "m49": "232",
+    "itu": "ERI",
+    "marc": "ea",
+    "wmo": "",
+    "ds": "ER",
+    "dial": [
+      "291"
+    ],
+    "fifa": "ERI",
+    "fips": "ER",
+    "gaul": "77",
+    "ioc": "ERI",
+    "currency": {
+      "code": "ERN",
+      "countryName": "ERITREA",
+      "minorUnit": "2",
+      "name": "Nakfa",
+      "numCode": "232"
+    },
+    "isIndependent": "Yes",
+    "capital": "Asmara",
+    "continent": "AF",
+    "tld": ".er",
+    "languages": [
+      "aa-ER",
+      "ar",
+      "tig",
+      "kun",
+      "ti-ER"
+    ],
+    "geoNameId": "338010",
+    "edgar": "1J"
+  },
+  {
+    "full": "Estonia",
+    "officialName": {
+      "short": "Estonia"
+    },
+    "short": "EE",
+    "long": "EST",
+    "m49": "233",
+    "itu": "EST",
+    "marc": "er",
+    "wmo": "EO",
+    "ds": "EST",
+    "dial": [
+      "372"
+    ],
+    "fifa": "EST",
+    "fips": "EN",
+    "gaul": "78",
+    "ioc": "EST",
+    "currency": {
+      "code": "EUR",
+      "countryName": "ESTONIA",
+      "minorUnit": "2",
+      "name": "Euro",
+      "numCode": "978"
+    },
+    "isIndependent": "Yes",
+    "capital": "Tallinn",
+    "continent": "EU",
+    "tld": ".ee",
+    "languages": [
+      "et",
+      "ru"
+    ],
+    "geoNameId": "453733",
+    "edgar": "1H"
+  },
+  {
+    "full": "Ethiopia",
+    "officialName": {
+      "short": "Ethiopia"
+    },
+    "short": "ET",
+    "long": "ETH",
+    "m49": "231",
+    "itu": "ETH",
+    "marc": "et",
+    "wmo": "ET",
+    "ds": "ETH",
+    "dial": [
+      "251"
+    ],
+    "fifa": "ETH",
+    "fips": "ET",
+    "gaul": "79",
+    "ioc": "ETH",
+    "currency": {
+      "code": "ETB",
+      "countryName": "ETHIOPIA",
+      "minorUnit": "2",
+      "name": "Ethiopian Birr",
+      "numCode": "230"
+    },
+    "isIndependent": "Yes",
+    "capital": "Addis Ababa",
+    "continent": "AF",
+    "tld": ".et",
+    "languages": [
+      "am",
+      "en-ET",
+      "om-ET",
+      "ti-ET",
+      "so-ET",
+      "sid"
+    ],
+    "geoNameId": "337996",
+    "edgar": "H5"
+  },
+  {
+    "full": "Falkland Islands",
+    "officialName": {
+      "short": "Falkland Islands (Malvinas)"
+    },
+    "short": "FK",
+    "long": "FLK",
+    "m49": "238",
+    "itu": "FLK",
+    "marc": "fk",
+    "wmo": "FK",
+    "ds": "",
+    "dial": [
+      "500"
+    ],
+    "fifa": "FLK",
+    "fips": "FK",
+    "gaul": "81",
+    "ioc": "FLK",
+    "currency": {
+      "code": "FKP",
+      "countryName": "FALKLAND ISLANDS (MALVINAS)",
+      "minorUnit": "2",
+      "name": "Falkland Islands Pound",
+      "numCode": "238"
+    },
+    "isIndependent": "Territory of GB",
+    "capital": "Stanley",
+    "continent": "SA",
+    "tld": ".fk",
+    "languages": [
+      "en-FK"
+    ],
+    "geoNameId": "3474414",
+    "edgar": "H7"
+  },
+  {
+    "full": "Faroe Islands",
+    "officialName": {
+      "short": "Faeroe Islands"
+    },
+    "short": "FO",
+    "long": "FRO",
+    "m49": "234",
+    "itu": "FRO",
+    "marc": "fa",
+    "wmo": "FA",
+    "ds": "FO",
+    "dial": [
+      "298"
+    ],
+    "fifa": "FRO",
+    "fips": "FO",
+    "gaul": "82",
+    "ioc": "FAR",
+    "currency": {
+      "code": "",
+      "countryName": "",
+      "minorUnit": "",
+      "name": "",
+      "numCode": ""
+    },
+    "isIndependent": "Part of DK",
+    "capital": "Torshavn",
+    "continent": "EU",
+    "tld": ".fo",
+    "languages": [
+      "fo",
+      "da-FO"
+    ],
+    "geoNameId": "2622320",
+    "edgar": ""
+  },
+  {
+    "full": "Fiji",
+    "officialName": {
+      "short": "Fiji"
+    },
+    "short": "FJ",
+    "long": "FJI",
+    "m49": "242",
+    "itu": "FJI",
+    "marc": "fj",
+    "wmo": "FJ",
+    "ds": "FJI",
+    "dial": [
+      "679"
+    ],
+    "fifa": "FIJ",
+    "fips": "FJ",
+    "gaul": "83",
+    "ioc": "FIJ",
+    "currency": {
+      "code": "FJD",
+      "countryName": "FIJI",
+      "minorUnit": "2",
+      "name": "Fiji Dollar",
+      "numCode": "242"
+    },
+    "isIndependent": "Yes",
+    "capital": "Suva",
+    "continent": "OC",
+    "tld": ".fj",
+    "languages": [
+      "en-FJ",
+      "fj"
+    ],
+    "geoNameId": "2205218",
+    "edgar": "H8"
+  },
+  {
+    "full": "Finland",
+    "officialName": {
+      "short": "Finland"
+    },
+    "short": "FI",
+    "long": "FIN",
+    "m49": "246",
+    "itu": "FIN",
+    "marc": "fi",
+    "wmo": "FI",
+    "ds": "FIN",
+    "dial": [
+      "358"
+    ],
+    "fifa": "FIN",
+    "fips": "FI",
+    "gaul": "84",
+    "ioc": "FIN",
+    "currency": {
+      "code": "EUR",
+      "countryName": "FINLAND",
+      "minorUnit": "2",
+      "name": "Euro",
+      "numCode": "978"
+    },
+    "isIndependent": "Yes",
+    "capital": "Helsinki",
+    "continent": "EU",
+    "tld": ".fi",
+    "languages": [
+      "fi-FI",
+      "sv-FI",
+      "smn"
+    ],
+    "geoNameId": "660013",
+    "edgar": "H9"
+  },
+  {
+    "full": "France",
+    "officialName": {
+      "short": "France"
+    },
+    "short": "FR",
+    "long": "FRA",
+    "m49": "250",
+    "itu": "F",
+    "marc": "fr",
+    "wmo": "FR",
+    "ds": "F",
+    "dial": [
+      "33"
+    ],
+    "fifa": "FRA",
+    "fips": "FR",
+    "gaul": "85",
+    "ioc": "FRA",
+    "currency": {
+      "code": "EUR",
+      "countryName": "FRANCE",
+      "minorUnit": "2",
+      "name": "Euro",
+      "numCode": "978"
+    },
+    "isIndependent": "Yes",
+    "capital": "Paris",
+    "continent": "EU",
+    "tld": ".fr",
+    "languages": [
+      "fr-FR",
+      "frp",
+      "br",
+      "co",
+      "ca",
+      "eu",
+      "oc"
+    ],
+    "geoNameId": "3017382",
+    "edgar": "I0"
+  },
+  {
+    "full": "French Guiana",
+    "officialName": {
+      "short": "French Guiana"
+    },
+    "short": "GF",
+    "long": "GUF",
+    "m49": "254",
+    "itu": "GUF",
+    "marc": "fg",
+    "wmo": "FG",
+    "ds": "F",
+    "dial": [
+      "594"
+    ],
+    "fifa": "GUF",
+    "fips": "FG",
+    "gaul": "86",
+    "ioc": "FGU",
+    "currency": {
+      "code": "EUR",
+      "countryName": "FRENCH GUIANA",
+      "minorUnit": "2",
+      "name": "Euro",
+      "numCode": "978"
+    },
+    "isIndependent": "Part of FR",
+    "capital": "Cayenne",
+    "continent": "SA",
+    "tld": ".gf",
+    "languages": [
+      "fr-GF"
+    ],
+    "geoNameId": "3381670",
+    "edgar": "I3"
+  },
+  {
+    "full": "French Polynesia",
+    "officialName": {
+      "short": "French Polynesia"
+    },
+    "short": "PF",
+    "long": "PYF",
+    "m49": "258",
+    "itu": "OCE",
+    "marc": "fp",
+    "wmo": "PF",
+    "ds": "F",
+    "dial": [
+      "689"
+    ],
+    "fifa": "TAH",
+    "fips": "FP",
+    "gaul": "87",
+    "ioc": "FPO",
+    "currency": {
+      "code": "XPF",
+      "countryName": "FRENCH POLYNESIA",
+      "minorUnit": "0",
+      "name": "CFP Franc",
+      "numCode": "953"
+    },
+    "isIndependent": "Territory of FR",
+    "capital": "Papeete",
+    "continent": "OC",
+    "tld": ".pf",
+    "languages": [
+      "fr-PF",
+      "ty"
+    ],
+    "geoNameId": "4030656",
+    "edgar": "I4"
+  },
+  {
+    "full": "French Southern Territories",
+    "officialName": {
+      "short": ""
+    },
+    "short": "TF",
+    "long": "ATF",
+    "m49": "260",
+    "itu": "",
+    "marc": "fs",
+    "wmo": "",
+    "ds": "F",
+    "dial": [
+      "262"
+    ],
+    "fifa": "",
+    "fips": "FS",
+    "gaul": "88",
+    "ioc": "",
+    "currency": {
+      "code": "",
+      "countryName": "",
+      "minorUnit": "",
+      "name": "",
+      "numCode": ""
+    },
+    "isIndependent": "Territory of FR",
+    "capital": "Port-aux-Francais",
+    "continent": "AN",
+    "tld": ".tf",
+    "languages": [
+      "fr"
+    ],
+    "geoNameId": "1546748",
+    "edgar": ""
+  },
+  {
+    "full": "Gabon",
+    "officialName": {
+      "short": "Gabon"
+    },
+    "short": "GA",
+    "long": "GAB",
+    "m49": "266",
+    "itu": "GAB",
+    "marc": "go",
+    "wmo": "GO",
+    "ds": "G",
+    "dial": [
+      "241"
+    ],
+    "fifa": "GAB",
+    "fips": "GB",
+    "gaul": "89",
+    "ioc": "GAB",
+    "currency": {
+      "code": "XAF",
+      "countryName": "GABON",
+      "minorUnit": "0",
+      "name": "CFA Franc BEAC",
+      "numCode": "950"
+    },
+    "isIndependent": "Yes",
+    "capital": "Libreville",
+    "continent": "AF",
+    "tld": ".ga",
+    "languages": [
+      "fr-GA"
+    ],
+    "geoNameId": "2400553",
+    "edgar": "I5"
+  },
+  {
+    "full": "Gambia",
+    "officialName": {
+      "short": "Gambia"
+    },
+    "short": "GM",
+    "long": "GMB",
+    "m49": "270",
+    "itu": "GMB",
+    "marc": "gm",
+    "wmo": "GB",
+    "ds": "WAG",
+    "dial": [
+      "220"
+    ],
+    "fifa": "GAM",
+    "fips": "GA",
+    "gaul": "90",
+    "ioc": "GAM",
+    "currency": {
+      "code": "GMD",
+      "countryName": "GAMBIA",
+      "minorUnit": "2",
+      "name": "Dalasi",
+      "numCode": "270"
+    },
+    "isIndependent": "Yes",
+    "capital": "Banjul",
+    "continent": "AF",
+    "tld": ".gm",
+    "languages": [
+      "en-GM",
+      "mnk",
+      "wof",
+      "wo",
+      "ff"
+    ],
+    "geoNameId": "2413451",
+    "edgar": "I6"
+  },
+  {
+    "full": "Georgia",
+    "officialName": {
+      "short": "Georgia"
+    },
+    "short": "GE",
+    "long": "GEO",
+    "m49": "268",
+    "itu": "GEO",
+    "marc": "gs",
+    "wmo": "GG",
+    "ds": "GE",
+    "dial": [
+      "995"
+    ],
+    "fifa": "GEO",
+    "fips": "GG",
+    "gaul": "92",
+    "ioc": "GEO",
+    "currency": {
+      "code": "GEL",
+      "countryName": "GEORGIA",
+      "minorUnit": "2",
+      "name": "Lari",
+      "numCode": "981"
+    },
+    "isIndependent": "Yes",
+    "capital": "Tbilisi",
+    "continent": "AS",
+    "tld": ".ge",
+    "languages": [
+      "ka",
+      "ru",
+      "hy",
+      "az"
+    ],
+    "geoNameId": "614540",
+    "edgar": "2Q"
+  },
+  {
+    "full": "Germany",
+    "officialName": {
+      "short": "Germany"
+    },
+    "short": "DE",
+    "long": "DEU",
+    "m49": "276",
+    "itu": "D",
+    "marc": "gw",
+    "wmo": "DL",
+    "ds": "D",
+    "dial": [
+      "49"
+    ],
+    "fifa": "GER",
+    "fips": "GM",
+    "gaul": "93",
+    "ioc": "GER",
+    "currency": {
+      "code": "EUR",
+      "countryName": "GERMANY",
+      "minorUnit": "2",
+      "name": "Euro",
+      "numCode": "978"
+    },
+    "isIndependent": "Yes",
+    "capital": "Berlin",
+    "continent": "EU",
+    "tld": ".de",
+    "languages": [
+      "de"
+    ],
+    "geoNameId": "2921044",
+    "edgar": "2M"
+  },
+  {
+    "full": "Ghana",
+    "officialName": {
+      "short": "Ghana"
+    },
+    "short": "GH",
+    "long": "GHA",
+    "m49": "288",
+    "itu": "GHA",
+    "marc": "gh",
+    "wmo": "GH",
+    "ds": "GH",
+    "dial": [
+      "233"
+    ],
+    "fifa": "GHA",
+    "fips": "GH",
+    "gaul": "94",
+    "ioc": "GHA",
+    "currency": {
+      "code": "GHS",
+      "countryName": "GHANA",
+      "minorUnit": "2",
+      "name": "Ghana Cedi",
+      "numCode": "936"
+    },
+    "isIndependent": "Yes",
+    "capital": "Accra",
+    "continent": "AF",
+    "tld": ".gh",
+    "languages": [
+      "en-GH",
+      "ak",
+      "ee",
+      "tw"
+    ],
+    "geoNameId": "2300660",
+    "edgar": "J0"
+  },
+  {
+    "full": "Gibraltar",
+    "officialName": {
+      "short": "Gibraltar"
+    },
+    "short": "GI",
+    "long": "GIB",
+    "m49": "292",
+    "itu": "GIB",
+    "marc": "gi",
+    "wmo": "GI",
+    "ds": "GBZ",
+    "dial": [
+      "350"
+    ],
+    "fifa": "GBZ",
+    "fips": "GI",
+    "gaul": "95",
+    "ioc": "GIB",
+    "currency": {
+      "code": "GIP",
+      "countryName": "GIBRALTAR",
+      "minorUnit": "2",
+      "name": "Gibraltar Pound",
+      "numCode": "292"
+    },
+    "isIndependent": "Territory of GB",
+    "capital": "Gibraltar",
+    "continent": "EU",
+    "tld": ".gi",
+    "languages": [
+      "en-GI",
+      "es",
+      "it",
+      "pt"
+    ],
+    "geoNameId": "2411586",
+    "edgar": "J1"
+  },
+  {
+    "full": "Greece",
+    "officialName": {
+      "short": "Greece"
+    },
+    "short": "GR",
+    "long": "GRC",
+    "m49": "300",
+    "itu": "GRC",
+    "marc": "gr",
+    "wmo": "GR",
+    "ds": "GR",
+    "dial": [
+      "30"
+    ],
+    "fifa": "GRE",
+    "fips": "GR",
+    "gaul": "97",
+    "ioc": "GRE",
+    "currency": {
+      "code": "EUR",
+      "countryName": "GREECE",
+      "minorUnit": "2",
+      "name": "Euro",
+      "numCode": "978"
+    },
+    "isIndependent": "Yes",
+    "capital": "Athens",
+    "continent": "EU",
+    "tld": ".gr",
+    "languages": [
+      "el-GR",
+      "en",
+      "fr"
+    ],
+    "geoNameId": "390903",
+    "edgar": "J3"
+  },
+  {
+    "full": "Greenland",
+    "officialName": {
+      "short": "Greenland"
+    },
+    "short": "GL",
+    "long": "GRL",
+    "m49": "304",
+    "itu": "GRL",
+    "marc": "gl",
+    "wmo": "GL",
+    "ds": "DK",
+    "dial": [
+      "299"
+    ],
+    "fifa": "GRL",
+    "fips": "GL",
+    "gaul": "98",
+    "ioc": "GRL",
+    "currency": {
+      "code": "DKK",
+      "countryName": "GREENLAND",
+      "minorUnit": "2",
+      "name": "Danish Krone",
+      "numCode": "208"
+    },
+    "isIndependent": "Part of DK",
+    "capital": "Nuuk",
+    "continent": "NA",
+    "tld": ".gl",
+    "languages": [
+      "kl",
+      "da-GL",
+      "en"
+    ],
+    "geoNameId": "3425505",
+    "edgar": "J4"
+  },
+  {
+    "full": "Grenada",
+    "officialName": {
+      "short": "Grenada"
+    },
+    "short": "GD",
+    "long": "GRD",
+    "m49": "308",
+    "itu": "GRD",
+    "marc": "gd",
+    "wmo": "GD",
+    "ds": "WG",
+    "dial": [
+      "1-473"
+    ],
+    "fifa": "GRN",
+    "fips": "GJ",
+    "gaul": "99",
+    "ioc": "GRN",
+    "currency": {
+      "code": "XCD",
+      "countryName": "GRENADA",
+      "minorUnit": "2",
+      "name": "East Caribbean Dollar",
+      "numCode": "951"
+    },
+    "isIndependent": "Yes",
+    "capital": "St. George's",
+    "continent": "NA",
+    "tld": ".gd",
+    "languages": [
+      "en-GD"
+    ],
+    "geoNameId": "3580239",
+    "edgar": "J5"
+  },
+  {
+    "full": "Guadeloupe",
+    "officialName": {
+      "short": "Guadeloupe"
+    },
+    "short": "GP",
+    "long": "GLP",
+    "m49": "312",
+    "itu": "GDL",
+    "marc": "gp",
+    "wmo": "MF",
+    "ds": "F",
+    "dial": [
+      "590"
+    ],
+    "fifa": "GLP",
+    "fips": "GP",
+    "gaul": "100",
+    "ioc": "GUD",
+    "currency": {
+      "code": "EUR",
+      "countryName": "GUADELOUPE",
+      "minorUnit": "2",
+      "name": "Euro",
+      "numCode": "978"
+    },
+    "isIndependent": "Part of FR",
+    "capital": "Basse-Terre",
+    "continent": "NA",
+    "tld": ".gp",
+    "languages": [
+      "fr-GP"
+    ],
+    "geoNameId": "3579143",
+    "edgar": "J6"
+  },
+  {
+    "full": "Guam",
+    "officialName": {
+      "short": "Guam"
+    },
+    "short": "GU",
+    "long": "GUM",
+    "m49": "316",
+    "itu": "GUM",
+    "marc": "gu",
+    "wmo": "GM",
+    "ds": "USA",
+    "dial": [
+      "1-671"
+    ],
+    "fifa": "GUM",
+    "fips": "GQ",
+    "gaul": "101",
+    "ioc": "GUM",
+    "currency": {
+      "code": "USD",
+      "countryName": "GUAM",
+      "minorUnit": "2",
+      "name": "US Dollar",
+      "numCode": "840"
+    },
+    "isIndependent": "Territory of US",
+    "capital": "Hagatna",
+    "continent": "OC",
+    "tld": ".gu",
+    "languages": [
+      "en-GU",
+      "ch-GU"
+    ],
+    "geoNameId": "4043988",
+    "edgar": "GU"
+  },
+  {
+    "full": "Guatemala",
+    "officialName": {
+      "short": "Guatemala"
+    },
+    "short": "GT",
+    "long": "GTM",
+    "m49": "320",
+    "itu": "GTM",
+    "marc": "gt",
+    "wmo": "GU",
+    "ds": "GCA",
+    "dial": [
+      "502"
+    ],
+    "fifa": "GUA",
+    "fips": "GT",
+    "gaul": "103",
+    "ioc": "GUA",
+    "currency": {
+      "code": "GTQ",
+      "countryName": "GUATEMALA",
+      "minorUnit": "2",
+      "name": "Quetzal",
+      "numCode": "320"
+    },
+    "isIndependent": "Yes",
+    "capital": "Guatemala City",
+    "continent": "NA",
+    "tld": ".gt",
+    "languages": [
+      "es-GT"
+    ],
+    "geoNameId": "3595528",
+    "edgar": "J8"
+  },
+  {
+    "full": "Guernsey",
+    "officialName": {
+      "short": "Guernsey"
+    },
+    "short": "GG",
+    "long": "GGY",
+    "m49": "831",
+    "itu": "",
+    "marc": "uik",
+    "wmo": "",
+    "ds": "GBG",
+    "dial": [
+      "44"
+    ],
+    "fifa": "GBG",
+    "fips": "GK",
+    "gaul": "104",
+    "ioc": "",
+    "currency": {
+      "code": "GBP",
+      "countryName": "GUERNSEY",
+      "minorUnit": "2",
+      "name": "Pound Sterling",
+      "numCode": "826"
+    },
+    "isIndependent": "Crown dependency of GB",
+    "capital": "St Peter Port",
+    "continent": "EU",
+    "tld": ".gg",
+    "languages": [
+      "en",
+      "fr"
+    ],
+    "geoNameId": "3042362",
+    "edgar": "Y7"
+  },
+  {
+    "full": "Guinea",
+    "officialName": {
+      "short": "Guinea"
+    },
+    "short": "GN",
+    "long": "GIN",
+    "m49": "324",
+    "itu": "GUI",
+    "marc": "gv",
+    "wmo": "GN",
+    "ds": "RG",
+    "dial": [
+      "224"
+    ],
+    "fifa": "GUI",
+    "fips": "GV",
+    "gaul": "106",
+    "ioc": "GUI",
+    "currency": {
+      "code": "GNF",
+      "countryName": "GUINEA",
+      "minorUnit": "0",
+      "name": "Guinea Franc",
+      "numCode": "324"
+    },
+    "isIndependent": "Yes",
+    "capital": "Conakry",
+    "continent": "AF",
+    "tld": ".gn",
+    "languages": [
+      "fr-GN"
+    ],
+    "geoNameId": "2420477",
+    "edgar": "J9"
+  },
+  {
+    "full": "Guinea-Bissau",
+    "officialName": {
+      "short": "Guinea-Bissau"
+    },
+    "short": "GW",
+    "long": "GNB",
+    "m49": "624",
+    "itu": "GNB",
+    "marc": "pg",
+    "wmo": "GW",
+    "ds": "GW",
+    "dial": [
+      "245"
+    ],
+    "fifa": "GNB",
+    "fips": "PU",
+    "gaul": "105",
+    "ioc": "GBS",
+    "currency": {
+      "code": "XOF",
+      "countryName": "GUINEA-BISSAU",
+      "minorUnit": "0",
+      "name": "CFA Franc BCEAO",
+      "numCode": "952"
+    },
+    "isIndependent": "Yes",
+    "capital": "Bissau",
+    "continent": "AF",
+    "tld": ".gw",
+    "languages": [
+      "pt-GW",
+      "pov"
+    ],
+    "geoNameId": "2372248",
+    "edgar": "S0"
+  },
+  {
+    "full": "Guyana",
+    "officialName": {
+      "short": "Guyana"
+    },
+    "short": "GY",
+    "long": "GUY",
+    "m49": "328",
+    "itu": "GUY",
+    "marc": "gy",
+    "wmo": "GY",
+    "ds": "GUY",
+    "dial": [
+      "592"
+    ],
+    "fifa": "GUY",
+    "fips": "GY",
+    "gaul": "107",
+    "ioc": "GUY",
+    "currency": {
+      "code": "GYD",
+      "countryName": "GUYANA",
+      "minorUnit": "2",
+      "name": "Guyana Dollar",
+      "numCode": "328"
+    },
+    "isIndependent": "Yes",
+    "capital": "Georgetown",
+    "continent": "SA",
+    "tld": ".gy",
+    "languages": [
+      "en-GY"
+    ],
+    "geoNameId": "3378535",
+    "edgar": "K0"
+  },
+  {
+    "full": "Haiti",
+    "officialName": {
+      "short": "Haiti"
+    },
+    "short": "HT",
+    "long": "HTI",
+    "m49": "332",
+    "itu": "HTI",
+    "marc": "ht",
+    "wmo": "HA",
+    "ds": "RH",
+    "dial": [
+      "509"
+    ],
+    "fifa": "HAI",
+    "fips": "HA",
+    "gaul": "108",
+    "ioc": "HAI",
+    "currency": {
+      "code": "USD",
+      "countryName": "HAITI",
+      "minorUnit": "2",
+      "name": "US Dollar",
+      "numCode": "840"
+    },
+    "isIndependent": "Yes",
+    "capital": "Port-au-Prince",
+    "continent": "NA",
+    "tld": ".ht",
+    "languages": [
+      "ht",
+      "fr-HT"
+    ],
+    "geoNameId": "3723988",
+    "edgar": "K1"
+  },
+  {
+    "full": "Heard & McDonald Islands",
+    "officialName": {
+      "short": ""
+    },
+    "short": "HM",
+    "long": "HMD",
+    "m49": "334",
+    "itu": "",
+    "marc": "hm",
+    "wmo": "",
+    "ds": "AUS",
+    "dial": [
+      "672"
+    ],
+    "fifa": "",
+    "fips": "HM",
+    "gaul": "109",
+    "ioc": "",
+    "currency": {
+      "code": "",
+      "countryName": "",
+      "minorUnit": "",
+      "name": "",
+      "numCode": ""
+    },
+    "isIndependent": "Territory of AU",
+    "capital": "",
+    "continent": "AN",
+    "tld": ".hm",
+    "languages": [
+      ""
+    ],
+    "geoNameId": "1547314",
+    "edgar": ""
+  },
+  {
+    "full": "Honduras",
+    "officialName": {
+      "short": "Honduras"
+    },
+    "short": "HN",
+    "long": "HND",
+    "m49": "340",
+    "itu": "HND",
+    "marc": "ho",
+    "wmo": "HO",
+    "ds": "",
+    "dial": [
+      "504"
+    ],
+    "fifa": "HON",
+    "fips": "HO",
+    "gaul": "111",
+    "ioc": "HON",
+    "currency": {
+      "code": "HNL",
+      "countryName": "HONDURAS",
+      "minorUnit": "2",
+      "name": "Lempira",
+      "numCode": "340"
+    },
+    "isIndependent": "Yes",
+    "capital": "Tegucigalpa",
+    "continent": "NA",
+    "tld": ".hn",
+    "languages": [
+      "es-HN"
+    ],
+    "geoNameId": "3608932",
+    "edgar": "K2"
+  },
+  {
+    "full": "Hong Kong",
+    "officialName": {
+      "short": "China, Hong Kong Special Administrative Region"
+    },
+    "short": "HK",
+    "long": "HKG",
+    "m49": "344",
+    "itu": "HKG",
+    "marc": "",
+    "wmo": "HK",
+    "ds": "HK",
+    "dial": [
+      "852"
+    ],
+    "fifa": "HKG",
+    "fips": "HK",
+    "gaul": "33364",
+    "ioc": "HKG",
+    "currency": {
+      "code": "",
+      "countryName": "",
+      "minorUnit": "",
+      "name": "",
+      "numCode": ""
+    },
+    "isIndependent": "Part of CN",
+    "capital": "Hong Kong",
+    "continent": "AS",
+    "tld": ".hk",
+    "languages": [
+      "zh-HK",
+      "yue",
+      "zh",
+      "en"
+    ],
+    "geoNameId": "1819730",
+    "edgar": ""
+  },
+  {
+    "full": "Hungary",
+    "officialName": {
+      "short": "Hungary"
+    },
+    "short": "HU",
+    "long": "HUN",
+    "m49": "348",
+    "itu": "HNG",
+    "marc": "hu",
+    "wmo": "HU",
+    "ds": "H",
+    "dial": [
+      "36"
+    ],
+    "fifa": "HUN",
+    "fips": "HU",
+    "gaul": "113",
+    "ioc": "HUN",
+    "currency": {
+      "code": "HUF",
+      "countryName": "HUNGARY",
+      "minorUnit": "2",
+      "name": "Forint",
+      "numCode": "348"
+    },
+    "isIndependent": "Yes",
+    "capital": "Budapest",
+    "continent": "EU",
+    "tld": ".hu",
+    "languages": [
+      "hu-HU"
+    ],
+    "geoNameId": "719819",
+    "edgar": "K5"
+  },
+  {
+    "full": "Iceland",
+    "officialName": {
+      "short": "Iceland"
+    },
+    "short": "IS",
+    "long": "ISL",
+    "m49": "352",
+    "itu": "ISL",
+    "marc": "ic",
+    "wmo": "IL",
+    "ds": "IS",
+    "dial": [
+      "354"
+    ],
+    "fifa": "ISL",
+    "fips": "IC",
+    "gaul": "114",
+    "ioc": "ISL",
+    "currency": {
+      "code": "ISK",
+      "countryName": "ICELAND",
+      "minorUnit": "0",
+      "name": "Iceland Krona",
+      "numCode": "352"
+    },
+    "isIndependent": "Yes",
+    "capital": "Reykjavik",
+    "continent": "EU",
+    "tld": ".is",
+    "languages": [
+      "is",
+      "en",
+      "de",
+      "da",
+      "sv",
+      "no"
+    ],
+    "geoNameId": "2629691",
+    "edgar": "K6"
+  },
+  {
+    "full": "India",
+    "officialName": {
+      "short": "India"
+    },
+    "short": "IN",
+    "long": "IND",
+    "m49": "356",
+    "itu": "IND",
+    "marc": "ii",
+    "wmo": "IN",
+    "ds": "IND",
+    "dial": [
+      "91"
+    ],
+    "fifa": "IND",
+    "fips": "IN",
+    "gaul": "115",
+    "ioc": "IND",
+    "currency": {
+      "code": "INR",
+      "countryName": "INDIA",
+      "minorUnit": "2",
+      "name": "Indian Rupee",
+      "numCode": "356"
+    },
+    "isIndependent": "Yes",
+    "capital": "New Delhi",
+    "continent": "AS",
+    "tld": ".in",
+    "languages": [
+      "en-IN",
+      "hi",
+      "bn",
+      "te",
+      "mr",
+      "ta",
+      "ur",
+      "gu",
+      "kn",
+      "ml",
+      "or",
+      "pa",
+      "as",
+      "bh",
+      "sat",
+      "ks",
+      "ne",
+      "sd",
+      "kok",
+      "doi",
+      "mni",
+      "sit",
+      "sa",
+      "fr",
+      "lus",
+      "inc"
+    ],
+    "geoNameId": "1269750",
+    "edgar": "K7"
+  },
+  {
+    "full": "Indonesia",
+    "officialName": {
+      "short": "Indonesia"
+    },
+    "short": "ID",
+    "long": "IDN",
+    "m49": "360",
+    "itu": "INS",
+    "marc": "io",
+    "wmo": "ID",
+    "ds": "RI",
+    "dial": [
+      "62"
+    ],
+    "fifa": "IDN",
+    "fips": "ID",
+    "gaul": "116",
+    "ioc": "INA",
+    "currency": {
+      "code": "IDR",
+      "countryName": "INDONESIA",
+      "minorUnit": "2",
+      "name": "Rupiah",
+      "numCode": "360"
+    },
+    "isIndependent": "Yes",
+    "capital": "Jakarta",
+    "continent": "AS",
+    "tld": ".id",
+    "languages": [
+      "id",
+      "en",
+      "nl",
+      "jv"
+    ],
+    "geoNameId": "1643084",
+    "edgar": "K8"
+  },
+  {
+    "full": "Iran",
+    "officialName": {
+      "short": "Iran (Islamic Republic of)"
+    },
+    "short": "IR",
+    "long": "IRN",
+    "m49": "364",
+    "itu": "IRN",
+    "marc": "ir",
+    "wmo": "IR",
+    "ds": "IR",
+    "dial": [
+      "98"
+    ],
+    "fifa": "IRN",
+    "fips": "IR",
+    "gaul": "117",
+    "ioc": "IRI",
+    "currency": {
+      "code": "IRR",
+      "countryName": "IRAN, ISLAMIC REPUBLIC OF",
+      "minorUnit": "2",
+      "name": "Iranian Rial",
+      "numCode": "364"
+    },
+    "isIndependent": "Yes",
+    "capital": "Tehran",
+    "continent": "AS",
+    "tld": ".ir",
+    "languages": [
+      "fa-IR",
+      "ku"
+    ],
+    "geoNameId": "130758",
+    "edgar": "K9"
+  },
+  {
+    "full": "Iraq",
+    "officialName": {
+      "short": "Iraq"
+    },
+    "short": "IQ",
+    "long": "IRQ",
+    "m49": "368",
+    "itu": "IRQ",
+    "marc": "iq",
+    "wmo": "IQ",
+    "ds": "IRQ",
+    "dial": [
+      "964"
+    ],
+    "fifa": "IRQ",
+    "fips": "IZ",
+    "gaul": "118",
+    "ioc": "IRQ",
+    "currency": {
+      "code": "IQD",
+      "countryName": "IRAQ",
+      "minorUnit": "3",
+      "name": "Iraqi Dinar",
+      "numCode": "368"
+    },
+    "isIndependent": "Yes",
+    "capital": "Baghdad",
+    "continent": "AS",
+    "tld": ".iq",
+    "languages": [
+      "ar-IQ",
+      "ku",
+      "hy"
+    ],
+    "geoNameId": "99237",
+    "edgar": "L0"
+  },
+  {
+    "full": "Ireland",
+    "officialName": {
+      "short": "Ireland"
+    },
+    "short": "IE",
+    "long": "IRL",
+    "m49": "372",
+    "itu": "IRL",
+    "marc": "ie",
+    "wmo": "IE",
+    "ds": "IRL",
+    "dial": [
+      "353"
+    ],
+    "fifa": "IRL",
+    "fips": "EI",
+    "gaul": "119",
+    "ioc": "IRL",
+    "currency": {
+      "code": "EUR",
+      "countryName": "IRELAND",
+      "minorUnit": "2",
+      "name": "Euro",
+      "numCode": "978"
+    },
+    "isIndependent": "Yes",
+    "capital": "Dublin",
+    "continent": "EU",
+    "tld": ".ie",
+    "languages": [
+      "en-IE",
+      "ga-IE"
+    ],
+    "geoNameId": "2963597",
+    "edgar": "L2"
+  },
+  {
+    "full": "Isle of Man",
+    "officialName": {
+      "short": "Isle of Man"
+    },
+    "short": "IM",
+    "long": "IMN",
+    "m49": "833",
+    "itu": "",
+    "marc": "uik",
+    "wmo": "",
+    "ds": "GBM",
+    "dial": [
+      "44"
+    ],
+    "fifa": "GBM",
+    "fips": "IM",
+    "gaul": "120",
+    "ioc": "",
+    "currency": {
+      "code": "GBP",
+      "countryName": "ISLE OF MAN",
+      "minorUnit": "2",
+      "name": "Pound Sterling",
+      "numCode": "826"
+    },
+    "isIndependent": "Crown dependency of GB",
+    "capital": "Douglas",
+    "continent": "EU",
+    "tld": ".im",
+    "languages": [
+      "en",
+      "gv"
+    ],
+    "geoNameId": "3042225",
+    "edgar": "Y8"
+  },
+  {
+    "full": "Israel",
+    "officialName": {
+      "short": "Israel"
+    },
+    "short": "IL",
+    "long": "ISR",
+    "m49": "376",
+    "itu": "ISR",
+    "marc": "is",
+    "wmo": "IS",
+    "ds": "IL",
+    "dial": [
+      "972"
+    ],
+    "fifa": "ISR",
+    "fips": "IS",
+    "gaul": "121",
+    "ioc": "ISR",
+    "currency": {
+      "code": "ILS",
+      "countryName": "ISRAEL",
+      "minorUnit": "2",
+      "name": "New Israeli Sheqel",
+      "numCode": "376"
+    },
+    "isIndependent": "Yes",
+    "capital": "Jerusalem",
+    "continent": "AS",
+    "tld": ".il",
+    "languages": [
+      "he",
+      "ar-IL",
+      "en-IL",
+      ""
+    ],
+    "geoNameId": "294640",
+    "edgar": "L3"
+  },
+  {
+    "full": "Italy",
+    "officialName": {
+      "short": "Italy"
+    },
+    "short": "IT",
+    "long": "ITA",
+    "m49": "380",
+    "itu": "I",
+    "marc": "it",
+    "wmo": "IY",
+    "ds": "I",
+    "dial": [
+      "39"
+    ],
+    "fifa": "ITA",
+    "fips": "IT",
+    "gaul": "122",
+    "ioc": "ITA",
+    "currency": {
+      "code": "EUR",
+      "countryName": "ITALY",
+      "minorUnit": "2",
+      "name": "Euro",
+      "numCode": "978"
+    },
+    "isIndependent": "Yes",
+    "capital": "Rome",
+    "continent": "EU",
+    "tld": ".it",
+    "languages": [
+      "it-IT",
+      "de-IT",
+      "fr-IT",
+      "sc",
+      "ca",
+      "co",
+      "sl"
+    ],
+    "geoNameId": "3175395",
+    "edgar": "L6"
+  },
+  {
+    "full": "Jamaica",
+    "officialName": {
+      "short": "Jamaica"
+    },
+    "short": "JM",
+    "long": "JAM",
+    "m49": "388",
+    "itu": "JMC",
+    "marc": "jm",
+    "wmo": "JM",
+    "ds": "JA",
+    "dial": [
+      "1-876"
+    ],
+    "fifa": "JAM",
+    "fips": "JM",
+    "gaul": "123",
+    "ioc": "JAM",
+    "currency": {
+      "code": "JMD",
+      "countryName": "JAMAICA",
+      "minorUnit": "2",
+      "name": "Jamaican Dollar",
+      "numCode": "388"
+    },
+    "isIndependent": "Yes",
+    "capital": "Kingston",
+    "continent": "NA",
+    "tld": ".jm",
+    "languages": [
+      "en-JM"
+    ],
+    "geoNameId": "3489940",
+    "edgar": "L8"
+  },
+  {
+    "full": "Japan",
+    "officialName": {
+      "short": "Japan"
+    },
+    "short": "JP",
+    "long": "JPN",
+    "m49": "392",
+    "itu": "J",
+    "marc": "ja",
+    "wmo": "JP",
+    "ds": "J",
+    "dial": [
+      "81"
+    ],
+    "fifa": "JPN",
+    "fips": "JA",
+    "gaul": "126",
+    "ioc": "JPN",
+    "currency": {
+      "code": "JPY",
+      "countryName": "JAPAN",
+      "minorUnit": "0",
+      "name": "Yen",
+      "numCode": "392"
+    },
+    "isIndependent": "Yes",
+    "capital": "Tokyo",
+    "continent": "AS",
+    "tld": ".jp",
+    "languages": [
+      "ja"
+    ],
+    "geoNameId": "1861060",
+    "edgar": "M0"
+  },
+  {
+    "full": "Jersey",
+    "officialName": {
+      "short": "Jersey"
+    },
+    "short": "JE",
+    "long": "JEY",
+    "m49": "832",
+    "itu": "",
+    "marc": "uik",
+    "wmo": "",
+    "ds": "GBJ",
+    "dial": [
+      "44"
+    ],
+    "fifa": "GBJ",
+    "fips": "JE",
+    "gaul": "128",
+    "ioc": "",
+    "currency": {
+      "code": "GBP",
+      "countryName": "JERSEY",
+      "minorUnit": "2",
+      "name": "Pound Sterling",
+      "numCode": "826"
+    },
+    "isIndependent": "Crown dependency of GB",
+    "capital": "Saint Helier",
+    "continent": "EU",
+    "tld": ".je",
+    "languages": [
+      "en",
+      "pt"
+    ],
+    "geoNameId": "3042142",
+    "edgar": "Y9"
+  },
+  {
+    "full": "Jordan",
+    "officialName": {
+      "short": "Jordan"
+    },
+    "short": "JO",
+    "long": "JOR",
+    "m49": "400",
+    "itu": "JOR",
+    "marc": "jo",
+    "wmo": "JD",
+    "ds": "HKJ",
+    "dial": [
+      "962"
+    ],
+    "fifa": "JOR",
+    "fips": "JO",
+    "gaul": "130",
+    "ioc": "JOR",
+    "currency": {
+      "code": "JOD",
+      "countryName": "JORDAN",
+      "minorUnit": "3",
+      "name": "Jordanian Dinar",
+      "numCode": "400"
+    },
+    "isIndependent": "Yes",
+    "capital": "Amman",
+    "continent": "AS",
+    "tld": ".jo",
+    "languages": [
+      "ar-JO",
+      "en"
+    ],
+    "geoNameId": "248816",
+    "edgar": "M2"
+  },
+  {
+    "full": "Kazakhstan",
+    "officialName": {
+      "short": "Kazakhstan"
+    },
+    "short": "KZ",
+    "long": "KAZ",
+    "m49": "398",
+    "itu": "KAZ",
+    "marc": "kz",
+    "wmo": "KZ",
+    "ds": "KZ",
+    "dial": [
+      "7"
+    ],
+    "fifa": "KAZ",
+    "fips": "KZ",
+    "gaul": "132",
+    "ioc": "KAZ",
+    "currency": {
+      "code": "KZT",
+      "countryName": "KAZAKHSTAN",
+      "minorUnit": "2",
+      "name": "Tenge",
+      "numCode": "398"
+    },
+    "isIndependent": "Yes",
+    "capital": "Astana",
+    "continent": "AS",
+    "tld": ".kz",
+    "languages": [
+      "kk",
+      "ru"
+    ],
+    "geoNameId": "1522867",
+    "edgar": ""
+  },
+  {
+    "full": "Kenya",
+    "officialName": {
+      "short": "Kenya"
+    },
+    "short": "KE",
+    "long": "KEN",
+    "m49": "404",
+    "itu": "KEN",
+    "marc": "ke",
+    "wmo": "KN",
+    "ds": "EAK",
+    "dial": [
+      "254"
+    ],
+    "fifa": "KEN",
+    "fips": "KE",
+    "gaul": "133",
+    "ioc": "KEN",
+    "currency": {
+      "code": "KES",
+      "countryName": "KENYA",
+      "minorUnit": "2",
+      "name": "Kenyan Shilling",
+      "numCode": "404"
+    },
+    "isIndependent": "Yes",
+    "capital": "Nairobi",
+    "continent": "AF",
+    "tld": ".ke",
+    "languages": [
+      "en-KE",
+      "sw-KE"
+    ],
+    "geoNameId": "192950",
+    "edgar": "M3"
+  },
+  {
+    "full": "Kiribati",
+    "officialName": {
+      "short": "Kiribati"
+    },
+    "short": "KI",
+    "long": "KIR",
+    "m49": "296",
+    "itu": "KIR",
+    "marc": "gb",
+    "wmo": "KB",
+    "ds": "",
+    "dial": [
+      "686"
+    ],
+    "fifa": "KIR",
+    "fips": "KR",
+    "gaul": "135",
+    "ioc": "KIR",
+    "currency": {
+      "code": "AUD",
+      "countryName": "KIRIBATI",
+      "minorUnit": "2",
+      "name": "Australian Dollar",
+      "numCode": "36"
+    },
+    "isIndependent": "Yes",
+    "capital": "Tarawa",
+    "continent": "OC",
+    "tld": ".ki",
+    "languages": [
+      "en-KI",
+      "gil"
+    ],
+    "geoNameId": "4030945",
+    "edgar": "J2"
+  },
+  {
+    "full": "Kuwait",
+    "officialName": {
+      "short": "Kuwait"
+    },
+    "short": "KW",
+    "long": "KWT",
+    "m49": "414",
+    "itu": "KWT",
+    "marc": "ku",
+    "wmo": "KW",
+    "ds": "KWT",
+    "dial": [
+      "965"
+    ],
+    "fifa": "KUW",
+    "fips": "KU",
+    "gaul": "137",
+    "ioc": "KUW",
+    "currency": {
+      "code": "KWD",
+      "countryName": "KUWAIT",
+      "minorUnit": "3",
+      "name": "Kuwaiti Dinar",
+      "numCode": "414"
+    },
+    "isIndependent": "Yes",
+    "capital": "Kuwait City",
+    "continent": "AS",
+    "tld": ".kw",
+    "languages": [
+      "ar-KW",
+      "en"
+    ],
+    "geoNameId": "285570",
+    "edgar": "M6"
+  },
+  {
+    "full": "Kyrgyzstan",
+    "officialName": {
+      "short": "Kyrgyzstan"
+    },
+    "short": "KG",
+    "long": "KGZ",
+    "m49": "417",
+    "itu": "KGZ",
+    "marc": "kg",
+    "wmo": "KG",
+    "ds": "KS",
+    "dial": [
+      "996"
+    ],
+    "fifa": "KGZ",
+    "fips": "KG",
+    "gaul": "138",
+    "ioc": "KGZ",
+    "currency": {
+      "code": "KGS",
+      "countryName": "KYRGYZSTAN",
+      "minorUnit": "2",
+      "name": "Som",
+      "numCode": "417"
+    },
+    "isIndependent": "Yes",
+    "capital": "Bishkek",
+    "continent": "AS",
+    "tld": ".kg",
+    "languages": [
+      "ky",
+      "uz",
+      "ru"
+    ],
+    "geoNameId": "1527747",
+    "edgar": "1N"
+  },
+  {
+    "full": "Laos",
+    "officialName": {
+      "short": "Lao People's Democratic Republic"
+    },
+    "short": "LA",
+    "long": "LAO",
+    "m49": "418",
+    "itu": "LAO",
+    "marc": "ls",
+    "wmo": "LA",
+    "ds": "LAO",
+    "dial": [
+      "856"
+    ],
+    "fifa": "LAO",
+    "fips": "LA",
+    "gaul": "139",
+    "ioc": "LAO",
+    "currency": {
+      "code": "LAK",
+      "countryName": "LAO PEOPLE’S DEMOCRATIC REPUBLIC",
+      "minorUnit": "2",
+      "name": "Kip",
+      "numCode": "418"
+    },
+    "isIndependent": "Yes",
+    "capital": "Vientiane",
+    "continent": "AS",
+    "tld": ".la",
+    "languages": [
+      "lo",
+      "fr",
+      "en"
+    ],
+    "geoNameId": "1655842",
+    "edgar": ""
+  },
+  {
+    "full": "Latvia",
+    "officialName": {
+      "short": "Latvia"
+    },
+    "short": "LV",
+    "long": "LVA",
+    "m49": "428",
+    "itu": "LVA",
+    "marc": "lv",
+    "wmo": "LV",
+    "ds": "LV",
+    "dial": [
+      "371"
+    ],
+    "fifa": "LVA",
+    "fips": "LG",
+    "gaul": "140",
+    "ioc": "LAT",
+    "currency": {
+      "code": "EUR",
+      "countryName": "LATVIA",
+      "minorUnit": "2",
+      "name": "Euro",
+      "numCode": "978"
+    },
+    "isIndependent": "Yes",
+    "capital": "Riga",
+    "continent": "EU",
+    "tld": ".lv",
+    "languages": [
+      "lv",
+      "ru",
+      "lt"
+    ],
+    "geoNameId": "458258",
+    "edgar": "1R"
+  },
+  {
+    "full": "Lebanon",
+    "officialName": {
+      "short": "Lebanon"
+    },
+    "short": "LB",
+    "long": "LBN",
+    "m49": "422",
+    "itu": "LBN",
+    "marc": "le",
+    "wmo": "LB",
+    "ds": "RL",
+    "dial": [
+      "961"
+    ],
+    "fifa": "LIB",
+    "fips": "LE",
+    "gaul": "141",
+    "ioc": "LIB",
+    "currency": {
+      "code": "LBP",
+      "countryName": "LEBANON",
+      "minorUnit": "2",
+      "name": "Lebanese Pound",
+      "numCode": "422"
+    },
+    "isIndependent": "Yes",
+    "capital": "Beirut",
+    "continent": "AS",
+    "tld": ".lb",
+    "languages": [
+      "ar-LB",
+      "fr-LB",
+      "en",
+      "hy"
+    ],
+    "geoNameId": "272103",
+    "edgar": "M8"
+  },
+  {
+    "full": "Lesotho",
+    "officialName": {
+      "short": "Lesotho"
+    },
+    "short": "LS",
+    "long": "LSO",
+    "m49": "426",
+    "itu": "LSO",
+    "marc": "lo",
+    "wmo": "LS",
+    "ds": "LS",
+    "dial": [
+      "266"
+    ],
+    "fifa": "LES",
+    "fips": "LT",
+    "gaul": "142",
+    "ioc": "LES",
+    "currency": {
+      "code": "ZAR",
+      "countryName": "LESOTHO",
+      "minorUnit": "2",
+      "name": "Rand",
+      "numCode": "710"
+    },
+    "isIndependent": "Yes",
+    "capital": "Maseru",
+    "continent": "AF",
+    "tld": ".ls",
+    "languages": [
+      "en-LS",
+      "st",
+      "zu",
+      "xh"
+    ],
+    "geoNameId": "932692",
+    "edgar": "M9"
+  },
+  {
+    "full": "Liberia",
+    "officialName": {
+      "short": "Liberia"
+    },
+    "short": "LR",
+    "long": "LBR",
+    "m49": "430",
+    "itu": "LBR",
+    "marc": "lb",
+    "wmo": "LI",
+    "ds": "LB",
+    "dial": [
+      "231"
+    ],
+    "fifa": "LBR",
+    "fips": "LI",
+    "gaul": "144",
+    "ioc": "LBR",
+    "currency": {
+      "code": "LRD",
+      "countryName": "LIBERIA",
+      "minorUnit": "2",
+      "name": "Liberian Dollar",
+      "numCode": "430"
+    },
+    "isIndependent": "Yes",
+    "capital": "Monrovia",
+    "continent": "AF",
+    "tld": ".lr",
+    "languages": [
+      "en-LR"
+    ],
+    "geoNameId": "2275384",
+    "edgar": "N0"
+  },
+  {
+    "full": "Libya",
+    "officialName": {
+      "short": "Libya"
+    },
+    "short": "LY",
+    "long": "LBY",
+    "m49": "434",
+    "itu": "LBY",
+    "marc": "ly",
+    "wmo": "LY",
+    "ds": "LAR",
+    "dial": [
+      "218"
+    ],
+    "fifa": "LBY",
+    "fips": "LY",
+    "gaul": "145",
+    "ioc": "LBA",
+    "currency": {
+      "code": "LYD",
+      "countryName": "LIBYA",
+      "minorUnit": "3",
+      "name": "Libyan Dinar",
+      "numCode": "434"
+    },
+    "isIndependent": "Yes",
+    "capital": "Tripoli",
+    "continent": "AF",
+    "tld": ".ly",
+    "languages": [
+      "ar-LY",
+      "it",
+      "en"
+    ],
+    "geoNameId": "2215636",
+    "edgar": ""
+  },
+  {
+    "full": "Liechtenstein",
+    "officialName": {
+      "short": "Liechtenstein"
+    },
+    "short": "LI",
+    "long": "LIE",
+    "m49": "438",
+    "itu": "LIE",
+    "marc": "lh",
+    "wmo": "",
+    "ds": "FL",
+    "dial": [
+      "423"
+    ],
+    "fifa": "LIE",
+    "fips": "LS",
+    "gaul": "146",
+    "ioc": "LIE",
+    "currency": {
+      "code": "CHF",
+      "countryName": "LIECHTENSTEIN",
+      "minorUnit": "2",
+      "name": "Swiss Franc",
+      "numCode": "756"
+    },
+    "isIndependent": "Yes",
+    "capital": "Vaduz",
+    "continent": "EU",
+    "tld": ".li",
+    "languages": [
+      "de-LI"
+    ],
+    "geoNameId": "3042058",
+    "edgar": "N2"
+  },
+  {
+    "full": "Lithuania",
+    "officialName": {
+      "short": "Lithuania"
+    },
+    "short": "LT",
+    "long": "LTU",
+    "m49": "440",
+    "itu": "LTU",
+    "marc": "li",
+    "wmo": "LT",
+    "ds": "LT",
+    "dial": [
+      "370"
+    ],
+    "fifa": "LTU",
+    "fips": "LH",
+    "gaul": "147",
+    "ioc": "LTU",
+    "currency": {
+      "code": "EUR",
+      "countryName": "LITHUANIA",
+      "minorUnit": "2",
+      "name": "Euro",
+      "numCode": "978"
+    },
+    "isIndependent": "Yes",
+    "capital": "Vilnius",
+    "continent": "EU",
+    "tld": ".lt",
+    "languages": [
+      "lt",
+      "ru",
+      "pl"
+    ],
+    "geoNameId": "597427",
+    "edgar": "1Q"
+  },
+  {
+    "full": "Luxembourg",
+    "officialName": {
+      "short": "Luxembourg"
+    },
+    "short": "LU",
+    "long": "LUX",
+    "m49": "442",
+    "itu": "LUX",
+    "marc": "lu",
+    "wmo": "BX",
+    "ds": "L",
+    "dial": [
+      "352"
+    ],
+    "fifa": "LUX",
+    "fips": "LU",
+    "gaul": "148",
+    "ioc": "LUX",
+    "currency": {
+      "code": "EUR",
+      "countryName": "LUXEMBOURG",
+      "minorUnit": "2",
+      "name": "Euro",
+      "numCode": "978"
+    },
+    "isIndependent": "Yes",
+    "capital": "Luxembourg",
+    "continent": "EU",
+    "tld": ".lu",
+    "languages": [
+      "lb",
+      "de-LU",
+      "fr-LU"
+    ],
+    "geoNameId": "2960313",
+    "edgar": "N4"
+  },
+  {
+    "full": "Macau",
+    "officialName": {
+      "short": "China, Macao Special Administrative Region"
+    },
+    "short": "MO",
+    "long": "MAC",
+    "m49": "446",
+    "itu": "MAC",
+    "marc": "",
+    "wmo": "MU",
+    "ds": "MO",
+    "dial": [
+      "853"
+    ],
+    "fifa": "MAC",
+    "fips": "MC",
+    "gaul": "149",
+    "ioc": "MAC",
+    "currency": {
+      "code": "MOP",
+      "countryName": "MACAO",
+      "minorUnit": "2",
+      "name": "Pataca",
+      "numCode": "446"
+    },
+    "isIndependent": "Part of CN",
+    "capital": "Macao",
+    "continent": "AS",
+    "tld": ".mo",
+    "languages": [
+      "zh",
+      "zh-MO",
+      "pt"
+    ],
+    "geoNameId": "1821275",
+    "edgar": ""
+  },
+  {
+    "full": "Macedonia",
+    "officialName": {
+      "short": "The former Yugoslav Republic of Macedonia"
+    },
+    "short": "MK",
+    "long": "MKD",
+    "m49": "807",
+    "itu": "MKD",
+    "marc": "xn",
+    "wmo": "MJ",
+    "ds": "MK",
+    "dial": [
+      "389"
+    ],
+    "fifa": "MKD",
+    "fips": "MK",
+    "gaul": "241",
+    "ioc": "MKD",
+    "currency": {
+      "code": "MKD",
+      "countryName": "MACEDONIA, THE FORMER YUGOSLAV REPUBLIC OF",
+      "minorUnit": "2",
+      "name": "Denar",
+      "numCode": "807"
+    },
+    "isIndependent": "Yes",
+    "capital": "Skopje",
+    "continent": "EU",
+    "tld": ".mk",
+    "languages": [
+      "mk",
+      "sq",
+      "tr",
+      "rmm",
+      "sr"
+    ],
+    "geoNameId": "718075",
+    "edgar": "1U"
+  },
+  {
+    "full": "Madagascar",
+    "officialName": {
+      "short": "Madagascar"
+    },
+    "short": "MG",
+    "long": "MDG",
+    "m49": "450",
+    "itu": "MDG",
+    "marc": "mg",
+    "wmo": "MG",
+    "ds": "RM",
+    "dial": [
+      "261"
+    ],
+    "fifa": "MAD",
+    "fips": "MA",
+    "gaul": "150",
+    "ioc": "MAD",
+    "currency": {
+      "code": "MGA",
+      "countryName": "MADAGASCAR",
+      "minorUnit": "2",
+      "name": "Malagasy Ariary",
+      "numCode": "969"
+    },
+    "isIndependent": "Yes",
+    "capital": "Antananarivo",
+    "continent": "AF",
+    "tld": ".mg",
+    "languages": [
+      "fr-MG",
+      "mg"
+    ],
+    "geoNameId": "1062947",
+    "edgar": "N6"
+  },
+  {
+    "full": "Malawi",
+    "officialName": {
+      "short": "Malawi"
+    },
+    "short": "MW",
+    "long": "MWI",
+    "m49": "454",
+    "itu": "MWI",
+    "marc": "mw",
+    "wmo": "MW",
+    "ds": "MW",
+    "dial": [
+      "265"
+    ],
+    "fifa": "MWI",
+    "fips": "MI",
+    "gaul": "152",
+    "ioc": "MAW",
+    "currency": {
+      "code": "MWK",
+      "countryName": "MALAWI",
+      "minorUnit": "2",
+      "name": "Kwacha",
+      "numCode": "454"
+    },
+    "isIndependent": "Yes",
+    "capital": "Lilongwe",
+    "continent": "AF",
+    "tld": ".mw",
+    "languages": [
+      "ny",
+      "yao",
+      "tum",
+      "swk"
+    ],
+    "geoNameId": "927384",
+    "edgar": "N7"
+  },
+  {
+    "full": "Malaysia",
+    "officialName": {
+      "short": "Malaysia"
+    },
+    "short": "MY",
+    "long": "MYS",
+    "m49": "458",
+    "itu": "MLA",
+    "marc": "my",
+    "wmo": "MS",
+    "ds": "MAL",
+    "dial": [
+      "60"
+    ],
+    "fifa": "MAS",
+    "fips": "MY",
+    "gaul": "153",
+    "ioc": "MAS",
+    "currency": {
+      "code": "MYR",
+      "countryName": "MALAYSIA",
+      "minorUnit": "2",
+      "name": "Malaysian Ringgit",
+      "numCode": "458"
+    },
+    "isIndependent": "Yes",
+    "capital": "Kuala Lumpur",
+    "continent": "AS",
+    "tld": ".my",
+    "languages": [
+      "ms-MY",
+      "en",
+      "zh",
+      "ta",
+      "te",
+      "ml",
+      "pa",
+      "th"
+    ],
+    "geoNameId": "1733045",
+    "edgar": "N8"
+  },
+  {
+    "full": "Maldives",
+    "officialName": {
+      "short": "Maldives"
+    },
+    "short": "MV",
+    "long": "MDV",
+    "m49": "462",
+    "itu": "MLD",
+    "marc": "xc",
+    "wmo": "MV",
+    "ds": "MV",
+    "dial": [
+      "960"
+    ],
+    "fifa": "MDV",
+    "fips": "MV",
+    "gaul": "154",
+    "ioc": "MDV",
+    "currency": {
+      "code": "MVR",
+      "countryName": "MALDIVES",
+      "minorUnit": "2",
+      "name": "Rufiyaa",
+      "numCode": "462"
+    },
+    "isIndependent": "Yes",
+    "capital": "Male",
+    "continent": "AS",
+    "tld": ".mv",
+    "languages": [
+      "dv",
+      "en"
+    ],
+    "geoNameId": "1282028",
+    "edgar": "N9"
+  },
+  {
+    "full": "Mali",
+    "officialName": {
+      "short": "Mali"
+    },
+    "short": "ML",
+    "long": "MLI",
+    "m49": "466",
+    "itu": "MLI",
+    "marc": "ml",
+    "wmo": "MI",
+    "ds": "RMM",
+    "dial": [
+      "223"
+    ],
+    "fifa": "MLI",
+    "fips": "ML",
+    "gaul": "155",
+    "ioc": "MLI",
+    "currency": {
+      "code": "XOF",
+      "countryName": "MALI",
+      "minorUnit": "0",
+      "name": "CFA Franc BCEAO",
+      "numCode": "952"
+    },
+    "isIndependent": "Yes",
+    "capital": "Bamako",
+    "continent": "AF",
+    "tld": ".ml",
+    "languages": [
+      "fr-ML",
+      "bm"
+    ],
+    "geoNameId": "2453866",
+    "edgar": "O0"
+  },
+  {
+    "full": "Malta",
+    "officialName": {
+      "short": "Malta"
+    },
+    "short": "MT",
+    "long": "MLT",
+    "m49": "470",
+    "itu": "MLT",
+    "marc": "mm",
+    "wmo": "ML",
+    "ds": "M",
+    "dial": [
+      "356"
+    ],
+    "fifa": "MLT",
+    "fips": "MT",
+    "gaul": "156",
+    "ioc": "MLT",
+    "currency": {
+      "code": "EUR",
+      "countryName": "MALTA",
+      "minorUnit": "2",
+      "name": "Euro",
+      "numCode": "978"
+    },
+    "isIndependent": "Yes",
+    "capital": "Valletta",
+    "continent": "EU",
+    "tld": ".mt",
+    "languages": [
+      "mt",
+      "en-MT"
+    ],
+    "geoNameId": "2562770",
+    "edgar": "O1"
+  },
+  {
+    "full": "Marshall Islands",
+    "officialName": {
+      "short": "Marshall Islands"
+    },
+    "short": "MH",
+    "long": "MHL",
+    "m49": "584",
+    "itu": "MHL",
+    "marc": "xe",
+    "wmo": "MH",
+    "ds": "",
+    "dial": [
+      "692"
+    ],
+    "fifa": "MHL",
+    "fips": "RM",
+    "gaul": "157",
+    "ioc": "MSH",
+    "currency": {
+      "code": "USD",
+      "countryName": "MARSHALL ISLANDS",
+      "minorUnit": "2",
+      "name": "US Dollar",
+      "numCode": "840"
+    },
+    "isIndependent": "Yes",
+    "capital": "Majuro",
+    "continent": "OC",
+    "tld": ".mh",
+    "languages": [
+      "mh",
+      "en-MH"
+    ],
+    "geoNameId": "2080185",
+    "edgar": "1T"
+  },
+  {
+    "full": "Martinique",
+    "officialName": {
+      "short": "Martinique"
+    },
+    "short": "MQ",
+    "long": "MTQ",
+    "m49": "474",
+    "itu": "MRT",
+    "marc": "mq",
+    "wmo": "MR",
+    "ds": "F",
+    "dial": [
+      "596"
+    ],
+    "fifa": "MTQ",
+    "fips": "MB",
+    "gaul": "158",
+    "ioc": "MRT",
+    "currency": {
+      "code": "EUR",
+      "countryName": "MARTINIQUE",
+      "minorUnit": "2",
+      "name": "Euro",
+      "numCode": "978"
+    },
+    "isIndependent": "Part of FR",
+    "capital": "Fort-de-France",
+    "continent": "NA",
+    "tld": ".mq",
+    "languages": [
+      "fr-MQ"
+    ],
+    "geoNameId": "3570311",
+    "edgar": "O2"
+  },
+  {
+    "full": "Mauritania",
+    "officialName": {
+      "short": "Mauritania"
+    },
+    "short": "MR",
+    "long": "MRT",
+    "m49": "478",
+    "itu": "MTN",
+    "marc": "mu",
+    "wmo": "MT",
+    "ds": "RIM",
+    "dial": [
+      "222"
+    ],
+    "fifa": "MTN",
+    "fips": "MR",
+    "gaul": "159",
+    "ioc": "MTN",
+    "currency": {
+      "code": "MRO",
+      "countryName": "MAURITANIA",
+      "minorUnit": "2",
+      "name": "Ouguiya",
+      "numCode": "478"
+    },
+    "isIndependent": "Yes",
+    "capital": "Nouakchott",
+    "continent": "AF",
+    "tld": ".mr",
+    "languages": [
+      "ar-MR",
+      "fuc",
+      "snk",
+      "fr",
+      "mey",
+      "wo"
+    ],
+    "geoNameId": "2378080",
+    "edgar": "O3"
+  },
+  {
+    "full": "Mauritius",
+    "officialName": {
+      "short": "Mauritius"
+    },
+    "short": "MU",
+    "long": "MUS",
+    "m49": "480",
+    "itu": "MAU",
+    "marc": "mf",
+    "wmo": "MA",
+    "ds": "MS",
+    "dial": [
+      "230"
+    ],
+    "fifa": "MRI",
+    "fips": "MP",
+    "gaul": "160",
+    "ioc": "MRI",
+    "currency": {
+      "code": "MUR",
+      "countryName": "MAURITIUS",
+      "minorUnit": "2",
+      "name": "Mauritius Rupee",
+      "numCode": "480"
+    },
+    "isIndependent": "Yes",
+    "capital": "Port Louis",
+    "continent": "AF",
+    "tld": ".mu",
+    "languages": [
+      "en-MU",
+      "bho",
+      "fr"
+    ],
+    "geoNameId": "934292",
+    "edgar": "O4"
+  },
+  {
+    "full": "Mayotte",
+    "officialName": {
+      "short": "Mayotte"
+    },
+    "short": "YT",
+    "long": "MYT",
+    "m49": "175",
+    "itu": "MYT",
+    "marc": "ot",
+    "wmo": "",
+    "ds": "",
+    "dial": [
+      "262"
+    ],
+    "fifa": "MYT",
+    "fips": "MF",
+    "gaul": "161",
+    "ioc": "MAY",
+    "currency": {
+      "code": "EUR",
+      "countryName": "MAYOTTE",
+      "minorUnit": "2",
+      "name": "Euro",
+      "numCode": "978"
+    },
+    "isIndependent": "Part of FR",
+    "capital": "Mamoudzou",
+    "continent": "AF",
+    "tld": ".yt",
+    "languages": [
+      "fr-YT"
+    ],
+    "geoNameId": "1024031",
+    "edgar": "2P"
+  },
+  {
+    "full": "Mexico",
+    "officialName": {
+      "short": "Mexico"
+    },
+    "short": "MX",
+    "long": "MEX",
+    "m49": "484",
+    "itu": "MEX",
+    "marc": "mx",
+    "wmo": "MX",
+    "ds": "MEX",
+    "dial": [
+      "52"
+    ],
+    "fifa": "MEX",
+    "fips": "MX",
+    "gaul": "162",
+    "ioc": "MEX",
+    "currency": {
+      "code": "MXN",
+      "countryName": "MEXICO",
+      "minorUnit": "2",
+      "name": "Mexican Peso",
+      "numCode": "484"
+    },
+    "isIndependent": "Yes",
+    "capital": "Mexico City",
+    "continent": "NA",
+    "tld": ".mx",
+    "languages": [
+      "es-MX"
+    ],
+    "geoNameId": "3996063",
+    "edgar": "O5"
+  },
+  {
+    "full": "Micronesia",
+    "officialName": {
+      "short": "Micronesia (Federated States of)"
+    },
+    "short": "FM",
+    "long": "FSM",
+    "m49": "583",
+    "itu": "FSM",
+    "marc": "fm",
+    "wmo": "",
+    "ds": "",
+    "dial": [
+      "691"
+    ],
+    "fifa": "FSM",
+    "fips": "FM",
+    "gaul": "163",
+    "ioc": "FSM",
+    "currency": {
+      "code": "USD",
+      "countryName": "MICRONESIA, FEDERATED STATES OF",
+      "minorUnit": "2",
+      "name": "US Dollar",
+      "numCode": "840"
+    },
+    "isIndependent": "Yes",
+    "capital": "Palikir",
+    "continent": "OC",
+    "tld": ".fm",
+    "languages": [
+      "en-FM",
+      "chk",
+      "pon",
+      "yap",
+      "kos",
+      "uli",
+      "woe",
+      "nkr",
+      "kpg"
+    ],
+    "geoNameId": "2081918",
+    "edgar": "1K"
+  },
+  {
+    "full": "Moldova",
+    "officialName": {
+      "short": "Republic of Moldova"
+    },
+    "short": "MD",
+    "long": "MDA",
+    "m49": "498",
+    "itu": "MDA",
+    "marc": "mv",
+    "wmo": "RM",
+    "ds": "MD",
+    "dial": [
+      "373"
+    ],
+    "fifa": "MDA",
+    "fips": "MD",
+    "gaul": "165",
+    "ioc": "MDA",
+    "currency": {
+      "code": "MDL",
+      "countryName": "MOLDOVA, REPUBLIC OF",
+      "minorUnit": "2",
+      "name": "Moldovan Leu",
+      "numCode": "498"
+    },
+    "isIndependent": "Yes",
+    "capital": "Chisinau",
+    "continent": "EU",
+    "tld": ".md",
+    "languages": [
+      "ro",
+      "ru",
+      "gag",
+      "tr"
+    ],
+    "geoNameId": "617790",
+    "edgar": "1S"
+  },
+  {
+    "full": "Monaco",
+    "officialName": {
+      "short": "Monaco"
+    },
+    "short": "MC",
+    "long": "MCO",
+    "m49": "492",
+    "itu": "MCO",
+    "marc": "mc",
+    "wmo": "",
+    "ds": "MC",
+    "dial": [
+      "377"
+    ],
+    "fifa": "MON",
+    "fips": "MN",
+    "gaul": "166",
+    "ioc": "MON",
+    "currency": {
+      "code": "EUR",
+      "countryName": "MONACO",
+      "minorUnit": "2",
+      "name": "Euro",
+      "numCode": "978"
+    },
+    "isIndependent": "Yes",
+    "capital": "Monaco",
+    "continent": "EU",
+    "tld": ".mc",
+    "languages": [
+      "fr-MC",
+      "en",
+      "it"
+    ],
+    "geoNameId": "2993457",
+    "edgar": "O9"
+  },
+  {
+    "full": "Mongolia",
+    "officialName": {
+      "short": "Mongolia"
+    },
+    "short": "MN",
+    "long": "MNG",
+    "m49": "496",
+    "itu": "MNG",
+    "marc": "mp",
+    "wmo": "MO",
+    "ds": "MGL",
+    "dial": [
+      "976"
+    ],
+    "fifa": "MNG",
+    "fips": "MG",
+    "gaul": "167",
+    "ioc": "MGL",
+    "currency": {
+      "code": "MNT",
+      "countryName": "MONGOLIA",
+      "minorUnit": "2",
+      "name": "Tugrik",
+      "numCode": "496"
+    },
+    "isIndependent": "Yes",
+    "capital": "Ulan Bator",
+    "continent": "AS",
+    "tld": ".mn",
+    "languages": [
+      "mn",
+      "ru"
+    ],
+    "geoNameId": "2029969",
+    "edgar": "P0"
+  },
+  {
+    "full": "Montenegro",
+    "officialName": {
+      "short": "Montenegro"
+    },
+    "short": "ME",
+    "long": "MNE",
+    "m49": "499",
+    "itu": "MNE",
+    "marc": "mo",
+    "wmo": "",
+    "ds": "MNE",
+    "dial": [
+      "382"
+    ],
+    "fifa": "MNE",
+    "fips": "MJ",
+    "gaul": "2647",
+    "ioc": "MGO",
+    "currency": {
+      "code": "EUR",
+      "countryName": "MONTENEGRO",
+      "minorUnit": "2",
+      "name": "Euro",
+      "numCode": "978"
+    },
+    "isIndependent": "Yes",
+    "capital": "Podgorica",
+    "continent": "EU",
+    "tld": ".me",
+    "languages": [
+      "sr",
+      "hu",
+      "bs",
+      "sq",
+      "hr",
+      "rom"
+    ],
+    "geoNameId": "3194884",
+    "edgar": "Z5"
+  },
+  {
+    "full": "Montserrat",
+    "officialName": {
+      "short": "Montserrat"
+    },
+    "short": "MS",
+    "long": "MSR",
+    "m49": "500",
+    "itu": "MSR",
+    "marc": "mj",
+    "wmo": "",
+    "ds": "",
+    "dial": [
+      "1-664"
+    ],
+    "fifa": "MSR",
+    "fips": "MH",
+    "gaul": "168",
+    "ioc": "MNT",
+    "currency": {
+      "code": "XCD",
+      "countryName": "MONTSERRAT",
+      "minorUnit": "2",
+      "name": "East Caribbean Dollar",
+      "numCode": "951"
+    },
+    "isIndependent": "Territory of GB",
+    "capital": "Plymouth",
+    "continent": "NA",
+    "tld": ".ms",
+    "languages": [
+      "en-MS"
+    ],
+    "geoNameId": "3578097",
+    "edgar": "P1"
+  },
+  {
+    "full": "Morocco",
+    "officialName": {
+      "short": "Morocco"
+    },
+    "short": "MA",
+    "long": "MAR",
+    "m49": "504",
+    "itu": "MRC",
+    "marc": "mr",
+    "wmo": "MC",
+    "ds": "MA",
+    "dial": [
+      "212"
+    ],
+    "fifa": "MAR",
+    "fips": "MO",
+    "gaul": "169",
+    "ioc": "MAR",
+    "currency": {
+      "code": "MAD",
+      "countryName": "MOROCCO",
+      "minorUnit": "2",
+      "name": "Moroccan Dirham",
+      "numCode": "504"
+    },
+    "isIndependent": "Yes",
+    "capital": "Rabat",
+    "continent": "AF",
+    "tld": ".ma",
+    "languages": [
+      "ar-MA",
+      "ber",
+      "fr"
+    ],
+    "geoNameId": "2542007",
+    "edgar": "P2"
+  },
+  {
+    "full": "Mozambique",
+    "officialName": {
+      "short": "Mozambique"
+    },
+    "short": "MZ",
+    "long": "MOZ",
+    "m49": "508",
+    "itu": "MOZ",
+    "marc": "mz",
+    "wmo": "MZ",
+    "ds": "MOC",
+    "dial": [
+      "258"
+    ],
+    "fifa": "MOZ",
+    "fips": "MZ",
+    "gaul": "170",
+    "ioc": "MOZ",
+    "currency": {
+      "code": "MZN",
+      "countryName": "MOZAMBIQUE",
+      "minorUnit": "2",
+      "name": "Mozambique Metical",
+      "numCode": "943"
+    },
+    "isIndependent": "Yes",
+    "capital": "Maputo",
+    "continent": "AF",
+    "tld": ".mz",
+    "languages": [
+      "pt-MZ",
+      "vmw"
+    ],
+    "geoNameId": "1036973",
+    "edgar": "P3"
+  },
+  {
+    "full": "Myanmar",
+    "officialName": {
+      "short": "Myanmar"
+    },
+    "short": "MM",
+    "long": "MMR",
+    "m49": "104",
+    "itu": "MYA",
+    "marc": "br",
+    "wmo": "BM",
+    "ds": "BUR",
+    "dial": [
+      "95"
+    ],
+    "fifa": "MYA",
+    "fips": "BM",
+    "gaul": "171",
+    "ioc": "MYA",
+    "currency": {
+      "code": "MMK",
+      "countryName": "MYANMAR",
+      "minorUnit": "2",
+      "name": "Kyat",
+      "numCode": "104"
+    },
+    "isIndependent": "Yes",
+    "capital": "Nay Pyi Taw",
+    "continent": "AS",
+    "tld": ".mm",
+    "languages": [
+      "my"
+    ],
+    "geoNameId": "1327865",
+    "edgar": "E1"
+  },
+  {
+    "full": "Namibia",
+    "officialName": {
+      "short": "Namibia"
+    },
+    "short": "NA",
+    "long": "NAM",
+    "m49": "516",
+    "itu": "NMB",
+    "marc": "sx",
+    "wmo": "NM",
+    "ds": "NAM",
+    "dial": [
+      "264"
+    ],
+    "fifa": "NAM",
+    "fips": "WA",
+    "gaul": "172",
+    "ioc": "NAM",
+    "currency": {
+      "code": "ZAR",
+      "countryName": "NAMIBIA",
+      "minorUnit": "2",
+      "name": "Rand",
+      "numCode": "710"
+    },
+    "isIndependent": "Yes",
+    "capital": "Windhoek",
+    "continent": "AF",
+    "tld": ".na",
+    "languages": [
+      "en-NA",
+      "af",
+      "de",
+      "hz",
+      "naq"
+    ],
+    "geoNameId": "3355338",
+    "edgar": "T6"
+  },
+  {
+    "full": "Nauru",
+    "officialName": {
+      "short": "Nauru"
+    },
+    "short": "NR",
+    "long": "NRU",
+    "m49": "520",
+    "itu": "NRU",
+    "marc": "nu",
+    "wmo": "NW",
+    "ds": "NAU",
+    "dial": [
+      "674"
+    ],
+    "fifa": "NRU",
+    "fips": "NR",
+    "gaul": "173",
+    "ioc": "NRU",
+    "currency": {
+      "code": "AUD",
+      "countryName": "NAURU",
+      "minorUnit": "2",
+      "name": "Australian Dollar",
+      "numCode": "36"
+    },
+    "isIndependent": "Yes",
+    "capital": "Yaren",
+    "continent": "OC",
+    "tld": ".nr",
+    "languages": [
+      "na",
+      "en-NR"
+    ],
+    "geoNameId": "2110425",
+    "edgar": "P5"
+  },
+  {
+    "full": "Nepal",
+    "officialName": {
+      "short": "Nepal"
+    },
+    "short": "NP",
+    "long": "NPL",
+    "m49": "524",
+    "itu": "NPL",
+    "marc": "np",
+    "wmo": "NP",
+    "ds": "NEP",
+    "dial": [
+      "977"
+    ],
+    "fifa": "NEP",
+    "fips": "NP",
+    "gaul": "175",
+    "ioc": "NEP",
+    "currency": {
+      "code": "NPR",
+      "countryName": "NEPAL",
+      "minorUnit": "2",
+      "name": "Nepalese Rupee",
+      "numCode": "524"
+    },
+    "isIndependent": "Yes",
+    "capital": "Kathmandu",
+    "continent": "AS",
+    "tld": ".np",
+    "languages": [
+      "ne",
+      "en"
+    ],
+    "geoNameId": "1282988",
+    "edgar": "P6"
+  },
+  {
+    "full": "Netherlands",
+    "officialName": {
+      "short": "Netherlands"
+    },
+    "short": "NL",
+    "long": "NLD",
+    "m49": "528",
+    "itu": "HOL",
+    "marc": "ne",
+    "wmo": "NL",
+    "ds": "NL",
+    "dial": [
+      "31"
+    ],
+    "fifa": "NED",
+    "fips": "NL",
+    "gaul": "177",
+    "ioc": "NED",
+    "currency": {
+      "code": "EUR",
+      "countryName": "NETHERLANDS",
+      "minorUnit": "2",
+      "name": "Euro",
+      "numCode": "978"
+    },
+    "isIndependent": "Yes",
+    "capital": "Amsterdam",
+    "continent": "EU",
+    "tld": ".nl",
+    "languages": [
+      "nl-NL",
+      "fy-NL"
+    ],
+    "geoNameId": "2750405",
+    "edgar": "P7"
+  },
+  {
+    "full": "New Caledonia",
+    "officialName": {
+      "short": "New Caledonia"
+    },
+    "short": "NC",
+    "long": "NCL",
+    "m49": "540",
+    "itu": "NCL",
+    "marc": "nl",
+    "wmo": "NC",
+    "ds": "F",
+    "dial": [
+      "687"
+    ],
+    "fifa": "NCL",
+    "fips": "NC",
+    "gaul": "178",
+    "ioc": "NCD",
+    "currency": {
+      "code": "XPF",
+      "countryName": "NEW CALEDONIA",
+      "minorUnit": "0",
+      "name": "CFP Franc",
+      "numCode": "953"
+    },
+    "isIndependent": "Territory of FR",
+    "capital": "Noumea",
+    "continent": "OC",
+    "tld": ".nc",
+    "languages": [
+      "fr-NC"
+    ],
+    "geoNameId": "2139685",
+    "edgar": "1W"
+  },
+  {
+    "full": "New Zealand",
+    "officialName": {
+      "short": "New Zealand"
+    },
+    "short": "NZ",
+    "long": "NZL",
+    "m49": "554",
+    "itu": "NZL",
+    "marc": "nz",
+    "wmo": "NZ",
+    "ds": "NZ",
+    "dial": [
+      "64"
+    ],
+    "fifa": "NZL",
+    "fips": "NZ",
+    "gaul": "179",
+    "ioc": "NZL",
+    "currency": {
+      "code": "NZD",
+      "countryName": "NEW ZEALAND",
+      "minorUnit": "2",
+      "name": "New Zealand Dollar",
+      "numCode": "554"
+    },
+    "isIndependent": "Yes",
+    "capital": "Wellington",
+    "continent": "OC",
+    "tld": ".nz",
+    "languages": [
+      "en-NZ",
+      "mi"
+    ],
+    "geoNameId": "2186224",
+    "edgar": "Q2"
+  },
+  {
+    "full": "Nicaragua",
+    "officialName": {
+      "short": "Nicaragua"
+    },
+    "short": "NI",
+    "long": "NIC",
+    "m49": "558",
+    "itu": "NCG",
+    "marc": "nq",
+    "wmo": "NK",
+    "ds": "NIC",
+    "dial": [
+      "505"
+    ],
+    "fifa": "NCA",
+    "fips": "NU",
+    "gaul": "180",
+    "ioc": "NCA",
+    "currency": {
+      "code": "NIO",
+      "countryName": "NICARAGUA",
+      "minorUnit": "2",
+      "name": "Cordoba Oro",
+      "numCode": "558"
+    },
+    "isIndependent": "Yes",
+    "capital": "Managua",
+    "continent": "NA",
+    "tld": ".ni",
+    "languages": [
+      "es-NI",
+      "en"
+    ],
+    "geoNameId": "3617476",
+    "edgar": "Q3"
+  },
+  {
+    "full": "Niger",
+    "officialName": {
+      "short": "Niger"
+    },
+    "short": "NE",
+    "long": "NER",
+    "m49": "562",
+    "itu": "NGR",
+    "marc": "ng",
+    "wmo": "NR",
+    "ds": "RN",
+    "dial": [
+      "227"
+    ],
+    "fifa": "NIG",
+    "fips": "NG",
+    "gaul": "181",
+    "ioc": "NIG",
+    "currency": {
+      "code": "XOF",
+      "countryName": "NIGER",
+      "minorUnit": "0",
+      "name": "CFA Franc BCEAO",
+      "numCode": "952"
+    },
+    "isIndependent": "Yes",
+    "capital": "Niamey",
+    "continent": "AF",
+    "tld": ".ne",
+    "languages": [
+      "fr-NE",
+      "ha",
+      "kr",
+      "dje"
+    ],
+    "geoNameId": "2440476",
+    "edgar": "Q4"
+  },
+  {
+    "full": "Nigeria",
+    "officialName": {
+      "short": "Nigeria"
+    },
+    "short": "NG",
+    "long": "NGA",
+    "m49": "566",
+    "itu": "NIG",
+    "marc": "nr",
+    "wmo": "NI",
+    "ds": "WAN",
+    "dial": [
+      "234"
+    ],
+    "fifa": "NGA",
+    "fips": "NI",
+    "gaul": "182",
+    "ioc": "NGR",
+    "currency": {
+      "code": "NGN",
+      "countryName": "NIGERIA",
+      "minorUnit": "2",
+      "name": "Naira",
+      "numCode": "566"
+    },
+    "isIndependent": "Yes",
+    "capital": "Abuja",
+    "continent": "AF",
+    "tld": ".ng",
+    "languages": [
+      "en-NG",
+      "ha",
+      "yo",
+      "ig",
+      "ff"
+    ],
+    "geoNameId": "2328926",
+    "edgar": "Q5"
+  },
+  {
+    "full": "Niue",
+    "officialName": {
+      "short": "Niue"
+    },
+    "short": "NU",
+    "long": "NIU",
+    "m49": "570",
+    "itu": "NIU",
+    "marc": "xh",
+    "wmo": "",
+    "ds": "NZ",
+    "dial": [
+      "683"
+    ],
+    "fifa": "NIU",
+    "fips": "NE",
+    "gaul": "183",
+    "ioc": "NIU",
+    "currency": {
+      "code": "NZD",
+      "countryName": "NIUE",
+      "minorUnit": "2",
+      "name": "New Zealand Dollar",
+      "numCode": "554"
+    },
+    "isIndependent": "Associated with NZ",
+    "capital": "Alofi",
+    "continent": "OC",
+    "tld": ".nu",
+    "languages": [
+      "niu",
+      "en-NU"
+    ],
+    "geoNameId": "4036232",
+    "edgar": "Q6"
+  },
+  {
+    "full": "Norfolk Island",
+    "officialName": {
+      "short": "Norfolk Island"
+    },
+    "short": "NF",
+    "long": "NFK",
+    "m49": "574",
+    "itu": "NFK",
+    "marc": "nx",
+    "wmo": "NF",
+    "ds": "AUS",
+    "dial": [
+      "672"
+    ],
+    "fifa": "NFK",
+    "fips": "NF",
+    "gaul": "184",
+    "ioc": "NFI",
+    "currency": {
+      "code": "AUD",
+      "countryName": "NORFOLK ISLAND",
+      "minorUnit": "2",
+      "name": "Australian Dollar",
+      "numCode": "36"
+    },
+    "isIndependent": "Territory of AU",
+    "capital": "Kingston",
+    "continent": "OC",
+    "tld": ".nf",
+    "languages": [
+      "en-NF"
+    ],
+    "geoNameId": "2155115",
+    "edgar": "Q7"
+  },
+  {
+    "full": "North Korea",
+    "officialName": {
+      "short": "Democratic People's Republic of Korea"
+    },
+    "short": "KP",
+    "long": "PRK",
+    "m49": "408",
+    "itu": "KRE",
+    "marc": "kn",
+    "wmo": "KR",
+    "ds": "",
+    "dial": [
+      "850"
+    ],
+    "fifa": "PRK",
+    "fips": "KN",
+    "gaul": "67",
+    "ioc": "PRK",
+    "currency": {
+      "code": "KPW",
+      "countryName": "KOREA, DEMOCRATIC PEOPLE’S REPUBLIC OF",
+      "minorUnit": "2",
+      "name": "North Korean Won",
+      "numCode": "408"
+    },
+    "isIndependent": "Yes",
+    "capital": "Pyongyang",
+    "continent": "AS",
+    "tld": ".kp",
+    "languages": [
+      "ko-KP"
+    ],
+    "geoNameId": "1873107",
+    "edgar": ""
+  },
+  {
+    "full": "Northern Mariana Islands",
+    "officialName": {
+      "short": "Northern Mariana Islands"
+    },
+    "short": "MP",
+    "long": "MNP",
+    "m49": "580",
+    "itu": "MRA",
+    "marc": "nw",
+    "wmo": "MY",
+    "ds": "USA",
+    "dial": [
+      "1-670"
+    ],
+    "fifa": "NMI",
+    "fips": "CQ",
+    "gaul": "185",
+    "ioc": "NMA",
+    "currency": {
+      "code": "USD",
+      "countryName": "NORTHERN MARIANA ISLANDS",
+      "minorUnit": "2",
+      "name": "US Dollar",
+      "numCode": "840"
+    },
+    "isIndependent": "Commonwealth of US",
+    "capital": "Saipan",
+    "continent": "OC",
+    "tld": ".mp",
+    "languages": [
+      "fil",
+      "tl",
+      "zh",
+      "ch-MP",
+      "en-MP"
+    ],
+    "geoNameId": "4041468",
+    "edgar": "1V"
+  },
+  {
+    "full": "Norway",
+    "officialName": {
+      "short": "Norway"
+    },
+    "short": "NO",
+    "long": "NOR",
+    "m49": "578",
+    "itu": "NOR",
+    "marc": "no",
+    "wmo": "NO",
+    "ds": "N",
+    "dial": [
+      "47"
+    ],
+    "fifa": "NOR",
+    "fips": "NO",
+    "gaul": "186",
+    "ioc": "NOR",
+    "currency": {
+      "code": "NOK",
+      "countryName": "NORWAY",
+      "minorUnit": "2",
+      "name": "Norwegian Krone",
+      "numCode": "578"
+    },
+    "isIndependent": "Yes",
+    "capital": "Oslo",
+    "continent": "EU",
+    "tld": ".no",
+    "languages": [
+      "no",
+      "nb",
+      "nn",
+      "se",
+      "fi"
+    ],
+    "geoNameId": "3144096",
+    "edgar": "Q8"
+  },
+  {
+    "full": "Oman",
+    "officialName": {
+      "short": "Oman"
+    },
+    "short": "OM",
+    "long": "OMN",
+    "m49": "512",
+    "itu": "OMA",
+    "marc": "mk",
+    "wmo": "OM",
+    "ds": "",
+    "dial": [
+      "968"
+    ],
+    "fifa": "OMA",
+    "fips": "MU",
+    "gaul": "187",
+    "ioc": "OMA",
+    "currency": {
+      "code": "OMR",
+      "countryName": "OMAN",
+      "minorUnit": "3",
+      "name": "Rial Omani",
+      "numCode": "512"
+    },
+    "isIndependent": "Yes",
+    "capital": "Muscat",
+    "continent": "AS",
+    "tld": ".om",
+    "languages": [
+      "ar-OM",
+      "en",
+      "bal",
+      "ur"
+    ],
+    "geoNameId": "286963",
+    "edgar": "P4"
+  },
+  {
+    "full": "Pakistan",
+    "officialName": {
+      "short": "Pakistan"
+    },
+    "short": "PK",
+    "long": "PAK",
+    "m49": "586",
+    "itu": "PAK",
+    "marc": "pk",
+    "wmo": "PK",
+    "ds": "PK",
+    "dial": [
+      "92"
+    ],
+    "fifa": "PAK",
+    "fips": "PK",
+    "gaul": "188",
+    "ioc": "PAK",
+    "currency": {
+      "code": "PKR",
+      "countryName": "PAKISTAN",
+      "minorUnit": "2",
+      "name": "Pakistan Rupee",
+      "numCode": "586"
+    },
+    "isIndependent": "Yes",
+    "capital": "Islamabad",
+    "continent": "AS",
+    "tld": ".pk",
+    "languages": [
+      "ur-PK",
+      "en-PK",
+      "pa",
+      "sd",
+      "ps",
+      "brh"
+    ],
+    "geoNameId": "1168579",
+    "edgar": "R0"
+  },
+  {
+    "full": "Palau",
+    "officialName": {
+      "short": "Palau"
+    },
+    "short": "PW",
+    "long": "PLW",
+    "m49": "585",
+    "itu": "PLW",
+    "marc": "pw",
+    "wmo": "",
+    "ds": "",
+    "dial": [
+      "680"
+    ],
+    "fifa": "PLW",
+    "fips": "PS",
+    "gaul": "189",
+    "ioc": "PLW",
+    "currency": {
+      "code": "USD",
+      "countryName": "PALAU",
+      "minorUnit": "2",
+      "name": "US Dollar",
+      "numCode": "840"
+    },
+    "isIndependent": "Yes",
+    "capital": "Melekeok",
+    "continent": "OC",
+    "tld": ".pw",
+    "languages": [
+      "pau",
+      "sov",
+      "en-PW",
+      "tox",
+      "ja",
+      "fil",
+      "zh"
+    ],
+    "geoNameId": "1559582",
+    "edgar": "1Y"
+  },
+  {
+    "full": "Palestine",
+    "officialName": {
+      "short": "State of Palestine"
+    },
+    "short": "PS",
+    "long": "PSE",
+    "m49": "275",
+    "itu": "",
+    "marc": "gz,wj",
+    "wmo": "",
+    "ds": "",
+    "dial": [
+      "970"
+    ],
+    "fifa": "PLE",
+    "fips": "GZ,WE",
+    "gaul": "91,267",
+    "ioc": "PLE",
+    "currency": {
+      "code": "",
+      "countryName": "PALESTINE, STATE OF",
+      "minorUnit": "",
+      "name": "No universal currency",
+      "numCode": ""
+    },
+    "isIndependent": "In contention",
+    "capital": "East Jerusalem",
+    "continent": "AS",
+    "tld": ".ps",
+    "languages": [
+      "ar-PS"
+    ],
+    "geoNameId": "6254930",
+    "edgar": ""
+  },
+  {
+    "full": "Panama",
+    "officialName": {
+      "short": "Panama"
+    },
+    "short": "PA",
+    "long": "PAN",
+    "m49": "591",
+    "itu": "PNR",
+    "marc": "pn",
+    "wmo": "PM",
+    "ds": "PA",
+    "dial": [
+      "507"
+    ],
+    "fifa": "PAN",
+    "fips": "PM",
+    "gaul": "191",
+    "ioc": "PAN",
+    "currency": {
+      "code": "USD",
+      "countryName": "PANAMA",
+      "minorUnit": "2",
+      "name": "US Dollar",
+      "numCode": "840"
+    },
+    "isIndependent": "Yes",
+    "capital": "Panama City",
+    "continent": "NA",
+    "tld": ".pa",
+    "languages": [
+      "es-PA",
+      "en"
+    ],
+    "geoNameId": "3703430",
+    "edgar": "R1"
+  },
+  {
+    "full": "Papua New Guinea",
+    "officialName": {
+      "short": "Papua New Guinea"
+    },
+    "short": "PG",
+    "long": "PNG",
+    "m49": "598",
+    "itu": "PNG",
+    "marc": "pp",
+    "wmo": "NG",
+    "ds": "PNG",
+    "dial": [
+      "675"
+    ],
+    "fifa": "PNG",
+    "fips": "PP",
+    "gaul": "192",
+    "ioc": "PNG",
+    "currency": {
+      "code": "PGK",
+      "countryName": "PAPUA NEW GUINEA",
+      "minorUnit": "2",
+      "name": "Kina",
+      "numCode": "598"
+    },
+    "isIndependent": "Yes",
+    "capital": "Port Moresby",
+    "continent": "OC",
+    "tld": ".pg",
+    "languages": [
+      "en-PG",
+      "ho",
+      "meu",
+      "tpi"
+    ],
+    "geoNameId": "2088628",
+    "edgar": "R2"
+  },
+  {
+    "full": "Paraguay",
+    "officialName": {
+      "short": "Paraguay"
+    },
+    "short": "PY",
+    "long": "PRY",
+    "m49": "600",
+    "itu": "PRG",
+    "marc": "py",
+    "wmo": "PY",
+    "ds": "PY",
+    "dial": [
+      "595"
+    ],
+    "fifa": "PAR",
+    "fips": "PA",
+    "gaul": "194",
+    "ioc": "PAR",
+    "currency": {
+      "code": "PYG",
+      "countryName": "PARAGUAY",
+      "minorUnit": "0",
+      "name": "Guarani",
+      "numCode": "600"
+    },
+    "isIndependent": "Yes",
+    "capital": "Asuncion",
+    "continent": "SA",
+    "tld": ".py",
+    "languages": [
+      "es-PY",
+      "gn"
+    ],
+    "geoNameId": "3437598",
+    "edgar": "R4"
+  },
+  {
+    "full": "Peru",
+    "officialName": {
+      "short": "Peru"
+    },
+    "short": "PE",
+    "long": "PER",
+    "m49": "604",
+    "itu": "PRU",
+    "marc": "pe",
+    "wmo": "PR",
+    "ds": "PE",
+    "dial": [
+      "51"
+    ],
+    "fifa": "PER",
+    "fips": "PE",
+    "gaul": "195",
+    "ioc": "PER",
+    "currency": {
+      "code": "PEN",
+      "countryName": "PERU",
+      "minorUnit": "2",
+      "name": "Nuevo Sol",
+      "numCode": "604"
+    },
+    "isIndependent": "Yes",
+    "capital": "Lima",
+    "continent": "SA",
+    "tld": ".pe",
+    "languages": [
+      "es-PE",
+      "qu",
+      "ay"
+    ],
+    "geoNameId": "3932488",
+    "edgar": "R5"
+  },
+  {
+    "full": "Philippines",
+    "officialName": {
+      "short": "Philippines"
+    },
+    "short": "PH",
+    "long": "PHL",
+    "m49": "608",
+    "itu": "PHL",
+    "marc": "ph",
+    "wmo": "PH",
+    "ds": "RP",
+    "dial": [
+      "63"
+    ],
+    "fifa": "PHI",
+    "fips": "RP",
+    "gaul": "196",
+    "ioc": "PHI",
+    "currency": {
+      "code": "PHP",
+      "countryName": "PHILIPPINES",
+      "minorUnit": "2",
+      "name": "Philippine Peso",
+      "numCode": "608"
+    },
+    "isIndependent": "Yes",
+    "capital": "Manila",
+    "continent": "AS",
+    "tld": ".ph",
+    "languages": [
+      "tl",
+      "en-PH",
+      "fil"
+    ],
+    "geoNameId": "1694008",
+    "edgar": "R6"
+  },
+  {
+    "full": "Pitcairn Islands",
+    "officialName": {
+      "short": "Pitcairn"
+    },
+    "short": "PN",
+    "long": "PCN",
+    "m49": "612",
+    "itu": "PTC",
+    "marc": "pc",
+    "wmo": "PT",
+    "ds": "",
+    "dial": [
+      "870"
+    ],
+    "fifa": "PCN",
+    "fips": "PC",
+    "gaul": "197",
+    "ioc": "",
+    "currency": {
+      "code": "NZD",
+      "countryName": "PITCAIRN",
+      "minorUnit": "2",
+      "name": "New Zealand Dollar",
+      "numCode": "554"
+    },
+    "isIndependent": "Territory of GB",
+    "capital": "Adamstown",
+    "continent": "OC",
+    "tld": ".pn",
+    "languages": [
+      "en-PN"
+    ],
+    "geoNameId": "4030699",
+    "edgar": "R8"
+  },
+  {
+    "full": "Poland",
+    "officialName": {
+      "short": "Poland"
+    },
+    "short": "PL",
+    "long": "POL",
+    "m49": "616",
+    "itu": "POL",
+    "marc": "pl",
+    "wmo": "PL",
+    "ds": "PL",
+    "dial": [
+      "48"
+    ],
+    "fifa": "POL",
+    "fips": "PL",
+    "gaul": "198",
+    "ioc": "POL",
+    "currency": {
+      "code": "PLN",
+      "countryName": "POLAND",
+      "minorUnit": "2",
+      "name": "Zloty",
+      "numCode": "985"
+    },
+    "isIndependent": "Yes",
+    "capital": "Warsaw",
+    "continent": "EU",
+    "tld": ".pl",
+    "languages": [
+      "pl"
+    ],
+    "geoNameId": "798544",
+    "edgar": "R9"
+  },
+  {
+    "full": "Portugal",
+    "officialName": {
+      "short": "Portugal"
+    },
+    "short": "PT",
+    "long": "PRT",
+    "m49": "620",
+    "itu": "POR",
+    "marc": "po",
+    "wmo": "PO",
+    "ds": "P",
+    "dial": [
+      "351"
+    ],
+    "fifa": "POR",
+    "fips": "PO",
+    "gaul": "199",
+    "ioc": "POR",
+    "currency": {
+      "code": "EUR",
+      "countryName": "PORTUGAL",
+      "minorUnit": "2",
+      "name": "Euro",
+      "numCode": "978"
+    },
+    "isIndependent": "Yes",
+    "capital": "Lisbon",
+    "continent": "EU",
+    "tld": ".pt",
+    "languages": [
+      "pt-PT",
+      "mwl"
+    ],
+    "geoNameId": "2264397",
+    "edgar": "S1"
+  },
+  {
+    "full": "Puerto Rico",
+    "officialName": {
+      "short": "Puerto Rico"
+    },
+    "short": "PR",
+    "long": "PRI",
+    "m49": "630",
+    "itu": "PTR",
+    "marc": "pr",
+    "wmo": "PU",
+    "ds": "USA",
+    "dial": [
+      "1"
+    ],
+    "fifa": "PUR",
+    "fips": "RQ",
+    "gaul": "200",
+    "ioc": "PUR",
+    "currency": {
+      "code": "USD",
+      "countryName": "PUERTO RICO",
+      "minorUnit": "2",
+      "name": "US Dollar",
+      "numCode": "840"
+    },
+    "isIndependent": "Commonwealth of US",
+    "capital": "San Juan",
+    "continent": "NA",
+    "tld": ".pr",
+    "languages": [
+      "en-PR",
+      "es-PR"
+    ],
+    "geoNameId": "4566966",
+    "edgar": "PR"
+  },
+  {
+    "full": "Qatar",
+    "officialName": {
+      "short": "Qatar"
+    },
+    "short": "QA",
+    "long": "QAT",
+    "m49": "634",
+    "itu": "QAT",
+    "marc": "qa",
+    "wmo": "QT",
+    "ds": "Q",
+    "dial": [
+      "974"
+    ],
+    "fifa": "QAT",
+    "fips": "QA",
+    "gaul": "201",
+    "ioc": "QAT",
+    "currency": {
+      "code": "QAR",
+      "countryName": "QATAR",
+      "minorUnit": "2",
+      "name": "Qatari Rial",
+      "numCode": "634"
+    },
+    "isIndependent": "Yes",
+    "capital": "Doha",
+    "continent": "AS",
+    "tld": ".qa",
+    "languages": [
+      "ar-QA",
+      "es"
+    ],
+    "geoNameId": "289688",
+    "edgar": "S3"
+  },
+  {
+    "full": "Romania",
+    "officialName": {
+      "short": "Romania"
+    },
+    "short": "RO",
+    "long": "ROU",
+    "m49": "642",
+    "itu": "ROU",
+    "marc": "rm",
+    "wmo": "RO",
+    "ds": "RO",
+    "dial": [
+      "40"
+    ],
+    "fifa": "ROU",
+    "fips": "RO",
+    "gaul": "203",
+    "ioc": "ROU",
+    "currency": {
+      "code": "RON",
+      "countryName": "ROMANIA",
+      "minorUnit": "2",
+      "name": "New Romanian Leu",
+      "numCode": "946"
+    },
+    "isIndependent": "Yes",
+    "capital": "Bucharest",
+    "continent": "EU",
+    "tld": ".ro",
+    "languages": [
+      "ro",
+      "hu",
+      "rom"
+    ],
+    "geoNameId": "798549",
+    "edgar": "S5"
+  },
+  {
+    "full": "Russia",
+    "officialName": {
+      "short": "Russian Federation"
+    },
+    "short": "RU",
+    "long": "RUS",
+    "m49": "643",
+    "itu": "RUS",
+    "marc": "ru",
+    "wmo": "RS",
+    "ds": "RUS",
+    "dial": [
+      "7"
+    ],
+    "fifa": "RUS",
+    "fips": "RS",
+    "gaul": "204",
+    "ioc": "RUS",
+    "currency": {
+      "code": "RUB",
+      "countryName": "RUSSIAN FEDERATION",
+      "minorUnit": "2",
+      "name": "Russian Ruble",
+      "numCode": "643"
+    },
+    "isIndependent": "Yes",
+    "capital": "Moscow",
+    "continent": "EU",
+    "tld": ".ru",
+    "languages": [
+      "ru",
+      "tt",
+      "xal",
+      "cau",
+      "ady",
+      "kv",
+      "ce",
+      "tyv",
+      "cv",
+      "udm",
+      "tut",
+      "mns",
+      "bua",
+      "myv",
+      "mdf",
+      "chm",
+      "ba",
+      "inh",
+      "tut",
+      "kbd",
+      "krc",
+      "ava",
+      "sah",
+      "nog"
+    ],
+    "geoNameId": "2017370",
+    "edgar": "1Z"
+  },
+  {
+    "full": "Rwanda",
+    "officialName": {
+      "short": "Rwanda"
+    },
+    "short": "RW",
+    "long": "RWA",
+    "m49": "646",
+    "itu": "RRW",
+    "marc": "rw",
+    "wmo": "RW",
+    "ds": "RWA",
+    "dial": [
+      "250"
+    ],
+    "fifa": "RWA",
+    "fips": "RW",
+    "gaul": "205",
+    "ioc": "RWA",
+    "currency": {
+      "code": "RWF",
+      "countryName": "RWANDA",
+      "minorUnit": "0",
+      "name": "Rwanda Franc",
+      "numCode": "646"
+    },
+    "isIndependent": "Yes",
+    "capital": "Kigali",
+    "continent": "AF",
+    "tld": ".rw",
+    "languages": [
+      "rw",
+      "en-RW",
+      "fr-RW",
+      "sw"
+    ],
+    "geoNameId": "49518",
+    "edgar": "S6"
+  },
+  {
+    "full": "Réunion",
+    "officialName": {
+      "short": "Réunion"
+    },
+    "short": "RE",
+    "long": "REU",
+    "m49": "638",
+    "itu": "REU",
+    "marc": "re",
+    "wmo": "RE",
+    "ds": "F",
+    "dial": [
+      "262"
+    ],
+    "fifa": "REU",
+    "fips": "RE",
+    "gaul": "206",
+    "ioc": "REU",
+    "currency": {
+      "code": "EUR",
+      "countryName": "RÉUNION",
+      "minorUnit": "2",
+      "name": "Euro",
+      "numCode": "978"
+    },
+    "isIndependent": "Part of FR",
+    "capital": "Saint-Denis",
+    "continent": "AF",
+    "tld": ".re",
+    "languages": [
+      "fr-RE"
+    ],
+    "geoNameId": "935317",
+    "edgar": ""
+  },
+  {
+    "full": "Samoa",
+    "officialName": {
+      "short": "Samoa"
+    },
+    "short": "WS",
+    "long": "WSM",
+    "m49": "882",
+    "itu": "SMO",
+    "marc": "ws",
+    "wmo": "ZM",
+    "ds": "WS",
+    "dial": [
+      "685"
+    ],
+    "fifa": "SAM",
+    "fips": "WS",
+    "gaul": "212",
+    "ioc": "SAM",
+    "currency": {
+      "code": "WST",
+      "countryName": "SAMOA",
+      "minorUnit": "2",
+      "name": "Tala",
+      "numCode": "882"
+    },
+    "isIndependent": "Yes",
+    "capital": "Apia",
+    "continent": "OC",
+    "tld": ".ws",
+    "languages": [
+      "sm",
+      "en-WS"
+    ],
+    "geoNameId": "4034894",
+    "edgar": "Y0"
+  },
+  {
+    "full": "San Marino",
+    "officialName": {
+      "short": "San Marino"
+    },
+    "short": "SM",
+    "long": "SMR",
+    "m49": "674",
+    "itu": "SMR",
+    "marc": "sm",
+    "wmo": "",
+    "ds": "RSM",
+    "dial": [
+      "378"
+    ],
+    "fifa": "SMR",
+    "fips": "SM",
+    "gaul": "213",
+    "ioc": "SMR",
+    "currency": {
+      "code": "EUR",
+      "countryName": "SAN MARINO",
+      "minorUnit": "2",
+      "name": "Euro",
+      "numCode": "978"
+    },
+    "isIndependent": "Yes",
+    "capital": "San Marino",
+    "continent": "EU",
+    "tld": ".sm",
+    "languages": [
+      "it-SM"
+    ],
+    "geoNameId": "3168068",
+    "edgar": "S8"
+  },
+  {
+    "full": "Saudi Arabia",
+    "officialName": {
+      "short": "Saudi Arabia"
+    },
+    "short": "SA",
+    "long": "SAU",
+    "m49": "682",
+    "itu": "ARS",
+    "marc": "su",
+    "wmo": "SD",
+    "ds": "SA",
+    "dial": [
+      "966"
+    ],
+    "fifa": "KSA",
+    "fips": "SA",
+    "gaul": "215",
+    "ioc": "KSA",
+    "currency": {
+      "code": "SAR",
+      "countryName": "SAUDI ARABIA",
+      "minorUnit": "2",
+      "name": "Saudi Riyal",
+      "numCode": "682"
+    },
+    "isIndependent": "Yes",
+    "capital": "Riyadh",
+    "continent": "AS",
+    "tld": ".sa",
+    "languages": [
+      "ar-SA"
+    ],
+    "geoNameId": "102358",
+    "edgar": "T0"
+  },
+  {
+    "full": "Senegal",
+    "officialName": {
+      "short": "Senegal"
+    },
+    "short": "SN",
+    "long": "SEN",
+    "m49": "686",
+    "itu": "SEN",
+    "marc": "sg",
+    "wmo": "SG",
+    "ds": "SN",
+    "dial": [
+      "221"
+    ],
+    "fifa": "SEN",
+    "fips": "SG",
+    "gaul": "217",
+    "ioc": "SEN",
+    "currency": {
+      "code": "XOF",
+      "countryName": "SENEGAL",
+      "minorUnit": "0",
+      "name": "CFA Franc BCEAO",
+      "numCode": "952"
+    },
+    "isIndependent": "Yes",
+    "capital": "Dakar",
+    "continent": "AF",
+    "tld": ".sn",
+    "languages": [
+      "fr-SN",
+      "wo",
+      "fuc",
+      "mnk"
+    ],
+    "geoNameId": "2245662",
+    "edgar": "T1"
+  },
+  {
+    "full": "Serbia",
+    "officialName": {
+      "short": "Serbia"
+    },
+    "short": "RS",
+    "long": "SRB",
+    "m49": "688",
+    "itu": "SRB",
+    "marc": "rb",
+    "wmo": "YG",
+    "ds": "SRB",
+    "dial": [
+      "381 p"
+    ],
+    "fifa": "SRB",
+    "fips": "RI,KV",
+    "gaul": "2648",
+    "ioc": "SRB",
+    "currency": {
+      "code": "RSD",
+      "countryName": "SERBIA",
+      "minorUnit": "2",
+      "name": "Serbian Dinar",
+      "numCode": "941"
+    },
+    "isIndependent": "Yes",
+    "capital": "Belgrade",
+    "continent": "EU",
+    "tld": ".rs",
+    "languages": [
+      "sr",
+      "hu",
+      "bs",
+      "rom"
+    ],
+    "geoNameId": "6290252",
+    "edgar": "Z2"
+  },
+  {
+    "full": "Seychelles",
+    "officialName": {
+      "short": "Seychelles"
+    },
+    "short": "SC",
+    "long": "SYC",
+    "m49": "690",
+    "itu": "SEY",
+    "marc": "se",
+    "wmo": "SC",
+    "ds": "SY",
+    "dial": [
+      "248"
+    ],
+    "fifa": "SEY",
+    "fips": "SE",
+    "gaul": "220",
+    "ioc": "SEY",
+    "currency": {
+      "code": "SCR",
+      "countryName": "SEYCHELLES",
+      "minorUnit": "2",
+      "name": "Seychelles Rupee",
+      "numCode": "690"
+    },
+    "isIndependent": "Yes",
+    "capital": "Victoria",
+    "continent": "AF",
+    "tld": ".sc",
+    "languages": [
+      "en-SC",
+      "fr-SC"
+    ],
+    "geoNameId": "241170",
+    "edgar": "T2"
+  },
+  {
+    "full": "Sierra Leone",
+    "officialName": {
+      "short": "Sierra Leone"
+    },
+    "short": "SL",
+    "long": "SLE",
+    "m49": "694",
+    "itu": "SRL",
+    "marc": "sl",
+    "wmo": "SL",
+    "ds": "WAL",
+    "dial": [
+      "232"
+    ],
+    "fifa": "SLE",
+    "fips": "SL",
+    "gaul": "221",
+    "ioc": "SLE",
+    "currency": {
+      "code": "SLL",
+      "countryName": "SIERRA LEONE",
+      "minorUnit": "2",
+      "name": "Leone",
+      "numCode": "694"
+    },
+    "isIndependent": "Yes",
+    "capital": "Freetown",
+    "continent": "AF",
+    "tld": ".sl",
+    "languages": [
+      "en-SL",
+      "men",
+      "tem"
+    ],
+    "geoNameId": "2403846",
+    "edgar": "T8"
+  },
+  {
+    "full": "Singapore",
+    "officialName": {
+      "short": "Singapore"
+    },
+    "short": "SG",
+    "long": "SGP",
+    "m49": "702",
+    "itu": "SNG",
+    "marc": "si",
+    "wmo": "SR",
+    "ds": "SGP",
+    "dial": [
+      "65"
+    ],
+    "fifa": "SIN",
+    "fips": "SN",
+    "gaul": "222",
+    "ioc": "SIN",
+    "currency": {
+      "code": "SGD",
+      "countryName": "SINGAPORE",
+      "minorUnit": "2",
+      "name": "Singapore Dollar",
+      "numCode": "702"
+    },
+    "isIndependent": "Yes",
+    "capital": "Singapore",
+    "continent": "AS",
+    "tld": ".sg",
+    "languages": [
+      "cmn",
+      "en-SG",
+      "ms-SG",
+      "ta-SG",
+      "zh-SG"
+    ],
+    "geoNameId": "1880251",
+    "edgar": "U0"
+  },
+  {
+    "full": "Sint Maarten",
+    "officialName": {
+      "short": "Sint Maarten (Dutch part)"
+    },
+    "short": "SX",
+    "long": "SXM",
+    "m49": "534",
+    "itu": "",
+    "marc": "sn",
+    "wmo": "",
+    "ds": "",
+    "dial": [
+      "1-721"
+    ],
+    "fifa": "",
+    "fips": "NN",
+    "gaul": "",
+    "ioc": "",
+    "currency": {
+      "code": "ANG",
+      "countryName": "SINT MAARTEN (DUTCH PART)",
+      "minorUnit": "2",
+      "name": "Netherlands Antillean Guilder",
+      "numCode": "532"
+    },
+    "isIndependent": "Part of NL",
+    "capital": "Philipsburg",
+    "continent": "NA",
+    "tld": ".sx",
+    "languages": [
+      "nl",
+      "en"
+    ],
+    "geoNameId": "7609695",
+    "edgar": ""
+  },
+  {
+    "full": "Slovakia",
+    "officialName": {
+      "short": "Slovakia"
+    },
+    "short": "SK",
+    "long": "SVK",
+    "m49": "703",
+    "itu": "SVK",
+    "marc": "xo",
+    "wmo": "SQ",
+    "ds": "SK",
+    "dial": [
+      "421"
+    ],
+    "fifa": "SVK",
+    "fips": "LO",
+    "gaul": "223",
+    "ioc": "SVK",
+    "currency": {
+      "code": "EUR",
+      "countryName": "SLOVAKIA",
+      "minorUnit": "2",
+      "name": "Euro",
+      "numCode": "978"
+    },
+    "isIndependent": "Yes",
+    "capital": "Bratislava",
+    "continent": "EU",
+    "tld": ".sk",
+    "languages": [
+      "sk",
+      "hu"
+    ],
+    "geoNameId": "3057568",
+    "edgar": "2B"
+  },
+  {
+    "full": "Slovenia",
+    "officialName": {
+      "short": "Slovenia"
+    },
+    "short": "SI",
+    "long": "SVN",
+    "m49": "705",
+    "itu": "SVN",
+    "marc": "xv",
+    "wmo": "LJ",
+    "ds": "SLO",
+    "dial": [
+      "386"
+    ],
+    "fifa": "SVN",
+    "fips": "SI",
+    "gaul": "224",
+    "ioc": "SLO",
+    "currency": {
+      "code": "EUR",
+      "countryName": "SLOVENIA",
+      "minorUnit": "2",
+      "name": "Euro",
+      "numCode": "978"
+    },
+    "isIndependent": "Yes",
+    "capital": "Ljubljana",
+    "continent": "EU",
+    "tld": ".si",
+    "languages": [
+      "sl",
+      "sh"
+    ],
+    "geoNameId": "3190538",
+    "edgar": "2A"
+  },
+  {
+    "full": "Solomon Islands",
+    "officialName": {
+      "short": "Solomon Islands"
+    },
+    "short": "SB",
+    "long": "SLB",
+    "m49": "90",
+    "itu": "SLM",
+    "marc": "bp",
+    "wmo": "SO",
+    "ds": "SB",
+    "dial": [
+      "677"
+    ],
+    "fifa": "SOL",
+    "fips": "BP",
+    "gaul": "225",
+    "ioc": "SOL",
+    "currency": {
+      "code": "SBD",
+      "countryName": "SOLOMON ISLANDS",
+      "minorUnit": "2",
+      "name": "Solomon Islands Dollar",
+      "numCode": "90"
+    },
+    "isIndependent": "Yes",
+    "capital": "Honiara",
+    "continent": "OC",
+    "tld": ".sb",
+    "languages": [
+      "en-SB",
+      "tpi"
+    ],
+    "geoNameId": "2103350",
+    "edgar": "D7"
+  },
+  {
+    "full": "Somalia",
+    "officialName": {
+      "short": "Somalia"
+    },
+    "short": "SO",
+    "long": "SOM",
+    "m49": "706",
+    "itu": "SOM",
+    "marc": "so",
+    "wmo": "SI",
+    "ds": "SO",
+    "dial": [
+      "252"
+    ],
+    "fifa": "SOM",
+    "fips": "SO",
+    "gaul": "226",
+    "ioc": "SOM",
+    "currency": {
+      "code": "SOS",
+      "countryName": "SOMALIA",
+      "minorUnit": "2",
+      "name": "Somali Shilling",
+      "numCode": "706"
+    },
+    "isIndependent": "Yes",
+    "capital": "Mogadishu",
+    "continent": "AF",
+    "tld": ".so",
+    "languages": [
+      "so-SO",
+      "ar-SO",
+      "it",
+      "en-SO"
+    ],
+    "geoNameId": "51537",
+    "edgar": "U1"
+  },
+  {
+    "full": "South Africa",
+    "officialName": {
+      "short": "South Africa"
+    },
+    "short": "ZA",
+    "long": "ZAF",
+    "m49": "710",
+    "itu": "AFS",
+    "marc": "sa",
+    "wmo": "ZA",
+    "ds": "ZA",
+    "dial": [
+      "27"
+    ],
+    "fifa": "RSA",
+    "fips": "SF",
+    "gaul": "227",
+    "ioc": "RSA",
+    "currency": {
+      "code": "ZAR",
+      "countryName": "SOUTH AFRICA",
+      "minorUnit": "2",
+      "name": "Rand",
+      "numCode": "710"
+    },
+    "isIndependent": "Yes",
+    "capital": "Pretoria",
+    "continent": "AF",
+    "tld": ".za",
+    "languages": [
+      "zu",
+      "xh",
+      "af",
+      "nso",
+      "en-ZA",
+      "tn",
+      "st",
+      "ts",
+      "ss",
+      "ve",
+      "nr"
+    ],
+    "geoNameId": "953987",
+    "edgar": "T3"
+  },
+  {
+    "full": "South Georgia & South Sandwich Islands",
+    "officialName": {
+      "short": ""
+    },
+    "short": "GS",
+    "long": "SGS",
+    "m49": "239",
+    "itu": "",
+    "marc": "xs",
+    "wmo": "",
+    "ds": "",
+    "dial": [
+      "500"
+    ],
+    "fifa": "",
+    "fips": "SX",
+    "gaul": "228",
+    "ioc": "",
+    "currency": {
+      "code": "",
+      "countryName": "",
+      "minorUnit": "",
+      "name": "",
+      "numCode": ""
+    },
+    "isIndependent": "Territory of GB",
+    "capital": "Grytviken",
+    "continent": "AN",
+    "tld": ".gs",
+    "languages": [
+      "en"
+    ],
+    "geoNameId": "3474415",
+    "edgar": ""
+  },
+  {
+    "full": "South Korea",
+    "officialName": {
+      "short": "Republic of Korea"
+    },
+    "short": "KR",
+    "long": "KOR",
+    "m49": "410",
+    "itu": "KOR",
+    "marc": "ko",
+    "wmo": "KO",
+    "ds": "ROK",
+    "dial": [
+      "82"
+    ],
+    "fifa": "KOR",
+    "fips": "KS",
+    "gaul": "202",
+    "ioc": "KOR",
+    "currency": {
+      "code": "KRW",
+      "countryName": "KOREA, REPUBLIC OF",
+      "minorUnit": "0",
+      "name": "Won",
+      "numCode": "410"
+    },
+    "isIndependent": "Yes",
+    "capital": "Seoul",
+    "continent": "AS",
+    "tld": ".kr",
+    "languages": [
+      "ko-KR",
+      "en"
+    ],
+    "geoNameId": "1835841",
+    "edgar": "M5"
+  },
+  {
+    "full": "South Sudan",
+    "officialName": {
+      "short": "South Sudan"
+    },
+    "short": "SS",
+    "long": "SSD",
+    "m49": "728",
+    "itu": "SSD",
+    "marc": "sd",
+    "wmo": "",
+    "ds": "",
+    "dial": [
+      "211"
+    ],
+    "fifa": "",
+    "fips": "OD",
+    "gaul": "",
+    "ioc": "",
+    "currency": {
+      "code": "SSP",
+      "countryName": "SOUTH SUDAN",
+      "minorUnit": "2",
+      "name": "South Sudanese Pound",
+      "numCode": "728"
+    },
+    "isIndependent": "Yes",
+    "capital": "Juba",
+    "continent": "AF",
+    "tld": "",
+    "languages": [
+      "en"
+    ],
+    "geoNameId": "7909807",
+    "edgar": ""
+  },
+  {
+    "full": "Spain",
+    "officialName": {
+      "short": "Spain"
+    },
+    "short": "ES",
+    "long": "ESP",
+    "m49": "724",
+    "itu": "E",
+    "marc": "sp",
+    "wmo": "SP",
+    "ds": "E",
+    "dial": [
+      "34"
+    ],
+    "fifa": "ESP",
+    "fips": "SP",
+    "gaul": "229",
+    "ioc": "ESP",
+    "currency": {
+      "code": "EUR",
+      "countryName": "SPAIN",
+      "minorUnit": "2",
+      "name": "Euro",
+      "numCode": "978"
+    },
+    "isIndependent": "Yes",
+    "capital": "Madrid",
+    "continent": "EU",
+    "tld": ".es",
+    "languages": [
+      "es-ES",
+      "ca",
+      "gl",
+      "eu",
+      "oc"
+    ],
+    "geoNameId": "2510769",
+    "edgar": "U3"
+  },
+  {
+    "full": "Sri Lanka",
+    "officialName": {
+      "short": "Sri Lanka"
+    },
+    "short": "LK",
+    "long": "LKA",
+    "m49": "144",
+    "itu": "CLN",
+    "marc": "ce",
+    "wmo": "SB",
+    "ds": "CL",
+    "dial": [
+      "94"
+    ],
+    "fifa": "SRI",
+    "fips": "CE",
+    "gaul": "231",
+    "ioc": "SRI",
+    "currency": {
+      "code": "LKR",
+      "countryName": "SRI LANKA",
+      "minorUnit": "2",
+      "name": "Sri Lanka Rupee",
+      "numCode": "144"
+    },
+    "isIndependent": "Yes",
+    "capital": "Colombo",
+    "continent": "AS",
+    "tld": ".lk",
+    "languages": [
+      "si",
+      "ta",
+      "en"
+    ],
+    "geoNameId": "1227603",
+    "edgar": "F1"
+  },
+  {
+    "full": "St. Barthélemy",
+    "officialName": {
+      "short": "Saint Barthélemy"
+    },
+    "short": "BL",
+    "long": "BLM",
+    "m49": "652",
+    "itu": "",
+    "marc": "sc",
+    "wmo": "",
+    "ds": "",
+    "dial": [
+      "590"
+    ],
+    "fifa": "",
+    "fips": "TB",
+    "gaul": "",
+    "ioc": "",
+    "currency": {
+      "code": "EUR",
+      "countryName": "SAINT BARTHÉLEMY",
+      "minorUnit": "2",
+      "name": "Euro",
+      "numCode": "978"
+    },
+    "isIndependent": "Part of FR",
+    "capital": "Gustavia",
+    "continent": "NA",
+    "tld": ".gp",
+    "languages": [
+      "fr"
+    ],
+    "geoNameId": "3578476",
+    "edgar": ""
+  },
+  {
+    "full": "St. Helena",
+    "officialName": {
+      "short": "Saint Helena"
+    },
+    "short": "SH",
+    "long": "SHN",
+    "m49": "654",
+    "itu": "SHN",
+    "marc": "xj",
+    "wmo": "HE",
+    "ds": "SH",
+    "dial": [
+      "290 n"
+    ],
+    "fifa": "SHN",
+    "fips": "SH",
+    "gaul": "207",
+    "ioc": "HEL",
+    "currency": {
+      "code": "SHP",
+      "countryName": "SAINT HELENA, ASCENSION AND TRISTAN DA CUNHA",
+      "minorUnit": "2",
+      "name": "Saint Helena Pound",
+      "numCode": "654"
+    },
+    "isIndependent": "Territory of GB",
+    "capital": "Jamestown",
+    "continent": "AF",
+    "tld": ".sh",
+    "languages": [
+      "en-SH"
+    ],
+    "geoNameId": "3370751",
+    "edgar": ""
+  },
+  {
+    "full": "St. Kitts & Nevis",
+    "officialName": {
+      "short": "Saint Kitts and Nevis"
+    },
+    "short": "KN",
+    "long": "KNA",
+    "m49": "659",
+    "itu": "KNA",
+    "marc": "xd",
+    "wmo": "AT",
+    "ds": "KN",
+    "dial": [
+      "1-869"
+    ],
+    "fifa": "SKN",
+    "fips": "SC",
+    "gaul": "208",
+    "ioc": "SKN",
+    "currency": {
+      "code": "XCD",
+      "countryName": "SAINT KITTS AND NEVIS",
+      "minorUnit": "2",
+      "name": "East Caribbean Dollar",
+      "numCode": "951"
+    },
+    "isIndependent": "Yes",
+    "capital": "Basseterre",
+    "continent": "NA",
+    "tld": ".kn",
+    "languages": [
+      "en-KN"
+    ],
+    "geoNameId": "3575174",
+    "edgar": "U7"
+  },
+  {
+    "full": "St. Lucia",
+    "officialName": {
+      "short": "Saint Lucia"
+    },
+    "short": "LC",
+    "long": "LCA",
+    "m49": "662",
+    "itu": "LCA",
+    "marc": "xk",
+    "wmo": "LC",
+    "ds": "WL",
+    "dial": [
+      "1-758"
+    ],
+    "fifa": "LCA",
+    "fips": "ST",
+    "gaul": "209",
+    "ioc": "LCA",
+    "currency": {
+      "code": "XCD",
+      "countryName": "SAINT LUCIA",
+      "minorUnit": "2",
+      "name": "East Caribbean Dollar",
+      "numCode": "951"
+    },
+    "isIndependent": "Yes",
+    "capital": "Castries",
+    "continent": "NA",
+    "tld": ".lc",
+    "languages": [
+      "en-LC"
+    ],
+    "geoNameId": "3576468",
+    "edgar": "U9"
+  },
+  {
+    "full": "St. Martin",
+    "officialName": {
+      "short": "Saint Martin (French part)"
+    },
+    "short": "MF",
+    "long": "MAF",
+    "m49": "663",
+    "itu": "",
+    "marc": "st",
+    "wmo": "",
+    "ds": "",
+    "dial": [
+      "590"
+    ],
+    "fifa": "",
+    "fips": "RN",
+    "gaul": "",
+    "ioc": "",
+    "currency": {
+      "code": "EUR",
+      "countryName": "SAINT MARTIN (FRENCH PART)",
+      "minorUnit": "2",
+      "name": "Euro",
+      "numCode": "978"
+    },
+    "isIndependent": "Part of FR",
+    "capital": "Marigot",
+    "continent": "NA",
+    "tld": ".gp",
+    "languages": [
+      "fr"
+    ],
+    "geoNameId": "3578421",
+    "edgar": ""
+  },
+  {
+    "full": "St. Pierre & Miquelon",
+    "officialName": {
+      "short": "Saint Pierre and Miquelon"
+    },
+    "short": "PM",
+    "long": "SPM",
+    "m49": "666",
+    "itu": "SPM",
+    "marc": "xl",
+    "wmo": "FP",
+    "ds": "F",
+    "dial": [
+      "508"
+    ],
+    "fifa": "SPM",
+    "fips": "SB",
+    "gaul": "210",
+    "ioc": "SPM",
+    "currency": {
+      "code": "EUR",
+      "countryName": "SAINT PIERRE AND MIQUELON",
+      "minorUnit": "2",
+      "name": "Euro",
+      "numCode": "978"
+    },
+    "isIndependent": "Part of FR",
+    "capital": "Saint-Pierre",
+    "continent": "NA",
+    "tld": ".pm",
+    "languages": [
+      "fr-PM"
+    ],
+    "geoNameId": "3424932",
+    "edgar": "V0"
+  },
+  {
+    "full": "St. Vincent & Grenadines",
+    "officialName": {
+      "short": "Saint Vincent and the Grenadines"
+    },
+    "short": "VC",
+    "long": "VCT",
+    "m49": "670",
+    "itu": "VCT",
+    "marc": "xm",
+    "wmo": "VG",
+    "ds": "WV",
+    "dial": [
+      "1-784"
+    ],
+    "fifa": "VIN",
+    "fips": "VC",
+    "gaul": "211",
+    "ioc": "VIN",
+    "currency": {
+      "code": "XCD",
+      "countryName": "SAINT VINCENT AND THE GRENADINES",
+      "minorUnit": "2",
+      "name": "East Caribbean Dollar",
+      "numCode": "951"
+    },
+    "isIndependent": "Yes",
+    "capital": "Kingstown",
+    "continent": "NA",
+    "tld": ".vc",
+    "languages": [
+      "en-VC",
+      "fr"
+    ],
+    "geoNameId": "3577815",
+    "edgar": "V1"
+  },
+  {
+    "full": "Sudan",
+    "officialName": {
+      "short": "Sudan"
+    },
+    "short": "SD",
+    "long": "SDN",
+    "m49": "729",
+    "itu": "SDN",
+    "marc": "sj",
+    "wmo": "SU",
+    "ds": "SUD",
+    "dial": [
+      "249"
+    ],
+    "fifa": "SUD",
+    "fips": "SU",
+    "gaul": "40764",
+    "ioc": "SUD",
+    "currency": {
+      "code": "SDG",
+      "countryName": "SUDAN",
+      "minorUnit": "2",
+      "name": "Sudanese Pound",
+      "numCode": "938"
+    },
+    "isIndependent": "Yes",
+    "capital": "Khartoum",
+    "continent": "AF",
+    "tld": ".sd",
+    "languages": [
+      "ar-SD",
+      "en",
+      "fia"
+    ],
+    "geoNameId": "366755",
+    "edgar": "V2"
+  },
+  {
+    "full": "Suriname",
+    "officialName": {
+      "short": "Suriname"
+    },
+    "short": "SR",
+    "long": "SUR",
+    "m49": "740",
+    "itu": "SUR",
+    "marc": "sr",
+    "wmo": "SM",
+    "ds": "SME",
+    "dial": [
+      "597"
+    ],
+    "fifa": "SUR",
+    "fips": "NS",
+    "gaul": "233",
+    "ioc": "SUR",
+    "currency": {
+      "code": "SRD",
+      "countryName": "SURINAME",
+      "minorUnit": "2",
+      "name": "Surinam Dollar",
+      "numCode": "968"
+    },
+    "isIndependent": "Yes",
+    "capital": "Paramaribo",
+    "continent": "SA",
+    "tld": ".sr",
+    "languages": [
+      "nl-SR",
+      "en",
+      "srn",
+      "hns",
+      "jv"
+    ],
+    "geoNameId": "3382998",
+    "edgar": "V3"
+  },
+  {
+    "full": "Svalbard & Jan Mayen",
+    "officialName": {
+      "short": "Svalbard and Jan Mayen Islands"
+    },
+    "short": "SJ",
+    "long": "SJM",
+    "m49": "744",
+    "itu": "NOR",
+    "marc": "",
+    "wmo": "SZ",
+    "ds": "",
+    "dial": [
+      "47"
+    ],
+    "fifa": "",
+    "fips": "SV,JN",
+    "gaul": "234",
+    "ioc": "",
+    "currency": {
+      "code": "NOK",
+      "countryName": "SVALBARD AND JAN MAYEN",
+      "minorUnit": "2",
+      "name": "Norwegian Krone",
+      "numCode": "578"
+    },
+    "isIndependent": "Territory of NO",
+    "capital": "Longyearbyen",
+    "continent": "EU",
+    "tld": ".sj",
+    "languages": [
+      "no",
+      "ru"
+    ],
+    "geoNameId": "607072",
+    "edgar": "L9"
+  },
+  {
+    "full": "Swaziland",
+    "officialName": {
+      "short": "Swaziland"
+    },
+    "short": "SZ",
+    "long": "SWZ",
+    "m49": "748",
+    "itu": "SWZ",
+    "marc": "sq",
+    "wmo": "SV",
+    "ds": "SD",
+    "dial": [
+      "268"
+    ],
+    "fifa": "SWZ",
+    "fips": "WZ",
+    "gaul": "235",
+    "ioc": "SWZ",
+    "currency": {
+      "code": "SZL",
+      "countryName": "SWAZILAND",
+      "minorUnit": "2",
+      "name": "Lilangeni",
+      "numCode": "748"
+    },
+    "isIndependent": "Yes",
+    "capital": "Mbabane",
+    "continent": "AF",
+    "tld": ".sz",
+    "languages": [
+      "en-SZ",
+      "ss-SZ"
+    ],
+    "geoNameId": "934841",
+    "edgar": "V6"
+  },
+  {
+    "full": "Sweden",
+    "officialName": {
+      "short": "Sweden"
+    },
+    "short": "SE",
+    "long": "SWE",
+    "m49": "752",
+    "itu": "S",
+    "marc": "sw",
+    "wmo": "SN",
+    "ds": "S",
+    "dial": [
+      "46"
+    ],
+    "fifa": "SWE",
+    "fips": "SW",
+    "gaul": "236",
+    "ioc": "SWE",
+    "currency": {
+      "code": "SEK",
+      "countryName": "SWEDEN",
+      "minorUnit": "2",
+      "name": "Swedish Krona",
+      "numCode": "752"
+    },
+    "isIndependent": "Yes",
+    "capital": "Stockholm",
+    "continent": "EU",
+    "tld": ".se",
+    "languages": [
+      "sv-SE",
+      "se",
+      "sma",
+      "fi-SE"
+    ],
+    "geoNameId": "2661886",
+    "edgar": "V7"
+  },
+  {
+    "full": "Switzerland",
+    "officialName": {
+      "short": "Switzerland"
+    },
+    "short": "CH",
+    "long": "CHE",
+    "m49": "756",
+    "itu": "SUI",
+    "marc": "sz",
+    "wmo": "SW",
+    "ds": "CH",
+    "dial": [
+      "41"
+    ],
+    "fifa": "SUI",
+    "fips": "SZ",
+    "gaul": "237",
+    "ioc": "SUI",
+    "currency": {
+      "code": "CHF",
+      "countryName": "SWITZERLAND",
+      "minorUnit": "2",
+      "name": "Swiss Franc",
+      "numCode": "756"
+    },
+    "isIndependent": "Yes",
+    "capital": "Bern",
+    "continent": "EU",
+    "tld": ".ch",
+    "languages": [
+      "de-CH",
+      "fr-CH",
+      "it-CH",
+      "rm"
+    ],
+    "geoNameId": "2658434",
+    "edgar": "V8"
+  },
+  {
+    "full": "Syria",
+    "officialName": {
+      "short": "Syrian Arab Republic"
+    },
+    "short": "SY",
+    "long": "SYR",
+    "m49": "760",
+    "itu": "SYR",
+    "marc": "sy",
+    "wmo": "SY",
+    "ds": "SYR",
+    "dial": [
+      "963"
+    ],
+    "fifa": "SYR",
+    "fips": "SY",
+    "gaul": "238",
+    "ioc": "SYR",
+    "currency": {
+      "code": "SYP",
+      "countryName": "SYRIAN ARAB REPUBLIC",
+      "minorUnit": "2",
+      "name": "Syrian Pound",
+      "numCode": "760"
+    },
+    "isIndependent": "Yes",
+    "capital": "Damascus",
+    "continent": "AS",
+    "tld": ".sy",
+    "languages": [
+      "ar-SY",
+      "ku",
+      "hy",
+      "arc",
+      "fr",
+      "en"
+    ],
+    "geoNameId": "163843",
+    "edgar": "V9"
+  },
+  {
+    "full": "São Tomé & Príncipe",
+    "officialName": {
+      "short": "Sao Tome and Principe"
+    },
+    "short": "ST",
+    "long": "STP",
+    "m49": "678",
+    "itu": "STP",
+    "marc": "sf",
+    "wmo": "TP",
+    "ds": "ST",
+    "dial": [
+      "239"
+    ],
+    "fifa": "STP",
+    "fips": "TP",
+    "gaul": "214",
+    "ioc": "STP",
+    "currency": {
+      "code": "STD",
+      "countryName": "SAO TOME AND PRINCIPE",
+      "minorUnit": "2",
+      "name": "Dobra",
+      "numCode": "678"
+    },
+    "isIndependent": "Yes",
+    "capital": "Sao Tome",
+    "continent": "AF",
+    "tld": ".st",
+    "languages": [
+      "pt-ST"
+    ],
+    "geoNameId": "2410758",
+    "edgar": "S9"
+  },
+  {
+    "full": "Taiwan",
+    "officialName": {
+      "short": ""
+    },
+    "short": "TW",
+    "long": "TWN",
+    "m49": "158",
+    "itu": "",
+    "marc": "ch",
+    "wmo": "",
+    "ds": "RC",
+    "dial": [
+      "886"
+    ],
+    "fifa": "TPE",
+    "fips": "TW",
+    "gaul": "925",
+    "ioc": "TPE",
+    "currency": {
+      "code": "",
+      "countryName": "",
+      "minorUnit": "",
+      "name": "",
+      "numCode": ""
+    },
+    "isIndependent": "Yes",
+    "capital": "Taipei",
+    "continent": "AS",
+    "tld": ".tw",
+    "languages": [
+      "zh-TW",
+      "zh",
+      "nan",
+      "hak"
+    ],
+    "geoNameId": "1668284",
+    "edgar": ""
+  },
+  {
+    "full": "Tajikistan",
+    "officialName": {
+      "short": "Tajikistan"
+    },
+    "short": "TJ",
+    "long": "TJK",
+    "m49": "762",
+    "itu": "TJK",
+    "marc": "ta",
+    "wmo": "TA",
+    "ds": "TJ",
+    "dial": [
+      "992"
+    ],
+    "fifa": "TJK",
+    "fips": "TI",
+    "gaul": "239",
+    "ioc": "TJK",
+    "currency": {
+      "code": "TJS",
+      "countryName": "TAJIKISTAN",
+      "minorUnit": "2",
+      "name": "Somoni",
+      "numCode": "972"
+    },
+    "isIndependent": "Yes",
+    "capital": "Dushanbe",
+    "continent": "AS",
+    "tld": ".tj",
+    "languages": [
+      "tg",
+      "ru"
+    ],
+    "geoNameId": "1220409",
+    "edgar": "2D"
+  },
+  {
+    "full": "Tanzania",
+    "officialName": {
+      "short": "United Republic of Tanzania"
+    },
+    "short": "TZ",
+    "long": "TZA",
+    "m49": "834",
+    "itu": "TZA",
+    "marc": "tz",
+    "wmo": "TN",
+    "ds": "EAT",
+    "dial": [
+      "255"
+    ],
+    "fifa": "TAN",
+    "fips": "TZ",
+    "gaul": "257",
+    "ioc": "TAN",
+    "currency": {
+      "code": "TZS",
+      "countryName": "TANZANIA, UNITED REPUBLIC OF",
+      "minorUnit": "2",
+      "name": "Tanzanian Shilling",
+      "numCode": "834"
+    },
+    "isIndependent": "Yes",
+    "capital": "Dodoma",
+    "continent": "AF",
+    "tld": ".tz",
+    "languages": [
+      "sw-TZ",
+      "en",
+      "ar"
+    ],
+    "geoNameId": "149590",
+    "edgar": "W0"
+  },
+  {
+    "full": "Thailand",
+    "officialName": {
+      "short": "Thailand"
+    },
+    "short": "TH",
+    "long": "THA",
+    "m49": "764",
+    "itu": "THA",
+    "marc": "th",
+    "wmo": "TH",
+    "ds": "T",
+    "dial": [
+      "66"
+    ],
+    "fifa": "THA",
+    "fips": "TH",
+    "gaul": "240",
+    "ioc": "THA",
+    "currency": {
+      "code": "THB",
+      "countryName": "THAILAND",
+      "minorUnit": "2",
+      "name": "Baht",
+      "numCode": "764"
+    },
+    "isIndependent": "Yes",
+    "capital": "Bangkok",
+    "continent": "AS",
+    "tld": ".th",
+    "languages": [
+      "th",
+      "en"
+    ],
+    "geoNameId": "1605651",
+    "edgar": "W1"
+  },
+  {
+    "full": "Timor-Leste",
+    "officialName": {
+      "short": "Timor-Leste"
+    },
+    "short": "TL",
+    "long": "TLS",
+    "m49": "626",
+    "itu": "TLS",
+    "marc": "em",
+    "wmo": "TM",
+    "ds": "RI",
+    "dial": [
+      "670"
+    ],
+    "fifa": "TLS",
+    "fips": "TT",
+    "gaul": "242",
+    "ioc": "TLS",
+    "currency": {
+      "code": "USD",
+      "countryName": "TIMOR-LESTE",
+      "minorUnit": "2",
+      "name": "US Dollar",
+      "numCode": "840"
+    },
+    "isIndependent": "Yes",
+    "capital": "Dili",
+    "continent": "OC",
+    "tld": ".tl",
+    "languages": [
+      "tet",
+      "pt-TL",
+      "id",
+      "en"
+    ],
+    "geoNameId": "1966436",
+    "edgar": "Z3"
+  },
+  {
+    "full": "Togo",
+    "officialName": {
+      "short": "Togo"
+    },
+    "short": "TG",
+    "long": "TGO",
+    "m49": "768",
+    "itu": "TGO",
+    "marc": "tg",
+    "wmo": "TG",
+    "ds": "TG",
+    "dial": [
+      "228"
+    ],
+    "fifa": "TOG",
+    "fips": "TO",
+    "gaul": "243",
+    "ioc": "TOG",
+    "currency": {
+      "code": "XOF",
+      "countryName": "TOGO",
+      "minorUnit": "0",
+      "name": "CFA Franc BCEAO",
+      "numCode": "952"
+    },
+    "isIndependent": "Yes",
+    "capital": "Lome",
+    "continent": "AF",
+    "tld": ".tg",
+    "languages": [
+      "fr-TG",
+      "ee",
+      "hna",
+      "kbp",
+      "dag",
+      "ha"
+    ],
+    "geoNameId": "2363686",
+    "edgar": "W2"
+  },
+  {
+    "full": "Tokelau",
+    "officialName": {
+      "short": "Tokelau"
+    },
+    "short": "TK",
+    "long": "TKL",
+    "m49": "772",
+    "itu": "TKL",
+    "marc": "tl",
+    "wmo": "TK",
+    "ds": "NZ",
+    "dial": [
+      "690"
+    ],
+    "fifa": "TKL",
+    "fips": "TL",
+    "gaul": "244",
+    "ioc": "",
+    "currency": {
+      "code": "NZD",
+      "countryName": "TOKELAU",
+      "minorUnit": "2",
+      "name": "New Zealand Dollar",
+      "numCode": "554"
+    },
+    "isIndependent": "Territory of NZ",
+    "capital": "",
+    "continent": "OC",
+    "tld": ".tk",
+    "languages": [
+      "tkl",
+      "en-TK"
+    ],
+    "geoNameId": "4031074",
+    "edgar": "W3"
+  },
+  {
+    "full": "Tonga",
+    "officialName": {
+      "short": "Tonga"
+    },
+    "short": "TO",
+    "long": "TON",
+    "m49": "776",
+    "itu": "TON",
+    "marc": "to",
+    "wmo": "TO",
+    "ds": "TO",
+    "dial": [
+      "676"
+    ],
+    "fifa": "TGA",
+    "fips": "TN",
+    "gaul": "245",
+    "ioc": "TGA",
+    "currency": {
+      "code": "TOP",
+      "countryName": "TONGA",
+      "minorUnit": "2",
+      "name": "Pa’anga",
+      "numCode": "776"
+    },
+    "isIndependent": "Yes",
+    "capital": "Nuku'alofa",
+    "continent": "OC",
+    "tld": ".to",
+    "languages": [
+      "to",
+      "en-TO"
+    ],
+    "geoNameId": "4032283",
+    "edgar": "W4"
+  },
+  {
+    "full": "Trinidad & Tobago",
+    "officialName": {
+      "short": "Trinidad and Tobago"
+    },
+    "short": "TT",
+    "long": "TTO",
+    "m49": "780",
+    "itu": "TRD",
+    "marc": "tr",
+    "wmo": "TD",
+    "ds": "TT",
+    "dial": [
+      "1-868"
+    ],
+    "fifa": "TRI",
+    "fips": "TD",
+    "gaul": "246",
+    "ioc": "TTO",
+    "currency": {
+      "code": "TTD",
+      "countryName": "TRINIDAD AND TOBAGO",
+      "minorUnit": "2",
+      "name": "Trinidad and Tobago Dollar",
+      "numCode": "780"
+    },
+    "isIndependent": "Yes",
+    "capital": "Port of Spain",
+    "continent": "NA",
+    "tld": ".tt",
+    "languages": [
+      "en-TT",
+      "hns",
+      "fr",
+      "es",
+      "zh"
+    ],
+    "geoNameId": "3573591",
+    "edgar": "W5"
+  },
+  {
+    "full": "Tunisia",
+    "officialName": {
+      "short": "Tunisia"
+    },
+    "short": "TN",
+    "long": "TUN",
+    "m49": "788",
+    "itu": "TUN",
+    "marc": "ti",
+    "wmo": "TS",
+    "ds": "TN",
+    "dial": [
+      "216"
+    ],
+    "fifa": "TUN",
+    "fips": "TS",
+    "gaul": "248",
+    "ioc": "TUN",
+    "currency": {
+      "code": "TND",
+      "countryName": "TUNISIA",
+      "minorUnit": "3",
+      "name": "Tunisian Dinar",
+      "numCode": "788"
+    },
+    "isIndependent": "Yes",
+    "capital": "Tunis",
+    "continent": "AF",
+    "tld": ".tn",
+    "languages": [
+      "ar-TN",
+      "fr"
+    ],
+    "geoNameId": "2464461",
+    "edgar": "W6"
+  },
+  {
+    "full": "Turkey",
+    "officialName": {
+      "short": "Turkey"
+    },
+    "short": "TR",
+    "long": "TUR",
+    "m49": "792",
+    "itu": "TUR",
+    "marc": "tu",
+    "wmo": "TU",
+    "ds": "TR",
+    "dial": [
+      "90"
+    ],
+    "fifa": "TUR",
+    "fips": "TU",
+    "gaul": "249",
+    "ioc": "TUR",
+    "currency": {
+      "code": "TRY",
+      "countryName": "TURKEY",
+      "minorUnit": "2",
+      "name": "Turkish Lira",
+      "numCode": "949"
+    },
+    "isIndependent": "Yes",
+    "capital": "Ankara",
+    "continent": "AS",
+    "tld": ".tr",
+    "languages": [
+      "tr-TR",
+      "ku",
+      "diq",
+      "az",
+      "av"
+    ],
+    "geoNameId": "298795",
+    "edgar": "W8"
+  },
+  {
+    "full": "Turkmenistan",
+    "officialName": {
+      "short": "Turkmenistan"
+    },
+    "short": "TM",
+    "long": "TKM",
+    "m49": "795",
+    "itu": "TKM",
+    "marc": "tk",
+    "wmo": "TR",
+    "ds": "TM",
+    "dial": [
+      "993"
+    ],
+    "fifa": "TKM",
+    "fips": "TX",
+    "gaul": "250",
+    "ioc": "TKM",
+    "currency": {
+      "code": "TMT",
+      "countryName": "TURKMENISTAN",
+      "minorUnit": "2",
+      "name": "Turkmenistan New Manat",
+      "numCode": "934"
+    },
+    "isIndependent": "Yes",
+    "capital": "Ashgabat",
+    "continent": "AS",
+    "tld": ".tm",
+    "languages": [
+      "tk",
+      "ru",
+      "uz"
+    ],
+    "geoNameId": "1218197",
+    "edgar": "2E"
+  },
+  {
+    "full": "Turks & Caicos Islands",
+    "officialName": {
+      "short": "Turks and Caicos Islands"
+    },
+    "short": "TC",
+    "long": "TCA",
+    "m49": "796",
+    "itu": "TCA",
+    "marc": "tc",
+    "wmo": "TI",
+    "ds": "",
+    "dial": [
+      "1-649"
+    ],
+    "fifa": "TCA",
+    "fips": "TK",
+    "gaul": "251",
+    "ioc": "TKS",
+    "currency": {
+      "code": "USD",
+      "countryName": "TURKS AND CAICOS ISLANDS",
+      "minorUnit": "2",
+      "name": "US Dollar",
+      "numCode": "840"
+    },
+    "isIndependent": "Territory of GB",
+    "capital": "Cockburn Town",
+    "continent": "NA",
+    "tld": ".tc",
+    "languages": [
+      "en-TC"
+    ],
+    "geoNameId": "3576916",
+    "edgar": "W7"
+  },
+  {
+    "full": "Tuvalu",
+    "officialName": {
+      "short": "Tuvalu"
+    },
+    "short": "TV",
+    "long": "TUV",
+    "m49": "798",
+    "itu": "TUV",
+    "marc": "tv",
+    "wmo": "TV",
+    "ds": "TV",
+    "dial": [
+      "688"
+    ],
+    "fifa": "TUV",
+    "fips": "TV",
+    "gaul": "252",
+    "ioc": "TUV",
+    "currency": {
+      "code": "AUD",
+      "countryName": "TUVALU",
+      "minorUnit": "2",
+      "name": "Australian Dollar",
+      "numCode": "36"
+    },
+    "isIndependent": "Yes",
+    "capital": "Funafuti",
+    "continent": "OC",
+    "tld": ".tv",
+    "languages": [
+      "tvl",
+      "en",
+      "sm",
+      "gil"
+    ],
+    "geoNameId": "2110297",
+    "edgar": "2G"
+  },
+  {
+    "full": "U.S. Outlying Islands",
+    "officialName": {
+      "short": ""
+    },
+    "short": "UM",
+    "long": "UMI",
+    "m49": "581",
+    "itu": "",
+    "marc": "ji,xf,wk,uc,up",
+    "wmo": "",
+    "ds": "USA",
+    "dial": [
+      ""
+    ],
+    "fifa": "",
+    "fips": "FQ,HQ,DQ,JQ,KQ,MQ,BQ,LQ,WQ",
+    "gaul": "",
+    "ioc": "",
+    "currency": {
+      "code": "",
+      "countryName": "",
+      "minorUnit": "",
+      "name": "",
+      "numCode": ""
+    },
+    "isIndependent": "Territories of US",
+    "capital": "",
+    "continent": "OC",
+    "tld": ".um",
+    "languages": [
+      "en-UM"
+    ],
+    "geoNameId": "5854968",
+    "edgar": ""
+  },
+  {
+    "full": "U.S. Virgin Islands",
+    "officialName": {
+      "short": "United States Virgin Islands"
+    },
+    "short": "VI",
+    "long": "VIR",
+    "m49": "850",
+    "itu": "VIR",
+    "marc": "vi",
+    "wmo": "VI",
+    "ds": "USA",
+    "dial": [
+      "1-340"
+    ],
+    "fifa": "VIR",
+    "fips": "VQ",
+    "gaul": "258",
+    "ioc": "ISV",
+    "currency": {
+      "code": "USD",
+      "countryName": "VIRGIN ISLANDS (U.S.)",
+      "minorUnit": "2",
+      "name": "US Dollar",
+      "numCode": "840"
+    },
+    "isIndependent": "Territory of US",
+    "capital": "Charlotte Amalie",
+    "continent": "NA",
+    "tld": ".vi",
+    "languages": [
+      "en-VI"
+    ],
+    "geoNameId": "4796775",
+    "edgar": ""
+  },
+  {
+    "full": "UK",
+    "officialName": {
+      "short": "United Kingdom of Great Britain and Northern Ireland"
+    },
+    "short": "GB",
+    "long": "GBR",
+    "m49": "826",
+    "itu": "G",
+    "marc": "xxk",
+    "wmo": "UK",
+    "ds": "GB",
+    "dial": [
+      "44"
+    ],
+    "fifa": "ENG,NIR,SCO,WAL",
+    "fips": "UK",
+    "gaul": "256",
+    "ioc": "GBR",
+    "currency": {
+      "code": "GBP",
+      "countryName": "UNITED KINGDOM",
+      "minorUnit": "2",
+      "name": "Pound Sterling",
+      "numCode": "826"
+    },
+    "isIndependent": "Yes",
+    "capital": "London",
+    "continent": "EU",
+    "tld": ".uk",
+    "languages": [
+      "en-GB",
+      "cy-GB",
+      "gd"
+    ],
+    "geoNameId": "2635167",
+    "edgar": "X0"
+  },
+  {
+    "full": "US",
+    "officialName": {
+      "short": "United States of America"
+    },
+    "short": "US",
+    "long": "USA",
+    "m49": "840",
+    "itu": "USA",
+    "marc": "xxu",
+    "wmo": "US",
+    "ds": "USA",
+    "dial": [
+      "1"
+    ],
+    "fifa": "USA",
+    "fips": "US",
+    "gaul": "259",
+    "ioc": "USA",
+    "currency": {
+      "code": "USD",
+      "countryName": "UNITED STATES",
+      "minorUnit": "2",
+      "name": "US Dollar",
+      "numCode": "840"
+    },
+    "isIndependent": "Yes",
+    "capital": "Washington",
+    "continent": "NA",
+    "tld": ".us",
+    "languages": [
+      "en-US",
+      "es-US",
+      "haw",
+      "fr"
+    ],
+    "geoNameId": "6252001",
+    "edgar": ""
+  },
+  {
+    "full": "Uganda",
+    "officialName": {
+      "short": "Uganda"
+    },
+    "short": "UG",
+    "long": "UGA",
+    "m49": "800",
+    "itu": "UGA",
+    "marc": "ug",
+    "wmo": "UG",
+    "ds": "EAU",
+    "dial": [
+      "256"
+    ],
+    "fifa": "UGA",
+    "fips": "UG",
+    "gaul": "253",
+    "ioc": "UGA",
+    "currency": {
+      "code": "UGX",
+      "countryName": "UGANDA",
+      "minorUnit": "0",
+      "name": "Uganda Shilling",
+      "numCode": "800"
+    },
+    "isIndependent": "Yes",
+    "capital": "Kampala",
+    "continent": "AF",
+    "tld": ".ug",
+    "languages": [
+      "en-UG",
+      "lg",
+      "sw",
+      "ar"
+    ],
+    "geoNameId": "226074",
+    "edgar": "W9"
+  },
+  {
+    "full": "Ukraine",
+    "officialName": {
+      "short": "Ukraine"
+    },
+    "short": "UA",
+    "long": "UKR",
+    "m49": "804",
+    "itu": "UKR",
+    "marc": "un",
+    "wmo": "UR",
+    "ds": "UA",
+    "dial": [
+      "380"
+    ],
+    "fifa": "UKR",
+    "fips": "UP",
+    "gaul": "254",
+    "ioc": "UKR",
+    "currency": {
+      "code": "UAH",
+      "countryName": "UKRAINE",
+      "minorUnit": "2",
+      "name": "Hryvnia",
+      "numCode": "980"
+    },
+    "isIndependent": "Yes",
+    "capital": "Kiev",
+    "continent": "EU",
+    "tld": ".ua",
+    "languages": [
+      "uk",
+      "ru-UA",
+      "rom",
+      "pl",
+      "hu"
+    ],
+    "geoNameId": "690791",
+    "edgar": "2H"
+  },
+  {
+    "full": "United Arab Emirates",
+    "officialName": {
+      "short": "United Arab Emirates"
+    },
+    "short": "AE",
+    "long": "ARE",
+    "m49": "784",
+    "itu": "UAE",
+    "marc": "ts",
+    "wmo": "ER",
+    "ds": "",
+    "dial": [
+      "971"
+    ],
+    "fifa": "UAE",
+    "fips": "AE",
+    "gaul": "255",
+    "ioc": "UAE",
+    "currency": {
+      "code": "AED",
+      "countryName": "UNITED ARAB EMIRATES",
+      "minorUnit": "2",
+      "name": "UAE Dirham",
+      "numCode": "784"
+    },
+    "isIndependent": "Yes",
+    "capital": "Abu Dhabi",
+    "continent": "AS",
+    "tld": ".ae",
+    "languages": [
+      "ar-AE",
+      "fa",
+      "en",
+      "hi",
+      "ur"
+    ],
+    "geoNameId": "290557",
+    "edgar": "C0"
+  },
+  {
+    "full": "Uruguay",
+    "officialName": {
+      "short": "Uruguay"
+    },
+    "short": "UY",
+    "long": "URY",
+    "m49": "858",
+    "itu": "URG",
+    "marc": "uy",
+    "wmo": "UY",
+    "ds": "ROU",
+    "dial": [
+      "598"
+    ],
+    "fifa": "URU",
+    "fips": "UY",
+    "gaul": "260",
+    "ioc": "URU",
+    "currency": {
+      "code": "UYU",
+      "countryName": "URUGUAY",
+      "minorUnit": "2",
+      "name": "Peso Uruguayo",
+      "numCode": "858"
+    },
+    "isIndependent": "Yes",
+    "capital": "Montevideo",
+    "continent": "SA",
+    "tld": ".uy",
+    "languages": [
+      "es-UY"
+    ],
+    "geoNameId": "3439705",
+    "edgar": "X3"
+  },
+  {
+    "full": "Uzbekistan",
+    "officialName": {
+      "short": "Uzbekistan"
+    },
+    "short": "UZ",
+    "long": "UZB",
+    "m49": "860",
+    "itu": "UZB",
+    "marc": "uz",
+    "wmo": "UZ",
+    "ds": "UZ",
+    "dial": [
+      "998"
+    ],
+    "fifa": "UZB",
+    "fips": "UZ",
+    "gaul": "261",
+    "ioc": "UZB",
+    "currency": {
+      "code": "UZS",
+      "countryName": "UZBEKISTAN",
+      "minorUnit": "2",
+      "name": "Uzbekistan Sum",
+      "numCode": "860"
+    },
+    "isIndependent": "Yes",
+    "capital": "Tashkent",
+    "continent": "AS",
+    "tld": ".uz",
+    "languages": [
+      "uz",
+      "ru",
+      "tg"
+    ],
+    "geoNameId": "1512440",
+    "edgar": "2K"
+  },
+  {
+    "full": "Vanuatu",
+    "officialName": {
+      "short": "Vanuatu"
+    },
+    "short": "VU",
+    "long": "VUT",
+    "m49": "548",
+    "itu": "VUT",
+    "marc": "nn",
+    "wmo": "NV",
+    "ds": "VU",
+    "dial": [
+      "678"
+    ],
+    "fifa": "VAN",
+    "fips": "NH",
+    "gaul": "262",
+    "ioc": "VAN",
+    "currency": {
+      "code": "VUV",
+      "countryName": "VANUATU",
+      "minorUnit": "0",
+      "name": "Vatu",
+      "numCode": "548"
+    },
+    "isIndependent": "Yes",
+    "capital": "Port Vila",
+    "continent": "OC",
+    "tld": ".vu",
+    "languages": [
+      "bi",
+      "en-VU",
+      "fr-VU"
+    ],
+    "geoNameId": "2134431",
+    "edgar": "2L"
+  },
+  {
+    "full": "Vatican City",
+    "officialName": {
+      "short": "Holy See"
+    },
+    "short": "VA",
+    "long": "VAT",
+    "m49": "336",
+    "itu": "CVA",
+    "marc": "vc",
+    "wmo": "",
+    "ds": "V",
+    "dial": [
+      "39-06"
+    ],
+    "fifa": "VAT",
+    "fips": "VT",
+    "gaul": "110",
+    "ioc": "",
+    "currency": {
+      "code": "EUR",
+      "countryName": "HOLY SEE (VATICAN CITY STATE)",
+      "minorUnit": "2",
+      "name": "Euro",
+      "numCode": "978"
+    },
+    "isIndependent": "Yes",
+    "capital": "Vatican City",
+    "continent": "EU",
+    "tld": ".va",
+    "languages": [
+      "la",
+      "it",
+      "fr"
+    ],
+    "geoNameId": "3164670",
+    "edgar": "X4"
+  },
+  {
+    "full": "Venezuela",
+    "officialName": {
+      "short": "Venezuela (Bolivarian Republic of)"
+    },
+    "short": "VE",
+    "long": "VEN",
+    "m49": "862",
+    "itu": "VEN",
+    "marc": "ve",
+    "wmo": "VN",
+    "ds": "YV",
+    "dial": [
+      "58"
+    ],
+    "fifa": "VEN",
+    "fips": "VE",
+    "gaul": "263",
+    "ioc": "VEN",
+    "currency": {
+      "code": "VEF",
+      "countryName": "VENEZUELA, BOLIVARIAN REPUBLIC OF",
+      "minorUnit": "2",
+      "name": "Bolivar",
+      "numCode": "937"
+    },
+    "isIndependent": "Yes",
+    "capital": "Caracas",
+    "continent": "SA",
+    "tld": ".ve",
+    "languages": [
+      "es-VE"
+    ],
+    "geoNameId": "3625428",
+    "edgar": ""
+  },
+  {
+    "full": "Vietnam",
+    "officialName": {
+      "short": "Viet Nam"
+    },
+    "short": "VN",
+    "long": "VNM",
+    "m49": "704",
+    "itu": "VTN",
+    "marc": "vm",
+    "wmo": "VS",
+    "ds": "VN",
+    "dial": [
+      "84"
+    ],
+    "fifa": "VIE",
+    "fips": "VM",
+    "gaul": "264",
+    "ioc": "VIE",
+    "currency": {
+      "code": "VND",
+      "countryName": "VIET NAM",
+      "minorUnit": "0",
+      "name": "Dong",
+      "numCode": "704"
+    },
+    "isIndependent": "Yes",
+    "capital": "Hanoi",
+    "continent": "AS",
+    "tld": ".vn",
+    "languages": [
+      "vi",
+      "en",
+      "fr",
+      "zh",
+      "km"
+    ],
+    "geoNameId": "1562822",
+    "edgar": "Q1"
+  },
+  {
+    "full": "Wallis & Futuna",
+    "officialName": {
+      "short": "Wallis and Futuna Islands"
+    },
+    "short": "WF",
+    "long": "WLF",
+    "m49": "876",
+    "itu": "WAL",
+    "marc": "wf",
+    "wmo": "FW",
+    "ds": "F",
+    "dial": [
+      "681"
+    ],
+    "fifa": "WLF",
+    "fips": "WF",
+    "gaul": "266",
+    "ioc": "WAF",
+    "currency": {
+      "code": "XPF",
+      "countryName": "WALLIS AND FUTUNA",
+      "minorUnit": "0",
+      "name": "CFP Franc",
+      "numCode": "953"
+    },
+    "isIndependent": "Territory of FR",
+    "capital": "Mata Utu",
+    "continent": "OC",
+    "tld": ".wf",
+    "languages": [
+      "wls",
+      "fud",
+      "fr-WF"
+    ],
+    "geoNameId": "4034749",
+    "edgar": "X8"
+  },
+  {
+    "full": "Western Sahara",
+    "officialName": {
+      "short": "Western Sahara"
+    },
+    "short": "EH",
+    "long": "ESH",
+    "m49": "732",
+    "itu": "AOE",
+    "marc": "ss",
+    "wmo": "",
+    "ds": "",
+    "dial": [
+      "212"
+    ],
+    "fifa": "SAH",
+    "fips": "WI",
+    "gaul": "268",
+    "ioc": "",
+    "currency": {
+      "code": "MAD",
+      "countryName": "WESTERN SAHARA",
+      "minorUnit": "2",
+      "name": "Moroccan Dirham",
+      "numCode": "504"
+    },
+    "isIndependent": "In contention",
+    "capital": "El-Aaiun",
+    "continent": "AF",
+    "tld": ".eh",
+    "languages": [
+      "ar",
+      "mey"
+    ],
+    "geoNameId": "2461445",
+    "edgar": "U5"
+  },
+  {
+    "full": "Yemen",
+    "officialName": {
+      "short": "Yemen"
+    },
+    "short": "YE",
+    "long": "YEM",
+    "m49": "887",
+    "itu": "YEM",
+    "marc": "ye",
+    "wmo": "YE",
+    "ds": "YAR",
+    "dial": [
+      "967"
+    ],
+    "fifa": "YEM",
+    "fips": "YM",
+    "gaul": "269",
+    "ioc": "YEM",
+    "currency": {
+      "code": "YER",
+      "countryName": "YEMEN",
+      "minorUnit": "2",
+      "name": "Yemeni Rial",
+      "numCode": "886"
+    },
+    "isIndependent": "Yes",
+    "capital": "Sanaa",
+    "continent": "AS",
+    "tld": ".ye",
+    "languages": [
+      "ar-YE"
+    ],
+    "geoNameId": "69543",
+    "edgar": "T7"
+  },
+  {
+    "full": "Zambia",
+    "officialName": {
+      "short": "Zambia"
+    },
+    "short": "ZM",
+    "long": "ZMB",
+    "m49": "894",
+    "itu": "ZMB",
+    "marc": "za",
+    "wmo": "ZB",
+    "ds": "Z",
+    "dial": [
+      "260"
+    ],
+    "fifa": "ZAM",
+    "fips": "ZA",
+    "gaul": "270",
+    "ioc": "ZAM",
+    "currency": {
+      "code": "ZMW",
+      "countryName": "ZAMBIA",
+      "minorUnit": "2",
+      "name": "Zambian Kwacha",
+      "numCode": "967"
+    },
+    "isIndependent": "Yes",
+    "capital": "Lusaka",
+    "continent": "AF",
+    "tld": ".zm",
+    "languages": [
+      "en-ZM",
+      "bem",
+      "loz",
+      "lun",
+      "lue",
+      "ny",
+      "toi"
+    ],
+    "geoNameId": "895949",
+    "edgar": "Y4"
+  },
+  {
+    "full": "Zimbabwe",
+    "officialName": {
+      "short": "Zimbabwe"
+    },
+    "short": "ZW",
+    "long": "ZWE",
+    "m49": "716",
+    "itu": "ZWE",
+    "marc": "rh",
+    "wmo": "ZW",
+    "ds": "ZW",
+    "dial": [
+      "263"
+    ],
+    "fifa": "ZIM",
+    "fips": "ZI",
+    "gaul": "271",
+    "ioc": "ZIM",
+    "currency": {
+      "code": "ZWL",
+      "countryName": "ZIMBABWE",
+      "minorUnit": "2",
+      "name": "Zimbabwe Dollar",
+      "numCode": "932"
+    },
+    "isIndependent": "Yes",
+    "capital": "Harare",
+    "continent": "AF",
+    "tld": ".zw",
+    "languages": [
+      "en-ZW",
+      "sn",
+      "nr",
+      "nd"
+    ],
+    "geoNameId": "878675",
+    "edgar": "Y5"
+  },
+  {
+    "full": "Åland Islands",
+    "officialName": {
+      "short": "Åland Islands"
+    },
+    "short": "AX",
+    "long": "ALA",
+    "m49": "248",
+    "itu": "",
+    "marc": "",
+    "wmo": "",
+    "ds": "FIN",
+    "dial": [
+      "358"
+    ],
+    "fifa": "ALD",
+    "fips": "",
+    "gaul": "1242",
+    "ioc": "",
+    "currency": {
+      "code": "EUR",
+      "countryName": "ÅLAND ISLANDS",
+      "minorUnit": "2",
+      "name": "Euro",
+      "numCode": "978"
+    },
+    "isIndependent": "Part of FI",
+    "capital": "Mariehamn",
+    "continent": "EU",
+    "tld": ".ax",
+    "languages": [
+      "sv-AX"
+    ],
+    "geoNameId": "661882",
+    "edgar": ""
+  }
+]

@@ -1,0 +1,11 @@
+{
+  "name": "{project}",
+  "version": "0.0.1",
+  "description": "{project} is a nice project !",
+  "dependencies": {
+    "gina" : ""
+  },
+  "engine": [
+    "node >=0.10.22"
+  ]
+}

@@ -1,0 +1,48 @@
+{
+  "upload": {
+    "_comment": "for more details, check out https://github.com/andrewrk/node-multiparty",
+    "encoding": "utf8",
+    "maxFieldsSize": "2MB",
+    "maxFields": "1000"
+  },
+  "engine.io": {
+    "port": 8888
+  },
+  "livereload": {},
+  "locale": {
+    "preferedLanguages": [ "en-US" ],
+    "region": "EN",
+    "firstDayOfWeek": 1,
+    "calendar": "gregorian",
+    "temperature": "celsius",
+    "number": {
+      "grouping": null,
+      "decimal": "."
+    },
+    "currency": {
+      "code": "usd",
+      "grouping": null,
+      "decimal": "."
+    },
+    "measurementUnits": "metric",
+    "dateFormat": {
+      "short": "mm/dd/yyyy",
+      "medium": "mmm d, yyyy",
+      "long": "mmmm d, yyyy",
+      "full": "dddd, mmmm d, yyyy"
+    },
+    "24HourTimeFormat": true,
+    "timeFormat": {
+      "default": {
+        "short": "h:MM:ss",
+        "medium": "h:MM:ss",
+        "long": "h:MM:ss TT"
+      },
+      "24H": {
+        "short": "HH:MM",
+        "medium": "HH:MM:ss",
+        "long": "HH:MM:ss TT"
+      }
+    }
+  }
+}

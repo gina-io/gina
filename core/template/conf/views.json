@@ -1,0 +1,16 @@
+{
+  "default": {
+    "layout": "{views}/html/layout.html",
+    "noLayout": "{gina}/core/asset/html/nolayout.html",
+    "forms": "{views}/forms",
+    "handlers": "{views}/handlers",
+    "useRouteNameAsFilename": true,
+    "http-metas": {
+      "content-type": "text/html"
+    },
+    "stylesheets": [],
+    "javascripts": [],
+    "_pluginLoader": "{src:{gina}/core/asset/js/plugin/src/utils/loader.js}",
+    "pluginLoader": "{src:{gina}/core/asset/js/plugin/dist/gina.onload.min.js}"
+  }
+}

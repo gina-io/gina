@@ -1,0 +1,622 @@
+@import config
+
+body
+    color: $grey
+    font-family: "HelveticaNeue", "Helvetica Neue", "HelveticaNeueRoman", "HelveticaNeue-Roman", "Helvetica Neue Roman", 'TeXGyreHerosRegular', "Helvetica", "Tahoma", "Geneva", "Arial", sans-serif
+    font-weight: 400
+    background-color: $white
+    // Font smoothing
+    -webkit-font-smoothing: antialiased
+    -moz-osx-font-smoothing: grayscale
+
+// h1, h2, .logo
+//     margin: 0
+//     color: $grey-tuatara
+//     font-weight: 400
+
+// h2
+//     font-size: 36px
+//     line-height: 0.8
+
+// h3
+//     padding: 11px 0
+//     margin: 0 0 24px
+//     font-size: 12px
+//     font-weight: normal
+//     text-align: center
+//     text-transform: uppercase
+//     border: solid $grey-concrete
+//     border-width: 1px 0
+
+// p
+//     margin: 0 0 6px
+
+a
+    color: $blue
+    text-decoration: none
+    cursor: pointer
+
+    &:hover, &:focus
+        outline: none
+        text-decoration: underline
+
+    &::-moz-focus-inner
+        padding: 0
+        border: 0
+
+// ul
+//     list-style-type: none
+//     padding: 0
+//     margin: 0
+
+// section
+//     margin-top: 24px
+//     margin-bottom: 24px
+
+// img
+//     width: 100%
+//     height: auto
+
+
+// ////////////////////////////////////
+
+// .wrap
+//     margin-left: 20px
+//     margin-right: 20px
+
+//     @include media(large)
+//         width: 960px
+//         margin-left: auto
+//         margin-right: auto
+
+
+// ////////////////////////////////////
+
+// .link
+//     display: block
+//     // padding-right: 30px
+
+//     &:after
+//         content: ''
+//         position: relative
+//         top: -3px
+//         height: 0
+//         width: 0
+//         margin-left: 4px
+//         font-size: 0
+//         border: solid transparent
+//         border-left-color: $blue
+//         border-width: 3px 4px
+
+
+// ////////////////////////////////////
+
+// .definition-list
+//     font-size: 13px
+//     // background: $grey-concrete
+
+//     > li
+//         position: relative
+//         display: block
+//         padding: 0 0 12px
+//         -webkit-column-break-inside: avoid
+//         page-break-inside: avoid
+//         break-inside: avoid
+
+//     h4
+//         margin: 0
+//         color: $grey-tuatara
+//         font-weight: normal
+
+//     p
+//         margin: 0
+
+//     p + p
+//         margin-top: 6px
+
+//     .coming-soon, .beta
+//         > h4:after
+//             position: relative
+//             top: -2px
+//             display: inline-block
+//             padding: 3px 5px 2px
+//             margin-left: 5px
+//             font-size: 6px
+//             line-height: 6px
+//             letter-spacing: 0.05em
+//             border-radius: 3px
+//     .coming-soon
+//         > h4:after
+//             content: 'COMING SOON'
+//             color: $grey-light
+//             background-color: $grey-concrete
+
+//     .beta
+//         > h4:after
+//             content: 'BETA'
+//             color: white
+//             background-color: $yellow
+
+//     @include media(small)
+//         column-count: 2
+//         column-gap: 20px
+
+//         // .no-csscolumns
+
+//     @include media(medium)
+//         column-count: 3
+
+
+// ////////////////////////////////////
+
+// .col
+//     margin: 0 0 24px
+//     box-sizing: border-box
+
+// @include media(medium)
+//     .col-group-2, .col-group-3
+//         display: flex
+
+//     .col
+//         flex: 1
+//         margin-left: 30px
+
+//         &:first-child
+//             margin-left: 0
+
+//     // For IE9 and older browsers
+//     .no-flexbox
+//         .col
+//             float: left
+//             margin-left: toPercent(30)
+
+//         .col-group-2
+//             > .col
+//                 width: toPercent(465)
+
+//         .col-group-3
+//             > .col
+//                 width: toPercent(300)
+
+
+// ////////////////////////////////////
+
+// $headerHeight: 42px
+
+// .auto-hide-header
+//     position: fixed
+//     top: 0
+//     left: 0
+//     width: 100%
+//     height: $headerHeight
+//     background: $black
+
+//     // Force Hardware Acceleration
+//     transform: translateZ(0)
+//     will-change: transform
+//     transition: transform .5s
+
+//     // Make sure the header is above everything else in the page
+//     z-index: 1
+
+//     &::after
+//         clear: both
+//         content: ""
+//         display: block
+
+//     &.is-hidden
+//         transform: translateY(-100%)
+
+
+// .nav-logo
+//     position: absolute
+//     left: 5%
+//     top: 0
+//     > a, > div
+//         display: block
+//         height: 42px
+//         padding: 12px 5px 6px
+//         color: $white
+//         font-size: 24px
+//         line-height: 24px
+//         font-family: 'have_heart_oneregular'
+//         font-weight: 400
+//         overflow: hidden
+
+//     > a:hover
+//         color: $yellow
+//         text-decoration: none
+
+//     .bee
+//         width: 18px
+//         height: 18px
+//         fill: $white
+//         transform: rotate(45deg)
+
+// .nav-trigger
+//     position: absolute
+//     top: 50%
+//     right: 0
+//     bottom: auto
+//     transform: translateY(-50%)
+
+//     padding: 0 10px
+
+//     font-size: 0
+
+//     .nav-icon
+//         // this is the menu central line
+//         position: relative
+//         margin: 6px auto
+//         display: block
+//         height: 2px
+//         width: 22px
+//         background-color: $white
+//         backface-visibility: hidden
+//         transition: background-color .2s
+
+//         &:before
+//             // this is the menu icon top line
+//             content: ''
+//             position: absolute
+//             left: 0
+//             display: block
+//             height: 2px
+//             width: 22px
+//             background-color: $white
+//             transform: translateY(-6px)
+//             backface-visibility: hidden
+//             transition: transform .2s
+
+//         &:after
+//             // this is the menu icon bottom line
+//             content: ''
+//             position: absolute
+//             left: 0
+//             display: block
+//             height: 2px
+//             width: 22px
+//             background-color: $white
+//             backface-visibility: hidden
+//             transform: translateY(6px)
+//             transition: transform .2s
+
+// .nav-open .nav-trigger em
+//     // transform menu icon into a 'X' icon
+//     background-color: rgba(255, 255, 255, 0)
+
+//     &:before
+//         // rotate top line
+//         transform: rotate(-45deg)
+
+//     &:after
+//         // rotate bottom line
+//         transform: rotate(45deg)
+
+// @include media(small)
+//     .auto-hide-header .nav-trigger
+//         display: none
+
+// .primary-nav
+//     float: right
+//     display: inline-block
+//     height: 100%
+//     padding-right: 5%
+
+//     > ul
+//         position: absolute
+//         left: 0
+//         top: $headerHeight
+//         display: none
+//         width: 100%
+//         background-color: $black
+//         box-shadow: 0 14px 20px rgba(0, 0, 0, 0.2)
+//         z-index: 2
+
+//         a
+//             // target primary-nav links
+//             display: block
+//             height: $headerHeight
+//             padding-left: 5%
+//             color: $white
+//             font-size: 14px
+//             line-height: $headerHeight
+//             border-top: 1px solid $white
+
+//             &:hover, &:focus
+//                 color: $yellow
+//                 text-decoration: none
+
+//     @include media(small)
+//         // vertically align its content
+//         display: table
+
+//         > ul
+//             // vertically align inside parent element
+//             display: table-cell
+//             vertical-align: middle
+
+//             // reset mobile style
+//             position: relative
+//             width: auto
+//             top: 0
+//             padding: 0
+//             box-shadow: none
+
+//             &:after
+//                 clear: both
+//                 content: ""
+//                 display: block
+
+//             li
+//                 display: inline-block
+//                 float: left
+//                 margin-right: 1.5em
+//                 &:last-of-type
+//                     margin-right: 0
+
+//             a
+//                 // reset mobile style
+//                 height: auto
+//                 line-height: normal
+//                 padding: 0
+//                 border: none
+
+// .nav-open .primary-nav ul,
+// .primary-nav ul:target
+//     //  show primary nav - mobile only
+//     //  :target is used to show navigation on no-js devices
+//     display: block
+
+//     @include media(small)
+//         display: table-cell
+
+
+// ////////////////////////////////////
+
+// .intro
+//     margin-top: 0
+//     text-align: center
+
+//     .hero
+//         padding-top: $headerHeight
+//         background: url('data:image/svg+xml;utf8,<svg viewBox="0 0 105 120" xmlns="http://www.w3.org/2000/svg"><path d="M52.433,0l51.962,30l0,60l-51.962,30l-51.962,-30l0,-60l51.962,-30Z" fill="#f2af0d"/></svg>') no-repeat 50% 100%
+//         background-size: 840px auto
+
+//         @include media(large)
+//             height: 282px
+
+//     .logo
+//         padding: 30px 0 0
+//         margin: 0
+//         color: $black
+//         font-size: 96px
+//         line-height: 0.6
+
+//         @include media(large)
+//             padding: 60px 0 0
+//             font-size: 176px
+
+//     .bee
+//         margin: 12px 0
+//         width: 48px
+//         height: 48px
+//         fill: $black
+
+//         @include media(large)
+//             margin-top: 36px
+//             width: 60px
+//             height: 60px
+
+//     h1
+//         margin: 12px 0 6px
+//         padding: 0 20px
+//         font-size: 60px
+//         line-height: 0.8
+
+//         > div
+//             display: inline-block
+
+//         @include media(medium)
+//             margin-top: 0
+//             font-size: 72px
+
+// ////////////////////////////////////
+
+// .download
+//     margin: 24px 0
+//     text-align: center
+//     li
+//         display: inline-block
+
+//     svg
+//         position: relative
+//         top: -3px
+//         left: -4px
+//         width: 16px
+//         height: 16px
+//         fill: $black
+
+//     .github
+//         display: block
+//         margin: 6px 0 0
+//         font-size: 12px
+//         line-height: 18px
+
+
+// ////////////////////////////////////
+
+// .what-is-gina
+//     text-align: center
+
+//     @include media(medium)
+//         text-align: left
+
+//     .img
+//         max-width: 100%
+//         // height: 168px
+//         // border: 2px solid $grey-concrete
+//         > img
+//             width: 100%
+//             max-width: 465px
+
+// ////////////////////////////////////
+
+// .highlight
+//     position: relative
+//     padding: 60px 0
+
+//     background: $grey-tuatara url(img/background-1.jpg)
+//     background-size: cover
+//     background-attachment: fixed
+//     background-repeat: no-repeat
+//     background-position: center center
+
+//     &.message .wrap
+//         display: flex
+
+// .highlight-main,
+// .highlight-aside
+//     position: relative
+//     display: flex
+//     flex-direction: column
+//     justify-content: center
+//     width: 100%
+//     text-align: center
+
+//     > div
+//         padding: 30px
+
+//     @include media(large)
+
+//         .no-flexbox &
+//             float: left
+//             min-height: 240px
+
+// .highlight-main
+//     flex: 2
+//     background-color: white
+
+//     @include media(large)
+//         .no-flexbox &
+//             width: toPercent(645)
+
+//     h2
+//         margin: 0
+//         font-size: 36px
+//         line-height: 1.2
+//     p
+//         margin: 0
+
+//     .bee
+//         position: absolute
+//         top: 6px
+//         width: 32px
+//         height: 32px
+//         fill: $grey-light
+//         transform: rotate(-45deg)
+
+//         &.left
+//             left: 6px
+
+//         &.right
+//             right: 6px
+
+
+// .highlight-aside
+//     display: none
+//     flex: 1
+//     background-color: $yellow
+
+//     @include media(large)
+//         display: block
+
+//         .no-flexbox &
+//             width: toPercent(315)
+
+// .splash
+//     color: $black
+//     font-family: 'have_heart_oneregular'
+//     font-weight: 400
+//     line-height: 0.8
+
+//     &.big
+//         font-size: 96px
+//     &.medium
+//         font-size: 66px
+//     &.small
+//         font-size: 36px
+
+// ////////////////////////////////
+
+// .features
+//     margin-top: 24px + 60px
+//     // margin-bottom: 24px
+
+//     > .col
+//         position: relative
+//         padding: 64px 20px 30px
+//         border: 2px solid $grey-concrete
+
+//     h2
+//         position: absolute
+//         top: -60px
+//         left: 50%
+//         width: 120px
+//         height: 120px
+//         margin-left: -60px
+//         line-height: 125px
+//         text-align: center
+//         text-indent: -15px
+//         background: url('data:image/svg+xml;utf8,<svg viewBox="0 0 105 120" xmlns="http://www.w3.org/2000/svg"><path d="M52.433,0l51.962,30l0,60l-51.962,30l-51.962,-30l0,-60l51.962,-30Z" fill="#f2af0d"/></svg>') no-repeat
+
+//     @include media(medium)
+//         .definition-list
+//             column-count: 1
+
+// .plugins, .helpers
+//     > ul
+//         padding: 0 20px
+
+
+// ////////////////////////////////
+
+// .admin
+//     padding: 0
+
+//     > .wrap
+//         padding: 60px 30px 0
+//         overflow: hidden
+
+//     img
+//         box-shadow: 0 0 20px 0 $black
+// ////////////////////////////////
+
+// .sponsors
+//     background-color: $grey-light
+
+//     li
+//         display: inline-block
+//         width: 20%
+//         margin: 0 2.5% 12px
+
+//     a
+//         display: block
+
+//     svg
+//         fill: $white
+//         width: 100%
+//         height: 100%
+
+
+// ////////////////////////////////
+
+// footer
+//     position: relative
+//     background: $black
+
+//     .bee
+//         width: 24px
+//         height: 24px
+//         fill: $grey-concrete
+//         transform: rotate(-45deg)

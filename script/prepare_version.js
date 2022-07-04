@@ -383,36 +383,47 @@ function PrepareVersion() {
             //return done(err);
         }
 
-        done()
-    }
-
-    self.tagVersionIfNeeded = function(done) {
-        // check if script is on Dry Run !!!
+        // check if script is on Dry Run in order to restore symlinks
         if ( typeof(process.env.npm_config_dry_run) != 'undefined' ) {
-            return done()
+
         }
-
-        // merge master with targeted branch
-        // git checkout master
-        // git merge 011-alpha1 `self.targetedBranch`
-
-        console.debug('Merging master with targeted branch: '+ self.targetedBranch +' -> v'+ self.targetedVersion);
-
-        // tag version from master
-        try {
-            var msg = 'Releasing v'+ self.targetedVersion;
-            cmd = execSync("git commit -am'"+ msg +"'");
-        } catch (err) {
-            console.error(err.stack||err.message||err);
-            return done(err);
-        }
-
-        // remove old branch
-
-        // checkout back to newly created tag or master ?
 
         done()
     }
+
+    // self.tagVersionIfNeeded = function(done) {
+
+
+    //     // Making sure that we are on the right branch
+    //     try {
+    //         var msg = 'Releasing v'+ self.targetedVersion;
+    //         cmd = execSync("git checkout "+ self.targetedBranch );
+    //     } catch (err) {
+    //         console.error(err.stack||err.message||err);
+    //         return done(err);
+    //     }
+
+    //     // merge master with targeted branch
+    //     // git checkout master
+    //     // git merge 011-alpha1 `self.targetedBranch`
+
+    //     console.debug('Merging master with targeted branch: '+ self.targetedBranch +' -> v'+ self.targetedVersion);
+
+    //     // tag version from master
+    //     try {
+    //         var msg = 'Releasing v'+ self.targetedVersion;
+    //         cmd = execSync("git commit -am'"+ msg +"'");
+    //     } catch (err) {
+    //         console.error(err.stack||err.message||err);
+    //         return done(err);
+    //     }
+
+    //     // remove old branch
+
+    //     // checkout back to newly created tag or master ?
+
+    //     done()
+    // }
 
 
 

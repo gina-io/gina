@@ -1,0 +1,1 @@
+Vendor is used for files like `jquery.ui.min.css`

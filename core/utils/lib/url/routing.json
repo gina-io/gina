@@ -1,0 +1,63 @@
+{
+    "default": {
+        "url": "/",
+        "param": { "action": "zero" }
+    },
+    "test1": {
+        "url": ["/one", "/one/"],
+        "param": { "action": "one" }
+    },
+    "test2": {
+        "requirements": {
+            "pone": ".*"
+        },
+        "url": "/:pone/two",
+        "param": { "action": "two", "pone" : ":pone" }
+    },
+    "test3": {
+        "requirements": {
+            "pone": ".*"
+        },
+        "url": "/three",
+        "param": { "action": "three" }
+    },
+    "test4": {
+        "requirements": {
+            "pone": ".*",
+            "ptwo": ".*"
+        },
+        "url": "/:pone/four/:ptwo",
+        "param": { "action": "four", "pone" : ":pone", "ptwo" : ":ptwo" }
+    },
+    "test5": {
+        "requirements": {
+            "pone": ".*",
+            "ptwo": ".*"
+        },
+        "url": ["/:pone/five/:ptwo", "/five/:pone/:ptwoRi"],
+        "param": { "action": "five", "pone" : ":pone", "ptwo" : ":ptwo" }
+    },
+    "test6": {
+        "requirements": {
+            "pone": "^[a-zA-Z]+$",
+            "ptwo": "^[0-9]+$"
+        },
+        "url": "/six/:pone/:ptwo",
+        "param": { "action": "six", "pone" : ":pone", "ptwo" : ":ptwo" }
+    },
+    "test7": {
+        "requirements": {
+            "pone": ".*",
+            "ptwo": ".*"
+        },
+        "url": "/:pone/seven/:ptwo",
+        "param": { "action": "seven" }
+    },
+    "test8": {
+        "requirements": {
+            "pone": ".*"
+        },
+        "url": ["/eight/", "/eight/:pone"],
+        "param": { "action": "six" }
+    }
+}

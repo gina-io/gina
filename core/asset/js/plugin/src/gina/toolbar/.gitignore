@@ -1,0 +1,19 @@
+
+*.sassc
+
+# EDIs
+*.idea
+.jshintrc
+nbproject
+.metadata
+
+# codekit, sublimetext, vscode
+*.codekit
+.codekit-cache
+.sublime-workspace
+.sublime-project
+*sublime-project
+*sublime-workspace
+.editorconfig
+config.codekit
+.vscode

@@ -1,0 +1,563 @@
+$black: #111
+$dark-grey: #444
+$grey: #888
+$white: #fff
+$gold: #f2af0d
+
+$yellow: #f4b125
+$orange: #f78c6a
+$red: #f63625
+$blue: #218af3
+
+$code-white: #eeffff
+$code-red: #f78c6a
+$code-blue: #5ba1cf
+$code-green: #c3e88d //#5ce638
+$code-yellow: #ffaa3e
+$code-light-grey: #b9bdb6
+$code-grey: #878a85
+$code-hightlight: #323e41
+
+////////////////////////////
+////////// RESET ///////////
+////////////////////////////
+%reset
+  clear: none
+  float: none
+  position: static
+  margin: 0
+  padding: 0
+  border: 0
+  outline: 0
+  vertical-align: baseline
+  background: none
+
+.gina-toolbar
+  // all: initial
+  display: none
+  color: $white
+  font: 12px/18px "Lucida Grande", Lucida, Arial, Helvetica, sans-serif
+  @extend %reset
+
+  div, p, ul, li, form, fieldset, legend
+    @extend %reset
+    display: block
+
+  a, span, strong, small,label
+    @extend %reset
+    display: inline
+
+  a:focus
+    outline: none
+
+////////////////////////////
+////// CUSTOM STYLES ///////
+////////////////////////////
+
+// Base
+.gina-toolbar
+  position: fixed !important
+  width: auto
+  height: auto
+  min-width: 260px
+  color: $grey
+  font: 12px/18px "Lucida Grande", Lucida, Arial, Helvetica, sans-serif
+  overflow: hidden
+  background-color: rgba(0,0,0,0.8)
+  z-index: 2147483647 // modern browsers max value
+
+  @supports (-webkit-backdrop-filter: none) or (backdrop-filter: none)
+    -webkit-backdrop-filter: blur(6px)
+    backdrop-filter: blur(6px)
+
+  p
+    margin: 0 0 6px
+
+  svg
+    position: relative
+    display: block
+    width: 16px
+    height: 16px
+    fill: $white
+
+
+// Form elements
+.gina-toolbar
+  fieldset
+    clear: both
+    padding: 0
+    margin: 0
+    border: none
+
+    & + fieldset
+      padding: 12px 0 0
+      margin: 12px 0 0
+      border-top: 1px solid $dark-grey
+
+  legend
+    margin: 6px 0
+    color: $grey
+    font-size: 12px
+    font-weight: normal
+
+  label
+    color: $white
+    font-size: 12px
+    font-weight: normal
+
+  input
+    appearance: none
+    color: $white
+    font-size: 12px
+    font-weight: normal
+    text-align: center
+    background: transparent
+    border: none
+
+    &:focus, &:active
+      outline: none
+      border-color: $white
+      background: $dark-grey
+
+  input[type="file"]
+    display: none
+
+  select
+    appearance: none
+    height: 24px
+    width: auto
+    padding: 0 10px
+    margin: 0
+    color: $white
+    font-size: 11px
+    font-weight: normal
+    background: transparent
+    border: 1px solid #666
+
+    &:focus, &:active
+      outline: none
+      border-color: #fff
+      background: #333
+
+    &:hover
+      border-color: $gold
+
+  .gina-toolbar-inline-list
+    > li
+      display: inline-block
+
+  .gina-toolbar-list-item
+    margin: 0 0 12px
+
+  .gina-toolbar-button
+    display: inline-block
+    padding: 3px 10px
+    color: $white
+    text-decoration: none
+    border: 1px solid $grey
+    border-radius: 24px
+
+    &:hover
+      border-color: $gold
+
+    &:focus, &:active
+      outline: none
+      border-color: $white
+
+  .gina-toolbar-input-file
+    @extend .gina-toolbar-button
+
+
+// Hide textarea used to copy value to clipboard
+.gina-toolbar-copy
+  position: absolute
+  top: -200%
+  left: -200%
+
+.gina-toolbar-hidden
+  display: none !important
+  visibility: hidden
+
+// toolbar position
+.gina-toolbar-top-left
+  top: 0
+  left: 0
+  border-bottom-right-radius: 10px
+
+.gina-toolbar-top-right
+  top: 0
+  right: 0
+  border-bottom-left-radius: 10px
+
+.gina-toolbar-bottom-left
+  bottom: 0
+  left: 0
+  border-top-right-radius: 10px
+
+.gina-toolbar-bottom-right
+  bottom: 0
+  right: 0
+  border-top-left-radius: 10px
+
+
+// toolbar width
+.gina-toolbar-auto
+  width: auto
+.gina-toolbar-30
+  width: 30%
+.gina-toolbar-40
+  width: 40%
+.gina-toolbar-50
+  width: 50%
+.gina-toolbar-60
+  width: 60%
+.gina-toolbar-80
+  width: 80%
+.gina-toolbar-100
+  width: 100%
+  &:not(.gina-toolbar-collapsed)
+    border-radius: 0
+
+
+// Header
+.gina-toolbar
+  .gina-toolbar-header
+    width: 100%
+    height: 32px
+    margin: 0
+    background: $black
+
+    a
+      display: block
+      height: 18px
+      padding: 7px 10px 5px
+      margin: 0 5px
+      color: $white
+      text-decoration: none
+      border-bottom: 2px solid transparent
+
+      &:hover
+        color: $black
+        background-color: $gold
+
+    .gina-toolbar-tabs
+      float: left
+      margin: 0
+      padding: 0
+
+    .gina-toolbar-active
+      color: $gold
+      border-color: $gold
+
+      &:hover
+        color: $gold
+        background-color: transparent
+
+    .gina-toolbar-tab
+      float: left
+
+
+// Settings & logo
+.gina-toolbar
+  .gina-toolbar-header
+
+    .gina-toolbar-logo,
+    .gina-toolbar-tab-settings
+      a
+        height: auto
+        margin: 0
+        padding: 8px 10px 6px
+
+        &:hover
+          svg
+            fill: $black
+
+      .gina-toolbar-active
+        svg,
+        &:hover svg
+          fill: $gold
+
+    .gina-toolbar-logo
+      a:hover svg
+        animation: gina-toolbar-shake 0.5s both
+
+    .gina-toolbar-tab-settings
+      a:hover svg
+        animation: gina-toolbar-rotate 2s both
+
+@keyframes gina-toolbar-shake
+  10%, 90%
+    transform: rotate3d(0, 0, 1, -6deg)
+
+  20%, 80%
+    transform: rotate3d(0, 0, 1, 5deg)
+
+  30%, 50%, 70%
+    transform: rotate3d(0, 0, 1, -5deg)
+
+  40%, 60%
+    transform: rotate3d(0, 0, 1, 6deg)
+
+@keyframes gina-toolbar-rotate
+  from
+    transform: rotate3d(0, 0, 1, 0deg)
+  to
+    transform: rotate3d(0, 0, 1, 180deg)
+
+
+// Settings & logo position
+.gina-toolbar-top-left,
+.gina-toolbar-bottom-left
+
+  .gina-toolbar-header
+
+    .gina-toolbar-logo
+      float: left
+
+    .gina-toolbar-tabs
+      float: right
+
+    .gina-toolbar-tab-settings
+      float: right
+
+
+.gina-toolbar-top-right,
+.gina-toolbar-bottom-right
+
+  .gina-toolbar-header
+
+    .gina-toolbar-logo
+      float: right
+
+
+// Tabs
+.gina-toolbar
+  .gina-toolbar-panel
+    clear: both
+    display: none
+    width: 100%
+
+    &.gina-toolbar-active
+      display: block
+
+  .gina-toolbar-main
+    overflow: auto
+    max-height: 500px
+
+  .gina-toolbar-options
+    padding: 12px 15px 0
+    border-bottom: 1px solid $dark-grey
+
+  .gina-toolbar-content
+    padding: 12px 15px
+
+    &.gina-toolbar-content-end:after
+      content: ''
+      display: block
+      padding: 3px 0
+      margin: 12px 0 0
+      text-align: center
+      color: $white
+      background: $dark-grey
+      background: repeating-linear-gradient( -45deg, $yellow, $yellow 10px, $black 10px, $black 20px)
+      // border-top: 1px solid $black
+      border-radius: 10px
+
+
+// Collapsed toolbar
+.gina-toolbar-collapsed
+  width: auto
+  min-width: 0
+
+  .gina-toolbar-logo
+    svg
+      fill: $gold
+
+  .gina-toolbar-tab,
+  .gina-toolbar-panels
+    display: none
+
+
+////////////////////////////
+//// TAB SPECIFIC CODE /////
+////////////////////////////
+
+// DATA
+
+.gina-toolbar
+  .gina-toolbar-data
+    .gina-toolbar-code
+
+      // &:after,
+      &.gina-toolbar-code-end:after
+        content: ''
+        display: block
+        padding: 3px 0
+        margin: 12px 0 0
+        text-align: center
+        color: $white
+        background: $dark-grey
+        background: repeating-linear-gradient( -45deg, $yellow, $yellow 10px, $black 10px, $black 20px)
+        // border-top: 1px solid $black
+        border-radius: 10px
+
+
+      ul
+        display: none
+
+        li
+          margin: 0 0 3px
+          padding-left: 20px
+
+      .gina-toolbar-object, .gina-toolbar-collection
+        > a:first-child
+          display: block
+          text-decoration: none
+
+          span
+            color: $grey
+
+          &:before
+            content: ''
+            position: relative
+            top: 1px
+            display: inline-block
+            width: 0
+            height: 0
+            margin-right: 5px
+
+            border-top: 5px solid transparent
+            border-bottom: 5px solid transparent
+            border-left: 8px solid $grey
+
+            transition: border-left-color 0.5s
+
+          &:hover:before
+            border-left-color: $code-white
+
+
+      .gina-toolbar-unfolded:before
+        transform: rotate(90deg)
+
+  .gina-toolbar-key
+    color: $white
+
+  .gina-toolbar-key-added
+    color: $code-green
+
+  .gina-toolbar-value
+    display: inline-block
+    padding: 0 5px
+    color: $code-blue
+    border-radius: 3px
+
+    &:hover
+      color: $black
+      background: $code-blue
+
+  .gina-toolbar-value-type-is-number
+    color: $code-red
+
+  .gina-toolbar-value-type-is-null
+    color: $code-red
+
+  .gina-toolbar-value-type-is-boolean
+    color: $code-yellow
+
+  .gina-toolbar-is-overridden
+
+    > .gina-toolbar-key, > .gina-toolbar-value
+      color: $grey
+      text-decoration: line-through
+
+    > .gina-toolbar-value
+
+      &:hover
+        color: $black
+        background: $grey
+
+
+
+// LOGS
+%logs-notification
+  content: ''
+  position: relative
+  top: 1px
+  display: inline-block
+  width: 8px
+  height: 8px
+  margin-left: 5px
+  background-position: 100% 50%
+  background-repeat: no-repeat
+  background-size: 12px 12px
+  border-radius: 100%
+  animation: gina-toolbar-heart-beats 3.5s infinite
+
+.gina-toolbar
+  .gina-toolbar-tab-logs
+
+    &.gina-toolbar-debug > a:after
+      @extend %logs-notification
+      background-color: $grey
+
+    &.gina-toolbar-info > a:after
+      @extend %logs-notification
+      background-color: $blue
+
+    &.gina-toolbar-notice > a:after
+      @extend %logs-notification
+      background-color: $yellow
+
+    &.gina-toolbar-warning > a:after
+      @extend %logs-notification
+      background-color: $orange
+
+    &.gina-toolbar-error > a:after,
+    &.gina-toolbar-crit > a:after,
+    &.gina-toolbar-alert > a:after,
+    &.gina-toolbar-emerg > a:after
+      @extend %logs-notification
+      background-color: $red
+
+  .gina-toolbar-logs-report
+    > li
+      box-sizing: border-box
+      display: inline-block
+      padding-left: 18px
+      margin: 0 5% 0 0
+      width: 30%
+      line-height: 13px
+      background-position: 0 0
+      background-repeat: no-repeat
+      background-size: 12px 12px
+
+      &:last-child
+        margin: 0
+
+  .gina-toolbar-logs-infos
+    background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 11 11"><rect x="3" y="2" width="5" height="1" fill="#fff"/><rect x="3" y="4" width="5" height="1" fill="#fff"/><rect x="3" y="6" width="5" height="1" fill="#fff"/><path d="M9.052 0.001l0.051 0.002 0.051 0.003 0.051 0.005 0.05 0.006 0.05 0.007 0.05 0.009 0.049 0.009 0.049 0.011 0.048 0.012 0.048 0.013 0.047 0.014 0.047 0.015 0.046 0.017 0.046 0.017 0.045 0.019 0.045 0.019 0.044 0.021 0.043 0.021 0.043 0.023 0.042 0.024 0.042 0.024 0.041 0.026 0.04 0.026 0.039 0.028 0.039 0.028 0.038 0.03 0.038 0.03 0.036 0.031 0.036 0.032 0.035 0.032 0.035 0.034 0.033 0.034 0.033 0.035 0.032 0.036 0.031 0.037 0.03 0.037 0.029 0.038 0.028 0.039 0.027 0.04 0.027 0.04 0.025 0.041 0.025 0.041 0.023 0.042 0.023 0.043 0.021 0.043 0.021 0.044 0.019 0.045 0.019 0.045 0.017 0.045 0.016 0.046 0.015 0.047 0.014 0.047 0.013 0.048 0.012 0.048 0.011 0.048 0.009 0.049 0.008 0.049 0.007 0.05 0.006 0.05 0.004 0.051 0.003 0.05 0.002 0.052 0.001 0.051 0 5 -0.001 0.052 -0.002 0.051 -0.003 0.051 -0.004 0.05 -0.006 0.051 -0.007 0.049 -0.008 0.05 -0.01 0.049 -0.01 0.048 -0.012 0.049 -0.013 0.047 -0.014 0.047 -0.015 0.047 -0.016 0.046 -0.018 0.046 -0.018 0.045 -0.02 0.045 -0.02 0.044 -0.022 0.043 -0.023 0.043 -0.023 0.042 -0.025 0.042 -0.025 0.041 -0.027 0.04 -0.027 0.039 -0.029 0.039 -0.029 0.038 -0.03 0.038 -0.031 0.037 -0.032 0.035 -0.033 0.036 -0.033 0.034 -0.034 0.033 -0.036 0.033 -0.035 0.032 -0.037 0.031 -0.038 0.03 -0.038 0.029 -0.039 0.029 -0.039 0.027 -0.04 0.027 -0.041 0.025 -0.042 0.025 -0.042 0.023 -0.043 0.023 -0.043 0.022 -0.044 0.02 -0.045 0.02 -0.045 0.018 -0.046 0.018 -0.046 0.016 -0.047 0.015 -0.047 0.014 -0.047 0.013 -0.049 0.012 -0.048 0.01 -0.049 0.01 -0.05 0.008 -0.049 0.007 -0.051 0.006 -0.05 0.004 -0.051 0.003 -0.051 0.002 -0.052 0.001 -2.32 0 -2.639 2 -1.041 0 0-2 -1 0 -0.052-0.001 -0.051-0.002 -0.051-0.003 -0.05-0.004 -0.051-0.006 -0.049-0.007 -0.05-0.008 -0.049-0.01 -0.048-0.01 -0.049-0.012 -0.047-0.013 -0.047-0.014 -0.047-0.015 -0.046-0.016 -0.046-0.018 -0.045-0.018 -0.045-0.02 -0.044-0.02 -0.043-0.022 -0.043-0.023 -0.042-0.023 -0.042-0.025 -0.041-0.025 -0.04-0.027 -0.039-0.027 -0.039-0.029 -0.038-0.029 -0.038-0.03 -0.037-0.031 -0.035-0.032 -0.036-0.033 -0.034-0.033 -0.033-0.034 -0.033-0.036 -0.032-0.035 -0.031-0.037 -0.03-0.038 -0.029-0.038 -0.029-0.039 -0.027-0.039 -0.027-0.04 -0.025-0.041 -0.025-0.042 -0.023-0.042 -0.023-0.043 -0.022-0.043 -0.02-0.044 -0.02-0.045 -0.018-0.045 -0.018-0.046 -0.016-0.046 -0.015-0.047 -0.014-0.047 -0.013-0.047 -0.012-0.049 -0.01-0.048 -0.01-0.049 -0.008-0.05 -0.007-0.049 -0.006-0.051 -0.004-0.05 -0.003-0.051 -0.002-0.051 -0.001-0.052 0-5 0.001-0.051 0.002-0.052 0.003-0.05 0.004-0.051 0.006-0.05 0.007-0.05 0.008-0.049 0.009-0.049 0.011-0.048 0.012-0.048 0.013-0.048 0.014-0.047 0.015-0.047 0.016-0.046 0.017-0.045 0.019-0.045 0.019-0.045 0.021-0.044 0.021-0.043 0.023-0.043 0.023-0.042 0.025-0.041 0.025-0.041 0.027-0.04 0.027-0.04 0.028-0.039 0.029-0.038 0.03-0.037 0.031-0.037 0.032-0.036 0.033-0.035 0.033-0.034 0.035-0.034 0.035-0.032 0.036-0.032 0.036-0.031 0.038-0.03 0.038-0.03 0.039-0.028 0.039-0.028 0.04-0.026 0.041-0.026 0.042-0.024 0.042-0.024 0.043-0.023 0.043-0.021 0.044-0.021 0.045-0.019 0.045-0.019 0.046-0.017 0.046-0.017 0.047-0.015 0.047-0.014 0.048-0.013 0.048-0.012 0.049-0.011 0.049-0.009 0.05-0.009 0.05-0.007 0.05-0.006 0.051-0.005 0.051-0.003 0.051-0.002 0.052-0.001 7 0 0.052 0.001ZM2.008 1l-0.031 0.001 -0.026 0.001 -0.026 0.001 -0.026 0.003 -0.025 0.003 -0.026 0.003 -0.025 0.005 -0.024 0.004 -0.025 0.006 -0.024 0.006 -0.024 0.006 -0.023 0.007 -0.024 0.008 -0.023 0.008 -0.023 0.009 -0.022 0.009 -0.022 0.01 -0.022 0.01 -0.022 0.011 -0.022 0.011 -0.021 0.012 -0.021 0.013 -0.02 0.012 -0.02 0.014 -0.02 0.013 -0.02 0.015 -0.019 0.014 -0.019 0.016 -0.018 0.015 -0.018 0.016 -0.018 0.017 -0.017 0.017 -0.017 0.017 -0.016 0.018 -0.016 0.018 -0.016 0.018 -0.015 0.019 -0.015 0.019 -0.014 0.019 -0.014 0.02 -0.013 0.02 -0.012 0.021 -0.013 0.02 -0.011 0.021 -0.012 0.022 -0.01 0.021 -0.011 0.022 -0.009 0.022 -0.009 0.022 -0.009 0.023 -0.008 0.023 -0.007 0.023 -0.007 0.023 -0.007 0.024 -0.005 0.023 -0.006 0.024 -0.004 0.025 -0.004 0.024 -0.004 0.025 -0.003 0.025 -0.002 0.025 -0.002 0.026 -0.001 0.026 0 0.032 0 4.988 0 0.032 0.001 0.026 0.002 0.026 0.002 0.025 0.003 0.025 0.004 0.025 0.004 0.025 0.004 0.024 0.006 0.024 0.005 0.024 0.007 0.024 0.007 0.023 0.007 0.023 0.008 0.023 0.009 0.023 0.009 0.022 0.01 0.023 0.01 0.021 0.011 0.022 0.011 0.021 0.012 0.022 0.012 0.02 0.013 0.021 0.013 0.02 0.014 0.02 0.014 0.019 0.015 0.019 0.015 0.019 0.016 0.019 0.016 0.018 0.016 0.017 0.017 0.018 0.018 0.017 0.017 0.016 0.018 0.016 0.019 0.016 0.019 0.015 0.019 0.015 0.019 0.014 0.02 0.014 0.02 0.013 0.021 0.013 0.02 0.012 0.022 0.012 0.021 0.011 0.022 0.011 0.021 0.01 0.023 0.01 0.022 0.009 0.023 0.009 0.023 0.008 0.023 0.007 0.023 0.007 0.024 0.007 0.024 0.005 0.024 0.006 0.024 0.004 0.025 0.004 0.025 0.004 0.025 0.003 0.025 0.002 0.026 0.002 0.026 0.001 0.032 0 1.994 0 0 1.776 2.344-1.776 2.65 0 0.032 0 0.026-0.001 0.026-0.002 0.025-0.002 0.025-0.003 0.025-0.004 0.025-0.004 0.024-0.004 0.024-0.006 0.024-0.005 0.024-0.007 0.023-0.007 0.023-0.007 0.023-0.008 0.023-0.009 0.022-0.009 0.023-0.01 0.021-0.01 0.022-0.011 0.021-0.011 0.022-0.012 0.02-0.012 0.021-0.013 0.02-0.013 0.02-0.014 0.019-0.014 0.019-0.015 0.019-0.015 0.019-0.016 0.018-0.016 0.017-0.016 0.018-0.017 0.017-0.018 0.016-0.017 0.016-0.018 0.016-0.019 0.015-0.019 0.015-0.019 0.014-0.019 0.014-0.02 0.013-0.02 0.013-0.021 0.012-0.02 0.012-0.022 0.011-0.021 0.011-0.022 0.01-0.021 0.01-0.023 0.009-0.022 0.009-0.023 0.008-0.023 0.007-0.023 0.007-0.023 0.007-0.024 0.005-0.024 0.006-0.024 0.004-0.024 0.004-0.025 0.004-0.025 0.003-0.025 0.002-0.025 0.002-0.026 0.001-0.026 0-0.032 0-4.988 0-0.032 -0.001-0.026 -0.002-0.026 -0.002-0.025 -0.003-0.025 -0.004-0.025 -0.004-0.024 -0.004-0.025 -0.006-0.024 -0.005-0.023 -0.007-0.024 -0.007-0.023 -0.007-0.023 -0.008-0.023 -0.009-0.023 -0.009-0.022 -0.009-0.022 -0.011-0.022 -0.01-0.021 -0.012-0.022 -0.011-0.021 -0.013-0.02 -0.012-0.021 -0.013-0.02 -0.014-0.02 -0.014-0.019 -0.015-0.019 -0.015-0.019 -0.016-0.018 -0.016-0.019 -0.016-0.017 -0.017-0.017 -0.017-0.017 -0.018-0.017 -0.018-0.016 -0.018-0.015 -0.019-0.016 -0.019-0.014 -0.02-0.015 -0.02-0.013 -0.02-0.014 -0.02-0.012 -0.021-0.013 -0.021-0.012 -0.022-0.011 -0.022-0.011 -0.022-0.01 -0.022-0.01 -0.022-0.009 -0.023-0.009 -0.023-0.008 -0.024-0.008 -0.023-0.007 -0.024-0.006 -0.024-0.006 -0.025-0.006 -0.024-0.004 -0.025-0.005 -0.026-0.003 -0.025-0.003 -0.026-0.003 -0.026-0.001 -0.026-0.001 -0.031-0.001 -6.984 0Z" fill="#fff"/></svg>')
+
+  .gina-toolbar-logs-warnings
+    background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 11 11" version="1.1" xml:space="preserve" style="clip-rule:evenodd;fill-rule:evenodd;stroke-linejoin:round;stroke-miterlimit:1"><path d="M5.529 0.001l0.028 0.001 0.029 0.003 0.028 0.003 0.027 0.005 0.028 0.005 0.027 0.006 0.027 0.008 0.027 0.008 0.026 0.009 0.026 0.01 0.026 0.011 0.025 0.011 0.025 0.013 0.024 0.013 0.024 0.014 0.023 0.015 0.023 0.016 0.022 0.016 0.022 0.018 0.021 0.018 0.02 0.018 0.02 0.02 0.019 0.02 0.019 0.021 0.018 0.022 0.017 0.022 0.016 0.023 0.016 0.023 0.015 0.024 0.014 0.025 0.013 0.026 4.691 9.381 0.011 0.023 0.01 0.024 0.01 0.025 0.009 0.024 0.008 0.024 0.008 0.025 0.006 0.025 0.006 0.025 0.005 0.025 0.004 0.026 0.003 0.025 0.002 0.025 0.002 0.026 0.001 0.025 0 0.026 -0.001 0.025 -0.001 0.026 -0.003 0.025 -0.003 0.025 -0.004 0.025 -0.005 0.025 -0.005 0.025 -0.006 0.025 -0.007 0.025 -0.008 0.024 -0.009 0.024 -0.01 0.024 -0.01 0.024 -0.011 0.024 -0.012 0.023 -0.012 0.023 -0.014 0.022 -0.014 0.022 -0.015 0.022 -0.015 0.021 -0.016 0.02 -0.017 0.02 -0.017 0.019 -0.018 0.019 -0.018 0.018 -0.019 0.017 -0.019 0.017 -0.02 0.016 -0.021 0.015 -0.02 0.015 -0.022 0.014 -0.021 0.014 -0.022 0.013 -0.023 0.012 -0.022 0.011 -0.024 0.011 -0.023 0.009 -0.024 0.01 -0.024 0.008 -0.024 0.008 -0.025 0.007 -0.025 0.006 -0.025 0.005 -0.026 0.005 -0.025 0.003 -0.026 0.003 -0.026 0.002 -0.026 0.002 -0.026 0 -9.381 0 -0.027 0 -0.026-0.002 -0.026-0.002 -0.026-0.003 -0.025-0.003 -0.025-0.005 -0.026-0.005 -0.025-0.006 -0.024-0.007 -0.025-0.008 -0.024-0.008 -0.024-0.01 -0.023-0.009 -0.023-0.011 -0.023-0.011 -0.023-0.012 -0.022-0.013 -0.021-0.014 -0.021-0.014 -0.021-0.015 -0.02-0.015 -0.02-0.016 -0.02-0.017 -0.019-0.017 -0.018-0.018 -0.018-0.019 -0.017-0.019 -0.016-0.02 -0.016-0.02 -0.016-0.021 -0.015-0.022 -0.014-0.022 -0.013-0.022 -0.013-0.023 -0.012-0.023 -0.011-0.024 -0.01-0.024 -0.01-0.024 -0.008-0.024 -0.008-0.024 -0.007-0.025 -0.007-0.025 -0.005-0.025 -0.005-0.025 -0.004-0.025 -0.003-0.025 -0.002-0.025 -0.002-0.026 -0.001-0.025 0-0.026 0.001-0.025 0.002-0.026 0.002-0.025 0.004-0.025 0.004-0.026 0.005-0.025 0.005-0.025 0.007-0.025 0.007-0.025 0.008-0.024 0.009-0.024 0.01-0.025 0.01-0.024 0.012-0.023 4.69-9.381 0.014-0.026 0.014-0.025 0.015-0.024 0.015-0.023 0.017-0.023 0.017-0.022 0.018-0.022 0.018-0.021 0.019-0.02 0.02-0.02 0.021-0.018 0.021-0.018 0.021-0.018 0.023-0.016 0.022-0.016 0.024-0.015 0.023-0.014 0.025-0.013 0.024-0.013 0.026-0.011 0.025-0.011 0.026-0.01 0.026-0.009 0.027-0.008 0.027-0.008 0.027-0.006 0.028-0.005 0.028-0.005 0.028-0.003 0.028-0.003 0.028-0.001 0.029-0.001 0.029 0.001ZM1.118 10l8.764 0 -4.382-8.764 -4.382 8.764ZM6 8l0 1 -1 0 0-1 1 0ZM6 4l0 3 -1 0 0-3 1 0Z" fill="#fff"/></svg>')
+
+  .gina-toolbar-logs-errors
+    background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 11 11"><path d="M11 3.04l0 4.95 -3.04 3.01 -4.92 0 -3.04-3.01 0-4.95 3.04-3.04 4.92 0 3.04 3.04ZM3.45 1l-2.45 2.45 0 4.12 2.45 2.43 4.1 0 2.45-2.43 0-4.12 -2.45-2.45 -4.09 0ZM6 7.99l0 1.01 -1 0 0-1.01 1 0ZM6 2l0 4.99 -1 0 0-4.99 1 0Z" fill="#fff"/></svg>')
+
+@keyframes gina-toolbar-heart-beats
+  0%
+    transform: scale(1)
+  50%
+    transform: scale(0.5)
+  100%
+    transform: scale(1)
+
+
+////////////////////
+
+  // helpers
+  .gina-toolbar-clearfix
+    &:before, &:after
+      content: " "
+      display: table
+    &:after
+      clear: both

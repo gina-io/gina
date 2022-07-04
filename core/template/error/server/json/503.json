@@ -1,0 +1,7 @@
+{
+    "error" : {
+        "code" : "503",
+        "message" : "GNA:GLOBAL:ERR:503",
+        "explicit" : "Service Unavailable"
+    }
+}

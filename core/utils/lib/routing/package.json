@@ -1,0 +1,20 @@
+{
+  "name": "routing",
+  "version": "1.0.0",
+  "description": "Routing hanlder",
+
+  "author": {
+    "name": "Maritn-Luther ETOUMAN",
+    "email": "gina@rhinosotne.com"
+  },
+  "copyright": "Copyright (c) 2009-2016 Rhinostone <gina@rhinostone.com>",
+  "engines": {
+    "node": ">=0.10.22"
+  },
+  "main": "src/main",
+  "scripts": {
+    "test": "nodeunit test"
+  },
+  "license": "MIT",
+  "readmeFilename": "README.md"
+}

@@ -4,9 +4,9 @@
 
 > This is a `preview release`. We are looking for people to help us test and improve `Windows` support.
 > Meanwhile, __Windows users__ can use Docker or an alternative to run Gina and their projects.
-> 
+>
 > Some commands or features might not work since the framework is still under development & testing
-> 
+>
 > We have some applications using the framework in production and we are improving our code in order to release the `1.0.0` version: which should come by the end of 2022. Thank you for your patience.
 
 ## Philosophy behind
@@ -134,7 +134,7 @@ Please, note that you have 2 types of environments : one for the framework, and 
 
 > By default, Gina (the framework) comes with 2 environments : `dev` and `prod`. The default is `prod`. if you are contributing to the framework or prototyping your application or service, we advise using the `dev` environment.
 > ```tty
-> gina framework:set --env=dev 
+> gina framework:set --env=dev
 > ```
 
 You can check which are the environments set for your projects
