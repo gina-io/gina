@@ -376,7 +376,7 @@ function SuperController(options) {
             var isSpecialCase = (
                     getContext('bundle') != _config.bundle
                     && requestPort != hostPort
-                    && local.req.headers[':host'] != process.env.PROXY_HOST
+                    && local.req.headers[':host'] != process.gina.PROXY_HOST
             ) ? true : false;
 
             if (isSpecialCase) {
@@ -949,7 +949,7 @@ function SuperController(options) {
                 typeof(local.req.headers['x-nginx-proxy']) != 'undefined'
                 && /^true$/i.test(local.req.headers['x-nginx-proxy'])
                 ||
-                typeof(process.env.PROXY_HOSTNAME) != 'undefined'
+                typeof(process.gina.PROXY_HOSTNAME) != 'undefined'
             ) ? true : false;
 
 
@@ -1791,7 +1791,7 @@ function SuperController(options) {
         var isSpecialCase = (
                 getContext('bundle') != local.options.conf.bundle
                 && requestPort != hostPort
-                && local.req.headers[':host'] != process.env.PROXY_HOST
+                && local.req.headers[':host'] != process.gina.PROXY_HOST
         ) ? true : false;
 
         if (isSpecialCase) {
@@ -1804,7 +1804,7 @@ function SuperController(options) {
             && !isSpecialCase
         ) {
 
-            hostname    = scheme + '://'+ (local.req.headers.host||local.req.headers[':host']||process.env.PROXY_HOST);
+            hostname    = scheme + '://'+ (local.req.headers.host||local.req.headers[':host']||process.gina.PROXY_HOST);
 
             if (
                 !/^(80|443)$/.test(requestPort)
@@ -2177,13 +2177,13 @@ function SuperController(options) {
                 typeof(local.req.headers['x-nginx-proxy']) != 'undefined'
                 && /^true$/i.test(local.req.headers['x-nginx-proxy'])
                 ||
-                typeof(process.env.PROXY_HOSTNAME) != 'undefined'
+                typeof(process.gina.PROXY_HOSTNAME) != 'undefined'
             ) ? true : false;
 
 
 
             var hostname = (isProxyHost)
-                    ? process.env.PROXY_HOSTNAME
+                    ? process.gina.PROXY_HOSTNAME
                     : ctx.config.envConf[bundle][env].hostname;
 
             // var hostname = (isProxyHost)
@@ -3751,8 +3751,8 @@ function SuperController(options) {
             getContext('isProxyHost')
             && typeof(tmp.hostname) != 'undefined'
         ) {
-            tmp.hostname    = process.env.PROXY_HOSTNAME;
-            tmp.host        = process.env.PROXY_HOST;
+            tmp.hostname    = process.gina.PROXY_HOSTNAME;
+            tmp.host        = process.gina.PROXY_HOST;
             // tmp.hostname    = getContext('gina').config.envConf._proxyHostname
             // tmp.host        = tmp.hostname.replace(/^(https|http)\:\/\//, '');
         }

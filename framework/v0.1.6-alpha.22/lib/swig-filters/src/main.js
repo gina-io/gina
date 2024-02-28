@@ -84,7 +84,7 @@ function SwigFilters(conf) {
 
         var url     = null
             , prop  = self.options.envObj.getConf(obj, options.conf.env)
-            , isProxyHost  = ( ctx.isProxyHost && /^true$/i.test(ctx.isProxyHost) ) ? true : (( typeof(process.env.PROXY_HOSTNAME) != 'undefined' ) ? true : false)
+            , isProxyHost  = ( ctx.isProxyHost && /^true$/i.test(ctx.isProxyHost) ) ? true : (( typeof(process.gina.PROXY_HOSTNAME) != 'undefined' ) ? true : false)
         ;
         if ( isProxyHost ) {
             url = prop.server.scheme + '://'+ prop.host;
@@ -149,7 +149,7 @@ function SwigFilters(conf) {
             , wrootRe           = null
             , isStandalone      = null
             , isMaster          = null
-            , isProxyHost       = ( ctx.isProxyHost && /^true$/i.test(ctx.isProxyHost) ) ? true : (( typeof(process.env.PROXY_HOSTNAME) != 'undefined' ) ? true : false)
+            , isProxyHost       = ( ctx.isProxyHost && /^true$/i.test(ctx.isProxyHost) ) ? true : (( typeof(process.gina.PROXY_HOSTNAME) != 'undefined' ) ? true : false)
             , routingRules      = null
             , rule              = null
             , url               = NaN
@@ -209,14 +209,14 @@ function SwigFilters(conf) {
                     hostname        = config.hostname + config.server.webroot;
 
                     scheme          = hostname.match(/^(https|http)/)[0];
-                    requestPort = (ctx.req.headers.port||ctx.req.headers[':port']||parseInt(process.env.PROXY_PORT));
+                    requestPort = (ctx.req.headers.port||ctx.req.headers[':port']||parseInt(process.gina.PROXY_PORT));
                     var hostPort = config.hostname.match(/(\:d+\/|\:\d+)$/);
                     hostPort = (hostPort) ? ~~(hostPort[0].replace(/\:/g, '')) : config.port[config.server.protocol][config.server.scheme];
                     // Linking bundle B from bundle A wihtout proxy
                     var isSpecialCase = (
                             getContext('bundle') != config.bundle
                             && requestPort != hostPort
-                            && ctx.req.headers[':host'] != process.env.PROXY_HOST
+                            && ctx.req.headers[':host'] != process.gina.PROXY_HOST
                     ) ? true : false;
 
                     if (isSpecialCase) {
@@ -229,7 +229,7 @@ function SwigFilters(conf) {
                         && !isSpecialCase
                     ) {
 
-                        hostname    = scheme + '://'+ (ctx.req.headers.host||ctx.req.headers[':host']||process.env.PROXY_HOST);
+                        hostname    = scheme + '://'+ (ctx.req.headers.host||ctx.req.headers[':host']||process.gina.PROXY_HOST);
 
                         if (
                             !/^(80|443)$/.test(requestPort)

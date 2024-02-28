@@ -229,8 +229,8 @@ if ( proxyPathObj.existsSync() ) {
     }
 
     if (proxy) {
-        gna.proxyHostname   = process.env.PROXY_HOSTNAME    = proxy.hostname;
-        gna.proxyHost       = process.env.PROXY_HOST        = proxy.hostname
+        gna.proxyHostname   = process.gina.PROXY_HOSTNAME    = proxy.hostname;
+        gna.proxyHost       = process.gina.PROXY_HOST        = proxy.hostname
                                                                     .replace(/^(https|http)\:\/\//g, '')
                                                                     .replace(/\:\d+\/$|\:\d+$/, '')
         ;
@@ -255,7 +255,13 @@ if ( proxyPathObj.existsSync() ) {
             }
             foundScheme = null;
         }
-        gna.proxyPort       = process.env.PROXY_PORT        = parseInt(proxyPort)
+        gna.proxyPort       = process.gina.PROXY_PORT        = parseInt(proxyPort);
+
+        var isProxyHost = (
+            typeof(process.gina.PROXY_HOSTNAME) != 'undefined'
+        ) ? true : false;
+        // Forcing context - also available for workers
+        setContext('isProxyHost', isProxyHost);
     }
 }
 

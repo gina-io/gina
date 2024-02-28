@@ -178,7 +178,7 @@ function Router(env, scope) {
             typeof(request.headers['x-nginx-proxy']) != 'undefined'
             && /^true$/i.test(request.headers['x-nginx-proxy'])
             ||
-            typeof(process.env.PROXY_HOSTNAME) != 'undefined'
+            typeof(process.gina.PROXY_HOSTNAME) != 'undefined'
         ) ? true : false;
 
         setContext('isProxyHost', isProxyHost);
