@@ -423,7 +423,9 @@ function PathHelper() {
                 fs.mkdirSync(path, permission);
                 mkdirSync(self, permission, pathArr, i, path)
             } catch (err) {
-                console.debug(err.stack); // always keep trace of the original stack
+                if ( typeof(console.debug) != 'undefined' ) {
+                    console.debug(err.stack); // always keep trace of the original stack
+                }
                 throw new Error(err.message)
             }
         };
@@ -479,7 +481,7 @@ function PathHelper() {
                             if (p == path  && typeof(callback) != 'undefined' && typeof(self.created) == 'undefined' ) {
                                 if (typeof(callback) != 'undefined') {
                                     callback(err, path)
-                                } else {
+                                } else if ( typeof(console.debug) != 'undefined' ) {
                                     console.debug("no callback defined for mkdir ", path)
                                 }
                             }
@@ -881,7 +883,9 @@ function PathHelper() {
                     if (err) {
                         console.error(err.stack)
                     }
-                    console.debug('cp() completed copy to: ', method);
+                    if ( typeof(console.debug) != 'undefined' ) {
+                        console.debug('cp() completed copy to: ', method);
+                    }
                     callback(err, destination, method)
                 })
             }
@@ -1163,10 +1167,14 @@ function PathHelper() {
     }
 
     var mv = function(self, target) {
-        console.debug("starting mv/copy from ", self.value, " to ", target);
+        if ( typeof(console.debug) != 'undefined' ) {
+            console.debug("starting mv/copy from ", self.value, " to ", target);
+        }
         cp(self.value, target)
             .onComplete(function onCpMv(err) {
-                console.debug("cp done... now unlinking source ", self.value);
+                if ( typeof(console.debug) != 'undefined' ) {
+                    console.debug("cp done... now unlinking source ", self.value);
+                }
                 if (err) {
                     e.emit('mv#complete', err);
                     return;
@@ -1174,7 +1182,9 @@ function PathHelper() {
 
 
                 rm(self.value).onComplete( function(err, path){
-                    console.debug('rm() complete');
+                    if ( typeof(console.debug) != 'undefined' ) {
+                        console.debug('rm() complete');
+                    }
                     e.emit('mv#complete', err, path)
                 })
             })
@@ -1237,7 +1247,9 @@ function PathHelper() {
                     ++l;
                     removeFoldersSync(list, l, i)
                 } catch(err) {
-                    console.debug(err.stack); // always keep trace of the original stack
+                    if ( typeof(console.debug) != 'undefined' ) {
+                        console.debug(err.stack); // always keep trace of the original stack
+                    }
                     throw new Error(err.message)
                 }
             } else {
@@ -1246,7 +1258,9 @@ function PathHelper() {
                     fs.rmdirSync(list[l][i]);
                     removeFoldersSync(list, l, i)
                 } catch(err) {
-                    console.debug(err.stack); // always keep trace of the original stack
+                    if ( typeof(console.debug) != 'undefined' ) {
+                        console.debug(err.stack); // always keep trace of the original stack
+                    }
                     throw new Error(err.message)
                 }
             }
@@ -1257,7 +1271,9 @@ function PathHelper() {
         try {
             fs.unlinkSync(filename)
         } catch (err) {
-            console.debug(err.stack); // always keep trace of the original stack
+            if ( typeof(console.debug) != 'undefined' ) {
+                console.debug(err.stack); // always keep trace of the original stack
+            }
             throw new Error(err.message)
         }
     }
