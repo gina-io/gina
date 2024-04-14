@@ -2251,7 +2251,7 @@ function SuperController(options) {
                     originalMethod && !/GET/i.test(originalMethod)
                 ) { // trying to redirect using the wrong method ?
 
-                    console.warn(new Error('Your are trying to redirect using the wrong method: `'+ req.method+'`.\nThis can often occur while redirecting from a controller to another controller or from a bundle to another.\nA redirection is not permitted in this scenario.\nD\'ont panic :)\nSwitching request method to `GET` method instead.\n').message);
+                    console.warn(new Error('Your are trying to redirect using the wrong method: `'+ req.method+'`.\nThis can often occur while redirecting from a controller to another controller or from a bundle to another.\nA redirection is not permitted in this scenario.\nDon\'t panic :)\nSwitching request method to `GET` method instead.\n').message);
                     method = local.req.method = self.setRequestMethod('GET', conf);
                     code = 303;
                 }
@@ -2972,6 +2972,14 @@ function SuperController(options) {
                 options.ca = ctx.gina.config.envConf[bundle][ctx.env].server.credentials.ca;
             }
 
+            if (
+                /^true$/i.test(isProxyHost)
+                && typeof(options.hostname) != 'undefined'
+            ) {
+                options.hostname    = process.gina.PROXY_HOSTNAME;
+                options.host        = process.gina.PROXY_HOST;
+                options.port        = process.gina.PROXY_PORT;
+            }
             // might be != from the bundle requesting
             //options.protocol    = ctx.gina.config.envConf[bundle][ctx.env].content.settings.server.protocol || ctx.gina.config.envConf[bundle][ctx.env].server.protocol;
             //options.scheme    = ctx.gina.config.envConf[bundle][ctx.env].content.settings.server.scheme || ctx.gina.config.envConf[bundle][ctx.env].server.scheme;
