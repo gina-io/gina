@@ -1,6 +1,6 @@
 {
   "name": "gina",
-  "version": "0.1.6-alpha.24",
+  "version": "0.1.6-alpha.25",
   "description": "MVC Framework for Node.",
   "keywords": [
     "framework",
@@ -51,7 +51,7 @@
   "bin": {
     "gina": "./bin/gina"
   },
-  "main": "./framework/v0.1.6-alpha.24/core/gna",
+  "main": "./framework/v0.1.6-alpha.25/core/gna",
   "scripts": {
     "prepare": "node script/prepare_version.js",
     "postpublish": "node script/post_publish.js",
