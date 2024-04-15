@@ -18791,7 +18791,6 @@ define( 'helpers/binding',[],function() { return BindingHelper });
  * file that was distributed with this source code.
  */
 
-const { debug } = require('console');
 
 // nodejs dependencies
 if ( typeof(module) !== 'undefined' && module.exports) {
