@@ -172,6 +172,7 @@ function SwigFilters(conf) {
             var r = route.split(/\@/);
             route = r[0].toLowerCase();
             base = config.bundle = r[1];
+            r = null;
         } else {
             if (
                 !/\@/.test(route)
@@ -221,6 +222,9 @@ function SwigFilters(conf) {
 
                     if (isSpecialCase) {
                         hostname = config.hostname
+                        if (isProxyHost) {
+                            hostname = scheme + '://'+ (process.gina.PROXY_HOST||ctx.req.headers.host||ctx.req.headers[':host']);
+                        }
                     }
 
                     // rewrite hostname vs ctx.req.headers.host
@@ -229,7 +233,7 @@ function SwigFilters(conf) {
                         && !isSpecialCase
                     ) {
 
-                        hostname    = scheme + '://'+ (ctx.req.headers.host||ctx.req.headers[':host']||process.gina.PROXY_HOST);
+                        hostname    = scheme + '://'+ (process.gina.PROXY_HOST||ctx.req.headers.host||ctx.req.headers[':host']);
 
                         if (
                             !/^(80|443)$/.test(requestPort)

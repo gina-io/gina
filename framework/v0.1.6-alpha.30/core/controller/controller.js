@@ -25,6 +25,8 @@ var inherits        = lib.inherits;
 var console         = lib.logger;
 var Collection      = lib.Collection;
 var routingLib      = lib.routing;
+var Domain          = lib.Domain;
+var domainLib       = new Domain();
 var swig            = require('swig');
 // Swig 2
 // var swig            = require('./../deps/swig-client/swig-2.0.0.min.js');
@@ -387,7 +389,7 @@ function SuperController(options) {
                 isProxyHost
                 && !isSpecialCase
             ) {
-                // rewrite hostname vs req.headers.host
+                // Rewrite hostname vs req.headers.host
                 hostname    = scheme + '://'+ (local.req.headers.host||local.req.headers[':host']);
 
                 if (
@@ -399,6 +401,10 @@ function SuperController(options) {
             }
 
             set('page.environment.hostname', hostname);
+            // Updating _config.rootDomain - 2024/04/15
+            // _config.rootDomain = domainLib.getRootDomain(hostname).value;
+
+
             set('page.environment.rootDomain', _config.rootDomain);
             set('page.environment.webroot', options.conf.server.webroot);
 
