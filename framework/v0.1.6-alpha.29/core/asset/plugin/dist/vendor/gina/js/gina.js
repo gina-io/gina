@@ -8620,12 +8620,12 @@ function Routing() {
         route = checkRouteParams(route, params);
 
         route.isProxyHost = isProxyHost;
-        if (isProxyHost) {
+        if (isProxyHost && route.hostname) {
             route.hostname  = (isGFFCtx) ? window.location.protocol +'//'+ window.gina.config.hostname : process.gina.PROXY_HOSTNAME;
             // route.hostname  = (isGFFCtx) ? window.location.protocol +'//'+ window.gina.config.hostname : config.envConf._proxyHostname || process.gina.PROXY_HOSTNAME;
-            if ( !isGFFCtx && !route.hostname ) {
-                route.hostname   = config.envConf._proxyHostname;
-            }
+            // if ( !isGFFCtx && !route.hostname ) {
+            //     route.hostname   = config.envConf._proxyHostname;
+            // }
             route.host      = route.hostname.replace(/^(https|http)\:\/\//, '');
         }
 
