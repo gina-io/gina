@@ -21,6 +21,8 @@ var merge           = lib.merge;
 var Proc            = lib.Proc;
 var console         = lib.logger;
 var SwigFilters     = lib.SwigFilters;
+var Domain          = lib.Domain;
+var domainLib       = new Domain();
 
 function Server(options) {
 
@@ -293,6 +295,24 @@ function Server(options) {
 
         if (failed) {
             if (sslDetails.daysRemaining > -1) {
+                var isProxyHost = getContext('isProxyHost');
+                if ( /^true$/i.test(isProxyHost) ) {
+                    console.warn("Host is behind a reverse proxy, skipping server.verifyCertificate(...) ");
+                    return;
+                }
+                var rootDomain = domainLib.getRootDomain(endpoint).value;
+                hasMatchedEntry = false;
+                for (let i in sslDetails.validFor) {
+                    if ( new RegExp(sslDetails.validFor[i].replace(/^\*\./, '') + '$').test(rootDomain) ) {
+                        hasMatchedEntry = true;
+                        break;
+                    }
+                }
+                if (!hasMatchedEntry) {
+                    console.warn(`[Certificate] "${endpoint}" : Root domain not matching your certificate. If you plan to run your service behind a revese proxy, please do not forget to add "proxy.json" at the root of your project while going to production.${'\n'} ${humanView}`);
+                    return;
+                }
+                // sslDetails.validFor
                 console.emerg(`[Certificate] ${endpoint} : It is like there is a problem with your CA certificate${'\n'} ${humanView}`);
                 return;
             }

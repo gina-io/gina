@@ -922,6 +922,7 @@ isBundleMounted(projects, bundlesPath, getContext('bundle'), function onBundleMo
                                     if (
                                         conf.server.scheme == 'https'
                                         && !/^true$/i.test(process.env.NODE_SCOPE_IS_PRODUCTION)
+                                        && !/^true$/i.test(isProxyHost)
                                     ) {
                                         try {
                                             await server.verifyCertificate(conf.host, conf.server.port);

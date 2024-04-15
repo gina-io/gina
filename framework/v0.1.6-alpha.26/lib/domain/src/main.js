@@ -6,6 +6,8 @@
  * file that was distributed with this source code.
  */
 
+const { debug } = require('console');
+
 // nodejs dependencies
 if ( typeof(module) !== 'undefined' && module.exports) {
     var fs              = require('fs');
@@ -351,6 +353,7 @@ function Domain(options, cb) {
         if ( typeof(jsonFormat) == 'undefined' ) {
             jsonFormat = false
         }
+        urlOrHostname = urlOrHostname.trim();
         var isSLD = false
             , isRegisteredTldOrSld = false
             , rootDomain = urlOrHostname.replace(/^(.*)\:\/\/|\/(.*)/g, '')

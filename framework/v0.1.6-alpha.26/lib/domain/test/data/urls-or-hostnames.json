@@ -102,5 +102,13 @@
             "isSLD": false,
             "isRegisteredTldOrSld": false
         }
+    },
+    {
+        "request": "public-local-dev ",
+        "expected": {
+            "value": "public-local-dev",
+            "isSLD": false,
+            "isRegisteredTldOrSld": false
+        }
     }
 ]
