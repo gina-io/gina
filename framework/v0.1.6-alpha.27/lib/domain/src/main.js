@@ -304,7 +304,7 @@ function Domain(options, cb) {
             return host
         }
 
-        console.debug('[DOMAIN][getFQDN] UQDN: ' + host);
+        console.debug('[DOMAIN][getFQDN] FQDN: ' + host);
         var ipObj       = null
             , err       = null
         ;

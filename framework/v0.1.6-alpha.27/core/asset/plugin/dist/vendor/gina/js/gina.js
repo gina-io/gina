@@ -8623,6 +8623,9 @@ function Routing() {
         if (isProxyHost) {
             route.hostname  = (isGFFCtx) ? window.location.protocol +'//'+ window.gina.config.hostname : process.gina.PROXY_HOSTNAME;
             // route.hostname  = (isGFFCtx) ? window.location.protocol +'//'+ window.gina.config.hostname : config.envConf._proxyHostname || process.gina.PROXY_HOSTNAME;
+            if ( !isGFFCtx && !route.hostname ) {
+                route.hostname   = config.envConf._proxyHostname;
+            }
             route.host      = route.hostname.replace(/^(https|http)\:\/\//, '');
         }
 
@@ -19086,7 +19089,7 @@ function Domain(options, cb) {
             return host
         }
 
-        console.debug('[DOMAIN][getFQDN] UQDN: ' + host);
+        console.debug('[DOMAIN][getFQDN] FQDN: ' + host);
         var ipObj       = null
             , err       = null
         ;
