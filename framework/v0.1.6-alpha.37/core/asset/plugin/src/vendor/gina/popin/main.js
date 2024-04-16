@@ -1765,6 +1765,7 @@ define('gina/popin', [ 'require', 'vendor/uuid', 'jquery', 'lib/domain', 'lib/me
             instance.getActivePopin = getActivePopin;
             instance.open           = popinOpen;
             instance.close          = popinClose;
+            instance.bindOpen       = bindOpen;
         }
 
 
