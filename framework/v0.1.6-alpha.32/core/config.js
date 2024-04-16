@@ -946,9 +946,9 @@ function Config(opt, contextResetNeeded) {
                     rootDomain = domainLib.getRootDomain(newContent[app][env].host).value;
                 }
                 newContent[app][env].rootDomain = rootDomain;
-                if ( /^true$/i.test( getContext('isProxyHost') ) ) {
-                    newContent[app][env].rootDomain = rootDomain = domainLib.getRootDomain(process.gina.PROXY_HOST).value;
-                }
+                // if ( /^true$/i.test( getContext('isProxyHost') ) ) {
+                //     newContent[app][env].rootDomain = rootDomain = domainLib.getRootDomain(process.gina.PROXY_HOST).value;
+                // }
 
                 let reps = {
                     "frameworkDir"          : getEnvVar('GINA_FRAMEWORK_DIR'),
