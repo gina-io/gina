@@ -280,10 +280,12 @@ function SwigFilters(conf) {
         try {
             url = routing.getRoute(route +'@'+ config.bundle, params);
             if (isProxyHost) {
-                url.hostname    = (hostname) ? url.hostname.replace(/(https|http)\:\/\/.*/, hostname) : url.hostname;
-                url.host        = url.hostname.replace(/(https|http)\:\/\//, '');
+                // url.proxy_hostname    = (hostname) ? url.hostname.replace(/(https|http)\:\/\/.*/, hostname) : url.hostname;
+                url.proxy_hostname    = (isGFFCtx) ? window.location.protocol +'//'+ document.location.hostname : (process.gina.PROXY_HOSTNAME||config.envConf._proxyHostname);
+                url.proxy_host        = url.hostname.replace(/(https|http)\:\/\//, '');
             }
             url = url.toUrl();
+
         } catch (routingErr) {
             url = '404:['+ ctx.req.method +']'+rule
         }

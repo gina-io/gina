@@ -7727,7 +7727,7 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
 
 function Routing() {
 
-    var isGFFCtx    = ((typeof (module) !== 'undefined') && module.exports) ? false :  true;
+    var isGFFCtx    = ((typeof (module) !== 'undefined') && module.exports) ? false : true;
     var self        = {
         allowedMethods: ['get', 'post', 'put', 'delete'],
         reservedParams: ['controle', 'file','title', 'namespace', 'path'],
@@ -8621,7 +8621,8 @@ function Routing() {
 
         route.isProxyHost = isProxyHost;
         if (isProxyHost) {
-            route.proxy_hostname  = (isGFFCtx) ? window.location.protocol +'//'+ window.gina.config.hostname : (process.gina.PROXY_HOSTNAME||config.envConf._proxyHostname);
+            // route.proxy_hostname  = (isGFFCtx) ? window.location.protocol +'//'+ window.gina.config.hostname : (process.gina.PROXY_HOSTNAME||config.envConf._proxyHostname);
+            route.proxy_hostname  = (isGFFCtx) ? window.location.protocol +'//'+ document.location.hostname : (process.gina.PROXY_HOSTNAME||config.envConf._proxyHostname);
             route.proxy_host      = route.proxy_hostname.replace(/^(https|http)\:\/\//, '');
         }
 
