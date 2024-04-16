@@ -910,8 +910,8 @@ function Routing() {
 
         route.isProxyHost = isProxyHost;
         if (isProxyHost) {
-            route.hostname  = (isGFFCtx) ? window.location.protocol +'//'+ window.gina.config.hostname : (process.gina.PROXY_HOSTNAME||config.envConf._proxyHostname);
-            route.host      = route.hostname.replace(/^(https|http)\:\/\//, '');
+            route.proxy_hostname  = (isGFFCtx) ? window.location.protocol +'//'+ window.gina.config.hostname : (process.gina.PROXY_HOSTNAME||config.envConf._proxyHostname);
+            route.proxy_host      = route.proxy_hostname.replace(/^(https|http)\:\/\//, '');
         }
 
         if ( /\,/.test(route.url) ) {
@@ -983,9 +983,12 @@ function Routing() {
             }
 
             var wroot       = this.webroot || urlProps.webroot
-                , hostname  = this.hostname || urlProps.hostname
-                , path      = this.url
+                , hostname  = ''+this.hostname || ''+urlProps.hostname
+                , path      = ''+this.url
             ;
+            if (this.isProxyHost) {
+                hostname = ''+route.proxy_hostname;
+            }
 
             this.url = (
                     typeof(ignoreWebRoot) != 'undefined'
