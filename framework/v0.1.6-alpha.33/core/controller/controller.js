@@ -385,20 +385,20 @@ function SuperController(options) {
                 hostname = _config.hostname;
             }
 
-            if (
-                isProxyHost
-                && !isSpecialCase
-            ) {
-                // Rewrite hostname vs req.headers.host
-                hostname    = scheme + '://'+ (local.req.headers.host||local.req.headers[':host']);
+            // if (
+            //     isProxyHost
+            //     && !isSpecialCase
+            // ) {
+            //     // Rewrite hostname vs req.headers.host
+            //     hostname    = scheme + '://'+ (local.req.headers.host||local.req.headers[':host']);
 
-                if (
-                    !/^(80|443)$/.test(requestPort)
-                    && !new RegExp(requestPort+'$').test(hostname)
-                ) {
-                    hostname += ':'+ requestPort;
-                }
-            }
+            //     if (
+            //         !/^(80|443)$/.test(requestPort)
+            //         && !new RegExp(requestPort+'$').test(hostname)
+            //     ) {
+            //         hostname += ':'+ requestPort;
+            //     }
+            // }
 
             set('page.environment.hostname', hostname);
             // Updating _config.rootDomain - 2024/04/15

@@ -397,7 +397,7 @@ function Config(opt, contextResetNeeded) {
                     var scheme      = self.envConf[self.startingApp][env].content.settings.server.scheme || self.envConf[self.startingApp][env].server.scheme;
 
                     var hostname    = scheme + '://' + self.envConf[self.startingApp][env].host + ':' + self.envConf[self.startingApp][env].server.port;
-                    var isProxyHost = getContext('isProxyHost');
+                    // var isProxyHost = getContext('isProxyHost');
 
                     self.envConf[self.startingApp][env].hostname = hostname;
 
@@ -1687,10 +1687,10 @@ function Config(opt, contextResetNeeded) {
             ) {
                 routing[rule].host      = conf[routing[rule].bundle][env].host
                 routing[rule].hostname  = conf[routing[rule].bundle][env].server.scheme +'://'+ routing[rule].host +':'+ conf[routing[rule].bundle][env].port[conf[routing[rule].bundle][env].server.protocol][conf[routing[rule].bundle][env].server.scheme];
-                if ( /^true$/i.test( getContext('isProxyHost') ) ) {
-                    routing[rule].host = process.gina.PROXY_HOST
-                    routing[rule].hostname = process.gina.PROXY_HOSTNAME
-                }
+                // if ( /^true$/i.test( getContext('isProxyHost') ) ) {
+                //     routing[rule].host = process.gina.PROXY_HOST
+                //     routing[rule].hostname = process.gina.PROXY_HOSTNAME
+                // }
                 // default webroot
                 routing[rule].webroot   = localWroot;
             }
@@ -2424,10 +2424,10 @@ function Config(opt, contextResetNeeded) {
         conf[bundle][env].server.supportedRequestMethods = conf[bundle][env].content.settings.server.supportedRequestMethods;
         conf[bundle][env].hostname = scheme + '://' + conf[bundle][env].host + ':' + conf[bundle][env].server.port;
 
-        if ( /^true$/i.test( getContext('isProxyHost') ) ) {
-            conf[bundle][env].host = process.gina.PROXY_HOST
-            conf[bundle][env].hostname = process.gina.PROXY_HOSTNAME
-        }
+        // if ( /^true$/i.test( getContext('isProxyHost') ) ) {
+        //     conf[bundle][env].host = process.gina.PROXY_HOST
+        //     conf[bundle][env].hostname = process.gina.PROXY_HOSTNAME
+        // }
         self.envConf[bundle][env] = conf[bundle][env];
 
         ++b;
