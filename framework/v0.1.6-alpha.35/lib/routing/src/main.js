@@ -987,7 +987,7 @@ function Routing() {
                 , path      = ''+this.url
             ;
             if (this.isProxyHost) {
-                hostname = ''+route.proxy_hostname;
+                hostname = ''+this.proxy_hostname;
             }
 
             this.url = (
@@ -1030,6 +1030,10 @@ function Routing() {
                 , hostname  = this.hostname || _this.hostname
                 , url       = ( typeof(ignoreWebRoot) != 'undefined' && ignoreWebRoot == true ) ? path.replace(wroot, '/') : this.url || _this.url
             ;
+
+            if ( /^\//.test(url) ) {
+                url = hostname + url;
+            }
 
             var scheme = ( /^https/.test(hostname) ) ? 'https' : 'http';
 
