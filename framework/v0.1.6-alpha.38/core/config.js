@@ -627,6 +627,9 @@ function Config(opt, contextResetNeeded) {
         for (let app in content) {
             //Checking if genuine app.
             console.debug('Checking if application [ '+ app +' ] is registered ');
+            if ( typeof(pkg[app]) == 'undefined' ) {
+                continue;
+            }
 
             appPath = _(root +'/'+ pkg[app].link, true);
             // cleanup symlinks
