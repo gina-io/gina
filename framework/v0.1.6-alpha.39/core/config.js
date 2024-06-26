@@ -628,6 +628,7 @@ function Config(opt, contextResetNeeded) {
             //Checking if genuine app.
             console.debug('Checking if application [ '+ app +' ] is registered ');
             if ( typeof(pkg[app]) == 'undefined' ) {
+                console.debug('Skipping app [ '+ app +' ]; not registered ...');
                 continue;
             }
 
@@ -913,45 +914,7 @@ function Config(opt, contextResetNeeded) {
                     newContent[app][env].executionPath = root
                 }
 
-                // Constants to be exposed in configuration files.
-                // Variables replace. Compare with gina/core/template/conf/env.json.
-                // Defining root domain (TLD or SLD)
-                // by default
-                // var hostFQDN = await domainLib.getFQDN() || os.hostname();
-                // console.debug('[CONFIG]['+ app +'][loadWithTemplate][FQDN] Setting Host FQDN from `'+ newContent[app][env].host +'` => `'+ self.hostFQDN);
-                var rootDomain = domainLib.getRootDomain(os.hostname()).value;
-                // if (
-                //     typeof(newContent[app][env].host) != 'undefined'
-                //     && self.startingApp == app
-                //     && new RegExp('^'+ app + '-').test(newContent[app][env].host)
-                //     && newContent[app][env].host != hostFQDN
-                // ) {
-                //     console.debug('[CONFIG]['+ app +'][loadWithTemplate] Auto HOST MODE ON: retrieving current host FQDN.');
-                //     // Get fqdn (equivalent of `hostname --fqdn` command line)
-                //     try {
-                //         newContent[app][env].host = hostFQDN;
-                //         console.info('[CONFIG]['+ app +'][loadWithTemplate][FQDN] Host set as `'+ self.hostFQDN +'`');
-                //     } catch (fqdnErr) {
-                //         console.emerg('[CONFIG]['+ app +'][loadWithTemplate][FQDN] Check you `/etc/hosts` or check your hostname by running `hostname --fqdn` \n\r'+ fqdnErr.stack);
-                //         process.exit(1)
-                //     }
-                // }
-                // if overrided by the project `manifest.json`: meaning all bundles belong to the same TLD or SLD
-                if ( typeof(manifest.rootDomain) != 'undefined' ) {
-                    rootDomain = manifest.rootDomain;
-                }
-                // if overrided by the project/env/bundle `env.json` or `bundle/config/settings.server.json`: meaning the bundles belong to a specific TLD or SLD
-                if ( typeof(newContent[app][env].rootDomain) != 'undefined' && newContent[app][env].rootDomain != '' ) {
-                    rootDomain = newContent[app][env].rootDomain;
-                }
-                // custom override: user entry in the project/env/bundle `env.json` or `bundle/config/settings.server.json`
-                if (!/\{rootDomain\}/.test(newContent[app][env].host) ) {
-                    rootDomain = domainLib.getRootDomain(newContent[app][env].host).value;
-                }
-                newContent[app][env].rootDomain = rootDomain;
-                // if ( /^true$/i.test( getContext('isProxyHost') ) ) {
-                //     newContent[app][env].rootDomain = rootDomain = domainLib.getRootDomain(process.gina.PROXY_HOST).value;
-                // }
+
 
                 let reps = {
                     "frameworkDir"          : getEnvVar('GINA_FRAMEWORK_DIR'),
@@ -982,6 +945,46 @@ function Config(opt, contextResetNeeded) {
                 //console.error("reps ", reps);
                 try {
                     newContent = whisper(reps, newContent);
+
+                    // Constants to be exposed in configuration files.
+                    // Variables replace. Compare with gina/core/template/conf/env.json.
+                    // Defining root domain (TLD or SLD)
+                    // by default
+                    // var hostFQDN = await domainLib.getFQDN() || os.hostname();
+                    // console.debug('[CONFIG]['+ app +'][loadWithTemplate][FQDN] Setting Host FQDN from `'+ newContent[app][env].host +'` => `'+ self.hostFQDN);
+                    var rootDomain = domainLib.getRootDomain(os.hostname()).value;
+                    // if (
+                    //     typeof(newContent[app][env].host) != 'undefined'
+                    //     && self.startingApp == app
+                    //     && new RegExp('^'+ app + '-').test(newContent[app][env].host)
+                    //     && newContent[app][env].host != hostFQDN
+                    // ) {
+                    //     console.debug('[CONFIG]['+ app +'][loadWithTemplate] Auto HOST MODE ON: retrieving current host FQDN.');
+                    //     // Get fqdn (equivalent of `hostname --fqdn` command line)
+                    //     try {
+                    //         newContent[app][env].host = hostFQDN;
+                    //         console.info('[CONFIG]['+ app +'][loadWithTemplate][FQDN] Host set as `'+ self.hostFQDN +'`');
+                    //     } catch (fqdnErr) {
+                    //         console.emerg('[CONFIG]['+ app +'][loadWithTemplate][FQDN] Check you `/etc/hosts` or check your hostname by running `hostname --fqdn` \n\r'+ fqdnErr.stack);
+                    //         process.exit(1)
+                    //     }
+                    // }
+                    // if overrided by the project `manifest.json`: meaning all bundles belong to the same TLD or SLD
+                    if ( typeof(manifest.rootDomain) != 'undefined' ) {
+                        rootDomain = manifest.rootDomain;
+                    }
+                    // if overrided by the project/env/bundle `env.json` or `bundle/config/settings.server.json`: meaning the bundles belong to a specific TLD or SLD
+                    if ( typeof(newContent[app][env].rootDomain) != 'undefined' && newContent[app][env].rootDomain != '' ) {
+                        rootDomain = newContent[app][env].rootDomain;
+                    }
+                    // custom override: user entry in the project/env/bundle `env.json` or `bundle/config/settings.server.json`
+                    if (!/\{rootDomain\}/.test(newContent[app][env].host) ) {
+                        rootDomain = domainLib.getRootDomain(newContent[app][env].host).value;
+                    }
+                    newContent[app][env].rootDomain = rootDomain;
+                    // if ( /^true$/i.test( getContext('isProxyHost') ) ) {
+                    //     newContent[app][env].rootDomain = rootDomain = domainLib.getRootDomain(process.gina.PROXY_HOST).value;
+                    // }
                 } catch(contentErr) {
                     console.emerg(contentErr.stack);
                     return;
