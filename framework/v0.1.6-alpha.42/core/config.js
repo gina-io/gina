@@ -997,6 +997,14 @@ function Config(opt, contextResetNeeded) {
                     ) {
                         newContent[app][env].host = whisper(reps, newContent[app][env].host);
                     }
+
+                    // if ( typeof(newContent[app][env].host_if_dns_resolution) != 'undefined' ) {
+                    //     newContent[app][env].host_if_dns_resolution = whisper(reps, newContent[app][env].host_if_dns_resolution);
+                    //     if ( newContent[app][env].host != newContent[app][env].host_if_dns_resolution ) {
+                    //         newContent[app][env].host = newContent[app][env].host_if_dns_resolution;
+                    //     }
+                    // }
+
                     if (
                         typeof(newContent[app][env].rootDomain) != 'undefined'
                         && newContent[app][env].rootDomain != ''
