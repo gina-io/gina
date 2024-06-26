@@ -944,7 +944,6 @@ function Config(opt, contextResetNeeded) {
                 bundleSettings = null;
                 //console.error("reps ", reps);
                 try {
-                    newContent = whisper(reps, newContent);
 
                     // Constants to be exposed in configuration files.
                     // Variables replace. Compare with gina/core/template/conf/env.json.
@@ -970,6 +969,14 @@ function Config(opt, contextResetNeeded) {
                     //     }
                     // }
                     // if overrided by the project `manifest.json`: meaning all bundles belong to the same TLD or SLD
+                    if ( typeof(newContent[app][env].host) != 'undefined' ) {
+                        newContent[app][env].host = whisper(reps, newContent[app][env].host);
+                    }
+                    if ( typeof(newContent[app][env].rootDomain) != 'undefined' ) {
+                        newContent[app][env].rootDomain = whisper(reps, newContent[app][env].rootDomain);
+                    }
+
+
                     if ( typeof(manifest.rootDomain) != 'undefined' ) {
                         rootDomain = manifest.rootDomain;
                     }
@@ -981,10 +988,16 @@ function Config(opt, contextResetNeeded) {
                     if (!/\{rootDomain\}/.test(newContent[app][env].host) ) {
                         rootDomain = domainLib.getRootDomain(newContent[app][env].host).value;
                     }
+
+
+
                     newContent[app][env].rootDomain = rootDomain;
                     // if ( /^true$/i.test( getContext('isProxyHost') ) ) {
                     //     newContent[app][env].rootDomain = rootDomain = domainLib.getRootDomain(process.gina.PROXY_HOST).value;
                     // }
+
+
+                    newContent = whisper(reps, newContent);
                 } catch(contentErr) {
                     console.emerg(contentErr.stack);
                     return;
