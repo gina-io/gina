@@ -952,9 +952,6 @@ function Config(opt, contextResetNeeded) {
                 if (!/\{rootDomain\}/.test(newContent[app][env].host) ) {
                     rootDomain = domainLib.getRootDomain(newContent[app][env].host).value;
                 }
-
-
-
                 newContent[app][env].rootDomain = rootDomain;
                 // if ( /^true$/i.test( getContext('isProxyHost') ) ) {
                 //     newContent[app][env].rootDomain = rootDomain = domainLib.getRootDomain(process.gina.PROXY_HOST).value;

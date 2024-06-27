@@ -5,13 +5,27 @@ var console = lib.logger;
 function Version(opt){
 
     var init = function(opt){
+        var arch = process.arch;
+        switch (process.arch) {
+            case 'x64':
+                arch = 'amd64'
+                break;
+            case 'armv7l':
+                arch = 'armhf'
+                break;
+            case 'x86':
+                arch = 'i386'
+                break;
+            default:
+                break;
+        }
         var vers = "",
             short = ( typeof(process.argv[3]) != 'undefined') ? process.argv[3]: false,
             msg = require('./msg.json'),
             version = {
                 "number"        : GINA_VERSION,
                 "platform"      : process.platform,
-                "arch"          : process.arch,
+                "arch"          : arch,
                 "middleware"    : fs.readFileSync(_( opt.frameworkPath + '/MIDDLEWARE')).toString() || 'none',
                 "copyright"     : require(opt.pack).copyright
             };

@@ -324,10 +324,24 @@ function SuperController(options) {
 
             var ctx = getContext('gina');
             // new declaration && overrides
+            var arch = process.arch;
+            switch (process.arch) {
+                case 'x64':
+                    arch = 'amd64'
+                    break;
+                case 'armv7l':
+                    arch = 'armhf'
+                    break;
+                case 'x86':
+                    arch = 'i386'
+                    break;
+                default:
+                    break;
+            }
             var version = {
                 "number"        : ctx.version,
                 "platform"      : process.platform,
-                "arch"          : process.arch,
+                "arch"          : arch,
                 "nodejs"        : process.versions.node,
                 "middleware"    : ctx.middleware
             };

@@ -13,6 +13,19 @@ async function onExec() {
 
     var isWin32         = (process.platform === 'win32') ? true : false;
     var arch            = process.arch;
+    switch (process.arch) {
+        case 'x64':
+            arch = 'amd64'
+            break;
+        case 'armv7l':
+            arch = 'armhf'
+            break;
+        case 'x86':
+            arch = 'i386'
+            break;
+        default:
+            break;
+    }
     var platform        = process.platform;
     var binPath         = __dirname;
     var ginaPath        = (binPath.replace(/\\/g, '/')).replace('/bin', '');

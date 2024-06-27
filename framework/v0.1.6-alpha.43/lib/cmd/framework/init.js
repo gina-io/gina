@@ -291,6 +291,20 @@ function Initialize(opt) {
     self.checkArch = function(done) {
 
         var currentArch = process.arch;
+        switch (process.arch) {
+            case 'x64':
+                currentArch = 'amd64'
+                break;
+            case 'armv7l':
+                currentArch = 'armhf'
+                break;
+            case 'x86':
+                currentArch = 'i386'
+                break;
+            default:
+                break;
+        }
+
         var currentPlatform = process.platform;
         // ignored for framework:set
         var mainConfig = require( self.opt.homedir + '/main.json' );
