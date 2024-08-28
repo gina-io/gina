@@ -661,8 +661,9 @@ function Add(opt, cmd) {
 
 
             var version = '0.0.1';
-            var scopes  = self.projects[self.projectName].scopes;
-            var envs    = self.projects[self.projectName].envs;
+            var scopes  = self.projects[self.projectName].scopes || self.scopes || self.mainConfig['scopes'][ GINA_SHORT_VERSION ];
+            var envs    = self.projects[self.projectName].envs || self.envs || self.mainConfig['envs'][ GINA_SHORT_VERSION ];
+
             data.bundles[local.bundle] = {
                 "_comment"  : "Your comment goes here.",
                 "version"   : version,

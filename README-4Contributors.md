@@ -1,6 +1,6 @@
 # The contributor's guide
 > This is a document is a work in progress.
-> If you would like to contribute, you can contact us at `contact@gina.io` 
+> If you would like to contribute, you can contact us at `contact@gina.io`
 
 ### Installing Gina
 ---
@@ -15,7 +15,7 @@ You __cannot__ just install the framework with the `NPM` CLI. You will need to f
 | Node js       |   Node js v16.x or later     |
 | NPM      |   v8.x or later     |
 
- 
+
 
 __NB.:__ Gina is meant to be install globaly
 > [A Note on Permissions](http://npm.github.io/installation-setup-docs/installing/a-note-on-permissions.html)
@@ -30,7 +30,7 @@ __NB.:__ Gina is meant to be install globaly
 npm config get prefix
 ```
 
-> Default `prefix` should be: 
+> Default `prefix` should be:
 > For libraries `/usr/local`
 
 Targeted folder should be: `{prefix}/lib/node_modules/gina`
@@ -73,7 +73,7 @@ Starting the framework
 ```tty
 gina start
 ```
-Or in debug mode 
+Or in debug mode
 
 ```tty
 gina start --inspect-gina
@@ -82,7 +82,7 @@ gina start --inspect-gina
 Retrieve logs
 
 ```tty
-gina tail --keep-alive
+gina tail --follow
 ```
 
 #### Setting the framework default environment

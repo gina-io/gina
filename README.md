@@ -1,6 +1,6 @@
 # Gina <img src="https://gina.io/favicon-16x16.png"  alt="Gina icon" style="position: absolute; top:10px; margin-right: 10px;" />
 
-[![GitHub version](https://badge.fury.io/gh/Rhinostone%2Fgina.svg)](https://badge.fury.io/gh/Rhinostone%2Fgina) [![npm version](https://badge.fury.io/js/gina.svg)](https://badge.fury.io/js/gina) 
+[![GitHub version](https://badge.fury.io/gh/Rhinostone%2Fgina.svg)](https://badge.fury.io/gh/Rhinostone%2Fgina) [![npm version](https://badge.fury.io/js/gina.svg)](https://badge.fury.io/js/gina)
 
 <strong>Gina I/O</strong> - Node.js MVC and Event Driven framework
 
@@ -334,8 +334,8 @@ gina tail
 
 __NB.:__ This is an alias for `gina framework:tail`
 > __Attention__
-> Everytime a bundle exits, the tail process will be closed. To prevent tail from exiting, you can use the `--keep-alive` argument.
-> E.g.: `gina tail --keep-alive`
+> Everytime a bundle exits, the tail process will be closed. To prevent tail from exiting, you can use the `--follow` argument.
+> E.g.: `gina tail --follow`
 
 By default, Gina does not store logs. Logs are treated like any other events then printed out to the `process.stdout`.
 

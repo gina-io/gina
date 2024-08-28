@@ -1847,10 +1847,10 @@ function Config(opt, contextResetNeeded) {
         var reps = {
             "gina"              : getPath('gina').root,
             "frameworkDir"      : getEnvVar('GINA_FRAMEWORK_DIR'),
-            "scope"             : conf[bundle][env].server.scope,
-            "host"              : conf[bundle][env].host,
-            "env"               : env,
+            // "scope"             : conf[bundle][env].server.scope,
             "scope"             : scope,
+            "env"               : env,
+            "host"              : conf[bundle][env].host,
             "bundle"            : bundle,
             // "server.engine"     : conf[bundle][env].engine,
             // "server.protocol"   : conf[bundle][env].protocol,
