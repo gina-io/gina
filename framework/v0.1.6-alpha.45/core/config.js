@@ -992,6 +992,9 @@ function Config(opt, contextResetNeeded) {
                         typeof(newContent[app][env].host) != 'undefined'
                         && newContent[app][env].host != ''
                     ) {
+                        // TODO - Override for kubernetes replicas: (os.hostname() + rootDomain) != newContent[app][env].host
+                        // eg.: public2-prod-v3-beta VS public-prod-v3-beta
+
                         newContent[app][env].host = whisper(reps, newContent[app][env].host);
                     }
 

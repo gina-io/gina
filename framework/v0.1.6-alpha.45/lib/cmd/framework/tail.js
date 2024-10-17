@@ -117,7 +117,7 @@ function Tail(opt, cmd) {
 
         client.on('error', (data) => {
             var err = data.toString();
-            console.error('[MQTail] ' + err + ' - Gina might not be running');
+            console.error('[MQTail] ' + err + ' - Gina might not be running, or host IP has changed.');
             console.info('[MQTail] Waitting for `MQListener` to be started ...');
 
             // var mqPort = null;

@@ -507,6 +507,10 @@ function Initialize(opt) {
              * make sure to complete : self.checkIfMain()
              */
 
+            // Check GINA_HOST_V4 for changes in case of k8s environement
+            // Get current host IP, compare with getEnvVar('GINA_HOST_V4')
+            // IF changed: setEnvVar('GINA_HOST_V4', new_host_v4)
+
             var dic = {
                 'prefix' : prefix,
                 'global_mode': globalMode,

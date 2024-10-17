@@ -13,7 +13,7 @@ const {promises: {readFile}} = require("fs");
 var util            = require('util');
 var promisify       = util.promisify;
 var EventEmitter    = require('events').EventEmitter;
-var zlib            = require('zlib');
+var zlib            = require('zlib'); // Included with NodeJS
 
 //var dns           = require('dns');
 // var tls = require('tls');
@@ -3044,6 +3044,33 @@ function SuperController(options) {
         }
 
     }
+
+    var handleHTTP1ClientRequestv2 = function (browser, options, callback) {
+        var agent = new browser.Agent({ keepAlive: true });
+        var options = {
+            host: options.host,
+            port: options.port,
+            path: options.path,
+            method: 'GET',
+            agent: agent
+        };
+        var req = browser.request(options, function(res) {
+            var str = "";
+            var err = false;
+            res.on('data', function (chunk) {
+                str += chunk;
+            });
+            res.on('end', function () {
+                // done
+                return callback( err, data );
+            });
+        });
+        req.write('');
+        req.end();
+        req.on('error', function(error) {
+            err = error
+        });
+    };
 
     var handleHTTP1ClientRequest = function(browser, options, callback) {
 
