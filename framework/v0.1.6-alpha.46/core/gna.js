@@ -491,12 +491,16 @@ gna.mount = process.mount = function(bundlesPath, source, target, type, callback
     }
     var tmpPath = getPath('project') + '/tmp';
     console.debug('tmp path: ', tmpPath);
-    if ( !fs.existsSync(tmpPath) ) {
-        new _(tmpPath).mkdirSync();
+    var tmpPathObj = new _(tmpPath);
+    if ( !tmpPathObj.existsSync() ) {
+        tmpPathObj.mkdirSync();
     }
+    tmpPathObj = null;
+    var sourceObj = new _(source);
+    var targetObj = new _(target);
 
-    var isSourceFound   = fs.existsSync(source)
-        , isTargetFound = fs.existsSync(target)
+    var isSourceFound   = sourceObj.existsSync()
+        , isTargetFound = targetObj.existsSync()
     ;
     console.debug('[ FRAMEWORK ][ MOUNT ] Source: ', source);
     console.debug('[ FRAMEWORK ][ MOUNT ] Checking before mounting ', target, isTargetFound, bundlesPath);
@@ -533,15 +537,15 @@ gna.mount = process.mount = function(bundlesPath, source, target, type, callback
         gna.lib.generator.createPathSync(bundlesPath, function onPathCreated(err){
             if (!err) {
                 try {
-                    var targetObj = new _(target);
+                    // var targetObj = new _(target);
                     if ( targetObj.existsSync() ) {
                         targetObj.rmSync();
                     }
-                    if ( type != undefined)
+                    if ( type != undefined) {
                         fs.symlinkSync(source, target, type)
-                    else
+                    } else {
                         fs.symlinkSync(source, target);
-
+                    }
                     // symlink created
                     callback(false);
 
