@@ -84,7 +84,7 @@ function Start(opt, cmd) {
         var projectArchFile = projectArchFileObj.toString();
         var projectPlatformFileObj = new _(gnaPath +'/platform', true);
         var projectPlatformFile = projectPlatformFileObj.toString();
-        var nodeModulesContentArr = ( nodeModulesPathObj.existsSync() ) ? fs.readdirSync(nodeModulesPathObj.toString()) : [];
+        var nodeModulesContentArr = ( nodeModulesPathObj.existsSync() && !nodeModulesPathObj.isSymlinkSync() ) ? fs.readdirSync(nodeModulesPathObj.toString()) : [];
         var newNodeModulesContentArr = [], n = 0;
         for (let f in nodeModulesContentArr) {
             if (/^\./.test(nodeModulesContentArr[f]) ) {
@@ -102,13 +102,16 @@ function Start(opt, cmd) {
             ||
             !projectPlatformFileObj.existsSync()
             ||
-            projectArchFileObj.existsSync() && fs.readFileSync(projectArchFile).toString() != currentArch
+            projectArchFileObj.existsSync()
+            && fs.readFileSync(projectArchFile).toString() != currentArch
             ||
-            projectPlatformFileObj.existsSync() && fs.readFileSync(projectPlatformFile).toString() != currentPlatform
+            projectPlatformFileObj.existsSync()
+            && fs.readFileSync(projectPlatformFile).toString() != currentPlatform
             ||
             !nodeModulesPathObj.existsSync()
             ||
             nodeModulesPathObj.existsSync()
+            && !nodeModulesPathObj.isSymlinkSync()
             && !nodeModulesContentArr.length
             ||
             nodeModulesPathObj.existsSync()
