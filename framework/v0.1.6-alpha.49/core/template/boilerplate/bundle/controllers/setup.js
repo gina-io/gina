@@ -53,7 +53,7 @@ function SetupClass(req, res, next){
     /**
      * Sample of a swig filter to render markdown content
      * To activate this code, you will need :
-     * 1) to install `marked` dependency : npm install marked --save
+     * 1) to install `marked` dependency : npm install marked@4.0.10 --save
      * 2) uncomment imports on the top of this script
      * 3) uncomment the following filter definition
      */
