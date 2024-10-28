@@ -2090,7 +2090,7 @@ function Server(options) {
                         'method': 'POST',
                         'bundle' : self.appName
                     };
-                    var busboy = new Busboy({ headers: request.headers });
+                    var busboy = Busboy({ headers: request.headers });
 
                     // busboy.on('field', function(fieldname, val, fieldnameTruncated, valTruncated) {
                     //     console.log('Field [' + fieldname + ']: value: ' + inspect(val));
