@@ -47,6 +47,7 @@ gina build --env=dev
 ### What command lines are used by the build script
 
 Uglify2 is the default compiler.
+sudo npm install -g uglify-js@3.19.3
 
 Locate `/node_modules/gina/core/asset/plugin/gina`.
 N.B.: replace ${project} by your project path.

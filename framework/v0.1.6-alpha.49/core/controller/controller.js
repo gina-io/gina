@@ -380,6 +380,11 @@ function SuperController(options) {
             // setContext('isProxyHost', isProxyHost);
             var isProxyHost = getContext('isProxyHost') || false;
             set('page.environment.isProxyHost', isProxyHost);
+            if ( /^true$/.test(isProxyHost) ) {
+                set('page.environment.proxyHost', process.gina.PROXY_HOST);
+                set('page.environment.proxyHostname', process.gina.PROXY_HOSTNAME);
+            }
+
             var _config = ctx.config.envConf[options.conf.bundle][process.env.NODE_ENV];
             // by default
             var hostname    = _config.hostname + _config.server.webroot;

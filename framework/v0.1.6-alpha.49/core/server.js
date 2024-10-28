@@ -4,7 +4,8 @@ const fs            = require('fs');
 const os            = require('os');
 const path          = require('path');
 const EventEmitter  = require('events').EventEmitter;
-const Busboy        = require('./deps/busboy');
+// const Busboy        = require('./deps/busboy-0.2.14');
+const Busboy        = require('busboy');
 const Stream        = require('stream');
 const zlib          = require('zlib'); // gzip / deflate
 const util          = require('util');
@@ -1440,7 +1441,6 @@ function Server(options) {
                 var key = pathname.replace(pathname.split('/').splice(-1), '');
                 for ( ; s < sLen; ++s ) {
                     if ( bundleConf.staticResources[s] == key ) {
-                    // if ( eval('/^' + bundleConf.staticResources[s].replace(/\//g,'\\/') +'/').test(pathname) ) {
                         filename = bundleConf.content.statics[ bundleConf.staticResources[s] ] +'/'+ pathname.replace(bundleConf.staticResources[s], '');
                         break;
                     }
