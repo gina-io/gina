@@ -5,7 +5,7 @@ const os            = require('os');
 const path          = require('path');
 const EventEmitter  = require('events').EventEmitter;
 // const Busboy        = require('./deps/busboy-0.2.14');
-const Busboy        = require('busboy');
+const Busboy        = require('./deps/busboy-1.6.0');
 const Stream        = require('stream');
 const zlib          = require('zlib'); // gzip / deflate
 const util          = require('util');
@@ -2095,6 +2095,9 @@ function Server(options) {
                     // busboy.on('field', function(fieldname, val, fieldnameTruncated, valTruncated) {
                     //     console.log('Field [' + fieldname + ']: value: ' + inspect(val));
                     // });
+
+                    // Attention: on busboy upgrade, we needs to adapt `busboy/lib/types/multipart.js`
+                    // For this, check the emit method
                     busboy.on('file', function(fieldname, file, filename, encoding, mimetype, group) {
 
                         file._dataLen = 0;
