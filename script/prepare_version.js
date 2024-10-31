@@ -19,7 +19,7 @@ var scriptPath = __dirname;
 var ginaPath = (scriptPath.replace(/\\/g, '/')).replace('/script', '');
 var help        = require(ginaPath + '/utils/helper.js');
 var pack        = ginaPath + '/package.json';
-pack =  (isWin32()) ? pack.replace(/\//g, '\\') : pack;
+pack        =  (isWin32()) ? pack.replace(/\//g, '\\') : pack;
 
 var helpers     = null;
 var lib         = null;
