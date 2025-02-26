@@ -4629,7 +4629,7 @@ function SuperController(options) {
                 return next();
         }
 
-        if ( /http\/2/.test(protocol) ) {
+        if ( stream && /http\/2/.test(protocol) ) {
             return stream.end();
         }
 

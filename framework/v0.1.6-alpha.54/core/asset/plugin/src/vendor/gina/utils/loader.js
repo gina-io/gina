@@ -42,10 +42,6 @@ window['onGinaLoaded']      = function(gina) {
         'scopeIsProduction' : ( /^true$/.test('{{ page.environment.scopeIsProduction }}') ) ? true : false,
         /**@js_externs isProxyHost*/
         'isProxyHost' : ( /^true$/.test('{{ page.environment.isProxyHost }}') ) ? true : false,
-        /**@js_externs proxyHost*/
-        'proxyHost': '{{ page.environment.proxyHost }}',
-        /**@js_externs proxyHostname*/
-        'proxyHost': '{{ page.environment.proxyHostname }}',
         /**@js_externs hostname*/
         'hostname': '{{ page.environment.hostname }}',
         /**@js_externs routing*/
@@ -61,6 +57,13 @@ window['onGinaLoaded']      = function(gina) {
         /**@js_externs protocol*/
         'protocol' : '{{ page.environment.protocol }}'
     };
+
+    if ( /^true$/i.test(options.isProxyHost) ) {
+        /**@js_externs proxyHost*/
+        options['proxyHost'] = gina['config']['proxyHost'] = '{{ page.environment.proxyHost }}';
+        /**@js_externs proxyHostname*/
+        options['proxyHostname'] = gina['config']['proxyHostname'] =  '{{ page.environment.proxyHostname }}';
+    }
 
     /**
      * getTimeout

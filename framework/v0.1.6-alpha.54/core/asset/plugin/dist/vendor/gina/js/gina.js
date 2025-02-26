@@ -10500,7 +10500,7 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
                 if ( typeof(liveCheckErrors[formId]) == 'undefined') {
                     liveCheckErrors[formId] = {};
                 }
-                if (errors.count() > 0) {
+                if (errors && errors.count() > 0) {
                     // reset field name
                     liveCheckErrors[formId][fieldName] = {};
                     // override
@@ -10575,7 +10575,10 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
 
             if (!name) continue;
 
-            if ( typeof(errors[name]) != 'undefined' && !/(form\-item\-error|form\-item\-warning)/.test($parent.className) ) {
+            if (
+                errors
+                && typeof(errors[name]) != 'undefined' && !/(form\-item\-error|form\-item\-warning)/.test($parent.className)
+            ) {
 
                 if (isWarning) {
                     // adding warning class
@@ -10616,7 +10619,15 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
 
 
 
-            } else if ( typeof(errors[name]) == 'undefined' && /(form\-item\-error|form\-item\-warning)/.test($parent.className) || typeof(errors[name]) != 'undefined' && errors[name].count() == 0 && /(form\-item\-error|form\-item\-warning)/.test($parent.className) ) {
+            } else if (
+                errors
+                    && typeof(errors[name]) == 'undefined'
+                    && /(form\-item\-error|form\-item\-warning)/.test($parent.className)
+                ||
+                errors
+                    && typeof(errors[name]) != 'undefined' && errors[name].count() == 0
+                    && /(form\-item\-error|form\-item\-warning)/.test($parent.className)
+            ) {
                 // reset when not in error
                 // remove child elements
                 var $children = $parent.getElementsByTagName('div');
@@ -10630,7 +10641,11 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
 
                 $parent.className = $parent.className.replace(/(\s+form\-item\-error|form\-item\-error|\s+form\-item\-warning|form\-item\-warning)/, '');
 
-            } else if ( typeof(errors[name]) != 'undefined' && errAttr) {
+            } else if (
+                errors
+                && typeof(errors[name]) != 'undefined'
+                && errAttr
+            ) {
                 // refreshing already displayed error on msg update
                 var $divs = $parent.getElementsByTagName('div');
                 for (var d = 0, dLen = $divs.length; d<dLen; ++d) {
@@ -10664,9 +10679,9 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
                     }
                 }
 
-                if ($err && $target.type != 'hidden')
+                if ($err && $target.type != 'hidden') {
                     insertAfter($target, $err);
-
+                }
             }
 
             if (typeof(fieldName) != 'undefined' && fieldName === $el.name) break;
@@ -13210,6 +13225,10 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
 
 
                                     updateSubmitTriggerState( $gForm, isFormValid);
+
+                                    if ( !isFormValid && gResult.error ) {
+                                        instance.$forms[ $el.form.getAttribute('id') ].errors = gResult.error;
+                                    }
 
                                     once = false;
                                 })
@@ -16439,7 +16458,7 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
 
                     for (var c in rules) {
                         if (!/^\_case\_/.test(c) ) continue;
-                        if ( typeof(rules[c].conditions) == 'undefined' || Array.isArray(rules[c].conditions) && !rules[c].conditions.length ) continue;
+                        if ( typeof(rules[c].conditions) == 'undefined' || Array.isArray(rules[c].conditions) && !rules[c].conditions.length ) continue;
                         if ( typeof(rules[c].conditions[0].rules) == 'undefined' ) continue;
 
 
@@ -16621,7 +16640,14 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
                             // filtering conditions
                             for (var _c = 0, _cLen = rules[c].conditions.length; _c < _cLen; ++_c) {
 
-                                if (rules[c].conditions[_c].case != caseValue) {
+                                if (
+                                    Array.isArray(rules[c].conditions[_c].case)
+                                        && rules[c].conditions[_c].case.indexOf(caseValue) == -1
+                                    ||
+                                    !Array.isArray(rules[c].conditions[_c].case)
+                                        && rules[c].conditions[_c].case != caseValue
+
+                                ) {
                                     continue;
                                 }
 
@@ -16766,7 +16792,8 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
                             if (
                                 conditions[c]['case'] === caseValue
                                 ||
-                                Array.isArray(conditions[c]['case']) && conditions[c]['case'].indexOf(caseValue) > -1
+                                Array.isArray(conditions[c]['case'])
+                                    && conditions[c]['case'].indexOf(caseValue) > -1
                                 ||
                                 /^\//.test(conditions[c]['case'])
                             ) {

@@ -214,7 +214,7 @@ echo -e "Running: ${cmd}"
 eval $cmd
 
 # Packaging gina
-echo -e "\n[ Packaging gina ]"
+echo -e "\n[ Packaging gina ]\n"
 filename="build.json"
 if [ "${rjs_env}" == "dev" ]; then
     filename="build.${rjs_env}.json"
