@@ -96,7 +96,7 @@ function Start(opt, cmd) {
         newNodeModulesContentArr = null;
 
         var pack = requireJSON(packagePath);
-        var scope = process.env.NODE_SCOPE;
+        var scope = process.env.NODE_SCOPE || self.defaultScope;
 
         if (
             !projectArchFileObj.existsSync()
