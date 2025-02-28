@@ -633,6 +633,7 @@ function Config(opt, contextResetNeeded) {
             }
 
             appPath = _(root +'/'+ pkg[app].link, true);
+            console.debug('Checking appPath [ '+ appPath +' ] ');
             // cleanup symlinks
             let targetAppPathObj = new _(appPath, true);
             if ( targetAppPathObj.existsSync() ) {
@@ -641,9 +642,11 @@ function Config(opt, contextResetNeeded) {
             try {
                 if (envIsDev) {
                     targetAppPathObj = new _(root +'/'+ pkg[app].src, true);
+                    console.debug('[env:'+ envIsDev +'] Linking ['+ targetAppPathObj.toString() +'] to [ '+ appPath +' ] ');
                     targetAppPathObj.symlinkSync(appPath);
                 } else {
                     targetAppPathObj = new _(root +'/'+ pkg[app].releases[scope][env].target, true);
+                    console.debug('[env:'+ envIsDev +'] Linking ['+ targetAppPathObj.toString() +'] to [ '+ appPath +' ] ');
                     targetAppPathObj.symlinkSync(appPath);
                 }
             } catch (releaseError) {

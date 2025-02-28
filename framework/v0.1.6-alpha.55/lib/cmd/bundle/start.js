@@ -96,6 +96,7 @@ function Start(opt, cmd) {
         newNodeModulesContentArr = null;
 
         var pack = requireJSON(packagePath);
+        var scope = process.env.NODE_SCOPE;
 
         if (
             !projectArchFileObj.existsSync()
@@ -120,9 +121,11 @@ function Start(opt, cmd) {
             && typeof(pack.dependencies) != 'object'
             && pack.dependencies.count() > 0
         ) {
-            isNodeModulesReinstallNeeded = true;
+            if (scope == "local")
+                isNodeModulesReinstallNeeded = true;
         }
 
+        opt.client.write('\nScope: '+ scope);
         opt.client.write('\nArch: '+ currentArch);
         // opt.client.write('\nprojectArchFile: '+ projectArchFile);
         opt.client.write('\nPlatform: '+ currentPlatform);
