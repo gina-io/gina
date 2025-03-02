@@ -83,15 +83,14 @@ var console         = lib.logger;
                 sourceObj.mkdirSync()
             }
             // link from homdir to project path
-
             var destination = _(self.projectLocation + '/node_modules', true);
-
+            console.debug('[ FRAMEWORK ][ link-node-modules ] Linking ['+ sourceObj.toString() +'] to [ '+ destination +' ] ');
             err = sourceObj.symlinkSync(destination);
             if (err instanceof Error) {
                 return end(err, 'error')
             }
 
-            return end('Node modules link updated to '+ sourceObj.toString())
+            return end('Node modules link updated from ['+ sourceObj.toString() +'] to ['+ sourceObj.toString() +']');
         }
 
         // nothing to do

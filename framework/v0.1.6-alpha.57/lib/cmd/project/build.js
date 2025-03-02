@@ -124,7 +124,7 @@ var console     = lib.logger;
             // creating internal node_modules symlink
             var internalNodeModulesPathObj = new _( self.projectLocation +'/node_modules', true);
             if (internalNodeModulesPathObj.existsSync() ) {
-                console.debug('Linking node_modules to from `'+ internalNodeModulesPathObj.toString() +'` to `'+ destination +'/node_modules' +'`');
+                console.debug('Linking node_modules to from `'+ internalNodeModulesPathObj.toString() +'` to `'+ _(destination +'/node_modules', true) +'`');
                 internalNodeModulesPathObj.symlinkSync(_(destination +'/node_modules', true));
             }
             internalNodeModulesPathObj = null;

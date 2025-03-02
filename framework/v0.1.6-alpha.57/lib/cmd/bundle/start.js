@@ -611,7 +611,9 @@ function Start(opt, cmd) {
         }
 
         //Checking root.
-        if ( new _(d, true).existsSync() ) {
+        var dExists = new _(d, true).existsSync();
+        terminal.debug('[Checking bundle index] `'+ d +'`: '+ dExists);
+        if ( dExists ) {
             //checking bundle directory.
             fs.stat(p, function(err, stats) {
                 if (err) {

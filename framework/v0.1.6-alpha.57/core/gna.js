@@ -527,6 +527,7 @@ gna.mount = process.mount = function(bundlesPath, source, target, type, callback
             if (!destinationObj.existsSync()) {
                 destinationObj.mkdirSync();
             }
+            console.debug('[ FRAMEWORK ][ MOUNT ] Linking ['+ srcPathObj.toString() +'] to [ '+ _(source) +' ] ');
             srcPathObj.symlinkSync(_(source));
             isSourceFound = true;
         }
@@ -541,6 +542,7 @@ gna.mount = process.mount = function(bundlesPath, source, target, type, callback
                     if ( targetObj.existsSync() ) {
                         targetObj.rmSync();
                     }
+                    console.debug('[ FRAMEWORK ][ MOUNT ] Linking ['+ source +'] to [ '+ target +' ] ');
                     if ( type != undefined) {
                         fs.symlinkSync(source, target, type)
                     } else {

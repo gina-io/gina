@@ -642,11 +642,11 @@ function Config(opt, contextResetNeeded) {
             try {
                 if (envIsDev) {
                     targetAppPathObj = new _(root +'/'+ pkg[app].src, true);
-                    console.debug('[env:'+ envIsDev +'] Linking ['+ targetAppPathObj.toString() +'] to [ '+ appPath +' ] ');
+                    console.debug('[Config][envIsDev:'+ envIsDev +'] Linking ['+ targetAppPathObj.toString() +'] to [ '+ appPath +' ] ');
                     targetAppPathObj.symlinkSync(appPath);
                 } else {
                     targetAppPathObj = new _(root +'/'+ pkg[app].releases[scope][env].target, true);
-                    console.debug('[env:'+ envIsDev +'] Linking ['+ targetAppPathObj.toString() +'] to [ '+ appPath +' ] ');
+                    console.debug('[Config][envIsDev:'+ envIsDev +'] Linking ['+ targetAppPathObj.toString() +'] to [ '+ appPath +' ] ');
                     targetAppPathObj.symlinkSync(appPath);
                 }
             } catch (releaseError) {

@@ -524,7 +524,7 @@ function CmdHelper(cmd, client, debug) {
                                     ) ? _(cmd.projects[cmd.projectName].homedir, true)
                                     : _(getUserHome() +'/.'+ cmd.projectName, true);
             var projectHomedirObject = new _(cmd.projectHomedir, true);
-            console.debug('Creating project homedir');
+            console.debug('Checking project homedir: '+ projectHomedirObject.toString());
             if (projectHomedirObject.existsSync() && !projectHomedirObject.isDirectory() ) {
                 throw new Error('Found ' + projectHomedirObject.toString() + ': but it appears to be a symbolik link !');
             } else if (!projectHomedirObject.existsSync() ) {
@@ -557,6 +557,7 @@ function CmdHelper(cmd, client, debug) {
                 bundlesLinkPathObj.rmSync();
             }
             if (!bundlesLinkPathObj.existsSync()) {
+                console.debug('[ FRAMEWORK ][ CmdHelper ] Linking ['+ projectBundlesPathObj.toString() +'] to [ '+ bundlesLinkPathObj.toString() +' ] ');
                 projectBundlesPathObj.symlinkSync(bundlesLinkPathObj.toString());
             }
             projectBundlesPathObj = null;
@@ -579,6 +580,7 @@ function CmdHelper(cmd, client, debug) {
                 releaseLinkPathObj.rmSync();
             }
             if (!releaseLinkPathObj.existsSync()) {
+                console.debug('[ FRAMEWORK ][ CmdHelper ] Linking ['+ projectReleasesPathObj.toString() +'] to [ '+ releaseLinkPathObj.toString() +' ] ');
                 projectReleasesPathObj.symlinkSync(releaseLinkPathObj.toString());
             }
 
@@ -602,6 +604,7 @@ function CmdHelper(cmd, client, debug) {
                 logLinkPathObj.rmSync();
             }
             if (!logLinkPathObj.existsSync()) {
+                console.debug('[ FRAMEWORK ][ CmdHelper ] Linking ['+ projectLogsPathObj.toString() +'] to [ '+ logLinkPathObj.toString() +' ] ');
                 projectLogsPathObj.symlinkSync(logLinkPathObj.toString());
             }
             projectLogsPathObj = null;
@@ -624,6 +627,7 @@ function CmdHelper(cmd, client, debug) {
                 tmpLinkPathObj.rmSync();
             }
             if (!tmpLinkPathObj.existsSync()) {
+                console.debug('[ FRAMEWORK ][ CmdHelper ] Linking ['+ projectTmpPathObj.toString() +'] to [ '+ tmpLinkPathObj.toString() +' ] ');
                 projectTmpPathObj.symlinkSync(tmpLinkPathObj.toString());
             }
             projectTmpPathObj = null;
@@ -848,7 +852,7 @@ function CmdHelper(cmd, client, debug) {
             cmd.configured = true;
 
 
-            // linking gina
+            // linking node-modules & gina
             if (
                 cmd.projectName != null
                 && /^true$/i.test(GINA_GLOBAL_MODE)

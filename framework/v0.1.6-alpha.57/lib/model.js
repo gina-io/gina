@@ -30,7 +30,7 @@ function ModelUtil() {
     var init = function() {
 
         if ( !ModelUtil.instance && !getContext('modelUtil') ) {
-            self.models             = self.models || {}; // used when getModel(modelName) is called
+            self.models             = self.models || {}; // used when getModel(modelName) is called
             self.entities           = {};
             self.entitiesCollection = {}; // used when getEntity(entityName) is called - handles entity relations
             self.files              = {};

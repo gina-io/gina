@@ -103,6 +103,7 @@ var console        = lib.logger;
                 return end(err, 'error');
             }
 
+            console.debug('[ FRAMEWORK ][ link ] Linking ['+ source.toString() +'] to [ '+ destination.toString() +' ] ');
             err = source.symlinkSync(destination.toString());
 
             if (err instanceof Error) {
