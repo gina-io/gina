@@ -123,7 +123,7 @@ function Config(opt, contextResetNeeded) {
 
         self.env    = env;
         self.scope  = scope;
-        console.debug('[ config ] Loading conf...');
+        console.debug('[CONFIG] Loading conf...');
 
         // framework settings
         var filename = null, content = null;
@@ -341,7 +341,7 @@ function Config(opt, contextResetNeeded) {
         },
 
         set : function(env) {
-            this.current = env || this.template.defEnv;
+            this.current = env || process.env.NODE_ENV || this.template.defEnv;
         },
 
         /**
@@ -436,7 +436,7 @@ function Config(opt, contextResetNeeded) {
     this.Scope = {
         template : requireJSON( getEnvVar('GINA_FRAMEWORK_DIR') +'/core/template/conf/env.json'),
         set : function(scope) {
-            this.current = scope || this.template.defScope;
+            this.current = scope || process.env.NODE_SCOPE || this.template.defScope;
         },
 
         /**
@@ -560,9 +560,10 @@ function Config(opt, contextResetNeeded) {
             appPort         = null,
             // env             = self.Env.get(),
             env             = (typeof(process.env.NODE_ENV) != 'undefined' ) ? process.env.NODE_ENV: self.Env.get(),
-            envIsDev        = ( /^true$/i.test(process.env.NODE_ENV_IS_DEV) ) ? true : false
+            envIsDev        = ( /^true$/i.test(process.env.NODE_ENV_IS_DEV) ) ? true : false,
             // scope           = self.Scope.get(),
             scope           = (typeof(process.env.NODE_SCOPE) != 'undefined' ) ? process.env.NODE_SCOPE: self.Scope.get(),
+            scopeIsLocal    = ( /^true$/i.test(process.env.NODE_SCOPE_IS_LOCAL) ) ? true : false,
             appsPath        = '',
             modelsPath      = '',
             projectPath     = '',
@@ -570,8 +571,8 @@ function Config(opt, contextResetNeeded) {
             projectConf     = ctx.project,
             portsReverse    = ctx.portsReverse
         ;
-        console.debug('[Config] Reading env: '+ env);
-        console.debug('[Config] Reading scope: '+ scope);
+        console.debug('[CONFIG] Reading env: '+ env);
+        console.debug('[CONFIG] Reading scope: '+ scope);
 
         if (!self.projectName) {
             self.projectName = ctx.config.projectName
@@ -630,14 +631,14 @@ function Config(opt, contextResetNeeded) {
 
         for (let app in content) {
             //Checking if genuine app.
-            console.debug('[Config] Checking if application [ '+ app +' ] is registered ');
+            console.debug('[CONFIG] Checking if application [ '+ app +' ] is registered ');
             if ( typeof(pkg[app]) == 'undefined' ) {
-                console.debug('[Config] Skipping app [ '+ app +' ]; not registered ...');
+                console.debug('[CONFIG] Skipping app [ '+ app +' ]; not registered ...');
                 continue;
             }
 
             appPath = _(root +'/'+ pkg[app].link, true);
-            console.debug('[Config] Checking appPath [ '+ appPath +' ] ');
+            console.debug('[CONFIG] Checking appPath [ '+ appPath +' ] ');
             // cleanup symlinks
             let targetAppPathObj = new _(appPath, true);
             if ( targetAppPathObj.existsSync() ) {
@@ -646,11 +647,11 @@ function Config(opt, contextResetNeeded) {
             try {
                 if (envIsDev) {
                     targetAppPathObj = new _(root +'/'+ pkg[app].src, true);
-                    console.debug('[Config][env:'+env+'][envIsDev:'+ envIsDev +'] Linking ['+ targetAppPathObj.toString() +'] to [ '+ appPath +' ] ');
+                    console.debug('[CONFIG][env:'+env+'][envIsDev:'+ envIsDev +'] Linking ['+ targetAppPathObj.toString() +'] to [ '+ appPath +' ] ');
                     targetAppPathObj.symlinkSync(appPath);
                 } else {
                     targetAppPathObj = new _(root +'/'+ pkg[app].releases[scope][env].target, true);
-                    console.debug('[Config][env'+env+'][envIsDev:'+ envIsDev +'] Linking ['+ targetAppPathObj.toString() +'] to [ '+ appPath +' ] ');
+                    console.debug('[CONFIG][env'+env+'][envIsDev:'+ envIsDev +'] Linking ['+ targetAppPathObj.toString() +'] to [ '+ appPath +' ] ');
                     targetAppPathObj.symlinkSync(appPath);
                 }
             } catch (releaseError) {
@@ -678,13 +679,13 @@ function Config(opt, contextResetNeeded) {
                     configFiles = fs.readdirSync(_(appPath + '/config'));
                 } catch (mountingError) {
                     //console.emerg('Dependency bundle config not found for `'+ app +'/'+ env +'`: trying to load on the fly from src');
-                    console.warn('Dependency bundle config not found for `'+ app +'/'+ env +'`: trying to load on the fly from src');
+                    console.warn('[CONFIG] Dependency bundle config not found for `'+ app +'/'+ env +'`: trying to load on the fly from src');
                     let appSrcPath = _(root +'/'+ pkg[app].src, true);
                     configFiles = fs.readdirSync(_(appSrcPath + '/config'));
                     setPath('bundles', _(appSrcPath, true));
                     appPath = appSrcPath;
                     newContent[app][env].bundlesPath = bundlesPath = appSrcPath.replace( new RegExp('/'+ app), '' );
-                    console.warn('Dependency bundle config loaded from '+ appSrcPath);
+                    console.warn('[CONFIG] Dependency bundle config loaded from '+ appSrcPath);
                 }
 
 
@@ -883,7 +884,7 @@ function Config(opt, contextResetNeeded) {
                 try {
                     appPort = portsReverse[app+'@'+self.projectName][env][ newContent[app][env].server.protocol ][ newContent[app][env].server.scheme ];
                 } catch (err) {
-                    console.emerg('[ config ][ settings.server.protocol ] Protocol or scheme settings inconsistency found in `'+ app +'/config/settings`. To fix this, try to run `gina project:import @'+ self.projectName +' --path='+  projectConf.path +'`\n\r'+ err.stack);
+                    console.emerg('[CONFIG][ settings.server.protocol ] Protocol or scheme settings inconsistency found in `'+ app +'/config/settings`. To fix this, try to run `gina project:import @'+ self.projectName +' --path='+  projectConf.path +'`\n\r'+ err.stack);
                     process.exit(1)
                 }
                 //I had to for this one...
@@ -972,16 +973,16 @@ function Config(opt, contextResetNeeded) {
                     "projectPath"           : projectPath,
                     "bundlesPath"           : appsPath,
                     "modelsPath"            : modelsPath,
+                    "bundle"                : app,
+                    "env"                   : env,
+                    "scope"                 : scope,
                     "tmpPath"               : newContent[app][env].tmpPath,
-                    "scope"                 : newContent[app][env].server.scope,
+                    // "scope"                 : newContent[app][env].server.scope,
                     "rootDomain"            : rootDomain,
                     "projectVersion"        : manifest,
                     "projectVersionMajor"   : manifest.version.split(/\./g)[0],
                     "host"                  : newContent[app][env].host,
                     "scheme"                : newContent[app][env].server.scheme,
-                    "env"                   : env,
-                    "scope"                 : scope,
-                    "bundle"                : app,
                     "version"               : version
                 };
 
@@ -1241,11 +1242,11 @@ function Config(opt, contextResetNeeded) {
         // environment
         var cacheless       = self.isCacheless()
             , isStandalone  = self.Host.isStandalone()
-            , env           = self.env || self.Env.get() // env
-            , scope         = self.scope || self.Scope.get() // scope
+            , env           = process.env.NODE_ENV || self.env || self.Env.get() // env
+            , scope         = process.env.NODE_SCOPE || self.scope || self.Scope.get() // scope
             , conf          = self.envConf // env conf
         ;
-        console.debug('[ CONFIG ] loading `'+ bundle +'/'+ env +'` configuration, please wait ...');
+        console.debug('[CONFIG] Loading `'+ bundle +'/'+ env +':'+ scope +'` configuration, please wait ...');
 
 
         self.setServerCoreConf(bundle, env, scope, conf.core);

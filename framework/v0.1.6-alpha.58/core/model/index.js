@@ -54,8 +54,8 @@ function Model(namespace, _config) {
 
 
     var setup = function(namespace) {
-        if ( typeof(namespace) == 'undefined' || namespace == '') {
-            console.error('[ MODEL ][ '+ namespace +' ] MODEL:ERR:1 EEMPTY: Model namespace',  __stack);
+        if ( typeof(namespace) == 'undefined' || namespace == '') {
+            console.error('[MODEL]['+ namespace +'] MODEL:ERR:1 EEMPTY: Model namespace',  __stack);
         }
 
         var model, namespace = namespace.split(/\//g);
@@ -75,8 +75,8 @@ function Model(namespace, _config) {
         }
 
 
-        console.debug('[ MODEL ][ ' + model +' ] Bundle: '+ bundle);
-        //console.debug('[ MODEL ][ ' + model +' ] Model: '+ model);
+        console.debug('[MODEL][' + model +'] Bundle: '+ bundle);
+        //console.debug('[MODEL][' + model +'] Model: '+ model);
         self.name       = _connector;
         self.bundle     = bundle;
         self.model      = model;
@@ -115,29 +115,31 @@ function Model(namespace, _config) {
             _configuration = conf.connectors;
             self.connector = _configuration[self.name].connector;
 
-            console.debug('[ MODEL ][ ' + model +' ] About to scan: '+ conf.path);
+            console.debug('[MODEL][' + model +'] About to scan: '+ conf.path);
             //TODO - More controls...
 
             //For now, I just need the F..ing entity name.
             connectorPath       = local.connectorPath = _(GINA_FRAMEWORK_DIR +'/core/connectors/'+ self.connector);
             var modelPath       = local.modelPath = _(conf.path + '/' + modelDirName);
             var entitiesPath    = local.entitiesPath = _(modelPath + '/entities');
-            console.debug('[ MODEL ][ ' + model +' ] Scanning model entities: ', entitiesPath +' - Existing path ? '+ fs.existsSync(entitiesPath) );
+            console.debug('[MODEL][' + model +'] Scanning model entities: ', entitiesPath +' - Existing path ? '+ fs.existsSync(entitiesPath) );
             if (!fs.existsSync(entitiesPath)) {
                 //fs.mkdirSync(entitiesPath) // creating empty path
                 new _(entitiesPath).mkdirSync();
             }
 
             connectorPath   = _(connectorPath + '/lib/connector.js');
-            console.debug('[ MODEL ][ ' + model +' ] Loading connector: ' + connectorPath);
+            console.debug('[MODEL][' + model +'] Loading Connector: ' + connectorPath);
             //Getting Entities Manager.
             var exists = fs.existsSync(connectorPath);
             if (exists) {
-                if (cacheless)
+                if (cacheless) {
                     delete require.cache[require.resolve(_(connectorPath, true))];
+                }
 
+                console.debug('[MODEL][' + model +'] Using connector path: ' + _(connectorPath, true));
                 var Connector = require(_(connectorPath, true));
-
+                console.debug('[MODEL][' + model +'] Connecting ... ');
                 self.connect(
                     Connector,
                     function onConnect(err, conn) {
@@ -154,12 +156,12 @@ function Model(namespace, _config) {
             } else {//Means that no connector was found in models.
 
                 //finished.
-                self.emit('model#ready', new Error('[ MODEL ][ '+ model +' ] No connector found'), self.bundle, self.name, conn)
+                self.emit('model#ready', new Error('[MODEL]['+ model +'] No connector found'), self.bundle, self.name, conn)
             }
 
         } else {
-            console.warn('[ MODEL ][ ' + model +' ] no configuration found...');
-            self.emit('model#ready', new Error('[ MODEL ][ ' + model +' ] no configuration found for your model: ' + model), self.bundle, self.name, null)
+            console.warn('[MODEL][' + model +'] No configuration found...');
+            self.emit('model#ready', new Error('[MODEL][' + model +'] No configuration found for your model: ' + model), self.bundle, self.name, null)
         }
 
         return self
@@ -168,7 +170,7 @@ function Model(namespace, _config) {
 
     this.connect = function(Connector, callback) {
         if ( typeof(self.connectors[_connector]) == 'undefined' ) {
-            //console.debug('[ MODEL ] Need to create connector instance ...');
+            //console.debug('[MODEL] Need to create connector instance ...');
             self.connectors[_connector] = {};
             var connector = new Connector( self.getConfig(_connector) );
 
@@ -204,7 +206,10 @@ function Model(namespace, _config) {
         var i = i || 0;
 
         var configuration = null;
-        var env = null, conf = null, connectors = null;
+        var env             = null
+            , conf          = null
+            , connectors    = null
+        ;
         if ( typeof (_config) != 'undefined' ) {
             configuration = _config;
             env = _config.env;
@@ -215,21 +220,21 @@ function Model(namespace, _config) {
             env = configuration.Env.current;
             conf = configuration.Env.getConf(bundle, env);
         }
-        console.debug('[ MODEL ][ ' + _connector + ' ] env ', conf.env);
-        console.debug('[ MODEL ][ ' + _connector + ' ] configuration modelsPath ', conf.modelsPath);
-        console.debug('[ MODEL ][ ' + _connector + ' ] connectors ', connectors);
+        console.debug('[MODEL][' + _connector + '][getConfigSync] env ', conf.env);
+        console.debug('[MODEL][' + _connector + '][getConfigSync] configuration modelsPath ', conf.modelsPath);
+        console.debug('[MODEL][' + _connector + '][getConfigSync] connectors ', connectors);
 
         // try {
 
         //     var locals = _locals = configLib.getSync('gina', 'locals.json')
         // } catch (err) {
-        //     console.emerg('[ MODEL ][ ' + _connector +' ] Error while calling `Model::getConfigSync()` '+ err.stack||err.message);
+        //     console.emerg('[MODEL][' + _connector +'] Error while calling `Model::getConfigSync()` '+ err.stack||err.message);
         //     if ( i < 10) {
-        //         console.debug('[ MODEL ][ ' + _connector +' ] about to retry to load locals.json');
+        //         console.debug('[MODEL][' + _connector +'] About to retry to load locals.json');
         //         setTimeout(function(){
 
         //             i = i+1;
-        //             console.debug('[ MODEL ][ ' + _connector +' ] retry ('+i+') ...');
+        //             console.debug('[MODEL][' + _connector +'] Retry ('+i+') ...');
         //             return getConfigSync(bundle, i)
         //         }, 300)
 
@@ -245,13 +250,12 @@ function Model(namespace, _config) {
             // configuration object.
             var confObj = {
                 connectors  : connectors,
-                path        : conf.modelsPath/**,
-                locals      : locals*/
+                path        : conf.modelsPath
             };
 
             return confObj
         } else {
-            throw new Error('[ MODEL ][ ' + _connector +' ] Config not instantiated');
+            throw new Error('[MODEL][' + _connector +'][getConfigSync] Config not instantiated');
             return undefined
         }
     }
@@ -277,7 +281,7 @@ function Model(namespace, _config) {
             // entities == null when the database server has not started.
             if ( err ) {
                 console.error(err.stack||err.message)
-                //console.log('No entities found for [ '+ self.name +':'+ entityName +'].\n 1) Check if the database is started.\n2) Check if exists: /models/entities/'+ entityName);
+                //console.debug('No entities found for ['+ self.name +':'+ entityName +'].\n 1) Check if the database is started.\n2) Check if exists: /models/entities/'+ entityName);
             }
             callback(err, bundle, model, conn)
         });

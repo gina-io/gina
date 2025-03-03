@@ -23,14 +23,14 @@ function SessionStore(session) {
     try {
         connector         = conf.content.connectors[session.name].connector;
     } catch (err) {
-        throw new Error('SessionStore could not be loaded: Connector issue. Please check your bundle configuration @config/connectors.json\n'+ err.stack);
+        throw new Error('[SessionStore] Could not be loaded: Connector issue. Please check your bundle configuration @config/connectors.json\n'+ err.stack);
     }
 
     var connectorName = 'couchbase';
     var filename = _(connectorsPath + '/'+ connector +'/lib/session-store.js', true);
 
     if ( !fs.existsSync(filename) ) {
-        throw new Error('SessionStore could not be loaded: `'+ filename+'` is missing');
+        throw new Error('[SessionStore] Could not be loaded: `'+ filename+'` is missing');
     }
 
     return require(filename)(session, bundle)

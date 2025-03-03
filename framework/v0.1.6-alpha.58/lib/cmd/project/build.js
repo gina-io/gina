@@ -27,7 +27,7 @@ var console     = lib.logger;
             return end( new Error('No bundle found in your project `'+ self.projectName +'`') );
         }
 
-        console.debug('Building project `'+ self.projectName +'`');
+        console.debug('[build] Building project `'+ self.projectName +'`');
         buildBundle(0);
     }
 
@@ -84,7 +84,7 @@ var console     = lib.logger;
             return end(err)
         }
 
-        console.debug('Building bundle `'+ bundle + '@'+ self.projectName + '`');
+        console.debug('[build] Building bundle `'+ bundle + '@'+ self.projectName + '`');
         buildEnv(self.defaultScope, b, e);
 
     }
@@ -110,7 +110,7 @@ var console     = lib.logger;
             , srcPath       = _(self.bundlesLocation +'/'+ bundle, true)
         ;
 
-        console.debug('Building bundle env `'+ env +'` for `'+ bundle + '@'+ self.projectName + '`');
+        console.debug('[build] Building bundle env `'+ env +'` for `'+ bundle + '@'+ self.projectName + '`');
 
         // cleanup
         if (release.existsSync()) {
@@ -124,7 +124,7 @@ var console     = lib.logger;
             // creating internal node_modules symlink
             var internalNodeModulesPathObj = new _( self.projectLocation +'/node_modules', true);
             if (internalNodeModulesPathObj.existsSync() ) {
-                console.debug('Linking node_modules to from `'+ internalNodeModulesPathObj.toString() +'` to `'+ _(destination +'/node_modules', true) +'`');
+                console.debug('[build] Linking node_modules to from `'+ internalNodeModulesPathObj.toString() +'` to `'+ _(destination +'/node_modules', true) +'`');
                 internalNodeModulesPathObj.symlinkSync(_(destination +'/node_modules', true));
             }
             internalNodeModulesPathObj = null;

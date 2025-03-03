@@ -70,10 +70,12 @@ function Connector(dbString) {
         var onError = function (err, next) {
             delete self.instance.reconnecting;
             self.instance.reconnected = self.instance.connected = false;
-            console.error('[ CONNECTOR ][ ' + local.bundle +' ] couchbase could not be reached !!\n'+ ( err.stack || err.message || err ) );
+            console.debug('[CONNECTOR][' + local.bundle +'] Scope is: '+ process.env.NODE_SCOPE );
+            console.debug('[CONNECTOR][' + local.bundle +'] Env is: '+ process.env.NODE_ENV );
+            console.error('[CONNECTOR][' + local.bundle +'] Couchbase could not be reached !!\n'+ ( err.stack || err.message || err ) );
 
             // reconnecting
-            console.debug('[ CONNECTOR ][ ' + local.bundle +' ][ ' + dbString.database +' ] trying to reconnect in a few secs...');
+            console.debug('[CONNECTOR][' + local.bundle +'][' + dbString.database +'] Trying to reconnect in a few secs...');
             self.instance.reconnecting = true;
 
             setTimeout( function onRetry(){
@@ -88,8 +90,8 @@ function Connector(dbString) {
 
         // once
         var onConnect = function onConnect(cb){
-            console.debug('[ CONNECTOR ][ ' + local.bundle +' ] couchbase is alive !!');
-            console.debug('[ CONNECTOR ][ ' + local.bundle +' ][ ' + dbString.connector +' ] now connected...');
+            console.debug('[CONNECTOR][' + local.bundle +'] Couchbase is alive !!');
+            console.debug('[CONNECTOR][' + local.bundle +'][' + dbString.connector +'] Now connected...');
 
             self.instance.reconnected  = self.instance.connected   = true;
             var options = local.options;
@@ -110,7 +112,7 @@ function Connector(dbString) {
                 local.env       = env;
 
                 if ( typeof(cb) != 'undefined' ) { // this portition is not working yet on Mac OS X
-                    console.debug('[ CONNECTOR ][ ' + local.bundle +' ][ '+ env +' ] connected to couchbase !!');
+                    console.debug('[CONNECTOR][' + local.bundle +']['+ env +'] Connected to couchbase !!');
 
 
                     modelUtil.setConnection(bundle, name, self.instance);
@@ -124,11 +126,11 @@ function Connector(dbString) {
                                 cb(err)
                             })
                     } else {
-                        cb(new Error('[ CONNECTOR ][ ' + local.bundle +' ][ '+ env +' ] '+ modelsPath+ ' not found') )
+                        cb(new Error('[CONNECTOR][' + local.bundle +']['+ env +'] '+ modelsPath+ ' not found') )
                     }
 
                 } else {
-                    console.debug('[ CONNECTOR ][ ' + local.bundle +' ][ '+ env +' ] connection to bucket `'+ name +'` is being kept alive ...');
+                    console.debug('[CONNECTOR][' + local.bundle +']['+ env +'] Connection to bucket `'+ name +'` is being kept alive ...');
                 }
             });
             // intercepting conn event thru gina
@@ -150,7 +152,7 @@ function Connector(dbString) {
                     || /cannot perform operations on a shutdown bucket/.test(err.message ) && !self.reconnecting && !self.reconnected
                 ) {
                     // reconnecting
-                    console.debug('[ CONNECTOR ][ ' + local.bundle +' ][ ' + dbString.database +' ] trying to reconnect in 5 secs...');
+                    console.debug('[CONNECTOR][' + local.bundle +'][' + dbString.database +'] Trying to reconnect in 5 secs...');
                     self.reconnecting = true;
 
                     setTimeout( function onRetry(){
@@ -167,14 +169,14 @@ function Connector(dbString) {
                     if (typeof(next) != 'undefined') {
                         next(err); // might just be a "false" error: `err` is replaced with cb() caller `data`
                     } else {
-                        console.error('[ CONNECTOR ][ ' + local.bundle +' ][ ' + dbString.database +' ] gina fatal error ('+ err.code +'): ' + (err.message||err) + '\nstack: '+ err.stack);
+                        console.error('[CONNECTOR][' + local.bundle +'][' + dbString.database +'] gina fatal error ('+ err.code +'): ' + (err.message||err) + '\nstack: '+ err.stack);
                         return;
                     }
                 } else {
 
                     if (err && err instanceof Error) {
 
-                        console.error('[ CONNECTOR ][ ' + local.bundle +' ][ ' + dbString.database +' ] gina fatal error ('+ err.code +'): ' + (err.message||err) + '\nstack: '+ err.stack);
+                        console.error('[CONNECTOR][' + local.bundle +'][' + dbString.database +'] gina fatal error ('+ err.code +'): ' + (err.message||err) + '\nstack: '+ err.stack);
 
                         if ( typeof(err) == 'object' ) {
                             res.end(JSON.stringify({
@@ -192,7 +194,7 @@ function Connector(dbString) {
                         if (typeof(next) != 'undefined') {
                             next(err); // might just be a "false" error: `err` is replaced with cb() caller `data`
                         } else {
-                            console.error('[ CONNECTOR ][ ' + local.bundle +' ][ ' + dbString.database +' ] gina fatal error ('+ err.code +'): ' + (err.message||err) + '\nstack: '+ err.stack);
+                            console.error('[CONNECTOR][' + local.bundle +'][' + dbString.database +'] gina fatal error ('+ err.code +'): ' + (err.message||err) + '\nstack: '+ err.stack);
                             return;
                         }
                     }
@@ -209,13 +211,13 @@ function Connector(dbString) {
         dbString.bucketName = dbString.database;
 
         try {
-            console.debug('[ CONNECTOR ][ ' + local.bundle +' ][ ' + dbString.database +' ] Trying to connect to bucket `'+ dbString.bucketName +'`');
+            console.debug('[CONNECTOR][' + local.bundle +'][' + dbString.database +'] Trying to connect to bucket `'+ dbString.bucketName +'`');
             // if ( typeof(dbString.password) != 'undefined' && typeof(self.cluster.authenticate) == 'undefined' ) {
                 // conn = await self.cluster.openBucket(dbString.database, dbString.password, function onBucketOpened(bErr) {
                 conn = await couchbase.connect(dbString.protocol + dbString.host, dbString, function onBucketOpened(bErr, conn) {
                     if (bErr) {
-                        // console.emerg('[ CONNECTOR ][ ' + local.bundle +' ] Could not connect to couchbase @`'+ dbString.protocol + dbString.host +'`\n'+ (bErr.stack || bErr.message || bErr) + '\nCheck:\n - if couchbabse is running\n - if bucket `'+dbString.bucketName+'` exists\n - if you have permission to access couchabase' );
-                        var cErr = new Error('Could not connect to couchbase @`'+ dbString.protocol + dbString.host +'`\n'+ (bErr.stack || bErr.message || bErr) + '\nCheck:\n - if couchbabse is running\n - if bucket `'+dbString.bucketName+'` exists\n - if you have permission to access couchabase');
+                        // console.emerg('[CONNECTOR][' + local.bundle +'] Could not connect to couchbase @`'+ dbString.protocol + dbString.host +'`\n'+ (bErr.stack || bErr.message || bErr) + '\nCheck:\n - if couchbabse is running\n - if bucket `'+dbString.bucketName+'` exists\n - if you have permission to access couchabase' );
+                        var cErr = new Error('[CONNECTOR][' + local.bundle +'] Could not connect to couchbase @`'+ dbString.protocol + dbString.host +'`\n'+ (bErr.stack || bErr.message || bErr) + '\nCheck:\n - if couchbabse is running\n - if bucket `'+dbString.bucketName+'` exists\n - if you have permission to access couchabase');
 
                         if ( typeof(cb) != 'undefined' ) {
                             return cb(cErr)
@@ -227,7 +229,7 @@ function Connector(dbString) {
                     conn.sdk        = sdk;
 
                     // open bucket
-                    console.debug('[ CONNECTOR ][ ' + local.bundle +' ][ ' + dbString.database +' ] Connecting to bucket `'+ dbString.bucketName +'`');
+                    console.debug('[CONNECTOR][' + local.bundle +'][' + dbString.database +'] Connecting to bucket `'+ dbString.bucketName +'`');
                     var bucketConn = conn.bucket(dbString.bucketName);
                     bucketConn.sdk = sdk;
                     // Get a reference to the default collection, required only for older Couchbase server versions
@@ -255,7 +257,7 @@ function Connector(dbString) {
             // }
 
         } catch (err) {
-            console.error('[ CONNECTOR ][ ' + local.bundle +' ] '+ local.env +' ] couchbase could not connect to bucket `'+ dbString.database +'`\n'+ (err.stack || err.message || err) );
+            console.error('[CONNECTOR][' + local.bundle +']['+ local.env +'] Couchbase could not connect to bucket `'+ dbString.database +'`\n'+ (err.stack || err.message || err) );
             onError(err, cb)
         }
 
@@ -273,11 +275,15 @@ function Connector(dbString) {
      * */
     var init = function(dbString) {
         try {
+            local.bundle    = getConfig().bundle;// jshint ignore:line
+            console.debug('[CONNECTOR][' + local.bundle +'][' + dbString.connector +'][' + dbString.database +'] Checking dbString.host: '+ dbString.host);
+            // console.debug('[CONNECTOR][' + local.bundle +'][' + dbString.connector +'][' + dbString.database +'] dbString:\n'+ JSON.stringify(dbString, null, 2));
+            // console.debug('[CONNECTOR][' + local.bundle +'][' + dbString.connector +'][' + dbString.database +'] local.options:\n'+ JSON.stringify(local.options, null, 2));
             dbString        = merge(dbString, local.options);
             local.options   = dbString;
-            local.bundle    = getConfig().bundle;// jshint ignore:line
 
-            console.info('[ CONNECTOR ][ ' + local.bundle +' ][ ' + dbString.connector +' ][ ' + dbString.database +' ] authenticating to couchbase cluster @'+ dbString.protocol + dbString.host);
+
+            console.info('[CONNECTOR][' + local.bundle +'][' + dbString.connector +'][' + dbString.database +'] authenticating to couchbase cluster @'+ dbString.protocol + dbString.host);
 
             try {
                 self.cluster = new couchbase.Cluster(dbString.protocol + dbString.host);
@@ -285,10 +291,10 @@ function Connector(dbString) {
                 if ( typeof(self.cluster.authenticate) != 'undefined' )
                     self.cluster.authenticate(dbString.username, dbString.password);
             } catch(_err) {
-                console.error('[ CONNECTOR ][ ' + local.bundle +' ] could not authenticate to couchbase @`'+ dbString.protocol + dbString.host +'`\n'+ (_err.stack || _err.message || _err) );
+                console.error('[CONNECTOR][' + local.bundle +'] Could not authenticate to couchbase @`'+ dbString.protocol + dbString.host +'`\n'+ (_err.stack || _err.message || _err) );
             }
 
-            console.info('[ CONNECTOR ][ ' + local.bundle +' ][ ' + dbString.connector +' ][ ' + dbString.database +' ] connecting to couchbase cluster @'+ dbString.protocol + dbString.host);
+            console.info('[CONNECTOR][' + local.bundle +'][' + dbString.connector +'][' + dbString.database +'] Connecting to couchbase cluster @'+ dbString.protocol + dbString.host);
 
             self.connect(dbString)
 
@@ -347,7 +353,7 @@ function Connector(dbString) {
             self.pingId = setInterval(function onTimeout(){
 
                 if (!self.instance.connected) {
-                    console.debug('[ CONNECTOR ][ ' + local.bundle +' ] connecting to couchbase');
+                    console.debug('[CONNECTOR][' + local.bundle +'] Connecting to couchbase');
 
                     self.instance.reconnected = false;
                     self.instance.reconnecting = true;
@@ -365,7 +371,7 @@ function Connector(dbString) {
 
             ncb(cb)
         } else {
-            console.debug('[ CONNECTOR ][ ' + local.bundle +' ] sent ping to couchbase ...');
+            console.debug('[CONNECTOR][' + local.bundle +'] Sent ping to couchbase ...');
             self.ping(interval, cb, ncb);
         }
     }
