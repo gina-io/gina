@@ -558,9 +558,11 @@ function Config(opt, contextResetNeeded) {
         var isStandalone    = true,
             masterPort      = null,
             appPort         = null,
-            env             = self.Env.get(),
+            // env             = self.Env.get(),
+            env             = (typeof(process.env.NODE_ENV) != 'undefined' ) ? process.env.NODE_ENV: self.Env.get(),
             envIsDev        = ( /^true$/i.test(process.env.NODE_ENV_IS_DEV) ) ? true : false
-            scope           = self.Scope.get(),
+            // scope           = self.Scope.get(),
+            scope           = (typeof(process.env.NODE_SCOPE) != 'undefined' ) ? process.env.NODE_SCOPE: self.Scope.get(),
             appsPath        = '',
             modelsPath      = '',
             projectPath     = '',
@@ -568,6 +570,8 @@ function Config(opt, contextResetNeeded) {
             projectConf     = ctx.project,
             portsReverse    = ctx.portsReverse
         ;
+        console.debug('[Config] Reading env: '+ env);
+        console.debug('[Config] Reading scope: '+ scope);
 
         if (!self.projectName) {
             self.projectName = ctx.config.projectName
@@ -626,14 +630,14 @@ function Config(opt, contextResetNeeded) {
 
         for (let app in content) {
             //Checking if genuine app.
-            console.debug('Checking if application [ '+ app +' ] is registered ');
+            console.debug('[Config] Checking if application [ '+ app +' ] is registered ');
             if ( typeof(pkg[app]) == 'undefined' ) {
-                console.debug('Skipping app [ '+ app +' ]; not registered ...');
+                console.debug('[Config] Skipping app [ '+ app +' ]; not registered ...');
                 continue;
             }
 
             appPath = _(root +'/'+ pkg[app].link, true);
-            console.debug('Checking appPath [ '+ appPath +' ] ');
+            console.debug('[Config] Checking appPath [ '+ appPath +' ] ');
             // cleanup symlinks
             let targetAppPathObj = new _(appPath, true);
             if ( targetAppPathObj.existsSync() ) {
@@ -642,11 +646,11 @@ function Config(opt, contextResetNeeded) {
             try {
                 if (envIsDev) {
                     targetAppPathObj = new _(root +'/'+ pkg[app].src, true);
-                    console.debug('[Config][envIsDev:'+ envIsDev +'] Linking ['+ targetAppPathObj.toString() +'] to [ '+ appPath +' ] ');
+                    console.debug('[Config][env:'+env+'][envIsDev:'+ envIsDev +'] Linking ['+ targetAppPathObj.toString() +'] to [ '+ appPath +' ] ');
                     targetAppPathObj.symlinkSync(appPath);
                 } else {
                     targetAppPathObj = new _(root +'/'+ pkg[app].releases[scope][env].target, true);
-                    console.debug('[Config][envIsDev:'+ envIsDev +'] Linking ['+ targetAppPathObj.toString() +'] to [ '+ appPath +' ] ');
+                    console.debug('[Config][env'+env+'][envIsDev:'+ envIsDev +'] Linking ['+ targetAppPathObj.toString() +'] to [ '+ appPath +' ] ');
                     targetAppPathObj.symlinkSync(appPath);
                 }
             } catch (releaseError) {

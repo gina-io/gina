@@ -320,6 +320,7 @@ function Start(opt, cmd) {
                         }
                     }
 
+                    terminal.debug('Spawning '+ opt.argv[0] +' [with args] '+ params);
                     var child = spawn(opt.argv[0], params,
                         {
                             // cwd: bundleDir,
@@ -612,7 +613,7 @@ function Start(opt, cmd) {
 
         //Checking root.
         var dExists = new _(d, true).existsSync();
-        terminal.debug('[Checking bundle index] `'+ d +'`: '+ dExists);
+        terminal.debug('[Checking bundle bootstrap] `'+ d +'`: '+ dExists);
         if ( dExists ) {
             //checking bundle directory.
             fs.stat(p, function(err, stats) {

@@ -598,6 +598,7 @@ isBundleMounted(projects, bundlesPath, getContext('bundle'), function onBundleMo
          * */
         gna.onInitialize = process.onInitialize = function(callback) {
 
+            console.debug('[ FRAMEWORK ] Bootstrap Initialization... ');
             gna.initialized = true;
             e.once('init', function(instance, middleware, conf) {
 
