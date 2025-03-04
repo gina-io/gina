@@ -326,17 +326,22 @@ function ContextHelper(contexts) {
             , confPath      = null
         ;
 
-        if ( typeof(ctxFilename) != 'undefined' ) {
-            ctx = JSON.parse(fs.readFileSync(_(ctxFilename, true)));
-            if (!ctx.gina) {
-                ctx.gina = {
-                    Config : require('./../core/config')
-                };
+        if ( typeof(ctxFilename) != 'undefined'  ) {
+            var ctxFileObj = new _(ctxFilename, true);
+            if ( ctxFileObj.existsSync() ) {
+                ctx = JSON.parse(fs.readFileSync(_(ctxFilename, true)));
+                if (!ctx.gina) {
+                    ctx.gina = {
+                        Config : require('./../core/config')
+                    };
 
-                ctx.gina.config = merge(ctx.config, ctx.gina.Config);
-            }
-            for (let name in ctx) {
-                setContext(name, ctx[name], false)
+                    ctx.gina.config = merge(ctx.config, ctx.gina.Config);
+                }
+                for (let name in ctx) {
+                    setContext(name, ctx[name], false)
+                }
+            } else {
+                ctx = self.contexts
             }
 
         } else {
