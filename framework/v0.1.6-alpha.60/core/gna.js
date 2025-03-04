@@ -125,6 +125,8 @@ if (process.argv.length >= 3 /**&& /gina$/.test(process.argv[1])*/ ) {
         projectName = tmp[3];
         setContext('projectName', projectName);
         setContext('bundle', tmp[4]);
+        process.env.NODE_BUNDLE = tmp[4];
+        process.env.NODE_PROJECT = projectName;
 
         var obj = ctxObj.envVars;
         var evar = '';
@@ -185,8 +187,9 @@ if ( typeof(getEnvVar) == 'undefined') {
 }
 
 // console.debug('[ FRAMEWORK ] GINA_HOMEDIR [' + (GINA_HOMEDIR||null) +'] vs getEnvVar(GINA_HOMEDIR) [' + getEnvVar('GINA_HOMEDIR') +']' );
-var projects    = require( _(GINA_HOMEDIR + '/projects.json') );
-var root        = projects[projectName].path;
+var reversePorts    = require( _(GINA_HOMEDIR + '/ports.reverse.json') );
+var projects        = require( _(GINA_HOMEDIR + '/projects.json') );
+var root            = projects[projectName].path;
 
 gna.executionPath = root;
 setPath('project', root);
@@ -206,6 +209,8 @@ var env                     = (typeof(process.env.NODE_ENV) != 'undefined' && pr
     , scope                 = (typeof(process.env.NODE_SCOPE) != 'undefined' && process.env.NODE_SCOPE) ? process.env.NODE_SCOPE : projects[projectName]['def_scope']
     , isLocalScope          = (scope === projects[projectName]['local_scope']) ? true : false
     , isProductionScope     = (scope === projects[projectName]['production_scope']) ? true : false
+    , port                  = reversePorts[process.env.NODE_BUNDLE +'@'+ process.env.NODE_PROJECT][env][projects[projectName]['def_protocol']][projects[projectName]['def_scheme']]
+    , scheme                = projects[projectName]['def_scheme']
 ;
 
 gna.env = process.env.NODE_ENV = env;
@@ -216,9 +221,11 @@ gna.isAborting = false;
 process.env.NODE_ENV_IS_DEV = (/^true$/i.test(isDev)) ? true : false;
 process.env.NODE_SCOPE_IS_LOCAL = (/^true$/i.test(isLocalScope)) ? true : false;
 process.env.NODE_SCOPE_IS_PRODUCTION = (/^true$/i.test(isProductionScope)) ? true : false;
-// Proxy check
+process.env.NODE_PORT = parseInt(port);
+// Proxy check thru proxy.json [Optional]
 var proxyPathObj    = new _(projects[projectName].path + '/proxy.json', true);
 var proxy           = null;
+var proxyPort       = null;
 if ( proxyPathObj.existsSync() ) {
     try {
         var proxyColl   = requireJSON(proxyPathObj.toString());
@@ -227,43 +234,61 @@ if ( proxyPathObj.existsSync() ) {
     } catch (proxyErr) {
         console.error('[ FRAMEWORK ][ configurationError ] ', proxyErr.stack || proxyErr.message || proxyErr);
     }
+} else { // default proxy
+    proxy = {};
+    proxy.id = scope +"_"+ env;
+    proxy.scope = scope;
+    proxy.env = env;
+    // "https://my.domain.tld"
+    proxy.hostname = null ;
+    proxyPort = process.gina.PROXY_PORT = port;
+}
 
-    if (proxy) {
+if (proxy) {
+    var foundScheme = null;
+    if (proxy.hostname) {
         gna.proxyHostname   = process.gina.PROXY_HOSTNAME    = proxy.hostname;
         gna.proxyHost       = process.gina.PROXY_HOST        = proxy.hostname
                                                                     .replace(/^(https|http)\:\/\//g, '')
                                                                     .replace(/\:\d+\/$|\:\d+$/, '')
         ;
-        var proxyPort = gna.proxyHostname.match(/\:\d+\/$|\:\d+$/) || null;
+        proxyPort = gna.proxyHostname.match(/\:\d+\/$|\:\d+$/) || null;
+
         if (proxyPort) {
             proxyPort = parseInt(proxyPort[0].match(/\d+/));
         } else {
-            var foundScheme = gna.proxyHostname.match(/^(https|http)\:\/\//g)[0].replace(/\:\/\//g, '');
-            switch (foundScheme) {
-                case 'https':
-                    proxyPort = 443;
-                    break;
-                case 'ftp':
-                    proxyPort = 21;
-                    break;
-                case 'sftp':
-                    proxyPort = 22;
-                    break;
-                default:
-                    proxyPort = 80;
-                    break;
-            }
-            foundScheme = null;
+            foundScheme = gna.proxyHostname.match(/^(https|http)\:\/\//g)[0].replace(/\:\/\//g, '');
         }
-        gna.proxyPort       = process.gina.PROXY_PORT        = parseInt(proxyPort);
-
-        var isProxyHost = (
-            typeof(process.gina.PROXY_HOSTNAME) != 'undefined'
-        ) ? true : false;
-        // Forcing context - also available for workers
-        setContext('isProxyHost', isProxyHost);
+    } else {
+        foundScheme = scheme;
     }
+    switch (foundScheme) {
+        case 'https':
+            proxyPort = 443;
+            break;
+        case 'ftp':
+            proxyPort = 21;
+            break;
+        case 'sftp':
+            proxyPort = 22;
+            break;
+        default:
+            proxyPort = 80;
+            break;
+    }
+    foundScheme = null;
+
+
+    gna.proxyPort       = process.gina.PROXY_PORT        = parseInt(proxyPort);
+    gna.proxyScheme     = process.gina.PROXY_SCHEME      = scheme;
+
+    var isProxyHost = (
+        typeof(process.gina.PROXY_HOSTNAME) != 'undefined'
+    ) ? true : false;
+    // Forcing context - also available for workers
+    setContext('isProxyHost', isProxyHost);
 }
+
 
 
 var bundlesPath = (isDev) ? projects[projectName]['path'] + '/src' : projects[projectName]['path'] + '/bundles';

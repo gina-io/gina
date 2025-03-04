@@ -299,9 +299,12 @@ function Start(opt, cmd) {
                     params = [
                         // node arguments will be passed by gina
                         appPath,
-                        JSON.stringify(getContext()), //Passing context to child.
-                        self.projectName, // project name
-                        bundle// bundle name
+                        //Passing context to child.
+                        JSON.stringify(getContext()),
+                        // project name
+                        self.projectName,
+                        // bundle name
+                        bundle
                     ];
 
                     // injecting node arguments

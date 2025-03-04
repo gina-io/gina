@@ -182,6 +182,11 @@ function runCMD() {
         cliBin  = __dirname + '/cli-debug';
     }
 
+    process.env.NODE_BUNDLE     = process.argv[3];
+    process.env.NODE_PROJECT    = process.argv[4];
+    process.env.NODE_PROJECT    = process.env.NODE_PROJECT.replace(/\@/, '');
+    process.env.NODE_ARGV       = process.argv.slice();
+
     require(cliBin);
 }
 

@@ -150,18 +150,40 @@ function ServerEngineClass(options) {
 
     const onPath = function(path, cb, allowAll) {
 
-        var queryParams = null
-            , i         = null
-            , len       = null
-            , p         = null
-            , arr       = null
-            , a         = null
+        var queryParams     = null
+            , i             = null
+            , len           = null
+            , p             = null
+            , arr           = null
+            , a             = null
+            , isProxyHost   = null
+            , requestHost   = null
         ;
 
         // http2stream handle by the Router class & the SuperController class
         // See `${core}/router.js` & `${core}/controller/controller.js`
 
         server.on('request', (request, response) => {
+            // Proxy detection
+            isProxyHost = getContext('isProxyHost');
+            requestHost = request.headers.host || request.headers[':authority'];
+            if ( !/\:[0-9]+$/.test(requestHost) ) {
+                // Enable proxied mode
+                process.gina.PROXY_HOSTNAME = process.gina.PROXY_SCHEME +'://'+ requestHost;
+                process.gina.PROXY_HOST     = requestHost;
+                // Forcing context - also available for workers
+                setContext('isProxyHost', true);
+            }
+            if (
+                /^true$/.test(isProxyHost)
+                && /\:[0-9]+$/.test(requestHost)
+            ) {
+                // Restoring non-proxied mode
+                isProxyHost = false;
+                delete process.gina.PROXY_HOSTNAME;
+                delete process.gina.PROXY_HOST;
+                setContext('isProxyHost', isProxyHost);
+            }
             // healthcheck
             // TODO - add a top level API : server.api.js (check, get ...)
             // TODO - on 90% RAM usage, redirect to `come back later then restart bundle`
