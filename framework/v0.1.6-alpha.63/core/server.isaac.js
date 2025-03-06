@@ -167,7 +167,10 @@ function ServerEngineClass(options) {
             // Proxy detection
             isProxyHost = getContext('isProxyHost');
             requestHost = request.headers.host || request.headers[':authority'];
-            if ( !/\:[0-9]+$/.test(requestHost) ) {
+            if (
+                !/\:[0-9]+$/.test(requestHost)
+                && !isProxyHost
+            ) {
                 // Enable proxied mode
                 process.gina.PROXY_HOSTNAME = process.gina.PROXY_SCHEME +'://'+ requestHost;
                 process.gina.PROXY_HOST     = requestHost;

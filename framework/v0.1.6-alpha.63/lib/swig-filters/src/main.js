@@ -287,7 +287,8 @@ function SwigFilters(conf) {
             url = url.toUrl();
 
         } catch (routingErr) {
-            url = '404:['+ ctx.req.method +']'+rule
+            url = '404:['+ ctx.req.method +']'+rule;
+            console.error('[swig-filter] Routing Exception on route "'+ rule +'"', );
         }
 
 

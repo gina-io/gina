@@ -9077,7 +9077,7 @@ function Routing() {
                     url == '#'
                     && /GET/i.test(method)
                     && isMethodProvidedByDefault
-                    || /^404\:/.test(url)
+                    || /^404\:/.test(url)
                 ) {
                     url = location.pathname;
                     urlHasChanged = true;
