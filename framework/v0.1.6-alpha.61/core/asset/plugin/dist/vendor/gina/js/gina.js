@@ -6231,11 +6231,12 @@ function FormValidatorUtil(data, $fields, xhrOptions, fieldsSet) {
                         // system error
                         systemError = result.error;
                     }
-                    // Fixed on 2023-01-10
+                    // Fixed added on 2023-01-10
                     // We want `local.errorLabels['query']` before the generic|user defined `rule` error
                     var optionError = ( typeof(options['error']) != 'undefined' ) ? options['error'] : null;
                     errors['query'] = replace(systemError || _this['error'] || optionError || local.errorLabels['query'],  _this);
-                    console.debug('[1] query error detected !! ', result);
+
+                    console.debug('[1] query error detected !! ', result, errorFields, errors['query']);
                 }
 
                 if ( !errors['query'] && _this.value == '' ) {
@@ -6305,6 +6306,7 @@ function FormValidatorUtil(data, $fields, xhrOptions, fieldsSet) {
 
             var id = _this.target.id || _this.target.getAttribute('id');
             console.debug('prematurely completed event `'+ 'asyncCompleted.' + id +'`');
+
             return triggerEvent(gina, _this.target, 'asyncCompleted.' + id, self[_this['name']]);
         } // EO onResult
 
@@ -6700,7 +6702,7 @@ function FormValidatorUtil(data, $fields, xhrOptions, fieldsSet) {
                 isValid = condition;
             } else if (!isValid) {
                 var re = null, flags = null;
-                // Fixed on 2021-03-13: $variable now replaced with real value beafore validation
+                // Fixed added on 2021-03-13: $variable now replaced with real value beafore validation
                 if ( /[\!\=>\>\<a-z 0-9]+/i.test(condition) ) {
                     var variables = condition.match(/\${0}[-_,.\[\]a-z0-9]+/ig); // without space(s)
                     if (variables && variables.length > 0) {
@@ -10152,6 +10154,7 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
         'eventData'             : {},
         'target'                : (isGFFCtx) ? document : null, // by default
         'cachedErrors'          : {},
+        'lastFocused'           : (isGFFCtx) ? [] : null,
         'binded'                : false,
         'unbinded'              : false,
         'withUserBindings'      : false,
@@ -10469,7 +10472,7 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
      * @param {object} $form - Target (HTMLFormElement)
      * @param {object} errors
      * @param {object|null} data
-     * @param {object|null} [fileName]
+     * @param {string|null} [fileName]
      */
     var liveCheckErrors = {}; // Per Form & Per Element
     var handleErrorsDisplay = function($form, errors, data, fieldName) {
@@ -10649,7 +10652,9 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
                 // refreshing already displayed error on msg update
                 var $divs = $parent.getElementsByTagName('div');
                 for (var d = 0, dLen = $divs.length; d<dLen; ++d) {
-                    if ($divs[d].className == 'form-item-error-message') {
+                    // Fixed added on 2025-03-05: className can have more than one !!
+                    let foundMessage = $divs[d].className.match("form-item-error-message");
+                    if ( typeof(foundMessage.length) != 'undefined' && foundMessage.length > 0 ) {
 
                         $divs[d].parentElement.removeChild($divs[d]);
                         $err = document.createElement('div');
@@ -13208,7 +13213,7 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
                                 instance.$forms[formId].isValidating = true;
                                 validate($gForm, gFields, $gFields, gRules, function onSilentGlobalLiveValidation(gResult){
                                     instance.$forms[formId].isValidating = false;
-                                    console.debug('['+ formId +'] onSilentGlobalLiveValidation: '+ gResult.isValid(), gResult);
+                                    console.debug('['+ formId +'] onSilentGlobalLiveValidation: '+ gResult.isValid(), gResult, gFields);
                                     var isFormValid = gResult.isValid();
                                     if ( envIsDev && isGFFCtx && typeof(window.ginaToolbar) != 'undefined' && window.ginaToolbar ) {
                                         // update toolbar
@@ -13222,7 +13227,6 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
 
                                         window.ginaToolbar.update('forms', objCallback);
                                     }
-
 
                                     updateSubmitTriggerState( $gForm, isFormValid);
 
@@ -13268,6 +13272,10 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
                         else if ( /^focusout\./i.test(event.type) ) {
                             if ( /\-warning/.test($el.parentNode.className) ) {
                                 console.debug('#1 you just focusout ....'+$el.id, $el.value);
+                                // event.target.form.getAttribute('id');
+                                // $el.form.id
+                                // $el.form.getAttribute('id')
+                                instance.$forms[ $el.form.getAttribute('id') ].isValidating = false;
                                 refreshWarning($el);
                                 // in case error context is changed by another task
                                 handleErrorsDisplay($el.form, instance.$forms[ $el.form.getAttribute('id') ].errors, null, $el.name);
@@ -13276,12 +13284,30 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
                         else if ( /^keyup\./i.test(event.type) ) {
                             $el.ginaFormValidatorTestedValue = $el.value;
                             liveCheckTimer = setTimeout( function onLiveCheckTimer() {
-                                // do not trigger for copy/paste event
-                                if ( ['91', '17'].indexOf(''+event.keyCode) > -1  && keyboardMapping.count() == 0) {
+                                // Do not trigger for copy/paste event
+                                if ( ['91', '17', '16'].indexOf(''+event.keyCode) > -1  && keyboardMapping.count() == 0) {
                                     //console.debug('mapping ', keyboardMapping);
                                     return;
                                 }
-                                console.debug(' keyup ('+ event.keyCode +') .... '+$el.id, $el.value, ' VS ',$el.ginaFormValidatorTestedValue + '(old)');
+
+                                // Fixed added on 2025-03-05:
+                                // Treat TAB as focus in/out
+                                if ( ['9'].indexOf(''+event.keyCode) > -1 ) {
+                                    var $previeousEl = document.getElementById(instance.$forms[ $el.form.getAttribute('id') ].lastFocused[1].id);
+                                    var errors = instance.$forms[ $previeousEl.form.getAttribute('id') ].errors;
+                                    var isFormValid = true;
+                                    console.debug('[TAB] you just focusout from "'+ instance.$forms[ $el.form.getAttribute('id') ].lastFocused[1].id +'" to "'+ $el.id +'"', "errors: ", errors);
+                                    if (errors && errors.count() > 0 ) {
+                                        instance.$forms[ $previeousEl.form.getAttribute('id') ].isValidating = false;
+                                        isFormValid = false;
+                                    }
+                                    refreshWarning($previeousEl);
+                                    // in case error context is changed by another task
+                                    handleErrorsDisplay($previeousEl.form, errors, null, $previeousEl.name);
+                                    updateSubmitTriggerState( $el.form, isFormValid);
+                                    return;
+                                }
+                                console.debug('[A]['+keyboardMapping.count()+'] keyup ('+ event.keyCode +') .... '+$el.id, $el.value, ' VS ',$el.ginaFormValidatorTestedValue + '(old)');
                                 processEvent();
                             }, 1000);
                         }
@@ -13701,7 +13727,7 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
         // submit buttons
         $elTMP = $form.target.getElementsByTagName('button');
         if ( $elTMP.length > 0 ) {
-            for(let i = 0, len = $elTMP.length; i < len; ++i) {
+            for (let i = 0, len = $elTMP.length; i < len; ++i) {
                 // if button is != type="submit", you will need to provide : data-gina-form-submit
                 // TODO - On button binding, you can then provide data-gina-form-action & data-gina-form-method
                 $els.push($elTMP[i])
@@ -13711,7 +13737,7 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
         // submit links
         $elTMP = $form.target.getElementsByTagName('a');
         if ( $elTMP.length > 0 ) {
-            for(let i = 0, len = $elTMP.length; i < len; ++i) {
+            for (let i = 0, len = $elTMP.length; i < len; ++i) {
                 $els.push($elTMP[i])
             }
         }
@@ -13767,7 +13793,7 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
         // textarea
         $elTMP = $form.target.getElementsByTagName('textarea');
         if ( $elTMP.length > 0 ) {
-            for(let i = 0, len = $elTMP.length; i < len; ++i) {
+            for (let i = 0, len = $elTMP.length; i < len; ++i) {
                 $els.push( $elTMP[i] )
             }
         }
@@ -13776,7 +13802,7 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
         // forms inside main form
         $elTMP = $form.target.getElementsByTagName('form');
         if ( $elTMP.length > 0 ) {
-            for(let i = 0, len = $elTMP.length; i < len; ++i) {
+            for (let i = 0, len = $elTMP.length; i < len; ++i) {
                 $els.push( $elTMP[i] )
             }
         }
@@ -15108,7 +15134,7 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
                 ) {
                     return false;
                 }
-                // Fixed on 2021/06/08 - because of radio reset
+                // Fixed added on 2021/06/08 - because of radio reset
                 event.preventDefault();
 
                 var _evt = $el.id;
@@ -15178,6 +15204,22 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
                 }
                 if (gina.events[_evt]) {
                     cancelEvent(event);
+
+                    // Fixed added on 2025-03-05 - "last focus" vs "current focus"
+                    // To get active element: document.activeElement
+                    var formId      = event.target.form.getAttribute('id') || event.currentTarget.getAttribute('id');
+                    var lastFocused = {
+                        id  : $el.id,
+                        name: $el.name
+                    };
+                    if (!instance.$forms[formId].lastFocused.length) {
+                        instance.$forms[formId].lastFocused[0] = lastFocused;
+                    } else {
+                        instance.$forms[formId].lastFocused.splice(0,0,lastFocused);
+                    }
+                    lastFocused = ( typeof(instance.$forms[formId].lastFocused[1]) != 'undefined' ) ? instance.$forms[formId].lastFocused[1].id : null;
+
+                    // console.debug('lastFocused: ', lastFocused, ' VS current: ', $el.id);
 
                     triggerEvent(gina, $el, _evt, event.detail);
                 }
@@ -15495,7 +15537,7 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
         ;
         $buttonsTMP = $target.getElementsByTagName('button');
         if ( $buttonsTMP.length > 0 ) {
-            for(let b = 0, len = $buttonsTMP.length; b < len; ++b) {
+            for (let b = 0, len = $buttonsTMP.length; b < len; ++b) {
                 if ($buttonsTMP[b].type == 'submit') {
                     $buttons.push($buttonsTMP[b])
                 }
@@ -15505,7 +15547,7 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
         // binding links
         $buttonsTMP = $target.getElementsByTagName('a');
         if ( $buttonsTMP.length > 0 ) {
-            for(let b = 0, len = $buttonsTMP.length; b < len; ++b) {
+            for (let b = 0, len = $buttonsTMP.length; b < len; ++b) {
                 if ( $buttonsTMP[b].attributes.getNamedItem('data-gina-form-submit') ) {
                     $buttons.push($buttonsTMP[b])
                 } else if (
@@ -16240,38 +16282,65 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
 
                                     cb._data = d['toData']();
                                     cb._errors = d['getErrors'](field);
-                                    // console.debug('query callbakc triggered ', cb._errors, '\nisValidating: ', instance.$forms[formId].isValidating);
+                                    console.debug('[A] query callback triggered ', cb._errors, '\nisValidating: ', instance.$forms[formId].isValidating);
                                     // update instance form errors
-                                    if ( cb._errors && cb._errors.count() > 0) {
+                                    if ( cb._errors /**&& cb._errors.count() > 0*/) {
                                         if ( typeof(instance.$forms[formId].errors) == 'undefined' ) {
                                             instance.$forms[formId].errors = {}
                                         }
 
                                         instance.$forms[formId].errors[field] = cb._errors[field];
 
-                                        if (!isFormValid && /^true|false$/i.test(instance.$forms[formId].isValidating) || d[field].target.value != '' ) {
-                                            refreshWarning($allFields[field]);
-                                            handleErrorsDisplay($currentForm, cb._errors, cb._data, field);
-                                            updateSubmitTriggerState( $currentForm, isFormValid);
-                                        }
+                                        // if (!isFormValid && /^true|false$/i.test(instance.$forms[formId].isValidating) || d[field].target.value != '' ) {
+                                        //     if ( typeof($allFields[field]._cancelled) == 'undefined' ) {
+                                        //         refreshWarning($allFields[field]);
+                                        //     }
+                                        //     handleErrorsDisplay($currentForm, cb._errors, cb._data, field);
+                                        //     updateSubmitTriggerState( $currentForm, isFormValid);
+                                        // }
 
-                                        if ( envIsDev && isGFFCtx && typeof(window.ginaToolbar) != 'undefined' && window.ginaToolbar ) {
-                                            // update toolbar
-                                            if (!gina.forms.errors)
-                                                gina.forms.errors = {};
+                                        // if ( envIsDev && isGFFCtx && typeof(window.ginaToolbar) != 'undefined' && window.ginaToolbar ) {
+                                        //     // update toolbar
+                                        //     if (!gina.forms.errors)
+                                        //         gina.forms.errors = {};
 
-                                            var objCallback = {
-                                                id      : formId,
-                                                errors  :  instance.$forms[formId].errors || {}
-                                            };
+                                        //     var objCallback = {
+                                        //         id      : formId,
+                                        //         errors  :  instance.$forms[formId].errors || {}
+                                        //     };
 
-                                            window.ginaToolbar.update('forms', objCallback);
-                                        }
+                                        //     window.ginaToolbar.update('forms', objCallback);
+                                        // }
 
 
-                                        triggerEvent(gina, $currentForm, 'validated.' + formId, cb);
-                                        return;
+                                        // triggerEvent(gina, $currentForm, 'validated.' + formId, cb);
+                                        // return;
                                     }
+                                    // Fixed on 2025-03-06
+                                    if (!isFormValid && /^true|false$/i.test(instance.$forms[formId].isValidating) || d[field].target.value != '' ) {
+                                        if ( typeof($allFields[field]._cancelled) == 'undefined' ) {
+                                            refreshWarning($allFields[field]);
+                                        }
+                                        handleErrorsDisplay($currentForm, cb._errors, cb._data, field);
+                                        updateSubmitTriggerState( $currentForm, isFormValid);
+                                    }
+
+                                    if ( envIsDev && isGFFCtx && typeof(window.ginaToolbar) != 'undefined' && window.ginaToolbar ) {
+                                        // update toolbar
+                                        if (!gina.forms.errors)
+                                            gina.forms.errors = {};
+
+                                        var objCallback = {
+                                            id      : formId,
+                                            errors  :  instance.$forms[formId].errors || {}
+                                        };
+
+                                        window.ginaToolbar.update('forms', objCallback);
+                                    }
+
+
+                                    triggerEvent(gina, $currentForm, 'validated.' + formId, cb);
+                                    return;
                                 }
 
                                 // is this the last or the only field to be validated ?

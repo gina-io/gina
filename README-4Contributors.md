@@ -33,14 +33,14 @@ npm config get prefix
 > Default `prefix` should be:
 > For libraries `/usr/local`
 
-Targeted folder should be: `{prefix}/lib/node_modules/gina`
+Targeted folder should be: `${global_prefix}/lib/node_modules/gina`
 Make sure you have the appropriate permissions to write.
 
 #### Clone gina
 
-Then go to `{prefix}/lib/node_modules` in order to clone the project
+Then go to `${global_prefix}/lib/node_modules` in order to clone the project
 ```tty
-cd {prefix}/lib/node_modules
+cd ${global_prefix}/lib/node_modules
 ```
 
 ```tty
@@ -100,6 +100,12 @@ This only means that if you omit the env in the command line while trying to sta
 
 > __NB:__ Unlike for the projects `envs`, the framework env list cannot be changed; it is `dev` or `prod`.
 
+### Building
+> __NB.:__ Default environment is `prod`.
+
+```tty
+gina build --env=dev
+```
 
 ### Debugging
 

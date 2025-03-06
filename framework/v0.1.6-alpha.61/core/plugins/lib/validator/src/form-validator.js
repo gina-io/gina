@@ -385,11 +385,12 @@ function FormValidatorUtil(data, $fields, xhrOptions, fieldsSet) {
                         // system error
                         systemError = result.error;
                     }
-                    // Fixed on 2023-01-10
+                    // Fixed added on 2023-01-10
                     // We want `local.errorLabels['query']` before the generic|user defined `rule` error
                     var optionError = ( typeof(options['error']) != 'undefined' ) ? options['error'] : null;
                     errors['query'] = replace(systemError || _this['error'] || optionError || local.errorLabels['query'],  _this);
-                    console.debug('[1] query error detected !! ', result);
+
+                    console.debug('[1] query error detected !! ', result, errorFields, errors['query']);
                 }
 
                 if ( !errors['query'] && _this.value == '' ) {
@@ -459,6 +460,7 @@ function FormValidatorUtil(data, $fields, xhrOptions, fieldsSet) {
 
             var id = _this.target.id || _this.target.getAttribute('id');
             console.debug('prematurely completed event `'+ 'asyncCompleted.' + id +'`');
+
             return triggerEvent(gina, _this.target, 'asyncCompleted.' + id, self[_this['name']]);
         } // EO onResult
 
@@ -854,7 +856,7 @@ function FormValidatorUtil(data, $fields, xhrOptions, fieldsSet) {
                 isValid = condition;
             } else if (!isValid) {
                 var re = null, flags = null;
-                // Fixed on 2021-03-13: $variable now replaced with real value beafore validation
+                // Fixed added on 2021-03-13: $variable now replaced with real value beafore validation
                 if ( /[\!\=>\>\<a-z 0-9]+/i.test(condition) ) {
                     var variables = condition.match(/\${0}[-_,.\[\]a-z0-9]+/ig); // without space(s)
                     if (variables && variables.length > 0) {
