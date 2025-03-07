@@ -10436,12 +10436,12 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
 
     var refreshWarning = function($el) {
         var formId = $el.form.getAttribute('id');
-        if ( /^true$/i.test(instance.$forms[formId].isValidating) ) {
-            return;
-        }
 
-        var $parent = $el.parentNode, isErrorMessageHidden = false;
-        var $children = $parent.getElementsByTagName('div');
+
+        var $parent                 = $el.parentNode
+            , isErrorMessageHidden  = false
+            ,  $children            = $parent.getElementsByTagName('div')
+        ;
 
         if ( /form\-item\-warning/.test($parent.className) ) {
             $parent.className = $parent.className.replace(/form\-item\-warning/, 'form-item-error');
@@ -10449,6 +10449,14 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
         } else if (/form\-item\-error/.test($parent.className) ) {
             $parent.className = $parent.className.replace(/form\-item\-error/, 'form-item-warning');
             isErrorMessageHidden = true;
+        }
+
+        // Fixed added on 2025-03-07
+        if (
+            /^true$/i.test(instance.$forms[formId].isValidating)
+            && !isErrorMessageHidden
+        ) {
+            return;
         }
 
 
@@ -10513,8 +10521,18 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
                     }
                     errors = liveCheckErrors[formId];
                     // only if the form has not been sent yet
-                    if (!instance.$forms[formId].sent || instance.$forms[formId].isValidating) {
+                    if (
+                        !instance.$forms[formId].sent
+                        ||
+                        instance.$forms[formId].isValidating
+                    ) {
                         isWarning = true;
+                        // Fixed on 2025-03-07
+                        var lastFocused = instance.$forms[formId].lastFocused;
+                        // console.debug('lastFocused: ', lastFocused);
+                        if ( typeof(lastFocused[1]) != 'undefined' && lastFocused[1].name == fieldName) {
+                            isWarning = false;
+                        }
                     }
                 } else {
                     if ( typeof(liveCheckErrors[formId][fieldName]) != 'undefined') {
@@ -13265,7 +13283,7 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
                         // other inputs & textareas
                         else if ( /^focusin\./i.test(event.type) ) {
                             if ( /\-error/.test($el.parentNode.className) ) {
-                                console.debug('#1 you just focusin ....'+$el.id, $el.value);
+                                console.debug('#1 you just focusin ....'+$el.id, $el.value, instance.$forms[ $el.form.getAttribute('id') ].isValidating);
                                 refreshWarning($el);
                             }
                         }
@@ -15219,6 +15237,9 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
                     }
                     lastFocused = ( typeof(instance.$forms[formId].lastFocused[1]) != 'undefined' ) ? instance.$forms[formId].lastFocused[1].id : null;
 
+                    // cleanup
+                    instance.$forms[formId].lastFocused.splice(2);
+
                     // console.debug('lastFocused: ', lastFocused, ' VS current: ', $el.id);
 
                     triggerEvent(gina, $el, _evt, event.detail);
@@ -16267,7 +16288,8 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
                                 if ( !/^form$/i.test($formOrElement.tagName) ) {
                                     $currentForm  = $formOrElement.form;
                                 }
-                                var formId = $currentForm.getAttribute('id');
+                                var formId      = $currentForm.getAttribute('id');
+                                var isFormValid = null;
 
                                 if (
                                     hasParsedAllRules
@@ -16282,7 +16304,8 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
 
                                     cb._data = d['toData']();
                                     cb._errors = d['getErrors'](field);
-                                    console.debug('[A] query callback triggered ', cb._errors, '\nisValidating: ', instance.$forms[formId].isValidating);
+                                    isFormValid = ( cb._errors.count() > 0 ) ? false : true;
+                                    console.debug('[A] query callback triggered ', cb._errors, 'isFormValid: '+isFormValid, '\nisValidating: '+ instance.$forms[formId].isValidating);
                                     // update instance form errors
                                     if ( cb._errors /**&& cb._errors.count() > 0*/) {
                                         if ( typeof(instance.$forms[formId].errors) == 'undefined' ) {
@@ -16318,9 +16341,10 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
                                     }
                                     // Fixed on 2025-03-06
                                     if (!isFormValid && /^true|false$/i.test(instance.$forms[formId].isValidating) || d[field].target.value != '' ) {
-                                        if ( typeof($allFields[field]._cancelled) == 'undefined' ) {
+                                        console.debug('[A] Refreshing warning/error on field '+ field);
+                                        // if ( typeof($allFields[field]._cancelled) == 'undefined' ) {
                                             refreshWarning($allFields[field]);
-                                        }
+                                        // }
                                         handleErrorsDisplay($currentForm, cb._errors, cb._data, field);
                                         updateSubmitTriggerState( $currentForm, isFormValid);
                                     }
@@ -16344,14 +16368,15 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
                                 }
 
                                 // is this the last or the only field to be validated ?
-                                var needsGlobalReValidation = false, isFormValid = null;
+                                var needsGlobalReValidation = false;
                                 if ( listedFields.length == 1 || listedFields[listedFields.length-1] == field) {
                                     // trigger end of validation
                                     // console.debug(field +' is the last element to be validated for formId: '+ formId, cb._errors, instance.$forms[formId].errors);
                                     isFormValid = ( cb._errors.count() > 0 ) ? false : true;
                                     if (!isFormValid && /^true|false$/i.test(instance.$forms[formId].isValidating)) {
-                                        //console.debug('should update error display now ', cb._errors);
+                                        console.debug('[1] Should update error display now ', cb._errors);
                                         instance.$forms[formId].errors = merge(cb._errors, instance.$forms[formId].errors);
+                                        console.debug('[2] Should update error display now ', instance.$forms[formId].errors);
                                         refreshWarning($allFields[field]);
                                         handleErrorsDisplay($currentForm, cb._errors, cb._data, field);
                                         updateSubmitTriggerState( $currentForm, isFormValid);
