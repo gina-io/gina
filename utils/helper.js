@@ -368,6 +368,30 @@ function MainHelper(opt) {
     }
 
     /**
+     * getBundleStartingArgv
+     * Will get the bundle starting ARGV to allow live restart
+     *
+     * @param {string} bundle
+     * @param {string} project
+     *
+     * @returns {string} argv
+     * */
+    getBundleStartingArgv = function(bundle, project) {
+        bundle = bundle.replace(/(`|\s+)/g, '');
+        project = project.replace(/(`|\s+)/g, '');
+        var filename = _(getTmpDir() +'/'+ bundle +'@'+ project +'.argv', true);
+
+        var content = null;
+        if ( fs.existsSync(filename) ) {
+            delete require.cache[require.resolve(filename)];
+            content = ''+fs.readFileSync(filename);
+            content = content.replace(/\,/g, ' ');
+        }
+        // console.debug("@filename: ", filename, content);
+        return content
+    }
+
+    /**
      * isWritableSync
      * Only used for `getUserHome()`
      *

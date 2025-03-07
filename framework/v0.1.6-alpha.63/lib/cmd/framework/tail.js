@@ -2,6 +2,7 @@ var fs          = require('fs');
 var os          = require("os");
 var util        = require('util');
 var net         = require('net');
+var execSync    = require('child_process').execSync;
 
 var EventEmitter    = require('events').EventEmitter;
 var e               = new EventEmitter();
@@ -30,6 +31,8 @@ function Tail(opt, cmd) {
     var self        = {};
     var nIntervId   = null;
     var mqPortFile  = _(getTmpDir() +'/mq-listener-v'+ GINA_VERSION +'.port', true);
+    // To allow auto restart on: JavaScript heap out of memory
+    var cmdUsedToStart = null;
 
 
     var init = function(opt, cmd) {
@@ -194,12 +197,15 @@ function Tail(opt, cmd) {
                         // }
 
                         // only for debug
-                        // process.stdout.write(  '[MQTail] '+ pl.content +'\n' );
+                        // process.stdout.write(  '[MQTail-debug] '+ pl.content +'\n' );
 
 
 
                         try {
+                            // Main output
                             process.stdout.write( format(pl.group, pl.level, pl.content) );
+
+
                             if (
                                 /(exiting|Got exit code)(.*)(SIGKILL|SIGTERM|SIGINT|SIGABRT)/.test(pl.content)
                                 ||
@@ -236,13 +242,24 @@ function Tail(opt, cmd) {
                                     opt.argv.indexOf('--follow') > -1
                                     && ! /(SIGKILL|SIGTERM|SIGINT)/.test(pl.content)
                                 ) {
-                                    // only for debug
-                                    process.stdout.write('[MQTail]['+ bundle +'] bundle is going offline !\n' );
-                                    process.stdout.write('[MQTail] '+ JSON.stringify(payloads, null, 2) +'\n' );
-                                    // restart the bundle: look into payloads[0].content
-                                    // if (project && bundle) {
 
-                                    // }
+                                    // process.stdout.write('[MQTail]['+ bundle +'] TMP: '+ getTmpDir());
+                                    // restart the bundle: looking into payloads[0].content
+                                    if (bundle && project) {
+                                        // ?? only for debug
+                                        cmdUsedToStart = getBundleStartingArgv(bundle, project);
+                                        if (cmdUsedToStart) {
+                                            process.stdout.write('[MQTail]['+ bundle +'@'+ project +'] restarting with argv: '+ cmdUsedToStart +'\n' );
+                                            execSync(cmdUsedToStart);
+                                        }
+                                        process.stdout.write('[MQTail]['+ bundle +'@'+ project +'] bundle is going offline !\n' );
+
+                                        cmdUsedToStart = null;
+                                        break; // stop displaying ..
+                                    }
+
+                                    process.stdout.write('[MQTail] '+ JSON.stringify(payloads, null, 2) +'\n' );
+
                                 }
                             }
 

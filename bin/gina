@@ -129,12 +129,13 @@ function runAsSubProcess() {
         console.error(error);
     });
 
-    //  TODO - Remove this, we should be able to check the logs in case of troubles
+
     child.on('exit', function(code, signal) {
         // handles only signals that cannot be caught or ignored
         // ref.: `framework/<version>/lib/proc.js`
         if (/(SIGKILL|SIGSTOP)/i.test(signal)) {
             console.emerg('[' + this.pid + '] exiting with signal: ', signal);
+            return;
         }
     });
 }
@@ -185,7 +186,28 @@ function runCMD() {
     process.env.NODE_BUNDLE     = process.argv[3];
     process.env.NODE_PROJECT    = process.argv[4];
     process.env.NODE_PROJECT    = process.env.NODE_PROJECT.replace(/\@/, '');
-    process.env.NODE_ARGV       = process.argv.slice();
+
+    if (
+        /(bundle\:start|bundle\:restart)/.test(process.argv[2])
+        && process.env.NODE_BUNDLE
+        && /\@/.test(process.argv[4])
+    ) {
+        var help    = require(__dirname + '/../utils/helper.js');
+        var tmpPath = getTmpDir();
+        var argFilename = tmpPath +'/'+ process.env.NODE_BUNDLE +'@'+ process.env.NODE_PROJECT +'.argv';
+        process.env.NODE_ARGV   = process.argv.slice();
+        if (/bundle\:restart/.test(process.argv[2])) {
+            process.env.NODE_ARGV = process.env.NODE_ARGV.replace('bundle:restart', 'bundle:start');
+        }
+        console.debug('storing '+ process.env.NODE_BUNDLE + ' argv to '+ tmpPath +'/'+ process.env.NODE_BUNDLE +'@'+ process.env.NODE_PROJECT +'.argv' );
+        try {
+            fs.writeFileSync(argFilename, process.env.NODE_ARGV );
+        } catch (err) {
+            console.error(err);
+        }
+        help    = null;
+        tmpPath = null;
+    }
 
     require(cliBin);
 }
