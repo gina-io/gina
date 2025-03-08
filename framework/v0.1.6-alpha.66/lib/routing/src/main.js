@@ -910,8 +910,8 @@ function Routing() {
 
         route.isProxyHost = isProxyHost;
         if (isProxyHost) {
-            // route.proxy_hostname  = (isGFFCtx) ? window.location.protocol +'//'+ window.gina.config.hostname : (process.gina.PROXY_HOSTNAME||config.envConf._proxyHostname);
-            route.proxy_hostname  = (isGFFCtx) ? window.location.protocol +'//'+ document.location.hostname : (process.gina.PROXY_HOSTNAME||config.envConf._proxyHostname);
+            // route.proxy_hostname  = (isGFFCtx) ? window.location.protocol +'//'+ window.gina.config.hostname : (proxy.env.NODE_PROXY||process.gina.PROXY_HOSTNAME||config.envConf._proxyHostname);
+            route.proxy_hostname  = (isGFFCtx) ? window.location.protocol +'//'+ document.location.hostname : (proxy.env.NODE_PROXY||process.gina.PROXY_HOSTNAME||config.envConf._proxyHostname);
             route.proxy_host      = route.proxy_hostname.replace(/^(https|http)\:\/\//, '');
         }
 

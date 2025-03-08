@@ -183,8 +183,8 @@ function ServerEngineClass(options) {
             ) {
                 // Restoring non-proxied mode
                 isProxyHost = false;
-                delete process.gina.PROXY_HOSTNAME;
-                delete process.gina.PROXY_HOST;
+                // delete process.gina.PROXY_HOSTNAME;
+                // delete process.gina.PROXY_HOST;
                 setContext('isProxyHost', isProxyHost);
             }
             // healthcheck
