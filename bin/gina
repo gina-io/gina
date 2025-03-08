@@ -192,18 +192,19 @@ function runCMD() {
         && process.env.NODE_BUNDLE
         && /\@/.test(process.argv[4])
     ) {
-        var help    = require(__dirname + '/../utils/helper.js');
-        var tmpPath = getTmpDir();
+        var help        = require(__dirname + '/../utils/helper.js');
+        var tmpPath     = getTmpDir();
         var argFilename = tmpPath +'/'+ process.env.NODE_BUNDLE +'@'+ process.env.NODE_PROJECT +'.argv';
+
         process.env.NODE_ARGV   = process.argv.slice();
         if (/bundle\:restart/.test(process.argv[2])) {
             process.env.NODE_ARGV = process.env.NODE_ARGV.replace('bundle:restart', 'bundle:start');
         }
-        console.debug('storing '+ process.env.NODE_BUNDLE + ' argv to '+ tmpPath +'/'+ process.env.NODE_BUNDLE +'@'+ process.env.NODE_PROJECT +'.argv' );
+
         try {
             fs.writeFileSync(argFilename, process.env.NODE_ARGV );
         } catch (err) {
-            console.error(err);
+            console.emerg(err);
         }
         help    = null;
         tmpPath = null;

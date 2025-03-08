@@ -458,6 +458,7 @@ function Router(env, scope) {
 
         if (routeHasViews) {
             options.template = (routeHasViews) ? conf.content.templates[templateName] || conf.content.templates._common : undefined;
+            options.template.externalPlugins = [];
         }
 
         // Options need to be protected by a clone to allow overrides

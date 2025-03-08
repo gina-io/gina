@@ -21,7 +21,8 @@
         "rel"       : "stylesheet",
         "type"      : "text/css",
         "url"       : "/css/vendor/gina/gina.min.css",
-        "isCommon"  : true
+        "isCommon"  : true,
+        "isExternalPlugin" : false
       }
     ],
     "javascriptsDeferEnabled": true, // will place scripts in defer mode in the head by default. If false, will place in the footer
@@ -30,7 +31,8 @@
         "name"      : "gina",
         "type"      : "text/javascript",
         "url"       : "/js/vendor/gina/gina.min.js",
-        "isCommon"  : true
+        "isCommon"  : true,
+        "isExternalPlugin" : false
       }
     ]
   }

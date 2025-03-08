@@ -1016,6 +1016,7 @@ function SuperController(options) {
                 , XHRData               = null
                 , XHRView               = null
                 , isDeferModeEnabled    = null
+                , hasExternalsPlugins    = null
                 , viewInfos             = null
                 , filename              = null
                 , isWithSwigLayout      = null
@@ -1156,6 +1157,7 @@ function SuperController(options) {
             // }
 
             isDeferModeEnabled = localOptions.template.javascriptsDeferEnabled || localOptions.conf.content.templates._common.javascriptsDeferEnabled || false;
+            hasExternalsPlugins = (localOptions.template.externalPlugins.length > 0) ? true : false;
 
             // iframe case - without HTML TAG
             if (!self.isXMLRequest() && !/\<html/.test(layout) ) {
@@ -1257,10 +1259,18 @@ function SuperController(options) {
                 if (isLoadingPartial) {
                     layout += '\t{{ page.view.scripts }}';
                 } else {
+                    // placed in the HEAD
                     if ( isDeferModeEnabled  ) {
                         layout = layout.replace(/\<\/head\>/i, '\t{{ page.view.scripts }}\n\t</head>');
-                    } else { // placed in the BODY
+                    }
+                    // placed in the BODY
+                    else {
                         layout = layout.replace(/\<\/body\>/i, '\t{{ page.view.scripts }}\n</body>');
+                        if (hasExternalsPlugins) {
+                            for (let i =0, len = localOptions.template.externalPlugins.length; i<len; i++) {
+                                layout = layout.replace(/\<\/head\>/i, '\t'+ localOptions.template.externalPlugins +'\n</head>');
+                            }
+                        }
                     }
                 }
 
@@ -1306,6 +1316,11 @@ function SuperController(options) {
                 //         layout = layout.replace(/\<\/head\>/i, '\t{{ page.view.scripts }}\n\t</head>');
                 //     } else { // placed in the BODY
                 //         layout = layout.replace(/\<\/body\>/i, '\t{{ page.view.scripts }}\n</body>');
+                //         if (hasExternalsPlugins) {
+                //             for (let i =0, len = localOptions.template.externalPlugins.length; i<len; i++) {
+                //                 layout = layout.replace(/\<\/head\>/i, '\t'+ localOptions.template.externalPlugins +'\n</head>');
+                //             }
+                //         }
                 //     }
                 // }
 
@@ -1322,11 +1337,18 @@ function SuperController(options) {
                         layout += '\t'+ localOptions.template.ginaLoader +'\n';
                     }
                 } else {
+                    // placed in the HEAD
                     if ( isDeferModeEnabled && /\<\/head\>/i.test(layout) ) { // placed in the HEAD
                         layout = layout.replace(/\<\/head\>/i, '\t{{ page.view.scripts }}\n\t</head>');
-
-                    } else { // placed in the BODY
+                    }
+                    // placed in the BODY
+                    else {
                         layout = layout.replace(/\<\/body\>/i, '\t{{ page.view.scripts }}\n</body>');
+                        if (hasExternalsPlugins) {
+                            for (let i =0, len = localOptions.template.externalPlugins.length; i<len; i++) {
+                                layout = layout.replace(/\<\/head\>/i, '\t'+ localOptions.template.externalPlugins +'\n</head>');
+                            }
+                        }
                     }
                     // ginaLoader cannot be deferred
                     if ( !localOptions.template.javascriptsExcluded || localOptions.template.javascriptsExcluded != '**' ) {
@@ -1767,11 +1789,19 @@ function SuperController(options) {
 
         //Get css
         if( viewConf.stylesheets ) {
-            cssStr  = getNodeRes('css', viewConf.stylesheets, useWebroot, reURL)
+            // cssStr  = getNodeRes('css', viewConf.stylesheets, useWebroot, reURL);
+            // Fixed on 2025-03-08: ordered by route, making sure that _common could all be loaded first
+            var cssColl = new Collection(viewConf.stylesheets).orderBy({route: 'asc'})
+            cssStr   = getNodeRes('css', cssColl, useWebroot, reURL);
+            cssColl = null;
         }
         //Get js
         if( viewConf.javascripts ) {
-            jsStr   = getNodeRes('js', viewConf.javascripts, useWebroot, reURL)
+            // jsStr   = getNodeRes('js', viewConf.javascripts, useWebroot, reURL);
+            // Fixed on 2025-03-08: ordered by route, making sure that _common could all be loaded first
+            var jsColl = new Collection(viewConf.javascripts).orderBy({route: 'asc'})
+            jsStr   = getNodeRes('js', jsColl, useWebroot, reURL);
+            jsColl = null;
         }
 
         set('page.view.stylesheets', cssStr);
@@ -1870,7 +1900,21 @@ function SuperController(options) {
                     if (!/\:\/\//.test(obj.url) ) {
                         obj.url = hostname + obj.url;
                     }
-                    str += '\n\t\t<script'+ deferMode +' type="'+ obj.type +'" src="'+ obj.url +'"></script>'
+
+
+                    if ( /\/jquery\.(.*)\.(min\.js|js)$/i.test(obj.url) ) {
+                        console.warn('jQuery Plugin found in templates.json !\nIf you want to load it before [gina.min.js], you should declare it at the top of your handler using requireJS or add property "isExternalPlugin: true" in your templates.json, under: '+ (obj.route || local.req.routing.rule) +' .');
+                    }
+                    // Allow jQuery & other external plugins to be loaded in the HEAD section before gina
+                    if (
+                        obj.isExternalPlugin
+                    ) {
+                        local.options.template.externalPlugins.splice(1, 0, '\n\t\t<script'+ deferMode +' type="'+ obj.type +'" src="'+ obj.url +'"></script>');
+                    }
+                    else {
+                        // normal case
+                        str += '\n\t\t<script'+ deferMode +' type="'+ obj.type +'" src="'+ obj.url +'"></script>';
+                    }
                 }
                 break;
         }

@@ -323,7 +323,7 @@ function Start(opt, cmd) {
                         }
                     }
 
-                    terminal.debug('Spawning '+ opt.argv[0] +' [with args] '+ params);
+                    // terminal.debug('Spawning '+ opt.argv[0] +' [with args] '+ params);
                     var child = spawn(opt.argv[0], params,
                         {
                             // cwd: bundleDir,
@@ -411,6 +411,7 @@ function Start(opt, cmd) {
 
                         // Expecting 2 flags (checkCaseCount) to free the child stdout !!
                         // terminal.debug('BO case count '+ checkCaseCount);
+                        // terminal.log('[debug] ', data);
                         var _matched =  data.match(checkCaseRe);
                         if ( _matched ) {
                             // terminal.warn('case count: '+ checkCaseCount +'\nMatched: '+ _matched.length + '\n'+ checkCaseRe +'\n-> '+ data + '<-\n');

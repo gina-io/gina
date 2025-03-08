@@ -2052,12 +2052,16 @@ function Config(opt, contextResetNeeded) {
                         type    : 'text/css',
                         url     : '',
                         isCommon : false,
+                        // when set to true, allows the framework to load it before gina.min.css
+                        isExternalPlugin : false
                     },
                     js      = {
                         name    : '',
                         type    : 'text/javascript',
                         url     : '',
-                        isCommon : false
+                        isCommon : false,
+                        // when set to true, allows the framework to load it before gina.min.js
+                        isExternalPlugin : false
                     }
                 ;
 
@@ -2070,10 +2074,11 @@ function Config(opt, contextResetNeeded) {
                     , noneDefaultCss    = null
                     , reWebroot         = new RegExp('^'+conf[bundle][env].server.webroot)
                 ;
-                var t       = null
-                    , tLen  = null
-                    , tTmp  = null
-                    , url   = null
+                var t           = null
+                    , tLen      = null
+                    , tTmp      = null
+                    , url       = null
+                    , route     = null
                 ;
 
                 // formating _common def for javascripts & stylesheets
@@ -2092,8 +2097,8 @@ function Config(opt, contextResetNeeded) {
                         tLen    = tTmp.length;
                         noneDefaultJs = [];
                         for (; t < tLen; ++t) {
-                            noneDefaultJs[t]        = JSON.clone(js);
-                            url                     = tTmp[t];
+                            noneDefaultJs[t]            = JSON.clone(js);
+                            url                         = tTmp[t];
                             if ( typeof(url) == 'string') {
                                 noneDefaultJs[t].url    = url;
                                 noneDefaultJs[t].name   = url.substring(url.lastIndexOf('/')+1, url.lastIndexOf('.')).replace(/\W+/g, '-');
@@ -2111,11 +2116,11 @@ function Config(opt, contextResetNeeded) {
                         noneDefaultCss = [];
                         for (; t < tLen; ++t) {
                             noneDefaultCss[t]           = JSON.clone(css);
+                            noneDefaultCss[t].route     = section +'@'+ bundle;
                             url                         = tTmp[t];
                             if ( typeof(url) == 'string') {
                                 noneDefaultCss[t].url       = url;
                                 noneDefaultCss[t].name      = url.substring(url.lastIndexOf('/')+1, url.lastIndexOf('.')).replace(/\W+/g, '-');
-                                noneDefaultCss[t].isCommon  = ( /^_common$/.test(section) ) ? true : false;
                             } else {
                                 noneDefaultCss[t] = merge(url, noneDefaultCss[t]);
                             }
@@ -2142,6 +2147,7 @@ function Config(opt, contextResetNeeded) {
                         for (; t < tLen; ++t) {
                             noneDefaultJs[t]        = JSON.clone(js);
                             url                     = tTmp[t];
+                            noneDefaultJs[t].route  = section +'@'+ bundle;
                             if ( typeof(url) == 'string') {
                                 noneDefaultJs[t].url    = url;
                                 noneDefaultJs[t].name   = url.substring(url.lastIndexOf('/')+1, url.lastIndexOf('.')).replace(/\W+/g, '-');
@@ -2160,6 +2166,7 @@ function Config(opt, contextResetNeeded) {
                         for (; t < tLen; ++t) {
                             noneDefaultCss[t]           = JSON.clone(css);
                             url                         = tTmp[t];
+                            noneDefaultCss[t].route     = section +'@'+ bundle;
                             let re = new RegExp('\{\s*(.*)\s*\}', 'g');
                             if ( typeof(url) == 'string') {
                                 noneDefaultCss[t].url       = url.replace(re, originHostReplacement);
@@ -2179,7 +2186,6 @@ function Config(opt, contextResetNeeded) {
                             // .replace(/\s+/g, '').replace(/([a-z0-9_-]+\@[a-z0-9_-]+|[a-z0-9_-]+\@[a-z0-9_-]+\/[a-z0-9_-]+\@[a-z0-9_-]+)/ig, originHostReplacement)
                         }
                     }
-
 
 
 
@@ -2222,6 +2228,8 @@ function Config(opt, contextResetNeeded) {
 
                         noneDefaultJs[t].type  = ( typeof(noneDefaultJs[t].type) != 'undefined' ) ? noneDefaultJs[t].type : js.type;
                         noneDefaultJs[t].isCommon  = ( typeof(noneDefaultJs[t].isCommon) != 'undefined' ) ? noneDefaultJs[t].isCommon : ( ( /^_common$/.test(section) ) ? true : false );
+                        noneDefaultJs[t].route  = ( typeof(noneDefaultJs[t].route) != 'undefined' ) ? noneDefaultJs[t].route : null;
+
                     }
                     // force css rechecking on `name` & `url`
                     t = 0;
@@ -2238,6 +2246,7 @@ function Config(opt, contextResetNeeded) {
                         noneDefaultCss[t].rel       = ( typeof(noneDefaultCss[t].rel) != 'undefined' ) ? noneDefaultCss[t].rel : css.rel;
                         noneDefaultCss[t].type      = ( typeof(noneDefaultCss[t].type) != 'undefined' ) ? noneDefaultCss[t].type : css.type;
                         noneDefaultCss[t].isCommon  = ( typeof(noneDefaultCss[t].isCommon) != 'undefined' ) ? noneDefaultCss[t].isCommon : ( ( /^_common$/.test(section) ) ? true : false );
+                        noneDefaultCss[t].route     = ( typeof(noneDefaultCss[t].route) != 'undefined' ) ? noneDefaultCss[t].route : null;
                     }
 
 
