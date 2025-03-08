@@ -5594,6 +5594,13 @@ function Collection(content, options) {
 
 
                     if ( typeof(a) == 'string' && a != '' ||  typeof(b) == 'string' ) {
+                        // Fixed on 2025-03-08: allowed to compare with one of the fields being NULL or not defined
+                        if ( typeof(a) == 'undefined' || a == null) {
+                            a = ''; // cast to string
+                        }
+                        if ( typeof(b) == 'undefined' || b == null) {
+                            b = ''; // cast to string
+                        }
 
                         if ( typeof(a) == 'number' ) {
                             a = ''+a; // cast to string
@@ -5601,6 +5608,7 @@ function Collection(content, options) {
                         if ( typeof(b) == 'number' ) {
                             b = ''+b; // cast to string
                         }
+
 
                         return a.localeCompare(b, undefined, {sensitivity: 'case', caseFirst: 'upper'})
                     }
