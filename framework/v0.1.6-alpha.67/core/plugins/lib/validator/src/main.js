@@ -503,10 +503,21 @@
                         isWarning = true;
                         // Fixed on 2025-03-07
                         var lastFocused = instance.$forms[formId].lastFocused;
-                        // console.debug('lastFocused: ', lastFocused);
-                        if ( typeof(lastFocused[1]) != 'undefined' && lastFocused[1].name == fieldName) {
+                        // console.debug('fieldName: '+ fieldName + '\nactiveElement: '+ document.activeElement.getAttribute('name') +'\nlastFocused: ', lastFocused);
+                        if (
+                            lastFocused.length > 0
+                                && typeof(lastFocused[1]) != 'undefined'
+                                && lastFocused[1].name == fieldName
+                            ||
+                            lastFocused.length > 0
+                                && !lastFocused[1]
+                                && document.activeElement.getAttribute('name') != lastFocused[0].name
+                            ||
+                            document.activeElement.getAttribute('name') != fieldName
+                        ) {
                             isWarning = false;
                         }
+                        // console.debug('isWarning: '+isWarning);
                     }
                 } else {
                     if ( typeof(liveCheckErrors[formId][fieldName]) != 'undefined') {
@@ -646,11 +657,23 @@
                 for (var d = 0, dLen = $divs.length; d<dLen; ++d) {
                     // Fixed added on 2025-03-05: className can have more than one !!
                     let foundMessage = $divs[d].className.match("form-item-error-message");
-                    if ( typeof(foundMessage.length) != 'undefined' && foundMessage.length > 0 ) {
+                    if (
+                        foundMessage
+                        && typeof(foundMessage.length) != 'undefined'
+                        && foundMessage.length > 0
+                    ) {
 
                         $divs[d].parentElement.removeChild($divs[d]);
                         $err = document.createElement('div');
                         $err.setAttribute('class', 'form-item-error-message');
+
+                        // Fixed added on 2025-03-09: className cleanup
+                        if (
+                            !isWarning
+                            && /(\s+form\-item\-warning|form\-item\-warning)/.test($parent.className)
+                        ) {
+                            $parent.className = $parent.className.replace(/(\s+form\-item\-warning|form\-item\-warning)/, ' form-item-error');
+                        }
 
                         // injecting error messages
                         // {
@@ -3220,11 +3243,16 @@
                                         window.ginaToolbar.update('forms', objCallback);
                                     }
 
-                                    updateSubmitTriggerState( $gForm, isFormValid);
 
                                     if ( !isFormValid && gResult.error ) {
                                         instance.$forms[ $el.form.getAttribute('id') ].errors = gResult.error;
+                                        // Fixed on 2025-03-09
+                                        for (let eField in gResult.error) {
+                                            handleErrorsDisplay($gForm, gResult.error, gResult.data, eField);
+                                        }
                                     }
+
+                                    updateSubmitTriggerState( $gForm, isFormValid);
 
                                     once = false;
                                 })
@@ -4603,7 +4631,12 @@
                     validate($gForm, gFields, $gFields, gRules, function onSilentGlobalLiveValidation(gResult){
                         instance.$forms[formId].isValidating = false;
                         console.debug('[updateSelect]: onSilentGlobalLiveValidation: '+ gResult.isValid(), gResult);
+                        // Fixed on 2025-03-09
                         var isFormValid = gResult.isValid();
+                        if (!isFormValid) {
+                            instance.$forms[formId].errors = gResult.error;
+                        }
+
                         updateSubmitTriggerState( $gForm, isFormValid);
                         once = false;
                     })
