@@ -182,6 +182,7 @@ function ServerEngineClass(options) {
                 && /\:[0-9]+$/.test(requestHost)
             ) {
                 // Restoring non-proxied mode
+                console.debug('[ SERVER ] proxy disabled');
                 isProxyHost = false;
                 // delete process.gina.PROXY_HOSTNAME;
                 // delete process.gina.PROXY_HOST;
@@ -193,7 +194,7 @@ function ServerEngineClass(options) {
             // TODO - check url against wroot : getContext() ?
             if ( /^get$/i.test(request.method) && /\_gina\/health\/check$/i.test(request.url) ) {
                 // server.toApi(reques, response)
-                // console.debug('[200] '+ request.url);
+                // console.debug('[ SERVER ][200] '+ request.url);
                 response.setHeader('content-type', 'application/json; charset=utf8' );
                 response.setHeader('x-powered-by', 'Gina/'+ GINA_VERSION );
                 return response.end('{"status":"ok"}');
@@ -203,7 +204,7 @@ function ServerEngineClass(options) {
             }
 
             if ( /engine.io/.test(request.url)) {
-                console.debug('io request');
+                console.debug('[ SERVER ] engine.io request');
             }
 
             if (/^\*$/.test(path) || path == request.url) {
