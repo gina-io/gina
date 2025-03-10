@@ -165,32 +165,40 @@ function ServerEngineClass(options) {
 
         server.on('request', (request, response) => {
             // Proxy detection
-            isProxyHost = getContext('isProxyHost');
+            isProxyHost = getContext('isProxyHost') || false;
             requestHost = request.headers.host || request.headers[':authority'];
             if (
                 !isProxyHost
                 && !/\:[0-9]+$/.test(requestHost)
+                ||
+                !isProxyHost
+                && request.headers['x-forwarded-host']
             ) {
                 // Enable proxied mode
                 process.gina.PROXY_HOSTNAME = process.gina.PROXY_SCHEME +'://'+ requestHost;
                 process.gina.PROXY_HOST     = requestHost;
+                // For intera services communications - Eg.: Controller::query()
+                if (request.headers['x-forwarded-host']) {
+                    process.gina.PROXY_HOSTNAME = request.headers['x-forwarded-proto'] +'://'+ request.headers['x-forwarded-host'];
+                    process.gina.PROXY_HOST     = request.headers['x-forwarded-host'];
+                }
                 // Forcing context - also available for workers
                 setContext('isProxyHost', true);
             }
-            if (
-                // skip internal requests like healthcheck
-                !/^localhost:[0-9]+$/.test(requestHost)
-                && /^true$/.test(isProxyHost)
-                && /\:[0-9]+$/.test(requestHost)
 
-            ) {
-                // Restoring non-proxied mode
-                console.debug('[ SERVER ] proxy disabled: '+ process.gina.PROXY_SCHEME +'://'+ requestHost);
-                isProxyHost = false;
-                setContext('isProxyHost', isProxyHost);
-                // delete process.gina.PROXY_HOSTNAME;
-                // delete process.gina.PROXY_HOST;
-            }
+            // TODO - remove this after k8s test
+            // if (
+            //     // skip internal requests like healthcheck
+            //     !/^localhost:[0-9]+$/.test(requestHost)
+            //     && /^true$/.test(isProxyHost)
+            //     && /\:[0-9]+$/.test(requestHost)
+            //     && !hostnameRE.test(requestHost)
+            // ) {
+            //     // Restoring non-proxied mode
+            //     console.debug('[ SERVER ] proxy disabled: '+ process.gina.PROXY_SCHEME +'://'+ requestHost);
+            //     isProxyHost = false;
+            //     setContext('isProxyHost', isProxyHost);
+            // }
 
             // healthcheck
             // TODO - add a top level API : server.api.js (check, get ...)

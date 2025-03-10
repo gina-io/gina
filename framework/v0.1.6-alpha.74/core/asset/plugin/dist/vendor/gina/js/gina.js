@@ -8584,8 +8584,6 @@ function Routing() {
             }
 
             isProxyHost = getContext('isProxyHost');
-            // isProxyHost = ( _isProxyHost && /^true$/i.test(_isProxyHost) ) ? true : (( typeof(process.gina.PROXY_HOSTNAME) != 'undefined' ) ? true : false);
-
         }
 
         var env         = config.env || GINA_ENV  // by default, takes the current bundle
@@ -8632,8 +8630,15 @@ function Routing() {
 
         route.isProxyHost = isProxyHost;
         if (isProxyHost) {
-            // route.proxy_hostname  = (isGFFCtx) ? window.location.protocol +'//'+ window.gina.config.hostname : (process.gina.PROXY_HOSTNAME||config.envConf._proxyHostname);
-            route.proxy_hostname  = (isGFFCtx) ? window.location.protocol +'//'+ document.location.hostname : (process.gina.PROXY_HOSTNAME||config.envConf._proxyHostname);
+            if (isGFFCtx) {
+                route.proxy_hostname  = window.location.protocol +'//'+ document.location.hostname;
+            } else {
+                route.proxy_hostname  = process.gina.PROXY_HOSTNAME || config.envConf._proxyHostname;
+            }
+            route.proxy_host      = route.proxy_hostname.replace(/^(https|http)\:\/\//, '');
+
+        } else if ( typeof(process.gina.PROXY_HOSTNAME) != 'undefined' ) {
+            route.proxy_hostname  = process.gina.PROXY_HOSTNAME;
             route.proxy_host      = route.proxy_hostname.replace(/^(https|http)\:\/\//, '');
         }
 

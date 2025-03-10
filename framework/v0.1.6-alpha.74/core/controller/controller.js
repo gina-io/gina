@@ -2901,7 +2901,8 @@ function SuperController(options) {
         ) {
             return false
         }
-        self.isProcessingError = false; // by default
+        // by default
+        self.isProcessingError = false;
 
         var queryData           = {}
             , defaultOptions    = local.query.options
@@ -2911,9 +2912,8 @@ function SuperController(options) {
 
         // options must be used as a copy in case of multiple calls of self.query(options, ...)
         options = merge(JSON.clone(options), defaultOptions);
-        // options = merge(options, defaultOptions);
 
-        for (var o in options) {//cleaning
+        for (let o in options) {//cleaning
             if ( typeof(options[o]) == 'undefined' || options[o] == undefined) {
                 delete options[o]
             }
@@ -2996,6 +2996,8 @@ function SuperController(options) {
             , protocol      = null
             , scheme        = null
             , isProxyHost   = getContext('isProxyHost')
+            , bundle        = null
+            , webroot       = options.webroot || ctx.gina.config.envConf[ctx.bundle][ctx.env].server.webroot;// bundle servers's webroot by default
         ;
         // cleanup options.path
         if (/\:\/\//.test(options.path)) {
@@ -3017,6 +3019,7 @@ function SuperController(options) {
         protocol    = protocol.match(/[.a-z 0-9]+/ig)[0];
         scheme      = options.scheme || ctx.gina.config.envConf[ctx.bundle][ctx.env].server.scheme;// bundle servers's scheme by default
         scheme      = scheme.match(/[a-z 0-9]+/ig)[0];
+
         // retrieve credentials
         if ( typeof(options.ca) == 'undefined' || ! options.ca ) {
             options.ca  = ctx.gina.config.envConf[ctx.bundle][ctx.env].server.credentials.ca;
@@ -3025,14 +3028,11 @@ function SuperController(options) {
         //retrieving dynamic host, hostname & port
         if ( /\@/.test(options.hostname) ) {
 
-            var bundle = ( options.hostname.replace(/(.*)\:\/\//, '') ).split(/\@/)[0];
-
+            bundle              = ( options.hostname.replace(/(.*)\:\/\//, '') ).split(/\@/)[0];
             // No shorcut possible because conf.hostname might differ from user inputs
-
             options.host        = ctx.gina.config.envConf[bundle][ctx.env].host.replace(/(.*)\:\/\//, '').replace(/\:\d+/, '');
             options.hostname    = ctx.gina.config.envConf[bundle][ctx.env].hostname;
             options.port        = ctx.gina.config.envConf[bundle][ctx.env].server.port;
-
             options.protocol    = ctx.gina.config.envConf[bundle][ctx.env].server.protocol;
             options.scheme      = ctx.gina.config.envConf[bundle][ctx.env].server.scheme;
 
@@ -3040,18 +3040,6 @@ function SuperController(options) {
             if ( typeof(options.ca) == 'undefined' || ! options.ca ) {
                 options.ca = ctx.gina.config.envConf[bundle][ctx.env].server.credentials.ca;
             }
-
-            // if (
-            //     /^true$/i.test(isProxyHost)
-            //     && typeof(options.hostname) != 'undefined'
-            // ) {
-            //     options.hostname    = process.gina.PROXY_HOSTNAME;
-            //     options.host        = process.gina.PROXY_HOST;
-            //     options.port        = process.gina.PROXY_PORT;
-            // }
-            // might be != from the bundle requesting
-            //options.protocol    = ctx.gina.config.envConf[bundle][ctx.env].content.settings.server.protocol || ctx.gina.config.envConf[bundle][ctx.env].server.protocol;
-            //options.scheme    = ctx.gina.config.envConf[bundle][ctx.env].content.settings.server.scheme || ctx.gina.config.envConf[bundle][ctx.env].server.scheme;
         }
 
         if ( typeof(options.protocol) == 'undefined' ) {
@@ -3065,8 +3053,16 @@ function SuperController(options) {
 
 
         // reformating scheme
-        if( !/\:$/.test(options.scheme) )
+        if( !/\:$/.test(options.scheme) ) {
             options.scheme += ':';
+        }
+
+        if (isProxyHost) {
+            // X-Forwarded-Host
+            options.headers['x-forwarded-host'] = process.gina.PROXY_HOST;
+            // X-Forwarded-Proto
+            options.headers['x-forwarded-proto'] = process.gina.PROXY_SCHEME;
+        }
 
         try {
             options.queryData = queryData;
@@ -3077,6 +3073,8 @@ function SuperController(options) {
             }
 
             browser = require(''+ httpLib);
+
+            bundle = null;
 
             if ( /http2/.test(httpLib) ) {
                 return handleHTTP2ClientRequest(browser, options, callback);
@@ -3091,7 +3089,6 @@ function SuperController(options) {
             }
             self.emit('query#complete', err)
         }
-
     }
 
     var handleHTTP1ClientRequestv2 = function (browser, options, callback) {
@@ -3103,6 +3100,7 @@ function SuperController(options) {
             method: 'GET',
             agent: agent
         };
+
         var req = browser.request(options, function(res) {
             var str = "";
             var err = false;
