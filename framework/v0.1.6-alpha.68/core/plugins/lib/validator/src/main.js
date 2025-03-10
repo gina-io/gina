@@ -583,7 +583,8 @@
 
             if (
                 errors
-                && typeof(errors[name]) != 'undefined' && !/(form\-item\-error|form\-item\-warning)/.test($parent.className)
+                && typeof(errors[name]) != 'undefined'
+                && !/(form\-item\-error|form\-item\-warning)/.test($parent.className)
             ) {
 
                 if (isWarning) {
@@ -634,6 +635,15 @@
                     && typeof(errors[name]) != 'undefined' && errors[name].count() == 0
                     && /(form\-item\-error|form\-item\-warning)/.test($parent.className)
             ) {
+                // Fixed on 2025-03-10
+                // targeted field must be the active element
+                if (
+                    document.activeElement.getAttribute('name') != fieldName
+                    && errors.count() > 0
+                ) {
+                    break
+                }
+                console.debug('[handleErrorsDisplay] Resetting when not in error');
                 // reset when not in error
                 // remove child elements
                 var $children = $parent.getElementsByTagName('div');
@@ -648,7 +658,7 @@
                 $parent.className = $parent.className.replace(/(\s+form\-item\-error|form\-item\-error|\s+form\-item\-warning|form\-item\-warning)/, '');
 
             } else if (
-                errors
+                errors.count() > 0
                 && typeof(errors[name]) != 'undefined'
                 && errAttr
             ) {
@@ -704,7 +714,12 @@
                 }
             }
 
-            if (typeof(fieldName) != 'undefined' && fieldName === $el.name) break;
+            if (
+                typeof(fieldName) != 'undefined'
+                && fieldName === $el.name
+            ) {
+                break;
+            }
         }
 
 
@@ -3192,7 +3207,6 @@
                                 } else {
                                     handleErrorsDisplay(event.target.form, errors, null, event.target.name);
                                 }
-                                //return cancelEvent(event);
                             }
 
 
@@ -3247,9 +3261,19 @@
                                     if ( !isFormValid && gResult.error ) {
                                         instance.$forms[ $el.form.getAttribute('id') ].errors = gResult.error;
                                         // Fixed on 2025-03-09
-                                        for (let eField in gResult.error) {
-                                            handleErrorsDisplay($gForm, gResult.error, gResult.data, eField);
-                                        }
+                                        // for (let eField in gResult.error) {
+                                        //     refreshWarning($gFields[eField]);
+                                        //     // handleErrorsDisplay($gForm, gResult.error, gResult.data, eField);
+                                        // }
+                                    }
+                                    // Fixed on 2025-03-10
+                                    // Eg.: input select change impacting another element: solve `no more errors`
+                                    else if (isFormValid) {
+                                         //resetting error display
+                                         instance.$forms[ formId ].errors = {};
+                                         console.debug('resetting field: '+ $el.name);
+                                         liveCheckErrors[formId] = {};
+                                         handleErrorsDisplay($gForm, {}, null, $el.name);
                                     }
 
                                     updateSubmitTriggerState( $gForm, isFormValid);
@@ -4635,6 +4659,10 @@
                         var isFormValid = gResult.isValid();
                         if (!isFormValid) {
                             instance.$forms[formId].errors = gResult.error;
+                            for (let eField in gResult.error) {
+                                // refreshWarning($gFields[eField]);
+                                handleErrorsDisplay($gForm, gResult.error, gResult.data, eField);
+                            }
                         }
 
                         updateSubmitTriggerState( $gForm, isFormValid);

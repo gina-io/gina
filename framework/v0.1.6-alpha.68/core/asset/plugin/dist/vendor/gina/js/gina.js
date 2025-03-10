@@ -13281,9 +13281,9 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
                                     if ( !isFormValid && gResult.error ) {
                                         instance.$forms[ $el.form.getAttribute('id') ].errors = gResult.error;
                                         // Fixed on 2025-03-09
-                                        for (let eField in gResult.error) {
-                                            handleErrorsDisplay($gForm, gResult.error, gResult.data, eField);
-                                        }
+                                        // for (let eField in gResult.error) {
+                                        //     handleErrorsDisplay($gForm, gResult.error, gResult.data, eField);
+                                        // }
                                     }
 
                                     updateSubmitTriggerState( $gForm, isFormValid);
