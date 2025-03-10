@@ -182,12 +182,13 @@ function ServerEngineClass(options) {
                 && /\:[0-9]+$/.test(requestHost)
             ) {
                 // Restoring non-proxied mode
-                console.debug('[ SERVER ] proxy disabled');
+                console.debug('[ SERVER ] proxy disabled: '+ process.gina.PROXY_SCHEME +'://'+ requestHost);
                 isProxyHost = false;
                 // delete process.gina.PROXY_HOSTNAME;
                 // delete process.gina.PROXY_HOST;
                 setContext('isProxyHost', isProxyHost);
             }
+
             // healthcheck
             // TODO - add a top level API : server.api.js (check, get ...)
             // TODO - on 90% RAM usage, redirect to `come back later then restart bundle`
