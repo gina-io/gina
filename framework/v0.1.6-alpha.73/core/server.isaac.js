@@ -181,7 +181,7 @@ function ServerEngineClass(options) {
                 /^true$/.test(isProxyHost)
                 && /\:[0-9]+$/.test(requestHost)
                 // skip internal requests like healthcheck
-                && !/\^localhost:[0-9]+$/.test(requestHost)
+                && !/^localhost:[0-9]+$/.test(requestHost)
             ) {
                 // Restoring non-proxied mode
                 console.debug('[ SERVER ] proxy disabled: '+ process.gina.PROXY_SCHEME +'://'+ requestHost);
