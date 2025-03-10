@@ -168,8 +168,8 @@ function ServerEngineClass(options) {
             isProxyHost = getContext('isProxyHost');
             requestHost = request.headers.host || request.headers[':authority'];
             if (
-                !/\:[0-9]+$/.test(requestHost)
-                && !isProxyHost
+                !isProxyHost
+                && !/\:[0-9]+$/.test(requestHost)
             ) {
                 // Enable proxied mode
                 process.gina.PROXY_HOSTNAME = process.gina.PROXY_SCHEME +'://'+ requestHost;
@@ -178,17 +178,18 @@ function ServerEngineClass(options) {
                 setContext('isProxyHost', true);
             }
             if (
-                /^true$/.test(isProxyHost)
-                && /\:[0-9]+$/.test(requestHost)
                 // skip internal requests like healthcheck
-                && !/^localhost:[0-9]+$/.test(requestHost)
+                !/^localhost:[0-9]+$/.test(requestHost)
+                && /^true$/.test(isProxyHost)
+                && /\:[0-9]+$/.test(requestHost)
+
             ) {
                 // Restoring non-proxied mode
                 console.debug('[ SERVER ] proxy disabled: '+ process.gina.PROXY_SCHEME +'://'+ requestHost);
                 isProxyHost = false;
-                delete process.gina.PROXY_HOSTNAME;
-                delete process.gina.PROXY_HOST;
                 setContext('isProxyHost', isProxyHost);
+                // delete process.gina.PROXY_HOSTNAME;
+                // delete process.gina.PROXY_HOST;
             }
 
             // healthcheck

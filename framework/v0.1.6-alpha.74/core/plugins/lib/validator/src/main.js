@@ -3273,6 +3273,7 @@
                                          instance.$forms[ formId ].errors = {};
                                          console.debug('resetting field: '+ $el.name);
                                          liveCheckErrors[formId] = {};
+                                        //  $form.dataset.ginaFormIsResetting = true;
                                          handleErrorsDisplay($gForm, {}, null, $el.name);
                                     }
 
