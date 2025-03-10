@@ -978,42 +978,10 @@ function SuperController(options) {
             ) ? true : false;
 
 
-
-            // var ctx = getContext('gina');
-            // var _config = ctx.config.envConf[options.conf.bundle][process.env.NODE_ENV];
-            // // by default
-            // var hostname    = _config.hostname + _config.server.webroot;
-            // var scheme      = hostname.match(/^(https|http)/)[0];
-            // var requestPort = (local.req.headers.port||local.req.headers[':port']);
-
-            // var hostPort = hostname.match(/(\:d+\/|\:\d+)$/);
-            // hostPort = (hostPort) ? ~~(hostPort[0].replace(/\:/g, '')) : _config.port[_config.server.protocol][_config.server.scheme];
-            // // Linking bundle B from bundle A wihtout proxy
-            // var isSpecialCase = (
-            //         getContext('bundle') != _config.bundle
-            //         && requestPort != hostPort
-            //         && local.req.headers[':host'] != process.gina.PROXY_HOST
-            // ) ? true : false;
-
-            // if (isSpecialCase) {
-            //     hostname = _config.hostname;
-            // }
-            // if (
-            //     typeof(ctx.config.envConf._proxyHostname) == 'undefined'
-            //     ||
-            //     hostname != ctx.config.envConf._proxyHostname
-            // ) {
-            //     ctx.config.envConf._proxyHostname = (isProxyHost) ? hostname : null;
-            //     ctx.config.envConf._isRoutingUpdateNeeded = true;
-            // }
-
-
             // setup swig default filters
             var filters = SwigFilters({
                 options     : JSON.clone(localOptions),
                 isProxyHost : isProxyHost,
-                // _proxyHostname: ctx.config.envConf._proxyHostname,
-                // _isRoutingUpdateNeeded: ctx.config.envConf._isRoutingUpdateNeeded,
                 throwError  : self.throwError,
                 req         : local.req,
                 res         : local.res
