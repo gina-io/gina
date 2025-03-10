@@ -2249,19 +2249,11 @@ function SuperController(options) {
                 typeof(process.gina.PROXY_HOSTNAME) != 'undefined'
             ) ? true : false;
 
-
-
+            // var isProxyHost = getContext('isProxyHost');
             var hostname = (isProxyHost)
                     ? process.gina.PROXY_HOSTNAME
                     : ctx.config.envConf[bundle][env].hostname;
 
-            // var hostname = (isProxyHost)
-            //         ? ctx.config.envConf._proxyHostname
-            //         : ctx.config.envConf[bundle][env].hostname;
-
-
-            // if ( !/\:\d+$/.test(req.headers.host) )
-            //     hostname = hostname.replace(/\:\d+$/, '');
 
             if (route) { // will go with route first
 

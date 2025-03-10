@@ -915,7 +915,10 @@ function Routing() {
             }
             route.proxy_host      = route.proxy_hostname.replace(/^(https|http)\:\/\//, '');
 
-        } else if ( typeof(process.gina.PROXY_HOSTNAME) != 'undefined' ) {
+        } else if (
+            !isGFFCtx
+            && typeof(process.gina.PROXY_HOSTNAME) != 'undefined'
+        ) {
             route.proxy_hostname  = process.gina.PROXY_HOSTNAME;
             route.proxy_host      = route.proxy_hostname.replace(/^(https|http)\:\/\//, '');
         }
