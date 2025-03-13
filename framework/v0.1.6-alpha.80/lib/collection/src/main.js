@@ -246,10 +246,9 @@ function Collection(content, options) {
              */
             var search = function(filter, field, _content, matched, searchOptionRules) {
                 var reValidCount = null, searchOptCount = null;
-                if (filter === null && _content === null) { // null case
-
+                 // null case
+                if (filter === null && _content === null) {
                     ++matched;
-
                 } else if (
                     filter
                     && keywords.indexOf(localeLowerCase) > -1
@@ -315,7 +314,6 @@ function Collection(content, options) {
                     && searchOptions
                     && typeof(searchOptions[field]) != 'undefined'
                 ) {
-
                     reValidCount    = 0;
                     searchOptCount  = searchOptions[field].count();
                     for ( var rule in searchOptions[field]) {
@@ -741,15 +739,15 @@ function Collection(content, options) {
             }
 
             // fast search with key
-            var r       = 0
-                , rLen  = foundResults.length
-                , c     = 0
-                , cLen  = currentResult.length
-                , f     = 0
-                , fLen  = filters.count()
-                , keyLen    = null
-                , matched = 0
-                , fullFiltersMatched = 0
+            var r                       = 0
+                , rLen                  = foundResults.length
+                , c                     = 0
+                , cLen                  = currentResult.length
+                , f                     = 0
+                , fLen                  = filters.count()
+                , keyLen                = null
+                , matched               = 0
+                , fullFiltersMatched    = 0
             ;
             if ( uuidSearchModeEnabled && typeof(currentResult[c]) != 'undefined' && currentResult[c].hasOwnProperty(key) ) {
                 // for every single result found

@@ -3188,6 +3188,8 @@
                             return false;
                         }
 
+
+
                         if (
                             typeof(instance.$forms[event.target.form.getAttribute('id')].isSubmitting) != 'undefined'
                             && /true/i.test(instance.$forms[event.target.form.getAttribute('id')].isSubmitting)
@@ -3706,24 +3708,53 @@
     }
 
     /**
-     * reBindForm - This is a WIP
+     * reBindForm
+     * Allows form rebinding: it is like reseting validation
      *
-     * @param {object} HTMLElement
-     * @param {object} rules
-     * @returns {object} formValidatorInstance
+     * E.g.:
+     * $validator
+     *    .getFormById('my-form-id')
+     *    .reBind();
+     *
+     * @param {string} [formId]
+     * @param {string} [rules]
+     * @param {callback} [cb]
      */
-    var reBindForm = function($target, rules, cb) {
-        // Unbind form
-        var formInstance = unbindForm($target);
+    var reBindForm = function(formId, rules, cb) {
+        var $form   = null
+            , _id   = null
+        ;
+        if (
+            typeof(this.target) != 'undefined'
+            && /FORM/i.test(this.target.tagName)
+        ) {
+            _id = formId = this.target.id || this.target.getAttribute('id')
+        } else if ( /string/i.test(typeof(formId)) ) {
+            _id = formId
+        }
+
+        if ( typeof(instance.$forms[_id]) != 'undefined') {
+            $form = instance.$forms[_id];
+        } else {
+            throw new Error('form instance `'+ _id +'` not found');
+        }
+
         // reset errors
-        //resetErrorsDisplay(formInstance.id);
+        resetErrorsDisplay(_id);
+        // Unbind form
+        unbindForm($form.target);
         // Bind
-        bindForm(formInstance.target, rules);
+        if ( typeof(rule) != 'undefined' ) {
+            bindForm($form.target, rules);
+        } else {
+            bindForm($form.target);
+        }
 
         if ( cb ) {
-            return cb(formInstance);
+            return cb($form);
         }
-        return formInstance;
+
+        return $form;
     }
 
     var unbindForm = function($target) {
@@ -6395,8 +6426,9 @@
 
                                     if ( envIsDev && isGFFCtx && typeof(window.ginaToolbar) != 'undefined' && window.ginaToolbar ) {
                                         // update toolbar
-                                        if (!gina.forms.errors)
+                                        if (!gina.forms.errors) {
                                             gina.forms.errors = {};
+                                        }
 
                                         var objCallback = {
                                             id      : formId,
@@ -6450,8 +6482,6 @@
 
                                             window.ginaToolbar.update('forms', objCallback);
                                         }
-
-
 
                                         handleErrorsDisplay($currentForm, gResult.error, gResult.data, field);
                                         updateSubmitTriggerState( $currentForm, isFormValid);
@@ -7048,8 +7078,6 @@
                         }
                         --i;
                     }
-
-
                 } // EO for
             }
 

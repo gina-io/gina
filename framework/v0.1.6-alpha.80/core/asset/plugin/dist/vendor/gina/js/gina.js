@@ -4630,10 +4630,9 @@ function Collection(content, options) {
              */
             var search = function(filter, field, _content, matched, searchOptionRules) {
                 var reValidCount = null, searchOptCount = null;
-                if (filter === null && _content === null) { // null case
-
+                 // null case
+                if (filter === null && _content === null) {
                     ++matched;
-
                 } else if (
                     filter
                     && keywords.indexOf(localeLowerCase) > -1
@@ -4699,7 +4698,6 @@ function Collection(content, options) {
                     && searchOptions
                     && typeof(searchOptions[field]) != 'undefined'
                 ) {
-
                     reValidCount    = 0;
                     searchOptCount  = searchOptions[field].count();
                     for ( var rule in searchOptions[field]) {
@@ -5125,15 +5123,15 @@ function Collection(content, options) {
             }
 
             // fast search with key
-            var r       = 0
-                , rLen  = foundResults.length
-                , c     = 0
-                , cLen  = currentResult.length
-                , f     = 0
-                , fLen  = filters.count()
-                , keyLen    = null
-                , matched = 0
-                , fullFiltersMatched = 0
+            var r                       = 0
+                , rLen                  = foundResults.length
+                , c                     = 0
+                , cLen                  = currentResult.length
+                , f                     = 0
+                , fLen                  = filters.count()
+                , keyLen                = null
+                , matched               = 0
+                , fullFiltersMatched    = 0
             ;
             if ( uuidSearchModeEnabled && typeof(currentResult[c]) != 'undefined' && currentResult[c].hasOwnProperty(key) ) {
                 // for every single result found
@@ -13240,6 +13238,8 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
                             return false;
                         }
 
+
+
                         if (
                             typeof(instance.$forms[event.target.form.getAttribute('id')].isSubmitting) != 'undefined'
                             && /true/i.test(instance.$forms[event.target.form.getAttribute('id')].isSubmitting)
@@ -13758,24 +13758,53 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
     }
 
     /**
-     * reBindForm - This is a WIP
+     * reBindForm
+     * Allows form rebinding: it is like reseting validation
      *
-     * @param {object} HTMLElement
-     * @param {object} rules
-     * @returns {object} formValidatorInstance
+     * E.g.:
+     * $validator
+     *    .getFormById('my-form-id')
+     *    .reBind();
+     *
+     * @param {string} [formId]
+     * @param {string} [rules]
+     * @param {callback} [cb]
      */
-    var reBindForm = function($target, rules, cb) {
-        // Unbind form
-        var formInstance = unbindForm($target);
+    var reBindForm = function(formId, rules, cb) {
+        var $form   = null
+            , _id   = null
+        ;
+        if (
+            typeof(this.target) != 'undefined'
+            && /FORM/i.test(this.target.tagName)
+        ) {
+            _id = formId = this.target.id || this.target.getAttribute('id')
+        } else if ( /string/i.test(typeof(formId)) ) {
+            _id = formId
+        }
+
+        if ( typeof(instance.$forms[_id]) != 'undefined') {
+            $form = instance.$forms[_id];
+        } else {
+            throw new Error('form instance `'+ _id +'` not found');
+        }
+
         // reset errors
-        //resetErrorsDisplay(formInstance.id);
+        resetErrorsDisplay(_id);
+        // Unbind form
+        unbindForm($form.target);
         // Bind
-        bindForm(formInstance.target, rules);
+        if ( typeof(rule) != 'undefined' ) {
+            bindForm($form.target, rules);
+        } else {
+            bindForm($form.target);
+        }
 
         if ( cb ) {
-            return cb(formInstance);
+            return cb($form);
         }
-        return formInstance;
+
+        return $form;
     }
 
     var unbindForm = function($target) {
@@ -16447,8 +16476,9 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
 
                                     if ( envIsDev && isGFFCtx && typeof(window.ginaToolbar) != 'undefined' && window.ginaToolbar ) {
                                         // update toolbar
-                                        if (!gina.forms.errors)
+                                        if (!gina.forms.errors) {
                                             gina.forms.errors = {};
+                                        }
 
                                         var objCallback = {
                                             id      : formId,
@@ -16502,8 +16532,6 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
 
                                             window.ginaToolbar.update('forms', objCallback);
                                         }
-
-
 
                                         handleErrorsDisplay($currentForm, gResult.error, gResult.data, field);
                                         updateSubmitTriggerState( $currentForm, isFormValid);
@@ -17100,8 +17128,6 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
                         }
                         --i;
                     }
-
-
                 } // EO for
             }
 
