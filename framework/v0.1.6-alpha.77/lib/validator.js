@@ -289,7 +289,7 @@ function Validator(data, errorLabels) {
                     if ( !(local.errors[this.name]) )
                         local.errors[this.name] = {};
 
-                    local.errors[this.name].toFloat = replace(this.error || local.errorLabels.toFloat, this)
+                    local.errors[this.name].toFloat = replace(this.error || local.errorLabels.toFloat, this)
                 }
             }
 
@@ -328,7 +328,7 @@ function Validator(data, errorLabels) {
                 if ( !(local.errors[this.name]) ) {
                     local.errors[this.name] = {};
                 }
-                local.errors[this.name].isFloat = replace(this.error || local.errorLabels.isFloat, this)
+                local.errors[this.name].isFloat = replace(this.error || local.errorLabels.isFloat, this)
             }
 
             return self[this.name]

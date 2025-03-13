@@ -425,7 +425,7 @@
             isErrorMessageHidden = true;
         }
 
-        // Fixed added on 2025-03-07
+        // Fixed on 2025-03-07
         if (
             /^true$/i.test(instance.$forms[formId].isValidating)
             && !isErrorMessageHidden
@@ -665,7 +665,7 @@
                 // refreshing already displayed error on msg update
                 var $divs = $parent.getElementsByTagName('div');
                 for (var d = 0, dLen = $divs.length; d<dLen; ++d) {
-                    // Fixed added on 2025-03-05: className can have more than one !!
+                    // Fixed on 2025-03-05: className can have more than one !!
                     let foundMessage = $divs[d].className.match("form-item-error-message");
                     if (
                         foundMessage
@@ -677,7 +677,7 @@
                         $err = document.createElement('div');
                         $err.setAttribute('class', 'form-item-error-message');
 
-                        // Fixed added on 2025-03-09: className cleanup
+                        // Fixed on 2025-03-09: className cleanup
                         if (
                             !isWarning
                             && /(\s+form\-item\-warning|form\-item\-warning)/.test($parent.className)
@@ -1055,7 +1055,8 @@
                 // In case the user is also redirecting
                 var redirectDelay = (/Google Inc/i.test(navigator.vendor)) ? 50 : 0;
 
-                if (xhr.readyState == 2) { // responseType interception
+                // responseType interception
+                if (xhr.readyState == 2) {
                     isAttachment    = ( /^attachment\;/.test( xhr.getResponseHeader("Content-Disposition") ) ) ? true : false;
                     // force blob response type
                     if ( !xhr.responseType && isAttachment ) {
@@ -1108,7 +1109,9 @@
                                     size : blob.size
                                 }
 
-                            } else { // normal case
+                            }
+                            // normal case
+                            else {
                                 result = xhr.responseText;
                             }
 
@@ -1117,9 +1120,12 @@
                             if ( /\/json/.test( contentType ) ) {
                                 result = JSON.parse(xhr.responseText);
 
-                                if ( typeof(result.status) == 'undefined' )
+                                if ( typeof(result.status) == 'undefined' ) {
                                     result.status = xhr.status;
-
+                                }
+                                // Fixed on 2025-03-13 Allowing toolbar to ubdate after xhr results
+                                // TODO - Allowing to revert to previously loaded data via a close button
+                                window.ginaToolbar.update('data-xhr', result);
                             }
 
                             if ( /\/html/.test( contentType ) ) {
@@ -3335,7 +3341,7 @@
                                     return;
                                 }
 
-                                // Fixed added on 2025-03-05:
+                                // Fixed on 2025-03-05:
                                 // Treat TAB as focus in/out
                                 if ( ['9'].indexOf(''+event.keyCode) > -1 ) {
                                     var $previeousEl = document.getElementById(instance.$forms[ $el.form.getAttribute('id') ].lastFocused[1].id);
@@ -5188,7 +5194,7 @@
                 ) {
                     return false;
                 }
-                // Fixed added on 2021/06/08 - because of radio reset
+                // Fixed on 2021/06/08 - because of radio reset
                 event.preventDefault();
 
                 var _evt = $el.id;
@@ -5259,7 +5265,7 @@
                 if (gina.events[_evt]) {
                     cancelEvent(event);
 
-                    // Fixed added on 2025-03-05 - "last focus" vs "current focus"
+                    // Fixed on 2025-03-05 - "last focus" vs "current focus"
                     // To get active element: document.activeElement
                     var formId      = event.target.form.getAttribute('id') || event.currentTarget.getAttribute('id');
                     var lastFocused = {
@@ -7133,6 +7139,8 @@
                         'data'      : formatData( _data )
                     });
                     removeListener(gina, event.target, 'validated.' + event.target.id);
+
+
                     return
                 }
             });

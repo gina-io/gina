@@ -7086,24 +7086,26 @@ function FormValidatorUtil(data, $fields, xhrOptions, fieldsSet) {
 
 
         self[el]['toFloat'] = function(decimals) {
-            if ( typeof(this.value) == 'string' ) {
-                this.value = this.value.replace(/\s+/g, '');
-                if ( /\,/.test(this.value) && !/\./.test(this.value) ) {
-                    this.value = this.value.replace(/\,/g,'.');
-                    //local.data[this.name] = this.value;
-                    // if (isGFFCtx) {
-                    //     //this.target.setAttribute('value', this.value);
-                    //     document.getElementById(this.target.id).value = this.value;
-                    //     //triggerEvent(gina, this.target, 'change', self[this['name']]);
-                    // }
-
-                } else {
-                    this.value = this.value.replace(/\,/g,'');
+            // Fixed on 2025-03-12
+            // In case we are dealing with a filtered value (swig::formatNumber())
+            var val                     = document.getElementById(this.target.getAttribute('id')).value || this.value
+                isFloatingWithCommas    = false
+            ;
+            if ( typeof(val) == 'string' ) {
+                val = val.replace(/\s+/g, '');
+                // Fixed on 2025-03-12
+                // thousand separator ?
+                if ( /\,/.test(val) && /\./.test(val) ) {
+                    val = val.replace(/\,/g,'');
+                }
+                else if ( /\,/.test(val) ) {
+                    val = val.replace(/\,/g,'.');
+                    isFloatingWithCommas = true;
                 }
             }
 
-            var val         = local.data[this.name] = this.value
-                , errors    = self[this['name']]['errors'] || {}
+            local.data[this.name] = val;
+            var errors    = self[this['name']]['errors'] || {}
                 , isValid   = true
             ;
 
@@ -7118,32 +7120,40 @@ function FormValidatorUtil(data, $fields, xhrOptions, fieldsSet) {
             } else {
                 if ( this['isNumber']().valid ) {
                     try {
-
                         if ( !Number.isFinite(val) ) {
-                            val = this.value = local.data[this.name] = new Number(parseFloat(val.match(/[0-9.,]+/g).join('').replace(/,/, '.')));// Number <> number
+                            // Number <> number
+                            val = new Number(parseFloat(val.match(/[0-9.,]+/g).join('').replace(/,/, '.')));
                         }
-                        if (isGFFCtx)
-                            this.target.setAttribute('value', val);
                     } catch(err) {
                         isValid = false;
-                        errors['toFloat'] = replace(this.error || local.errorLabels['toFloat'], this);
+                        errors['toFloat'] = replace(this.error || local.errorLabels['toFloat'], this);
                         this.valid = false;
                         if ( errors.count() > 0 )
                             this['errors'] = errors;
                     }
                 } else {
                     isValid = false;
-                    errors['toFloat'] = replace(this.error || local.errorLabels['toFloatNAN'], this)
+                    errors['toFloat'] = replace(this.error || local.errorLabels['toFloatNAN'], this)
                 }
             }
 
             if (this['decimals'] && val && !errors['toFloat']) {
-                this.value = local.data[this.name] = parseFloat(this.value.toFixed(this['decimals']));
+                val = parseFloat(val.toFixed(this['decimals']));
+            }
+
+            this.value = local.data[this.name] = val;
+            if (isGFFCtx) {
+                // restore original input format for display
+                if (isFloatingWithCommas) {
+                    val = (''+val).replace(/\./g,',');
+                }
+                this.target.setAttribute('value', val);
             }
 
             this.valid = isValid;
-            if ( errors.count() > 0 )
+            if ( errors.count() > 0 ) {
                 this['errors'] = errors;
+            }
 
             return self[this.name]
         }
@@ -10467,7 +10477,7 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
             isErrorMessageHidden = true;
         }
 
-        // Fixed added on 2025-03-07
+        // Fixed on 2025-03-07
         if (
             /^true$/i.test(instance.$forms[formId].isValidating)
             && !isErrorMessageHidden
@@ -10707,7 +10717,7 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
                 // refreshing already displayed error on msg update
                 var $divs = $parent.getElementsByTagName('div');
                 for (var d = 0, dLen = $divs.length; d<dLen; ++d) {
-                    // Fixed added on 2025-03-05: className can have more than one !!
+                    // Fixed on 2025-03-05: className can have more than one !!
                     let foundMessage = $divs[d].className.match("form-item-error-message");
                     if (
                         foundMessage
@@ -10719,7 +10729,7 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
                         $err = document.createElement('div');
                         $err.setAttribute('class', 'form-item-error-message');
 
-                        // Fixed added on 2025-03-09: className cleanup
+                        // Fixed on 2025-03-09: className cleanup
                         if (
                             !isWarning
                             && /(\s+form\-item\-warning|form\-item\-warning)/.test($parent.className)
@@ -11097,7 +11107,8 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
                 // In case the user is also redirecting
                 var redirectDelay = (/Google Inc/i.test(navigator.vendor)) ? 50 : 0;
 
-                if (xhr.readyState == 2) { // responseType interception
+                // responseType interception
+                if (xhr.readyState == 2) {
                     isAttachment    = ( /^attachment\;/.test( xhr.getResponseHeader("Content-Disposition") ) ) ? true : false;
                     // force blob response type
                     if ( !xhr.responseType && isAttachment ) {
@@ -11150,7 +11161,9 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
                                     size : blob.size
                                 }
 
-                            } else { // normal case
+                            }
+                            // normal case
+                            else {
                                 result = xhr.responseText;
                             }
 
@@ -11159,9 +11172,12 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
                             if ( /\/json/.test( contentType ) ) {
                                 result = JSON.parse(xhr.responseText);
 
-                                if ( typeof(result.status) == 'undefined' )
+                                if ( typeof(result.status) == 'undefined' ) {
                                     result.status = xhr.status;
-
+                                }
+                                // Fixed on 2025-03-13 Allowing toolbar to ubdate after xhr results
+                                // TODO - Allowing to revert to previously loaded data via a close button
+                                window.ginaToolbar.update('data-xhr', result);
                             }
 
                             if ( /\/html/.test( contentType ) ) {
@@ -13377,7 +13393,7 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
                                     return;
                                 }
 
-                                // Fixed added on 2025-03-05:
+                                // Fixed on 2025-03-05:
                                 // Treat TAB as focus in/out
                                 if ( ['9'].indexOf(''+event.keyCode) > -1 ) {
                                     var $previeousEl = document.getElementById(instance.$forms[ $el.form.getAttribute('id') ].lastFocused[1].id);
@@ -15230,7 +15246,7 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
                 ) {
                     return false;
                 }
-                // Fixed added on 2021/06/08 - because of radio reset
+                // Fixed on 2021/06/08 - because of radio reset
                 event.preventDefault();
 
                 var _evt = $el.id;
@@ -15301,7 +15317,7 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
                 if (gina.events[_evt]) {
                     cancelEvent(event);
 
-                    // Fixed added on 2025-03-05 - "last focus" vs "current focus"
+                    // Fixed on 2025-03-05 - "last focus" vs "current focus"
                     // To get active element: document.activeElement
                     var formId      = event.target.form.getAttribute('id') || event.currentTarget.getAttribute('id');
                     var lastFocused = {
@@ -17175,6 +17191,8 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
                         'data'      : formatData( _data )
                     });
                     removeListener(gina, event.target, 'validated.' + event.target.id);
+
+
                     return
                 }
             });
