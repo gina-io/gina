@@ -16443,18 +16443,18 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
                                         updateSubmitTriggerState( $currentForm, isFormValid);
                                     }
 
-                                    if ( envIsDev && isGFFCtx && typeof(window.ginaToolbar) != 'undefined' && window.ginaToolbar ) {
-                                        // update toolbar
-                                        if (!gina.forms.errors)
-                                            gina.forms.errors = {};
+                                    // if ( envIsDev && isGFFCtx && typeof(window.ginaToolbar) != 'undefined' && window.ginaToolbar ) {
+                                    //     // update toolbar
+                                    //     if (!gina.forms.errors)
+                                    //         gina.forms.errors = {};
 
-                                        var objCallback = {
-                                            id      : formId,
-                                            errors  :  instance.$forms[formId].errors || {}
-                                        };
+                                    //     var objCallback = {
+                                    //         id      : formId,
+                                    //         errors  :  instance.$forms[formId].errors || {}
+                                    //     };
 
-                                        window.ginaToolbar.update('forms', objCallback);
-                                    }
+                                    //     window.ginaToolbar.update('forms', objCallback);
+                                    // }
 
 
                                     triggerEvent(gina, $currentForm, 'validated.' + formId, cb);
