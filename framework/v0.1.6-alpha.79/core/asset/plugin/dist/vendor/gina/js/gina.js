@@ -11177,7 +11177,7 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
                                 }
                                 // Fixed on 2025-03-13 Allowing toolbar to ubdate after xhr results
                                 // TODO - Allowing to revert to previously loaded data via a close button
-                                window.ginaToolbar.update('data-xhr', result);
+                                // window.ginaToolbar.update('data-xhr', result);
                             }
 
                             if ( /\/html/.test( contentType ) ) {
@@ -16443,18 +16443,18 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
                                         updateSubmitTriggerState( $currentForm, isFormValid);
                                     }
 
-                                    // if ( envIsDev && isGFFCtx && typeof(window.ginaToolbar) != 'undefined' && window.ginaToolbar ) {
-                                    //     // update toolbar
-                                    //     if (!gina.forms.errors)
-                                    //         gina.forms.errors = {};
+                                    if ( envIsDev && isGFFCtx && typeof(window.ginaToolbar) != 'undefined' && window.ginaToolbar ) {
+                                        // update toolbar
+                                        if (!gina.forms.errors)
+                                            gina.forms.errors = {};
 
-                                    //     var objCallback = {
-                                    //         id      : formId,
-                                    //         errors  :  instance.$forms[formId].errors || {}
-                                    //     };
+                                        var objCallback = {
+                                            id      : formId,
+                                            errors  :  instance.$forms[formId].errors || {}
+                                        };
 
-                                    //     window.ginaToolbar.update('forms', objCallback);
-                                    // }
+                                        window.ginaToolbar.update('forms', objCallback);
+                                    }
 
 
                                     triggerEvent(gina, $currentForm, 'validated.' + formId, cb);
