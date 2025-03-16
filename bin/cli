@@ -266,6 +266,7 @@ async function onExec() {
         'env:',
         'scope:',
         'framework:',
+        'minion:',
         'port:',
         'project:',
         'protocol:',

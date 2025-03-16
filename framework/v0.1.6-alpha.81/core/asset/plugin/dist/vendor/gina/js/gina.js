@@ -10068,7 +10068,7 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
  * @param {object} [ data ] // from request
  * @param {string} [ formId ]
  * */
- function ValidatorPlugin(rules, data, formId) {
+function ValidatorPlugin(rules, data, formId) {
 
     this.plugin = 'validator';
 
@@ -10460,7 +10460,9 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
 
     var refreshWarning = function($el) {
         var formId = $el.form.getAttribute('id');
-
+        if ( /^true$/i.test(instance.$forms[formId].isValidating) ) {
+            return;
+        }
 
         var $parent                 = $el.parentNode
             , isErrorMessageHidden  = false
@@ -10475,7 +10477,7 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
             isErrorMessageHidden = true;
         }
 
-        // Fixed on 2025-03-07
+        // Fixed on 2025-03-16
         if (
             /^true$/i.test(instance.$forms[formId].isValidating)
             && !isErrorMessageHidden
@@ -10551,7 +10553,7 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
                         instance.$forms[formId].isValidating
                     ) {
                         isWarning = true;
-                        // Fixed on 2025-03-07
+                        // Fixed on 2025-03-16
                         var lastFocused = instance.$forms[formId].lastFocused;
                         // console.debug('fieldName: '+ fieldName + '\nactiveElement: '+ document.activeElement.getAttribute('name') +'\nlastFocused: ', lastFocused);
                         if (
@@ -10687,12 +10689,12 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
             ) {
                 // Fixed on 2025-03-10
                 // targeted field must be the active element
-                if (
-                    document.activeElement.getAttribute('name') != fieldName
-                    && errors.count() > 0
-                ) {
-                    break
-                }
+                // if (
+                //     document.activeElement.getAttribute('name') != fieldName
+                //     && errors.count() > 0
+                // ) {
+                //     break
+                // }
                 console.debug('[handleErrorsDisplay] Resetting when not in error');
                 // reset when not in error
                 // remove child elements
@@ -13238,8 +13240,6 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
                             return false;
                         }
 
-
-
                         if (
                             typeof(instance.$forms[event.target.form.getAttribute('id')].isSubmitting) != 'undefined'
                             && /true/i.test(instance.$forms[event.target.form.getAttribute('id')].isSubmitting)
@@ -13303,7 +13303,8 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
                                 validate($gForm, gFields, $gFields, gRules, function onSilentGlobalLiveValidation(gResult){
                                     instance.$forms[formId].isValidating = false;
                                     console.debug('['+ formId +'] onSilentGlobalLiveValidation: '+ gResult.isValid(), gResult, gFields);
-                                    var isFormValid = gResult.isValid();
+                                    var isFormValid = ( gResult.isValid() && instance.$forms[formId].errors && instance.$forms[formId].errors.count() == 0 )? true : false;
+                                    // var isFormValid = gResult.isValid();
                                     if ( envIsDev && isGFFCtx && typeof(window.ginaToolbar) != 'undefined' && window.ginaToolbar ) {
                                         // update toolbar
                                         if (!gina.forms.errors)
@@ -13320,15 +13321,16 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
 
                                     if ( !isFormValid && gResult.error ) {
                                         instance.$forms[ $el.form.getAttribute('id') ].errors = gResult.error;
-                                        // Fixed on 2025-03-09
-                                        // for (let eField in gResult.error) {
-                                        //     refreshWarning($gFields[eField]);
-                                        //     // handleErrorsDisplay($gForm, gResult.error, gResult.data, eField);
-                                        // }
+                                        // Fixed on 2025-03-16
+                                        for (let eField in gResult.error) {
+                                            refreshWarning($gFields[eField]);
+                                            handleErrorsDisplay($gForm, gResult.error, gResult.data, eField);
+                                        }
                                     }
-                                    // Fixed on 2025-03-10
+                                    // Fixed on 2025-03-16
                                     // Eg.: input select change impacting another element: solve `no more errors`
-                                    else if (isFormValid) {
+                                    else if ( instance.$forms[formId].errors && !instance.$forms[formId].errors.count() ) {
+                                        // recheck if valid
                                          //resetting error display
                                          instance.$forms[ formId ].errors = {};
                                          console.debug('resetting field: '+ $el.name);
@@ -13377,10 +13379,9 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
                         else if ( /^focusout\./i.test(event.type) ) {
                             if ( /\-warning/.test($el.parentNode.className) ) {
                                 console.debug('#1 you just focusout ....'+$el.id, $el.value);
-                                // event.target.form.getAttribute('id');
-                                // $el.form.id
-                                // $el.form.getAttribute('id')
+                                // Removed on 2025-03-16
                                 instance.$forms[ $el.form.getAttribute('id') ].isValidating = false;
+
                                 refreshWarning($el);
                                 // in case error context is changed by another task
                                 handleErrorsDisplay($el.form, instance.$forms[ $el.form.getAttribute('id') ].errors, null, $el.name);
@@ -13395,7 +13396,7 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
                                     return;
                                 }
 
-                                // Fixed on 2025-03-05:
+                                // Fixed on 2025-03-16:
                                 // Treat TAB as focus in/out
                                 if ( ['9'].indexOf(''+event.keyCode) > -1 ) {
                                     var $previeousEl = document.getElementById(instance.$forms[ $el.form.getAttribute('id') ].lastFocused[1].id);
@@ -14021,8 +14022,10 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
     /**
      * bindForm
      *
-     * @param {object} $target - DOM element
-     * @param {object} [customRule]
+     * @param {object} [$target] - DOM element
+     * @param {object|string} [customRule]
+     *
+     * @return {object} bindedForm
      * */
     var bindForm = function($target, customRule) {
 
@@ -14031,23 +14034,32 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
             , rules = ( typeof(local.rules.count() > 0 ) ) ? local.rules : instance.rules
         ;
 
-        try {
-            if ( $target.getAttribute && $target.getAttribute('id') ) {
-                _id = $target.getAttribute('id');
-                if ( typeof(instance.$forms[_id]) != 'undefined')
-                    $form = instance.$forms[_id];
-                else
-                    throw new Error('form instance `'+ _id +'` not found');
-
-            } else {
-                throw new Error('Validator::bindForm($target, customRule): `$target` must be a DOM element\n'+err.stack )
-            }
-        } catch(err) {
-            throw new Error('Validator::bindForm($target, customRule) could not bind form `'+ $target +'`\n'+err.stack )
+        if (
+            typeof($target) == 'undefined'
+            && typeof(this.target) != 'undefined'
+            && /FORM/i.test(this.target.tagName)
+            ||
+            !/object/i.test( typeof($target) )
+        ) {
+            _id = this.target.id || this.target.getAttribute('id');
+        } else if ( /string/i.test(typeof($target)) ) {
+            _id = $target
+        } else {
+            _id = $target.id || $target.getAttribute('id')
         }
 
-        if ( typeof($form) != 'undefined' && $form.binded) {
-            return false
+        try {
+            if ( typeof(instance.$forms[_id]) != 'undefined') {
+                $form = instance.$forms[_id];
+                if ( typeof($form.target) == 'undefined' ) {
+                    throw new Error('Validator::bindForm($target, customRule): `$target` must be a DOM element\n');
+                }
+                $target = $form.target;
+            } else {
+                throw new Error('form instance `'+ _id +'` not found');
+            }
+        } catch(err) {
+            throw new Error('Validator::bindForm($target, customRule) could not bind form `'+ $target +'`\n'+err.stack );
         }
 
         console.debug('binding for: '+ _id);
@@ -14745,7 +14757,7 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
                     validate($gForm, gFields, $gFields, gRules, function onSilentGlobalLiveValidation(gResult){
                         instance.$forms[formId].isValidating = false;
                         console.debug('[updateSelect]: onSilentGlobalLiveValidation: '+ gResult.isValid(), gResult);
-                        // Fixed on 2025-03-09
+                        // Fixed on 2025-03-16
                         var isFormValid = gResult.isValid();
                         if (!isFormValid) {
                             instance.$forms[formId].errors = gResult.error;
@@ -15950,7 +15962,8 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
                 }
                 updateSubmitTriggerState( $form, result.isValid() );
             });
-        } else if (!/^(true)$/i.test($form.target.dataset.ginaFormLiveCheckEnabled) ) {
+        }
+        else if (!/^(true)$/i.test($form.target.dataset.ginaFormLiveCheckEnabled) ) {
             updateSubmitTriggerState( $form , true );
         }
 
@@ -16429,68 +16442,45 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
 
                                     cb._data = d['toData']();
                                     cb._errors = d['getErrors'](field);
-                                    isFormValid = ( cb._errors.count() > 0 ) ? false : true;
-                                    console.debug('[A] query callback triggered ', cb._errors, 'isFormValid: '+isFormValid, '\nisValidating: '+ instance.$forms[formId].isValidating);
+                                    // console.debug('query callbakc triggered ', cb._errors, '\nisValidating: ', instance.$forms[formId].isValidating);
                                     // update instance form errors
-                                    if ( cb._errors /**&& cb._errors.count() > 0*/) {
+                                    if ( cb._errors && cb._errors.count() > 0) {
                                         if ( typeof(instance.$forms[formId].errors) == 'undefined' ) {
                                             instance.$forms[formId].errors = {}
                                         }
-
-                                        instance.$forms[formId].errors[field] = cb._errors[field];
-
-                                        // if (!isFormValid && /^true|false$/i.test(instance.$forms[formId].isValidating) || d[field].target.value != '' ) {
-                                        //     if ( typeof($allFields[field]._cancelled) == 'undefined' ) {
-                                        //         refreshWarning($allFields[field]);
-                                        //     }
-                                        //     handleErrorsDisplay($currentForm, cb._errors, cb._data, field);
-                                        //     updateSubmitTriggerState( $currentForm, isFormValid);
-                                        // }
-
-                                        // if ( envIsDev && isGFFCtx && typeof(window.ginaToolbar) != 'undefined' && window.ginaToolbar ) {
-                                        //     // update toolbar
-                                        //     if (!gina.forms.errors)
-                                        //         gina.forms.errors = {};
-
-                                        //     var objCallback = {
-                                        //         id      : formId,
-                                        //         errors  :  instance.$forms[formId].errors || {}
-                                        //     };
-
-                                        //     window.ginaToolbar.update('forms', objCallback);
-                                        // }
-
-
-                                        // triggerEvent(gina, $currentForm, 'validated.' + formId, cb);
-                                        // return;
-                                    }
-                                    // Fixed on 2025-03-06
-                                    if (!isFormValid && /^true|false$/i.test(instance.$forms[formId].isValidating) || d[field].target.value != '' ) {
+                                        // Fixed on 2025-03-16
+                                        if ( typeof(cb._errors[field]) != 'undefined' ) {
+                                            instance.$forms[formId].errors[field] = cb._errors[field];
+                                        }
                                         console.debug('[A] Refreshing warning/error on field '+ field);
-                                        // if ( typeof($allFields[field]._cancelled) == 'undefined' ) {
-                                            refreshWarning($allFields[field]);
-                                        // }
-                                        handleErrorsDisplay($currentForm, cb._errors, cb._data, field);
-                                        updateSubmitTriggerState( $currentForm, isFormValid);
-                                    }
+                                        if (
+                                            !isFormValid && /^true|false$/i.test(instance.$forms[formId].isValidating)
+                                            || d[field].target.value != ''
 
-                                    if ( envIsDev && isGFFCtx && typeof(window.ginaToolbar) != 'undefined' && window.ginaToolbar ) {
-                                        // update toolbar
-                                        if (!gina.forms.errors) {
-                                            gina.forms.errors = {};
+                                        ) {
+                                            refreshWarning($allFields[field]);
+                                            handleErrorsDisplay($currentForm, cb._errors, cb._data, field);
+                                            updateSubmitTriggerState( $currentForm, isFormValid);
                                         }
 
-                                        var objCallback = {
-                                            id      : formId,
-                                            errors  :  instance.$forms[formId].errors || {}
-                                        };
+                                        if ( envIsDev && isGFFCtx && typeof(window.ginaToolbar) != 'undefined' && window.ginaToolbar ) {
+                                            // update toolbar
+                                            if (!gina.forms.errors) {
+                                                gina.forms.errors = {};
+                                            }
 
-                                        window.ginaToolbar.update('forms', objCallback);
+                                            var objCallback = {
+                                                id      : formId,
+                                                errors  :  instance.$forms[formId].errors || {}
+                                            };
+
+                                            window.ginaToolbar.update('forms', objCallback);
+                                        }
+
+
+                                        triggerEvent(gina, $currentForm, 'validated.' + formId, cb);
+                                        return;
                                     }
-
-
-                                    triggerEvent(gina, $currentForm, 'validated.' + formId, cb);
-                                    return;
                                 }
 
                                 // is this the last or the only field to be validated ?
@@ -16502,7 +16492,6 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
                                     if (!isFormValid && /^true|false$/i.test(instance.$forms[formId].isValidating)) {
                                         console.debug('[1] Should update error display now ', cb._errors);
                                         instance.$forms[formId].errors = merge(cb._errors, instance.$forms[formId].errors);
-                                        console.debug('[2] Should update error display now ', instance.$forms[formId].errors);
                                         refreshWarning($allFields[field]);
                                         handleErrorsDisplay($currentForm, cb._errors, cb._data, field);
                                         updateSubmitTriggerState( $currentForm, isFormValid);

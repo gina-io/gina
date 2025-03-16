@@ -8,6 +8,7 @@ nbproject
 .history
 
 # Gina
+.*
 /services
 /logs
 /tmp
@@ -19,6 +20,7 @@ MIDDLEWARE
 package-lock.json
 * copy
 # SCM
+!/.gitignore
 .svn
 .git
 test/workspace
@@ -39,8 +41,8 @@ src.old
 
 
 framework/v*/package-lock.json
-
 framework/v*/package.json
+framework/v*/
 
 *.codekit3
 package-lock.json
