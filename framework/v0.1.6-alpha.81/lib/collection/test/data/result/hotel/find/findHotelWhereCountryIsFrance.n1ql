@@ -1,5 +1,0 @@
-SELECT h.*
-FROM `travel-sample` h
-WHERE h.type = 'hotel'
-AND h.country = 'France'
-LIMIT 2

@@ -1,4 +1,0 @@
-SELECT h.id, h.city
-FROM `travel-sample` h
-WHERE h.type = 'hotel'
-AND h.country NOT IN (['United Kingdom', 'United States'])
