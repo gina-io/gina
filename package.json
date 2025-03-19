@@ -1,6 +1,6 @@
 {
   "name": "gina",
-  "version": "0.1.6-alpha.83",
+  "version": "0.1.6-alpha.84",
   "description": "MVC Framework for Node.",
   "keywords": [
     "framework",
@@ -39,7 +39,7 @@
       "url": "https://fdelaneau.com"
     }
   ],
-  "copyright": "Copyright (c) 2009-2023 Rhinostone <contact@gina.io>",
+  "copyright": "Copyright (c) 2009-2025 Rhinostone <contact@gina.io>",
   "engine": {
     "node": ">= 0.10.0 <18"
   },
@@ -51,7 +51,7 @@
   "bin": {
     "gina": "./bin/gina"
   },
-  "main": "./framework/v0.1.6-alpha.83/core/gna",
+  "main": "./framework/v0.1.6-alpha.84/core/gna",
   "scripts": {
     "prepare": "node script/prepare_version.js",
     "postpublish": "node script/post_publish.js",

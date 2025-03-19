@@ -595,7 +595,7 @@ More documentation and tutorials are coming soon !
 
 ## License (MIT)
 
-Copyright © 2009-2023 [Rhinostone](http://www.rhinostone.com/)
+Copyright © 2009-2025 [Rhinostone](http://www.rhinostone.com/)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
