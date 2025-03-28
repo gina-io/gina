@@ -109,7 +109,12 @@ function PrepareVersion() {
 
         // to handle sync vs async to allow execution in order of declaration
         if (funct) {
-            eval('async function on'+functName+'(){ await promisify('+ funct + ')().catch(function(e){ console.error(e.toString()); process.exit(1);}).then(function(){ begin('+(i+1)+')});}; on'+functName+'();'); // jshint ignore:line
+            try {
+                eval('async function on'+functName+'(){ await promisify('+ funct + ')().catch(function(e){ console.error(e.toString()); process.exit(1);}).then(function(){ begin('+(i+1)+')});}; on'+functName+'();'); // jshint ignore:line
+            } catch (err) {
+                console.error(err.stack||err.message||err);
+            }
+
         } else {
             process.exit(0);
         }
@@ -118,6 +123,7 @@ function PrepareVersion() {
 
     self.getSelectedVersion = async function(done) {
         var homeDir = getUserHome() || null;
+        var frameworkPath = null;
 
         if (!homeDir) {
             return done(new Error('No $HOME path found !'))
@@ -133,8 +139,22 @@ function PrepareVersion() {
         var mainConfig = require(mainConfigPath);
         var package = require(pack);
         var selectedVersion = mainConfig.def_framework.replace(/^v/, '');
-        self.selectedVersion = selectedVersion;
         var targetedVersion = package.version.replace(/^v/, '');
+        // Just in case...
+        if (selectedVersion == targetedVersion) {
+            mainConfig.def_framework = package.main.match(/v[-.a-z0-9]+/)[0].replace(/^v/, '');
+            selectedVersion = mainConfig.def_framework;
+            frameworkPath   = './../framework/v'+selectedVersion;
+            helpers         = require(frameworkPath +'/helpers');
+            lib             = require(frameworkPath +'/lib');
+            new _(mainConfigPath, true).rmSync();
+            lib.generator.createFileFromDataSync(JSON.stringify(mainConfig, null, 2), mainConfigPath);
+            delete require.cache[require.resolve(mainConfigPath)];
+            mainConfig = require(mainConfigPath);
+
+        }
+
+        self.selectedVersion = selectedVersion;
         self.targetedVersion = targetedVersion;
 
         console.debug('Selected version : ', selectedVersion);
@@ -151,7 +171,7 @@ function PrepareVersion() {
         var ginaPath            = settingsConfig.dir;
         self.ginaPath = ginaPath;
 
-        var frameworkPath       = ginaPath +'/framework/v'+selectedVersion;
+        frameworkPath       = ginaPath +'/framework/v'+selectedVersion;
         self.frameworkPath      = frameworkPath;
         helpers     = require(frameworkPath +'/helpers');
         lib         = require(frameworkPath +'/lib');

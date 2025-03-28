@@ -1,4 +1,5 @@
-# IDE
+.DS_Store
+browser/**
 .jshintrc
 .idea
 .lh
