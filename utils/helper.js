@@ -100,9 +100,9 @@ function MainHelper(opt) {
 
                 evar[0] = evar[0].toUpperCase();
                 if (
-                    evar[0].substr(0, 5) !== 'GINA_' &&
-                    evar[0].substr(0, 7) !== 'VENDOR_' &&
-                    evar[0].substr(0, 5) !== 'USER_'
+                    evar[0].substring(0, 5) !== 'GINA_' &&
+                    evar[0].substring(0, 7) !== 'VENDOR_' &&
+                    evar[0].substring(0, 5) !== 'USER_'
                     ) {
                     evar[0] = 'GINA_' + evar[0]
                 }
@@ -135,9 +135,9 @@ function MainHelper(opt) {
         //Cleaning the rest.
         for (let e in process.env) {
             if (
-                e.substr(0, 5) === 'GINA_' || // 6?
-                e.substr(0, 7) === 'VENDOR_' ||
-                e.substr(0, 5) === 'USER_'
+                e.substring(0, 5) === 'GINA_' || // 6?
+                e.substring(0, 7) === 'VENDOR_' ||
+                e.substring(0, 5) === 'USER_'
                 ) {
                 process['gina'][e] = process.env[e];
                 delete process.env[e]
@@ -474,9 +474,9 @@ function MainHelper(opt) {
         ;
 
         if (
-            key.substr(0, 5) !== 'GINA_' &&
-            key.substr(0, 7) !== 'VENDOR_' &&
-            key.substr(0, 5) !== 'USER_'
+            key.substring(0, 5) !== 'GINA_' &&
+            key.substring(0, 7) !== 'VENDOR_' &&
+            key.substring(0, 5) !== 'USER_'
             ) {
             key = 'USER_' + key
         }

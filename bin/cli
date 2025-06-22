@@ -321,8 +321,8 @@ async function onExec() {
         typeof(process.argv[2]) != 'undefined'
         && allowedOffline.indexOf( (process.argv[2].split(':')[0] + ':')) > -1
         &&  process.argv[2] !== 'bundle:start'
-        || process.argv[2].substr(0, 2) === '--'
-        || process.argv[2].substr(0, 1) === '-'
+        || process.argv[2].substring(0, 2) === '--'
+        || process.argv[2].substring(0, 1) === '-'
     ) {
 
         require(binPath + '/cmd')({
