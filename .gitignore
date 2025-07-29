@@ -38,11 +38,15 @@ desktop.ini
 *.old
 *.old.js
 src.old
+*.log
 
 
 framework/v*/package-lock.json
 framework/v*/package.json
-framework/v*/
+# framework/v*/
+framework/v*/test/workspace
+
+
 
 *.codekit3
 package-lock.json

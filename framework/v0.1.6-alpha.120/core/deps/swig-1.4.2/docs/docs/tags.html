@@ -1,0 +1,72 @@
+{% extends "./layout.html" %}
+{% import "./includes/macros.html" as docmacro %}
+
+{% block title %}{% parent %} &raquo; Tags{% endblock %}
+
+{% block content %}
+<h1 id="tags">Tags</h1>
+
+{% for fn in tags %}
+  {% if fn.access !== "private" and fn.kind === 'function' and fn.undocumented !== true %}
+  <section id="{{ fn.name }}" class="doc">
+    <h2>{{ fn.name }}</h2>
+
+    {{ docmacro.source(fn) }}
+
+    {{ docmacro.description(fn) }}
+
+    {% if fn.params.length %}
+    <h3>Parameters</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Optional</th>
+          <th>Default</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for param in fn.params %}
+        <tr>
+          <td><var data-language="js">{{ param.name }}</var></td>
+          <td><code data-language="js">{{ param.type.names|join(" or ") }}</code></td>
+          <td>{% if param.optional === true %}✔{% endif %}</td>
+          <td><code data-language="js">{{ param.defaultvalue }}</code></td>
+          <td>{{ param.description|raw }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+
+    {% if fn.returns %}
+    <h3>Returns</h3>
+    {% for ret in fn.returns %}
+    <p><samp data-language="js">{{ ret.type.names|join(', ') }}</samp>: {{ ret.description|raw }}</p>
+    {% endfor %}
+    {% endif %}
+
+    {% if fn.examples.length %}
+    <h3>Examples</h3>
+    {% for example in fn.examples %}
+    <pre><code data-language="swig">{{ example }}</code></pre>
+    {% endfor %}
+    {% endif %}
+  </section>
+  {% endif %}
+{% endfor %}
+{% endblock %}
+
+{% block tagsubnav %}
+<ol>
+  {% for fn in tags %}
+  {% if fn.access !== "private" and fn.kind === 'function' and fn.undocumented !== true %}
+    <li>
+      <a href="#{{ fn.name }}">{{ fn.name }}</a>
+    </li>
+  {% endif %}
+  {% endfor %}
+</ol>
+{% endblock %}

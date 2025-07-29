@@ -1,0 +1,31 @@
+        ('-. .-.   ('-.             _ (`-.
+       ( OO )  / _(  OO)           ( (OO  )
+       ,--. ,--.(,------.,--.     _.`     \
+       |  | |  | |  .---'|  |.-')(__...--''
+       |   .|  | |  |    |  | OO )|  /  | |
+       |       |(|  '--. |  |`-' ||  |_.' |
+       |  .-.  | |  .--'(|  '---.'|  .___.'
+       |  | |  | |  `---.|      | |  |
+       `--' `--' `------'`------' `--'
+
+usage:
+
+$ gina --help | -h
+$ gina —-version | -v
+$ gina --status | -t
+
+$ gina framework:man | man
+$ gina project:man
+$ gina bundle:man
+$ gina service:man
+
+
+*
+* Settings - Modifies ~/home/.gina/settings.json
+*
+
+$ gina set --key=value ( eg: gina set --defaultEnv=dev )
+$ gina get --key | key ( eg: gina get defaultEnv)
+$ gina get --all | all ( eg: gina get all)
+
+$ gina <service|bundle>:<action> <arguments>

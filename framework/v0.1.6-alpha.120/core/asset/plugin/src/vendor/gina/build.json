@@ -1,0 +1,44 @@
+{
+  "baseUrl": "./../../../src",
+  "paths": {
+    "requireLib"            : "../../../../node_modules/requirejs/require",
+    "jquery"                : "../src/vendor/jquery/1.12.4.min",
+
+    "vendor/uuid"           : "../../../../node_modules/uuid/dist/umd/uuid.min",
+    "vendor/engine.io"      : "../../../../node_modules/engine.io-client/dist/engine.io.min",
+
+    "core"                  : "vendor/gina/core",
+
+    "helpers/binding"      : "vendor/gina/helpers/binding",
+    "helpers/prototypes"      : "../../../../helpers/prototypes",
+    "helpers/dateFormat"    : "../../../../helpers/dateFormat",
+
+    "utils/events"          : "vendor/gina/utils/events",
+    "utils/effects"         : "vendor/gina/utils/effects",
+    "utils/dom"             : "vendor/gina/utils/dom",
+    "utils/data"            : "../../../../helpers/data/src/main",
+    "utils/polyfill"        : "vendor/gina/utils/polyfill",
+
+    "lib/collection"      : "../../../../lib/collection/src/main",
+    "lib/domain"          : "../../../../lib/domain/src/main",
+    "lib/merge"           : "../../../../lib/merge/src/main",
+    "lib/inherits"        : "../../../../lib/inherits/src/main",
+    "lib/routing"         : "../../../../lib/routing/src/main",
+    "lib/form-validator"  : "../../../../core/plugins/lib/validator/src/form-validator",
+
+    "gina"                  : "vendor/gina/main",
+    "gina/toolbar"          : "vendor/gina/toolbar/main",
+    "gina/popin"            : "vendor/gina/popin/main",
+    "gina/link"             : "vendor/gina/link/main",
+    "gina/storage"          : "../../../plugins/lib/storage/src/main",
+    "gina/validator"        : "../../../plugins/lib/validator/src/main"
+  },
+  "include": [
+    "requireLib"
+  ],
+  "name": "core",
+  "out": "./../../../dist/vendor/gina/js/gina.js",
+  "generateSourceMaps": false,
+  "preserveLicenseComments": false,
+  "optimize": "none"
+}

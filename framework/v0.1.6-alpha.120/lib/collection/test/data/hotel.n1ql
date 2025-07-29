@@ -1,0 +1,3 @@
+SELECT h.*
+FROM `travel-sample` h
+WHERE h.type = 'hotel';

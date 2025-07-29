@@ -1,0 +1,205 @@
+{
+    "default": [
+        {
+            "route": "default",
+            "args": null,
+            "result": "/"
+        },
+        {
+            "route": "default",
+            "args": {
+                "pone": "one"
+            },
+            "result": "/?pone=one"
+        }
+    ],
+
+    "test1": [
+        {
+            "route": "test1",
+            "args": null,
+            "result": "/one"
+        },
+        {
+            "route": "test1",
+            "args": {
+                "pone": "one"
+            },
+            "result": "/one?pone=one"
+        }
+    ],
+
+    "test2": [
+        {
+            "route": "test2",
+            "args": {
+                "pone": "one"
+            },
+            "result": "/one/two"
+        },
+        {
+            "route": "test2",
+            "args": {
+                "pone": "one",
+                "ptwo": "two"
+            },
+            "result": "/one/two?ptwo=two"
+        }
+    ],
+
+    "test3": [
+        {
+            "route": "test3",
+            "args": {
+                "pone": "one"
+            },
+            "result": "/three?pone=one"
+        },
+        {
+            "route": "test3",
+            "args": {
+                "pone": "one",
+                "ptwo": "two"
+            },
+            "result": "/three?pone=one&ptwo=two"
+        }
+    ],
+
+    "test4": [
+        {
+            "route": "test4",
+            "args": {
+                "pone": "one",
+                "ptwo": "two"
+            },
+            "result": "/one/four/two"
+        },
+        {
+            "route": "test4",
+            "args": {
+                "pone": "one",
+                "ptwo": "two",
+                "pthree": "three"
+            },
+            "result": "/one/four/two?pthree=three"
+        }
+    ],
+
+    "test5": [
+        {
+            "route": "test5",
+            "args": {
+                "pone": "one",
+                "ptwo": "two"
+            },
+            "result": "/one/five/two"
+        },
+        {
+            "route": "test5",
+            "args": {
+                "pone": "one",
+                "ptwo": "two",
+                "pthree": "three"
+            },
+            "result": "/one/five/two?pthree=three"
+        }
+    ],
+
+    "test6": [
+        {
+            "route": "test6",
+            "args": {
+                "pone": "one",
+                "ptwo": 2
+            },
+            "result": "/six/one/2"
+        },
+        {
+            "route": "test6",
+            "args": {
+                "pone": "one",
+                "ptwo": 2,
+                "pthree": 3
+            },
+            "result": "/six/one/2?pthree=3"
+        }
+    ],
+
+    "test7": [
+        {
+            "route": "test7",
+            "args": {
+                "pone": "one",
+                "ptwo": "two"
+            },
+            "result": "/one/seven/two"
+        },
+        {
+            "route": "test7",
+            "args": {
+                "pone": "one",
+                "ptwo": "two",
+                "pthree": "three"
+            },
+            "result": "/one/seven/two?pthree=three"
+        }
+    ],
+    "test8": [
+        {
+            "route": "test8",
+            "args": null,
+            "result": "/eight/"
+        },
+        {
+            "route": "test8",
+            "args": {
+                "pone": "one"
+            },
+            "result": "/eight/one"
+        },
+        {
+            "route": "test8",
+            "args": {
+                "pone": "one",
+                "ptwo": "two"
+            },
+            "result": "/eight/one?ptwo=two"
+        }
+    ],
+
+    "error": [
+        {
+            "route": "test999",
+            "args": {
+                "pone": "one",
+                "ptwo": "two"
+            },
+            "result": "undefined",
+            "message": "no route"
+        },
+        {
+            "route": "test999",
+            "args": null,
+            "result": "undefined",
+            "message": "no route"
+        },
+        {
+            "route": "test5",
+            "args": {
+                "pone": "one",
+                "pthree": "three"
+            },
+            "result": "/one/five/:ptwo?pthree=three",
+            "message": "missing params"
+        },
+        {
+            "route": "test6",
+            "args": {
+                "pone": 1,
+                "ptwo": "two"
+            },
+            "result": "/six/:pone/:ptwo",
+            "message": "not match requirement"
+        }
+    ]
+}

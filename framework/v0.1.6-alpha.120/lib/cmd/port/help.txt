@@ -1,0 +1,31 @@
+******************************
+* Port command lines e.g. *
+******************************
+
+
+[ Set a port number ]
+
+    Set or update a port number
+    ----------
+
+    To set a port for an existing bundle, use the following command line.
+    
+    Set default a port number for all your bundle's environments :
+    - If no <port_number> is entered, you will be prompted to enter a port number
+    - If no <protocol> is mentioned, you will be prompted to enter an existing protocol
+    - If no <environment> is mentioned, you will be prompted to enter an existing environment
+
+    $ gina port:set <bundle_name> @<project_name>
+
+    or
+
+    $ gina port:set <protocol>:<port_number> <bundle_name> @<project_name>/<environment>
+    
+        
+[ Listing port numbers ]
+
+    $ gina port:list <bundle_name> @<project_name>
+
+    or
+
+    $ gina port:list <bundle_name> @<project_name>/<environment>

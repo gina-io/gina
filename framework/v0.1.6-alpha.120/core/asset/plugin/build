@@ -1,0 +1,280 @@
+#!/bin/bash
+
+# ./build
+# or
+# ./build --env=dev
+#
+# NB.: chmod +x build
+SCRIPT_PATH="$( cd "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P )"
+
+echo -e "Stating build."
+sass_bin=$(which sass)
+csso_bin=$(which sass)
+rjs_env=
+rjs_bin=$(which r.js)
+java_bin=$(which java)
+# filter passed arguments
+for i in $*; do
+    value=${i#*=}
+	if [ ${value} == ${i%%=*}  ];then
+		value="true"
+	fi
+	# echo ${i%%=*} ${value}
+	case ${i%%=*} in
+        --sass-bin)
+            sass_bin=${value};
+		;;
+
+        --csso-bin)
+            csso_bin=${value};
+		;;
+
+        --env)
+            rjs_env=${value};
+		;;
+
+        --rjs-bin)
+            rjs_bin=${value};
+		;;
+
+        --java-bin)
+            java_bin=${value};
+		;;
+	esac
+
+done
+
+dependency_err=false
+echo -e "\n[ Dependencies check ]"
+
+# Checking SASS
+if [ ! "${sass_bin}" ]; then
+    echo -e "Dependency ``Sass`` not installed: \n- sudo gem install sass\n- sudo npm install -g sass-lint\nNB.: If installed somewhere, you can also link your path with --sass-bin=/your/path";
+    dependency_err=true
+fi
+
+# Checking CSSO
+if [ ! "${csso_bin}" ]; then
+    echo -e "Dependency ``Csso`` not installed: npm install -g csso@2.2.1\nNB.: If installed somewhere, you can also link your path with --csso-bin=/your/path";
+    dependency_err=true
+fi
+
+# Checking RequireJS
+if [ ! "${rjs_bin}" ]; then
+    echo -e "Dependency ``RequireJS`` not installed: sudo npm install -g requirejs\nNB.: If installed somewhere, you can also link your path with --rjs-bin=/your/path";
+    dependency_err=true
+fi
+
+# Checking JAVA
+if [ ! "${java_bin}" ]; then
+    echo -e "Dependency ``JAVA`` not installed: https://www.java.com/en/download/help/windows_manual_download.html\nNB.: If installed somewhere, you can also link your path with --java-bin=/your/path";
+    dependency_err=true
+fi
+
+if [ "${dependency_err}" == "true" ]; then
+    echo -e "Please resolve dependencies error first."
+    exit 1
+else
+    echo -e "\nDone checking dependencies."
+fi
+
+# Building styles
+echo -e "\n[ Packaging styles & templates ]"
+
+source=$SCRIPT_PATH/src/vendor
+target=$SCRIPT_PATH/dist/vendor
+# Vendors list
+vendors=()
+i=0
+css_files=()
+css=0
+list=$( ls -lah $source  | grep -Eo '[^ ]+$')
+IFS=$'\n';
+for v in ${list[@]};
+do
+    start_with_dot=$( echo $v | grep '^\.' )
+    if [ $start_with_dot ] || [ ! -d "${source}/${v}" ]; then
+        continue
+    fi
+
+    # Only keep existing
+    vendors_source=$source/$v
+    vendors=$( ls -lah $vendors_source  | grep -Eo '[^ ]+$')
+    # Creating css dist folder
+    css_dist_dir=$target/$v/css
+    if [ ! -d "${css_dist_dir}" ]; then
+        mkdir -pv $css_dist_dir >/dev/null 2>&1
+    fi
+
+    IFS=$'\n';
+    for f in ${vendors[@]};
+    do
+        start_with_dot=$( echo $f | grep '^\.' )
+        sass_source=$vendors_source/$f/sass
+        if [ $start_with_dot ] || [ ! -d "${sass_source}" ]; then
+            continue
+        fi
+
+        echo -e "Found plugin [${f}]: ${css_dist_dir}"
+        vendors[$i]=$f
+        i=$((i+1))
+
+        # Creating html dist folder
+        html_src_dir=$source/$v/$f/html
+        if [ -d "${html_src_dir}" ]; then
+            html_dist_dir=$target/$v/html
+            if [ ! -d "${html_dist_dir}" ]; then
+                mkdir -pv $html_dist_dir >/dev/null 2>&1
+            fi
+            cp -r $html_src_dir/ $html_dist_dir/
+        fi
+
+        # Compile sass -> css
+        sass_source=$vendors_source/$f/sass
+        sass_target=$vendors_source/$f/css
+        if [ -d "${sass_target}" ]; then
+            rm -Rf $sass_target >/dev/null 2>&1
+            mkdir -pv $sass_target >/dev/null 2>&1
+        else
+            mkdir -pv $sass_target >/dev/null 2>&1
+        fi
+
+        sass_list=$( ls -lah $sass_source  | grep -Eo '[^ ]+$')
+        IFS=$'\n';
+        for sass_file in ${sass_list[@]};
+        do
+
+            start_with_dot=$( echo $sass_file | grep '^\.' )
+            is_sass_file=$( echo $sass_file | grep -Eo '\.(sass|scss)$' )
+            if [ $start_with_dot ] || [ ! -d "${sass_source}" ] || [ ! "${is_sass_file}" ]; then
+                continue
+            fi
+
+
+
+            # replace file extension
+            css_prefix=$( echo $sass_file | sed -e s/\.[^.]*$// )
+            css_file=$css_prefix.css
+            # echo -e "sass file: ${sass_file} -> ${css_file}"
+            cmd="${sass_bin} --update ${sass_source}/${sass_file}:${sass_target}/${css_file}"
+            # Skip sourceMap for dev
+            if [ "${rjs_env}" == "dev" ]; then
+                cmd="${sass_bin} --update --no-source-map ${sass_source}/${sass_file}:${sass_target}/${css_file}"
+            fi
+
+            # echo -e "Running: ${cmd}";
+            eval $cmd
+
+            if [ "${css_prefix}" == "${f}" ]; then
+                css_files[css]="${sass_target}/${css_file}"
+                css=$((css+1))
+            fi
+
+        done
+    done
+    css_files_len=${#css_files[@]}
+    # -gt meaning >
+    # cat ./src/gina/toolbar/css/toolbar.css ./src/gina/popin/css/popin.css | csso > ./dist/gina.min.css | csso ./dist/gina.min.css --map ./dist/gina.min.css.map
+    if [ $css_files_len -gt 0 ]; then
+        sleep 1
+        # Minifying and packaging to gina.min.css
+        cmd="cat"
+
+        echo -e "=> $css_files_len"
+        for (( i=0; i<=$css_files_len-1; i++ ))
+        do
+            css_file=${css_files[${i}]}
+            echo -e "${css_file}"
+            cmd+=" ${css_file}"
+        done
+        echo -e "done -> ${css_dist_dir}"
+        if [ "${rjs_env}" == "dev" ]; then
+            cmd+=" > ${css_dist_dir}/$v.min.css"
+            if [ -f "${css_dist_dir}/$v.min.css.map" ]; then
+                rm ${css_dist_dir}/$v.min.css.map
+            fi
+        else
+            cmd+=" | csso > ${css_dist_dir}/$v.min.css | csso ${css_dist_dir}/$v.min.css --map ${css_dist_dir}/$v.min.css.map"
+        fi
+        # echo "${cmd}"
+        eval $cmd
+    fi
+    # Reset
+    css_files=()
+
+done
+
+
+# Building RequireJS lib
+filename="build.json"
+if [ "${rjs_env}" == "dev" ]; then
+    filename="build.${rjs_env}.json"
+fi
+echo -e "Running: ${cmd}"
+eval $cmd
+
+# Packaging gina
+echo -e "\n[ Packaging gina ]\n"
+filename="build.json"
+if [ "${rjs_env}" == "dev" ]; then
+    filename="build.${rjs_env}.json"
+fi
+cmd="$rjs_bin -o $SCRIPT_PATH/src/vendor/gina/$filename"
+echo -e "Running: ${cmd}"
+eval $cmd
+
+# Skip for dev
+if [ ! "${rjs_env}" == "dev" ]; then
+    # Compiling & minifying frontent pluging
+    echo -e "\n[ Compiling & minifying frontent pluging ]"
+    echo -e "\nPlease, wait ..."
+    cmd="$java_bin -jar $SCRIPT_PATH/lib/js/compiler.jar --formatting=SINGLE_QUOTES --compilation_level SIMPLE_OPTIMIZATIONS --jscomp_warning=es5Strict --js $SCRIPT_PATH/dist/vendor/gina/js/gina.js --create_source_map $SCRIPT_PATH/dist/vendor/gina/js/gina.min.js.map --js_output_file $SCRIPT_PATH/dist/vendor/gina/js/gina.min.js"
+    echo -e "Running: ${cmd}"
+    eval $cmd
+fi
+
+# Compiling & minifying pluging loader
+
+# Compiling & minifying pluging Loader
+echo -e "\n[ Compiling & minifying pluging loader ]"
+echo -e "\nPlease, wait ..."
+if [ ! "${rjs_env}" == "dev" ]; then
+    cmd="$java_bin -jar $SCRIPT_PATH/lib/js/compiler.jar --formatting=SINGLE_QUOTES --compilation_level ADVANCED_OPTIMIZATIONS --jscomp_warning=es5Strict --js $SCRIPT_PATH/src/vendor/gina/utils/loader.js --create_source_map $SCRIPT_PATH/dist/vendor/gina/js/gina.onload.min.js.map --js_output_file $SCRIPT_PATH/dist/vendor/gina/js/gina.onload.min.js"
+else
+    cmd="cp $SCRIPT_PATH/src/vendor/gina/utils/loader.js $SCRIPT_PATH/dist/vendor/gina/js/gina.onload.min.js"
+fi
+echo -e "Running: ${cmd}"
+eval $cmd
+
+# Compiling & minifying swig
+echo -e "\n[ Compiling & minifying swig ]"
+echo -e "\nPlease, wait ..."
+if [ ! -d "$SCRIPT_PATH/../../deps/swig-1.4.2/dist" ]; then
+    mkdir -p $SCRIPT_PATH/../../deps/swig-1.4.2/dist
+fi
+if [ -f "$SCRIPT_PATH/../../deps/swig-1.4.2/dist/swig.min.js.map" ]; then
+    rm $SCRIPT_PATH/../../deps/swig-1.4.2/dist/swig.min.js.map
+fi
+if [ -f "$SCRIPT_PATH/../../deps/swig-1.4.2/dist/swig.min.js" ]; then
+    rm $SCRIPT_PATH/../../deps/swig-1.4.2/dist/swig.min.js
+fi
+if [ -f "$SCRIPT_PATH/../../deps/swig-1.4.2/dist/swig.js" ]; then
+    rm $SCRIPT_PATH/../../deps/swig-1.4.2/dist/swig.js
+fi
+if [ -f "$SCRIPT_PATH/../../deps/swig-1.4.2/docs/js/swig.js" ] || [ -L "$SCRIPT_PATH/../../deps/swig-1.4.2/docs/js/swig.js" ] ; then
+    rm $SCRIPT_PATH/../../deps/swig-1.4.2/docs/js/swig.js
+fi
+if [ -f "$SCRIPT_PATH/../../deps/swig-1.4.2/docs/js/swig.min.js" ] || [ -L "$SCRIPT_PATH/../../deps/swig-1.4.2/docs/js/swig.min.js" ]; then
+    rm $SCRIPT_PATH/../../deps/swig-1.4.2/docs/js/swig.min.js
+fi
+# java -jar ./../../asset/plugin/lib/js/compiler.jar --formatting=SINGLE_QUOTES --compilation_level SIMPLE_OPTIMIZATIONS --jscomp_warning=es5Strict --js ./bin/swig.js --create_source_map ./dist/swig.min.js.map --js_output_file ./dist/swig.min.js
+cmd="$java_bin -jar $SCRIPT_PATH/lib/js/compiler.jar --formatting=SINGLE_QUOTES --compilation_level SIMPLE_OPTIMIZATIONS --jscomp_warning=es5Strict --js $SCRIPT_PATH/../../deps/swig-1.4.2/bin/swig.js --create_source_map $SCRIPT_PATH/../../deps/swig-1.4.2/dist/swig.min.js.map --js_output_file $SCRIPT_PATH/../../deps/swig-1.4.2/dist/swig.min.js"
+
+echo -e "Running: ${cmd}"
+eval $cmd
+ln -s $SCRIPT_PATH/../../deps/swig-1.4.2/bin/swig.js $SCRIPT_PATH/../../deps/swig-1.4.2/docs/js/swig.js
+ln -s $SCRIPT_PATH/../../deps/swig-1.4.2/dist/swig.min.js $SCRIPT_PATH/../../deps/swig-1.4.2/docs/js/swig.min.js
+
+
+
+echo -e "\r\nCompleted build.\nAttention, you might need to refresh your page twice to clear the cache."
