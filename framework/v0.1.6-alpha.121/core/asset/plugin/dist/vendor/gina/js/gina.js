@@ -13639,9 +13639,8 @@ function ValidatorPlugin(rules, data, formId) {
                             break;
                         // Shortcuts
                         case 17: // CTRL
-                        case 20: // CapsLock
                         case 91: // CMD
-                            console.debug("CMD, CTRL or CapsLock hit");
+                            console.debug("CMD, CTRL hit");
                             e.preventDefault();
                             break;
                         case 67: // to handle CMD+C (copy)
@@ -13688,6 +13687,9 @@ function ValidatorPlugin(rules, data, formId) {
                             }
                         default:
                             // Replace selection
+                            if (e.key.length > 1) {
+                                break;
+                            }
                             if (posStart != posEnd) {
                                 $_el.value = str.substring(0, posStart) + e.key;
                                 if (posEnd-1 < str.length) {
