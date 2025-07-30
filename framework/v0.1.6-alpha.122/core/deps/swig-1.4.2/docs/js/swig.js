@@ -1,0 +1,1 @@
+/usr/local/lib/node_modules/gina/framework/v0.1.6-alpha.122/core/asset/plugin/../../deps/swig-1.4.2/bin/swig.js

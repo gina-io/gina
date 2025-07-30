@@ -1131,8 +1131,10 @@ function Server(options) {
         if ( typeof(request.headers.origin) != 'undefined' ) {
             authority = request.headers.origin;
         } else if (request.headers.referer) {
-            referer = request.headers.referer.match(/^[https://|http://][a-z0-9-_.:/]+\//)[0];
-            referer = referer.substring(0, referer.length-1);
+            referer = request.headers.referer.match(/^[https://|http://][a-z0-9-_.:/]+\//);
+            if (Array.isArray(referer) && referer.length > 0) {
+                referer = referer[0].substring(0, referer.length-1);
+            }
         }
 
         // access-control-allow-origin settings

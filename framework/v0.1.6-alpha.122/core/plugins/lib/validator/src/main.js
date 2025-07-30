@@ -3534,6 +3534,32 @@ function ValidatorPlugin(rules, data, formId) {
                     //console.debug('pressed: '+ e.key+'('+ e.keyCode+')', ' S:'+posStart, ' E:'+posEnd, ' MAP: '+ JSON.stringify(keyboardMapping));
                     switch (e.keyCode) {
                         case 46: //Delete
+                            if (posStart != posEnd) {
+                                $_el.value = str.substring(0, posStart) + str.substring(posEnd);
+                                if (posStart == 0) {
+                                    $_el.value = str.substring(posEnd+1);
+                                }
+                            } else if (posStart == 0) {
+                                $_el.value = str.substring(posStart+1);
+                            } else {
+                                $_el.value = str.substring(0, posStart) + str.substring(posEnd+1);
+                            }
+
+                            e.currentTarget.setAttribute('readonly', 'readonly');
+                            setTimeout(() => {
+                                $_el.removeAttribute('readonly');
+                                setTimeout(() => {
+                                    if (posStart != posEnd) {
+                                        setCaretToPos($_el, posStart);
+                                    } else if (posStart == 0) {
+                                        setCaretToPos($_el, posStart);
+                                    } else {
+                                        setCaretToPos($_el, posStart);
+                                    }
+                                }, 0)
+
+                            }, 0);
+                            break
                         case 8: //Backspace
                             if (posStart != posEnd) {
                                 $_el.value = str.substring(0, posStart) + str.substring(posEnd);
