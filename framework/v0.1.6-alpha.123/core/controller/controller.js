@@ -2568,9 +2568,8 @@ function SuperController(options) {
      * @param {string} url - eg.: https://upload.wikimedia.org/wikipedia/fr/2/2f/Firefox_Old_Logo.png
      * @param {object} [options]
      *
-     *
      * */
-    this.downloadFromURL = function(url, options) {
+    this.downloadFromURL = function(url, options, cb) {
 
         var defaultOptions = {
             // file name i  you want to rename the file
@@ -2712,8 +2711,14 @@ function SuperController(options) {
 
 
                 response.pipe(local.res);
+                if ( typeof(cb) != 'undefined' ) {
+                    cb(false)
+                }
             })
             .on('error', function onDownloadError(err) {
+                if ( typeof(cb) != 'undefined' ) {
+                    return cb(err)
+                }
                 self.throwError(local.res, 500, err);
             });
 
