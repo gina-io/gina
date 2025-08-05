@@ -2698,7 +2698,7 @@ function SuperController(options) {
         // console.debug('requestOptions: \n', JSON.stringify(requestOptions, null, 2));
 
         browser
-            .get(requestOptions, function(response) {
+            .get(requestOptions, async function(response) {
 
                 local.res.setHeader('content-type', contentType + '; charset='+ local.options.conf.encoding);
                 local.res.setHeader('content-disposition', opt.contentDisposition);
@@ -2710,7 +2710,7 @@ function SuperController(options) {
                 // local.res.setHeader('pragma', 'must-revalidate');
 
 
-                response.pipe(local.res);
+                await response.pipe(local.res);
                 if ( typeof(cb) != 'undefined' ) {
                     cb(false)
                 }
