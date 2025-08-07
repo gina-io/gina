@@ -753,7 +753,12 @@ function SuperController(options) {
 
         // isWithoutLayout from content
         var pageContentObj  = new _(data.page.view.path);
-        var _templateContent = fs.readFileSync(path).toString() || null;
+        var _templateContent = null;
+        try {
+            _templateContent = fs.readFileSync(path).toString()
+        } catch (pathException) {
+                console.warn("Path exception: ", pathException);
+        }
         var hasLayoutInPath = /\{\%(\s+extends|extends)/.test(_templateContent) || false;
         var layoutPath      = null;
 
@@ -1721,7 +1726,7 @@ function SuperController(options) {
                 //console.warn(err);
             }
 
-            freeMemory([jsonObj, data, request, response, next]);
+            freeMemory([content, request, response, next]);
         }
     }
 

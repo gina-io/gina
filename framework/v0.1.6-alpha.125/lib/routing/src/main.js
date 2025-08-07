@@ -1015,7 +1015,7 @@ function Routing() {
 
         /**
          * request current url
-         *
+         * Attention: You should first try without an authentification middleware
          *
          *
          * @param {boolean} [ignoreWebRoot]
