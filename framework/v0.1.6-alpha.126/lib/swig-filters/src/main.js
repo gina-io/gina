@@ -390,6 +390,12 @@ function SwigFilters(conf) {
 }
 
 if ((typeof (module) !== 'undefined') && module.exports) {
+
+    // Loading logger
+    if ( typeof(console.err) == 'undefined' ) {
+        console = require('../../logger');
+    }
+
     // Publish as node.js module
     module.exports = SwigFilters
 } else if (typeof (define) === 'function' && define.amd) {
