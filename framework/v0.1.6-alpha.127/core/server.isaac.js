@@ -463,6 +463,7 @@ function ServerEngineClass(options) {
 
     //------------------------------------
     // Engine IO server
+    // https://socket.io/docs/v4/server-api/#socketsendargs
     //------------------------------------
     if (
         typeof(options.ioServer) != 'undefined'
@@ -473,39 +474,6 @@ function ServerEngineClass(options) {
         delete options.ioServer.integrationMode;
         // test done in case we would like to switch to socket.io-server
         ioServer = ( typeof(Eio.attach) != 'undefined' ) ? new Eio.attach(server, options.ioServer) : new Eio(server, options.ioServer);
-
-        ioServer.getClientsBySessionId = function(sessionId) {
-
-            if (this.clients.count() == 0)
-                return null;
-
-            var clients = null;
-
-            for (let id in this.clients) {
-
-                if ( typeof(this.clients[id].sessionId) == 'undefined' )
-                    continue;
-
-                if (!clients) clients = {};
-
-                clients[id] = this.clients[id];
-            }
-
-            if (clients) {
-                // allowing to send for each client found sharing the same request session
-                clients.send = function(payload, option, callback) {
-                    for ( var id in this) {
-                        if ( typeof(this[id].sessionId) == 'undefined')
-                            continue;
-
-                        this[id].send(payload, option, callback)
-                    }
-                }
-            }
-
-
-            return clients;
-        }
 
         server.eio = ioServer;
 

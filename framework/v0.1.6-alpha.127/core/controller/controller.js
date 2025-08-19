@@ -4218,7 +4218,7 @@ function SuperController(options) {
         return rules;
     }
 
-    this.push = function(payload) {
+    this.push = function(payload, option, callback) {
 
         var req = local.req, res = local.res;
         var method  = req.method.toLowerCase();
@@ -4242,21 +4242,28 @@ function SuperController(options) {
 
         try {
             var clients = null;
-            if (sessionId) {
-                clients = self.serverInstance.eio.getClientsBySessionId(sessionId);
-                if (clients)
-                    clients.send(payload);
-            }
+            clients = self.serverInstance.eio.clients;
+            if ( clients ) {
+                for (let s in clients) {
+                    if ( !clients[s].constructor.name == 'Socket' ) {
+                        continue;
+                    }
 
-            // send to all clients if no specific sessionId defined
-            if (!sessionId) {
-                clients = self.serverInstance.eio.clients;
-                for (var id in clients) {
-                    clients[id].send(payload)
+                    if (
+                        // session filter
+                        sessionId
+                        && typeof(clients[s].sessionId) != 'undefined'
+                        && clients[s].sessionId == sessionId
+                        ||
+                        // send to all clients if no specific sessionId defined
+                        !sessionId
+                    ) {
+                        clients[s].sendPacket("message", payload, options, callback);
+                    }
                 }
             }
 
-            res.end();
+            // res.end();
         } catch(err) {
             self.throwError(err);
             return;
