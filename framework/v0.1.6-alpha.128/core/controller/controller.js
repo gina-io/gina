@@ -1397,11 +1397,23 @@ function SuperController(options) {
 
             // if ( !local.res.headersSent ) {
             if ( !headersSent() ) {
-                local.res.statusCode = ( typeof(localOptions.conf.server.coreConfiguration.statusCodes[data.page.data.status])  != 'undefined' ) ? data.page.data.status : 200; // by default
                 //catching errors
+                local.res.statusCode = ( typeof(localOptions.conf.server.coreConfiguration.statusCodes[data.page.data.status])  != 'undefined' ) ? data.page.data.status : 200; // by default
+
+                // HTTP/2 (RFC7540 8.1.2.4):
+                // This standard for HTTP/2 explicitly states that status messages are not supported.
+                // In HTTP/2, the status is conveyed solely by the numerical status code (e.g., 200, 404, 500),
+                // and there is no field for a human-readable status message.
                 if (
-                    typeof(data.page.data.errno) != 'undefined' && /^2/.test(data.page.data.status) && typeof(localOptions.conf.server.coreConfiguration.statusCodes[data.page.data.status]) != 'undefined'
-                    || typeof(data.page.data.status) != 'undefined' && !/^2/.test(data.page.data.status) && typeof(localOptions.conf.server.coreConfiguration.statusCodes[data.page.data.status]) != 'undefined'
+                    typeof(data.page.data.errno) != 'undefined'
+                        && /^2/.test(data.page.data.status)
+                        && typeof(localOptions.conf.server.coreConfiguration.statusCodes[data.page.data.status]) != 'undefined'
+                        && !/http\/2/.test(local.options.conf.server.protocol)
+                    ||
+                    typeof(data.page.data.status) != 'undefined'
+                        && !/^2/.test(data.page.data.status)
+                        && typeof(localOptions.conf.server.coreConfiguration.statusCodes[data.page.data.status]) != 'undefined'
+                        && !/http\/2/.test(local.options.conf.server.protocol)
                 ) {
 
                     try {
@@ -1610,10 +1622,22 @@ function SuperController(options) {
 
                 try {
                     response.statusCode    = jsonObj.status;
-                    response.statusMessage = local.options.conf.server.coreConfiguration.statusCodes[jsonObj.status];
+                    // HTTP/2 (RFC7540 8.1.2.4):
+                    // This standard for HTTP/2 explicitly states that status messages are not supported.
+                    // In HTTP/2, the status is conveyed solely by the numerical status code (e.g., 200, 404, 500),
+                    // and there is no field for a human-readable status message.
+                    if ( !/http\/2/.test(local.options.conf.server.protocol) ) {
+                        response.statusMessage = local.options.conf.server.coreConfiguration.statusCodes[jsonObj.status];
+                    }
                 } catch (err){
                     response.statusCode    = 500;
-                    response.statusMessage = err.stack;
+                    // HTTP/2 (RFC7540 8.1.2.4):
+                    // This standard for HTTP/2 explicitly states that status messages are not supported.
+                    // In HTTP/2, the status is conveyed solely by the numerical status code (e.g., 200, 404, 500),
+                    // and there is no field for a human-readable status message.
+                    if ( !/http\/2/.test(local.options.conf.server.protocol) ) {
+                        response.statusMessage = err.stack;
+                    }
                 }
             }
 
