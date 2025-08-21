@@ -201,7 +201,9 @@ module.exports = function(session, bundle){
         try {
             result = JSON.parse(data);
         } catch (err) {
-            return fn(err);
+            var sessErr = new Error('[SessionStore v4] Could not retrieve session: "'+ sid +'"\n'+ err.stack);
+            console.error(sessErr);
+            return fn(sessErr);
         }
         return fn(null, result);
 
