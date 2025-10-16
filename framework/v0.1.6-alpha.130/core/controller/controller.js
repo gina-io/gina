@@ -4247,20 +4247,32 @@ function SuperController(options) {
         var req = local.req, res = local.res;
         var method  = req.method.toLowerCase();
         // if no session defined, will push to all active clients
+        // resuming current session
         var sessionId = ( typeof(req[method].sessionID) != 'undefined' ) ? req[method].sessionID : null;
-
-        // resume current session
+        // retrieve section if existing
+        var section = ( typeof(req[method].section) != 'undefined' ) ? req[method].section : null;
 
         if (!payload) {
             payload     = null;
             if ( typeof(req[method]) != 'undefined' && typeof(req[method].payload) != 'undefined' ) {
                 if ( typeof(payload) == 'string' ) {
-                    payload = decodeURIComponent(req[method].payload)
+                    payload = decodeURIComponent(req[method].payload);
+                    payload = JSON.parse(payload);
+                    if ( section && typeof(payload.section) == 'undefined' ) {
+                      payload.section = section
+                    }
+                    payload = JSON.stringify(payload)
                 } else {
+                    if ( section && typeof(req[method].payload.section) == 'undefined' ) {
+                      req[method].payload.section = section
+                    }
                     payload =  JSON.stringify(req[method].payload)
                 }
             }
         } else if ( typeof(payload) == 'object' ) {
+            if ( section && typeof(payload.section) == 'undefined' ) {
+              payload.section = section
+            }
             payload = JSON.stringify(payload)
         }
 

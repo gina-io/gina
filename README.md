@@ -501,6 +501,15 @@ Still @ `~/.gina/certificates/scopes/local/frontend.myproject.app` ?
 cat private.key certificate.chained+root.crt > certificate.combined.pem
 ```
 
+To check:
+
+```tty
+openssl verify -CAfile certificate.combined.pem certificate.crt
+```
+
+Output should look like :
+=> certificate.crt: OK
+
 __Final step__
 
 Go to your project src to add or edit your bundle config the following file : `/path/to/myproject/src/frontend/config/settings.server.credentials.dev.json`
