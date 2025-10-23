@@ -228,25 +228,13 @@ function Server(options) {
         init(options);
     }
 
-    // TODO: This is only a fix for v22.21.0
-    // REF: https://github.com/nodejs/node/issues/60336
-    if ( process.version == "v22.21.0" ) {
-        /**
-         * shouldUpgradeCallback
-         *
-         * @param {obejct} req
-         * @param {obejct} socket
-         * @param {obejct} head
-         * @returns
-         */
-        this.shouldUpgradeCallback = function (req, socket, head) {
-            // Your logic for handling upgrade requests
-            return true; // Or false, depending on your needs
-        };
-    }
-
-
-
+    /**
+     * Verify certificate validity
+     *
+     * @param {string} endpoint
+     * @param {number} port
+     * @returns
+     */
     this.verifyCertificate = async function(endpoint, port) {
         let sslDetails = null;
         console.debug('Checking certificate validity...');
