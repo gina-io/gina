@@ -187,6 +187,7 @@ function ServerEngineClass(options) {
             // Proxy detection
             isProxyHost = getContext('isProxyHost') || false;
             requestHost = request.headers.host || request.headers[':authority'];
+            console.debug('[PROXY_HOST] request.headers.host -> ' + request.headers.host + '  VS request.headers[":authority"] '+ request.headers[':authority']);
             if (
                 !isProxyHost
                 && !/\:[0-9]+$/.test(requestHost)
@@ -197,10 +198,11 @@ function ServerEngineClass(options) {
                 // Enable proxied mode
                 process.gina.PROXY_HOSTNAME = process.gina.PROXY_SCHEME +'://'+ requestHost;
                 process.gina.PROXY_HOST     = requestHost;
-                // For intera services communications - Eg.: Controller::query()
+                // For internal services communications - Eg.: Controller::query()
                 if (request.headers['x-forwarded-host']) {
                     process.gina.PROXY_HOSTNAME = request.headers['x-forwarded-proto'] +'://'+ request.headers['x-forwarded-host'];
                     process.gina.PROXY_HOST     = request.headers['x-forwarded-host'];
+                    console.debug('[PROXY_HOST][X-FORWARDED-PROTO] override request.headers["x-forwarded-host"] -> ' + request.headers['x-forwarded-host']);
                 }
                 // Forcing context - also available for workers
                 setContext('isProxyHost', true);

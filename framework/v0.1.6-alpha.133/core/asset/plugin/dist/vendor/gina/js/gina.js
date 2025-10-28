@@ -7828,6 +7828,7 @@ function Routing() {
             urlProps.hostname   = config.envConf[bundle][env].hostname;
             urlProps.host       = config.envConf[bundle][env].host;
             urlProps.webroot    = config.envConf[bundle][env].server.webroot;
+            console.debug("[self.getUrlProps][isProxyHost = "+ getContext('isProxyHost') +"] hostname ", config.envConf[bundle][env].hostname, vs, process.gina.PROXY_HOSTNAME);
         }
 
         return urlProps;
@@ -8649,6 +8650,7 @@ function Routing() {
                 route.proxy_hostname  = window.location.protocol +'//'+ document.location.hostname;
             } else {
                 route.proxy_hostname  = process.gina.PROXY_HOSTNAME || config.envConf._proxyHostname;
+                console.debug("[getRoute#1]["+isProxyHost+"] process.gina.PROXY_HOSTNAME ("+ process.gina.PROXY_HOSTNAME  +") VS config.envConf._proxyHostname ("+ config.envConf._proxyHostname +")");
             }
             route.proxy_host      = route.proxy_hostname.replace(/^(https|http)\:\/\//, '');
 
@@ -8658,6 +8660,7 @@ function Routing() {
         ) {
             route.proxy_hostname  = process.gina.PROXY_HOSTNAME;
             route.proxy_host      = route.proxy_hostname.replace(/^(https|http)\:\/\//, '');
+            console.debug("[getRoute#2]["+isProxyHost+"] process.gina.PROXY_HOSTNAME ("+ process.gina.PROXY_HOSTNAME  +") VS config.envConf._proxyHostname ("+ config.envConf._proxyHostname +")");
         }
 
         if ( /\,/.test(route.url) ) {
