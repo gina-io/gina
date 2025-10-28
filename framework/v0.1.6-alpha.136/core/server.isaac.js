@@ -187,8 +187,7 @@ function ServerEngineClass(options) {
             // Proxy detection
             isProxyHost = getContext('isProxyHost') || false;
             requestHost = request.headers.host || request.headers[':authority'];
-            console.debug('[ SERVER ][200] '+ request.url);
-            console.debug('[PROXY_HOST][isProxyHost='+ isProxyHost +'] ' + request.url+'\n request.headers.host -> ' + request.headers.host + '  VS request.headers[":authority"] '+ request.headers[':authority']);
+            console.debug('[PROXY_HOST][isProxyHost='+ isProxyHost +'] request.headers.host -> ' + request.headers.host + '  VS request.headers[":authority"] '+ request.headers[':authority'] +' | '+ request.url);
             if (
                 !isProxyHost
                 && !/\:[0-9]+$/.test(requestHost)
