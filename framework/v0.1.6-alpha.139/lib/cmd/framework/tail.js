@@ -226,7 +226,7 @@ function Tail(opt, cmd) {
 
                                 if (opt.argv.indexOf('--follow') < 0) {
                                     // TODO - exits only if no other bundle is runing in the project
-                                    // let projectStatus = execSync("gina project:status @"+project);
+                                    // let projectStatus = execSync("$(which gina) project:status @"+project);
                                     // if ( /is\ running/.test(projectStatus) ) {
                                     //     return;
                                     // }

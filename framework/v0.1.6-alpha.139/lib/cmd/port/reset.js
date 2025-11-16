@@ -65,7 +65,7 @@ function Reset(opt, cmd) {
         // get bundles list
         var bundlesCollection = null, out = null;
         try {
-            out = execSync('gina bundle:list @'+ self.projectName +' --format=json').toString().replace(/(\n|\r)$/, '').split(/(\n|\r)/g);
+            out = execSync('$(which gina) bundle:list @'+ self.projectName +' --format=json').toString().replace(/(\n|\r)$/, '').split(/(\n|\r)/g);
             out = out[out.length-1];
             bundlesCollection = JSON.parse(out);
         } catch (err) {}// silently ...

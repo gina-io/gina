@@ -46,7 +46,7 @@ function ContextHelper(contexts) {
             self.contexts['sysEnvVars'] = { '~/': getUserHome() +'/' };
             var sysEnvVars = null;
             try {
-                sysEnvVars = execSync('printenv').toString();
+                sysEnvVars = execSync('which printenv').toString().trim();
                 sysEnvVars = sysEnvVars.replace(/\n$/, '').split(/\n/g);
                 var len = sysEnvVars.length, i = 0;
                 while ( Array.isArray(sysEnvVars) && i < len ) {

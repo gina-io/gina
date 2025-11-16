@@ -417,7 +417,7 @@ function PrepareVersion() {
         // => 010
         var currentBranch = null;
         try {
-            currentBranch = execSync("git rev-parse --abbrev-ref HEAD")
+            currentBranch = execSync("$(which git) rev-parse --abbrev-ref HEAD")
                             .toString()
                             .replace(/(\n|\r|\t)/g, '');
         } catch (err) {
@@ -442,7 +442,7 @@ function PrepareVersion() {
         // git rev-parse --verify 011
         var branchExists = null;
         try {
-            branchExists = execSync("git rev-parse --verify "+ targetedBranch)
+            branchExists = execSync("$(which git) rev-parse --verify "+ targetedBranch)
                             .toString()
                             .replace(/(\n|\r|\t)/g, '');
         } catch (err) {
@@ -457,7 +457,7 @@ function PrepareVersion() {
                 if (self.isGitPushNeeded) {
                     // pushing to new branch
                     console.debug('setting up remote branch `'+ targetedBranch +'` to git ...');
-                    execSync("git push --set-upstream origin "+ targetedBranch);
+                    execSync("$(which git) push --set-upstream origin "+ targetedBranch);
                 }
             } catch (err) {
                 console.error(err.stack||err.message||err);
@@ -471,7 +471,7 @@ function PrepareVersion() {
                 console.debug('Switching from branch `'+ currentBranch +'` to branch `'+ targetedBranch +'`');
                 // git checkout 010
                 try {
-                    cmd = execSync("git checkout "+ targetedBranch);
+                    cmd = execSync("$(which git) checkout "+ targetedBranch);
                 } catch (err) {
                     console.error(err.stack||err.message||err);
                     return done(err);
@@ -483,7 +483,7 @@ function PrepareVersion() {
 
         // commit changes
         try {
-            cmd = execSync("git add --all ");
+            cmd = execSync("$(which git) add --all ");
         } catch (err) {
             //console.debug('`git add --all`failed ');
             console.error(err.stack||err.message||err);
@@ -495,7 +495,7 @@ function PrepareVersion() {
             if (self.git.msg) {
                 msg += ' - '+ self.git.msg
             }
-            cmd = execSync("git commit -am'"+ msg +"'");
+            cmd = execSync("$(which git) commit -am'"+ msg +"'");
         } catch (err) {
             if (!/Your branch is up to date|nothing to commit, working tree clean/i.test( err.output.toString() )) {
                 console.error(err.stack||err.message||err);
@@ -507,7 +507,7 @@ function PrepareVersion() {
             console.debug('Pushing changes made on branch `'+ targetedBranch +'` to git `origin/'+ targetedBranch +'`');
             // git push origin 010
             try {
-                cmd = execSync("git push origin "+ targetedBranch );
+                cmd = execSync("$(which git) push origin "+ targetedBranch );
                 // set tag version & tag ?
             } catch (err) {
                 if (!/Everything up-to-date/i.test( err.output.toString() )) {

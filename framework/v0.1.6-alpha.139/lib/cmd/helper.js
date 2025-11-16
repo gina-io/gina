@@ -864,7 +864,7 @@ function CmdHelper(cmd, client, debug) {
                     /bundle\:(restart|start|stop)$/.test(cmd.task)
                 ) {
                     console.debug('Running: gina link-node-modules @'+cmd.projectName);
-                    err = execSync('gina link-node-modules @'+cmd.projectName);// +' --inspect-gina'
+                    err = execSync('$(which gina) link-node-modules @'+cmd.projectName);// +' --inspect-gina'
                     if (err instanceof Error) {
                         console.error(err.message || err.stack);
                         return exit(err.message || err.stack);
@@ -873,7 +873,7 @@ function CmdHelper(cmd, client, debug) {
 
 
                 console.debug('Running: gina link @'+cmd.projectName);
-                err = execSync('gina link @'+cmd.projectName);// +' --inspect-gina'
+                err = execSync('$(which gina) link @'+cmd.projectName);// +' --inspect-gina'
                 if (err instanceof Error) {
                     console.error(err.message || err.stack);
                     return exit(err.message || err.stack);

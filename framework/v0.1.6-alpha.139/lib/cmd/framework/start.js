@@ -54,7 +54,7 @@ function Start(opt){
                 continue;
             }
             // process.stdout.write('\ngina bundle:restart '+ file.replace(/\.pid$/, '').replace(/\@/, ' @') + '\n');
-            execSync('gina bundle:restart '+ file.replace(/\.pid$/, '').replace(/\@/, ' @'));
+            execSync('$(which gina) bundle:restart '+ file.replace(/\.pid$/, '').replace(/\@/, ' @'));
         }
     }
 

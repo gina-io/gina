@@ -182,7 +182,7 @@ function Initialize(opt) {
         var source      = getPath('gina').root + '/resources/home/main.json';
         var target      = self.opt.homedir + '/main.json';
         var version     = 'v' + getEnvVar('GINA_VERSION');
-        var prefix      = getEnvVar('GINA_PREFIX') || execSync('npm config get prefix').toString().replace(/\n$/g, '');
+        var prefix      = getEnvVar('GINA_PREFIX') || execSync('$(which npm) config get prefix').toString().replace(/\n$/g, '');
         var globalMode  = getEnvVar('GINA_GLOBAL_MODE');
 
         var data = require(source);

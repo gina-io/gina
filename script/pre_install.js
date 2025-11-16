@@ -47,7 +47,7 @@ function PreInstall() {
         self.isResetNeeded      = ( typeof(process.env.npm_config_reset) != 'undefined' && /^(true|false)$/i.test(process.env.npm_config_reset) )
                                     ? (/^true$/i.test(process.env.npm_config_reset) ? true: false)
                                     : false;
-        self.defaultPrefix      = execSync('npm config get prefix').toString().replace(/\n$/g, '');
+        self.defaultPrefix      = execSync('$(which npm) config get prefix').toString().replace(/\n$/g, '');
 
 
         // `process.env.npm_config_prefix` is only retrieved on `npm install gina`
@@ -163,7 +163,7 @@ function PreInstall() {
 
         self.gina = __dirname +'/..';
         // tying to figure out if gina is already install the given prefix
-        // var hasFoundGina = execSync('npm list -g gina --long --json').toString().replace(/\n$/g, '');
+        // var hasFoundGina = execSync('$(which npm) list -g gina --long --json').toString().replace(/\n$/g, '');
         var hasFoundGina = pkg;
         try {
             hasFoundGina = JSON.parse(hasFoundGina);

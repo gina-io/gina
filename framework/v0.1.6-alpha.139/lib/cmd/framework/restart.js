@@ -72,7 +72,7 @@ function Restart(opt, cmd) {
             // TODO - retrieve & add `opt`
             var out = null;
             try {
-                out = execSync('gina start @'+self.version).toString();
+                out = execSync('$(which gina) start @'+self.version).toString();
                 console.debug('out => ', out);
                 // TODO - retrieve running bundles with its options & restart
             } catch (err) {
@@ -85,7 +85,7 @@ function Restart(opt, cmd) {
     var stop = function() {
         var out = null;
         try {
-            out = execSync('gina stop @'+self.version).toString();
+            out = execSync('$(which gina) stop @'+self.version).toString();
             console.debug('out => ', out);
         } catch (err) {
             throw err;
@@ -145,7 +145,7 @@ function Restart(opt, cmd) {
                 continue;
             }
             // process.stdout.write('\ngina bundle:restart '+ file.replace(/\.pid$/, '').replace(/\@/, ' @') + '\n');
-            execSync('gina bundle:restart '+ file.replace(/\.pid$/, '').replace(/\@/, ' @'));
+            execSync('$(which gina) bundle:restart '+ file.replace(/\.pid$/, '').replace(/\@/, ' @'));
         }
     }
 

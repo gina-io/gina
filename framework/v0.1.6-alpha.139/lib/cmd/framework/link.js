@@ -74,7 +74,7 @@ var console        = lib.logger;
                 }
 
                 console.debug('Running: gina link-node-modules @'+self.projectName);
-                err = execSync('gina link-node-modules @'+self.projectName);// +' --inspect-gina'
+                err = execSync('$(which gina) link-node-modules @'+self.projectName);// +' --inspect-gina'
                 if (err instanceof Error) {
                     return end(err, 'error')
                 }
@@ -98,7 +98,7 @@ var console        = lib.logger;
             }
 
             if (!source.existsSync()) {
-                console.error('Link Error: Source `'+ source +'` [VS] npm prefix `'+ execSync('npm config get prefix').toString().replace(/\n$/g, '') +'`');
+                console.error('Link Error: Source `'+ source +'` [VS] npm prefix `'+ execSync('$(which npm) config get prefix').toString().replace(/\n$/g, '') +'`');
                 err = new Error('Link '+ source + ' not existing !!');
                 return end(err, 'error');
             }
