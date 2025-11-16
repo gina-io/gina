@@ -1042,7 +1042,7 @@ define('gina/popin', [ 'require', 'vendor/uuid', 'jquery', 'lib/domain', 'lib/me
                 // catching ready state cb
                 xhr.onreadystatechange = function (event) {
                     // Data loading ...
-                    if ( /^(3)$/.test(xhr.readyState) ) {
+                    if ( /^(1|3)$/.test(xhr.readyState) ) {
                         $popin.target.setAttribute('data-gina-popin-loading', true);
                         if ($popinTrigger) {
                             $popinTrigger.setAttribute('disabled', true);
