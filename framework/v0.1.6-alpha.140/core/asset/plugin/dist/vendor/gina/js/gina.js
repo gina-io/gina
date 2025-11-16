@@ -21264,6 +21264,13 @@ define('gina/popin', [ 'require', 'vendor/uuid', 'jquery', 'lib/domain', 'lib/me
                     xhr.setRequestHeader(header, options.headers[header]);
                 }
 
+                // Data loading ...
+                if ( /^(1|3)$/.test(xhr.readyState) ) {
+                    $popin.target.setAttribute('data-gina-popin-loading', true);
+                    if ($popinTrigger) {
+                        $popinTrigger.setAttribute('disabled', true);
+                    }
+                }
 
                 // catching ready state cb
                 xhr.onreadystatechange = function (event) {
