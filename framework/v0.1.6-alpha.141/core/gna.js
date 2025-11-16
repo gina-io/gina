@@ -21,6 +21,8 @@ process.env.UV_THREADPOOL_SIZE = (os.cpus().length);
 const { promisify } = require('util');
 var EventEmitter    = require('events').EventEmitter;
 var e               = new EventEmitter();
+// TODO - Get from config/security:defaultMaxListeners
+e.setMaxListeners(20);
 
 // by default
 var gna         = {

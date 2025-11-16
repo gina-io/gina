@@ -11134,7 +11134,12 @@ function ValidatorPlugin(rules, data, formId) {
             if ( /^(1|3)$/.test(xhr.readyState) ) {
                 $form.target.setAttribute('data-gina-form-loading', true);
                 if ($submitTrigger) {
-                    $submitTrigger.setAttribute('disabled', true)
+                    // For A tag: aria-disabled=true
+                    if ( /^A$/i.test($submitTrigger.tagName) ) {
+                        $submitTrigger.setAttribute('aria-disabled', true);
+                    } else {
+                        $submitTrigger.setAttribute('disabled', true);
+                    }
                 }
             }
             //handleXhrResponse(xhr, $target, id, $form, hFormIsRequired);
@@ -11150,8 +11155,11 @@ function ValidatorPlugin(rules, data, formId) {
                 // Data loading ...
                 if ( /^(1|3)$/.test(xhr.readyState) ) {
                     $form.target.setAttribute('data-gina-form-loading', true);
-                    if ($submitTrigger) {
-                        $submitTrigger.setAttribute('disabled', true)
+                    // For A tag: aria-disabled=true
+                    if ( /^A$/i.test($submitTrigger.tagName) ) {
+                        $submitTrigger.setAttribute('aria-disabled', true);
+                    } else {
+                        $submitTrigger.setAttribute('disabled', true);
                     }
                 }
                 // In case the user is also redirecting
@@ -11170,7 +11178,12 @@ function ValidatorPlugin(rules, data, formId) {
 
                     $form.sent = false;
                     if ($submitTrigger) {
-                        $submitTrigger.removeAttribute('disabled')
+                        // For A tag: aria-disabled=true
+                        if ( /^A$/i.test($submitTrigger.tagName) ) {
+                            $submitTrigger.removeAttribute('aria-disabled', true);
+                        } else {
+                            $submitTrigger.removeAttribute('disabled', true);
+                        }
                     }
                     $form.target.removeAttribute('data-gina-form-loading');
 
@@ -21268,7 +21281,12 @@ define('gina/popin', [ 'require', 'vendor/uuid', 'jquery', 'lib/domain', 'lib/me
                 if ( /^(1|3)$/.test(xhr.readyState) ) {
                     $popin.target.setAttribute('data-gina-popin-loading', true);
                     if ($popinTrigger) {
-                        $popinTrigger.setAttribute('disabled', true);
+                        // For A tag: aria-disabled=true
+                        if ( /^A$/i.test($popinTrigger.tagName) ) {
+                            $popinTrigger.setAttribute('aria-disabled', true);
+                        } else {
+                            $popinTrigger.setAttribute('disabled', true);
+                        }
                     }
                 }
 
@@ -21278,7 +21296,12 @@ define('gina/popin', [ 'require', 'vendor/uuid', 'jquery', 'lib/domain', 'lib/me
                     if ( /^(1|3)$/.test(xhr.readyState) ) {
                         $popin.target.setAttribute('data-gina-popin-loading', true);
                         if ($popinTrigger) {
-                            $popinTrigger.setAttribute('disabled', true);
+                            // For A tag: aria-disabled=true
+                            if ( /^A$/i.test($popinTrigger.tagName) ) {
+                                $popinTrigger.setAttribute('aria-disabled', true);
+                            } else {
+                                $popinTrigger.setAttribute('disabled', true);
+                            }
                         }
                     }
                     if (xhr.readyState == 4) {
@@ -21874,7 +21897,12 @@ define('gina/popin', [ 'require', 'vendor/uuid', 'jquery', 'lib/domain', 'lib/me
                     }
 
                     if ($popinTrigger) {
-                        $popinTrigger.removeAttribute('disabled');
+                        // For A tag: aria-disabled=true
+                        if ( /^A$/i.test($popinTrigger.tagName) ) {
+                            $popinTrigger.removeAttribute('aria-disabled', true);
+                        } else {
+                            $popinTrigger.removeAttribute('disabled', true);
+                        }
                     }
                     triggerEvent(gina, $popin.target, 'close.'+ $popin.id, $popin);
                 }

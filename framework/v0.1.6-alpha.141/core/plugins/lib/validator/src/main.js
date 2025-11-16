@@ -1063,7 +1063,12 @@ function ValidatorPlugin(rules, data, formId) {
             if ( /^(1|3)$/.test(xhr.readyState) ) {
                 $form.target.setAttribute('data-gina-form-loading', true);
                 if ($submitTrigger) {
-                    $submitTrigger.setAttribute('disabled', true)
+                    // For A tag: aria-disabled=true
+                    if ( /^A$/i.test($submitTrigger.tagName) ) {
+                        $submitTrigger.setAttribute('aria-disabled', true);
+                    } else {
+                        $submitTrigger.setAttribute('disabled', true);
+                    }
                 }
             }
             //handleXhrResponse(xhr, $target, id, $form, hFormIsRequired);
@@ -1079,8 +1084,11 @@ function ValidatorPlugin(rules, data, formId) {
                 // Data loading ...
                 if ( /^(1|3)$/.test(xhr.readyState) ) {
                     $form.target.setAttribute('data-gina-form-loading', true);
-                    if ($submitTrigger) {
-                        $submitTrigger.setAttribute('disabled', true)
+                    // For A tag: aria-disabled=true
+                    if ( /^A$/i.test($submitTrigger.tagName) ) {
+                        $submitTrigger.setAttribute('aria-disabled', true);
+                    } else {
+                        $submitTrigger.setAttribute('disabled', true);
                     }
                 }
                 // In case the user is also redirecting
@@ -1099,7 +1107,12 @@ function ValidatorPlugin(rules, data, formId) {
 
                     $form.sent = false;
                     if ($submitTrigger) {
-                        $submitTrigger.removeAttribute('disabled')
+                        // For A tag: aria-disabled=true
+                        if ( /^A$/i.test($submitTrigger.tagName) ) {
+                            $submitTrigger.removeAttribute('aria-disabled', true);
+                        } else {
+                            $submitTrigger.removeAttribute('disabled', true);
+                        }
                     }
                     $form.target.removeAttribute('data-gina-form-loading');
 

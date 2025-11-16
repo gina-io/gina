@@ -1042,7 +1042,12 @@ define('gina/popin', [ 'require', 'vendor/uuid', 'jquery', 'lib/domain', 'lib/me
                 if ( /^(1|3)$/.test(xhr.readyState) ) {
                     $popin.target.setAttribute('data-gina-popin-loading', true);
                     if ($popinTrigger) {
-                        $popinTrigger.setAttribute('disabled', true);
+                        // For A tag: aria-disabled=true
+                        if ( /^A$/i.test($popinTrigger.tagName) ) {
+                            $popinTrigger.setAttribute('aria-disabled', true);
+                        } else {
+                            $popinTrigger.setAttribute('disabled', true);
+                        }
                     }
                 }
 
@@ -1052,7 +1057,12 @@ define('gina/popin', [ 'require', 'vendor/uuid', 'jquery', 'lib/domain', 'lib/me
                     if ( /^(1|3)$/.test(xhr.readyState) ) {
                         $popin.target.setAttribute('data-gina-popin-loading', true);
                         if ($popinTrigger) {
-                            $popinTrigger.setAttribute('disabled', true);
+                            // For A tag: aria-disabled=true
+                            if ( /^A$/i.test($popinTrigger.tagName) ) {
+                                $popinTrigger.setAttribute('aria-disabled', true);
+                            } else {
+                                $popinTrigger.setAttribute('disabled', true);
+                            }
                         }
                     }
                     if (xhr.readyState == 4) {
@@ -1648,7 +1658,12 @@ define('gina/popin', [ 'require', 'vendor/uuid', 'jquery', 'lib/domain', 'lib/me
                     }
 
                     if ($popinTrigger) {
-                        $popinTrigger.removeAttribute('disabled');
+                        // For A tag: aria-disabled=true
+                        if ( /^A$/i.test($popinTrigger.tagName) ) {
+                            $popinTrigger.removeAttribute('aria-disabled', true);
+                        } else {
+                            $popinTrigger.removeAttribute('disabled', true);
+                        }
                     }
                     triggerEvent(gina, $popin.target, 'close.'+ $popin.id, $popin);
                 }
