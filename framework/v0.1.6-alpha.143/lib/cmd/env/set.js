@@ -50,7 +50,28 @@ function Set(opt, cmd){
             data,
             target
         );
+
+        end('Env variable(s) set with success');
     };
+
+    var end = function (output, type, messageOnly) {
+        var err = false;
+        if ( typeof(output) != 'undefined') {
+            if ( output instanceof Error ) {
+                err = output = ( typeof(messageOnly) != 'undefined' && /^true$/i.test(messageOnly) ) ? output.message : (output.stack||output.message);
+            }
+            if ( typeof(type) != 'undefined' ) {
+                console[type](output);
+                if ( messageOnly && type != 'log') {
+                    console.log(output);
+                }
+            } else {
+                console.log(output);
+            }
+        }
+
+        process.exit( err ? 1:0 )
+    }
 
     init();
 }

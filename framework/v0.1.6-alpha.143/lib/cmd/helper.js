@@ -36,6 +36,9 @@ function CmdHelper(cmd, client, debug) {
 
         // CMD params list ( starting with --) {object}
         params : {}, //
+        // Params forward: when a command line is running another command line
+        // E.g: gina link or gina link-node-modules
+        paramsStringified: '',
         nodeParams : [],
         debugPort: debug.port,
         debugBrkEnabled: debug.brkEnabled,
@@ -150,19 +153,21 @@ function CmdHelper(cmd, client, debug) {
                     arr[1] = false
                 }
 
-                if ( cmdArguments.indexOf('--' + arr[0]) > -1 )
+                if ( cmdArguments.indexOf('--' + arr[0]) > -1 ) {
                     cmd.params[arr[0]] = arr[1];
-                else
+                } else {
                     cmd.nodeParams.push('--' + arr[0] +'='+ arr[1]);
-
+                }
+                cmd.paramsStringified += ' --' + arr[0] +'='+ arr[1];
 
             } else if ( process.argv[a].indexOf('--') > -1 ) {
 
-                if ( cmdArguments.indexOf(process.argv[a]) > -1 )
+                if ( cmdArguments.indexOf(process.argv[a]) > -1 ) {
                     cmd.params[ process.argv[a].replace(/--/, '') ] = true;
-                else
+                } else {
                     cmd.nodeParams.push(process.argv[a]);
-
+                }
+                cmd.paramsStringified += ' '+process.argv[a] +'='+ true;
             }
         }
 
@@ -274,8 +279,6 @@ function CmdHelper(cmd, client, debug) {
                                 cmd.params.path = cmd.params.path.replace(/^\.\//, process.cwd() +'/')
                             }
                             folder = new _( cmd.params.path, true );
-
-
                         }
                         else if ( typeof(cmd.params.path) == 'undefined' ) {
                             // getting the current path
@@ -640,7 +643,6 @@ function CmdHelper(cmd, client, debug) {
             if ( ! new _(cmd.envPath).existsSync() ) {
                 if ( !/^project\:(add|import)/.test(cmd.task) ) {
                     console.warn('Project env.json not found. Trying to fix it ...');
-                    // return process.exit(1);
                 }
 
                 // Creating default manifest
@@ -863,8 +865,8 @@ function CmdHelper(cmd, client, debug) {
                     ||
                     /bundle\:(restart|start|stop)$/.test(cmd.task)
                 ) {
-                    console.debug('Running: gina link-node-modules @'+cmd.projectName);
-                    err = execSync('$(which gina) link-node-modules @'+cmd.projectName);// +' --inspect-gina'
+                    console.debug('Running: gina link-node-modules @'+cmd.projectName +cmd.paramsStringified);
+                    err = execSync('$(which gina) link-node-modules @'+cmd.projectName +cmd.paramsStringified);// +' --inspect-gina'
                     if (err instanceof Error) {
                         console.error(err.message || err.stack);
                         return exit(err.message || err.stack);
@@ -872,8 +874,8 @@ function CmdHelper(cmd, client, debug) {
                 }
 
 
-                console.debug('Running: gina link @'+cmd.projectName);
-                err = execSync('$(which gina) link @'+cmd.projectName);// +' --inspect-gina'
+                console.debug('Running: gina link @'+cmd.projectName +cmd.paramsStringified);
+                err = execSync('$(which gina) link @'+cmd.projectName +cmd.paramsStringified);// +' --inspect-gina'
                 if (err instanceof Error) {
                     console.error(err.message || err.stack);
                     return exit(err.message || err.stack);
