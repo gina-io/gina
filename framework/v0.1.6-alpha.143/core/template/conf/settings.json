@@ -18,7 +18,10 @@
       "files": []
       // https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods
       // ? connect, head, options, trace, patch, cookies, copy
-    }
+    },
+    // Compare with core/content.encoding
+    // This is the prefered order when it comes to respond with compressed content
+    "preferedCompressionEncodingOrder": ["br", "deflate", "gzip", "zstdn", "dcb", "dcz", "compress"]
   },
   "upload": {
     "_comment": "for more details, check out https://github.com/mscdex/busboy",

@@ -14,7 +14,7 @@ var LoggerHelper    = require( _(GINA_FRAMEWORK_DIR + '/lib/logger/src/helper.js
 /**
  * Framework tail
  * By default, tail will exit when a bundle is exiting. If you want to prevent
- * tail from exiting, you should use `--follow`
+ * tail from exiting, you should use `--follow` or `-f`
  * This will also will restart bundle in case of crach
  *
  * e.g.
@@ -22,7 +22,7 @@ var LoggerHelper    = require( _(GINA_FRAMEWORK_DIR + '/lib/logger/src/helper.js
  *  or
  *  gina tail
  *  or
- *  gina tail --follow
+ *  gina tail --follow | -f
  *
  * */
 function Tail(opt, cmd) {
@@ -224,7 +224,7 @@ function Tail(opt, cmd) {
                                     project= bundleDesc[2];
                                 } // else, must be `gina` (the framework)
 
-                                if (opt.argv.indexOf('--follow') < 0) {
+                                if (opt.argv.indexOf('--follow') < 0 || opt.argv.indexOf('-f') < 0) {
                                     // TODO - exits only if no other bundle is runing in the project
                                     // let projectStatus = execSync("$(which gina) project:status @"+project);
                                     // if ( /is\ running/.test(projectStatus) ) {

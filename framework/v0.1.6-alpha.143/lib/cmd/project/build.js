@@ -1,5 +1,5 @@
 var fs          = require('fs');
-
+var execSync    = require('child_process').execSync;
 var CmdHelper   = require('./../helper');
 var Shell       = lib.Shell;
 var console     = lib.logger;
@@ -15,6 +15,7 @@ var console     = lib.logger;
         bundle : null,
         bundlePath : null
     };
+    var globalBuildScripts = null;
 
     var init = function() {
         // import CMD helpers
@@ -26,6 +27,19 @@ var console     = lib.logger;
         if (!self.bundles.length) {
             return end( new Error('No bundle found in your project `'+ self.projectName +'`') );
         }
+
+        // Getting manifest
+        local.manifest = JSON.clone(self.projectData);
+
+        globalBuildScripts = ( typeof(local.manifest.buildScripts) != 'undefined' ) ? local.manifest.buildScripts : null;
+
+
+        // Pre build
+        if ( globalBuildScripts && typeof(globalBuildScripts.prebuild) != 'undefined' ) {
+
+        }
+
+
 
         console.debug('[build] Building project `'+ self.projectName +'`');
         buildBundle(0);
@@ -46,7 +60,6 @@ var console     = lib.logger;
         local.scopes        = self.scopes.slice();
         // var releasesPathObj = new _(self.projects[self.projectName].path +'/releases', true);
         try {
-            local.manifest = JSON.clone(self.projectData);
             // per scope
             for (let i = 0, len = local.scopes.length; i < len; i++) {
                 let scope = local.scopes[i]
@@ -92,6 +105,16 @@ var console     = lib.logger;
     var buildEnv = function(scope, b, e) {
 
         if ( e > local.envs.length-1 ) {
+            // User Post build
+            if ( globalBuildScripts && typeof(globalBuildScripts.postbuild) != 'undefined' ) {
+                try {
+                    var cmd = globalBuildScripts.postbuild +' --env='+local.envs[e-1]+' --scope='+ scope +' --bundle='+ self.bundles[b] +' --version='+ local.manifest.bundles[self.bundles[b]].version;
+                    console.log( execSync( cmd , { cwd: self.projectLocation }).toString() );
+                } catch (buildErr) {
+                    delete globalBuildScripts.postbuild;
+                    return end(buildErr);
+                }
+            }
             return buildBundle(b+1);
         }
 
@@ -133,7 +156,9 @@ var console     = lib.logger;
         })
     }
 
-    var end = function(err) {
+    var end = async function(err) {
+
+
         if (err) {
             if (GINA_ENV_IS_DEV) {
                 console.error(err.stack);

@@ -146,9 +146,11 @@ function Server(options) {
                     },
                     serverOpt,
                     {
-                        engine: options.conf[self.appName][self.env].server.engine,
-                        protocol: options.conf[self.appName][self.env].server.protocol,
-                        scheme: options.conf[self.appName][self.env].server.scheme
+                        engine              : options.conf[self.appName][self.env].server.engine,
+                        protocol            : options.conf[self.appName][self.env].server.protocol,
+                        scheme              : options.conf[self.appName][self.env].server.scheme,
+                        coreConfiguration   : options.conf[self.appName][self.env].server.coreConfiguration,
+                        isCacheless         : options.conf[self.appName][self.env].isCacheless
                     }
             );
 
@@ -1552,6 +1554,9 @@ function Server(options) {
             , isBinary      = null
             , isHandler     = null
             , hanlersPath   = null
+            , preferedEncoding = bundleConf.server.preferedCompressionEncodingOrder
+            , acceptEncodingArr = request.headers['accept-encoding'].replace(/\s+/g, '').split(/\,/)
+            , acceptEncoding = null
         ;
 
         // catch `statics.json` defined paths
@@ -1684,6 +1689,23 @@ function Server(options) {
                                 isBinary    = false;
                                 isHandler   = true;
                                 file = '(gina.ready(function onGinaReady($){\n'+ file + '\n},window["originalContext"]));'
+
+                                // acceptEncodingArr = request.headers['accept-encoding'].replace(/\s+/g, '').split(/\,/);
+                                // acceptEncoding = null;
+                                for (let e=0, eLen=preferedEncoding.length; e<eLen; e++) {
+                                    if ( acceptEncodingArr && acceptEncodingArr.indexOf(preferedEncoding[e]) > -1 ) {
+                                        acceptEncoding = bundleConf.server.coreConfiguration.encoding[ preferedEncoding[e] ] ;
+                                        break;
+                                    }
+                                }
+                                // Compressed content
+                                if (
+                                    !isCacheless
+                                    && acceptEncoding
+                                    && fs.existsSync(filename + acceptEncoding)
+                                ) {
+                                    isBinary = true;
+                                }
                             }
                         }
 
@@ -1865,8 +1887,31 @@ function Server(options) {
                             // if (/\.(woff|woff2)$/i.test(filename) )  {
                             //     response.setHeader("Transfer-Encoding", 'Identity')
                             // }
+
+
                             if (isBinary) {
                                 response.setHeader('content-length', fs.statSync(filename).size);
+
+                                // acceptEncodingArr = request.headers['accept-encoding'].replace(/\s+/g, '').split(/\,/);
+                                // acceptEncoding = null;
+                                for (let e=0, eLen=preferedEncoding.length; e<eLen; e++) {
+                                    if ( acceptEncodingArr && acceptEncodingArr.indexOf(preferedEncoding[e]) > -1 ) {
+                                        acceptEncoding = bundleConf.server.coreConfiguration.encoding[ preferedEncoding[e] ] ;
+                                        break;
+                                    }
+                                }
+                                // Compressed content
+                                if (
+                                    !isCacheless
+                                    && acceptEncoding
+                                    && fs.existsSync(filename + acceptEncoding)
+                                ) {
+                                    filename += acceptEncoding;
+                                    // https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Encoding
+                                    response.setHeader('content-encoding', acceptEncoding.replace(/^\./, ''));
+                                    // override content length
+                                    response.setHeader('content-length', fs.statSync(filename).size);
+                                }
                             }
 
                             if (isCacheless) {
@@ -1890,6 +1935,7 @@ function Server(options) {
 
 
                             if (isBinary) { // images, javascript, pdf ....
+
                                 fs.createReadStream(filename)
                                     .on('end', function onResponse(){
                                         console.info(request.method +' [200] '+ pathname);
@@ -2893,7 +2939,7 @@ function Server(options) {
     var handle = async function(req, res, next, bundle, pathname, config) {
 
         var matched             = false
-            , isRoute           = {}
+            , isRoute           = null
             , withViews         = hasViews(bundle)
             , router            = local.router
             , isCacheless       = config.isCacheless()
@@ -2924,9 +2970,26 @@ function Server(options) {
             return;
         }
         var isMethodAllowed = null, hostname = null;
+
+        // Checking cached route
+        var hasCachedRoute = await routingLib.getCached(req.method +':'+ pathname, req) || null;
+        if ( hasCachedRoute ) {
+            // Supposed to have everything we need to route
+            isRoute = hasCachedRoute;
+            // req = isRoute.request;
+        } else {
+            isRoute = {}
+        }
+
         out:
             for (let name in routing) {
-                // ignoring routes out of scope
+                // Ignore cached route
+                if ( hasCachedRoute ) {
+                    matched = true;
+                    break;
+                }
+
+                // Ignoring routes out of scope
                 if ( routing[name].scopes.indexOf(process.env.NODE_SCOPE) < 0 ) {
                     continue;
                 }
@@ -2935,7 +2998,7 @@ function Server(options) {
                     break;
                 }
 
-                // updating hostname
+                // Updating hostname
                 // if (
                 //     typeof(routing[name].hostname) == 'undefined' && !/^redirect$/.test(routing[name].param.control)
                 //     || !routing[name].hostname && !/^redirect$/.test(routing[name].param.control)
@@ -2950,7 +3013,7 @@ function Server(options) {
                 // }
 
                 if (routing[name].bundle != bundle) continue;
-                // method filter
+                // Method filter
                 method = routing[name].method;
                 if ( /\,/.test( method ) && reMethod.test(method) ) {
                     method = req.method
@@ -2959,6 +3022,7 @@ function Server(options) {
                 // Preparing params to relay to the router.
                 params = {
                     method              : method,
+                    control             : routing[name].param.control,
                     requirements        : routing[name].requirements,
                     namespace           : routing[name].namespace || undefined,
                     url                 : decodeURI(pathname), /// avoid %20
@@ -2972,7 +3036,7 @@ function Server(options) {
                     isWithCredentials   : req.isWithCredentials
                 };
 
-                //Parsing for the right url.
+                // Parsing for the right url.
                 try {
                     isRoute = await routingLib.compareUrls(params, routing[name].url, req, res, next);
                 } catch (err) {
@@ -2988,7 +3052,7 @@ function Server(options) {
 
                     _routing = req.routing;
 
-                    // comparing routing method VS request.url method
+                    // Comparing routing method VS request.url method
                     isMethodAllowed = reMethod.test(_routing.method);
                     if (!isMethodAllowed) {
                         // Exception - Method override
@@ -3002,7 +3066,7 @@ function Server(options) {
                         }
                     }
 
-                    // handling GET method exception - if no param found
+                    // Handling GET method exception - if no param found
                     var methods = ['get', 'delete'], method = req.method.toLowerCase();
                     var p = null;
                     if (
@@ -3040,13 +3104,14 @@ function Server(options) {
                     // onRouting Event ???
                     if (isRoute.past) {
                         matched = true;
+                        // Caching route
+                        routingLib.cache(req.method +':'+ pathname, name, routing[name], params, req[method]);
                         isRoute = {};
 
                         break;
                     }
-
                 }
-            }
+            } // EO for (let name in routing) {
 
 
 

@@ -4409,6 +4409,7 @@ if ( typeof(module) !== 'undefined' && module.exports ) {
  *
  * @param {array} collection
  * @param {object} [options]
+ *      TODO - eg.: deduplicat: true
  *
  * @returns {object} instance
  *
@@ -7765,7 +7766,25 @@ function Routing() {
         notFound: {}
     };
 
+    self.getInstance = function(params) {
+        return Routing.instance;
+    }
+
+
+    if ( typeof(Routing.initialized) == 'undefined' ) {
+        Routing.initialized     = true;
+        Routing.instance        = self;
+        Routing._cached         = [];
+        Routing._cachedRoutes   = {};
+    } else {
+        self = self.getInstance();
+        return self;
+    }
+
+
     self.allowedMethodsString   = self.allowedMethods.join(',');
+
+
 
     // loading lib & plugins
     var plugins     = null
@@ -7872,6 +7891,77 @@ function Routing() {
     // self.getReverseRouting = function(bundle) {
 
     // }
+
+    /**
+     * Cache route information to be retrieved later
+     *
+     * @param {string} routeId - e.g.: GET:/index
+     * @param {string} name - route name
+     * @param {object} routeObject - routing[name]
+     * @param {object} params - route params
+     * @param {object} methodParams - GET|PUT ...
+     */
+    self.cache = function(routeId, name, routeObject, params, methodParams) {
+        if ( Routing._cached.indexOf(routeId) == -1 ) {
+            Routing._cached.push(routeId);
+            Routing._cachedRoutes[routeId] = {
+                name            : name,
+                routing         : routeObject,
+                params          : params,
+                methodParams    : methodParams
+            };
+        }
+    }
+
+    /**
+     * Get cached route information to be retrieved later
+     *
+     * @param {string} routeId - e.g.: GET:/index
+     * @param {string} name - route name
+     * @param {object} routeObject - routing[name]
+     * @param {object} params - route params
+     */
+    self.getCached = function(routeId, req) {
+        if ( Routing._cached.indexOf(routeId) > -1 ) {
+
+            var cachedRoute = Routing._cachedRoutes[routeId];
+            var method      = req.method.toLowerCase();
+
+
+            // routeObject
+            var routeObject       = JSON.clone(cachedRoute.routing);
+            var params = {
+                method              : method,
+                requirements        : routeObject.requirements,
+                namespace           : routeObject.namespace || undefined,
+                url                 : decodeURI(req.url), /// avoid %20
+                rule                : routeObject.originalRule || cachedRoute.name,
+
+                param               : routeObject.param,
+
+                middleware          : routeObject.middleware,
+                bundle              : routeObject.bundle,
+                isXMLRequest        : req.isXMLRequest,
+                isWithCredentials   : req.isWithCredentials
+            };
+            if ( typeof(routeObject.rule) == 'undefined' && typeof(params.rule) != 'undefined' ) {
+                routeObject.rule = params.rule;
+            }
+
+            // isRoute
+            return self.compareUrls(params, routeObject.url, req);
+        }
+
+        return null
+    }
+
+    self.invalidateCached = function(routeId) {
+        if ( Routing._cached.indexOf(routeId) > -1 ) {
+            // routeObject
+            Routing._cached.splice( Routing._cached.indexOf(routeId), 1);
+            delete Routing._cachedRoutes[routeId];
+        }
+    }
 
     /**
      * Compare urls
@@ -8491,6 +8581,14 @@ function Routing() {
     var replacement = function(matched){
         return ( /\/$/.test(matched) ? replacement.variable+ '/': replacement.variable )
     };
+
+    /**
+     * checkRouteParams
+     *
+     * @param {object} route
+     * @param {object} params
+     * @return {object} route - updated route object
+     */
     var checkRouteParams = function(route, params) {
         var variable        = null
             , regex         = null
@@ -8501,6 +8599,7 @@ function Routing() {
             , p             = null
             , pLen          = null
         ;
+
         for (p in route.param) {
             if ( typeof(params) != 'undefined' && typeof(params[p]) == 'undefined' ) continue;
 
@@ -19255,13 +19354,20 @@ if ( typeof(module) !== 'undefined' && module.exports) {
  */
 function Domain(options, cb) {
 
+    this.name = arguments.callee.name;
+
     var isGFFCtx        = ( ( typeof(module) !== 'undefined' ) && module.exports ) ? false : true;
     // Detect if user is on IE browser
     var isIE            = false;
     var defaultUrl      = "/_gina/assets/public_suffix_list.dat";
+    var customEvent     = null; // isGFFCtx only
+    var myEventBus      = null;
     if (isGFFCtx) {
         isIE = !!window.MSInputMethodContext && !!document.documentMode;
         defaultUrl = gina.config.webroot + defaultUrl.substring(1);
+        // Create a custom event
+        myEventBus = new EventTarget();
+
     }
 
     if ( typeof(arguments[0]) == 'function' ) {
@@ -19293,12 +19399,15 @@ function Domain(options, cb) {
     // cat ./framework/v0.1.6-alpha.83/core/asset/data/public_suffix_list.dat|grep 'COMMIT:'|sed 's/^\/\/ COMMIT\: //'
 
     var self = {
+        name    : this.name,
         options : null,
-        rawPSL  : null,
+        /**@js_externs rawPSL*/
+        rawPSL  : window['rawPSL'] || null,
         PSL     : [],
     };
 
     var init = function(proto, options, cb) {
+
         if ( typeof(options) == 'undefined' ) {
             options = defaultOptions
         } else {
@@ -19316,12 +19425,13 @@ function Domain(options, cb) {
 
         if (isGFFCtx && options.isCachingRequired ) {
             console.warn('[DOMAIN] `options.isCachingRequired` is only available for backend');
-            options.isCachingRequired = false
+            options.isCachingRequired = false;
         }
 
         self.options = options;
 
         if (cb) {
+
             return loadPSL(options, function onPSLLoaded(err) {
                 if (err) {
                     cb(err);
@@ -19336,7 +19446,9 @@ function Domain(options, cb) {
 
         // Assuming that you have previously initialized Domain
         loadPSL(options);
+
         console.debug('[DOMAIN] PSL Loaded');
+
         return proto
     }
 
@@ -19346,6 +19458,7 @@ function Domain(options, cb) {
     }
 
     var loadPSL = async function(opt, cb) {
+
         var filenameOrUrl   = (isGFFCtx || opt.isCachingRequired) ? opt.url : opt.filename;
         var isUpdating      = ( typeof(opt.isUpdating) != 'undefined' ) ? opt.isUpdating : false;
         var err             = null;
@@ -19363,6 +19476,24 @@ function Domain(options, cb) {
                 return;
             }
 
+            myEventBus.addEventListener('domain_psl.loaded', (event) => {
+                // console.log('Data loaded:', event.detail.data);
+                // console.log('Timestamp:', event.detail.timestamp);
+                cb(event.detail.error);
+            });
+
+
+            if ( window['gina']['_global']['initialized'].indexOf( self.name ) > -1 ) {
+                return;
+            }
+
+            if (
+                isGFFCtx
+                && window['gina']['_global']['initialized'].indexOf( self.name ) == -1
+            ) {
+                window['gina']['_global']['initialized'].push( self.name );
+            }
+
             var response = null
                 , result = null
             ;
@@ -19370,17 +19501,37 @@ function Domain(options, cb) {
                 response    = await fetch(filenameOrUrl);
                 result      = await response.text();
 
-                self.rawPSL = result;
+                // self.rawPSL = window['gina']['_global']['rawPSL'] = result;
+                self.rawPSL = window['rawPSL'] = result;
+
             } catch (PSLErr) {
                 // There was an error
                 // console.warn('[DOMAIN] Could not load PSL', err.stack || err.message || err);
                 err = new Error('[DOMAIN] Could not load PSL\n'+ (PSLErr.stack || PSLErr.message || PSLErr) );
-                cb(err);
+                // cb(err);
+                myEventBus.dispatchEvent(
+                    new CustomEvent('domain_psl.loaded', {
+                        detail: {
+                            data: null,
+                            error: err,
+                            timestamp: new Date()
+                        }
+                    })
+                );
                 return;
             }
 
             opt.isUpdating = false;
-            cb(false);
+            // cb(false);
+            myEventBus.dispatchEvent(
+                new CustomEvent('domain_psl.loaded', {
+                    detail: {
+                        data: result,
+                        error: false,
+                        timestamp: new Date()
+                    }
+                })
+            );
 
             return;
         }
@@ -19412,12 +19563,12 @@ function Domain(options, cb) {
             var cmd = 'curl -o '+opt.filename +' '+ opt.url +' >/dev/null 2>&1';
             console.debug('[DOMAIN] Running: '+ cmd);
             try {
-                execSync(cmd);
+                console.debug( execSync(cmd).toString() );
             } catch (err) {
                 console.warn('[DOMAIN] could not fetch from `'+ opt.url +'`. Trying with `'+ opt.alternativeUrl +'`');
                 cmd = 'curl -o '+opt.filename +' '+ opt.alternativeUrl +' >/dev/null 2>&1';
                 try {
-                    execSync(cmd);
+                   console.debug( execSync(cmd).toString() );
                 } catch (altErr) {
                     cb(altErr);
                     return;
@@ -22445,7 +22596,9 @@ if ( typeof(window['gina']) == 'undefined' ) {// could have be defined by loader
                         delete window[ variables[i] ]
                     //}
                 }
-            }
+            },
+            /**@js_externs initialized*/
+            initialized: []
         },
         /**
          * ready

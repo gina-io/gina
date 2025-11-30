@@ -23,7 +23,25 @@ function Routing() {
         notFound: {}
     };
 
+    self.getInstance = function(params) {
+        return Routing.instance;
+    }
+
+
+    if ( typeof(Routing.initialized) == 'undefined' ) {
+        Routing.initialized     = true;
+        Routing.instance        = self;
+        Routing._cached         = [];
+        Routing._cachedRoutes   = {};
+    } else {
+        self = self.getInstance();
+        return self;
+    }
+
+
     self.allowedMethodsString   = self.allowedMethods.join(',');
+
+
 
     // loading lib & plugins
     var plugins     = null
@@ -130,6 +148,77 @@ function Routing() {
     // self.getReverseRouting = function(bundle) {
 
     // }
+
+    /**
+     * Cache route information to be retrieved later
+     *
+     * @param {string} routeId - e.g.: GET:/index
+     * @param {string} name - route name
+     * @param {object} routeObject - routing[name]
+     * @param {object} params - route params
+     * @param {object} methodParams - GET|PUT ...
+     */
+    self.cache = function(routeId, name, routeObject, params, methodParams) {
+        if ( Routing._cached.indexOf(routeId) == -1 ) {
+            Routing._cached.push(routeId);
+            Routing._cachedRoutes[routeId] = {
+                name            : name,
+                routing         : routeObject,
+                params          : params,
+                methodParams    : methodParams
+            };
+        }
+    }
+
+    /**
+     * Get cached route information to be retrieved later
+     *
+     * @param {string} routeId - e.g.: GET:/index
+     * @param {string} name - route name
+     * @param {object} routeObject - routing[name]
+     * @param {object} params - route params
+     */
+    self.getCached = function(routeId, req) {
+        if ( Routing._cached.indexOf(routeId) > -1 ) {
+
+            var cachedRoute = Routing._cachedRoutes[routeId];
+            var method      = req.method.toLowerCase();
+
+
+            // routeObject
+            var routeObject       = JSON.clone(cachedRoute.routing);
+            var params = {
+                method              : method,
+                requirements        : routeObject.requirements,
+                namespace           : routeObject.namespace || undefined,
+                url                 : decodeURI(req.url), /// avoid %20
+                rule                : routeObject.originalRule || cachedRoute.name,
+
+                param               : routeObject.param,
+
+                middleware          : routeObject.middleware,
+                bundle              : routeObject.bundle,
+                isXMLRequest        : req.isXMLRequest,
+                isWithCredentials   : req.isWithCredentials
+            };
+            if ( typeof(routeObject.rule) == 'undefined' && typeof(params.rule) != 'undefined' ) {
+                routeObject.rule = params.rule;
+            }
+
+            // isRoute
+            return self.compareUrls(params, routeObject.url, req);
+        }
+
+        return null
+    }
+
+    self.invalidateCached = function(routeId) {
+        if ( Routing._cached.indexOf(routeId) > -1 ) {
+            // routeObject
+            Routing._cached.splice( Routing._cached.indexOf(routeId), 1);
+            delete Routing._cachedRoutes[routeId];
+        }
+    }
 
     /**
      * Compare urls
@@ -749,6 +838,14 @@ function Routing() {
     var replacement = function(matched){
         return ( /\/$/.test(matched) ? replacement.variable+ '/': replacement.variable )
     };
+
+    /**
+     * checkRouteParams
+     *
+     * @param {object} route
+     * @param {object} params
+     * @return {object} route - updated route object
+     */
     var checkRouteParams = function(route, params) {
         var variable        = null
             , regex         = null
@@ -759,6 +856,7 @@ function Routing() {
             , p             = null
             , pLen          = null
         ;
+
         for (p in route.param) {
             if ( typeof(params) != 'undefined' && typeof(params[p]) == 'undefined' ) continue;
 

@@ -66,6 +66,11 @@ function ServerEngineClass(options) {
         return fs.readFileSync(filename).toString()
     }
 
+    var preferedEncoding    = options.preferedCompressionEncodingOrder
+        , acceptEncodingArr = null
+        , acceptEncoding    = null
+    ;
+
     var localAssets = null;
     try {
         localAssets = [
@@ -173,20 +178,31 @@ function ServerEngineClass(options) {
 
     const onPath = function(path, cb, allowAll) {
 
-        var queryParams     = null
-            , i             = null
-            , len           = null
-            , p             = null
-            , arr           = null
-            , a             = null
-            , isProxyHost   = null
-            , requestHost   = null
+        var queryParams         = null
+            , i                 = null
+            , len               = null
+            , p                 = null
+            , arr               = null
+            , a                 = null
+            , isProxyHost       = null
+            , requestHost       = null
+            , isBinary          = null
+            , isCacheless       = options.isCacheless
         ;
+
 
         // http2stream handle by the Router class & the SuperController class
         // See `${core}/router.js` & `${core}/controller/controller.js`
 
         server.on('request', (request, response) => {
+
+            acceptEncodingArr = null;
+            if ( typeof(request.headers['accept-encoding']) != 'undefined' ) {
+                acceptEncodingArr   = request.headers['accept-encoding'].replace(/\s+/g, '').split(/\,/);
+            }
+            acceptEncoding      = null;
+            isBinary            = false;
+
             // Proxy detection
             isProxyHost = getContext('isProxyHost') || false;
             requestHost = request.headers.host || request.headers[':authority'];
@@ -254,7 +270,38 @@ function ServerEngineClass(options) {
                 response.setHeader('x-xss-protection', '1; mode=block');
                 response.setHeader('x-powered-by', 'Gina/'+ GINA_VERSION);
 
-                return response.end(localAssets[0].content);
+                var filename  =  _(localAssets[0].path +'/'+ localAssets[0].file, true);
+                if (acceptEncodingArr) {
+                    for (let e=0, eLen=preferedEncoding.length; e<eLen; e++) {
+                        if ( acceptEncodingArr && acceptEncodingArr.indexOf(preferedEncoding[e]) > -1 ) {
+                            acceptEncoding = options.coreConfiguration.encoding[ preferedEncoding[e] ] ;
+                            break;
+                        }
+                    }
+                }
+                // Compressed content
+                if (
+                    !isCacheless
+                    && acceptEncoding
+                    && fs.existsSync(filename + acceptEncoding)
+                ) {
+                    isBinary = true;
+                    filename += acceptEncoding;
+                    // https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Encoding
+                    response.setHeader('content-encoding', acceptEncoding.replace(/^\./, ''));
+                    // override content length
+                    response.setHeader('content-length', fs.statSync(filename).size);
+                }
+
+                if (!isBinary) {
+                    return response.end(localAssets[0].content);
+                }
+
+                return fs.createReadStream(filename)
+                    .on('end', function onResponse(){
+                        console.info(request.method +' [200] '+ request.url);
+                    })
+                    .pipe(response);
             }
 
 

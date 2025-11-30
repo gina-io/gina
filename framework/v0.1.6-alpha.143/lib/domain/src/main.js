@@ -41,13 +41,20 @@ if ( typeof(module) !== 'undefined' && module.exports) {
  */
 function Domain(options, cb) {
 
+    this.name = arguments.callee.name;
+
     var isGFFCtx        = ( ( typeof(module) !== 'undefined' ) && module.exports ) ? false : true;
     // Detect if user is on IE browser
     var isIE            = false;
     var defaultUrl      = "/_gina/assets/public_suffix_list.dat";
+    var customEvent     = null; // isGFFCtx only
+    var myEventBus      = null;
     if (isGFFCtx) {
         isIE = !!window.MSInputMethodContext && !!document.documentMode;
         defaultUrl = gina.config.webroot + defaultUrl.substring(1);
+        // Create a custom event
+        myEventBus = new EventTarget();
+
     }
 
     if ( typeof(arguments[0]) == 'function' ) {
@@ -79,12 +86,15 @@ function Domain(options, cb) {
     // cat ./framework/v0.1.6-alpha.83/core/asset/data/public_suffix_list.dat|grep 'COMMIT:'|sed 's/^\/\/ COMMIT\: //'
 
     var self = {
+        name    : this.name,
         options : null,
-        rawPSL  : null,
+        /**@js_externs rawPSL*/
+        rawPSL  : window['rawPSL'] || null,
         PSL     : [],
     };
 
     var init = function(proto, options, cb) {
+
         if ( typeof(options) == 'undefined' ) {
             options = defaultOptions
         } else {
@@ -102,12 +112,13 @@ function Domain(options, cb) {
 
         if (isGFFCtx && options.isCachingRequired ) {
             console.warn('[DOMAIN] `options.isCachingRequired` is only available for backend');
-            options.isCachingRequired = false
+            options.isCachingRequired = false;
         }
 
         self.options = options;
 
         if (cb) {
+
             return loadPSL(options, function onPSLLoaded(err) {
                 if (err) {
                     cb(err);
@@ -122,7 +133,9 @@ function Domain(options, cb) {
 
         // Assuming that you have previously initialized Domain
         loadPSL(options);
+
         console.debug('[DOMAIN] PSL Loaded');
+
         return proto
     }
 
@@ -132,6 +145,7 @@ function Domain(options, cb) {
     }
 
     var loadPSL = async function(opt, cb) {
+
         var filenameOrUrl   = (isGFFCtx || opt.isCachingRequired) ? opt.url : opt.filename;
         var isUpdating      = ( typeof(opt.isUpdating) != 'undefined' ) ? opt.isUpdating : false;
         var err             = null;
@@ -149,6 +163,24 @@ function Domain(options, cb) {
                 return;
             }
 
+            myEventBus.addEventListener('domain_psl.loaded', (event) => {
+                // console.log('Data loaded:', event.detail.data);
+                // console.log('Timestamp:', event.detail.timestamp);
+                cb(event.detail.error);
+            });
+
+
+            if ( window['gina']['_global']['initialized'].indexOf( self.name ) > -1 ) {
+                return;
+            }
+
+            if (
+                isGFFCtx
+                && window['gina']['_global']['initialized'].indexOf( self.name ) == -1
+            ) {
+                window['gina']['_global']['initialized'].push( self.name );
+            }
+
             var response = null
                 , result = null
             ;
@@ -156,17 +188,36 @@ function Domain(options, cb) {
                 response    = await fetch(filenameOrUrl);
                 result      = await response.text();
 
-                self.rawPSL = result;
+                self.rawPSL = window['rawPSL'] = result;
+
             } catch (PSLErr) {
                 // There was an error
                 // console.warn('[DOMAIN] Could not load PSL', err.stack || err.message || err);
                 err = new Error('[DOMAIN] Could not load PSL\n'+ (PSLErr.stack || PSLErr.message || PSLErr) );
-                cb(err);
+                // cb(err);
+                myEventBus.dispatchEvent(
+                    new CustomEvent('domain_psl.loaded', {
+                        detail: {
+                            data: null,
+                            error: err,
+                            timestamp: new Date()
+                        }
+                    })
+                );
                 return;
             }
 
             opt.isUpdating = false;
-            cb(false);
+            // cb(false);
+            myEventBus.dispatchEvent(
+                new CustomEvent('domain_psl.loaded', {
+                    detail: {
+                        data: result,
+                        error: false,
+                        timestamp: new Date()
+                    }
+                })
+            );
 
             return;
         }
@@ -198,12 +249,12 @@ function Domain(options, cb) {
             var cmd = 'curl -o '+opt.filename +' '+ opt.url +' >/dev/null 2>&1';
             console.debug('[DOMAIN] Running: '+ cmd);
             try {
-                execSync(cmd);
+                console.debug( execSync(cmd).toString() );
             } catch (err) {
                 console.warn('[DOMAIN] could not fetch from `'+ opt.url +'`. Trying with `'+ opt.alternativeUrl +'`');
                 cmd = 'curl -o '+opt.filename +' '+ opt.alternativeUrl +' >/dev/null 2>&1';
                 try {
-                    execSync(cmd);
+                   console.debug( execSync(cmd).toString() );
                 } catch (altErr) {
                     cb(altErr);
                     return;

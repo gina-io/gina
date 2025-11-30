@@ -156,7 +156,9 @@ if ( typeof(window['gina']) == 'undefined' ) {// could have be defined by loader
                         delete window[ variables[i] ]
                     //}
                 }
-            }
+            },
+            /**@js_externs initialized*/
+            initialized: []
         },
         /**
          * ready

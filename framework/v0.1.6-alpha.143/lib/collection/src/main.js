@@ -13,6 +13,7 @@ if ( typeof(module) !== 'undefined' && module.exports ) {
  *
  * @param {array} collection
  * @param {object} [options]
+ *      TODO - eg.: deduplicat: true
  *
  * @returns {object} instance
  *

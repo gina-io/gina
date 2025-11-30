@@ -95,8 +95,9 @@ function Start(opt, cmd) {
         nodeModulesContentArr = newNodeModulesContentArr.slice();
         newNodeModulesContentArr = null;
 
-        var pack = requireJSON(packagePath);
-        var scope = process.env.NODE_SCOPE || self.defaultScope;
+        var pack    = requireJSON(packagePath);
+        var scope   = process.env.NODE_SCOPE || self.defaultScope
+        var env     = process.env.NODE_ENV || self.defaultEnv;
 
         if (
             !projectArchFileObj.existsSync()
@@ -126,8 +127,8 @@ function Start(opt, cmd) {
         }
 
         opt.client.write('\nScope: '+ scope);
+        opt.client.write('\nEnv: '+ env);
         opt.client.write('\nArch: '+ currentArch);
-        // opt.client.write('\nprojectArchFile: '+ projectArchFile);
         opt.client.write('\nPlatform: '+ currentPlatform);
         opt.client.write('\nisNodeModulesReinstallNeeded: '+ isNodeModulesReinstallNeeded);
 
@@ -186,7 +187,7 @@ function Start(opt, cmd) {
                 lib.generator.createFileFromDataSync(GINA_PLATFORM, projectPlatformFile);
                 setTimeout(() => {
                     done(false)
-                }, 1000);
+                }, 500); // 1000
 
             });
 

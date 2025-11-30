@@ -155,6 +155,7 @@ function Config(opt, contextResetNeeded) {
                 // getting server core config
                 var statusCodes     = null
                     , mime          = null
+                    , encoding      = null
                 ;
 
                 try {
@@ -170,10 +171,16 @@ function Config(opt, contextResetNeeded) {
                     if ( typeof(mime['_comment']) != 'undefined' )
                         delete mime['_comment'];
 
+                    encoding  = fs.readFileSync(corePath + '/content.encoding').toString();
+                    encoding  = JSON.parse(encoding);
+                    if ( typeof(encoding['_comment']) != 'undefined' )
+                        delete encoding['_comment'];
+
                     self.envConf.core = {
                         statusCodes : statusCodes,
                         mime        : mime,
-                        locales     : locales
+                        locales     : locales,
+                        encoding    : encoding
                     };
 
                 } catch(err) {
@@ -2490,6 +2497,7 @@ function Config(opt, contextResetNeeded) {
         }
 
         conf[bundle][env].server.supportedRequestMethods = conf[bundle][env].content.settings.server.supportedRequestMethods;
+        conf[bundle][env].server.preferedCompressionEncodingOrder = conf[bundle][env].content.settings.server.preferedCompressionEncodingOrder;
         conf[bundle][env].hostname = scheme + '://' + conf[bundle][env].host + ':' + conf[bundle][env].server.port;
 
         // if ( /^true$/i.test( getContext('isProxyHost') ) ) {

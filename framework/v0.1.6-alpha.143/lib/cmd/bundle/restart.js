@@ -110,7 +110,7 @@ function Restart(opt, cmd) {
                         //opt.notStopped.push(bundle + '@' + self.projectName);
                         return setTimeout(() => {
                             end(opt, cmd, isBulkRestart, bundleIndex, true)
-                        }, 500);
+                        }, 250); // 500
                     }
 
                     // retrieve messages from the parent stdout
@@ -120,7 +120,7 @@ function Restart(opt, cmd) {
                     setTimeout(() => {
                         //opt.client.write('  => bundle [ ' + bundle + '@' + self.projectName + ' ] restarted on port #'+ bundlePort+' :D\n');
                         end(opt, cmd, isBulkRestart, bundleIndex)
-                    }, 500);
+                    }, 250); // 500
                 })
             })//EO isRealApp
         }
