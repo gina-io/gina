@@ -19402,7 +19402,7 @@ function Domain(options, cb) {
         name    : this.name,
         options : null,
         /**@js_externs rawPSL*/
-        rawPSL  : window['rawPSL'] || null,
+        rawPSL  : (isGFFCtx && typeof(window) != 'undefined' && typeof(window['rawPSL']) != 'undefined' ) ? window['rawPSL'] : null,
         PSL     : [],
     };
 
@@ -19487,10 +19487,7 @@ function Domain(options, cb) {
                 return;
             }
 
-            if (
-                isGFFCtx
-                && window['gina']['_global']['initialized'].indexOf( self.name ) == -1
-            ) {
+            if ( window['gina']['_global']['initialized'].indexOf( self.name ) == -1 ) {
                 window['gina']['_global']['initialized'].push( self.name );
             }
 
