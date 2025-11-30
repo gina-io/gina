@@ -324,7 +324,6 @@ find $SCRIPT_PATH/dist/vendor/gina/html -type f \( -name '*.html' \) -exec gzip 
 # DAT - Domain suffixes list #
 ##############################
 # Removing old
-echo -e "Running: find $SCRIPT_PATH/../../../lib/domain/dist -type f \\( -name '*.dat.br' \\) -exec rm {} \\;"
 find $SCRIPT_PATH/../../../lib/domain/dist -type f \( -name '*_list.dat.br' \) -exec rm {} \;
 find $SCRIPT_PATH/../../../lib/domain/dist -type f \( -name '*_list.dat.gz' \) -exec rm {} \;
 # Adding new

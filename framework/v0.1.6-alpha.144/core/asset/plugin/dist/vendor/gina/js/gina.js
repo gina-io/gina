@@ -19501,7 +19501,6 @@ function Domain(options, cb) {
                 response    = await fetch(filenameOrUrl);
                 result      = await response.text();
 
-                // self.rawPSL = window['gina']['_global']['rawPSL'] = result;
                 self.rawPSL = window['rawPSL'] = result;
 
             } catch (PSLErr) {
