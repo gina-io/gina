@@ -224,7 +224,7 @@ function Tail(opt, cmd) {
                                     project= bundleDesc[2];
                                 } // else, must be `gina` (the framework)
 
-                                if (opt.argv.indexOf('--follow') < 0 || opt.argv.indexOf('-f') < 0) {
+                                if (opt.argv.indexOf('--follow') < 0 && opt.argv.indexOf('-f') < 0) {
                                     // TODO - exits only if no other bundle is runing in the project
                                     // let projectStatus = execSync("$(which gina) project:status @"+project);
                                     // if ( /is\ running/.test(projectStatus) ) {

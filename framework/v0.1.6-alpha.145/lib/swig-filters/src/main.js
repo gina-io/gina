@@ -5,6 +5,7 @@
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
  */
+const { execSync }  = require('child_process');
 
 
 /**
@@ -33,17 +34,38 @@ function SwigFilters(conf) {
 
     var isGFFCtx    = ((typeof (module) !== 'undefined') && module.exports) ? false : true;
 
+    // Setting up requirements - Gina toolbox
+    // var ginaPath = execSync("which gina")
+    //                             .toString()
+    //                             .replace(/(\n|\r|\t)/g, '')
+    //                             .replace(/\/bin\/gina/, '');
+
+    // var help    = require(ginaPath + '/utils/helper.js');
+    // var pack    = ginaPath + '/package.json';
+    // pack = (isWin32()) ? pack.replace(/\//g, '\\') : pack;
+    // pack = require(pack);
+
+    // var frameworkPath   = ginaPath +'/framework/v'+ pack.version;
+    // var helpers         = require(frameworkPath +'/helpers');
+    // var lib             = require(frameworkPath +'/lib');
+
+    // var merge   = lib.merge;
+    // var rouging = lib.routing;
+
+
     if ( typeof(merge) == 'undefined' ) {
-        var merge = null;
+        merge = null;
     }
     if ( !merge || typeof(merge) != 'function' ) {
         merge = require(_(GINA_FRAMEWORK_DIR+"/lib/merge", true));
+        // merge = lib.merge;
     }
     if ( typeof(routing) == 'undefined' ) {
-        var routing = null;
+        routing = null;
     }
     if ( !routing || typeof(routing) != 'function' ) {
         routing = require(_(GINA_FRAMEWORK_DIR+"/lib/routing", true));
+        // routing = lib.routing;
     }
 
     var self = { options: conf };
@@ -149,7 +171,7 @@ function SwigFilters(conf) {
             , wrootRe           = null
             , isStandalone      = null
             , isMaster          = null
-            , isProxyHost       = ( ctx.isProxyHost && /^true$/i.test(ctx.isProxyHost) ) ? true : (( typeof(process.gina.PROXY_HOSTNAME) != 'undefined' ) ? true : false)
+            , isProxyHost       = ( ctx.isProxyHost && /^true$/i.test(ctx.isProxyHost) ) ? true : (( typeof(process.gina) != 'undefined' && typeof(process.gina.PROXY_HOSTNAME) != 'undefined' ) ? true : false)
             , routingRules      = null
             , rule              = null
             , url               = NaN

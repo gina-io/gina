@@ -1621,7 +1621,7 @@ function PathHelper() {
     setPath = function(name, path) {
 
         if ( !path || typeof(path) == 'undefined' || path == '' ) {
-            throw new Error('setPath(name, path): path cannot be empty or undefined')
+            throw new Error('setPath("'+ name +'", path): path cannot be empty or undefined')
         }
         // check if symlink to get realpath
         // var stats = fs.lstatSync(path);

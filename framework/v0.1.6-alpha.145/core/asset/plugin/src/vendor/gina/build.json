@@ -2,7 +2,7 @@
   "baseUrl": "./../../../src",
   "paths": {
     "requireLib"            : "../../../../node_modules/requirejs/require",
-    "jquery"                : "../src/vendor/jquery/1.12.4.min",
+    // "jquery"                : "../src/vendor/jquery/1.12.4.min",
 
     "vendor/uuid"           : "../../../../node_modules/uuid/dist/umd/uuid.min",
     "vendor/engine.io"      : "../../../../node_modules/engine.io-client/dist/engine.io.min",
@@ -27,10 +27,10 @@
     "lib/form-validator"  : "../../../../core/plugins/lib/validator/src/form-validator",
 
     "gina"                  : "vendor/gina/main",
-    "gina/toolbar"          : "vendor/gina/toolbar/main",
+    // "gina/toolbar"          : "vendor/gina/toolbar/main",
     "gina/popin"            : "vendor/gina/popin/main",
     "gina/link"             : "vendor/gina/link/main",
-    "gina/storage"          : "../../../plugins/lib/storage/src/main",
+    // "gina/storage"          : "../../../plugins/lib/storage/src/main",
     "gina/validator"        : "../../../plugins/lib/validator/src/main"
   },
   "include": [

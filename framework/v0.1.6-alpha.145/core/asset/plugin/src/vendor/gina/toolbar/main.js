@@ -1209,6 +1209,7 @@ define('gina/toolbar', ['require', 'jquery', 'vendor/uuid'/**, 'lib/merge'*/, 'l
         }
 
         var printLogs = function() {
+            if ( !routing) return;
             fLen = routing.notFound.count();
             if ( fLen > 0 ) {
                 for (f in routing.notFound) {

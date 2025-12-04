@@ -27,7 +27,7 @@ window['onGinaLoaded']      = function(gina) {
         return true
     }
 
-    var options = gina['config'] = {
+    var options = {
         /**@js_externs bundle*/
         'bundle': '{{ page.environment.bundle }}',
         /**@js_externs env*/
@@ -57,6 +57,14 @@ window['onGinaLoaded']      = function(gina) {
         /**@js_externs protocol*/
         'protocol' : '{{ page.environment.protocol }}'
     };
+    // Overriding in case of already defined config
+    if ( typeof(gina['config']) != 'undefined' ) {
+        for (let prop in gina['config'] ) {
+           options[prop] = gina['config'][prop];
+        }
+    }
+    gina['config'] = options;
+
 
     if ( /^true$/i.test(options.isProxyHost) ) {
         /**@js_externs proxyHost*/
@@ -213,19 +221,20 @@ window['onGinaLoaded']      = function(gina) {
             && existingLinks.length > 0
         ) {
             // Must be the first link
-            console.debug("placed before");
+            // console.debug("placed before");
             headEls.insertBefore(link, existingLinks[0]);
         } else {
-            console.debug("placed after");
+            // console.debug("placed after");
             headEls.appendChild(link);
         }
         existingLinks = null;
         headEls = null;
     }
 
-    // all required must be listed in `src/gina.js` defined modules list
+    // all required must be listed in `src/main.js` defined modules list
     if ( /^true$/i.test(options['envIsDev']) ) {
         var Toolbar             = window['require']('gina/toolbar');
+
         window['ginaToolbar']   = new Toolbar();
     }
 

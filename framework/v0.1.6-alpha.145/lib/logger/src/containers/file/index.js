@@ -132,9 +132,11 @@ function FileContainer(opt, loggers) {
         // console.debug('logger::file write env: ', bundleName, process.env.NODE_ENV, getEnvVar('GINA_ENV'), JSON.stringify(process.gina, null, 2) );// jshint ignore:line
 
         var env         = process.env.NODE_ENV || getEnvVar('GINA_ENV');// jshint ignore:line
+        var scope       = process.env.NODE_SCOPE || getEnvVar('GINA_SCOPE');// jshint ignore:line
         var Config      = require(getEnvVar('GINA_CORE') + '/config');
         var conf = new Config({
             env: env,
+            scope: scope,
             projectName: projectName,
             executionPath: projectPath,
             startingApp: bundleName,

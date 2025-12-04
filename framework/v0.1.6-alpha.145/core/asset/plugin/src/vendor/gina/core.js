@@ -71,9 +71,7 @@ function ready() {
                             window.clearInterval(scheduler);
                             throw err;
                         }
-
                     }, 50, i, readyList);
-
 
                 } else { // onEachHandlerReady
                     // iframe case
@@ -103,6 +101,7 @@ function ready() {
 
 function readyStateChange() {
     if ( document.readyState === 'complete' ) {
+        // TODO - Preload routing & reverseRouting
         gina.ready();
     }
 }
@@ -294,7 +293,8 @@ for (var t = 0, len = tags.length; t < len; ++t) {
                         return true
                     }
 
-                    var options = gina['config'] = {
+                    // var options = gina['config'] = {
+                    var options = {
                         /**@js_externs env*/
                         env                 : '{{ page.environment.env }}',
                         /**@js_externs envIsDev*/
@@ -310,6 +310,13 @@ for (var t = 0, len = tags.length; t < len; ++t) {
                         /**@js_externs webroot*/
                         'webroot'           : '{{ page.environment.webroot }}',
                     };
+                    // Overriding in case of already defined config
+                    if ( typeof(gina['config']) != 'undefined' ) {
+                        for (let prop in gina['config'] ) {
+                            options[prop] = gina['config'][prop];
+                        }
+                    }
+                    gina['config'] = options;
 
                     if ( typeof(getTimeout) == 'undefined' ) {
                         /**
@@ -407,12 +414,12 @@ for (var t = 0, len = tags.length; t < len; ++t) {
                     //console.log('Gina Framework is ready !');
                     window['gina'] = event.detail;
                     onGinaLoaded(event.detail)
-                })
+                });
             } else if (document.attachEvent) {
                 document.attachEvent("ginaloaded", function(event){
                     window['gina'] = event.detail;
                     onGinaLoaded(event.detail)
-                })
+                });
             }
         }()
         break;

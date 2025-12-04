@@ -521,6 +521,7 @@ gna.mount = process.mount = function(bundlesPath, source, target, type, callback
     if ( !fs.existsSync(mountingPath) ) {
         new _(mountingPath).mkdirSync();
     }
+    // /tmp
     var tmpPath = getPath('project') + '/tmp';
     console.debug('tmp path: ', tmpPath);
     var tmpPathObj = new _(tmpPath);
@@ -528,6 +529,16 @@ gna.mount = process.mount = function(bundlesPath, source, target, type, callback
         tmpPathObj.mkdirSync();
     }
     tmpPathObj = null;
+
+    // cache
+    var cachePath = getPath('project') + '/cache';
+    console.debug('cache path: ', cachePath);
+    var cachePathObj = new _(cachePath);
+    if ( !cachePathObj.existsSync() ) {
+        cachePathObj.mkdirSync();
+    }
+    cachePathObj = null;
+
     var sourceObj = new _(source);
     var targetObj = new _(target);
 

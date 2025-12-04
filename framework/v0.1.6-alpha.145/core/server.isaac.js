@@ -12,6 +12,7 @@ const lib               = require('./../lib');
 const inherits          = lib.inherits;
 const merge             = lib.merge;
 const console           = lib.logger;
+const Collection        = lib.Collection;
 
 
 const env               = process.env.NODE_ENV
@@ -71,22 +72,92 @@ function ServerEngineClass(options) {
         , acceptEncoding    = null
     ;
 
-    var localAssets = null;
+    var localAssets     = null
+        , cachedAssets  = null
+        , cachePathObj  = null
+    ;
     try {
+        // Adding cache directory if not found
+        cachePathObj = new _(options.cachePath, true);
+        if ( !cachePathObj.existsSync() ) {
+            cachePathObj.mkdirSync();
+        }
+        // For frontend template routing if needed
+        var _routing = JSON.clone(options.routing);
+        var reverseRouting = {};
+        for (let rule in _routing) {
+            if ( typeof(_routing[rule]._comment) != 'undefined' ) {
+                delete _routing[rule]._comment;
+            }
+            if ( typeof(_routing[rule].middleware) != 'undefined' ) {
+                delete _routing[rule].middleware;
+            }
+
+            if ( /\,/.test(_routing[rule].url) ) {
+                let urls = _routing[rule].url.split(/\,/g);
+                let r = 0;
+                let rLen = urls.length;
+                for (; r < rLen; ++r) {
+                    reverseRouting[ urls[r] ] = rule
+                }
+            } else {
+                reverseRouting[ _routing[rule].url ] = rule
+            }
+        }// EO for (let rule in _routing)
+
+        // Caching routing
+        let targetDir   = options.cachePath;
+        let targetFile  = null, fd = null, buffer = null;
+        if (_routing) {
+            targetFile  = 'routing.json';
+            // Storing to disk
+            console.debug(`Writing ${targetFile} to: ${targetDir}/${targetFile}`);
+            fd = fs.openSync(targetDir +'/'+ targetFile, 'w'); // Open file for writing
+            buffer = Buffer.from( JSON.stringify(_routing) );
+            fs.writeSync(fd, buffer, 0, buffer.length, 0); // Write the buffer
+            fs.closeSync(fd); // Close the file descriptor
+        }
+        // Caching reverseRouting
+        if (reverseRouting) {
+            targetFile  = 'reverse-routing.json';
+            // Storing to disk
+            console.debug(`Writing ${targetFile} to: ${targetDir}/${targetFile}`);
+            fd = fs.openSync(targetDir +'/'+ targetFile, 'w'); // Open file for writing
+            buffer = Buffer.from( JSON.stringify(reverseRouting) );
+            fs.writeSync(fd, buffer, 0, buffer.length, 0); // Write the buffer
+            fs.closeSync(fd); // Close the file descriptor
+        }
+
+        buffer = null;
+        fd = null;
+
+
+        // TODO - Make a br or a gz file asside here
         localAssets = [
             {
                 file    : 'public_suffix_list.dat',
                 path    : getPath('gina').lib +'/domain/dist',
                 mime    : 'text/plain; charset=utf8'
+            },
+            {
+                file    : 'routing.json',
+                path    : options.cachePath,
+                mime    : 'application/json; charset=utf8'
+            },
+            {
+                file    : 'reverse-routing.json',
+                path    : options.cachePath,
+                mime    : 'application/json; charset=utf8'
             }
         ];
         for (let i=0, len=localAssets.length; i<len; i++) {
-            let fileName  =  _(localAssets[i].path +'/'+ localAssets[i].file, true)
-            localAssets[i].content = readSync(fileName);
-        }
+            let fileName  =  _(localAssets[i].path +'/'+ localAssets[i].file, true);
+            localAssets[i].content = readSync(fileName, 'utf8');
+        }// EO for localAssets
+
     } catch (assetsError) {
         // TODO - Reuse the default or the project 404 page
-        fileContent = 'Not found';
+        // fileContent = 'Not found';
         console.error('[ SERVER ] '+ assetsError.stack);
     }
 
@@ -188,6 +259,8 @@ function ServerEngineClass(options) {
             , requestHost       = null
             , isBinary          = null
             , isCacheless       = options.isCacheless
+            , assetsCollection  = new Collection(localAssets)
+            , localAsset        = null
         ;
 
 
@@ -258,19 +331,23 @@ function ServerEngineClass(options) {
             }
 
 
-            if ( /^get$/i.test(request.method) && /\_gina\/assets\/public_suffix_list.dat$/i.test(request.url) ) {
+            if (
+                /^get$/i.test(request.method) && /\_gina\/assets\/public_suffix_list.dat$/i.test(request.url)
+                ||
+                /^get$/i.test(request.method) && /\_gina\/assets\/(routing|reverse\-routing).json$/i.test(request.url)
+            ) {
                 // server.toApi(reques, response)
                 // console.debug('[ SERVER ][200] '+ request.url);
-
-                response.setHeader('content-type', localAssets[0].mime);
+                localAsset = assetsCollection.findOne({ file: request.url.split(/\//g).slice(-1).toString() });
+                response.setHeader('content-type', localAsset.mime);
                 response.setHeader('vary', 'Origin');
-                response.setHeader('cache-control', 'public,max-age=86400');
+                response.setHeader('cache-control', 'public, max-age=86400');
                 response.setHeader('x-content-type-options', 'nosniff');
                 response.setHeader('x-frame-options', 'DENY');
                 response.setHeader('x-xss-protection', '1; mode=block');
                 response.setHeader('x-powered-by', 'Gina/'+ GINA_VERSION);
 
-                var filename  =  _(localAssets[0].path +'/'+ localAssets[0].file, true);
+                var filename  =  _(localAsset.path +'/'+ localAsset.file, true);
                 if (acceptEncodingArr) {
                     for (let e=0, eLen=preferedEncoding.length; e<eLen; e++) {
                         if ( acceptEncodingArr && acceptEncodingArr.indexOf(preferedEncoding[e]) > -1 ) {
@@ -294,7 +371,7 @@ function ServerEngineClass(options) {
                 }
 
                 if (!isBinary) {
-                    return response.end(localAssets[0].content);
+                    return response.end(localAsset.content);
                 }
 
                 return fs.createReadStream(filename)

@@ -205,7 +205,7 @@ function Domain(options, cb) {
             }
 
             opt.isUpdating = false;
-            // cb(false);
+
             myEventBus.dispatchEvent(
                 new CustomEvent('domain_psl.loaded', {
                     detail: {

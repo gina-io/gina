@@ -99,6 +99,7 @@ function ValidatorPlugin(rules, data, formId) {
     //var Collection      = (isGFFCtx) ? require('lib/collection') : require('../../../../../lib/collection');
     var routing         = (isGFFCtx) ? require('lib/routing') : require('../../../../../lib/routing');
 
+
     /** definitions */
     var instance    = {
         'id'                : 'validator-' + uuid.v4(),
@@ -7361,5 +7362,5 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
     module.exports  = ValidatorPlugin
 } else if ( typeof(define) === 'function' && define.amd) {
     // Publish as AMD module
-    define('gina/validator', ['utils/events', 'utils/dom', 'utils/effects', 'utils/data', 'lib/form-validator'], function(){ return ValidatorPlugin })
+    define('gina/validator', ['utils/events', 'utils/dom', 'utils/effects', 'utils/data', 'lib/form-validator', 'lib/routing'], function(){ return ValidatorPlugin })
 }

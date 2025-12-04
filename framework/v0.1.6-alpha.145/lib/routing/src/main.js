@@ -62,6 +62,7 @@ function Routing() {
     }
     // BO - In case of partial rendering whithout handler defined for the partial
     else {
+
         if ( !merge || typeof(merge) != 'function' ) {
             merge = require('lib/merge');
         }
@@ -1266,12 +1267,12 @@ function Routing() {
      * @param {string} [bundle] targeted bundle
      * @param {string} [method] 2nd or 3rd -  request method (GET|PUT|PUT|DELETE) - GET is set by default
      * @param {object} [request]
-     * @param {boolean} [isOverridinMethod] // will replace request.method by the provided method - Used for redirections
+     * @param {boolean} [isOverridingMethod] // will replace request.method by the provided method - Used for redirections
      *
      * @returns {object|boolean} route - when route is found; `false` when not found
      * */
 
-    self.getRouteByUrl = function (url, bundle, method, request, isOverridinMethod) {
+    self.getRouteByUrl = function (url, bundle, method, request, isOverridingMethod) {
 
         if (
             arguments.length == 2
@@ -1324,7 +1325,7 @@ function Routing() {
             }
         }
 
-        isOverridinMethod = ( typeof(arguments[arguments.length-1]) != 'boolean') ? false : arguments[arguments.length-1];
+        isOverridingMethod = ( typeof(arguments[arguments.length-1]) != 'boolean') ? false : arguments[arguments.length-1];
 
         var matched             = false
             , config            = null
@@ -1386,7 +1387,7 @@ function Routing() {
                     url: url
                 }
             }
-            if (isOverridinMethod) {
+            if (isOverridingMethod) {
                 request.method = method;
             }
             isXMLRequest    = request.isXMLRequest || false;
@@ -1596,8 +1597,10 @@ if ((typeof (module) !== 'undefined') && module.exports) {
     }
 
     // Publish as node.js module
-    module.exports = Routing()
+    module.exports = Routing();
 } else if (typeof (define) === 'function' && define.amd) {
     // Publish as AMD module
-    define('lib/routing', ['require', 'lib/form-validator', 'lib/merge'], function() { return Routing() })
+    define('lib/routing', ['require', 'lib/form-validator', 'lib/merge'], function() {
+        return Routing();
+    });
 }

@@ -997,7 +997,9 @@ function Config(opt, contextResetNeeded) {
                     "bundle"                : app,
                     "env"                   : env,
                     "scope"                 : scope,
+                    "logsPath"              : newContent[app][env].logsPath,
                     "tmpPath"               : newContent[app][env].tmpPath,
+                    "cachePath"             : newContent[app][env].cachePath,
                     "rootDomain"            : rootDomain,
                     "host"                  : newContent[app][env].host,
                     "scheme"                : newContent[app][env].server.scheme,
@@ -1906,6 +1908,7 @@ function Config(opt, contextResetNeeded) {
             "sharedPath"        : conf[bundle][env].sharedPath,
             "logsPath"          : conf[bundle][env].logsPath,
             "tmpPath"           : conf[bundle][env].tmpPath,
+            "cachePath"         : conf[bundle][env].cachePath,
             "version"           : getContext('gina').version,
         };
 

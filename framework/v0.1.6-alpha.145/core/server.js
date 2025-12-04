@@ -150,7 +150,9 @@ function Server(options) {
                         protocol            : options.conf[self.appName][self.env].server.protocol,
                         scheme              : options.conf[self.appName][self.env].server.scheme,
                         coreConfiguration   : options.conf[self.appName][self.env].server.coreConfiguration,
-                        isCacheless         : options.conf[self.appName][self.env].isCacheless
+                        isCacheless         : options.conf[self.appName][self.env].isCacheless,
+                        routing             : options.conf[self.appName][self.env].routing,
+                        cachePath           : options.conf[self.appName][self.env].cachePath
                     }
             );
 
@@ -338,6 +340,13 @@ function Server(options) {
             instance.throwError         = throwError;
             instance.getAssets          = getAssets;
             instance.completeHeaders    = completeHeaders;
+
+            if ( typeof(instance._cached) == 'undefined' ) {
+                instance._cached = {
+                    // Compiled templates
+                    templates: {}
+                }
+            }
 
             router.setServerInstance(instance);
         }

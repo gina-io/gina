@@ -635,6 +635,29 @@ function CmdHelper(cmd, client, debug) {
             }
             projectTmpPathObj = null;
 
+            // cache
+            var projectCachePathObj = new _(cmd.projects[cmd.projectName].homedir +'/cache', true);
+            if (!projectCachePathObj.existsSync() ) {
+                projectCachePathObj.mkdirSync();
+            }
+            cmd.projectCachePath = projectCachePathObj.toString();
+            // cache symlink
+            var cacheLinkPathObj = new _(cmd.projects[cmd.projectName].path +'/cache', true);
+            if (
+                cacheLinkPathObj.existsSync()
+                && !cacheLinkPathObj.isSymlinkSync()
+                ||
+                cacheLinkPathObj.existsSync()
+                && fs.readlinkSync(cacheLinkPathObj.toString()) != cmd.projectCachePath
+            ) {
+                cacheLinkPathObj.rmSync();
+            }
+            if (!cacheLinkPathObj.existsSync()) {
+                console.debug('[ FRAMEWORK ][ CmdHelper ] Linking ['+ projectCachePathObj.toString() +'] to [ '+ cacheLinkPathObj.toString() +' ] ');
+                projectCachePathObj.symlinkSync(cacheLinkPathObj.toString());
+            }
+            projectCachePathObj = null;
+
 
             cmd.projectLocation     = _(cmd.projects[cmd.projectName].path, true);
             cmd.bundlesLocation     = _(cmd.projects[cmd.projectName].path +'/src', true);
