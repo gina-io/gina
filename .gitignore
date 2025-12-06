@@ -12,7 +12,7 @@ nbproject
 /services
 /logs
 /tmp
-/cache
+/cache/*
 .gna
 node_modules*
 VERSION
