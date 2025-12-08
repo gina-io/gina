@@ -1090,32 +1090,14 @@ function Server(options) {
          * }
          */
 
-        if (swig) {
+
+        if (swig) { // Deprecated
             var assetsStr = JSON.stringify(assets);
-
-            // var conf = self.conf[self.conf.bundle][self.conf.env];
-            // var filters = SwigFilters({
-            //     options     : conf,
-            //     isProxyHost : getContext('isProxyHost')
-            // });
-            // try {
-            //     // Allows you to get a bundle web root
-            //     // e.g.: swig.setFilter('getWebroot', filters.getWebroot);
-            //     // e.g.: swig.setFilter('nl2br', filters.nl2br);
-            //     for (let filter in filters) {
-            //         if ( typeof(filters[filter]) == 'function' && !/^getConfig$/.test(filter) ) {
-            //             swig.setFilter(filter, filters[filter]);
-            //         }
-            //     }
-
-            // } catch (err) {
-            //     throw err;
-            // }
-            // TODO - Setup Default Swig Filters
             assets = swig.compile( assetsStr.substring(1, assetsStr.length-1), swig.getOptions() )(data);
-            return '{'+ assets +'}'
+
+            return '{'+ assets +'}';
         } else {
-            return assets
+            return JSON.stringify(assets)
         }
     }
 
@@ -1589,7 +1571,7 @@ function Server(options) {
             , isHandler     = null
             , hanlersPath   = null
             , preferedEncoding = bundleConf.server.preferedCompressionEncodingOrder
-            , acceptEncodingArr = request.headers['accept-encoding'].replace(/\s+/g, '').split(/\,/)
+            , acceptEncodingArr = (request.headers['accept-encoding']) ? request.headers['accept-encoding'].replace(/\s+/g, '').split(/\,/) : []
             , acceptEncoding = null
         ;
 

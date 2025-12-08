@@ -225,7 +225,8 @@ async function render(userData, displayToolbar, errOptions) {
                 }
 
                 // updating extends
-                _templateContent = _templateContent.replace(layoutPath, '../../../../cache/'+ localOptions.bundle +'/'+ newLayoutPath);
+                // _templateContent = _templateContent.replace(layoutPath, '../../../../cache/'+ localOptions.bundle +'/'+ newLayoutPath);
+                _templateContent = _templateContent.replace(layoutPath, _(cachePath +'/'+ localOptions.bundle +'/'+ newLayoutPath, true) );
 
                 // override layout path
                 layoutPath = newLayoutPath;
@@ -829,7 +830,7 @@ async function render(userData, displayToolbar, errOptions) {
                     if ( /**  self.isCacheless() ||*/ typeof(localOptions.template.assets) == 'undefined' || typeof(localOptions.template.assets[local.req.url]) == 'undefined' ) {
                         // assets string -> object
                         //assets = self.serverInstance.getAssets(localOptions.conf, layout.toString(), swig, data);
-                        assets = self.serverInstance.getAssets(localOptions.conf, layout, swig, data);
+                        assets = self.serverInstance.getAssets(localOptions.conf, layout, null, data);
                         localOptions.template.assets = JSON.parse(assets);
                     }
 
