@@ -682,7 +682,14 @@ async function render(userData, displayToolbar, errOptions) {
             }
 
             // ginaLoader cannot be deferred
-            if ( !localOptions.template.javascriptsExcluded || localOptions.template.javascriptsExcluded != '**' ) {
+            if (
+                !localOptions.template.javascriptsExcluded
+                    && !/window\.onGinaLoaded/.test(layout)
+                ||
+                localOptions.template.javascriptsExcluded != '**'
+                    && !/window\.onGinaLoaded/.test(layout)
+
+            ) {
                 layout = layout.replace(/\<\/head\>/i, '\t'+ localOptions.template.ginaLoader +'\n</head>');
             }
 
@@ -717,7 +724,14 @@ async function render(userData, displayToolbar, errOptions) {
                 if ( !/\{\{ page\.view\.scripts \}\}/.test(layout) ) {
                     layout += '\t{{ page.view.scripts }}\n';
                 }
-                if ( !localOptions.template.javascriptsExcluded || localOptions.template.javascriptsExcluded != '**' ) {
+                if (
+                    !localOptions.template.javascriptsExcluded
+                        && !/window\.onGinaLoaded/.test(layout)
+                    ||
+                    localOptions.template.javascriptsExcluded != '**'
+                        && !/window\.onGinaLoaded/.test(layout)
+
+                ) {
                     layout += '\t'+ localOptions.template.ginaLoader +'\n';
                 }
             } else {
@@ -740,7 +754,14 @@ async function render(userData, displayToolbar, errOptions) {
                     }
                 }
                 // ginaLoader cannot be deferred
-                if ( !localOptions.template.javascriptsExcluded || localOptions.template.javascriptsExcluded != '**' ) {
+                if (
+                    !localOptions.template.javascriptsExcluded
+                        && !/window\.onGinaLoaded/.test(layout)
+                    ||
+                    localOptions.template.javascriptsExcluded != '**'
+                        && !/window\.onGinaLoaded/.test(layout)
+
+                ) {
                     layout = layout.replace(/\<\/head\>/i, '\t'+ localOptions.template.ginaLoader +'\n</head>');
                 }
             }

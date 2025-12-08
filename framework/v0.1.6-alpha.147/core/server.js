@@ -1203,7 +1203,7 @@ function Server(options) {
 
             re = new RegExp(authority);
             allowedOrigin = ( typeof(conf.server.response.header['access-control-allow-origin']) != 'undefined' && conf.server.response.header['access-control-allow-origin'] != '' ) ? conf.server.response.header['access-control-allow-origin'] : authority;
-            console.debug('[ server ][access-control-allow-origin] ', allowedOrigin);
+            // console.debug('[ server ][access-control-allow-origin] ', allowedOrigin);
             var found = null, origin = null, origins = null; // to handles multiple origins
 
             var originHostReplacement = function(name) {

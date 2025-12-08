@@ -45,6 +45,7 @@ module.exports = function(){
                 delete require.cache[require.resolve(filename)];
             }
             jsonStr = fs.readFileSync(filename).toString();
+
         } catch (err) {
             if ( typeof(console.emerg) != 'undefined' ) {
                 console.emerg(err.stack);
