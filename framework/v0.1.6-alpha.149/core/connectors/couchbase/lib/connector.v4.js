@@ -239,118 +239,102 @@ function Connector(dbString) {
 
         try {
             console.debug('[CONNECTOR][' + local.bundle +'][' + dbString.database +'] Trying to connect to bucket `'+ dbString.bucketName +'`');
-            // if ( typeof(dbString.password) != 'undefined' && typeof(self.cluster.authenticate) == 'undefined' ) {
-                // conn = await self.cluster.openBucket(dbString.database, dbString.password, function onBucketOpened(bErr) {
-                conn = await couchbase.connect(dbString.protocol + dbString.host, dbString, function onBucketOpened(bErr, conn) {
-                    if (bErr) {
-                        // console.emerg('[CONNECTOR][' + local.bundle +'] Could not connect to couchbase @`'+ dbString.protocol + dbString.host +'`\n'+ (bErr.stack || bErr.message || bErr) + '\nCheck:\n - if couchbabse is running\n - if bucket `'+dbString.bucketName+'` exists\n - if you have permission to access couchbase' );
-                        var cErr = new Error('[CONNECTOR][' + local.bundle +'] Could not connect to couchbase @`'+ dbString.protocol + dbString.host +'`\n'+ (bErr.stack || bErr.message || bErr) + '\nCheck:\n - if couchbabse is running\n - if bucket `'+dbString.bucketName+'` exists\n - if you have permission to access couchbase');
+            conn = await couchbase.connect(dbString.protocol + dbString.host, dbString, function onBucketOpened(bErr, conn) {
+                if (bErr) {
+                    // console.emerg('[CONNECTOR][' + local.bundle +'] Could not connect to couchbase @`'+ dbString.protocol + dbString.host +'`\n'+ (bErr.stack || bErr.message || bErr) + '\nCheck:\n - if couchbabse is running\n - if bucket `'+dbString.bucketName+'` exists\n - if you have permission to access couchbase' );
+                    var cErr = new Error('[CONNECTOR][' + local.bundle +'] Could not connect to couchbase @`'+ dbString.protocol + dbString.host +'`\n'+ (bErr.stack || bErr.message || bErr) + '\nCheck:\n - if couchbabse is running\n - if bucket `'+dbString.bucketName+'` exists\n - if you have permission to access couchbase');
 
-                        if ( typeof(cb) != 'undefined' ) {
-                            return cb(cErr)
-                        }
-                        // return self.emit('ready', bErr, null);
-                        self.instance   = {}
-                        return onError(cErr, cb)
+                    if ( typeof(cb) != 'undefined' ) {
+                        return cb(cErr)
                     }
-                    conn.sdk        = sdk;
-                    conn.useRestApi = local.options.useRestApi;
+                    // return self.emit('ready', bErr, null);
+                    self.instance   = {}
+                    return onError(cErr, cb)
+                }
+                conn.sdk        = sdk;
+                conn.useRestApi = local.options.useRestApi;
 
-                    // Default maxBuffer is 200KB (=> 1024 * 200)
-                    // Setting it to 10MB - preventing: stdout maxBuffer length exceeded
-                    var maxQueryBuffer = (1024 * 1024 * 10);
-                    var body = null;
-                    // When conn.useRestApi == true
-                    conn.restQuery = function(trigger, statement, queryParams, onQueryCallback) {
-                        statement = statement.replace(/\'/g, '"');
-                        body = statement;
-                        body += '&args='+ arrayToValues(queryParams.parameters);
-                        // body += '&auto_execute=true'
-                        if ( typeof(queryParams.scanConsistency) != 'undefined' ) {
-                            body += '&scan_consistency='+ queryParams.scanConsistency
-                        }
-                        body += '\'';
-                        // https://docs.couchbase.com/server/current/n1ql-rest-query/index.html#Request
-                        var cmd = [
-                            '$(which curl)',
-                            '-v http://'+ dbString.host.split(/\,/g)[0].trim() +':8093/query/service',
-                            // '-d \'statement='+ statement +'&args='+ arrayToValues(queryParams.parameters) +'&auto_execute=true\'',
-                            '-d \'statement='+ body,
-                            '-u '+ dbString.username +':'+ dbString.password
-                        ];
-                        exec(cmd.join(' '), { maxBuffer: maxQueryBuffer }, function onResult(resErr, resTxt, infos) {
-                            var error = null;
-                            if (resErr) {
-                                try {
-                                    error = new Error('[CONNECTOR][' + local.bundle +'] query '+ trigger +' aborted\n'+ resErr.stack);
-                                    console.error(error.stack);
-                                    onQueryCallback(error);
-                                } catch (_err) {
-                                    console.error(_err.stack);
-                                }
-                                return;
-                            }
-                            let res = JSON.parse(resTxt);
-                            let err = res.errors;
-                            let data = {
-                                rows: res.results,
-                                meta: {
-                                    resquestId: res.requestID,
-                                    status: res.status,
-                                    metrics: res.metrics
-                                }
-                            };
-
-                            if (err) {
-                                try {
-                                    error = new Error(err.msg);
-                                    error.stack = trigger;
-                                    onQueryCallback(error);
-                                } catch (_err) {
-                                    console.error(_err.stack);
-                                }
-                                return;
-                            }
+                // Default maxBuffer is 200KB (=> 1024 * 200)
+                // Setting it to 10MB - preventing: stdout maxBuffer length exceeded
+                var maxQueryBuffer = (1024 * 1024 * 10);
+                var body = null;
+                // When conn.useRestApi == true
+                conn.restQuery = function(trigger, statement, queryParams, onQueryCallback) {
+                    statement = statement.replace(/\'/g, '"');
+                    body = statement;
+                    body += '&args='+ arrayToValues(queryParams.parameters);
+                    // body += '&auto_execute=true'
+                    if ( typeof(queryParams.scanConsistency) != 'undefined' ) {
+                        body += '&scan_consistency='+ queryParams.scanConsistency
+                    }
+                    body += '\'';
+                    // https://docs.couchbase.com/server/current/n1ql-rest-query/index.html#Request
+                    var cmd = [
+                        '$(which curl)',
+                        '-v http://'+ dbString.host.split(/\,/g)[0].trim() +':8093/query/service',
+                        // '-d \'statement='+ statement +'&args='+ arrayToValues(queryParams.parameters) +'&auto_execute=true\'',
+                        '-d \'statement='+ body,
+                        '-u '+ dbString.username +':'+ dbString.password
+                    ];
+                    exec(cmd.join(' '), { maxBuffer: maxQueryBuffer }, function onResult(resErr, resTxt, infos) {
+                        var error = null;
+                        if (resErr) {
                             try {
-                                if ( typeof(data) == 'undefined' ) {
-                                    data = { rows: []}
-                                }
-                                onQueryCallback(false, data.rows, data.meta);
+                                error = new Error('[CONNECTOR][' + local.bundle +'] query '+ trigger +' aborted\n'+ resErr.stack);
+                                console.error(error.stack);
+                                onQueryCallback(error);
                             } catch (_err) {
-                                _err.stack = '[ ' + trigger + '] onQueryCallbackError: \n\t- Did you leave any bad comments ?\n\t- Did you try to run your query ?\r\n'+ query +'\r\n'+ _err.stack;
                                 console.error(_err.stack);
                             }
-                        });
-                    };
+                            return;
+                        }
+                        let res = JSON.parse(resTxt);
+                        let err = res.errors;
+                        let data = {
+                            rows: res.results,
+                            meta: {
+                                resquestId: res.requestID,
+                                status: res.status,
+                                metrics: res.metrics
+                            }
+                        };
 
-                    // open bucket
-                    console.debug('[CONNECTOR][' + local.bundle +'][' + dbString.database +'] Connecting to bucket `'+ dbString.bucketName +'`');
-                    var bucketConn = conn.bucket(dbString.bucketName);
-                    bucketConn.sdk = sdk;
-                    bucketConn.useRestApi = local.options.useRestApi;
-                    // Get a reference to the default collection, required only for older Couchbase server versions
-                    // defaultCollection = bucketConn.defaultCollection();
-                    // default scope
-                    // default collection
-                    self.instance   = bucketConn;
-                    onConnect(cb);
+                        if (err) {
+                            try {
+                                error = new Error(err.msg);
+                                error.stack = trigger;
+                                onQueryCallback(error);
+                            } catch (_err) {
+                                console.error(_err.stack);
+                            }
+                            return;
+                        }
+                        try {
+                            if ( typeof(data) == 'undefined' ) {
+                                data = { rows: []}
+                            }
+                            onQueryCallback(false, data.rows, data.meta);
+                        } catch (_err) {
+                            _err.stack = '[ ' + trigger + '] onQueryCallbackError: \n\t- Did you leave any bad comments ?\n\t- Did you try to run your query ?\r\n'+ query +'\r\n'+ _err.stack;
+                            console.error(_err.stack);
+                        }
+                    });
+                };
 
-                    // return bucketConn
-                });
+                // open bucket
+                console.debug('[CONNECTOR][' + local.bundle +'][' + dbString.database +'] Connecting to bucket `'+ dbString.bucketName +'`');
+                var bucketConn = conn.bucket(dbString.bucketName);
+                bucketConn.sdk = sdk;
+                bucketConn.useRestApi = local.options.useRestApi;
+                // Get a reference to the default collection, required only for older Couchbase server versions
+                // defaultCollection = bucketConn.defaultCollection();
+                // default scope
+                // default collection
+                self.instance   = bucketConn;
+                onConnect(cb);
 
-                // return conn
-            // } else {
-            //     // conn = await self.cluster.openBucket(dbString.database, function onBucketOpened(bErr) {
-            //     self.cluster = conn =
-            //         if (bErr) {
-            //             cb(bErr)
-            //         } else {
-            //             conn.sdk        = sdk;
-            //             self.instance   = conn;
-            //             onConnect(cb);
-            //         }
-            //     });
-            // }
+                // return bucketConn
+            });
 
         } catch (err) {
             console.error('[CONNECTOR][' + local.bundle +']['+ local.env +'] Couchbase could not connect to bucket `'+ dbString.database +'`\n'+ (err.stack || err.message || err) );
