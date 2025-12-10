@@ -343,10 +343,7 @@ function Server(options) {
             instance.completeHeaders    = completeHeaders;
 
             if ( typeof(instance._cached) == 'undefined' ) {
-                instance._cached = {
-                    // Compiled templates
-                    templates: {}
-                }
+                instance._cached = new Map();
             }
             if ( typeof(instance._cachedPath) == 'undefined' ) {
                 instance._cachePath = self.conf[self.appName][self.env].server.cachePath;
@@ -1274,7 +1271,7 @@ function Server(options) {
 
         // update response
         try {
-            if ( responseHeaders && responseHeaders.count() > 0 ) {
+            if ( responseHeaders && Object.keys(responseHeaders).length > 0 ) {
                 return merge(responseHeaders, response.getHeaders());
             }
             return response.getHeaders();
@@ -1901,7 +1898,7 @@ function Server(options) {
                             completeHeaders(null, request, response);
                             response.setHeader('content-type', contentType +'; charset='+ bundleConf.encoding);
                             // if (/\.(woff|woff2)$/i.test(filename) )  {
-                            //     response.setHeader("Transfer-Encoding", 'Identity')
+                            //     response.setHeader("transfer-encoding", 'Identity')
                             // }
 
 
@@ -3043,6 +3040,7 @@ function Server(options) {
                     namespace           : routing[name].namespace || undefined,
                     url                 : decodeURI(pathname), /// avoid %20
                     rule                : routing[name].originalRule || name,
+                    cache               : routing[name].cache || null,
                     // We clone because we are going to modify it while comparing urls
                     param               : JSON.clone(routing[name].param),
                     // We clone because we are going to modify it while routing (.splice(..))

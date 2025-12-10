@@ -1,7 +1,9 @@
 const fs = require('fs');
 
-var lib             = require('./../../lib') || require.cache[require.resolve('./../../lib')];
-var Collection      = lib.Collection;
+const lib             = require('./../../lib') || require.cache[require.resolve('./../../lib')];
+const Collection      = lib.Collection;
+const cache           = new lib.Cache();
+
 // Inherited from controller
 var self                = null
     , local             = null
@@ -12,6 +14,8 @@ var self                = null
     , SwigFilters       = null
     , headersSent       = null
     , cachedTemplates   = null
+    , cachedIndexes     = null
+    , cachedHtml        = null
     , cachePath         = null
 ;
 /**
@@ -35,9 +39,13 @@ var self                = null
  * */
 async function render(userData, displayToolbar, errOptions) {
 
-    // Using server cache to cache compileTemplates
-    cachedTemplates = self.serverInstance._cached.templates;
+    // Using server cache to cache compiledTemplates
+    cache.from(self.serverInstance._cached);
+
     cachePath       = self.serverInstance._cachePath;
+    // cachedTemplates = self.serverInstance._cached.templates;
+    // cachedIndexes   = self.serverInstance._cached.indexes || null;
+    // cachedHtml      = self.serverInstance._cached.html || null;
 
     var err = null;
     var isRenderingCustomError = (
@@ -64,6 +72,8 @@ async function render(userData, displayToolbar, errOptions) {
         , template          = null
         , file              = null
         , path              = null
+        , htmlContent       = null
+        , cacheKey          = null
         , plugin            = null
         // By default
         , isWithoutLayout   = (localOptions.isWithoutLayout) ? true : false
@@ -191,11 +201,12 @@ async function render(userData, displayToolbar, errOptions) {
     }
     pageContentObj = null;
 
+    cacheKey = 'swig:' + localOptions.bundle + subFolder +'/'+ data.page.view.file;
     // Retrieve layoutPath from content
     if (
         hasLayoutInPath
         && _templateContent
-        && typeof(cachedTemplates[ localOptions.bundle + subFolder +'/'+ data.page.view.file ]) == 'undefined'
+        && !cache.has(cacheKey)
     ) {
 
         // subFolder       = path.split(/\//g).slice(0, -1).join('/').replace(localOptions.template.html, '');
@@ -209,6 +220,7 @@ async function render(userData, displayToolbar, errOptions) {
                 // adding layout
                 var newLayoutPath = 'swig' + subFolder  +'/'+ layoutPath;
                 newLayoutFilename = _(cachePath +'/'+ localOptions.bundle +'/'+ newLayoutPath, true);
+
                 if ( !fs.existsSync( newLayoutFilename ) ) {
                     var newLayoutDir = newLayoutFilename.split(/\//g).slice(0, -1).join('/');
                     var newLayoutDirObj = new _(newLayoutDir);
@@ -225,7 +237,6 @@ async function render(userData, displayToolbar, errOptions) {
                 }
 
                 // updating extends
-                // _templateContent = _templateContent.replace(layoutPath, '../../../../cache/'+ localOptions.bundle +'/'+ newLayoutPath);
                 _templateContent = _templateContent.replace(layoutPath, _(cachePath +'/'+ localOptions.bundle +'/'+ newLayoutPath, true) );
 
                 // override layout path
@@ -524,9 +535,10 @@ async function render(userData, displayToolbar, errOptions) {
         if (
             /**!self.isCacheless()
             &&*/
-            typeof(cachedTemplates[ localOptions.bundle + subFolder  +'/'+ data.page.view.file ]) != 'undefined'
+            cache.has(cacheKey)
         ) {
-            compiledTemplate = cachedTemplates[ localOptions.bundle + subFolder  +'/'+ data.page.view.file ];
+            // compiledTemplate = cachedTemplates[ localOptions.bundle + subFolder  +'/'+ data.page.view.file ];
+            compiledTemplate = cache.get(cacheKey).template;
 
             if ( !headersSent() ) {
                 if ( localOptions.isRenderingCustomError ) {
@@ -894,23 +906,79 @@ async function render(userData, displayToolbar, errOptions) {
                 fd = null;
             }
 
-
-
             // Last compilation before rendering
             // Now we can use `data` instead of `swigData`
             mapping = { filename: path  };
             compiledTemplate = swig.compile(_templateContent, mapping);
-            if ( !self.isCacheless && hasLayoutInPath) {
+
+            if (
+                /**!self.isCacheless
+                &&*/ hasLayoutInPath
+                && !cache.has(cacheKey)
+            ) {
                 // Caching template
-                cachedTemplates[ localOptions.bundle + subFolder  +'/'+ data.page.view.file ] = compiledTemplate;
+                cache.set(cacheKey, {
+                    template: compiledTemplate
+                });
             }
 
             if ( !headersSent() ) {
                 if ( localOptions.isRenderingCustomError ) {
                     localOptions.isRenderingCustomError = false;
                 }
+                htmlContent = compiledTemplate(data);
+                local.res.setHeader('content-type', localOptions.conf.server.coreConfiguration.mime['html'] + '; charset='+ localOptions.conf.encoding );
+
+                if (
+                    !self.isCacheless
+                    && typeof(local.req.routing.cache) != 'undefined'
+                    && /^GET$/i.test(local.req.method)
+                ) {
+                    cacheKey = "html:"+ local.req.url;
+                    if ( !cache.has(cacheKey) ) {
+                        // Caching to memory
+                        if ( /^memory$/i.test(local.req.routing.cache) ) {
+                            cache.set(cacheKey, {
+                                content         : htmlContent,
+                                responseHeaders : local.res.getHeaders(),
+                                fromMemory      : true,
+                                // ttl             : 120 // In secs
+                            });
+                        }
+                        // Caching to file
+                        if ( /^static$/i.test(local.req.routing.cache) ) {
+                            var url = local.req.url;
+                            if ( /\/$/.test(url) ) {
+                                url += 'index'
+                            }
+                            var htmlFilename = _(cachePath +'/'+ localOptions.bundle +'/html'+ url + '.html', true);
+                            var htmlDir = htmlFilename.split(/\//g).slice(0, -1).join('/');
+                            var htmlDirObj = new _(htmlDir);
+                            if ( !htmlDirObj.existsSync() ) {
+                                htmlDirObj.mkdirSync()
+                            }
+                            htmlDirObj = null;
+
+                            console.debug("Writting cache to: ", htmlFilename);
+                            fd = fs.openSync(htmlFilename, 'w'); // Open file for writing
+                            buffer = Buffer.from( htmlContent );
+                            fs.writeSync(fd, buffer, 0, buffer.length, 0); // Write the buffer
+                            buffer = null;
+                            fs.closeSync(fd); // Close the file descriptor
+                            fd = null;
+
+                            cache.set(cacheKey, {
+                                filename        : htmlFilename,
+                                responseHeaders : local.res.getHeaders()
+                            });
+                        }
+                    }
+                }
+
+
                 console.info(local.req.method +' ['+local.res.statusCode +'] '+ local.req.url);
-                local.res.end( compiledTemplate(data) );
+                local.res.end( htmlContent );
+
                 layout = null;
             }
 

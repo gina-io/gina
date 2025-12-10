@@ -14,6 +14,7 @@ const inherits          = lib.inherits;
 const merge             = lib.merge;
 const console           = lib.logger;
 const Collection        = lib.Collection;
+const cache             = new lib.Cache();
 
 
 const env               = process.env.NODE_ENV
@@ -79,6 +80,7 @@ function ServerEngineClass(options) {
         , localCachePathObj     = null
     ;
     try {
+
         // Adding cache directory if not found
         cachePathObj = new _(options.cachePath, true);
         localCachePathObj = new _(options.cachePath +'/'+ options.bundle, true);
@@ -310,6 +312,10 @@ function ServerEngineClass(options) {
             , isCacheless       = options.isCacheless
             , assetsCollection  = new Collection(localAssets)
             , localAsset        = null
+            , cachedContents    = null
+            , cachedContentObj  = null
+            , cachedIndexes     = []
+            , cachedIndexe      = null
         ;
 
 
@@ -420,6 +426,7 @@ function ServerEngineClass(options) {
                 }
 
                 if (!isBinary) {
+                    console.info(request.method +' [200] '+ request.url);
                     return response.end(localAsset.content);
                 }
 
@@ -434,6 +441,58 @@ function ServerEngineClass(options) {
             if (isDev) {
                 refreshCore()
             }
+
+            if (!isCacheless) {
+                var cacheStatus = 'gina;';
+                // Importing cache handler
+                cache.from(server._cached);
+                var cacheKey = 'html:' + request.url;
+                if ( cache.has(cacheKey) ) {
+                    if ( /^GET$/i.test(request.method) ) {
+                        // Getting cache from key
+                        cachedContentObj = cache.get(cacheKey);
+
+                        // Getting the headers
+                        cacheStatus += ' hit;';
+                        if ( typeof(cachedContentObj.ttl) != 'undefined' && cachedContentObj.ttl > 0) {
+                            var createdAt = cachedContentObj.createdAt.getTime()+ (~~(cachedContentObj.ttl)*1000);
+                            var remainingSeconds = Math.floor( (createdAt - new Date().getTime()) /1000);
+
+                            cacheStatus += ' ttl='+remainingSeconds;
+                            createdAt = null;
+                            remainingSeconds = null;
+                        }
+                        response.setHeader('cache-status', cacheStatus);
+
+                        if ( typeof(cachedContentObj.responseHeaders) != 'undefined' ) {
+                            for (let h in cachedContentObj.responseHeaders ) {
+                                response.setHeader(h, cachedContentObj.responseHeaders[h]);
+                            }
+                        }
+                        if (
+                            typeof(cachedContentObj.fromMemory) != 'undefined'
+                        ) {
+                            console.info(request.method +' [200]['+ cacheStatus +'] '+ request.url);
+                            return response.end(cachedContentObj.content);
+                        }
+
+                        filename  =  _(cachedContentObj.filename, true);
+
+                        return fs.createReadStream(filename)
+                            .on('error', function onError(err) {
+                                console.error("[SERVER][CACHE][FILE ERROR] ", err.stack|err.message|err);
+                                return response.end(''+ err.stack|err.message|err);
+                            })
+                            .on('end', function onResponse(){
+                                console.info(request.method +' [200] '+ request.url);
+                            })
+                            .pipe(response);
+                    }
+                    console.warn("[SERVER][CACHE] ignoring key `"+ cacheKey+ "` because method != GET");
+
+                } // EO if ( cache.has(cacheKey) )
+            } // EO if (!isCacheless)
+
 
 
             if ( /engine.io/.test(request.url)) {

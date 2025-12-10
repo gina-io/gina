@@ -51,7 +51,8 @@ function Lib() {
         archiver        : _require('./archiver'),
         cmd             : _require('./cmd'),
         SessionStore    : _require('./session-store'),
-        SwigFilters     : _require('./swig-filters')
+        SwigFilters     : _require('./swig-filters'),
+        Cache           : _require('./cache'),
     };
 
     /**
