@@ -3896,7 +3896,7 @@ function SuperController(options) {
                 return res.end(errOutput);
             } else {
 
-                if ( typeof(errorObject) ) {
+                if ( typeof(errorObject) != 'undefined' ) {
                     console.error(req.method +' [ ? ] '+ req.url + '\n'+ (errorObject.stack||errorObject.message));
                 }
 
