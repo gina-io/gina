@@ -3896,9 +3896,9 @@ function SuperController(options) {
                 return res.end(errOutput);
             } else {
 
-
-                console.error(req.method +' ['+ errorObject.status +'] '+ req.url + '\n'+ (errorObject.stack||errorObject.message));
-
+                if ( typeof(errorObject) ) {
+                    console.error(req.method +' [ ? ] '+ req.url + '\n'+ (errorObject.stack||errorObject.message));
+                }
 
                  // intercept none HTML mime types
                  var url                     = decodeURI(local.req.url) /// avoid %20

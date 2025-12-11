@@ -946,7 +946,7 @@ async function render(userData, displayToolbar, errOptions) {
                             });
                         }
                         // Caching to file
-                        if ( /^static$/i.test(local.req.routing.cache) ) {
+                        if ( /^fs$/i.test(local.req.routing.cache) ) {
                             var url = local.req.url;
                             if ( /\/$/.test(url) ) {
                                 url += 'index'
