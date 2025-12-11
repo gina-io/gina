@@ -3896,8 +3896,8 @@ function SuperController(options) {
                 return res.end(errOutput);
             } else {
 
-                if ( typeof(errorObject) != 'undefined' ) {
-                    console.error(req.method +' [ ? ] '+ req.url + '\n'+ (errorObject.stack||errorObject.message));
+                if ( typeof(errorObject) != 'undefined' && typeof(errorObject.message) != 'undefined' ) {
+                    console.error(req.method +' [ ? ] '+ req.url + '\n'+ errorObject.message );
                 }
 
                  // intercept none HTML mime types
