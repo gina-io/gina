@@ -930,7 +930,7 @@ async function render(userData, displayToolbar, errOptions) {
                 local.res.setHeader('content-type', localOptions.conf.server.coreConfiguration.mime['html'] + '; charset='+ localOptions.conf.encoding );
 
                 if (
-                    !self.isCacheless
+                    !self.isCacheless()
                     && typeof(local.req.routing.cache) != 'undefined'
                     && /^GET$/i.test(local.req.method)
                 ) {
