@@ -3896,8 +3896,8 @@ function SuperController(options) {
                 return res.end(errOutput);
             } else {
 
-                if ( typeof(errorObject) != 'undefined' && typeof(errorObject.message) != 'undefined' ) {
-                    console.error(req.method +' [ ? ] '+ req.url + '\n'+ errorObject.message );
+                if ( errorObject && errorObject != 'null' && /object/i.test(typeof(errorObject)) ) {
+                    console.error(req.method +' [ '+ errorObject.status +' ] '+ req.url + '\n'+ (errorObject.stack||errorObject.message) );
                 }
 
                  // intercept none HTML mime types
@@ -4031,13 +4031,13 @@ function SuperController(options) {
                 } else {
                     // Generic error
                     var title = null, message = null, stack = null;;
-                    if ( typeof(errorObject) != 'undefined' && errorObject && typeof(errorObject.error) != 'undefined' ) {
+                    if ( errorObject && typeof(errorObject) != 'undefined' && errorObject && typeof(errorObject.error) != 'undefined' ) {
                         title = errorObject.error
                     }
-                    if (typeof(errorObject) != 'undefined' && errorObject  && typeof(errorObject.message) != 'undefined' ) {
+                    if (errorObject && typeof(errorObject) != 'undefined' && errorObject  && typeof(errorObject.message) != 'undefined' ) {
                         message = errorObject.message
                     }
-                    if (typeof(errorObject) != 'undefined' && errorObject  && typeof(errorObject.stack) != 'undefined' ) {
+                    if (errorObject && typeof(errorObject) != 'undefined' && errorObject  && typeof(errorObject.stack) != 'undefined' ) {
                         stack = errorObject.stack
                     }
 
