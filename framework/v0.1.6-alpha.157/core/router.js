@@ -536,6 +536,7 @@ function Router(env, scope) {
 
             var controller  = new Controller(options);
             controller.name = options.control;
+            // Required before setting options
             controller.serverInstance = serverInstance;
             controller.setOptions(request, response, next, options);
 
@@ -550,7 +551,7 @@ function Router(env, scope) {
              * */
             var requireController = function (namespace, options) {
 
-                var isCacheless = (process.env.NODE_ENV_IS_DEV == 'false') ? false : true;
+                var isCacheless = ( /^true$/i.test(process.env.NODE_ENV_IS_DEV) ) ? true: false;
                 var corePath    = getPath('gina').core;
                 var config      = getContext('gina').Config.instance;
                 var bundle      = config.bundle;
@@ -561,8 +562,9 @@ function Router(env, scope) {
                 var controllerFile  = ( typeof(namespace) != 'undefined' && namespace != '' && namespace != 'null' && namespace != null ) ? 'controller.'+ namespace : 'controller';
                 var filename        = _(bundleConf.bundlesPath + '/' + bundle + '/controllers/' + controllerFile + '.js', true);
 
-                if (typeof (options.controlRequired) == 'undefined')
+                if (typeof (options.controlRequired) == 'undefined') {
                     options.controlRequired = [];
+                }
 
                 var ctrlInfo = {};
                 ctrlInfo[controllerFile] = filename;
@@ -590,7 +592,8 @@ function Router(env, scope) {
 
                         controller = new RequiredController( options );
                         controller.name = namespace;
-
+                        // Required before setting options
+                        controller.serverInstance = serverInstance;
                         controller.setOptions(request, response, next, options);
 
                     } else {
@@ -673,6 +676,8 @@ function Router(env, scope) {
                             controller[action](request, response, next)
                         } catch (err) {
                             var superController = new SuperController(options);
+                            // Required before setting options
+                            controller.serverInstance = serverInstance;
                             superController.setOptions(request, response, next, options);
                             if (typeof (controller) != 'undefined' && typeof (controller[action]) == 'undefined') {
                                 return serverInstance.throwError(response, 500, (new Error('control not found: `' + action + '`. Please, check your routing.json ('+ options.rule +') or the related control in your `' + controllerFile + '`.')).stack);
