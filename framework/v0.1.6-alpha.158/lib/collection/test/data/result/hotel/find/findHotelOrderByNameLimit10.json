@@ -1,0 +1,943 @@
+[
+    {
+        "address": "4 place de la Mirande,F- AVIGNON",
+        "alias": null,
+        "checkin": null,
+        "checkout": null,
+        "city": "Avignon",
+        "country": "France",
+        "description": "5 star hotel housed in a 700 year old converted townhouse",
+        "directions": null,
+        "email": null,
+        "fax": null,
+        "free_breakfast": true,
+        "free_internet": true,
+        "free_parking": false,
+        "geo": {
+            "accuracy": "APPROXIMATE",
+            "lat": 43.95007659797408,
+            "lon": 4.8076558113098145
+        },
+        "id": 1364,
+        "name": "'La Mirande Hotel",
+        "pets_ok": true,
+        "phone": null,
+        "price": "€400 and up",
+        "public_likes": [
+            "Ms. Saige Hauck",
+            "Mr. Letha Lemke",
+            "Queen Farrell"
+        ],
+        "reviews": [
+            {
+                "author": "Marianne Wintheiser",
+                "content": "We stayed in this hotel for 4 nights in June 2009. After a long flight to Istanbul, we were extremely tired. When we arrived at the hotel, we were pleasantly surprised at the quality of the hotel. It was very clean and and luxurious. Bathroom was large. The staff were very friendly and helpful. I would highly recommended this hotel to any one looking for a 4 to 5 star accommodation at a reasonable price. The location is very close all old town attractions.",
+                "date": "2012-06-08 20:18:06 +0300",
+                "ratings": {
+                    "Cleanliness": 5,
+                    "Location": 5,
+                    "Overall": 5,
+                    "Rooms": 5,
+                    "Service": 5,
+                    "Value": 5
+                }
+            },
+            {
+                "author": "Deondre Predovic III",
+                "content": "A hotel suite is normally means a connected series of rooms to be used together and not a single room as was provided. I booked what was described as Suite Executive Room and expected what I would normally get from a suite: a separate bedroom and other living area. I wanted a larger room because I was staying 8 days. I got s single room - clearly not a suite - at what was really an outrageous price. This really is misleading advertising and not acceptable. The street where the hotel is located has many other hotels and hostels as well as bars and restaurants. It is fairly downmarket with any walk down the street resulting in being accosted by touts for each. The hotel has a basic restaurant serving uninspiring food. The breakfast buffet is limited and poor. There is a very small range of breakfast cereals and fruit and some poor cold meat products that are really only suitable for feeding to the many cats in the area. There is a top floor open-air balcony but, unlike other hotels, this has no awnings or canopies and so is quite unusable in the hot afternoons. There is a separate smaller balcony area off the fourth floor but this is unfinished. There was building work and associated noise that went on until around 8:00 pm some days but this was not mentioned anywhere on the hotelâ€™s Web site. And on a final note; rooms were typically not made-up until after 4;00 pm. When we arrived back one day after 4:00 pm we were told our room was not cleaned and were offered a drink while we waited. These drinks appeared on our bill at check-out. I have to say that my experience with this hotel is so completely at odds with that of others that I feel something is fundamentally wrong. I selected the hotel based on the Tripadvisor reviews and, based on this experience, have a significantly reduced trust in reviews on this site. The very poor value for money and overall experience invalidates any minor saving graces such as cleanliness.",
+                "date": "2013-04-12 20:40:47 +0300",
+                "ratings": {
+                    "Cleanliness": 4,
+                    "Location": 2,
+                    "Overall": 1,
+                    "Rooms": 1,
+                    "Service": 1,
+                    "Value": 1
+                }
+            }
+        ],
+        "state": "Provence-Alpes-Côte d'Azur",
+        "title": "Avignon",
+        "tollfree": null,
+        "type": "hotel",
+        "url": null,
+        "vacancy": true
+    },
+    {
+        "address": "Polbain",
+        "alias": null,
+        "checkin": null,
+        "checkout": null,
+        "city": "Achiltibuie",
+        "country": "United Kingdom",
+        "description": "Comfortable, friendly accommodation overlooking the summer isles and the hills of Torridon. Open all year.",
+        "directions": null,
+        "email": null,
+        "fax": null,
+        "free_breakfast": false,
+        "free_internet": true,
+        "free_parking": true,
+        "geo": {
+            "accuracy": "APPROXIMATE",
+            "lat": 58.0362,
+            "lon": -5.39642
+        },
+        "id": 64,
+        "name": "192 B&B",
+        "pets_ok": true,
+        "phone": "+44 1854 622228",
+        "price": null,
+        "public_likes": [
+            "Cesar Gusikowski",
+            "Gordon Kub",
+            "Miss Anabelle Robel",
+            "Antonette Altenwerth",
+            "Serenity Kirlin",
+            "Unique O'Kon"
+        ],
+        "reviews": [],
+        "state": null,
+        "title": "Achiltibuie",
+        "tollfree": null,
+        "type": "hotel",
+        "url": "http://www.achiltibuie.net/192",
+        "vacancy": false
+    },
+    {
+        "address": "500 West Broadway",
+        "alias": null,
+        "checkin": null,
+        "checkout": null,
+        "city": "San Diego",
+        "country": "United States",
+        "description": "YMCA-affiliated Hostel in downtown San Diego, right next to Amtrak railway station. Free Wi-Fi.",
+        "directions": null,
+        "email": null,
+        "fax": "+1 619-234-5272",
+        "free_breakfast": true,
+        "free_internet": true,
+        "free_parking": true,
+        "geo": {
+            "accuracy": "ROOFTOP",
+            "lat": 32.71598,
+            "lon": -117.16779
+        },
+        "id": 25151,
+        "name": "500 West Hotel",
+        "pets_ok": false,
+        "phone": null,
+        "price": "Dorms from $44 per night",
+        "public_likes": [
+            "Dr. Sandra Beier",
+            "Brady Lehner",
+            "Raquel O'Hara MD",
+            "Genesis Dibbert",
+            "Rosina Schmitt",
+            "Valentina Upton",
+            "Mozell Stracke"
+        ],
+        "reviews": [
+            {
+                "author": "Isabel Denesik",
+                "content": "This relatively new hotel is in a perfect location, about 2 blocks from Pike's Place market and the heart of touristy Seattle. Great water views, typically solid Four Seasons service with their outstanding beds make this a great downtown hotel with a FS twist. I did find some minor housekeeping shortcomings (ironing board wasn't put away after I used it, small bars of soap, clothes I left out weren't folded as they'd typically do in other FS properties) but this is still a stellar city hotel. I also had one of the best massages in my life while enjoying a little down-time here.",
+                "date": "2014-10-20 15:05:51 +0300",
+                "ratings": {
+                    "Cleanliness": 5,
+                    "Location": 5,
+                    "Overall": 5,
+                    "Rooms": 5,
+                    "Service": 5,
+                    "Sleep Quality": 5,
+                    "Value": 5
+                }
+            },
+            {
+                "author": "Iliana Pacocha",
+                "content": "This is the second time we have stayed at the Four Seasons Seattle. It is located about a block from PIke's Place Market. We visited the Seattle Aquarium, Experience Music Project and the Children's Museum. All are worth the time and money. We also easily could walk to restaurants and went to the Highway 86 jazz bar located about a block away. The Four Seasons service was impeccable. Our room service was great and right on time. We at lunch in the Lounge and our meal was very good. I used the gym and our daughter swam in the pool. Both we very clean and more than adequate for this size hotel. The pool is located outdoors, however heated to about 80 degrees. Our daughter had no problem swimming in it the 50 degree misting weather! We will definitely stay at this hotel again.",
+                "date": "2014-06-18 05:41:06 +0300",
+                "ratings": {
+                    "Overall": 5
+                }
+            },
+            {
+                "author": "Delbert Borer",
+                "content": "I spent three pleasant evenings at the Four Seasons Seattle in May, 2009. I would recommend the hotel to other travelers. The hotel is a new structure, of modest height, right on Seattleâ€™s waterfront. A few of the rooms have direct waterfront views. Many other rooms (mine included) overlook the pool area and have diagonal views of the water. There are also rooms which look out over the streets that surround the hotel (I thiink I'd try to avoid those). The interior dÃ©cor is modern (think bleached wood, and Scandinavian design). The standard rooms are of decent size, and include a built in desk with two chairs (one a high tech swivel chair with mesh back and seat) and one easy chair. The easy chair suffers (just a little) from the modern design problem â€“ i.e., itâ€™s beautiful to look at but nowhere near as comfortable as a traditional overstuffed arm chair. The room was perfectly quiet during my stay (no noise from adjoining rooms, nor any detectable noise from the outside). The lighting in the room is good â€“ each of the reading locations has a light source of more than ample wattage. All of the linens and bedding were of the normal high Four Seasons quality. The service was excellent. All my interactions with the front desk were handled precisely and efficiently. The concierge offered a dinner recommendation, and followed up with an inquiry about the meal. The one breakfast I ate in the restaurant was very good. This hotel lacks some of the charm and history that the Olympic Hotel provided when it was managed by Four Seasons. That said, this is a very fine hotel, and one I would be glad to visit again.",
+                "date": "2015-06-08 07:57:37 +0300",
+                "ratings": {
+                    "Overall": 5
+                }
+            },
+            {
+                "author": "Jakob Runte",
+                "content": "I am a loyal Four Seasons customer and was very excited to have the chain come back to Seattle after many years of absence. Unfortunately, my first stay negated my excitement. The hotel is new and the rooms are reasonably nice and brand new, but not really up to Four Seasons standards. The furniture is light maple and the carpets are very bright. The entire place felt like it was built by high end Ikea. It doesn't look or feel luxurious. The other big problem is the location and the view. I paid extra for a waterview room, but it was dominated by a view of two big smokestacks and a construction site. Seattle has amazing water views but this hotel isn't situated in a spot that has them. In fact, it is still in a transitional neighborhood with a handful of peep shows and X rates theaters only a block away. The worst part of my stay, however, was my inability to take a normal shower. The water pressure in the shower was the lowest I've experienced in North America. I couldn't wash my hair and could barely get the soap off my body. Upon checkout I emailed the manager and he told me that the \"water pressure in my room was consistent with the hotel standard.\" I don't know what that means but it is not connsistent with any other place and certainly not a Four Seasons. Seattle has great luxury hotel choices in Hotel 1000 and the new Pan Pacific. There is no reason at all to put up with the shortcomings of this Four Seasons.",
+                "date": "2015-04-05 15:20:29 +0300",
+                "ratings": {
+                    "Cleanliness": 4,
+                    "Location": 2,
+                    "Overall": 1,
+                    "Rooms": 2,
+                    "Service": 3,
+                    "Value": 1
+                }
+            }
+        ],
+        "state": "California",
+        "title": "San Diego/Downtown",
+        "tollfree": "+1-866-315-4251",
+        "type": "hotel",
+        "url": "http://www.500westhotelsd.com/",
+        "vacancy": true
+    },
+    {
+        "address": "54 Queen's Gate, SW7 5JW",
+        "alias": null,
+        "checkin": null,
+        "checkout": null,
+        "city": "London",
+        "country": "United Kingdom",
+        "description": "Across the road from the Natural History Museum.",
+        "directions": "tube: South Kensington",
+        "email": "enquiries@fiftyfourboutiquehotel.co.uk",
+        "fax": "+44 20 7761-4040",
+        "free_breakfast": false,
+        "free_internet": true,
+        "free_parking": false,
+        "geo": {
+            "accuracy": "ROOFTOP",
+            "lat": 51.4964,
+            "lon": -0.1794
+        },
+        "id": 16456,
+        "name": "54 Boutique Hotel",
+        "pets_ok": false,
+        "phone": "+44 20 7761-4000",
+        "price": null,
+        "public_likes": [
+            "Ibrahim Lindgren"
+        ],
+        "reviews": [
+            {
+                "author": "Allie Weber III",
+                "content": "Just returned from a wondeful weekend at the Ames. It was my boyfriend and I's first trip to Boston and we had the pleasure of staying in a beautiful suite at the Ames. The staff is very helpful, friendly and polite and the rooms are beautiful. We were lucky enough to have suite with goregous arched windows and the bathroom had a lovely shower and a nice deep tub to take a relaxing bath. Nice flat screen tv's and super comfy beds....I'll definitely be back to the Ames in the future. Thanks for everything Nina, you helped to exceed our expectations at the Ames! Also had cocktails at the hotels restaurant, the Woodward which was trendy and the drinks were delish.",
+                "date": "2014-12-16 03:54:17 +0300",
+                "ratings": {
+                    "Cleanliness": 4,
+                    "Location": 3,
+                    "Overall": 4,
+                    "Rooms": 5,
+                    "Service": 4,
+                    "Sleep Quality": 5,
+                    "Value": 3
+                }
+            },
+            {
+                "author": "Nikko Kovacek",
+                "content": "I booked the Ames because it looked really modern and trendy and was close to an event we had for the weekend. The front of the hotel can be easily missed because it blends right in with the other business buildings in the area, but rest assured once inside it is just amazing. On the first floor there is a restaurant and bar that is fun to go to at night. The check in was very easy and the staff very friendly. However when we got to our room it wasn't what we expected. One of the best features of the hotel is getting the glass bathroom and this one didn't have it. They quickly switched our rooms and accommodated our request. We then were in a room with a a great view of the city. The room itself was trendy with modern furniture, a large flat screen tv and a comfortable bed. This set a great tone for the weekend and the staff were nothing but helpful for the rest of our stay. I would definitely recommend to stay at the Ames.",
+                "date": "2014-08-03 00:57:34 +0300",
+                "ratings": {
+                    "Cleanliness": 5,
+                    "Location": 5,
+                    "Overall": 5,
+                    "Rooms": 5,
+                    "Service": 5,
+                    "Value": 4
+                }
+            },
+            {
+                "author": "Linda McKenzie",
+                "content": "As of today the Ames is the only hotel I'll use in Boston. The other reviews are spot-on, but I would stress three things. First, the hotel staff is exceedingly well trained with a strong focus on customer service and courtesy. Better than I got at the Four Seasons. Second, the location is beyond convenient. We could walk to all our meetings and for others, both cabs and transit are available right outside. Third, the building is beautiful. The Morgans group did an impressive job preserving the natural beauty of a very old office building. I'm really surprised that its ranking on tripadvisor isn't higher. I think it's the best.",
+                "date": "2015-03-09 23:24:36 +0300",
+                "ratings": {
+                    "Cleanliness": 5,
+                    "Location": 5,
+                    "Overall": 5,
+                    "Rooms": 5,
+                    "Service": 5,
+                    "Sleep Quality": 4,
+                    "Value": 5
+                }
+            },
+            {
+                "author": "Eliseo Walsh",
+                "content": "This place is just wonderful. The staff is so accommodating and the rooms are really smart and modern. It made for such a nice stay in Boston. I can't recommend it enough. It is a steal on Priceline.com.",
+                "date": "2013-07-15 12:29:59 +0300",
+                "ratings": {
+                    "Cleanliness": 5,
+                    "Location": 5,
+                    "Overall": 5,
+                    "Rooms": 5,
+                    "Service": 5,
+                    "Sleep Quality": 4,
+                    "Value": 5
+                }
+            },
+            {
+                "author": "Miss Zoey Eichmann",
+                "content": "In HK for weekend, arrived Friday very late (delayed flight from Beijing), felt frazzled but once we arrived at this sleek, elegant establishment we were - well, transported. Being upgraded to a suite was a delight. Friendly welcome from the staff. Showed us around our room, then up to 49th for midnight martinis and a cheese plate. Incredible attention to detail. Nice toilettries, several newspapers to read, minibar (not mini) had many nice wines to select from. Espresso machine. Dazzling views of Victoria Harbour. And the \"experience managers\" are terrificly helpful. This will be our new 'home' whenever we're back here.",
+                "date": "2013-01-07 15:15:00 +0300",
+                "ratings": {
+                    "Cleanliness": 5,
+                    "Location": 5,
+                    "Overall": 5,
+                    "Rooms": 5,
+                    "Service": 5,
+                    "Sleep Quality": 5,
+                    "Value": 5
+                }
+            }
+        ],
+        "state": null,
+        "title": "London/South Kensington-Chelsea",
+        "tollfree": null,
+        "type": "hotel",
+        "url": "http://www.fiftyfourboutiquehotel.co.uk/",
+        "vacancy": false
+    },
+    {
+        "address": "8 Clarendon Crescent, Leamington Spa, Warwickshire",
+        "alias": null,
+        "checkin": null,
+        "checkout": null,
+        "city": "Royal Leamington Spa",
+        "country": "United Kingdom",
+        "description": "This is a lovely B&B where guests are warmly welcomed by Christine and David. Each room has an ensuite bathroom and the breakfasts will keep you going through the day.",
+        "directions": "just a 3 minute walk off the Upper Parade",
+        "email": null,
+        "fax": null,
+        "free_breakfast": false,
+        "free_internet": true,
+        "free_parking": false,
+        "geo": {
+            "accuracy": "RANGE_INTERPOLATED",
+            "lat": 52.294098,
+            "lon": -1.541348
+        },
+        "id": 15466,
+        "name": "8 Clarendon Crescent",
+        "pets_ok": true,
+        "phone": "+44 1926 429840",
+        "price": "single £50; double £80",
+        "public_likes": [
+            "Anastasia Collins",
+            "Mallie Ullrich",
+            "Zechariah Jerde III"
+        ],
+        "reviews": [
+            {
+                "author": "Timmothy Bechtelar",
+                "content": "I highly recommend this hotel.they have an awesome beach w no waves perfect to float all day long.the service is awesome the drinks are the best ever(very expensive )but good.I think this is my new favorite place to go.they have lots of activities .the grounds are so well kept.can't wait to go back.",
+                "date": "2014-08-11 12:21:51 +0300",
+                "ratings": {
+                    "Cleanliness": 5,
+                    "Location": 5,
+                    "Overall": 5,
+                    "Rooms": 5,
+                    "Service": 5,
+                    "Value": 5
+                }
+            }
+        ],
+        "state": null,
+        "title": "Leamington Spa",
+        "tollfree": null,
+        "type": "hotel",
+        "url": "http://www.8clarendoncrescent.co.uk/",
+        "vacancy": false
+    },
+    {
+        "address": null,
+        "alias": null,
+        "checkin": null,
+        "checkout": null,
+        "city": "Malaucène",
+        "country": "France",
+        "description": "10 places of camping, in naturel site",
+        "directions": null,
+        "email": null,
+        "fax": null,
+        "free_breakfast": true,
+        "free_internet": true,
+        "free_parking": false,
+        "geo": {
+            "accuracy": "APPROXIMATE",
+            "lat": 44.166897587843316,
+            "lon": 5.147718119642377
+        },
+        "id": 19199,
+        "name": "AIRE NATURELLE LE GROZEAU Aire naturelle",
+        "pets_ok": false,
+        "phone": "+33 4 90 65 16 32",
+        "price": "7 € to 13 €",
+        "public_likes": [
+            "Carrie Leuschke",
+            "Mario Lemke",
+            "Mrs. Jeffery Gleason",
+            "German Stiedemann",
+            "Louvenia Stracke"
+        ],
+        "reviews": [
+            {
+                "author": "Dorthy Ebert",
+                "content": "Service: The service is excellent (both at the front desk and breakfast area). Rooms: although a bit small and quite dark, they are newly renovated and impecable. The bathroom was also very clean and brand new. Complimentary breakfast: all the basics as well as just baked cakes included. Very good overall. Internet access: Internet speed is okay, but the best of all is that we got for free a laptop to use during all of our stay. Never seen this service offered in any other hotel. Location: walking distance from main attractions (20 mins) and very convenient if taking the metro (5 minute walk) or train from termini station (5 minute walk as well). Easy access to all Rome attractions. In general excellent price/ value.",
+                "date": "2014-01-26 07:42:15 +0300",
+                "ratings": {
+                    "Cleanliness": 5,
+                    "Location": 4,
+                    "Overall": 5,
+                    "Rooms": 5,
+                    "Service": 5,
+                    "Value": 5
+                }
+            },
+            {
+                "author": "Manley Smith",
+                "content": "I loved staying at Opera Roma Hotel. Great services, great staff and very nice rooms everything included !",
+                "date": "2014-03-28 13:49:55 +0300",
+                "ratings": {
+                    "Business service (e.g., internet access)": 5,
+                    "Check in / front desk": 5,
+                    "Cleanliness": 5,
+                    "Location": 5,
+                    "Overall": 5,
+                    "Rooms": 5,
+                    "Service": 5,
+                    "Value": 5
+                }
+            },
+            {
+                "author": "Murphy Durgan",
+                "content": "My family and I recently had the opportunity to visit Montreal and stay at this little gem. Tourgay and his staff truly bend over backwards to ensure that your stay is comfortable. The property has no evelator but is only 3 stories in height - even though I travelled with school aged children this was not an issue. The hotel staff were very helpful in unloading and loading baggage from our vehicle. The rooms were very clean, hot water was plentiful and the kitchenette was well stocked with all the essential for food preparation. There is a 24 hour grocery store right next door and the metro is about a 5 minute walk away. Very close to McGill and would be an excellent base for anyone moving a student to that instituation in the city. We stayed in a room with a king bed and pullout queen sofabed. The queen sofabed was suprisingly comfortable as these types of sleeping arrangements can be touch and go depending on the hotel. Also included were 2 plasma TV's and free parking through a little laneway behind the hotel. The hotel is an excellent value when used as a home away from home. I would stay here again without question.",
+                "date": "2015-12-06 09:29:05 +0300",
+                "ratings": {
+                    "Cleanliness": 5,
+                    "Location": 5,
+                    "Overall": 5,
+                    "Rooms": 5,
+                    "Service": 5,
+                    "Sleep Quality": 5,
+                    "Value": 5
+                }
+            }
+        ],
+        "state": "Provence-Alpes-Côte d'Azur",
+        "title": "Mont Ventoux",
+        "tollfree": null,
+        "type": "hotel",
+        "url": "http://www.lespiedsenlair.com/camping.html",
+        "vacancy": false
+    },
+    {
+        "address": "23 Wood Ln, W12 7DP",
+        "alias": null,
+        "checkin": null,
+        "checkout": null,
+        "city": "London",
+        "country": "United Kingdom",
+        "description": "Budget hotel close to the BBC Television Centre. Discounts for long stays.",
+        "directions": "tube: Shepherd's Bush",
+        "email": "info@abbeyhotel.org",
+        "fax": null,
+        "free_breakfast": false,
+        "free_internet": true,
+        "free_parking": true,
+        "geo": {
+            "accuracy": "RANGE_INTERPOLATED",
+            "lat": 51.5062,
+            "lon": -0.2248
+        },
+        "id": 16167,
+        "name": "Abbey Hotel",
+        "pets_ok": true,
+        "phone": "+44 20 8749-8780",
+        "price": "£69",
+        "public_likes": [
+            "Tremaine Collins",
+            "Christ Bashirian",
+            "Sharon Crooks",
+            "Kevin Lockman MD"
+        ],
+        "reviews": [
+            {
+                "author": "Caleigh Wintheiser",
+                "content": "Amazing!! I went to the Riu Bambu with a friend and had the time of my life. I read alot of these reviews before going and certainly went trying to keep an open mind. I am not a world traveler by any means BUT that does not mean that I do not know a good thing when I see it. I was greeted at the resort with a cocktail, they brought my bags directly to the room and checkin was a breeze!The rooms were beautiful and very clean. The booze in the room was a great extra. I must also add that my friend called the day before we arrived and requested that our rooms be as close as possible and close to the beach. They gave us rooms across the hall from one another and the closest building to the beach!One night I heard some sort of alarm going off from another room and when I called to inquire, someone was at my door minutes after hanging up.Unlike others on here, I thoroughly enjoyed the the nightly entertainment. I watched the entertainment team rehearse each afternoon and then made sure I went to each show in the evening. I found it a great way to end my day. From 'Sexy Belly' to ' Baby Face' to Evelyn, they were all amazing.As for the food, I never had any stomach issues and ate at all of the restaurants. The selection was wonderful and very tasty. I think those that do complain may have set their expectations too high or are just picky!The resort itself was very clean, service top notch and never felt as though they treated one nationality better than the rest. I found that if you were polite to them, they were the same back. Never noticed anything different from Canadians to Americans...etc. The beach was amazing and always tidy. The pool was the same and always some games happening somewhere.I am very much looking forward to going back and having another week of fun. I was thrilled at how nice the resort was and how nice the staff were. Everyone on the bus heading back to the airport felt the same.Please do not let the few 'negative' reviews turn you off, Im VERY glad they didn't for me!!Thanks RIU BAMBU and see you soon!",
+                "date": "2014-07-23 23:05:11 +0300",
+                "ratings": {
+                    "Business service": -1,
+                    "Check in / front desk": 5,
+                    "Cleanliness": 5,
+                    "Location": 5,
+                    "Overall": 5,
+                    "Rooms": 5,
+                    "Service": 5,
+                    "Value": 5
+                }
+            },
+            {
+                "author": "Chanel Schinner",
+                "content": "Very Happy Canadian!!!! Myself and 5 friends just arrived home from the Riu Bambu and had a blast. (It was my first time to Punta Cana.) The resort was very clean. Everyone was extremely friendly. The food was very good. By the end of the week we would have liked a little bit more variety at the buffet ,but all in all very good. The A la carte's were very good. The Seafood Restaurant at the Riu Palace Macao was extremely good. (We went there twice.) The pool was clean. The beach just magnificent. We could walk for hours. Shopping was okay. I really didn't go to shop but still found some unique things to buy. We had no communication problems everyone spoke very good English. I read a lot of reviews before leaving and was a little worried. Now I know they must be hard people to please. We had a great experience and would go back in a heart beat. .",
+                "date": "2013-04-21 03:56:37 +0300",
+                "ratings": {
+                    "Business service": 3,
+                    "Check in / front desk": 5,
+                    "Cleanliness": 5,
+                    "Location": 5,
+                    "Overall": 5,
+                    "Rooms": 5,
+                    "Service": 5,
+                    "Value": 4
+                }
+            }
+        ],
+        "state": null,
+        "title": "London/Hammersmith and Fulham",
+        "tollfree": null,
+        "type": "hotel",
+        "url": "http://www.abbeyhotel.org/",
+        "vacancy": true
+    },
+    {
+        "address": "Church St",
+        "alias": null,
+        "checkin": null,
+        "checkout": null,
+        "city": "Aberdovey",
+        "country": "United Kingdom",
+        "description": "Aberdovey Hillside Village offers award winning self-catering holiday accommodation. &quot;The Village&quot; is a cluster of specially designed houses and apartments which blend naturally into a south-facing hillside taking full advantage of magnificent views. We are also pet friendly, with your dogs able to enjoy long walks on sandy beaches and magnificent countryside.  The village is remarkably quiet and peaceful, set in spacious landscaped grounds which lead into the open countryside, yet it is just above the heart of picturesque Aberdovey. The shops and beaches are within 300 metres",
+        "directions": "Turn right in square, past front of chapel and continue straight up Church St for approximately 200 metres, ignoring left dog-leg and continue to metal gates.",
+        "email": "info@hillsidevillage.co.uk",
+        "fax": null,
+        "free_breakfast": false,
+        "free_internet": true,
+        "free_parking": false,
+        "geo": {
+            "accuracy": "APPROXIMATE",
+            "lat": 52.54493,
+            "lon": -4.04067
+        },
+        "id": 40,
+        "name": "Aberdovey Hillside Village",
+        "pets_ok": false,
+        "phone": "+44 1654767522",
+        "price": null,
+        "public_likes": [
+            "Dr. Duncan Kautzer",
+            "Miss Chet Kihn",
+            "Wyatt Bogan PhD",
+            "Forest Fisher",
+            "Eric Cole",
+            "Rupert Rempel DDS"
+        ],
+        "reviews": [
+            {
+                "author": "Mr. Al Simonis",
+                "content": "My girlfriend and I decided to surprise our 11-year-old daughter with a trip to Seattle for her birthday this last weekend. She had never been and we knew she would love it. I actually went on a hotel discount site and was given this hotel. I had been in the Portland location once and remember it being beautiful and have stayed at other Kimpton hotels and had great experiences. After receiving notice of our reservation I emailed their staff and informed them this trip was for a birthday and requested a room with 2 beds, hopefully towards the top. The assistant manager promptly replied and said that he could accommodate that request but the 2-bed options were lower and didn't have the best views. He then offered to upgrade us for $40 to one of the suites on the top floor. Given that we got such a good deal on the hotel price it was a no-brainer. The suite was excellent with a king bed in the bedroom and a pullout queen sleeper sofa in the living area. Both rooms had their own TV's and there was a curtain that could be drawn to separate the two areas. The room was very clean and well appointed. The bathroom was nice but wasn't as lavish as some other 4-star hotels we've been to. All of the soaps and shampoos though were high-end and there was nothing lacking. That night the hotel staff also left a note in our room with a birthday card for our daughter which included a free in-room movie rental as well as an invitation to call down for a complimentary birthday cake. We called down and they brought up a delicious personal-sized chocolate cake with ice cream and a candle in it. She was very excited! Throughout our 2-night stay the staff continued to be amazing. We spent a lot of our time checking out Seattle attractions but each time we came back we were greeted warmly. There was a wine tasting each night in the lobby and the staff always offered to get my daughter a soft drink from the restaurant. There were bowls of chocolates around that we all enjoyed as well. If I had anything to add to the \"con\" side it would be that the views from this hotel aren't as attractive as some others I've stayed at in Seattle. It's only an 11-story building and there are taller buildings surrounding it. If you're expecting a full city view or one of the water you may be disappointed. We also thought the cost of valet parking was a little much, coming to nearly $40 per night with taxes. I am sure this is on-par with other 4-star hotels but is pretty hard to justify. We opted to valet on Friday night but found street parking on Saturday night since parking is free on Sundays. Overall though, it was a great experience and I would highly recommend staying there. Even with getting our reservation through a third party site we were never treated differently and that says a lot about a place.",
+                "date": "2012-06-22 15:13:16 +0300",
+                "ratings": {
+                    "Cleanliness": 5,
+                    "Location": 5,
+                    "Overall": 5,
+                    "Rooms": 4,
+                    "Service": 5,
+                    "Sleep Quality": 5,
+                    "Value": 5
+                }
+            },
+            {
+                "author": "Rossie McGlynn",
+                "content": "My wife and I decided to visit Seattle for a quick weekend trip to get away for our 20th anniversary. We always love staying at Kimpton hotels and have stayed at the Alexis Hotel and Hotel Vintage Park in Seattle, so this time we decide to try the Hotel Monaco. As expected, our stay was wonderful. When we arrived we were met by the bellman how helped with our luggage. This was helpful since we had brought our two Shih Thus with us. Check in was quick and in less than 5 minutes, the valet had our car and we were checked in and heading to our room. The room was very nice with a small living room that made it a little more than â€œjust a roomâ€�. We had room service the first night and the food was great and was delivered in less than 20 minutes. Evening turndown service got our room ready for the night including chocolates on the pillow. The hotel is in the perfect spot in Seattle because you can walk to Pikeâ€™s Market, the movies, the shopping center and even the tram to get you around town. The hotelâ€™s wine reception was great and we found others had brought their pets with them. Kimptonâ€™s â€œpet friendlyâ€� program is wonderful. We came back from running around one night and found a bottle of champagne to help us celebrate our anniversary. Our three days went by much too fast and we really did not want to leave, but all good things must come to an end. The good news is we can always go back and know we will get great service.",
+                "date": "2014-05-22 16:44:18 +0300",
+                "ratings": {
+                    "Cleanliness": 5,
+                    "Location": 5,
+                    "Overall": 5,
+                    "Rooms": 5,
+                    "Service": 5,
+                    "Sleep Quality": 5,
+                    "Value": 4
+                }
+            },
+            {
+                "author": "Ibrahim Cassin",
+                "content": "First impressions: The bellman and the front desk people both immediately demonstrated they were well trained and paying attention to their guests. The front desk lady provided great information (at a pace that was energetic but not rushed), helpful leading questions about the area, and major positive energy without bubbling or being insincere. The bellman was busy with another car when we arrived, but noticed the car in front right away and within a very short period met up with me at the reception desk to get the key from me. We stayed in one of the Monte Carlo suites -- great energizing decor. Comfortable living room area, seperated from bedroom by large drapes, which was great for reading the morning papers or sipping the wine from the lobby before heading out to dinner. The bath had plenty of counter space for both of us (though one sink). The bed was comfortable with a range of pillows, as well as seating arrangements including a nice, comfortable chair and a small, two person bench seat for shoes, dressing, etc. Our maid service did a great job with meticulous neatening up. We also had dinner one night in Sazarac, a New Orleans style restaurant where we encountered more of the same: normal people, working hard, to provide thoughtful, positive service. This included our host, who conscientiously got us a table and our waitress who was busy, friendly, informative and attentive. Monaco is a tremendous location: next door to Starbucks (though there is free coffee in the lobby in the mornings); a block from the Capitol Grill; and easy walking to the retail core. The room was very reasonably priced and we like service, but service at a bargain is even better!",
+                "date": "2015-11-19 01:54:50 +0300",
+                "ratings": {
+                    "Cleanliness": 5,
+                    "Location": 5,
+                    "Overall": 5,
+                    "Rooms": 4,
+                    "Service": 5,
+                    "Sleep Quality": 4,
+                    "Value": 5
+                }
+            },
+            {
+                "author": "Melyssa Veum",
+                "content": "I have stayed at Hotel Monaco at least five or six visits over the past month. The staff is consistently friendly and efficient. I believe they care about their guests and will do what it takes to make your stay as comfortable as possible. This extends from the front desk to the bell men and housecleaning. The staff in Sazerac restaurant is also fantastic.",
+                "date": "2014-03-15 11:26:07 +0300",
+                "ratings": {
+                    "Cleanliness": 5,
+                    "Location": 5,
+                    "Overall": 5,
+                    "Rooms": 4,
+                    "Service": 5,
+                    "Sleep Quality": 5,
+                    "Value": 5
+                }
+            },
+            {
+                "author": "Cristobal Schimmel",
+                "content": "Just returned from 3 night stay over the Labor Day weekend at the Hotel Monaco Seattle. We met some friends of ours, who also stayed there in a separate room. The location was good for us and anyone who doesn't have issues with moderate walking -- it was a multi-block walk to Pikes Market, the waterfront, etc. -- you do have up hill walking when you return to the hotel from Pikes Market or the waterfront, though we found some streets to be less steep than others (Union Street, for instance). From the moment we arrived at the hotel we found the staff to be friendly, professional and helpful, and this continued throughout our stay -- the valet, doorman, front desk reps, concierge, housekeeping, etc. Each time we were leaving the hotel, the front desk people would acknowledge us with pleasantries such as \"have a nice day\"; upon our return they would again acknowledge us with \"welcome back\", or something similar. The evening wine event in the lobby was a very nice touch. The overall feel of the hotel was that it was nicely decorated and clean and felt welcoming. The room was also nicely decorated and clean and larger than the average hotel room. There was ample comfortable seating, i.e. two upholstered chairs and a very comfortable desk chair at the large desk. Also, the room had multiple sources of bright lighting -- best lighting of any hotel we've stayed in. There was a nice size flat screen TV, stocked mini-fridge (items for purchase), stocked snack tray (also for purchase), and a room safe as well. Though coffee service is provided in the lobby each morning, there is no coffee service in the room, however, you can request a set-up for your room, if desired. The beds were extremely comfortable, i.e. the mattress, linens, comforter, and pillows. The air conditioner worked great and you are able to control the temp. to your liking from the in-room thermostat. The bathroom, too, was larger than usual. The shower head was to die for and with great water pressure, so you didn't have to spend a longer-than-usual amount of time in the shower trying to shower with a trickle of water, as is the case in many hotels (especially important to those of us with longer, thicker hair). They also had a wall-mounted rack containing full-size pump bottles of shampoo, cream rinse, and liquid bath soap. A hair dryer was also provided. You should know ahead of time, as we did, that many of the rooms face directly towards another high rise, in close proximity, especially if you want a room with two beds versus a king; we were told that there are no two bed rooms not facing the building; besides not having a view or much natural light, this necessitates keeping your curtains closed for privacy -- but, again, at least there's great lighting provided in the room. There are only two things I would add to my wish list for the hotel -- one is to have at least some two-bed rooms that don't face a building and the second is to provide larger than the standard size bath towels. All in all, this was a terrific hotel experience and we will definitely return there on future trips. This was our first stay at a Kimpton Hotel but, based on this experience, it won't be our last!",
+                "date": "2014-02-20 07:41:59 +0300",
+                "ratings": {
+                    "Cleanliness": 5,
+                    "Location": 5,
+                    "Overall": 5,
+                    "Rooms": 5,
+                    "Service": 5,
+                    "Sleep Quality": 5,
+                    "Value": 5
+                }
+            },
+            {
+                "author": "Kaela Shanahan",
+                "content": "My son and I just stayed a week at the Hotel Monaco in Seattle. The location was great; we were able to walk to WNBA, MLS, and MLB games. There were a couple issues with the service. We are members of the InTouch club and are supposed to get newspapers delivered to the room each day. We only got papers two of the five days. I asked the front desk after the fourth day, and they said \"well, there are other guests, and sometimes we run out, but there's a whole bunch of papers over there against the wall\". Then, I didn't get the paper the next day either. My young son was supposed to get a welcome gift as part of the InTouch club, but he received nothing. I asked about this the next morning, and they said there's a box where kids can go chose something (we got a deck of cards). Also, for the morning tea/coffee service in the lobby, the black tea ran out very early each day as did the lemonade/tea in the afternoon. It seems there's just a half hearted effort for these \"perks\". They should either support the service or not. Other than these things, the hotel was fine. The room was nice; the food in the restaurant was great. We loved our pet fish (Fred).",
+                "date": "2015-06-17 23:25:06 +0300",
+                "ratings": {
+                    "Cleanliness": 4,
+                    "Location": 5,
+                    "Overall": 3,
+                    "Rooms": 4,
+                    "Service": 3,
+                    "Sleep Quality": 3,
+                    "Value": 3
+                }
+            }
+        ],
+        "state": null,
+        "title": "Aberdyfi",
+        "tollfree": null,
+        "type": "hotel",
+        "url": "http://www.hillsidevillage.co.uk/",
+        "vacancy": true
+    },
+    {
+        "address": "929 S Broadway",
+        "alias": null,
+        "checkin": null,
+        "checkout": null,
+        "city": "Los Angeles",
+        "country": "United States",
+        "description": "Opened early 2014 in the historic United Artists building that was built in 1927 for what was then a maverick film studio. Includes free Wi-Fi and air-con. Terrace Suites are 633 square foot and include a private kitchenette, private terrace; some have Ace x Rega RP1 turntables and acoustic Martin Guitars.",
+        "directions": null,
+        "email": "enquire.dtla@acehotel.com",
+        "fax": "+1 213 623 6163",
+        "free_breakfast": false,
+        "free_internet": true,
+        "free_parking": false,
+        "geo": {
+            "accuracy": "RANGE_INTERPOLATED",
+            "lat": 34.041494,
+            "lon": -118.256879
+        },
+        "id": 16630,
+        "name": "Ace Hotel DTLA",
+        "pets_ok": false,
+        "phone": "+1 213 623-3233",
+        "price": "From $199",
+        "public_likes": [
+            "Mrs. Mckenna Kassulke",
+            "Marion Rowe"
+        ],
+        "reviews": [
+            {
+                "author": "Alvah Hodkiewicz",
+                "content": "We spent 2 nights at the Doubletree before heading over to Rio Grande, PR. It has a central location with easy access from the airport and to Old San Juan. It is also only a 3 block walk to Ocean Park Beach. Perfectly clean -- and I am a clean freak. One of the staff here said it was renovated 2 years ago when purchased by Hilton. All of the staff is super friendly. The pool area is nice with comfy towels and lounge chairs along with a jacuzzi. The hotel is in a heavily populated area so things are pretty compact and there is not much of a view due to the tall buildings all around. They have done a good job of putting palm trees, etc around to make it feel less \"citi-fied.\" There are many restaurants within walking distance so no need to drive around. We enjoyed \"Silk\" --they serve sushi, and chinese cuisine. Parking is a bit much at $20/day valet or $15 self-park, but comes with the terrifory. Oh yeah, and the warm cookies are to die for!",
+                "date": "2014-01-31 08:14:57 +0300",
+                "ratings": {
+                    "Cleanliness": 5,
+                    "Location": 4,
+                    "Overall": 5,
+                    "Rooms": 4,
+                    "Service": 5,
+                    "Sleep Quality": 4,
+                    "Value": 5
+                }
+            },
+            {
+                "author": "Octavia Olson",
+                "content": "Stayed here 1 night pre cruise and everything was what we hoped it would be. Never met a more friendly and helpful hotel staff. Although our upgraded rom wasn't quite ready when we arrived we were given some water and the famous warm cookies and we sat outside for a few minutes in the delightful surroundings of the pool. The room was great, everything you need and very modern. The supermarket across the road was a bonus for buying toiletries etc., to take on the cruise. We walked around the corner to Bebo's Cafe which was full of friendly locals(always a good sign) and we enjoyed an excellant, reasonable meal and a half pitcher of Sangria. We then headed back to the hotel and had a drink under the stars around the pool along with other people who were using the pool or just sitting around. Only thing that could be improved is that the service at breakfast was a bit slow, but we were on holiday so that didn't realy matter. And an added bonus was that we got to meet the charming and very handsome Jose (operations manager) who told us all about his island of Peurto Rico which he obviously loves. Thanks to everyone at the Doubletree.",
+                "date": "2015-08-11 14:45:24 +0300",
+                "ratings": {
+                    "Cleanliness": 5,
+                    "Location": 5,
+                    "Overall": 5,
+                    "Rooms": 5,
+                    "Service": 5,
+                    "Sleep Quality": 5,
+                    "Value": 5
+                }
+            },
+            {
+                "author": "Rhea Rowe",
+                "content": "This is by far the nicest and least expensive hotel in the Cantado area. It is two very short blocks to the beach and the neighborhood is very safe. Our room was spotless and modern, with a design that made great use of the space. You get a microwave, fridge and safe along with great Neutrogena bath products. The place is so modern and beautiful with a fabulous pool. Be sure and ask for Miguel Isaac, an assistant manager. He is so helpful and knows the area well. We left some items there and he helped get them back, a great person and a great hotel!",
+                "date": "2013-03-10 02:35:13 +0300",
+                "ratings": {
+                    "Cleanliness": 5,
+                    "Location": 4,
+                    "Overall": 5,
+                    "Rooms": 5,
+                    "Service": 5,
+                    "Value": 5
+                }
+            },
+            {
+                "author": "Vivianne Rodriguez DVM",
+                "content": "After scoring such a great deal on Travelocity, we couldn't have guessed that this hotel would have been as wonderful as it was. The newly renovated rooms are very clean and wonderfully appointed (w/ fridge and microwave), our breakfasts at Michaels and Under the Trees (both on the property) were on point and reasonably priced, and most importantly, the hospitality of the staff (especially Yodil, Peter, and Miguel) was comforting and delightful. It's approx a 3 block walk to the more quiet \"locals\" beach and 4-5 to the main strip of resorts and casinos. For us it was not worth the $300-450 more to stay on the typical resorty main strip (note that most \"resorts\" on the strip seemed older and much less contemporary than this hotel). Pool was small but clean and while families were there, it was certainly not overrun with kids like others. Ask for Yodil Caban, the General Manager, and he will make sure that your stay is outstanding. These folks don't just talk the customer service game, they live it. As they told us, the smaller size of the hotel allows them to be more personally attentive. It's a $0.75 bus ride to Old San Juan or a quick $12 cab ride at night (note that cabs are more expensive at night so it was probably cheaper during the day). If you're in Old San Juan and want a great dinner in a posh, elegant space, check out Marmalade. Expect at least $40-50 per person, but the chef clearly knows and loves great cuisine (note: this is not local Puerto Rican food, but delish nonetheless). Enjoy!",
+                "date": "2014-03-21 08:19:48 +0300",
+                "ratings": {
+                    "Cleanliness": 5,
+                    "Location": 4,
+                    "Overall": 5,
+                    "Rooms": 4,
+                    "Service": 5,
+                    "Value": 5
+                }
+            },
+            {
+                "author": "Nellie Kemmer",
+                "content": "Clean, comfortable room, great bed and shower, friendly and responsive staff. There is a huge 24-hour supermarket across the street and the beach is a short 3 block walk.",
+                "date": "2014-06-21 20:29:12 +0300",
+                "ratings": {
+                    "Cleanliness": 5,
+                    "Location": 4,
+                    "Overall": 4,
+                    "Rooms": 4,
+                    "Service": 5,
+                    "Value": 5
+                }
+            },
+            {
+                "author": "Davonte Botsford",
+                "content": "well ... where to start? all the bad reviews are true! On the positive side, most of the staff is friendly and will go the extra mile but two of the receptionists could do with more training on how to greet/deal with customers and the waiter who served us the first (and only) time we ate at the restaurant could gain on honesty. In term of location, I understand it is a great place for surfers as it is close to many spots but that's it. Although many other interresting places (suggested in their handbook) are from reachable distance if you have your own transportation and are planning to do some sightseeing. On the other side, as we tour the hotel on our first day there, we realised (from the view from the restaurant) that it appeared to be still in construction ... however other bits tended to prove that it was either old or badly maintained. A case in point is \"the whale\" a small slide for kids in the pool area. The paint on it is totally faded and in some area the steel even shows. Another review mentionned the plumbing system, and I thought come on, that was until I realised I could hear my neighboor shower, flush their loo ... and that the pressure of the water in the shower also changed if my neighbour was having a shower at the same time. The fact that I could hear all this was a good indication of the soundproofing as well ... paper thin walls and doors and noisy a/c made my nights there virtually sleepless. Oh nearly forgot ... what they say about the critters in and outside the pool is true too ... in the shower next to the pool we were greeted by a cosy spider (in full swing in its wide web) and a dead cocroach and inside the pool ... an unidentified amphibian. I stayed in Puerto Rico for 10 days and I went to three different hotels, this one was the worst ... and for that price, I will not recommend it to any one I know!!!",
+                "date": "2013-03-08 21:31:27 +0300",
+                "ratings": {
+                    "Cleanliness": 1,
+                    "Location": 5,
+                    "Overall": 2,
+                    "Rooms": 1,
+                    "Service": 2,
+                    "Sleep Quality": 1,
+                    "Value": 1
+                }
+            },
+            {
+                "author": "Tomasa Ryan",
+                "content": "The view is without a doubt breathtaking. And that's also without a doubt the only good thing about this place. From the disappointing and unwelcoming staff, the lack of maintenance, smelly rooms (and not good flowery smell), torn fridge in the room to the vase of old dirty water and dead flowers at the Front Desk this whole experience was simply HORRIBLE. The \"tongue\" of the whale at the pool is literally black, the stairs leading to the pool are covered with a green moss like $@!#% (slippery) and the pool itself is dirty and full of leaves. The lobby area is very dirty, the floors very dusty. No elevators, and the stairs handrails very rusty and sticky. None of the staff has a uniform, their wear anything they want, any color, any style, and the housekeepers are wearing nurse uniforms. Very unprofessional. And in fact the musty stench in the rooms was so horrible that we could not stay at all. We ended up having to move to another hotel. So please do not waste your time and money. Do not even consider this place. It looks NOTHING like the internet page!!!",
+                "date": "2012-01-02 21:14:23 +0300",
+                "ratings": {
+                    "Business service (e.g., internet access)": 1,
+                    "Check in / front desk": 1,
+                    "Cleanliness": 1,
+                    "Location": 4,
+                    "Overall": 1,
+                    "Rooms": 1,
+                    "Service": 1,
+                    "Value": 1
+                }
+            },
+            {
+                "author": "Mr. Summer Bechtelar",
+                "content": "service and welcome was great. not from there im from michigan somebody recomendme there and i love it have fun good price. good understood. wao a maissing. i recomend this place 100%. and im a manager in hotel too. radisson hotel in grand rapids michigan. so i know whats a good service and stay is. love it.",
+                "date": "2013-08-30 07:46:58 +0300",
+                "ratings": {
+                    "Cleanliness": 5,
+                    "Location": 5,
+                    "Overall": 5,
+                    "Rooms": 5,
+                    "Service": 5,
+                    "Sleep Quality": 5,
+                    "Value": 5
+                }
+            },
+            {
+                "author": "Elaina Morissette",
+                "content": "Let me just say that this was our first trip to Puerto Rico and we LOVED it here. Loved it so much that we have had a REALLY hard time adjusting to home again and we can't wait to come back soon. As far as the Embassy Suites: Pros:1. The room is a suite. Anyone with small children knows this is important. We could put the kids down for bed or nap and still be in our living room talking and that was great. 2. They serve free breakfast every morning and than we only needed a small lunch or snack before dinner. 3. They have a managers reception at night with snacks, juices, pop, and drinks. We stopped here every night before we left the hotel for dinner. It was a great before dinner appetizer that helped hold all of us over before our later dinner. 4. The beach was beautiful during the week. The Embassy Suites section was nice and it was great to have chairs, towels and umbrellas at the beach. 5. The pool, although crowded, was nice and perfect for the kids to play in for hours while I could read a book. Cons: 1. It's not that clean people. We have traveled to a lot of Embassy Suites and this one is by far the dirtiest one we've stayed at. At first glance the rooms look clean, but then you start looking in the corners, at the carpet, under any furniture, closer at the fixtures in the bathroom and you can tell that these rooms haven't been deep cleaned in a LONG time. Gross 2. One the weekend it was crazy crowded. We had to wait 20 minutes in the breakfast line, and same for managers reception. It was hard to find seats and could barely find anywhere around the pool. That thing that was the worst was the cleanliness at the meals during the busy weekend. For example, the bacon tray had more bacon hanging outside on the counter than in the actual tray. I looked at my husband and said is that supposed to be decoration or something? It was gross and wouldn't pass food codes for sure. I understand that they are busy on the weekends but then that shouldn't surprise them, and they should bring in more staff to handle the bigger crowds. 3. The front desk staff were not great. They were friendly, but always talking to other co-workers and I felt bad interrupting them. I would go down there and ask for towels to be delivered to the room, it never happened. 4. We pre-paid for our trip on the embassy website and it said it covers all taxes and fees. They racked on more than $300 worth of taxes before we checked out. I went to the counter and showed them my receipts and they weren't willing to budge at all. So frustrating when you prepay for things. If they have a \"special tax\" then they should add that in when you prepay. Overall we again LOVED PR, an amazing island with great culture and even better Puerto Rican food. I highly recommend going to see El Morro fort, the El Yunque rain forest, going to Luquillo beach and check out all the food stands, and our favorite going to Old San Juan and spend the day there. As for the Embassy Suites, I wouldn't be that excited to stay there again. It worked for us mainly because we were traveling with small children but I would not be that excited to stay there again. Honestly I would stay somewhere closer to Old San Juan...",
+                "date": "2014-01-27 07:53:20 +0300",
+                "ratings": {
+                    "Cleanliness": 2,
+                    "Location": 4,
+                    "Overall": 3,
+                    "Rooms": 3,
+                    "Service": 3,
+                    "Sleep Quality": 3,
+                    "Value": 3
+                }
+            }
+        ],
+        "state": "California",
+        "title": "Los Angeles/Downtown",
+        "tollfree": null,
+        "type": "hotel",
+        "url": null,
+        "vacancy": true
+    },
+    {
+        "address": null,
+        "alias": null,
+        "checkin": null,
+        "checkout": null,
+        "city": "Puteaux",
+        "country": "France",
+        "description": "Accor's mid-range aparthotel is right off the Esplanade, next door to Sofitel .",
+        "directions": null,
+        "email": null,
+        "fax": null,
+        "free_breakfast": true,
+        "free_internet": true,
+        "free_parking": false,
+        "geo": {
+            "accuracy": "RANGE_INTERPOLATED",
+            "lat": 48.88847,
+            "lon": 2.24776
+        },
+        "id": 21871,
+        "name": "Adagio La Défense Esplanade",
+        "pets_ok": true,
+        "phone": null,
+        "price": null,
+        "public_likes": [
+            "Ubaldo Harber"
+        ],
+        "reviews": [
+            {
+                "author": "Mr. Juliana Hintz",
+                "content": "For someone traveling in their early 20's was great! I woke up to a beautiful sunrise and fell asleep to a spectacular sunset. Rooms are big enough for 1-2 people. The beach is okay, I went there when it was windy, but I got a good tan! Food was delicious and cheap and the staff was very friendly.",
+                "date": "2013-12-18 22:29:40 +0300",
+                "ratings": {
+                    "Cleanliness": 4,
+                    "Location": 3,
+                    "Overall": 5,
+                    "Rooms": 5,
+                    "Service": 5,
+                    "Value": 5
+                }
+            },
+            {
+                "author": "Ray Pagac",
+                "content": "Stayed in June 2008, nice property but its the wrong place and time of year if you're looking for a quiet and relaxing hotel. Great place if you have children. Beach area is nice but it's shared with a host of other hotels, you really can't see that from their web cam, so its pretty packed with little ones playing in water. Forget grabbing a nap in during the day in the summer months. Use the public access beach behind the property which can be accessed via the parking lot. Early mornings and late evenings on the beach are nice as was the ocean view from the room. Had to move rooms, first one was behind the hot tub in the main building and it got loud at night . The staff was extremely nice and helpful. Earlier reviews of their restaurant are correct, quite pricey for what you get.",
+                "date": "2015-06-15 03:48:58 +0300",
+                "ratings": {
+                    "Check in / front desk": 3,
+                    "Cleanliness": 4,
+                    "Location": 4,
+                    "Overall": 2,
+                    "Rooms": 3,
+                    "Service": 4,
+                    "Value": 2
+                }
+            },
+            {
+                "author": "Marietta Kuhic",
+                "content": "The Napili Kai has an incredible setting on Napili Bay ... a beach with incredible fun for the family .... body surfing, snorkeling and sea turtles to name a few. Last year we came to stay in Lani 2 and it was a vacation of a lifetime. We came back this year with high expectations but were placed in the Puna Point Buildings. Puna Point has a fabulous, unobstructed ocean view but these units are older, have a musty smell and bug problems. Little ants were all over the counter. There was a pesticide under the counter for us to spray if we wished; however, we didn't really want the residue of the spray on our food so we put up with the ants. We could have asked to change rooms but decided to stay put because of the wonderful view. The staff were professional but not as friendly as I remembered from last year. Housekeeping was hit or miss, depending on which cleaner we got. One was exceptional, the other (in the afternoon) left garbage under the sink and did not appear a happy camper. Overall, we enjoyed our stay but were also ready to move on at the end. Napili is a good location for fun and proximity to lots of excellent sight seeing and activities. The Napili Kai, as we have experienced, has the potential to be excellent. If they renovated the older rooms and upped their level of service, we would definitely want to try it again; however, next time we come back, we will likely try somewhere new.",
+                "date": "2014-07-02 06:16:51 +0300",
+                "ratings": {
+                    "Business service (e.g., internet access)": 3,
+                    "Check in / front desk": 3,
+                    "Cleanliness": 2,
+                    "Location": 5,
+                    "Overall": 4,
+                    "Rooms": 2,
+                    "Service": 3,
+                    "Value": 4
+                }
+            },
+            {
+                "author": "Elwin Wilderman",
+                "content": "Our stay at the Napili Kai Beach Resort concluded on Saturday September 29, a four night stay. The first incident occured when my wife was harrassed on the beach and accused of not being a patron of the hotel by one of the employees working in the Makai Hale because we had not signed up for a beach towel which would have identified as patrons, allowing us to use the resorts chairs on the beach. We had our own towels and chairs were not items signed out for. By the way the verb harrass was used by the employee to describe her behavior, not a description we stamped this individual with. We then asked the employee to find out about the Honeymoon package which we were identified under(we were honeymooners) in hopes of getting the sparkling wine, food certificates....etc... included with this service (as advertised and stated in our itinerary). Upon returning the towel and snorkeling equipment the employee proceeded to tell me she spoke to my wife and the resort would be taking care of this for us. Nothing was ever done and we left the resort with a sour tatse in our mouths.",
+                "date": "2014-09-05 08:27:53 +0300",
+                "ratings": {
+                    "Business service (e.g., internet access)": 1,
+                    "Check in / front desk": 3,
+                    "Cleanliness": 2,
+                    "Location": 2,
+                    "Overall": 1,
+                    "Rooms": 1,
+                    "Service": 1,
+                    "Value": 1
+                }
+            },
+            {
+                "author": "Coty Hills",
+                "content": "Returned from Maui the last week of February. Stayed a week with my son (8) and husband. Direct flight from LAX, United, @ approx. $2800 for the three of us (air, hotel, rental). Hotel grounds very beautiful. Beach awesome. Oceanview studio, very cozy, spacious no complaints at all. We ate breakfast at the hotel once. Food absolutely delicious, but way overpriced for the portions. The plan was to shop for groceries and prepare our own meals, but we soon realized it would be cheaper to just eat out, after browsing the lanes at the grocery store. A carton of OJ was 6 bucks! The weather was nice. About 80 degrees, with sporadic showers and gusts of wind. The week we were there, the crowd was mostly 50+ (it seemed) and families. If you're looking for a slow paced, quiet type of environment, Napili Kai is it. FYI: I have more pics to show of the room, but they are very large files and I do not feel like shrinking them. If you want to see them, I'll be happy to email them to you.",
+                "date": "2015-01-09 07:20:27 +0300",
+                "ratings": {
+                    "Business service (e.g., internet access)": 5,
+                    "Check in / front desk": 5,
+                    "Cleanliness": 5,
+                    "Location": 5,
+                    "Overall": 5,
+                    "Rooms": 5,
+                    "Service": 5,
+                    "Value": 4
+                }
+            },
+            {
+                "author": "Boris Kuhlman",
+                "content": "Wanted to stay somewhere very special for our 20 aniversary, well we found just the place. Napili Kai had everything that we wanted. If you want an ocean front room spend the extra $ and stay in Puna 11. We had room 231 and the view was worth evey penny. The beach lacked not a thing. Snorkling right off the beach was fantastic. We did not see any turtle here, but just around the point we had no problem finding them. We put 700 miles on our rental car wanting to see all of Maui, but we could have just as well stayed right here too! Very romantic setting but also great for the family. We will be back!!",
+                "date": "2015-11-21 15:43:33 +0300",
+                "ratings": {
+                    "Cleanliness": 5,
+                    "Overall": 5,
+                    "Rooms": 5,
+                    "Service": 5,
+                    "Value": 5
+                }
+            },
+            {
+                "author": "Jaeden Hauck",
+                "content": "I saw the reviews for Napili on trip advisor and decided to go there when I got a room over $100 lower than the Kapalua Bay PLUS had additional savings with free snorkel equipment, free parking, AND free beach chairs (all charged for at the Kapalua). I loved it. I stayed in one of the hotel rooms since it had air conditioning. the room was lovely with japanese style screens instead of curtains, a balcony, and jacuzzi bathtub. High speed wireless internet is not in the room, but can be accesses in the open air lobby. Unlike the Kapalua Bay, the hotel is RIGHT on the beach and beach is wonderful. (You can walk to the Kapulua Bay Beach in about 4 minutes if you really want to see that beach - but I thought this beach was nicer). I had great snorkeling right there - I even saw a sea turtle! The beach was a little crowded at times and loud with some kids - but still nice. I liked the free iced tea and fruit every morning on the beach. I would go there again in an instant.",
+                "date": "2014-08-05 20:52:31 +0300",
+                "ratings": {
+                    "Cleanliness": 5,
+                    "Overall": 5,
+                    "Rooms": 5,
+                    "Service": 5,
+                    "Value": 4
+                }
+            },
+            {
+                "author": "Howell Doyle",
+                "content": "Everything is good at the hotel except the location... We were there mid march .. The weather was raining and cloudy for over 10 days.. One needs to know that 10 miles away in lahaina .. Weather was perfect... Kapalua is at an elevation.. Causing it to be very windy and cloudy with rain... Lahaina is protected by mountains and much better weather... Nothing against the hotel.. But someone picked the wrong place to build it",
+                "date": "2013-12-12 22:54:30 +0300",
+                "ratings": {
+                    "Cleanliness": 5,
+                    "Location": 1,
+                    "Overall": 1,
+                    "Rooms": 5,
+                    "Service": 5,
+                    "Value": 2
+                }
+            },
+            {
+                "author": "Rossie Cruickshank",
+                "content": "We just returned from our fourth trip in three years to the Ritz-Carlton Kapalua. Leslie and her staff in the Club Level are phenomenal and operate at the highest levels of excellence. Everyone in there has a passion for customer service and bring incredible value to this hotel. We much prefer this location to Wailea, and will be back for years to come!",
+                "date": "2014-04-22 19:24:54 +0300",
+                "ratings": {
+                    "Cleanliness": 5,
+                    "Location": 5,
+                    "Overall": 5,
+                    "Rooms": 5,
+                    "Service": 5,
+                    "Sleep Quality": 5,
+                    "Value": 5
+                }
+            }
+        ],
+        "state": "Île-de-France",
+        "title": "Paris/La Défense",
+        "tollfree": null,
+        "type": "hotel",
+        "url": null,
+        "vacancy": true
+    }
+]

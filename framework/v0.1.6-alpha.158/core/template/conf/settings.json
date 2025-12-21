@@ -1,0 +1,95 @@
+{
+  "server": {
+    "engine": "isaac",
+    "credentials": {
+      "_comment": "Project ENV override: SSL Credentials: private key & certificate",
+      "privateKey": "{GINA_HOMEDIR}/certificates/scopes/{scope}/{host}/private.key",
+      "certificate": "{GINA_HOMEDIR}/certificates/scopes/{scope}/{host}/certificate.crt",
+      "ca": "{GINA_HOMEDIR}/certificates/scopes/{scope}/{host}/ca_bundle.crt",
+      "allowHTTP1": true
+    },
+    // refers to server.js, lib.routing & controller.js
+    "supportedRequestMethods": {
+      "body": {},
+      "get": {},
+      "post": {},
+      "put": {},
+      "delete": {},
+      "files": []
+      // https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods
+      // ? connect, head, options, trace, patch, cookies, copy
+    },
+    // Compare with core/content.encoding
+    // This is the prefered order when it comes to respond with compressed content
+    "preferedCompressionEncodingOrder": ["br", "deflate", "gzip", "zstdn", "dcb", "dcz", "compress"]
+  },
+  "upload": {
+    "_comment": "for more details, check out https://github.com/mscdex/busboy",
+    "encoding": "utf8",
+    "tmpPath": "{tmpPath}",
+    "maxFieldsSize": "2MB", // for all uploads by default - can be redefined under the group
+    "maxFields": 1000, // number of assets when isMultipleAllowed - can be redifined under the group
+    // timeout for tmp files removal - can be redifined under the group
+    // will be ignored by server if set to 0 or false
+    // but you will have to setup a cron to remove files from tmp dir
+    // eg.: (int) 5000 for 5 sec
+    // eg.: (string) 10m for 10 minutes
+    // eg.: (int) 0 to disable autoTmpCleanupTimeout
+    // eg.: (boolean) false to disable autoTmpCleanupTimeout
+    "autoTmpCleanupTimeout": false,
+    // You need to set groups in order to enable uploads
+    "groups": {
+      "untagged": {
+        "path": "{tmpPath}",
+        "allowedExtensions": "*", // or [ "jpg", "jpeg", "png", "svg" ]
+        "isMultipleAllowed": false
+        // optional sample
+        // ,
+        // "filePrefix": "$designId_",
+        // "subFolder": "/$ownerId_$companyId",
+        // "maxFieldsSize": "512K"
+      }
+    }
+  },
+  "cache": {},
+  "engine.io": {
+    "port": 8888
+  },
+  "livereload": {},
+  "locale": {
+    "preferedLanguages": [ "en-US" ],
+    "region": "EN",
+    "firstDayOfWeek": 1,
+    "calendar": "gregorian",
+    "temperature": "celsius",
+    "number": {
+      "grouping": null,
+      "decimal": "."
+    },
+    "currency": {
+      "code": "usd",
+      "grouping": null,
+      "decimal": "."
+    },
+    "measurementUnits": "metric",
+    "dateFormat": {
+      "short": "mm/dd/yyyy",
+      "medium": "mmm d, yyyy",
+      "long": "mmmm d, yyyy",
+      "full": "dddd, mmmm d, yyyy"
+    },
+    "24HourTimeFormat": true,
+    "timeFormat": {
+      "default": {
+        "short": "h:MM:ss",
+        "medium": "h:MM:ss",
+        "long": "h:MM:ss TT"
+      },
+      "24H": {
+        "short": "HH:MM",
+        "medium": "HH:MM:ss",
+        "long": "HH:MM:ss TT"
+      }
+    }
+  }
+}

@@ -1,9 +1,0 @@
-# TEAM
-
-    Fabrice delaneau
-        Interface designer
-	    fabrice.delaneau [at] gina.io
-
-    Martin-Luther Etouman
-        Developper
-        martin.etouman [at] gina.io

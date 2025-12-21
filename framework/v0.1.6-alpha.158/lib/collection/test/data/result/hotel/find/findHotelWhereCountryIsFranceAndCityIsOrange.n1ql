@@ -1,0 +1,5 @@
+SELECT DISTINCT h.*
+FROM `travel-sample` h
+WHERE h.type = 'hotel'
+AND h.country = 'France'
+AND h.city = "Orange"

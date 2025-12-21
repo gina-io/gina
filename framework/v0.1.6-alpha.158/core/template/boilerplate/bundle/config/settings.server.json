@@ -1,0 +1,30 @@
+// bundle needs to be restarted on changes !!
+{
+    "webroot": "/{bundle}" // do not forget to add a coma here if you add other options ;)
+    /**
+    * `webrootAutoredirect` settings
+    * Default is `true`: set to false if you have describe a redirection rule from your `routing.json`
+    */
+    // "webrootAutoredirect": false,
+
+    /**
+    * `template` settings
+    * Default is `false`: will automatically be set to `true` when you add a view/template (`false` is right for APIs only)
+    */
+    // "template": false,
+
+    /**
+    * `response` settings
+    * This section is mostly used to setup CORS
+    */
+    // "response": {
+    //        // CORS settings sample
+    //     "header": {
+    //         "access-control-allow-origin": "{bundle}@{project}, https://checkout.stripe.com",
+    //         "access-control-allow-headers": "X-Requested-With", // To allow AJAX request
+    //         "access-control-allow-methods": "POST, GET, OPTIONS",
+    //         "access-control-allow-credentials": true,
+    //         "vary": "Origin"
+    //     }
+    // }
+}

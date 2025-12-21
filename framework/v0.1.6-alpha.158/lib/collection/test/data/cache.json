@@ -1,0 +1,22 @@
+[
+    {
+        "cacheKey": "data:/api/document/get/03e93ac8-59ce-406c-8c3b-ef34b6b66df4/f0027a11-67ba-441a-9c39-35715490a65d",
+        "event": "company.update"
+    },
+    {
+        "cacheKey": "data:/api/document/get/03e93ac8-59ce-406c-8c3b-ef34b6b66df4/f0027a11-67ba-441a-9c39-35715490a65d",
+        "event": "company.delete"
+    },
+    {
+        "cacheKey": "data:/api/document/get/03e93ac8-59ce-406c-8c3b-ef34b6b66df4/f0027a11-67ba-441a-9c39-35715490a65d",
+        "event": "client.insert"
+    },
+    {
+        "cacheKey": "data:/api/document/get/03e93ac8-59ce-406c-8c3b-ef34b6b66df4/f0027a11-67ba-441a-9c39-35715490a65d",
+        "event": "client.update"
+    },
+    {
+        "cacheKey": "data:/api/document/get/03e93ac8-59ce-406c-8c3b-ef34b6b66df4/f0027a11-67ba-441a-9c39-35715490a65d",
+        "event": "client.delete"
+    }
+]

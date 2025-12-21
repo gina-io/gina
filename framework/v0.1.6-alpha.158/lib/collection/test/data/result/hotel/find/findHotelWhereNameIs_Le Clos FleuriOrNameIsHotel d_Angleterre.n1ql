@@ -1,0 +1,6 @@
+SELECT h.*
+FROM `travel-sample` h
+WHERE h.type = 'hotel'
+AND h.name = 'Le Clos Fleuri'
+OR h.type = 'hotel'
+AND h.name = "Hotel d'Angleterre"

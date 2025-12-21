@@ -1,1 +1,0 @@
-`public` is the public directory.

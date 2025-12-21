@@ -1,0 +1,404 @@
+[
+    {
+        "address": "4 rue Caristie",
+        "alias": null,
+        "checkin": null,
+        "checkout": null,
+        "city": "Orange",
+        "country": "France",
+        "description": "Three-star hotel.",
+        "directions": null,
+        "email": null,
+        "fax": null,
+        "free_breakfast": true,
+        "free_internet": true,
+        "free_parking": true,
+        "geo": {
+            "accuracy": "APPROXIMATE",
+            "lat": 44.1381253,
+            "lon": 4.808372100000042
+        },
+        "id": 21241,
+        "name": "Lou Cigaloun",
+        "pets_ok": false,
+        "phone": null,
+        "price": "From 45 to 144€.",
+        "public_likes": [
+            "Hailey Hahn",
+            "Zane Hilpert"
+        ],
+        "reviews": [],
+        "state": "Provence-Alpes-Côte d'Azur",
+        "title": "Orange (France)",
+        "tollfree": null,
+        "type": "hotel",
+        "url": null,
+        "vacancy": true
+    },
+    {
+        "address": "227 route de Caderousse",
+        "alias": null,
+        "checkin": null,
+        "checkout": null,
+        "city": "Orange",
+        "country": "France",
+        "description": "Three-star hotel.",
+        "directions": null,
+        "email": null,
+        "fax": null,
+        "free_breakfast": false,
+        "free_internet": true,
+        "free_parking": false,
+        "geo": {
+            "accuracy": "APPROXIMATE",
+            "lat": 44.136530912779726,
+            "lon": 4.788177003720193
+        },
+        "id": 21244,
+        "name": "Park Inn by Radisson Orange",
+        "pets_ok": true,
+        "phone": null,
+        "price": "from 94 to 190€.",
+        "public_likes": [
+            "Alize Cole PhD",
+            "Deven Windler",
+            "Alexzander Fahey",
+            "Kadin Homenick",
+            "Josianne Keebler",
+            "Frederik Upton",
+            "Dovie Terry",
+            "Teagan Balistreri"
+        ],
+        "reviews": [
+            {
+                "author": "Mrs. Erik Osinski",
+                "content": "Old, but nice hotel. Very clean comfortable rooms. I loved thier shamoo/soap with honey/ginger flavor. We were staying with 2 kids for 2 nights in a room with included 2 continental breakfasts. They gave us 4 breakfast vouchers for duration of our stay during check-in. We asked if they coudl give two more vouchers for kids, they said no. Well, fair enough, we knew about it when booked the hotel, but gave it a shot and though it woudl be nice for them to add vouchers for entire family. Next morning, we went to have breakfast and waiter actually let us have 4 full breakfasts using only use 2 contintneal vauchers , very nice. Second morning we were not that luckey, another waiter didi everything by the book and charged us two additional breakfasts. Other thatn that, hotel is in fantastic location, has nice indoor pool, sauna and gym. I woudl stay in this hotel in a future,",
+                "date": "2013-08-26 13:40:40 +0300",
+                "ratings": {
+                    "Cleanliness": 5,
+                    "Location": 5,
+                    "Overall": 4,
+                    "Rooms": 5,
+                    "Service": 3,
+                    "Value": 4
+                }
+            },
+            {
+                "author": "Maya Hills",
+                "content": "I spent 4 nights at the Hyatt Downtown and thought it was great. The doorman was right there to carry my luggage all the way from the street to the lobby and asked if I would need it brought to my room. Great start! The reason for the two sets of elevators is for security purposes. The hotel wants to see who is coming and going to the rooms. One night I had to show my key to get on the second set of elevators to the rooms. This is a good thing. Check in was very pleasant and professional. I got the room through Priceline so I was expecting a view of the alley but what a pleasant surprise when I got a room on the 20th floor with a tremendous view of the financial district and the inner harbor islands. It was very nice and I was really happy to have it. The bed was super comfortable, the bathroom was fully stocked with products (even toothpaste). The best part of the hotel though is the gym. While not everyone looks for this when they travel, if you like to work out this gym had everything! This hotel was very nice. I would definitely go back.",
+                "date": "2014-06-10 12:54:26 +0300",
+                "ratings": {
+                    "Cleanliness": 5,
+                    "Location": 5,
+                    "Overall": 5,
+                    "Rooms": 5,
+                    "Service": 5,
+                    "Value": 5
+                }
+            }
+        ],
+        "state": "Provence-Alpes-Côte d'Azur",
+        "title": "Orange (France)",
+        "tollfree": null,
+        "type": "hotel",
+        "url": "http://www.parkinn.com/hotel-orange",
+        "vacancy": true
+    },
+    {
+        "address": "place de Langes",
+        "alias": null,
+        "checkin": null,
+        "checkout": null,
+        "city": "Orange",
+        "country": "France",
+        "description": "Four-star hotel.",
+        "directions": null,
+        "email": null,
+        "fax": null,
+        "free_breakfast": true,
+        "free_internet": false,
+        "free_parking": false,
+        "geo": {
+            "accuracy": "APPROXIMATE",
+            "lat": 44.13730434575296,
+            "lon": 4.806636852154043
+        },
+        "id": 21243,
+        "name": "Arène Kulm Best Western",
+        "pets_ok": false,
+        "phone": null,
+        "price": null,
+        "public_likes": [
+            "Erika Howell",
+            "Willa Runolfsson",
+            "Ms. Valentine Stehr",
+            "Emmanuelle Ritchie",
+            "Maybelle Harber Sr.",
+            "Betsy Okuneva"
+        ],
+        "reviews": [
+            {
+                "author": "Jaylan Quigley",
+                "content": "NIce hotel.Good staff, rooms comfortable, roomy and clean. Location is excellent. Right next door to Macys, across from Boston Common and within walking distance of Chinatown & the Theatre district. Bit of a nuisance having to use two seperate lifts to get to the exit but you get used to it. Did not have breakfast in the hotel but can recommend the Boston Common Coffee house across the road. Good Coffee and Breakfast pastries. Good restaurant for a quiet evening meal. This hotel is much frequented by Airline personnel which is a good sign.",
+                "date": "2014-11-06 23:24:52 +0300",
+                "ratings": {
+                    "Cleanliness": 4,
+                    "Location": 5,
+                    "Overall": 4,
+                    "Rooms": 4,
+                    "Service": 4,
+                    "Sleep Quality": 4,
+                    "Value": 4
+                }
+            },
+            {
+                "author": "Dante Will",
+                "content": "After securing this room on priceline, i was a bit nervous after reading some of the TA reviews! However, we had NO problems at the Hyatt! First of all, there is an elevator that takes you from the street level to the lobby. Then another elevator that takes you up to the rooms. Some people were complaining about this feature, but this is becoming more and more common in larger hotels. It also adds an element of security to your stay. One evening as we were walking from the main elevator to the guest elevator, a stationed Hyatt employee stopped us, and asked to see our room card before boarding the guest elevator. A comforting touch nonetheless. Check in was a breeze. Got the room we requested, and everything was smooth. Julia at the desk was extremely nice and courteous. When we got up to the room (10th floor), the room halls were very cool. Its interesting how they designed it. Blocks of 4 or 5 floors are kind of exposed.. you can look up once you get off the elevator and see the other floors (or down). it has a eurpoean/bavarian forest type of feel in a way! it was kind cool, and unexpected. The room was very clean. The bed was VERY soft. the LCD tv was brand new. the view was even decent. we self parked ourselves... (i believe this was $32 for the single weekend day/night we stayed for). From what i read on the website, i think valet at the hotel, was $42. the parking garage is extremely convenient. at about midnight we ventured to the bar at the hotel.. not a seat remaining. There are tables that are seat yourself to the right of the bar, that are staffed by waiters. we sat and looked at a menu for a late snakc as we just had gotten back from fenway, and decided the late night menu wasnt exactly what we were looking for. Not to mention in the 10 minutes we were there, no one approached us. So we went to Dylan and Max's... about 3-4 minutes down the street. cool, low key bar. Great bar food! The location of the hyatt is interesting. It's suprisingly convenient. The T is really close. The Common is a block away. You are just a block or two from Chinatown section, and you are 'in' the financial district. In my opinion, this isnt really the financial district. We usually stay at Club Quarters. IMO, THAT is the financial district. The Hyatt is more on the fringe i would say. it took about 10-12 minutes to get to fanuiel hall, etc. not too bad. There are stores very close by (dunkin donuts, cvs, tons of retail). I must add that they were SOLD OUT (overbooked actually) the night we stayed... And we had no service issues, nor did we hear anyone else through the walls, floors, ceilings, etc. we had no complaints! The Hyatt's reputation here MAY BE what's hurting it the most. The hyatt is known for its plush accomodations and catering to the higher end. Im thinking this could be it's downfall on the review boards in many instances. We rated the hyatt as very comparable to the other 3.5 to 4 star hotels we have stayed at in Boston and NYC... Clean. Comfy, and conveneint. We really saw no issues!",
+                "date": "2014-06-17 05:27:02 +0300",
+                "ratings": {
+                    "Cleanliness": 4,
+                    "Location": 4,
+                    "Overall": 4,
+                    "Rooms": 4,
+                    "Service": 4,
+                    "Sleep Quality": 4,
+                    "Value": 4
+                }
+            },
+            {
+                "author": "Maude Nolan",
+                "content": "I had previously lived in Boston and this trip was to meet up with some friends from that time frame. I opted to stay at a hotel as, when booking through Travelocity, the cost of some of the flights to Boston from DC was the same as the flight and a few nights hotel stay as I was only there for 2 nights. That being said, I was already family with the area. One of the first things I noticed and really appreciated was the travel sized toothpaste that was in the bathroom. Sure, this is small detail but most places just seem to give you shampoo, lotion and soap and I had forgotten toothpaste so this was a nice convenience. I was also able to check in a few hours early which was nice since the trip was so short. The bed was nice and comfortable. I could have sleep forever but this did not happen as it seemed every morning nearby rooms were being vacuumed before/right around 9am. The AC rattled a lot and the pipes were noisy when the shower was going in neighboring rooms but other than that, the room was very quiet at night. I had a few drinks one night at the restaurant in the hotel as it was a Sunday night and no other restaurant in the vicinity of the hotel was going to stay open as late. The lobby area is weird but not that inconvenient as its just two elevators to get to your room not too sets of stairs. The area is right in the Downtown Crossing/Theater District area so you will see interesting characters if you return to your hotel late at night but I never felt unsafe and knew before hand that the area is not the worst area that a young female could find herself in. The location actually worked quite well as it won't take you long to get to the airport, shopping, Faneuil Hall, Cambridge and any other popular touristy spot.",
+                "date": "2013-01-08 11:31:17 +0300",
+                "ratings": {
+                    "Cleanliness": 5,
+                    "Location": 5,
+                    "Overall": 4,
+                    "Rooms": 5,
+                    "Service": 4,
+                    "Sleep Quality": 4,
+                    "Value": 5
+                }
+            },
+            {
+                "author": "Augusta Cronin",
+                "content": "We stayed here for 5 nights having booked the hotel as part of a package through British Airways. The price was a major influence in our selection, it was the cheapest central hotel they offered. It was only after that we read more of the reviews and began to get worried. We took a taxi from the airport and the doorman offered to help us with the bags on arrival but we declined. The entrance is strange, the lobby is on the third floor so you need to take a lift (there are 3) from the ground. However, to get to these from the street entrance you need to go down a small flight of stairs which was a pain with the luggage (we wished we had used the bellboy)! Also these doors don't really open properly, they are stuck open at an angle which you can walk through without luggage. If the doorman is there they manage to force them open. Check in was a breeze there was no queue and the agent Rosario, was so helpful making sure that our requests had been fulfilled and offering further help and information. It was then, however, we found out that the pool was shut for renovations which had overrun. This was disappointing for us as we do like to chill in the pool normally. However, Rosario explained they had an agreement with the Langham should we wish to use a pool although as it happened, Boston kept us so occupied we didn't have time. We were on the 19th floor which pleased us and there were four lifts, which although were a bit creaky, were always working and we never had a situation where we had a long wait. The room was very spacious and clean and well maintained. It was, however, a little dated and this is reflected throughout the hotel but not to any extent that disappointed us. We had absolutely no issues with noise at all. Every member of staff we met was always friendly and helpful and went out of their way to make sure we were happy. Even after we had checked out the staff on the front desk were more than happy to give us a key to use the sauna and fitness suite so we could shower before our flight home. We found the location to be ideal. It is on top of Downtown Crossing subway station and Boylston was only a couple of minutes walk too. So many of the attractions were such a short distance anyway that sometimes it was just quicker just to walk. There is also an alternate entrance through Macy's (an alternate set of 3 lifts take you down to there). All in all we had a very good time in Boston and was very pleased with the Hyatt as a choice of hotel.",
+                "date": "2014-04-06 14:40:49 +0300",
+                "ratings": {
+                    "Cleanliness": 5,
+                    "Location": 5,
+                    "Overall": 4,
+                    "Rooms": 4,
+                    "Service": 5,
+                    "Sleep Quality": 5,
+                    "Value": 5
+                }
+            },
+            {
+                "author": "Joana Steuber",
+                "content": "First of all this hotel is refusing to take responsibility for stolen items under the valets care. The bed was uncomfortable, the air condition didnt work, poor water pressure in the shower, and terrible food. Save yourself some sanity and stay around the corner at the Ritz..",
+                "date": "2012-11-29 14:32:28 +0300",
+                "ratings": {
+                    "Cleanliness": 2,
+                    "Location": 3,
+                    "Overall": 1,
+                    "Rooms": 2,
+                    "Service": 1,
+                    "Sleep Quality": 2,
+                    "Value": 2
+                }
+            },
+            {
+                "author": "Alysha Gerlach",
+                "content": "Stayed here for 4 nights over Valentines and turned out we picked really well for a first stay in Boston. The location was superb, as its fairly quiet around the property but its still 3 minutes from all the action. State in one direction, Boston Common in the other. Both Downtown Crossing and Chinatown `T` stops are less than 5 minutes away. The staff were also very helpful and in good spirits, and in the room the view over the common to the Massachussets Sate House was outstanding. But the best thing about the place is the amazing king size bed. The mattress is about 2 foot thick!. Combine this with the excellent rate we got from Expedia and it was a 5 star trip for a 3 star price. Stay here when in Boston!",
+                "date": "2015-04-22 18:36:23 +0300",
+                "ratings": {
+                    "Cleanliness": 5,
+                    "Location": 5,
+                    "Overall": 5,
+                    "Rooms": 5,
+                    "Service": 5,
+                    "Sleep Quality": 5,
+                    "Value": 4
+                }
+            },
+            {
+                "author": "Miss Marta Gerlach",
+                "content": "Hyatt was offering a 30% discount from the best available rate on their website, which made booking here very attractive. It's only a few blocks from the Boston Common and right next to the theater district. It's walking distance to the Back Bay and Beacon Hill. The Boston Ballet (at the Opera House) is right across the street, which was very convienent. The room itself was nice, with very comfortable beds (my friend said they were a little too soft though, but I thought they were great). Their fitness center is also decent, with a selection of cardio equipment (4 treadmills, a few ellipticals, bikes and rowing machines), as well as weights and weight machines. There is a small pool, designed for laps (not very children-friendly if that's what you're looking for). Overall, it was a great experience for the weekend and I would definitely stay again.",
+                "date": "2014-01-27 13:29:53 +0300",
+                "ratings": {
+                    "Cleanliness": 4,
+                    "Location": 5,
+                    "Overall": 4,
+                    "Rooms": 4,
+                    "Service": 4,
+                    "Value": 5
+                }
+            },
+            {
+                "author": "Abe Hackett",
+                "content": "I recently traveled to Boston and stayed at the Hyatt Regency from September 25th, 2009 to September 27th 2009. You enter the hotel on street level, then there are 3 steps down (even though a sign besides the sliding glass doors states Handicapped Accessible???) to a lower elevator level and then you have to take an elevator to go up to the 3rd floor for the Reception Area and then another set of elevators to get you to your room.YIkes!!!! Decor is dated, rooms are quite standard and for some inexplicable reason- I was put in a handicapped room. Furntiure in the room is definitely showing wear and tear and whatever they put on the top of their mattresses, some sort of padding, does not even extend the whole length of the mattress. To boot, I could not get the phone in my room to work properly as I could only manage to work it with the speaker micro on. Additonally, their minibar bar prices are stratospheric. The bar and resutrant in the Hotel Lobby is quite generic with nothing to make it stand out in one's mind. I stayed there because when I think Hyatt- I hink of a pleasant Atrium Area but, if there was one, I did not find it. The exterior of the buuilding is also quite ugly- like a grey concrete fortrress- nothing charming or elegant about it whatsoever. I ewill definitely NOT stay there again.",
+                "date": "2014-10-04 03:12:26 +0300",
+                "ratings": {
+                    "Cleanliness": 3,
+                    "Location": 4,
+                    "Overall": 3,
+                    "Rooms": 3,
+                    "Service": 3,
+                    "Value": 2
+                }
+            },
+            {
+                "author": "Tevin Thompson",
+                "content": "I booked the Hyatt using Priceline & got it for $63 a night! This hotel was probably 3 1/2 star hotel, but for the price... We got there early & the room was ready so we checked in before noon & had the day to start sightseeing. We were on the floor w/ the pool so sometimes it was a little noisy in the room. The room was clean, nothing fancy. The staff were quite friendly but the concierge was not so helpful when we asked about difference restaurants. Other than that, it was in a convenient location & great place.",
+                "date": "2014-04-18 11:52:12 +0300",
+                "ratings": {
+                    "Cleanliness": 4,
+                    "Location": 5,
+                    "Overall": 4,
+                    "Rooms": 3,
+                    "Service": 3,
+                    "Value": 4
+                }
+            }
+        ],
+        "state": "Provence-Alpes-Côte d'Azur",
+        "title": "Orange (France)",
+        "tollfree": null,
+        "type": "hotel",
+        "url": "http://www.hotel-arene.fr",
+        "vacancy": true
+    },
+    {
+        "address": "60 avenue Frédéric Mistral",
+        "alias": null,
+        "checkin": null,
+        "checkout": null,
+        "city": "Orange",
+        "country": "France",
+        "description": "Three-star hotel near the train station.",
+        "directions": null,
+        "email": null,
+        "fax": null,
+        "free_breakfast": true,
+        "free_internet": true,
+        "free_parking": true,
+        "geo": {
+            "accuracy": "ROOFTOP",
+            "lat": 44.13742149999999,
+            "lon": 4.818422400000031
+        },
+        "id": 21242,
+        "name": "Hôtel de Provence",
+        "pets_ok": false,
+        "phone": null,
+        "price": "From 50 to 75€.",
+        "public_likes": [
+            "Jayda Crona",
+            "Miss Jamarcus Wolff",
+            "Zoila Torphy",
+            "Westley Johns",
+            "Rozella Connelly",
+            "Green Botsford PhD",
+            "Kenna Krajcik"
+        ],
+        "reviews": [
+            {
+                "author": "Felipe Eichmann Jr.",
+                "content": "Housekeeping doesn't come close to acceptable. Front desk is a bunch of lost youngsters without a clue, this place has lost its footing and should be avoided.",
+                "date": "2012-11-01 16:54:52 +0300",
+                "ratings": {
+                    "Cleanliness": 1,
+                    "Location": 5,
+                    "Overall": 1,
+                    "Rooms": 1,
+                    "Service": 1,
+                    "Value": 3
+                }
+            },
+            {
+                "author": "Ms. Jude Koch",
+                "content": "We ended up paying about $225 per room per night including the Hyatt upgrade to get a high floor. This is a good quality hotel in a good location even as a visitor. I would not have wanted to pay more than I did but would recommend if you can get this price or less. Good fitness centre and pool. We asked for and were given connecting rooms as we were travelling with our teenage children. I think this is now a slightly older hotel so choose a high floor away from the elevator in order to get some quiet, you can hear people in the next room although we were not really disturbed.",
+                "date": "2013-09-09 19:16:09 +0300",
+                "ratings": {
+                    "Cleanliness": 4,
+                    "Overall": 4,
+                    "Service": 3,
+                    "Sleep Quality": 3,
+                    "Value": 3
+                }
+            },
+            {
+                "author": "Jennie Eichmann",
+                "content": "From beginning to end, our stay in this hotel was abysmal. I was here for a conference the last week in June, and didn't have a say on where to stay, and was concerned about the reviews I read, but was hoping it was better than others thought. The most negative of the reviews were right on!! The first night, the a/c in the room was non-existent, and the room would not cool off. We called several times, and they told us to radically lower the thermostat, which had no real effect. We then asked to have a fan sent up, which they did after some time. We then asked the next night to have a different room, which was somewhat better, but we luckily kept the fan, or it wouldn't have been usable. The minibar in both rooms was set up so that you couldn't use it to store other cold items without being charged $25.00; even Red Roof Inn have usable mini refrigerators in their rooms! The problems continued - the conference I attended ran out of coffee after 1/2 hour, and the hotel, claiming to take care of this, did nothing until the 2nd day, at which time they still provided inadequate coffee. The hotel staff, other than one young man, were surly and ineffectual. To top things off, in the new room my wife opened the nightstand and found that someone had left a sexual device there! I couldn't make this stuff up! The cleaning staff obviously didn't do their job. We returned the sexual device to the front desk, and didn't receive any formal apology about this. Then after the second night, the comforter that was on the bed was taken, and when the room was made up, the comforter was never returned! 7 phone calls later, on the 4th day we were there, they finally brought a comforter, but it was a full size (the bed was a King), and it was wet! We returned that. For our hassles, the hotel did provide us a free dinner, but the restaurant had horrible service on the terrace, and the young waitstaff acted as though they had never waited on any customer before. I should also mention that the rooms were small. The pool was not handicap accessible, there were two staircases of 10 stairs each leading down to it, in a very inaccessible spot. There were no soda or snack machines anywhere on any floor. They charged 50 cents a minute for computer access in their \"business\" center. Once people found that out, they didn't use it, and it was empty, although the hotel employed a person to sit there and provide service (mostly fielding angry comments about the cost). They charged $ per day for wireless internet access, which is incredibly cheap. On check out, there were hassles with the hotel charging me several Massachusetts taxes, even though I had documentation that because it was a Federally Funded Conference I should not be charged state lodging taxes. Other people at the convention I attended had the same problem. The quality control at this Hyatt is obviously very subpar.",
+                "date": "2015-12-21 07:22:59 +0300",
+                "ratings": {
+                    "Cleanliness": 2,
+                    "Overall": 1,
+                    "Service": 1,
+                    "Sleep Quality": 1,
+                    "Value": 1
+                }
+            },
+            {
+                "author": "Ernest Quitzon",
+                "content": "Just stayed here for a business/family trip. I am pretty familiar with Boston and this location was excellent! Right by South Station for easy access to the airport or amtrak and right by the subway as well as in the heart of downtown boston so many things are within walking distance. Our room was very nice and spacious, I don't know how we lucked out, but they put us on the top floor in a corner room. The front desk staff as well as the concierage were all very friendly. We booked a decent deal on this room, would not have wanted to pay full price..but all decent rooms in downtown Boston are overpriced. I can't figure out why hotels don't all offer free wi-fi anymore..just seems like another way to nickel and dime customers especially when this hotel didn't come with any other perks like a free breakfast or even a reasonably priced breakfast ($20 for the buffet!). However, the pool and fitness center did help make up for this, both very nice, but the indoor pool was very cold and no hot tub..but the steam room was nice! But, I would definitely stay here again for the location, quality of the rooms and the staff. Thank you!",
+                "date": "2012-01-18 23:16:23 +0300",
+                "ratings": {
+                    "Cleanliness": 5,
+                    "Overall": 4,
+                    "Service": 4,
+                    "Sleep Quality": 4,
+                    "Value": 3
+                }
+            },
+            {
+                "author": "Laverna Hansen IV",
+                "content": "I booked 4 rooms for a group of friends. I had requested that all the rooms be close together and have king beds and was told that there shouldn't be an issue. When we arrived the front desk had difficulty finding the reservation and said that they had not held the rooms as promised. First they tried to tell me I had clearly made a mistake and I was at fault until I reproduced the email from the manager indicating my request would be honored. At that time they simply said well it's impossible now so here are your double bed rooms. Other than the front desk staff being very rude I would have to say the hotel is nice. The rooms are clean and spacious, but the double beds are very small. The location is great for site seeing. Easy to get to the Airport bus and the subway stations.",
+                "date": "2013-04-25 06:58:05 +0300",
+                "ratings": {
+                    "Cleanliness": 4,
+                    "Location": 4,
+                    "Overall": 3,
+                    "Rooms": 2,
+                    "Service": 1,
+                    "Sleep Quality": 3,
+                    "Value": 3
+                }
+            },
+            {
+                "author": "Brenna Breitenberg",
+                "content": "I arrived early and they were kind enough to get me a room right away. May have been the luck of the draw - but kind. I had asked for a room with two double beds - as I had 3 days of business and then a friend was joining me. I was on the 7th floor - 2 floors above the lobby. At first I was disappointed being on a lower floor - but it worked. I would avoid the 6th floor only because the gym is on that floor and it is open extended hours - which may lead to more noise in the hallway. Speaking of the gym...the workout is getting there - LOL but really it is a great gym with a pool, state of the art gym equipment, steam rooms and really clean. The only misses were the housekeeping staff - they clearly do not read english - which I have no problem with - but they need to speak with their supervisor if they cannot read the note (and tip) I left. I wanted my window left cracked (it was closed) and I had asked for extra Decaf coffee. Also, I had requested turn down service each night - and it was only done 1 night. When I called - they were prompt to send someone quickly - and the turndown staff does a great job of refreshing the room and bathroom. Overall the hotel is in a GREAT location - centrally located - a quick walk from the T (several different T stations - Downtown Crossing, South Station, Chinatown and several others). Very close to Chinatown - attached to a Macys, near many theaters and near the Boston Commons. A couple of quick tips - great and inexpensive lobster at Peach Farm - Chinatown - close to a CVS and the concierge had great restaurant suggestions. I did eat at the Avenue one - the restaurant - the food was very good (lunch) and reasonably priced. I did drink in the bar and wish the red wine choices were more varied. Oh, and one more note: the weekdays the clientele was strickly business - the weekend is a WHOLE different (and louder) crowd - be forewarned",
+                "date": "2012-05-17 22:17:07 +0300",
+                "ratings": {
+                    "Cleanliness": 4,
+                    "Location": 5,
+                    "Overall": 4,
+                    "Rooms": 5,
+                    "Service": 5,
+                    "Sleep Quality": 4,
+                    "Value": 4
+                }
+            },
+            {
+                "author": "Gustavo Beahan",
+                "content": "I got this hotel on Priceline, and I was really excited because it's RIGHT downtown, and a block from Downtown Crossing station. The inside of the hotel is nice enough, although weirdly laid out. The lobby is on the 3rd floor, and you have to take an elevator from the street level to get to it. This wouldn't be so strange, except for the fact that the elevators to the rooms are on the other side of the lobby. If the elevators were all the same, it would be fine. The rooms were nice, pretty large for downtown, and had great views. I could see the state house clearly from my room. The bed was crazy comfortable, I think it was a featherbed. I just wanted to sleep all day. The only problem with the rooms, and this is a big one, is that the walls are VERY thin. We could hear our neighbors talking, watching tv, even coughing in their room. Which made me wonder what they could hear from our room. Definitely a big minus.",
+                "date": "2015-07-31 18:08:31 +0300",
+                "ratings": {
+                    "Cleanliness": 4,
+                    "Location": 5,
+                    "Overall": 3,
+                    "Rooms": 3,
+                    "Service": 4,
+                    "Sleep Quality": 4,
+                    "Value": 5
+                }
+            }
+        ],
+        "state": "Provence-Alpes-Côte d'Azur",
+        "title": "Orange (France)",
+        "tollfree": null,
+        "type": "hotel",
+        "url": "http://www.hotelprovence-orange.com/",
+        "vacancy": true
+    }
+]

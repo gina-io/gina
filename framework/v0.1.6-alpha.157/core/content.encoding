@@ -1,9 +1,0 @@
-{
-    "gzip"      : ".gz",
-    "compress"  : ".z",
-    "deflate"   : ".zip",
-    "br"        : ".br",
-    "zstd"      : ".zst",
-    "dcb"       : ".dcb",
-    "dcz"       : ".dcz"
-}
