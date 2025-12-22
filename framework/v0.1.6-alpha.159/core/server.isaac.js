@@ -384,7 +384,7 @@ function ServerEngineClass(options) {
                 response.setHeader('content-type', 'application/json; charset=utf8');
                 response.setHeader('X-Powered-By', 'Gina/'+ GINA_VERSION);
 
-                return response.end('{"status":"ok"}');
+                return response.end('{"status":"ok","cache-is-enabled":'+ server._cacheIsEnabled +'}');
             }
 
 
@@ -505,8 +505,11 @@ function ServerEngineClass(options) {
                             })
                             .pipe(response);
                     } // EO if ( cache.has(cacheKey) )
-                    cacheStatus += '; uri-miss';
-                    response.setHeader('Cache-Status', cacheStatus);
+                    if (cacheStatus) {
+                        cacheStatus += '; uri-miss';
+                        response.setHeader('Cache-Status', cacheStatus);
+                    }
+
 
                     cacheKey        = null;
                     hasCachedKey    = null;

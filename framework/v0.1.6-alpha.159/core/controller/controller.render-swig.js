@@ -22,6 +22,8 @@ function writeCache(bundle, opt, htmlContent) {
         typeof(local.req.routing.cache) == 'undefined'
         ||
         ! local.req.routing.cache
+        ||
+        ! /^true$/i.test(self.serverInstance._cacheIsEnabled)
     ) {
         return;
     }
