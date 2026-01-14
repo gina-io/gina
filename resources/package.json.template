@@ -39,7 +39,7 @@
       "url": "https://fdelaneau.com"
     }
   ],
-  "copyright": "Copyright (c) 2009-2025 Rhinostone <contact@gina.io>",
+  "copyright": "Copyright (c) 2009-2026 Rhinostone <contact@gina.io>",
   "engine": [
     "node >=0.10.25"
   ],

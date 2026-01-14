@@ -2,7 +2,7 @@
 
 /*
  * This file is part of the gina package.
- * Copyright (c) 2009-2025 Rhinostone <contact@gina.io>
+ * Copyright (c) 2009-2026 Rhinostone <contact@gina.io>
  *
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
@@ -226,27 +226,34 @@ function PrepareVersion() {
         var frameworkPathObj    =  new _(frameworkPath, true);
         console.debug('source path is: '+ frameworkPath);
 
-        var destination = _(ginaHomeDir +'/archives/framework/v'+selectedVersion, true);
+        var destination = _(ginaHomeDir +'/archives/framework/v'+targetedVersion, true);
+        console.debug('destination path is: '+ destination.toString());
         if ( new _(destination).existsSync() ) {
             new _(destination).rmSync();
         }
         var err = false;
 
         // since we cannot yet promissify directly PathObject.cp()
-        var f = function(destination, cb) {
-            frameworkPathObj.cp(destination, cb);
-        };
-        await promisify(f)(destination)
-            .catch( function onCopyError(_err) {
-                err = _err;
-            })
-            .then( function onCopy(_destination) {
-                console.debug('Copy to '+ _destination +': done');
-            });
-
-        if (err) {
-            throw err;
+        // var f = function(destination, cb) {
+        //     frameworkPathObj.cp(destination, cb);
+        // };
+        // await promisify(f)(destination)
+        //     .catch( function onCopyError(_err) {
+        //         err = _err;
+        //     })
+        //     .then( function onCopy(_destination) {
+        //         console.debug('Copy to '+ _destination +': done');
+        //     });
+        try {
+            await frameworkPathObj.cp(destination)
+        } catch (err) {
+            if (err) {
+                throw err;
+            }
         }
+
+
+
 
         if (selectedVersion != targetedVersion) {
             console.debug('Stopping gina');

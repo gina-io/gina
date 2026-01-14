@@ -1,0 +1,25 @@
+{
+  "name": "gina-core-plugin-intl",
+  "version": "1.0.0",
+  "description": "International Language & Country Codes plugin based on ISO 3166",
+  "authors": [
+    {
+      "name": "Maritn-Luther ETOUMAN",
+      "email": "contact@gina.io"
+    },
+    {
+      "name": "Fabrice Delaneau",
+      "email": "contact@gina.io"
+    }
+  ],
+  "copyright": "Copyright (c) 2009-2026 Rhinostone <contact@gina.io>",
+  "engines": {
+    "node": ">=0.10.22"
+  },
+  "main": "src/main",
+  "scripts": {
+    "test": "nodeunit test"
+  },
+  "license": "MIT",
+  "readmeFilename": "README.md"
+}
