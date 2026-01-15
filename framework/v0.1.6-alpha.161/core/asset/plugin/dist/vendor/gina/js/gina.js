@@ -13780,7 +13780,8 @@ function ValidatorPlugin(rules, data, formId) {
      * @param {object} $el HTMLElement
      */
     var handleAutoComplete = function($el, liveCheckTimer) {
-        $el.setAttribute('readonly', 'readonly');
+
+        //  $el.setAttribute('readonly', 'readonly');
         addListener(gina, $el, 'focusout.'+ $el.id, function(event) {
             event.preventDefault();
             clearTimeout(liveCheckTimer);
@@ -13957,6 +13958,7 @@ function ValidatorPlugin(rules, data, formId) {
             }
 
         });
+
     }
 
     var registerForLiveChecking = function($form, $el) {
