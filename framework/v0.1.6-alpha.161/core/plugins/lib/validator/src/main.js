@@ -3557,7 +3557,7 @@ function ValidatorPlugin(rules, data, formId) {
      */
     var handleAutoComplete = function($el, liveCheckTimer) {
 
-        //  $el.setAttribute('readonly', 'readonly');
+        $el.setAttribute('readonly', 'readonly');
         addListener(gina, $el, 'focusout.'+ $el.id, function(event) {
             event.preventDefault();
             clearTimeout(liveCheckTimer);
@@ -3759,14 +3759,14 @@ function ValidatorPlugin(rules, data, formId) {
             default:
                 addLiveForInput($form, $el, liveCheckTimer);
                 // Bypass Safari autocomplete
-                var isAutoCompleteField = $el.getAttribute('autocomplete');
-                if (
-                    /safari/i.test(navigator.userAgent)
-                    && isAutoCompleteField
-                    && /^(off|false)/i.test(isAutoCompleteField)
-                ) {
-                    handleAutoComplete($el, liveCheckTimer)
-                }
+                // var isAutoCompleteField = $el.getAttribute('autocomplete');
+                // if (
+                //     /safari/i.test(navigator.userAgent)
+                //     && isAutoCompleteField
+                //     && /^(off|false)/i.test(isAutoCompleteField)
+                // ) {
+                //     handleAutoComplete($el, liveCheckTimer)
+                // }
                 break;
         }
         gina.events['registered.' + $el.id] = $el.id;
