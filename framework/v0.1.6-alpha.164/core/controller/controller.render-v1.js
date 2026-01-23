@@ -20,8 +20,18 @@ var self, local, SuperController, getData, hasViews, setResources, SwigFilters, 
  * @param {object} [errOptions]
  * @returns {void}
  * */
-async function render(userData, displayToolbar, errOptions) {
+module.exports = async function render(userData, displayToolbar, errOptions, deps) {
     console.info('render V1');
+    self            = deps.self;
+    local           = deps.local;
+    SuperController = deps.SuperController;
+    getData         = deps.getData;
+    hasViews        = deps.hasViews;
+    setResources    = deps.setResources;
+    swig            = deps.swig;
+    SwigFilters     = deps.SwigFilters;
+    headersSent     = deps.headersSent;
+
     var err = null;
     var isRenderingCustomError = (
                                 typeof(userData.isRenderingCustomError) != 'undefined'
@@ -893,19 +903,4 @@ async function render(userData, displayToolbar, errOptions) {
     } catch (err) {
         return self.throwError(local.res, 500, err);
     }
-}
-
-module.exports = function onDeps(deps) {
-
-    self            = deps.self;
-    local           = deps.local;
-    SuperController = deps.SuperController;
-    getData         = deps.getData;
-    hasViews        = deps.hasViews;
-    setResources    = deps.setResources;
-    swig            = deps.swig;
-    SwigFilters     = deps.SwigFilters;
-    headersSent     = deps.headersSent;
-
-    return render;
 };

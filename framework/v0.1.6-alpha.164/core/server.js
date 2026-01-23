@@ -2708,7 +2708,7 @@ function Server(options) {
                 request.delete  = undefined;
                 request.get     = undefined;
 
-                delete obj;
+                obj = null;
                 break;
 
 

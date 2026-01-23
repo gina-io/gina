@@ -96,13 +96,18 @@ function writeCache(bundle, opt, jsonContent) {
  * Render JSON
  *
  * @param {object|string} jsonObj
- * @param {object} [req]
- * @param {object} [res]
+ * @param {object} deps
  *
  * @callback {function} [next]
  *
  * */
-function renderJSON(jsonObj) {
+module.exports = function renderJSON(jsonObj, deps) {
+    // Inherited from controller
+    self            = deps.self;
+    local           = deps.local;
+    headersSent     = deps.headersSent;
+    freeMemory      = deps.freeMemory;
+
     // preventing multiple call of self.renderJSON() when controller is rendering from another required controller
     if (local.options.renderingStack.length > 1) {
         return false
@@ -249,14 +254,4 @@ function renderJSON(jsonObj) {
     } catch (err) {
         return self.throwError(response, 500, err);
     }
-}
-
-module.exports = function onDeps(deps) {
-
-    self            = deps.self;
-    local           = deps.local;
-    headersSent     = deps.headersSent;
-    freeMemory      = deps.freeMemory;
-
-    return renderJSON;
 };

@@ -107,8 +107,19 @@ function writeCache(bundle, opt, htmlContent) {
  *
  * @returns {void}
  * */
-async function render(userData, displayToolbar, errOptions) {
+module.exports = function render(userData, displayToolbar, errOptions, deps) {
 
+    // Inherited from controller
+    self            = deps.self;
+    local           = deps.local;
+    getData         = deps.getData;
+    hasViews        = deps.hasViews;
+    setResources    = deps.setResources;
+    // Default filters
+    swig            = deps.swig;
+    SwigFilters     = deps.SwigFilters;
+    headersSent     = deps.headersSent;
+;
     // Using server cache to cache compiledTemplates
     cache.from(self.serverInstance._cached);
 
@@ -1063,18 +1074,4 @@ async function render(userData, displayToolbar, errOptions) {
     } catch (err) {
         return self.throwError(local.res, 500, err);
     }
-}
-
-module.exports = function onDeps(deps) {
-
-    self            = deps.self;
-    local           = deps.local;
-    getData         = deps.getData;
-    hasViews        = deps.hasViews;
-    setResources    = deps.setResources;
-    swig            = deps.swig;
-    SwigFilters     = deps.SwigFilters;
-    headersSent     = deps.headersSent;
-
-    return render;
 };

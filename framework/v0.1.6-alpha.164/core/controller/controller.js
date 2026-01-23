@@ -895,10 +895,7 @@ function SuperController(options) {
         return refToObj( local.userData )
     }
 
-    if  (this.isCacheless() ) {
-        delete require.cache[require.resolve( _(__dirname + '/controller.render-v1', true))];
-        delete require.cache[require.resolve( _(__dirname + '/controller.render-swig', true))];
-    }
+
 
     /**
      * Render HTML templates : Swig is the default template engine
@@ -918,16 +915,23 @@ function SuperController(options) {
      * @param {object} [errOptions]
      * @returns {void}
      * */
-    this.render = require( _(__dirname + '/controller.render-swig', true) )({
-        self        : self,
-        local       : local,
-        getData     : getData,
-        hasViews    : hasViews,
-        setResources: setResources,
-        swig        : swig,
-        SwigFilters : SwigFilters,
-        headersSent : headersSent
-    }); //(userData, displayToolbar, errOptions)
+    this.render = function (userData, displayToolbar, errOptions) {
+        if  (this.isCacheless() ) {
+            delete require.cache[require.resolve( _(__dirname + '/controller.render-v1', true))];
+            delete require.cache[require.resolve( _(__dirname + '/controller.render-swig', true))];
+        }
+
+        return require( _(__dirname + '/controller.render-swig', true) )(userData, displayToolbar, errOptions, {
+            self        : self,
+            local       : local,
+            getData     : getData,
+            hasViews    : hasViews,
+            setResources: setResources,
+            swig        : swig,
+            SwigFilters : SwigFilters,
+            headersSent : headersSent
+        }); //(userData, displayToolbar, errOptions)
+    }
 
 
 
@@ -946,9 +950,7 @@ function SuperController(options) {
         ) ? true : false;
     }
 
-    if  (this.isCacheless() ) {
-        delete require.cache[require.resolve( _(__dirname + '/controller.render-json', true))];
-    }
+
 
     /**
      * Render JSON
@@ -960,12 +962,18 @@ function SuperController(options) {
      * @callback {function} [next]
      *
      * */
-    this.renderJSON = require( _(__dirname + '/controller.render-json', true) )({
-        self        : self,
-        local       : local,
-        headersSent : headersSent,
-        freeMemory  : freeMemory
-    }); //(jsonObj)
+    this.renderJSON = function(jsonObj) {
+        if  (this.isCacheless() ) {
+            delete require.cache[require.resolve( _(__dirname + '/controller.render-json', true))];
+        }
+
+        return require( _(__dirname + '/controller.render-json', true) )(jsonObj, {
+            self        : self,
+            local       : local,
+            headersSent : headersSent,
+            freeMemory  : freeMemory
+        });
+    }
 
 
 
@@ -2690,19 +2698,6 @@ function SuperController(options) {
             }
         }
 
-        /**
-         * sessionOptions
-         * endStream <boolean> true if the Http2Stream writable side should be closed initially, such as when sending a GET request that should not expect a payload body.
-         * exclusive <boolean> When true and parent identifies a parent Stream, the created stream is made the sole direct dependency of the parent, with all other existing dependents made a dependent of the newly created stream. Default: false.
-         * parent <number> Specifies the numeric identifier of a stream the newly created stream is dependent on.
-         * weight <number> Specifies the relative dependency of a stream in relation to other streams with the same parent. The value is a number between 1 and 256 (inclusive).
-         * waitForTrailers <boolean> When true, the Http2Stream will emit the 'wantTrailers' event after the final DATA frame has been sent.
-         */
-        var sessionOptions = {}, endStream = true;
-        if ( body.length > 0 || options.headers['x-requested-with'] ) {
-            endStream = false;
-            sessionOptions.endStream = endStream;
-        }
 
 
 
@@ -2725,6 +2720,19 @@ function SuperController(options) {
         });
 
         client.on('connect', () => {
+            /**
+             * sessionOptions
+             * endStream <boolean> true if the Http2Stream writable side should be closed initially, such as when sending a GET request that should not expect a payload body.
+             * exclusive <boolean> When true and parent identifies a parent Stream, the created stream is made the sole direct dependency of the parent, with all other existing dependents made a dependent of the newly created stream. Default: false.
+             * parent <number> Specifies the numeric identifier of a stream the newly created stream is dependent on.
+             * weight <number> Specifies the relative dependency of a stream in relation to other streams with the same parent. The value is a number between 1 and 256 (inclusive).
+             * waitForTrailers <boolean> When true, the Http2Stream will emit the 'wantTrailers' event after the final DATA frame has been sent.
+             */
+            var sessionOptions = {}, endStream = true;
+            if ( body.length > 0 || options.headers['x-requested-with'] ) {
+                endStream = false;
+                sessionOptions.endStream = endStream;
+            }
 
             var req = client.request( headers, sessionOptions );
 
@@ -2772,6 +2780,10 @@ function SuperController(options) {
                 }
 
                 return;
+            });
+
+            req.on('close', function onQueryClosed() {
+                console.warn('Request stream closed.');
             });
 
             req.on('end', function onEnd() {
@@ -2882,10 +2894,13 @@ function SuperController(options) {
                 }
 
                 client.close();
+                // client.destroy(); // Close the session after the request is complete
             });
 
             if (!endStream) {
-                req.end(body);
+                //req.end(body);
+                req.write(body);
+                req.end();
             }
         });
 

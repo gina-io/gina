@@ -677,7 +677,7 @@ function Router(env, scope) {
                         } catch (err) {
                             var superController = new SuperController(options);
                             // Required before setting options
-                            controller.serverInstance = serverInstance;
+                            superController.serverInstance = serverInstance;
                             superController.setOptions(request, response, next, options);
                             if (typeof (controller) != 'undefined' && typeof (controller[action]) == 'undefined') {
                                 return serverInstance.throwError(response, 500, (new Error('control not found: `' + action + '`. Please, check your routing.json ('+ options.rule +') or the related control in your `' + controllerFile + '`.')).stack);
