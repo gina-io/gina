@@ -2476,8 +2476,10 @@ function Server(options) {
 
         // Timeout in milliseconds - e.g.: (1000x60)x2 => 2 min
         self.instance.timeout = 0; // zero for unlimited
-        //Port by default would be 3100
-        self.instance.listen(self.conf[self.appName][self.env].server.port);
+        // Port by default would be 3100
+        // '::' as the binding address (ipv4 & ipv6) to allow Kubernetes httpGet for livenessProbe
+        // To check: netstat -tuln
+        self.instance.listen(self.conf[self.appName][self.env].server.port, '::');
 
         self.emit('started', self.conf[self.appName][self.env], true);
     }
