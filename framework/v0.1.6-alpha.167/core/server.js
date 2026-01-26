@@ -2477,10 +2477,10 @@ function Server(options) {
         // Timeout in milliseconds - e.g.: (1000x60)x2 => 2 min
         self.instance.timeout = 0; // zero for unlimited
         // Port by default would be 3100
-        // '::' as the binding address (ipv4 & ipv6) to allow Kubernetes httpGet for livenessProbe
+        // '::' as the binding address (ipv4 & ipv6)
         // To check: netstat -tuln
         // If you get "connection refused", make sure that `/proc/sys/net/ipv6/bindv6only` is set to 0
-        self.instance.listen(self.conf[self.appName][self.env].server.port, '0.0.0.0');
+        self.instance.listen(self.conf[self.appName][self.env].server.port);
 
         self.emit('started', self.conf[self.appName][self.env], true);
     }
