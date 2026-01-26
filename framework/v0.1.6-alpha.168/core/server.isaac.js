@@ -333,7 +333,23 @@ function ServerEngineClass(options) {
             acceptEncoding      = null;
             isBinary            = false;
 
-            // Proxy detection
+            // healthcheck
+            // TODO - add a top level API : server.api.js (check, get ...)
+            // TODO - on 90% RAM usage, redirect to `come back later then restart bundle`
+            // TODO - check url against wroot : getContext() ?
+            if ( /^get$/i.test(request.method) && /\_gina\/health\/check$/i.test(request.url) ) {
+                // server.toApi(reques, response)
+                // console.debug('[ SERVER ][200] '+ request.url);
+                response.setHeader('cache-control', 'no-cache, no-store, must-revalidate');
+                response.setHeader('pragma', 'no-cache');
+                response.setHeader('expires', '0');
+                response.setHeader('content-type', 'application/json; charset=utf8');
+                response.setHeader('X-Powered-By', 'Gina/'+ GINA_VERSION);
+
+                return response.end('{"status":"ok","cache-is-enabled":'+ server._cacheIsEnabled +'}');
+            }
+
+            // Proxy detection - Needs to be place after /_gina/health/*
             isProxyHost = getContext('isProxyHost') || false;
             requestHost = request.headers.host || request.headers[':authority'];
             // console.debug('[PROXY_HOST][isProxyHost='+ isProxyHost +'] request.headers.host -> ' + request.headers.host + '  VS request.headers[":authority"] '+ request.headers[':authority'] +' | '+ request.url);
@@ -355,36 +371,6 @@ function ServerEngineClass(options) {
                 }
                 // Forcing context - also available for workers
                 setContext('isProxyHost', true);
-            }
-
-            // TODO - remove this after k8s test
-            // if (
-            //     // skip internal requests like healthcheck
-            //     !/^localhost:[0-9]+$/.test(requestHost)
-            //     && /^true$/.test(isProxyHost)
-            //     && /\:[0-9]+$/.test(requestHost)
-            //     && !hostnameRE.test(requestHost)
-            // ) {
-            //     // Restoring non-proxied mode
-            //     console.debug('[ SERVER ] proxy disabled: '+ process.gina.PROXY_SCHEME +'://'+ requestHost);
-            //     isProxyHost = false;
-            //     setContext('isProxyHost', isProxyHost);
-            // }
-
-            // healthcheck
-            // TODO - add a top level API : server.api.js (check, get ...)
-            // TODO - on 90% RAM usage, redirect to `come back later then restart bundle`
-            // TODO - check url against wroot : getContext() ?
-            if ( /^get$/i.test(request.method) && /\_gina\/health\/check$/i.test(request.url) ) {
-                // server.toApi(reques, response)
-                // console.debug('[ SERVER ][200] '+ request.url);
-                response.setHeader('cache-control', 'no-cache, no-store, must-revalidate');
-                response.setHeader('pragma', 'no-cache');
-                response.setHeader('expires', '0');
-                response.setHeader('content-type', 'application/json; charset=utf8');
-                response.setHeader('X-Powered-By', 'Gina/'+ GINA_VERSION);
-
-                return response.end('{"status":"ok","cache-is-enabled":'+ server._cacheIsEnabled +'}');
             }
 
 
