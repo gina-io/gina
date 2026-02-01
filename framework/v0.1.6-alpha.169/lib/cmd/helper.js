@@ -235,7 +235,7 @@ function CmdHelper(cmd, client, debug) {
                 && !/^project\:(list|help|status)/.test(cmd.task)
                 && !/^\@/.test(argv[3])
             ) {
-                errMsg = 'This is a project command line. Cannot understand what your are asking with: `'+ process.argv.slice(2).join(' ') +'`';
+                errMsg = 'This is a project command line. Cannot understand what your are asking with: `'+ process.argv.slice(2).join(' ') +'`.\nYou need to add:` @<project_name>`. Do not forget the space before `@`.';
                 console.error(errMsg);
                 exit(errMsg);
             }

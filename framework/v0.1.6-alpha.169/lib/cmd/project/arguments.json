@@ -1,11 +1,11 @@
 [
   "--env",
+  "--scope",
   "--path",
   "--homedir",
   "--force",
   "--more",
   "--with-bundles",
   "--with-envs",
-  "--scope",
   "--start-port-from"
 ]

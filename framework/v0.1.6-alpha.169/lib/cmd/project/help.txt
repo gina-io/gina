@@ -40,7 +40,7 @@
 
 [ Start project ]
 
-    $ gina project:start @<project_name> [ —-env=staging, --inspect-brk=5000 ]
+    $ gina project:start @<project_name> [ —-env=dev, --scope=local , --inspect-brk=5000 ]
 
 
 [ Restart project ]
@@ -67,6 +67,10 @@
 
     $ gina project:rename @<project_name> @<new_project_name>
 
+
+[ Build project ]
+
+    $ gina project:build @<project_name> —-scope=local —-env=prod
 
 [ Backup project ]
 

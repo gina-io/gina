@@ -6,6 +6,7 @@ var console     = lib.logger;
 
 /**
  * Build a project.
+ * To debug this part: gina project:build @<project> --env=prod --scope=local --inspect-gina
  * */
  function Build(opt, cmd) {
     var self    = {}
@@ -28,17 +29,59 @@ var console     = lib.logger;
             return end( new Error('No bundle found in your project `'+ self.projectName +'`') );
         }
 
+        process.env.NODE_SCOPE = process.env.NODE_SCOPE || self.projects[self.projectName].def_scope;
+        if (!isDefined('scope', process.env.NODE_SCOPE)) {
+            if ( self.envs.length == 0) {
+                console.error('Missing argument <scope>');
+            } else if  (!isDefined('scope', process.env.NODE_ENV) ) {
+                console.error('[' + process.env.NODE_ENV +'] is not an existing scope.');
+            } else {
+                console.error('Missing argument: --scope=<scope>');
+            }
+
+            process.exit(1)
+        }
+
+        process.env.NODE_ENV = process.env.NODE_ENV || self.projects[self.projectName].def_env;
+        if (!isDefined('env', process.env.NODE_ENV)) {
+            if ( self.envs.length == 0) {
+                console.error('Missing argument <env>');
+            } else if  (!isDefined('env', process.env.NODE_ENV) ) {
+                console.error('[' + process.env.NODE_ENV +'] is not an existing environement.');
+            } else {
+                console.error('Missing argument: --env=<env>');
+            }
+
+            process.exit(1)
+        }
+
         // Getting manifest
         local.manifest = JSON.clone(self.projectData);
 
         globalBuildScripts = ( typeof(local.manifest.buildScripts) != 'undefined' ) ? local.manifest.buildScripts : null;
 
-
-        // Pre build
-        if ( globalBuildScripts && typeof(globalBuildScripts.prebuild) != 'undefined' ) {
-
+        // User Pre build
+        if (
+            globalBuildScripts
+            && typeof(globalBuildScripts.prepare) != 'undefined'
+            && fs.existsSync( self.projectLocation +'/'+ globalBuildScripts.prepare.split(' ').slice(-1)[0])
+        ) {
+            try {
+                var cmd = globalBuildScripts.prepare +' --env='+process.env.NODE_ENV+' --scope='+ process.env.NODE_SCOPE;
+                let execOptions = {
+                    cwd: self.projectLocation,
+                    // Inherit stdio to see the debug prompt in the console
+                    stdio: 'inherit',
+                    // Pass the debug options via the environment variables
+                    env: {
+                        NODE_OPTIONS: self.nodeParams.join(' ')
+                    }
+                };
+                execSync( cmd , execOptions)
+            } catch (buildErr) {
+                delete globalBuildScripts.prepare;
+            }
         }
-
 
 
         console.debug('[build] Building project `'+ self.projectName +'`');
@@ -103,18 +146,8 @@ var console     = lib.logger;
     }
 
     var buildEnv = function(scope, b, e) {
-
+        // For each env
         if ( e > local.envs.length-1 ) {
-            // User Post build
-            if ( globalBuildScripts && typeof(globalBuildScripts.postbuild) != 'undefined' ) {
-                try {
-                    var cmd = globalBuildScripts.postbuild +' --env='+local.envs[e-1]+' --scope='+ scope +' --bundle='+ self.bundles[b] +' --version='+ local.manifest.bundles[self.bundles[b]].version;
-                    console.log( execSync( cmd , { cwd: self.projectLocation }).toString() );
-                } catch (buildErr) {
-                    delete globalBuildScripts.postbuild;
-                    return end(buildErr);
-                }
-            }
             return buildBundle(b+1);
         }
 
@@ -122,7 +155,8 @@ var console     = lib.logger;
             , env           = local.envs[e]
         ;
 
-        if ( env === self.projects[self.projectName].dev_env ) {
+        // Skip if not defined in manifest
+        if ( typeof(local.manifest.bundles[bundle].releases[scope][env]) == 'undefined' ) {
             return buildEnv(scope, b, e+1);
         }
 
@@ -158,6 +192,30 @@ var console     = lib.logger;
 
     var end = async function(err) {
 
+        // User Post build
+        if (
+            globalBuildScripts
+            && typeof(globalBuildScripts.postbuild) != 'undefined'
+            && fs.existsSync( self.projectLocation +'/'+ globalBuildScripts.postbuild.split(' ').slice(-1)[0])
+        ) {
+            try {
+                var cmd = globalBuildScripts.postbuild +' --env='+process.env.NODE_ENV+' --scope='+ process.env.NODE_SCOPE;
+                // cloning it
+                let currentEnv = { ...process.env };
+                currentEnv['NODE_OPTIONS'] = self.nodeParams.join(' ');
+                let execOptions = {
+                    cwd: self.projectLocation,
+                    // Inherit stdio to see the debug prompt in the console
+                    stdio: 'inherit',
+                    // Pass the debug options via the environment variables
+                    env: currentEnv
+                };
+                execSync( cmd , execOptions);
+            } catch (buildErr) {
+                delete globalBuildScripts.postbuild;
+                return end(buildErr);
+            }
+        }
 
         if (err) {
             if (GINA_ENV_IS_DEV) {
