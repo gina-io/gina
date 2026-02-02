@@ -550,6 +550,15 @@ function CmdHelper(cmd, client, debug) {
             cmd.projectBundlesPath = projectBundlesPathObj.toString();
             // bundles symlink
             var bundlesLinkPathObj = new _(cmd.projects[cmd.projectName].path +'/bundles', true);
+
+            try {
+                // in case there is an invalid argument, readlink
+                fs.readlinkSync(bundlesLinkPathObj.toString());
+            } catch (err) {
+                console.warn('[bundles] Found invalid readlink: fixing it...');
+                bundlesLinkPathObj.rmSync();
+            }
+
             if (
                 bundlesLinkPathObj.existsSync()
                 && !bundlesLinkPathObj.isSymlinkSync()
@@ -573,6 +582,13 @@ function CmdHelper(cmd, client, debug) {
             cmd.projectReleasesPath = projectReleasesPathObj.toString();
             // releases symlink
             var releaseLinkPathObj = new _(cmd.projects[cmd.projectName].path +'/releases', true);
+            try {
+                // in case there is an invalid argument, readlink
+                fs.readlinkSync(releaseLinkPathObj.toString());
+            } catch (err) {
+                console.warn('[releases] Found invalid readlink: fixing it...');
+                releaseLinkPathObj.rmSync();
+            }
             if (
                 releaseLinkPathObj.existsSync()
                 && !releaseLinkPathObj.isSymlinkSync()
@@ -597,6 +613,13 @@ function CmdHelper(cmd, client, debug) {
             cmd.projectLogsPath = projectLogsPathObj.toString();
             // logs symlink
             var logLinkPathObj = new _(cmd.projects[cmd.projectName].path +'/logs', true);
+            try {
+                // in case there is an invalid argument, readlink
+                fs.readlinkSync(logLinkPathObj.toString());
+            } catch (err) {
+                console.warn('[log] Found invalid readlink: fixing it...');
+                logLinkPathObj.rmSync();
+            }
             if (
                 logLinkPathObj.existsSync()
                 && !logLinkPathObj.isSymlinkSync()
@@ -620,6 +643,13 @@ function CmdHelper(cmd, client, debug) {
             cmd.projectTmpPath = projectTmpPathObj.toString();
             // tmp symlink
             var tmpLinkPathObj = new _(cmd.projects[cmd.projectName].path +'/tmp', true);
+            try {
+                // in case there is an invalid argument, readlink
+                fs.readlinkSync(tmpLinkPathObj.toString());
+            } catch (err) {
+                console.warn('[tmp] Found invalid readlink: fixing it...');
+                tmpLinkPathObj.rmSync();
+            }
             if (
                 tmpLinkPathObj.existsSync()
                 && !tmpLinkPathObj.isSymlinkSync()
@@ -643,6 +673,13 @@ function CmdHelper(cmd, client, debug) {
             cmd.projectCachePath = projectCachePathObj.toString();
             // cache symlink
             var cacheLinkPathObj = new _(cmd.projects[cmd.projectName].path +'/cache', true);
+            try {
+                // in case there is an invalid argument, readlink
+                fs.readlinkSync(cacheLinkPathObj.toString());
+            } catch (err) {
+                console.warn('[cache] Found invalid readlink: fixing it...');
+                cacheLinkPathObj.rmSync();
+            }
             if (
                 cacheLinkPathObj.existsSync()
                 && !cacheLinkPathObj.isSymlinkSync()

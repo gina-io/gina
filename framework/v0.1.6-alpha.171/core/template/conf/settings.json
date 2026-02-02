@@ -19,6 +19,9 @@
       // https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods
       // ? connect, head, options, trace, patch, cookies, copy
     },
+    "keepAliveTimeout": 5000,
+    // slightly longer than keepAliveTimeout (x1,085)
+    "headersTimeout": 5500,
     // Compare with core/content.encoding
     // This is the prefered order when it comes to respond with compressed content
     "preferedCompressionEncodingOrder": ["br", "deflate", "gzip", "zstdn", "dcb", "dcz", "compress"]

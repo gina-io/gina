@@ -282,6 +282,17 @@ function ServerEngineClass(options) {
         }
     }
 
+    // Setting up server options
+    // Set the keep-alive timeout to 60 seconds (60000 ms)
+    if ( typeof(options.keepAliveTimeout) != 'undefined' ) {
+        server.keepAliveTimeout = ~~options.keepAliveTimeout;
+    }
+
+    // Set headersTimeout slightly longer than keepAliveTimeout
+    if ( typeof(options.headersTimeout) != 'undefined' ) {
+        server.headersTimeout = ~~options.headersTimeout;
+    }
+
 
 
     const middleware = function(path, cb) {
