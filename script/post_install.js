@@ -306,56 +306,6 @@ function PostInstall() {
         }
     }
 
-    // self.checkIfIsContributorEnv = function(done) {
-    //     var isContribEnv = false;
-    //     if ( new _(self.gina + '/.git', true).existsSync() ) {
-    //         isContribEnv = true;
-    //     }
-    //     var homeDir = getUserHome() || null;
-    //     if (!homeDir) {
-    //         return done(new Error('No $HOME path found !'))
-    //     }
-    //     var ginaHomeDir = homeDir.replace(/\n/g, '') + '/.gina';
-    //     setEnvVar('GINA_HOMEDIR', ginaHomeDir);
-
-    //     var npmGlobal = homeDir.replace(/\n/g, '') + '/.npm-global';
-    //     var IsNpmGlobalFound = false;
-    //     if ( new _(npmGlobal, true).existsSync() ) {
-    //         IsNpmGlobalFound = true;
-
-    //         if ( ! new _(npmGlobal +'/bin', true).existsSync() ) {
-    //             new _(npmGlobal +'/bin', true).mkdirSync()
-    //         }
-    //         if ( ! new _(npmGlobal +'/lib/node_modules', true).existsSync() ) {
-    //             new _(npmGlobal +'/lib/node_modules', true).mkdirSync()
-    //         }
-    //     }
-
-    //     console.debug(self.gina, ' | ', ginaHomeDir);
-    //     console.debug('Is contributor‘s env ? : '+ isContribEnv);
-
-    //     // Fixing `npm link` VS `.npm-global` issue on contributors env
-    //     /**
-    //      * Patch designed to use `npm link gina` in your project
-    //      * without taking the risk to get the wrong package version
-    //      *
-    //      * See.:
-    //      * 4 reasons to avoid using `npm link`  - https://hirok.io/posts/avoid-npm-link
-    //      * */
-    //     if (isContribEnv && IsNpmGlobalFound) {
-    //         console.debug('Contributor case detected ...\n', JSON.stringify(process.env, null, 2));
-
-    //         lib.generator.createFileFromDataSync(isContribEnv +'\n'+ '\n'+ IsNpmGlobalFound +'\n'+ JSON.stringify(process.env, null, 2), npmGlobal+'/npm_out.txt');
-
-    //         // symlink the lib
-    //         // ln -s /usr/local/lib/node_modules/gina ~/.npm-global/lib/node_modules/gina
-    //         // symlink the bin
-    //         // ln -s ~/.npm-global/lib/node_modules/gina/bin/gina ~/.npm-global/bin/gina
-    //     }
-
-    //     done();
-    // }
-
 
     self.createVersionFile = function(done) {
         var version = self.version;

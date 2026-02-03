@@ -807,9 +807,10 @@ function SuperController(options) {
                         local.options.template.h2Links += '<'+ obj.url +'>; as=style; rel=preload,'
                     }
                     // TODO - add support for cdn
-                    if (!/\:\/\//.test(obj.url) ) {
-                        obj.url = hostname + obj.url;
-                    }
+                    // Remove this part, since it is best to work with relative paths
+                    // if (!/\:\/\//.test(obj.url) ) {
+                    //     obj.url = hostname + obj.url;
+                    // }
 
                     if (obj.media) {
                         str += '\n\t\t<link href="'+ obj.url +'" media="'+ obj.media +'" rel="'+ obj.rel +'" type="'+ obj.type +'">';
@@ -835,9 +836,10 @@ function SuperController(options) {
                         local.options.template.h2Links += '<'+ obj.url +'>; as=script; rel=preload,'
                     }
                     // TODO - add support for cdn
-                    if (!/\:\/\//.test(obj.url) ) {
-                        obj.url = hostname + obj.url;
-                    }
+                    // Remove this part, since it is best to work with relative paths
+                    // if (!/\:\/\//.test(obj.url) ) {
+                    //     obj.url = hostname + obj.url;
+                    // }
 
 
                     if ( /\/jquery\.(.*)\.(min\.js|js)$/i.test(obj.url) ) {
