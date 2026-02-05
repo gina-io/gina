@@ -2480,6 +2480,8 @@ function Server(options) {
         // '::' as the binding address (ipv4 & ipv6)
         // To check: netstat -tuln
         // If you get "connection refused", make sure that `/proc/sys/net/ipv6/bindv6only` is set to 0
+        // TODO - compare core/config.js and core/template/conf/settings.json
+        // self.instance.listen(self.conf[self.appName][self.env].server.port, self.conf[self.appName][self.env].server.address, self.conf[self.appName][self.env].server.backlog);
         self.instance.listen(self.conf[self.appName][self.env].server.port);
 
         self.emit('started', self.conf[self.appName][self.env], true);

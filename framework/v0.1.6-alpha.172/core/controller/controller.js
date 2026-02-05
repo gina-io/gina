@@ -10,6 +10,7 @@
 //Imports.
 var fs              = require('fs');
 const {promises: {readFile}} = require("fs");
+const { pipeline }  = require('stream/promises');
 const exec          = require('child_process').exec;
 var util            = require('util');
 var promisify       = util.promisify;
@@ -1609,7 +1610,7 @@ function SuperController(options) {
      * @param {object} [options]
      *
      * */
-    this.downloadFromURL = function(url, options, cb) {
+    this.downloadFromURL = async function(url, options, cb) {
 
         var defaultOptions = {
             // file name i  you want to rename the file
@@ -1671,6 +1672,35 @@ function SuperController(options) {
         var parts = url.replace(new RegExp( scheme + '\:\/\/'), '').split(/\//g);
         requestOptions.host = parts[0].replace(/\:\d+/, '');
         requestOptions.path = '/' + parts.splice(1).join('/');
+
+        // check for protocol upgrade
+        // Compare with current proxy list if available
+        var appConf = self.getConfig('app');
+        if ( typeof(appConf.proxy) != 'undefined' ) {
+            var ctx = getContext();
+            for ( let service in appConf.proxy) {
+                let bundleObj = appConf.proxy[service];
+
+                if ( /\@/.test(bundleObj.hostname) ) {
+
+                    let bundle  = ( bundleObj.hostname.replace(/(.*)\:\/\//, '') ).split(/\@/)[0];
+                    // No shorcut possible because conf.hostname might differ from user inputs
+                    bundleObj.host        = ctx.gina.config.envConf[bundle][ctx.env].host.replace(/(.*)\:\/\//, '').replace(/\:\d+/, '');
+                    bundleObj.hostname    = ctx.gina.config.envConf[bundle][ctx.env].hostname;
+                    bundleObj.port        = ~~ctx.gina.config.envConf[bundle][ctx.env].server.port;
+
+                    if (
+                        requestOptions.host == bundleObj.host
+                        && requestOptions.port != bundleObj.port
+                    ) {
+                        // Override
+                        console.info("Overriding port to fit protocol upgrade: "+ requestOptions.port +" -> "+ bundleObj.port);
+                        requestOptions.host = bundleObj.port
+                        break;
+                    }
+                }
+            }
+        }
 
 
         // extension and mime
@@ -1735,32 +1765,96 @@ function SuperController(options) {
         }
 
         var browser = require(''+ scheme);
-        // console.debug('requestOptions: \n', JSON.stringify(requestOptions, null, 2));
 
-        browser
-            .get(requestOptions, async function(response) {
+        try {
+             const response = await new Promise((resolve, reject) => {
+                const req = browser.get(requestOptions, (res) => {
+                    // Vérification du status HTTP (optionnel mais conseillé)
+                    if (res.statusCode >= 400) {
+                        reject(new Error(`Server responded with ${res.statusCode}`));
+                    }
+                    resolve(res);
+                });
 
-                local.res.setHeader('content-type', contentType + '; charset='+ local.options.conf.encoding);
-                local.res.setHeader('content-disposition', opt.contentDisposition);
-                if (opt.fileSize) {
-                    local.res.setHeader('content-length', opt.fileSize);
-                }
-                //local.res.setHeader('content-length', opt.fileSize);
-                // local.res.setHeader('cache-control', 'must-revalidate');
-                // local.res.setHeader('pragma', 'must-revalidate');
-
-
-                await response.pipe(local.res);
-                if ( typeof(cb) != 'undefined' ) {
-                    cb(false)
-                }
-            })
-            .on('error', function onDownloadError(err) {
-                if ( typeof(cb) != 'undefined' ) {
-                    return cb(err)
-                }
-                self.throwError(local.res, 500, err);
+                // Capture l'erreur de connexion (ECONNREFUSED, etc.)
+                req.on('error', reject);
             });
+
+            // We need this before piping so we can send back to the requester the final response
+            local.res.setHeader('content-type', contentType + '; charset='+ local.options.conf.encoding);
+            local.res.setHeader('content-disposition', opt.contentDisposition);
+            if (opt.fileSize) {
+                local.res.setHeader('content-length', opt.fileSize);
+            }
+
+            await pipeline(response, local.res);
+            if ( typeof(cb) != 'undefined' ) {
+                cb(false)
+            }
+        } catch (err) {
+            if (err.code === 'ECONNREFUSED') {
+                let helpMessage = '\nSwitching [SCOPE] for testing? \nCheck if your document url matches the current scope & env\nbefore calling Controller::downloadFromURL(url, opt)\n=> ' + url;
+                helpMessage += '\n\nHere is a suggested fix to add in your logic: \n';
+                helpMessage += `
+// Override for local scope when switching env
+if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
+    var ctx = getContext();
+    var envHostname = ctx.gina.config.envConf['coreapi'][ctx.env].hostname;
+    var re = new RegExp('^'+ envHostname);
+    if (!re.test(file.url) ) {
+        var urlHostname = file.url.match(/^[a-z]+:\/\/[^/:]+(?::\d+)?/)[0];
+        file.url = file.url.replace(new RegExp('^' + urlHostname), envHostname);
+    }
+}`;
+                err.message = (err.message || "") + helpMessage;
+                err.error = err.message;
+            }
+
+            if ( typeof(cb) != 'undefined' ) {
+                return cb(err)
+            }
+            self.throwError(local.res, 500, err);
+        }
+
+
+        // browser
+        //     .get(requestOptions, function(response) {
+
+        //         local.res.setHeader('content-type', contentType + '; charset='+ local.options.conf.encoding);
+        //         local.res.setHeader('content-disposition', opt.contentDisposition);
+        //         if (opt.fileSize) {
+        //             local.res.setHeader('content-length', opt.fileSize);
+        //         }
+        //         //local.res.setHeader('content-length', opt.fileSize);
+        //         // local.res.setHeader('cache-control', 'must-revalidate');
+        //         // local.res.setHeader('pragma', 'must-revalidate');
+
+
+        //         response.pipe(local.res);
+        //         if ( typeof(cb) != 'undefined' ) {
+        //             cb(false)
+        //         }
+        //     })
+        //     .on('error', function onDownloadError(err) {
+        //         if (err.code === 'ECONNREFUSED') {
+        //             let helpMessage = '\nSwitching [SCOPE] for testing? \nCheck if your document url (' + url + ') matches current scope & env before calling Controller::downloadFromURL(url, opt)';
+        //             helpMessage += '\n\nHere is a suggested fix to add in your logic: \n';
+        //             helpMessage += `
+        //             if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
+        //                 var ctx = getContext();
+        //                 var envHostname = ctx.gina.config.envConf['coreapi'][ctx.env].hostname;
+        //                 var re = new RegExp('^'+ envHostname);
+        //                 if (! re.test(file.url) ) {
+        //                     file.url = file.url.replace(re, envHostname);
+        //                 }
+        //             }`;
+        //             err.error = (err.error || "") + helpMessage;
+        //         }
+        //         if ( typeof(cb) != 'undefined' ) {
+        //             return cb(err)
+        //         }
+        //         self.throwError(local.res, 500, err);
+        //     });
 
 
 
@@ -2376,7 +2470,12 @@ function SuperController(options) {
         altOpt.protocol = options.scheme;
         altOpt.hostname = options.host;
         altOpt.port     = options.port;
-        altOpt.maxSockets = options.maxSockets || 1;
+        // Simultanous active conns
+        altOpt.maxSockets = options.maxSockets || 100;
+        // idle conn
+        altOpt.maxFreeSockets = options.maxFreeSockets || 10;   // Garde seulement 10 connexions ouvertes au repos
+        altOpt.keepAliveMsecs = options.keepAliveMsecs || 1000;
+
         if ( typeof(altOpt.encKey) != 'undefined' ) {
             try {
                 altOpt.encKey = fs.readFileSync(altOpt.encKey);
