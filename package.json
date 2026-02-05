@@ -51,7 +51,7 @@
   "bin": {
     "gina": "./bin/gina"
   },
-  "main": "./framework/v0.1.6-alpha.172/core/gna",
+  "main": "./framework/v0.1.6-alpha.173/core/gna",
   "scripts": {
     "prepare": "node script/prepare_version.js",
     "postpublish": "node script/post_publish.js",
