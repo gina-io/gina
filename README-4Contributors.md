@@ -27,7 +27,7 @@ __NB.:__ Gina is meant to be install globaly
 
 
 ```tty
-npm config get prefix
+npm config get prefix --quiet
 ```
 
 > Default `prefix` should be:

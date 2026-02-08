@@ -47,7 +47,7 @@ function PreInstall() {
         self.isResetNeeded      = ( typeof(process.env.npm_config_reset) != 'undefined' && /^(true|false)$/i.test(process.env.npm_config_reset) )
                                     ? (/^true$/i.test(process.env.npm_config_reset) ? true: false)
                                     : false;
-        self.defaultPrefix      = execSync('$(which npm) config get prefix').toString().replace(/\n$/g, '');
+        self.defaultPrefix      = execSync('$(which npm) config get prefix --quiet').toString().replace(/\n$/g, '');
 
 
         // `process.env.npm_config_prefix` is only retrieved on `npm install gina`
@@ -350,7 +350,7 @@ function PreInstall() {
     //         npmGlobalPathObj.mkdirSync()
     //     }
     //     // from `/usr/local` -> `~/.npm-global`
-    //     var cmd = 'npm config set prefix '+ getUserHome() +'/.npm-global';
+    //     var cmd = 'npm config set prefix '+ getUserHome() +'/.npm-global --quiet';
     //     await promisify(run)(cmd, { cwd: _(self.path), tmp: getTmpDir(self.prefix);, outToProcessSTD: true })
     //         .catch(function onError(err){
     //             if (err) {

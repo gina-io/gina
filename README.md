@@ -72,7 +72,7 @@ __Note that for this method__, if the user is not `root`, you can setup permissi
 If you don't already have done it, you should start with :
 
 ```tty
-sudo chown -R $USER $(npm config get prefix)/lib/node_modules
+sudo chown -R $USER $(npm config get prefix --quiet)/lib/node_modules
 ```
 
 

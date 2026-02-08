@@ -925,14 +925,14 @@ function CmdHelper(cmd, client, debug) {
                     ||
                     /bundle\:(restart|start|stop)$/.test(cmd.task)
                 ) {
-                    console.debug('[helper] Running: gina link-node-modules @'+cmd.projectName +cmd.paramsStringified);
+                    console.info('[helper] Running: gina link-node-modules @'+cmd.projectName +cmd.paramsStringified);
                     err = execSync('$(which gina) link-node-modules @'+cmd.projectName +cmd.paramsStringified);// +' --inspect-gina'
                     if (err instanceof Error) {
                         console.error(err.message || err.stack);
                         return exit(err.message || err.stack);
                     }
 
-                    console.debug('[helper] Running: $(which gina) link @'+cmd.projectName +cmd.paramsStringified);
+                    console.info('[helper] Running: $(which gina) link @'+cmd.projectName +cmd.paramsStringified);
                     // let ginaBin = execSync('echo $(which gina)').toString().trim();
                     try {
                         console.debug(execSync('$(which gina) link @'+cmd.projectName +cmd.paramsStringified));// +' --inspect-gina'
