@@ -99,9 +99,9 @@ function Initialize(opt) {
             }
             require(path)(opt, cmd)
         } catch(err) {
-            console.crit('Gina has some troubles with this command\n'+ err.stack);
+            console.crit('Gina has some troubles with this command: gina '+ opt.argv.slice(2).join(' ') +'\n'+ err.stack);
             if (opt.client) {
-                opt.client.write('Gina has some troubles with this command :\n' + err.stack);
+                opt.client.write('Gina has some troubles with this command: gina '+ opt.argv.slice(2).join(' ') +'\n' + err.stack);
             }
             process.exit(1);
         }
@@ -448,6 +448,7 @@ function Initialize(opt) {
         console.debug('Checking framework settings...');
         var main            = require( _(self.opt.homedir + '/main.json', true) )
             , version       = getEnvVar('GINA_VERSION')
+            , defFramework  = getEnvVar('GINA_DEF_FRAMEWORK') || main['def_framework']
             , prefix        = getEnvVar('GINA_PREFIX') || main['def_prefix'][self.release]
             , globalMode    = getEnvVar('GINA_GLOBAL_MODE') || main['def_global_mode'][self.release]
             , arch          = getEnvVar('GINA_ARCH') || main['def_arch'][self.release]
@@ -466,6 +467,12 @@ function Initialize(opt) {
             localUserSettings = requireJSON(target);
         } else {
             localUserSettings = JSON.clone(settings);
+        }
+
+        if ( !getEnvVar('GINA_DEF_FRAMEWORK') && targetObj.existsSync() ) {
+            if ( typeof(localUserSettings.def_framework) != 'undefined' ) {
+                setEnvVar('GINA_DEF_FRAMEWORK', localUserSettings.def_framework);
+            }
         }
 
         if ( !getEnvVar('GINA_PORT') && targetObj.existsSync() ) {
@@ -516,6 +523,7 @@ function Initialize(opt) {
                 'prefix' : prefix,
                 'global_mode': globalMode,
                 'version' : version,
+                'def_framework': defFramework,
                 'arch' : arch,
                 'platform': platform,
                 'env' : env,
@@ -604,7 +612,12 @@ function Initialize(opt) {
                 }
 
                 try {
-                    newProjects[name][prop] = JSON.clone(main[prop][self.release])
+                    if ( typeof(main[prop][self.release]) != 'undefined' && !/string/i.test(main[prop][self.release])) {
+                        newProjects[name][prop] = JSON.clone(main[prop][self.release])
+                    }
+                    else if ( typeof(main[prop]) != 'undefined' ) {
+                        newProjects[name][prop] = main[prop]
+                    }
                 } catch (err) {
                     return done(err)
                 }

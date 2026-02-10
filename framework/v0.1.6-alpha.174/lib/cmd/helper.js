@@ -1,5 +1,6 @@
 const { execSync } = require('child_process');
 var fs          = require('fs');
+var os          = require('os');
 const { promisify } = require('util');
 var console     = lib.logger;
 var merge       = lib.merge;
@@ -42,6 +43,7 @@ function CmdHelper(cmd, client, debug) {
         nodeParams : [],
         debugPort: debug.port,
         debugBrkEnabled: debug.brkEnabled,
+        def_framework : null,
         // gina short version for the project
         def_framework_short : null,
         // project name {string}
@@ -511,7 +513,8 @@ function CmdHelper(cmd, client, debug) {
                 var dic = {
                     "project"   : cmd.projectName,
                     "version"   : "1.0.0",
-                    "scope"     : cmd.mainConfig['def_scope'][ GINA_SHORT_VERSION ]
+                    "scope"     : cmd.mainConfig['def_scope'][ GINA_SHORT_VERSION ],
+                    "rootDomain": os.hostname()
                 };
 
                 contentFile = whisper(dic, contentFile); //data
@@ -731,6 +734,7 @@ function CmdHelper(cmd, client, debug) {
             console.debug('[ ConfigAssetsLoaderHelper ] envPath ', cmd.envPath);
             cmd.envData = requireJSON(cmd.envPath);
 
+            cmd.def_framework = ( typeof(cmd.projects[cmd.projectName].framework) != 'undefined' ) ? (cmd.projects[cmd.projectName].framework.replace(/^v/, '').split(/\./g)).join('.') : (cmd.mainConfig.def_framework.split(/\./g)).join('.');
             cmd.def_framework_short = ( typeof(cmd.projects[cmd.projectName].framework) != 'undefined' ) ? (cmd.projects[cmd.projectName].framework.replace(/^v/, '').split(/\./g).splice(0,2)).join('.') : (cmd.mainConfig.def_framework.split(/\./g).splice(0,2)).join('.');
             console.debug('default def_framework_short ', cmd.def_framework_short);
 

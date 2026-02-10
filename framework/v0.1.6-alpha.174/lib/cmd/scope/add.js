@@ -5,8 +5,11 @@ var console = lib.logger;
 
 /**
  * Add new scope for a given project
+ *
  * Usage:
  * gina scope:add <scope> @<project>
+ * or to register a new one for all your projects
+ * gina scope:add <scope>
  *
  * TODO - updateManifest()
  * */
@@ -43,7 +46,7 @@ function Add(opt, cmd) {
                     return saveScopes(self.projectName)
                 }
 
-                 end( new Error('Missing argument @<project_name>'))
+                return end( new Error('Missing argument @<project_name>'))
             }
             else if (/^[a-z0-9_.]/.test(process.argv[i])) {
                 local.scope = process.argv[i];
@@ -53,10 +56,6 @@ function Add(opt, cmd) {
 
         self.scopes = scopes;
         return saveScopes()
-    }
-
-    var registerScopeIfNeeded = function(scope) {
-
     }
 
 
@@ -148,6 +147,8 @@ function Add(opt, cmd) {
                 }
             }
             project.scopes = scopes;
+            // ?? Updating manifest
+            // updateManifest(project);
         }
 
         lib.generator.createFileFromDataSync(
@@ -159,7 +160,7 @@ function Add(opt, cmd) {
     }
 
 
-    var updateManifest = function() {
+    var updateManifest = function(project) {
 
     }
 

@@ -580,95 +580,182 @@ function ContextHelper(contexts) {
      *
      * @returns {object} revealed
      * */
-    whisper = function(dictionary, replaceable, rule) {
-        if ( typeof(rule) != 'undefined') {
-            return replaceable
-                // inline rule
-                .replace(rule, function(s, key) {
-                    return dictionary[key] || s;
-                })
-                // generic rules
-                // .replace(/\"\{(\w+)\}\"/g, function(s, key) {
-                //     if ( /^(true|false|null)$/i.test(dictionary[key]) ) {
-                //         return (/^(true|false|null)$/i.test(dictionary[key])) ? dictionary[key] :  s
-                //     }
-                //     return '"'+ (dictionary[key] || s) +'"';
-                // })
-                // .replace(/\{(\w+)\}/g, function(s, key) {
-                //     return dictionary[key] || s;
-                // })
+    // whisper = function(dictionary, replaceable, rule) {
+    //     if ( typeof(rule) != 'undefined') {
+    //         return replaceable
+    //             // inline rule
+    //             .replace(rule, function(s, key) {
+    //                 return dictionary[key] || s;
+    //             })
+    //             // generic rules
+    //             // .replace(/\"\{(\w+)\}\"/g, function(s, key) {
+    //             //     if ( /^(true|false|null)$/i.test(dictionary[key]) ) {
+    //             //         return (/^(true|false|null)$/i.test(dictionary[key])) ? dictionary[key] :  s
+    //             //     }
+    //             //     return '"'+ (dictionary[key] || s) +'"';
+    //             // })
+    //             // .replace(/\{(\w+)\}/g, function(s, key) {
+    //             //     return dictionary[key] || s;
+    //             // })
+    //     }
+
+    //     if ( typeof(replaceable) == 'object' &&  !/\[native code\]/.test(replaceable.constructor) ||  typeof(replaceable) == 'function' ) { // /Object/.test(replaceable.constructor)
+    //         for (let attr in replaceable) {
+    //             if ( typeof(replaceable[attr]) != 'function') {
+    //                 replaceable[attr] = (typeof(replaceable[attr]) != 'string' && typeof(replaceable[attr]) != 'object') ? JSON.stringify(replaceable[attr], null, 2) : replaceable[attr];
+    //                 if (replaceable[attr] && typeof(replaceable[attr]) != 'object') {
+    //                     replaceable[attr] = replaceable[attr]
+    //                         .replace(/\"\{(\w+)\}\"/g, function(s, key) {
+    //                             if ( /^(true|false|null)$/i.test(dictionary[key]) ) {
+    //                                 return (/^(true|false|null)$/i.test(dictionary[key])) ? dictionary[key] : s
+    //                             }
+    //                             return '"'+ (dictionary[key] || s) +'"';
+    //                         })
+    //                         .replace(/\{(\w+)\}/g, function(s, key) {
+    //                             return dictionary[key] || s;
+    //                         })
+    //                 }
+    //             }
+    //         }
+    //         return replaceable
+    //     }
+    //     // mixing with classes
+    //     replaceable = JSON.stringify(replaceable, null, 2);
+
+    //     return JSON.parse(
+    //         replaceable
+    //             .replace(/\"\{(\w+)\}\"/g, function(s, key) {
+    //                 if ( /^(true|false|null)$/i.test(dictionary[key]) ) {
+    //                     return (/^(true|false|null)$/i.test(dictionary[key])) ? dictionary[key] : s
+    //                 }
+    //                 // When "{single}" and not "{sigle}/something"
+    //                 if ( /^\"\{(\w+)\}\"$/i.test(s) && !dictionary[key]) {
+    //                     //return ('"'+ dictionary[key] +'"' || s);
+    //                     return '"'+ (dictionary[key] || s.replace(/\"/g, '')) +'"';
+    //                 }
+
+    //                 arguments[3] = arguments[3].replace(/\"\{(\w+)\}\"/g, ('"'+ (dictionary[key] || s) +'"'));
+    //                 return '"'+ (dictionary[key] || s) +'"';
+    //             })
+    //             .replace(/\{(\w+)\}/g, function(s, key) {
+    //                 arguments[3] = arguments[3].replace(/\{(\w+)\}/g, (dictionary[key] || s));
+    //                 return dictionary[key] || s;
+    //             })
+    //             // Fixed on 2025-03-27
+    //             // special case like: ~/.{projectName}
+    //             .replace(/.*\{(\w+)\}.*/g, function(s, key) {
+    //                 if (!dictionary[key]) {
+    //                     return s;
+    //                 }
+    //                 s = whisper(dictionary, s);
+    //                 return s;
+    //             })
+    //             // OS Environment Variables
+    //             .replace(/\"\~\/\"|\"\$([_A-Z0-9]+)\"/g, function(s, key) {
+    //                 if ( /^(true|false|null)$/i.test(self.contexts['sysEnvVars'][s]) ) {
+    //                     return (/^(true|false|null)$/i.test(self.contexts['sysEnvVars'][s])) ? self.contexts['sysEnvVars'][s] : null
+    //                 }
+    //                 // When "$SINGLE" and not "$SINGLE/something"
+    //                 if ( /^\"\$([_A-Z0-9]+)\"$/i.test(s) && !self.contexts['sysEnvVars'][s]) {
+    //                     return '"'+ (self.contexts['sysEnvVars'][s] || null) +'"';
+    //                 }
+    //                 if ( /^\"\~\/\"$/i.test(s) && !self.contexts['sysEnvVars'][s]) {
+    //                     return '"'+ (self.contexts['sysEnvVars'][s] || null) +'"';
+    //                 }
+    //                 return '"'+ (self.contexts['sysEnvVars'][s] || null) +'"';
+    //             })
+    //             .replace(/\~\/|\$([_A-Z0-9]+)/g, function(s, key) {
+    //                 return self.contexts['sysEnvVars'][s] || null;
+    //             })
+    //     );
+    // }
+
+    global.whisper = function(dictionary, replaceable, rule) {
+        // 1. Inline rule
+        if (typeof(rule) != 'undefined') {
+            return replaceable.replace(rule, function(s, key) {
+                return dictionary[key] || s;
+            });
         }
 
-        if ( typeof(replaceable) == 'object' &&  !/\[native code\]/.test(replaceable.constructor) ||  typeof(replaceable) == 'function' ) { // /Object/.test(replaceable.constructor)
+        // 2. Object handling
+        if (typeof(replaceable) == 'object' && replaceable !== null && (!replaceable.constructor || !/\[native code\]/.test(replaceable.constructor))) {
             for (let attr in replaceable) {
-                if ( typeof(replaceable[attr]) != 'function') {
-                    replaceable[attr] = (typeof(replaceable[attr]) != 'string' && typeof(replaceable[attr]) != 'object') ? JSON.stringify(replaceable[attr], null, 2) : replaceable[attr];
+                if (typeof(replaceable[attr]) != 'function') {
+                    if (typeof(replaceable[attr]) != 'string' && typeof(replaceable[attr]) != 'object') {
+                        replaceable[attr] = JSON.stringify(replaceable[attr], null, 2);
+                    }
                     if (replaceable[attr] && typeof(replaceable[attr]) != 'object') {
-                        replaceable[attr] = replaceable[attr]
-                            .replace(/\"\{(\w+)\}\"/g, function(s, key) {
-                                if ( /^(true|false|null)$/i.test(dictionary[key]) ) {
-                                    return (/^(true|false|null)$/i.test(dictionary[key])) ? dictionary[key] : s
-                                }
-                                return '"'+ (dictionary[key] || s) +'"';
-                            })
-                            .replace(/\{(\w+)\}/g, function(s, key) {
-                                return dictionary[key] || s;
-                            })
+                        replaceable[attr] = whisper(dictionary, replaceable[attr]);
                     }
                 }
             }
-            return replaceable
+            return replaceable;
         }
-        // mixing with classes
-        replaceable = JSON.stringify(replaceable, null, 2);
 
-        return JSON.parse(
-            replaceable
-                .replace(/\"\{(\w+)\}\"/g, function(s, key) {
-                    if ( /^(true|false|null)$/i.test(dictionary[key]) ) {
-                        return (/^(true|false|null)$/i.test(dictionary[key])) ? dictionary[key] : s
-                    }
-                    // When "{single}" and not "{sigle}/something"
-                    if ( /^\"\{(\w+)\}\"$/i.test(s) && !dictionary[key]) {
-                        //return ('"'+ dictionary[key] +'"' || s);
-                        return '"'+ (dictionary[key] || s.replace(/\"/g, '')) +'"';
-                    }
+        // 3. Stringification & Global Replace
+        let jsonString = JSON.stringify(replaceable, null, 2);
+        if (!jsonString) return replaceable;
 
-                    arguments[3] = arguments[3].replace(/\"\{(\w+)\}\"/g, ('"'+ (dictionary[key] || s) +'"'));
-                    return '"'+ (dictionary[key] || s) +'"';
-                })
-                .replace(/\{(\w+)\}/g, function(s, key) {
-                    arguments[3] = arguments[3].replace(/\{(\w+)\}/g, (dictionary[key] || s));
-                    return dictionary[key] || s;
-                })
-                // Fixed on 2025-03-27
-                // special case like: ~/.{projectName}
-                .replace(/.*\{(\w+)\}.*/g, function(s, key) {
-                    if (!dictionary[key]) {
-                        return s;
-                    }
-                    s = whisper(dictionary, s);
+        let processed = jsonString
+            .replace(/\"\{(\w+)\}\"/g, function(s, key) {
+                if (dictionary[key] !== undefined && /^(true|false|null)$/i.test(String(dictionary[key]))) {
+                    return dictionary[key];
+                }
+                return dictionary[key] !== undefined ? '"' + dictionary[key] + '"' : s;
+            })
+            .replace(/\{(\w+)\}/g, function(s, key) {
+                return dictionary[key] || s;
+            })
+            /**
+             * FIXED: Exit condition and English Warning
+             * Handles complex cases like: ~/.{projectName}
+             */
+            .replace(/.*\{(\w+)\}.*/g, function(s, key) {
+                if (dictionary[key] !== undefined) {
+                    // Manual replace to avoid infinite recursion
+                    return s.replace('{' + key + '}', dictionary[key]);
+                } else {
+                    // Generate stack trace to identify the caller
+                    const stack = new Error().stack;
+
+                    console.warn(
+                        `[Whisper Warning]: The key {${key}} was not found in the dictionary.\n` +
+                        `Skipping replacement to prevent infinite loop.\n` +
+                        `Stack Trace:\n${stack}`
+                    );
                     return s;
-                })
-                // OS Environment Variables
-                .replace(/\"\~\/\"|\"\$([_A-Z0-9]+)\"/g, function(s, key) {
-                    if ( /^(true|false|null)$/i.test(self.contexts['sysEnvVars'][s]) ) {
-                        return (/^(true|false|null)$/i.test(self.contexts['sysEnvVars'][s])) ? self.contexts['sysEnvVars'][s] : null
-                    }
-                    // When "$SINGLE" and not "$SINGLE/something"
-                    if ( /^\"\$([_A-Z0-9]+)\"$/i.test(s) && !self.contexts['sysEnvVars'][s]) {
-                        return '"'+ (self.contexts['sysEnvVars'][s] || null) +'"';
-                    }
-                    if ( /^\"\~\/\"$/i.test(s) && !self.contexts['sysEnvVars'][s]) {
-                        return '"'+ (self.contexts['sysEnvVars'][s] || null) +'"';
-                    }
-                    return '"'+ (self.contexts['sysEnvVars'][s] || null) +'"';
-                })
-                .replace(/\~\/|\$([_A-Z0-9]+)/g, function(s, key) {
-                    return self.contexts['sysEnvVars'][s] || null;
-                })
-        );
-    }
+                }
+            })
+            // OS Environment Variables
+            .replace(/\"\~\/\"|\"\$([_A-Z0-9]+)\"/g, function(s, key) {
+                // Safe access to external self.contexts
+                const envs = (typeof self !== 'undefined' && self.contexts) ? self.contexts['sysEnvVars'] : process.env;
+                const cleanKey = s.replace(/[\"\$]/g, '');
+                const val = envs[cleanKey];
+
+                if (val !== undefined) {
+                    return /^(true|false|null)$/i.test(val) ? val : '"' + val + '"';
+                }
+                return s;
+            })
+            .replace(/\~\/|\$([_A-Z0-9]+)/g, function(s, key) {
+                const envs = (typeof self !== 'undefined' && self.contexts) ? self.contexts['sysEnvVars'] : process.env;
+                const cleanKey = s.replace('$', '');
+                return envs[cleanKey] || s;
+            });
+
+        try {
+            return JSON.parse(processed);
+        } catch (e) {
+            return processed;
+        }
+    };
+
+
+
+
+
 
     /**
      * Define constants

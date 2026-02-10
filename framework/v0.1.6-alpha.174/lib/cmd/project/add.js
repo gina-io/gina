@@ -100,7 +100,7 @@ function Add(opt, cmd) {
                 console.log(execSync( cmd , execOptions).toString().trim());
                 self.scopes.push(self.scope);
             } catch (scopeErr) {
-                console.error('[ '+ self.scope  +' ] could not be set.');
+                console.error('[scope]['+ self.scope  +'] could not be set.');
                 process.exit(1);
             }
         }
@@ -122,7 +122,7 @@ function Add(opt, cmd) {
                 console.log(execSync( cmd , execOptions).toString().trim());
                 self.envs.push(self.env);
             } catch (envErr) {
-                console.error('[ '+ self.env  +' ] could not be set.');
+                console.error('[env]['+ self.env  +'] could not be set.');
                 process.exit(1);
             }
         }
@@ -634,27 +634,6 @@ function Add(opt, cmd) {
                 options.startFrom = ~~(''+ (self.projectsList.indexOf(self.projectName)+3) + 100);
             }
             // scanning for available ports ...
-            // var scanErr = null;
-            // await promisify(scan)(options)
-            //     .catch(function onScanErr(err) {
-            //         scanErr = err;
-            //     })
-            //     .then( function onPortsFound(ports) {
-            //         for (let p = 0; p < ports.length; ++p) {
-            //             local.ports.push(ports[p])
-            //         }
-
-            //         local.ports.sort();
-
-            //         ++local.b;
-            //         addBundlePorts(local.b, done);
-            //     });
-
-            // if (scanErr) {
-            //     console.error(err.stack|err.message);
-            //     process.exit(1)
-            // }
-
             await scan(options, function(err, ports){
                 if (err) {
                     console.error(err.stack|err.message);
@@ -670,15 +649,9 @@ function Add(opt, cmd) {
 
                 ++local.b;
                 addBundlePorts(local.b, done);
-
             });
-
-
-
-
         } else {
             // console.error('[ '+ bundle+' ] is not a valid bundle name')
-            // process.exit(1)
             return done( new Error('[ '+ bundle+' ] is not a valid bundle name'))
         }
     }
@@ -708,15 +681,12 @@ function Add(opt, cmd) {
             return done(false);
         }
 
-
-
         var bundle = self.bundles[b];
 
         if ( /^[a-z0-9_.]/.test(bundle) ) {
 
             local.b             = b;
             local.bundle        = bundle;
-
 
             var version = '0.0.1';
             var scopes  = self.projects[self.projectName].scopes || self.scopes || self.mainConfig['scopes'][ GINA_SHORT_VERSION ];

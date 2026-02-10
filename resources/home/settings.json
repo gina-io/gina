@@ -3,6 +3,7 @@
     "prefix": "{prefix}",
     "global_mode": "{global_mode}",
     "version": "{version}",
+    "def_framework": "{def_framework}",
     "arch": "{arch}",
     "platform": "{platform}",
     "env": "{env}",
