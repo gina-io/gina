@@ -1,5 +1,6 @@
-var fs = require('fs');
-var console = lib.logger;
+var fs          = require('fs');
+var CmdHelper   = require('./../helper');
+var console     = lib.logger;
 /**
  * List all environments
  * TODO - add selected icon (green check) for selected env
@@ -8,6 +9,12 @@ function List(opt, cmd){
     var self = {};
 
     var init = function(){
+
+        // import CMD helpers
+        new CmdHelper(self, opt.client, { port: opt.debugPort, brkEnabled: opt.debugBrkEnabled });
+
+        // check CMD configuration
+        if ( !isCmdConfigured() ) return false;
 
         self.projects = require(_(GINA_HOMEDIR + '/projects.json'));
         var err = null;

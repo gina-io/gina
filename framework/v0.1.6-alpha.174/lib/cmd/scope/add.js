@@ -5,6 +5,8 @@ var console = lib.logger;
 
 /**
  * Add new scope for a given project
+ * Usage:
+ * gina scope:add <scope> @<project>
  *
  * TODO - updateManifest()
  * */
@@ -29,6 +31,19 @@ function Add(opt, cmd) {
                     return end( new Error('[ '+process.argv[i]+' ] is not a valid project name. Please, try something else: @[a-z0-9_.].'))
                 }
 
+                if ( typeof(self.projectName) == 'undefined') {
+                    var folder = new _(process.cwd()).toArray().last();
+                    if ( isDefined('project', folder) ) {
+                        self.projectName = folder
+                    }
+                }
+
+                if ( isDefined('project', self.projectName) && scopes.length > 0) {
+                    self.scopes = scopes;
+                    return saveScopes(self.projectName)
+                }
+
+                 end( new Error('Missing argument @<project_name>'))
             }
             else if (/^[a-z0-9_.]/.test(process.argv[i])) {
                 local.scope = process.argv[i];
@@ -36,26 +51,21 @@ function Add(opt, cmd) {
             }
         }
 
+        self.scopes = scopes;
+        return saveScopes()
+    }
 
-        if ( typeof(self.projectName) == 'undefined') {
-            var folder = new _(process.cwd()).toArray().last();
-            if ( isDefined('project', folder) ) {
-                self.projectName = folder
-            }
-        }
+    var registerScopeIfNeeded = function(scope) {
 
-        if ( isDefined('project', self.projectName) && scopes.length > 0) {
-            self.scopes = scopes;
-            return saveScopes()
-        }
-
-        end( new Error('Missing argument @<project_name>'))
     }
 
 
-    var saveScopes = function() {
+    var saveScopes = function(projectName) {
         try {
-            addScopeToProject();
+            if (projectName) {
+                return addScopeToProject();
+            }
+            registerScope();
         } catch (err) {
             return end(err)
         }
@@ -93,6 +103,57 @@ function Add(opt, cmd) {
         if (modified) {
             return end('scope `'+ local.scope +'` updated');
         }
+
+        end('scope'+((self.scopes.length > 1) ? 's' : '')+' [ '+ self.scopes.join(', ') +' ] created');
+    }
+
+    /**
+     * Register a new scope
+     */
+    var registerScope = function() {
+        var s           = 0
+            , scopes    = JSON.clone(self.mainConfig.scopes[GINA_SHORT_VERSION])
+            , newScopes = self.scopes
+        ;
+        // to ~/.gina/projects.json
+        for (; s < newScopes.length; ++s) {
+            if (scopes.indexOf(newScopes[s]) < 0 ) {
+                scopes.push(newScopes[s]);
+                if (!self.mainConfig[newScopes[s]+'_scope']) {
+                    self.mainConfig[newScopes[s]+'_scope'] = {};
+                }
+                self.mainConfig[newScopes[s]+'_scope'] = newScopes[s];
+            }
+        }
+        self.mainConfig.scopes[GINA_SHORT_VERSION] = scopes;
+        //writing
+        lib.generator.createFileFromDataSync(
+            self.mainConfig,
+            self.mainConfigPath
+        );
+        self.mainConfigUpdated = true;
+
+        // Update existing projects scopes
+        for (let p in self.projects) {
+            let project = self.projects[p];
+            scopes    = JSON.clone(project.scopes);
+            s = 0;
+            for (; s < newScopes.length; ++s) {
+                if (scopes.indexOf(newScopes[s]) < 0 ) {
+                    scopes.push(newScopes[s]);
+                    if (!project[newScopes[s]+'_scope']) {
+                        project[newScopes[s]+'_scope'] = {};
+                    }
+                    project[newScopes[s]+'_scope'] = newScopes[s];
+                }
+            }
+            project.scopes = scopes;
+        }
+
+        lib.generator.createFileFromDataSync(
+            self.projects,
+            self.projectConfigPath
+        );
 
         end('scope'+((self.scopes.length > 1) ? 's' : '')+' [ '+ self.scopes.join(', ') +' ] created');
     }

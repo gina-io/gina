@@ -4,54 +4,55 @@ var CmdHelper   = require('./../helper');
 var console     = lib.logger;
 
 /**
- * Build a project.
- * To debug this part: gina project:build @<project> --env=prod --scope=local --inspect-gina
+ * Build a bundle.
+ * To debug this part: gina bundle:build <bundle> @<project> --env=prod --scope=local --inspect-gina
  * */
 function Build(opt, cmd) {
     var self    = {}
-    , local     = {
-        // bundle index while searching or browsing
-        b : 0,
-        bundle : null,
-        bundlePath : null
-    };
+        , local     = {
+            // bundle index while searching or browsing
+            b : 0,
+            bundle : null,
+            bundlePath : null
+        }
+    ;
     var globalBuildScripts = null;
 
     var init = function() {
+
         // import CMD helpers
         new CmdHelper(self, opt.client, { port: opt.debugPort, brkEnabled: opt.debugBrkEnabled });
 
         // check CMD configuration
         if ( !isCmdConfigured() ) return false;
 
+        if ( typeof(self.projects[self.projectName].path) == 'undefined' ) {
+            return end( new Error('project path not defined in ~/.gina/projects.json for [ '+ self.projectName + ' ]') );
+        }
+
+        if (!isDefined('project', self.projectName)) {
+            return end( new Error('Missing argument @<project_name>'))
+        }
+
+
         if (!self.bundles.length) {
             return end( new Error('No bundle found in your project `'+ self.projectName +'`') );
         }
 
-        process.env.NODE_SCOPE = process.env.NODE_SCOPE || self.projects[self.projectName].def_scope;
-        if (!isDefined('scope', process.env.NODE_SCOPE)) {
-            if ( self.envs.length == 0) {
-                console.error('Missing argument <scope>');
-            } else if  (!isDefined('scope', process.env.NODE_ENV) ) {
-                console.error('[' + process.env.NODE_ENV +'] is not an existing scope.');
-            } else {
-                console.error('Missing argument: --scope=<scope>');
-            }
 
-            process.exit(1)
+        if (!isDefined('scope', process.env.NODE_SCOPE)) {
+            if ( self.scopes.length > 0) {
+                return end( 'Missing argument: --scope=<scope>');
+            }
+            return end( '[' + process.env.NODE_SCOPE +'] is not an existing scope.');
         }
 
-        process.env.NODE_ENV = process.env.NODE_ENV || self.projects[self.projectName].def_env;
-        if (!isDefined('env', process.env.NODE_ENV)) {
-            if ( self.envs.length == 0) {
-                console.error('Missing argument <env>');
-            } else if  (!isDefined('env', process.env.NODE_ENV) ) {
-                console.error('[' + process.env.NODE_ENV +'] is not an existing environement.');
-            } else {
-                console.error('Missing argument: --env=<env>');
-            }
 
-            process.exit(1)
+        if (!isDefined('env', process.env.NODE_ENV)) {
+            if ( self.envs.length > 0) {
+                return end( 'Missing argument: --env=<env>');
+            }
+            return end( '[' + process.env.NODE_ENV +'] is not an existing env.');
         }
 
         // Getting manifest
@@ -83,13 +84,38 @@ function Build(opt, cmd) {
         }
 
 
-        console.debug('[build] Building project `'+ self.projectName +'`');
+        console.debug('[build] Building bundle `'+ self.projectName +'`');
         buildBundle(0);
-    }
+    };
+
 
     var buildBundle = function(b, e) {
         if ( b > self.bundles.length-1 ) {
-            return end()
+            // User Post build
+            if (
+                globalBuildScripts
+                && typeof(globalBuildScripts.postbuild) != 'undefined'
+                && fs.existsSync( self.projectLocation +'/'+ globalBuildScripts.postbuild.split(' ').slice(-1)[0])
+            ) {
+                try {
+                    var cmd = globalBuildScripts.postbuild +' --env='+process.env.NODE_ENV+' --scope='+ process.env.NODE_SCOPE;
+                    // cloning it
+                    let currentEnv = { ...process.env };
+                    currentEnv['NODE_OPTIONS'] = self.nodeParams.join(' ');
+                    let execOptions = {
+                        cwd: self.projectLocation,
+                        // Inherit stdio to see the debug prompt in the console
+                        stdio: 'inherit',
+                        // Pass the debug options via the environment variables
+                        env: currentEnv
+                    };
+                    execSync( cmd , execOptions);
+                } catch (buildErr) {
+                    delete globalBuildScripts.postbuild;
+                    return end(buildErr);
+                }
+            }
+            return end('Bundle [ '+ self.bundles[b-1] +' ] built with success')
         }
         if (!e) {
             e = 0;
@@ -111,7 +137,7 @@ function Build(opt, cmd) {
 
                 for (let e = 0, eLen = local.envs.length; e<eLen; e++) {
                     let env = local.envs[e];
-
+                    // Skipping defaut dev env
                     if ( env === self.projects[self.projectName].dev_env ) {
                         continue;
                     }
@@ -128,8 +154,7 @@ function Build(opt, cmd) {
                 }
             }
 
-
-            self.projectData = local.manifest;
+            self.projectData.bundles[bundle] = merge(self.projectData.bundles[bundle], local.manifest.bundles[bundle], true);
             lib.generator.createFileFromDataSync(
                 self.projectData,
                 self.projectManifestPath
@@ -189,49 +214,28 @@ function Build(opt, cmd) {
         })
     }
 
-    var end = async function(err) {
+    var end = function (output, type, messageOnly) {
 
-        // User Post build
-        if (
-            globalBuildScripts
-            && typeof(globalBuildScripts.postbuild) != 'undefined'
-            && fs.existsSync( self.projectLocation +'/'+ globalBuildScripts.postbuild.split(' ').slice(-1)[0])
-        ) {
-            try {
-                var cmd = globalBuildScripts.postbuild +' --env='+process.env.NODE_ENV+' --scope='+ process.env.NODE_SCOPE;
-                // cloning it
-                let currentEnv = { ...process.env };
-                currentEnv['NODE_OPTIONS'] = self.nodeParams.join(' ');
-                let execOptions = {
-                    cwd: self.projectLocation,
-                    // Inherit stdio to see the debug prompt in the console
-                    stdio: 'inherit',
-                    // Pass the debug options via the environment variables
-                    env: currentEnv
-                };
-                execSync( cmd , execOptions);
-            } catch (buildErr) {
-                delete globalBuildScripts.postbuild;
-                return end(buildErr);
+
+
+        var err = false;
+        if ( typeof(output) != 'undefined') {
+            if ( output instanceof Error ) {
+                err = output = ( typeof(messageOnly) != 'undefined' && /^true$/i.test(messageOnly) ) ? output.message : (output.stack||output.message);
             }
-        }
-
-        if (err) {
-            if (GINA_ENV_IS_DEV) {
-                console.error(err.stack);
+            if ( typeof(type) != 'undefined' ) {
+                console[type](output);
+                if ( messageOnly && type != 'log') {
+                    console.log(output);
+                }
             } else {
-                console.error(err.message);
+                console.log(output);
             }
-
-            return process.exit(1);
         }
 
-        console.log('Project [ '+ self.projectName+' ] built with success');
-
-        return process.exit(0)
+        process.exit( err ? 1:0 )
     }
 
-    init()
-
+    init(opt)
 }
 module.exports = Build;

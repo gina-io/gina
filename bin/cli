@@ -355,7 +355,7 @@ async function onExec() {
                 // retieving debug infos
                 var debugOption = null;
                 if ( debugPort ) {
-                    debugOption = '--inspect=' + debugPort;
+                    debugOption = '--inspect=0.0.0.0:' + debugPort;
 
                     if (debugBrkEnabled) {
                         debugOption = debugOption.replace(/\-\-inspect/, '--inspect-brk')

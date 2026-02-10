@@ -74,7 +74,7 @@ var console        = lib.logger;
                 }
 
                 console.debug('[link] Running: gina link-node-modules @'+self.projectName);
-                err = execSync('$(which gina) link-node-modules @'+self.projectName);// +' --inspect-gina'
+                err = execSync('$(which gina) link-node-modules @'+self.projectName);
                 if (err instanceof Error) {
                     console.warn('[link] ', err.stack);
                     return end(err, 'error')

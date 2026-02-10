@@ -10,12 +10,16 @@ var scan        = require('../port/inc/scan');
 
 /**
  * Add new bundle to a given project.
- * NB.: If bundle exists, You will be asked if you want to replace.
+ * NB.:
+ *  - if bundle exists, You will be asked if you want to replace
+ *  - if scope or env not existing, will add
  *
  * Usage:
  * $ gina bundle:add <bundle_name> @<project_name>
  * or
  * $ gina bundle:add <bundle_name> @<project_name> --start-port-from=<port_number>
+ * or
+ * $ gina bundle:add <bundle_name> @<project_name> --scope=<scope> --env=<env>
  * */
 function Add(opt, cmd) {
 
@@ -77,7 +81,7 @@ function Add(opt, cmd) {
         //     }
         // }
 
-        if (isDefined('project', self.projectName)) {
+        if ( isDefined('project', self.projectName) ) {
             addBundles(0);
         } else {
             //console.error('[ '+ self.projectName+' ] is not an existing project');

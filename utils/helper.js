@@ -516,7 +516,7 @@ function MainHelper(opt) {
         for (let c in obj) {
             define(c, obj[c])
         }
-        delete  obj
+        obj = null;
     }// jshint ignore:line
 
     init(opt)

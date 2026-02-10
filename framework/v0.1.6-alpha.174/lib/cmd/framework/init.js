@@ -216,15 +216,16 @@ function Initialize(opt) {
         }
         // arch
         mainConfig.archs = merge(mainConfig.archs, data.archs, true);
-        // envs
-        mainConfig.envs = merge(mainConfig.envs, data.envs, true);
-        // scopes
-        mainConfig.scopes = merge(mainConfig.scopes, data.scopes, true);
+        // envs - must inherit from user
+        mainConfig.envs = merge(mainConfig.envs, data.envs);
+        // scopes - must inherit from user
+        mainConfig.scopes = merge(mainConfig.scopes, data.scopes);
 
         // updating protocols, schemes, cultures, log_levels
         mainConfig.protocols    = merge(mainConfig.protocols, data.protocols, true);
         mainConfig.schemes      = merge(mainConfig.schemes, data.schemes, true);
-        mainConfig.cultures     = merge(mainConfig.cultures||{}, data.cultures, true);
+        // cultures - must inherit from user
+        mainConfig.cultures     = merge(mainConfig.cultures||{}, data.cultures);
         mainConfig.log_levels   = merge(mainConfig.log_levels||{}, data.log_levels, true);
 
 
@@ -531,7 +532,7 @@ function Initialize(opt) {
                 'timezone' : getEnvVar('GINA_TIMEZONE'),
                 'node_version': process.version,
                 'port' : getEnvVar('GINA_PORT') || 8124, // TODO - scan for the next available port
-                'debug_port' : getEnvVar('GINA_DEBUG_PORT') || process.debugPort || 5757,
+                'debug_port' : getEnvVar('GINA_DEBUG_PORT') || process.debugPort || 9339,
                 'host_v4' : getEnvVar('GINA_HOST_V4') || '127.0.0.1',
                 'mq_port' : getEnvVar('GINA_MQ_PORT') || 8125,
                 'hostname' : getEnvVar('GINA_HOSTNAME') || 'localhost',

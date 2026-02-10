@@ -20,6 +20,7 @@ function Help(opt, cmd) {
 
 
         getHelp();
+        process.exit(0);
     };
 
     init();

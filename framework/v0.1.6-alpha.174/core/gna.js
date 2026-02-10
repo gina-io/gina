@@ -405,6 +405,9 @@ var isBundleMounted = function(projects, bundlesPath, bundle, cb) {
             linkPath =  _( root +'/'+ manifest.bundles[bundle].link );
             console.debug('Mounting bundle `'+ bundle +'` to : ', linkPath);
         } catch (err) {
+            if (err.message) {
+                console.error("Make sure that your "+ project.path +"/manifest.json is not corrupted and that the `target` scope `path` is defined.")
+            }
             return cb(err)
         }
 
@@ -1113,7 +1116,13 @@ isBundleMounted(projects, bundlesPath, getContext('bundle'), function onBundleMo
                         ) {
                             packs[bundle].version = packs[bundle].tag
                         }
-                        packs[bundle].releases[scope][env].target = 'releases/' + bundle + '/' + scope + '/' + '/' + env + '/' + packs[bundle].version;
+                        try {
+                            packs[bundle].releases[scope][env].target = 'releases/' + bundle + '/' + scope + '/' + '/' + env + '/' + packs[bundle].version;
+                        } catch (err) {
+                            console.error("[ FRAMEWORK ][ MOUNT ] manifest issue: cannot find target for:\nBundle: "+bundle+"\nScope: "+ scope + "\nEnv: "+ env);
+                            return abort(err);
+                        }
+
                         tmp = packs[bundle].releases[scope][env].target.replace(/\//g, '').replace(/\\/g, '');
 
                         if (!appName && tmp == path.replace(/\//g, '').replace(/\\/g, '')) {

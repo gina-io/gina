@@ -1,6 +1,7 @@
 var fs          = require('fs');
 var os          = require('os');
 var util        = require('util');
+var execSync    = require('child_process').execSync;
 var promisify   = util.promisify;
 
 var CmdHelper   = require('./../helper');
@@ -39,6 +40,14 @@ function Add(opt, cmd) {
             if ( /^\-\-homedir\=/.test(process.argv[i]) ) {
                 self.projectHomedir = process.argv[i].split(/\=/)[1]
             }
+
+            if ( /^\-\-scope\=/.test(process.argv[i]) ) {
+                self.scope = process.argv[i].split(/\=/)[1]
+            }
+
+            if ( /^\-\-env\=/.test(process.argv[i]) ) {
+                self.env = process.argv[i].split(/\=/)[1]
+            }
         }
 
         local.imported = ( /\:import/i.test(self.task) ) ? true : false;
@@ -73,6 +82,51 @@ function Add(opt, cmd) {
             console.warn('[ package.json ] already exists in this location: '+ file + '\nUpdating package.json...');
             createPackageFile( file.toString(), true )
         }
+
+        if ( self.scope && !isDefined('scope', self.scope) ) {
+            try {
+                // cloning it
+                let currentEnv = { ...process.env };
+                currentEnv['NODE_OPTIONS'] = self.nodeParams.join(' ');
+                let execOptions = {
+                    cwd: self.projectLocation,
+                    // Inherit stdio to see the debug prompt in the console
+                    stdio: 'inherit',
+                    // Pass the debug options via the environment variables
+                    env: currentEnv
+                };
+                let cmd = 'gina scope:add '+ self.scope +' @'+ self.projectName;
+                console.warn('['+ self.stask +'] running: '+ cmd);
+                console.log(execSync( cmd , execOptions).toString().trim());
+                self.scopes.push(self.scope);
+            } catch (scopeErr) {
+                console.error('[ '+ self.scope  +' ] could not be set.');
+                process.exit(1);
+            }
+        }
+
+        if ( self.env && !isDefined('env', self.env) ) {
+            try {
+                // cloning it
+                let currentEnv = { ...process.env };
+                currentEnv['NODE_OPTIONS'] = self.nodeParams.join(' ');
+                let execOptions = {
+                    cwd: self.projectLocation,
+                    // Inherit stdio to see the debug prompt in the console
+                    stdio: 'inherit',
+                    // Pass the debug options via the environment variables
+                    env: currentEnv
+                };
+                let cmd = 'gina env:add '+ self.env +' @'+ self.projectName;
+                console.warn('['+ self.stask +'] running: '+ cmd);
+                console.log(execSync( cmd , execOptions).toString().trim());
+                self.envs.push(self.env);
+            } catch (envErr) {
+                console.error('[ '+ self.env  +' ] could not be set.');
+                process.exit(1);
+            }
+        }
+
 
         // creating project manifest
         file = new _(self.projectManifestPath, true);

@@ -1298,10 +1298,9 @@ define('gina/popin', [ 'require', 'vendor/uuid', 'jquery', 'lib/domain', 'lib/me
                                 popinOpen($popin.name);
                             }
                         });
-
                     }
                 }
-            }
+           }
 
         }
 

@@ -391,7 +391,12 @@ function CmdHelper(cmd, client, debug) {
 
                         cmd.projectName = folder;
                         cmd.projectLocation = _(process.cwd(), true);
-                    } else if (!/\:help$/.test(cmd.task) && !/port\:reset$/.test(cmd.task) ) {
+                    } else if (
+                        !/\:help$/.test(cmd.task)
+                        && !/port\:reset$/.test(cmd.task)
+                        && !/scope\:add$/.test(cmd.task)
+                        && !/env\:add$/.test(cmd.task)
+                    ) {
 
                         errMsg = 'No project name found: make sure it starts with `@` as `@<project_name>`';
                         console.error(errMsg);
@@ -813,21 +818,21 @@ function CmdHelper(cmd, client, debug) {
             }
             cmd.envs.sort();
 
-            // project or bundle scope override through : --scope=<some scope>
-            if ( typeof(cmd.params.scope) != 'undefined' && /\:(start|stop|restart|build|deploy)/i.test(cmd.task) ) {
-                console.debug('Overriding default project scope: '+ cmd.defaultScope +' => '+ cmd.params.scope);
-                if (cmd.scopes.indexOf(cmd.params.scope) < 0) {
-                    errMsg = 'Scope `'+ cmd.params.scope +'` not found in your project ['+ cmd.projectName +']';
-                    console.emerg(errMsg);
-                    return false;
-                }
-                cmd.defaultScope = process.env.NODE_SCOPE = cmd.params.scope;
-                // override
-                //cmd.bundlesByProject[cmd.projectName][cmd.name].def_scope = cmd.params.scope;
-            } else {
-                delete process.env.NODE_SCOPE
-            }
-            cmd.scopes.sort();
+            // // project or bundle scope override through : --scope=<some scope>
+            // if ( typeof(cmd.params.scope) != 'undefined' && /\:(start|stop|restart|build|deploy)/i.test(cmd.task) ) {
+            //     console.debug('Overriding default project scope: '+ cmd.defaultScope +' => '+ cmd.params.scope);
+            //     if (cmd.scopes.indexOf(cmd.params.scope) < 0) {
+            //         errMsg = 'Scope `'+ cmd.params.scope +'` not found in your project ['+ cmd.projectName +']';
+            //         console.emerg(errMsg);
+            //         return false;
+            //     }
+            //     cmd.defaultScope = process.env.NODE_SCOPE = cmd.params.scope;
+            //     // override
+            //     //cmd.bundlesByProject[cmd.projectName][cmd.name].def_scope = cmd.params.scope;
+            // } else {
+            //     delete process.env.NODE_SCOPE
+            // }
+            // cmd.scopes.sort();
 
 
 
@@ -935,7 +940,7 @@ function CmdHelper(cmd, client, debug) {
                     console.info('[helper] Running: $(which gina) link @'+cmd.projectName +cmd.paramsStringified);
                     // let ginaBin = execSync('echo $(which gina)').toString().trim();
                     try {
-                        console.debug(execSync('$(which gina) link @'+cmd.projectName +cmd.paramsStringified));// +' --inspect-gina'
+                        console.debug(execSync('$(which gina) link @'+cmd.projectName +cmd.paramsStringified).toString().trim());// +' --inspect-gina'
                     } catch (err) {
                         console.emerg(err.message || err.stack);
                         return exit(err.message || err.stack);
@@ -1071,7 +1076,7 @@ function CmdHelper(cmd, client, debug) {
             if (fs.existsSync(cmd.projects[project].path) ) {
                 cmd.projects[project].exists    = true;
                 if ( !new _(projectPropertiesPath).existsSync() ) {
-                    console.error('`'+ projectPropertiesPath +'` not found ! Maybe, you can try to remove the project reference by hand by editing: `'+ _(GINA_HOMEDIR + '/project.json') +'`')
+                    console.error('`'+ projectPropertiesPath +'` not found ! Maybe, you can try to remove the project reference by hand by editing: `'+ _(GINA_HOMEDIR + '/projects.json') +'`')
                 }
 
                 cmd.bundlesByProject[project]   = (cmd.bundlesByProject[project].count() > 0) ? cmd.bundlesByProject[project] : requireJSON(projectPropertiesPath).bundles;
@@ -1265,13 +1270,13 @@ function CmdHelper(cmd, client, debug) {
      * */
     isDefined = function(type, name) {
 
-        if (
-            typeof(name) == 'undefined'
-            || typeof(name) != 'undefined' && name == ''
-            || typeof(name) != 'undefined' && name == null
-        ) {
-            throw new Error('isDefined Error : name cannot be undefined, null or blank !')
-        }
+        // if (
+        //     typeof(name) == 'undefined'
+        //     || typeof(name) != 'undefined' && name == ''
+        //     || typeof(name) != 'undefined' && name == null
+        // ) {
+        //     throw new Error('isDefined Error : name cannot be undefined, null or blank !')
+        // }
 
         switch (type) {
 

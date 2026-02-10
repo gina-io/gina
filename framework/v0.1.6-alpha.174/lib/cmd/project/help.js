@@ -19,7 +19,8 @@ function Help(opt, cmd) {
         if ( !isCmdConfigured() ) return false;
 
 
-        getHelp()
+        getHelp();
+        process.exit(0);
     }
 
     init()

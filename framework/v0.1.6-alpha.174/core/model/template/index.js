@@ -89,7 +89,7 @@ Model = function(namespace){
                     var produce = function(entityName, i){
                         console.debug("producing ", files[i]);
 
-                        lib.config.get('gina', 'project.json', function(err, config){
+                        lib.config.get('gina', 'projects.json', function(err, config){
                             //if (err) logger.error('gina', 'MODEL:ERR:2', 'EEMPTY: EntitySuper' + err, __stack);
                             if (err) console.error(err.stack||err.message);
 

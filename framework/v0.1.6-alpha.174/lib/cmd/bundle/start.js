@@ -422,8 +422,8 @@ function Start(opt, cmd) {
                         // terminal.debug('EO case count: '+ checkCaseCount + ' -> '+ data);
 
                         // cache bundle state info given by the server while starting
-                        if ( !debuggerOn && new RegExp('Debugger listening on','gmi').test(data)) {
-                            debuggerOn = '\n   ' + data.match(new RegExp('Debugger listening on .*','gmi'));
+                        if ( !debuggerOn && new RegExp('Listening on','gmi').test(data)) {
+                            debuggerOn = '\n   ' + data.match(new RegExp('Listening on .*','gmi'));
                         }
                         if ( !url && new RegExp('This way please','gmi').test(data)) {
                             url = '\n   ' + data.match(new RegExp('This way please -> .*','gmi'));
@@ -462,7 +462,7 @@ function Start(opt, cmd) {
                     child.stderr.on('data', function(err) {
                         error = err.toString();
 
-                        if (/Waiting for the debugger to disconnect.../.test(error) ) { // dual debug --inspect-gina && --inspect
+                        if (/Waiting for the debugger to disconnect: will be reused if not disconected./.test(error) ) { // dual debug --inspect-gina && --inspect
                             onException = true;
                         }
 

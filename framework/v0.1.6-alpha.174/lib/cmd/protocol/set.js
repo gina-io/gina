@@ -621,7 +621,7 @@ function Set(opt, cmd) {
             if ( typeof(local.envDataWrote) == 'undefined' ) {
                 lib.generator.createFileFromDataSync(self.envData, self.envPath);
             }
-            //restore project.json
+            //restore projects.json
             if ( typeof(local.projectDataWrote) == 'undefined' ) {
                 if ( typeof(self.projectData.bundles[local.bundle]) != 'undefined') {
                     delete self.projectData.bundles[local.bundle];

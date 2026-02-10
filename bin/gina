@@ -40,7 +40,6 @@ function runAsSubProcess() {
     var fakeDaemonPid   = '--fake-daemon-pid='+ process.pid;
 
     if ( argv.indexOf('--inspect-gina') > -1 ) {
-
         cliBin  = __dirname + '/cli-debug';
         argv.splice(argv.indexOf('--inspect-gina'), 1);
         // removing `--inspect-gina`
@@ -179,7 +178,8 @@ function runCMD() {
     }
     // Normal command lines
     var cliBin  = __dirname + '/cli';
-    if ( argv.indexOf('--inspect-gina') > -1 ) {
+    //if ( argv.indexOf('--inspect-gina') > -1 ) {
+    if ( argv.filter(element => /^\-\-inspect\-gina\=/.test(element)).length > 0 ) {
         cliBin  = __dirname + '/cli-debug';
     }
 
