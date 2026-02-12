@@ -243,6 +243,7 @@ function Server(options) {
         let sslDetails = null;
         console.debug('Checking certificate validity...');
         try {
+            console.debug('[ssl] endpoint: ', endpoint);
             sslDetails = await sslChecker(endpoint, {
                 method: 'GET',
                 // rejectUnauthorized: true,

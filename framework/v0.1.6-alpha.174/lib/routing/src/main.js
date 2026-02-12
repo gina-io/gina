@@ -718,6 +718,20 @@ function Routing() {
             ) {
                 request.params[key] = urlVal;
                 if ( typeof(request[requestMethod][key]) == 'undefined' ) {
+                    switch (urlVal) {
+                        case 'null':
+                            urlVal = null;
+                            break;
+                        case 'false':
+                            urlVal = false;
+                            break;
+                        case 'true':
+                        //case 'on':
+                            urlVal = true;
+                            break
+                        default:
+                            break;
+                    }
                     request[requestMethod][key] = urlVal;
                 }
                 return true;
@@ -830,6 +844,20 @@ function Routing() {
             if (values.count() == keys.length) {
                 key = null;
                 for (key in values) {
+                    switch (values[key]) {
+                        case 'null':
+                            values[key] = null;
+                            break;
+                        case 'false':
+                            values[key] = false;
+                            break;
+                        case 'true':
+                        //case 'on':
+                            values[key] = true;
+                            break
+                        default:
+                            break;
+                    }
                     request.params[key] = values[key];
                 }
                 return true

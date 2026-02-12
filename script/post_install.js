@@ -106,7 +106,7 @@ function PostInstall() {
         self.isResetNeeded      = ( typeof(process.env.npm_config_reset) != 'undefined' && /^(true|false)$/i.test(process.env.npm_config_reset) )
                                     ? (/^true$/i.test(process.env.npm_config_reset) ? true: false)
                                     : false;
-        self.defaultPrefix      = execSync('$(which npm) config get prefix').toString().replace(/\n$/g, '');
+        self.defaultPrefix      = execSync('$(which npm) config get prefix --quiet').toString().replace(/\n$/g, '');
         // var pkg = null;
         // try {
         //     if (self.isGlobalInstall) {

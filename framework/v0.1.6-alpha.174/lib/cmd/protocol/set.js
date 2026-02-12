@@ -456,6 +456,8 @@ function Set(opt, cmd) {
         // save to ~/.gina/ports.reverse.json
         lib.generator.createFileFromDataSync(portsReverse, self.portsReversePath);
 
+        // TODO - save to <project>/<bundle>/config/settings.json::server
+
         self.mainConfigUpdated = true;
 
         console.log('Protocol updated with success ;)');
@@ -599,15 +601,16 @@ function Set(opt, cmd) {
         settings.server.scheme      = scheme;
         if ( /http\/2/.test(protocol) && typeof(settings.server.allowHTTP1) == 'undefined' ) {
             settings.server.allowHTTP1 = true;
-        } else if ( typeof(settings.server.allowHTTP1) != 'undefined' ) {
+        } else if ( typeof(settings.server.allowHTTP1) != 'undefined' && /^false$/i.test(settings.server.allowHTTP1) ) {
             delete settings.server.allowHTTP1
         }
         // save to bundle's /config/settings.json
         lib.generator.createFileFromDataSync(settings, settingsPath);
+        delete require.cache[require.resolve(settingsPath)];
 
         self.bundleConfigUpdated = true;
 
-        console.log('Protocol updated with success ;)');
+        console.log('Protocol updated with success for bundle '+ self.name +' ;)');
         end('You need to restart your ' + self.actionType);
     };
 

@@ -39,7 +39,7 @@ function MainHelper(opt) {
 
             try {
                 pkg = packObj;
-                self.defaultPrefix = ( typeof(packObj.config) != 'undefined' && typeof(packObj.config.prefix) != 'undefined' ) ? packObj.config.prefix : execSync('$(which npm) config get prefix').toString().replace(/\n$/g, '');
+                self.defaultPrefix = ( typeof(packObj.config) != 'undefined' && typeof(packObj.config.prefix) != 'undefined' ) ? packObj.config.prefix : execSync('$(which npm) config get prefix --quiet').toString().replace(/\n$/g, '');
                 self.defaultPrefix = self.defaultPrefix.replace(/^\~/, getUserHome());
                 prefix = getEnvVar('GINA_PREFIX') || self.defaultPrefix;
                 self.optionalPrefix = pkg.config.optionalPrefix.replace(/^\~/, getUserHome());
@@ -47,7 +47,7 @@ function MainHelper(opt) {
                 console.warn('MainHelper::Init() Execption: '+ err.stack);
                 console.debug('Trying alternative config');
                 try {
-                    self.defaultPrefix = execSync('$(which npm) config get prefix').toString().replace(/\n$/g, '');
+                    self.defaultPrefix = execSync('$(which npm) config get prefix --quiet').toString().replace(/\n$/g, '');
                     prefix = getEnvVar('GINA_PREFIX') || self.defaultPrefix;
                     cmd = 'npm list gina --long --json --prefix='+ prefix;
                     if (self.isGlobalInstall) {
@@ -189,7 +189,7 @@ function MainHelper(opt) {
             return logDir
         }
 
-        var prefix = getEnvVar('GINA_PREFIX') || self.prefix || self.defaultPrefix || execSync('$(which npm) config get prefix').toString().replace(/\n$/g, '');
+        var prefix = getEnvVar('GINA_PREFIX') || self.prefix || self.defaultPrefix || execSync('$(which npm) config get prefix --quiet').toString().replace(/\n$/g, '');
 
         if ( isWin32() ) {
             logDir = process.env.LOG ||
@@ -265,7 +265,7 @@ function MainHelper(opt) {
             return runDir
         }
 
-        var prefix = getEnvVar('GINA_PREFIX') || self.prefix || self.defaultPrefix || execSync('$(which npm) config get prefix').toString().replace(/\n$/g, '');
+        var prefix = getEnvVar('GINA_PREFIX') || self.prefix || self.defaultPrefix || execSync('$(which npm) config get prefix --quiet').toString().replace(/\n$/g, '');
 
         runDir = (isWin32()) ? getUserHome() + '\\.gina\\run' : prefix + '/var/lock';
 
@@ -330,7 +330,7 @@ function MainHelper(opt) {
             return dir
         }
 
-        var prefix = getEnvVar('GINA_PREFIX') || self.prefix  || self.defaultPrefix || execSync('$(which npm) config get prefix').toString().replace(/\n$/g, '');
+        var prefix = getEnvVar('GINA_PREFIX') || self.prefix  || self.defaultPrefix || execSync('$(which npm) config get prefix --quiet').toString().replace(/\n$/g, '');
 
         // support for node 0.10.x & 0.11.x
         var tmp = (os.tmpdir) ? os.tmpdir : function() {

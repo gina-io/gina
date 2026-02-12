@@ -708,7 +708,6 @@ function ContextHelper(contexts) {
                 return dictionary[key] || s;
             })
             /**
-             * FIXED: Exit condition and English Warning
              * Handles complex cases like: ~/.{projectName}
              */
             .replace(/.*\{(\w+)\}.*/g, function(s, key) {
@@ -719,8 +718,8 @@ function ContextHelper(contexts) {
                     // Generate stack trace to identify the caller
                     const stack = new Error().stack;
 
-                    console.warn(
-                        `[Whisper Warning]: The key {${key}} was not found in the dictionary.\n` +
+                    console.error(
+                        `[Whisper Error]: The key {${key}} was not found in the dictionary.\n` +
                         `Skipping replacement to prevent infinite loop.\n` +
                         `Stack Trace:\n${stack}`
                     );

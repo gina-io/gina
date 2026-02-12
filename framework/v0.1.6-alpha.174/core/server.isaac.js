@@ -336,6 +336,7 @@ function ServerEngineClass(options) {
         server.on('request', (request, response) => {
 
             request.originalUrl = request.url;
+            // From the original
 
             acceptEncodingArr = null;
             if ( typeof(request.headers['accept-encoding']) != 'undefined' ) {
@@ -356,8 +357,23 @@ function ServerEngineClass(options) {
                 response.setHeader('expires', '0');
                 response.setHeader('content-type', 'application/json; charset=utf8');
                 response.setHeader('X-Powered-By', 'Gina/'+ GINA_VERSION);
+                return response.end('{"status":"healthy","timestamp":'+ new Date().toISOString() +'}');
+            }
+            if ( /^get$/i.test(request.method) && /\_gina\/info$/i.test(request.url) ) {
+                // server.toApi(reques, response)
+                // console.debug('[ SERVER ][200] '+ request.url);
+                response.setHeader('cache-control', 'no-cache, no-store, must-revalidate');
+                response.setHeader('pragma', 'no-cache');
+                response.setHeader('expires', '0');
+                response.setHeader('content-type', 'application/json; charset=utf8');
+                response.setHeader('X-Powered-By', 'Gina/'+ GINA_VERSION);
 
-                return response.end('{"status":"ok","cache-is-enabled":'+ server._cacheIsEnabled +'}');
+                return response.end(JSON.stringify({
+                    "cache-is-enabled": server._cacheIsEnabled,
+                    "memory": process.memoryUsage(),
+                    "uptime":  process.uptime(),
+                    "version": process.version
+                }));
             }
 
             // Proxy detection - Needs to be place after /_gina/health/*

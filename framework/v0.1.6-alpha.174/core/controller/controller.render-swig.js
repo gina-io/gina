@@ -215,7 +215,7 @@ module.exports = function render(userData, displayToolbar, errOptions, deps) {
                 var _ext = data.page.view.ext;
 
                 console.warn('file `'+ file +'` used in routing `'+ localOptions.rule +'` does not respect gina naming convention ! You should rename the file `'+ file + _ext +'` to `'+ ''+ fileNamingConvention + _ext +'`');
-                console.warn('The reason you are getting this message is because your filename begeins with `<namespace>-`\n If you don\‘t want to rename, use template path like ./../'+ localOptions.namespace +'/'+file);
+                console.warn('The reason you are getting this message is because your filename begins with `<namespace>-`\n If you don\‘t want to rename, use template path like ./../'+ localOptions.namespace +'/'+file);
                 file = ''+ file.replace(localOptions.namespace+'-', '');
             }
             fileNamingConvention = null;

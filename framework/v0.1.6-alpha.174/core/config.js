@@ -123,7 +123,7 @@ function Config(opt, contextResetNeeded) {
 
         self.env    = env;
         self.scope  = scope;
-        console.debug('[CONFIG] Loading conf...');
+        console.debug('[CONFIG][getConf] Loading conf...');
 
         // framework settings
         var filename = null, content = null;
@@ -1000,6 +1000,8 @@ function Config(opt, contextResetNeeded) {
                     "logsPath"              : newContent[app][env].logsPath,
                     "tmpPath"               : newContent[app][env].tmpPath,
                     "cachePath"             : newContent[app][env].cachePath,
+                    "sharedPath"            : newContent[app][env].sharedPath,
+                    "templatesPath"         : newContent[app][env].templatesPath,
                     "rootDomain"            : rootDomain,
                     "host"                  : newContent[app][env].host,
                     "scheme"                : newContent[app][env].server.scheme,
@@ -1011,7 +1013,6 @@ function Config(opt, contextResetNeeded) {
                 }
 
                 bundleSettings = null;
-                //console.error("reps ", reps);
                 try {
 
                     if (
@@ -1264,7 +1265,7 @@ function Config(opt, contextResetNeeded) {
             , scope         = process.env.NODE_SCOPE || self.scope || self.Scope.get() // scope
             , conf          = self.envConf // env conf
         ;
-        console.debug('[CONFIG] Loading `'+ bundle +'/'+ env +':'+ scope +'` configuration, please wait ...');
+        console.debug('[CONFIG][loadBundleConfig] Loading `'+ bundle +'/'+ env +':'+ scope +'` configuration, please wait ...');
 
 
         self.setServerCoreConf(bundle, env, scope, conf.core);
@@ -2361,7 +2362,7 @@ function Config(opt, contextResetNeeded) {
 
 
         if ( typeof(files['statics']) != 'undefined' ) {
-            pCount = conf[bundle][env].publicResources.length || 0;
+            pCount = conf[bundle][env].publicResources.length || 0;
             sCount = conf[bundle][env].staticResources.length || 0;
 
             for (let i in files['statics']) {
@@ -2392,7 +2393,8 @@ function Config(opt, contextResetNeeded) {
             }
         }
 
-
+        console.warn('['+bundle+'/'+env+']files:', files);
+        console.warn('['+bundle+'/'+env+']reps:', JSON.stringify(reps, null, 2));
         files = whisper(reps, files);
 
         if (hasViews) {

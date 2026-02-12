@@ -30,25 +30,31 @@ function Add(opt, cmd) {
         // import CMD helpers
         new CmdHelper(self, opt.client, { port: opt.debugPort, brkEnabled: opt.debugBrkEnabled });
 
-        // check CMD configuration
-        if ( !isCmdConfigured() ) return false;
         for (let i=3, len=process.argv.length; i<len; i++) {
-            if ( /^\-\-start\-port\-from\=/.test(process.argv[i]) ) {
+            if ( /\-\-start\-port\-from\=/.test(process.argv[i]) ) {
                 self.startFrom = process.argv[i].split(/\=/)[1]
             }
 
-            if ( /^\-\-homedir\=/.test(process.argv[i]) ) {
+            if ( /\-\-homedir\=/.test(process.argv[i]) ) {
                 self.projectHomedir = process.argv[i].split(/\=/)[1]
             }
 
-            if ( /^\-\-scope\=/.test(process.argv[i]) ) {
+            if ( /\-\-scope\=/.test(process.argv[i]) ) {
                 self.scope = process.argv[i].split(/\=/)[1]
             }
 
-            if ( /^\-\-env\=/.test(process.argv[i]) ) {
+            if ( /\-\-env\=/.test(process.argv[i]) ) {
                 self.env = process.argv[i].split(/\=/)[1]
             }
+
+            if ( /\-\-path\=/.test(process.argv[i]) ) {
+                self.projectLocation = process.argv[i].split(/\=/)[1];
+                self.projectManifestPath = _(self.projectLocation + '/manifest.json', true);
+            }
         }
+
+        // check CMD configuration
+        if ( !isCmdConfigured() ) return false;
 
         local.imported = ( /\:import/i.test(self.task) ) ? true : false;
         if ( checkImportMode() ) {
@@ -62,8 +68,11 @@ function Add(opt, cmd) {
 
         folder = new _(self.projectLocation);
 
-        if ( folder.isValidPath() && isValidName(self.projectName) ) {
-
+        if (
+            folder.isValidPath()
+            && isValidName(self.projectName)
+            && !folder.existsSync()
+        ) {
             err = folder.mkdirSync();
 
             if (err instanceof Error) {
@@ -95,7 +104,7 @@ function Add(opt, cmd) {
                     // Pass the debug options via the environment variables
                     env: currentEnv
                 };
-                let cmd = 'gina scope:add '+ self.scope +' @'+ self.projectName;
+                let cmd = 'gina scope:add '+ self.scope;
                 console.warn('['+ self.stask +'] running: '+ cmd);
                 console.log(execSync( cmd , execOptions).toString().trim());
                 self.scopes.push(self.scope);
@@ -117,7 +126,7 @@ function Add(opt, cmd) {
                     // Pass the debug options via the environment variables
                     env: currentEnv
                 };
-                let cmd = 'gina env:add '+ self.env +' @'+ self.projectName;
+                let cmd = 'gina env:add '+ self.env;
                 console.warn('['+ self.stask +'] running: '+ cmd);
                 console.log(execSync( cmd , execOptions).toString().trim());
                 self.envs.push(self.env);
@@ -152,16 +161,17 @@ function Add(opt, cmd) {
             return;
 
         console.debug('Starting import mode @'+ self.projectName );
-        if (!self.projects[self.projectName ]) {
+
+        if (!self.projects[self.projectName]) {
             console.error('[ '+ self.projectName  +' ] is not an existing project. Instead, use gina projet:add @'+ self.projectName +' --path='+ self.projectLocation);
             process.exit(1);
         }
+
 
         if ( typeof(self.projects[self.projectName ]) != 'undefined' ) {
             // import if exists but path just changed
             if ( typeof(self.projects[self.projectName ].path) != 'undefined') {
                 var old = new _(self.projects[self.projectName ].path, true).toArray().last();
-                var current = new _(self.projectLocation, true).toArray().last();
 
                 if (old === self.projectName) {
                     self.projects[self.projectName ].path = self.projectLocation;
@@ -203,6 +213,55 @@ function Add(opt, cmd) {
     }
 
     var createManifestFile = function(target) {
+
+        // if ( self.scope ) {
+        //     try {
+        //         // cloning it
+        //         let currentEnv = { ...process.env };
+        //         currentEnv['NODE_OPTIONS'] = self.nodeParams.join(' ');
+        //         let execOptions = {
+        //             cwd: self.projectLocation,
+        //             // Inherit stdio to see the debug prompt in the console
+        //             stdio: 'inherit',
+        //             // Pass the debug options via the environment variables
+        //             env: currentEnv
+        //         };
+        //         let cmd = 'gina scope:add '+ self.scope +' @'+ self.projectName;
+        //         console.warn('['+ self.stask +'] running: '+ cmd);
+        //         console.log(execSync( cmd , execOptions).toString().trim());
+        //         cmd = 'gina scope:use '+ self.scope +' @'+ self.projectName;
+        //         console.warn('['+ self.stask +'] running: '+ cmd);
+        //         console.log(execSync( cmd , execOptions).toString().trim());
+        //     } catch (scopeErr) {
+        //         console.error('[scope]['+ self.scope  +'] could not be set.');
+        //         process.exit(1);
+        //     }
+        // }
+
+        // if ( self.env ) {
+        //     try {
+        //         // cloning it
+        //         let currentEnv = { ...process.env };
+        //         currentEnv['NODE_OPTIONS'] = self.nodeParams.join(' ');
+        //         let execOptions = {
+        //             cwd: self.projectLocation,
+        //             // Inherit stdio to see the debug prompt in the console
+        //             stdio: 'inherit',
+        //             // Pass the debug options via the environment variables
+        //             env: currentEnv
+        //         };
+
+        //         let cmd = 'gina env:add '+ self.env +' @'+ self.projectName;
+        //         console.warn('['+ self.stask +'] running: '+ cmd);
+        //         console.log(execSync( cmd , execOptions).toString().trim());
+        //         cmd = 'gina env:use '+ self.env +' @'+ self.projectName;
+        //         console.warn('['+ self.stask +'] running: '+ cmd);
+        //         console.log(execSync( cmd , execOptions).toString().trim());
+        //     } catch (envErr) {
+        //         console.error('[env]['+ self.env  +'] could not be set.');
+        //         process.exit(1);
+        //     }
+        // }
 
         loadAssets();
 
@@ -247,7 +306,8 @@ function Add(opt, cmd) {
             "rootDomain": rootDomain
         };
 
-        contentFile = whisper(dic, contentFile); //data
+        // Compiling & writing to ~//gina/project.json
+        contentFile = whisper(dic, contentFile);
         lib.generator.createFileFromDataSync(
             contentFile,
             target
@@ -255,7 +315,6 @@ function Add(opt, cmd) {
     }
 
     var createEnvFile = function(target) {
-
         lib.generator.createFileFromDataSync(
             {},
             target
@@ -269,7 +328,6 @@ function Add(opt, cmd) {
 
         var conf = _(getPath('gina').core +'/template/conf/package.json', true);
         var contentFile = requireJSON(conf);
-
 
         var dic = {
             'project' : self.projectName,
@@ -304,6 +362,24 @@ function Add(opt, cmd) {
             , projects  = JSON.clone(self.projects)
             , error     = false
         ;
+        // Making sure the prefix is the right one
+        let realGinaPrefix = GINA_PREFIX;
+        try {
+            realGinaPrefix = execSync('echo $(which gina)|sed s/\\\\/bin\\\\/gina$//').toString().trim();
+        } catch (realGinaPrefixException) {
+            let errMsg = '[helper] while trying to get real gina prefix\n' + realGinaPrefixException.stack;
+            console.error(errMsg);
+            process.exit(1)
+        }
+
+        if ( /^$true/i.test(local.imported) ) {
+            if (self.scope) {
+                self.defaultScope = self.scope
+            }
+            if (self.env) {
+                self.defaultEnv = self.env
+            }
+        }
 
         projects[self.projectName] = {
             "path"              : self.projectLocation,
@@ -312,7 +388,7 @@ function Add(opt, cmd) {
             "releases_path"     : self.projectReleasesPath || _(getUserHome() +'/.'+ self.projectName +'/releases', true),
             "logs_path"         : self.projectLogsPath || _(getUserHome() +'/.'+ self.projectName +'/var/logs', true),
             "tmp_path"          : self.projectTmpPath || _(getUserHome() +'/.'+ self.projectName +'/tmp', true),
-            "def_prefix"        : GINA_PREFIX,
+            "def_prefix"        : realGinaPrefix,
             "framework"         : "v" + GINA_VERSION,
             "envs"              : (self.envs && self.envs.length) ? self.envs : self.mainConfig['envs'][ GINA_SHORT_VERSION ],
             "def_env"           : self.defaultEnv || self.mainConfig['def_env'][ GINA_SHORT_VERSION ],
@@ -327,8 +403,11 @@ function Add(opt, cmd) {
             "def_scheme"        : self.defaultScheme
         };
 
+
         // On import only
         if ( /^true$/i.test(local.imported) ) {
+            self.projects[self.projectName] = projects[self.projectName];
+
             self.bundles.sort();
             var bundleErr = null;
             // Create/update ports, protocols & schemes
@@ -352,6 +431,7 @@ function Add(opt, cmd) {
             }
         }
 
+        console.warn('[import::'+ local.imported +'] self.env vs self.defaultEnv: ', self.env, self.defaultEnv);
 
         // writing file
         lib.generator.createFileFromDataSync(
@@ -375,9 +455,6 @@ function Add(opt, cmd) {
             console.error('Could not finalize [ '+ self.projectName +' ] install\n'+ err.stack);
             process.exit(1)
         }
-
-
-
 
         var ginaModule = new _( self.projectLocation +'/node_modules/gina',true );
 

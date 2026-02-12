@@ -310,6 +310,14 @@ function CmdHelper(cmd, client, debug) {
                                 cmd.projectLocation = _( folder.toString(), true );
                             }
 
+                            // Creating project location if not existing
+                            if ( isValidName(cmd.projectName) && !folder.existsSync() ) {
+                                let err = folder.mkdirSync();
+                                if (err instanceof Error) {
+                                    exit(err.stack||err.message||err);
+                                    return false;
+                                }
+                            }
                         } else {
                             errMsg = 'Argument `--path=`' +cmd.params.path + ' is not valid';
                             console.error(errMsg);
@@ -338,6 +346,44 @@ function CmdHelper(cmd, client, debug) {
                             "def_protocol"      : cmd.defaultProtocol,
                             "schemes"           : cmd.schemesAvailable,
                             "def_scheme"        : cmd.defaultScheme
+                        }
+                    }
+                    // cmd.projects[cmd.projectName] override required ?
+                    else if ( /^project\:import/i.test(cmd.task) ) {
+                        let newHomeDir = _(getUserHome() +'/.'+ cmd.projectName, true);
+                        let pathArg = argv.find(arg => arg.startsWith('--path=')) || null;
+                        let pathValue = pathArg
+                                ? pathArg.split('=')[1].replace(/['"]/g, '')
+                                : null;
+                        if ( pathValue && pathValue != cmd.projectLocation ) {
+                            // Making sure the prefix is the right one
+                            let realGinaPrefix = cmd.projects[cmd.projectName].def_prefix;
+                            try {
+                                realGinaPrefix = execSync('echo $(which gina)|sed s/\\\\/bin\\\\/gina$//').toString().trim();
+                            } catch (realGinaPrefixException) {
+                                let errMsg = '[helper] while trying to get real gina prefix\n' + realGinaPrefixException.stack;
+                                console.error(errMsg);
+                                exit(errMsg);
+                                return false;
+                            }
+                            cmd.projects[cmd.projectName].def_prefix = realGinaPrefix;
+                            let oldHomedir          = cmd.projects[cmd.projectName].homedir;
+                            let reOldHomedir        = new RegExp('^'+ oldHomedir);
+                            let oldProjectPath      = cmd.projects[cmd.projectName].path;
+                            let reOldProjectPath    = new RegExp('^'+ oldProjectPath);
+                            for ( let p in cmd.projects[cmd.projectName] ) {
+                                if ( typeof(cmd.projects[cmd.projectName][p]) == 'string' ) {
+                                    if ( reOldHomedir.test(cmd.projects[cmd.projectName][p]) ) {
+                                        cmd.projects[cmd.projectName][p] = cmd.projects[cmd.projectName][p].replace(reOldHomedir, newHomeDir);
+                                        continue;
+                                    }
+
+                                    if ( reOldProjectPath.test(cmd.projects[cmd.projectName][p]) ) {
+                                        cmd.projects[cmd.projectName][p] = cmd.projects[cmd.projectName][p].replace(reOldProjectPath, pathValue);
+                                        continue;
+                                    }
+                                }
+                            }
                         }
                     }
 
@@ -487,6 +533,7 @@ function CmdHelper(cmd, client, debug) {
 
         var ports = null;
 
+
         if (
             cmd.projectName != null
             && typeof(cmd.projects[cmd.projectName]) != 'undefined'
@@ -551,156 +598,156 @@ function CmdHelper(cmd, client, debug) {
             }
 
             // bundles
-            var projectBundlesPathObj = new _(cmd.projects[cmd.projectName].homedir +'/bundles', true);
+            var projectBundlesPathObj = new _(cmd.projects[cmd.projectName].path +'/bundles', true);
             if (!projectBundlesPathObj.existsSync() ) {
                 projectBundlesPathObj.mkdirSync();
             }
             cmd.projectBundlesPath = projectBundlesPathObj.toString();
-            // bundles symlink
-            var bundlesLinkPathObj = new _(cmd.projects[cmd.projectName].path +'/bundles', true);
+            // // bundles symlink
+            // var bundlesLinkPathObj = new _(cmd.projects[cmd.projectName].path +'/bundles', true);
 
-            try {
-                // in case there is an invalid argument, readlink
-                fs.readlinkSync(bundlesLinkPathObj.toString());
-            } catch (err) {
-                console.warn('[bundles] Found invalid readlink: fixing it...');
-                bundlesLinkPathObj.rmSync();
-            }
+            // try {
+            //     // in case there is an invalid argument, readlink
+            //     fs.readlinkSync(bundlesLinkPathObj.toString());
+            // } catch (err) {
+            //     console.warn('[bundles] Found invalid readlink: fixing it...');
+            //     bundlesLinkPathObj.rmSync();
+            // }
 
-            if (
-                bundlesLinkPathObj.existsSync()
-                && !bundlesLinkPathObj.isSymlinkSync()
-                ||
-                bundlesLinkPathObj.existsSync()
-                && fs.readlinkSync(bundlesLinkPathObj.toString()) != cmd.projectBundlesPath
-            ) {
-                bundlesLinkPathObj.rmSync();
-            }
-            if (!bundlesLinkPathObj.existsSync()) {
-                console.debug('[ FRAMEWORK ][ CmdHelper ] Linking ['+ projectBundlesPathObj.toString() +'] to [ '+ bundlesLinkPathObj.toString() +' ] ');
-                projectBundlesPathObj.symlinkSync(bundlesLinkPathObj.toString());
-            }
+            // if (
+            //     bundlesLinkPathObj.existsSync()
+            //     && !bundlesLinkPathObj.isSymlinkSync()
+            //     ||
+            //     bundlesLinkPathObj.existsSync()
+            //     && fs.readlinkSync(bundlesLinkPathObj.toString()) != cmd.projectBundlesPath
+            // ) {
+            //     bundlesLinkPathObj.rmSync();
+            // }
+            // if (!bundlesLinkPathObj.existsSync()) {
+            //     console.debug('[ FRAMEWORK ][ CmdHelper ] Linking ['+ projectBundlesPathObj.toString() +'] to [ '+ bundlesLinkPathObj.toString() +' ] ');
+            //     projectBundlesPathObj.symlinkSync(bundlesLinkPathObj.toString());
+            // }
             projectBundlesPathObj = null;
 
             // releases
-            var projectReleasesPathObj = new _(cmd.projects[cmd.projectName].homedir +'/releases', true);
+            var projectReleasesPathObj = new _(cmd.projects[cmd.projectName].path +'/releases', true);
             if (!projectReleasesPathObj.existsSync() ) {
                 projectReleasesPathObj.mkdirSync();
             }
             cmd.projectReleasesPath = projectReleasesPathObj.toString();
-            // releases symlink
-            var releaseLinkPathObj = new _(cmd.projects[cmd.projectName].path +'/releases', true);
-            try {
-                // in case there is an invalid argument, readlink
-                fs.readlinkSync(releaseLinkPathObj.toString());
-            } catch (err) {
-                console.warn('[releases] Found invalid readlink: fixing it...');
-                releaseLinkPathObj.rmSync();
-            }
-            if (
-                releaseLinkPathObj.existsSync()
-                && !releaseLinkPathObj.isSymlinkSync()
-                ||
-                releaseLinkPathObj.existsSync()
-                && fs.readlinkSync(releaseLinkPathObj.toString()) != cmd.projectReleasesPath
-            ) {
-                releaseLinkPathObj.rmSync();
-            }
-            if (!releaseLinkPathObj.existsSync()) {
-                console.debug('[ FRAMEWORK ][ CmdHelper ] Linking ['+ projectReleasesPathObj.toString() +'] to [ '+ releaseLinkPathObj.toString() +' ] ');
-                projectReleasesPathObj.symlinkSync(releaseLinkPathObj.toString());
-            }
+            // // releases symlink
+            // var releaseLinkPathObj = new _(cmd.projects[cmd.projectName].path +'/releases', true);
+            // try {
+            //     // in case there is an invalid argument, readlink
+            //     fs.readlinkSync(releaseLinkPathObj.toString());
+            // } catch (err) {
+            //     console.warn('[releases] Found invalid readlink: fixing it...');
+            //     releaseLinkPathObj.rmSync();
+            // }
+            // if (
+            //     releaseLinkPathObj.existsSync()
+            //     && !releaseLinkPathObj.isSymlinkSync()
+            //     ||
+            //     releaseLinkPathObj.existsSync()
+            //     && fs.readlinkSync(releaseLinkPathObj.toString()) != cmd.projectReleasesPath
+            // ) {
+            //     releaseLinkPathObj.rmSync();
+            // }
+            // if (!releaseLinkPathObj.existsSync()) {
+            //     console.debug('[ FRAMEWORK ][ CmdHelper ] Linking ['+ projectReleasesPathObj.toString() +'] to [ '+ releaseLinkPathObj.toString() +' ] ');
+            //     projectReleasesPathObj.symlinkSync(releaseLinkPathObj.toString());
+            // }
 
             projectReleasesPathObj = null;
 
             // logs
-            var projectLogsPathObj = new _(cmd.projects[cmd.projectName].homedir +'/var/logs', true);
+            var projectLogsPathObj = new _(cmd.projects[cmd.projectName].path +'/logs', true);
             if (!projectLogsPathObj.existsSync() ) {
                 projectLogsPathObj.mkdirSync();
             }
             cmd.projectLogsPath = projectLogsPathObj.toString();
-            // logs symlink
-            var logLinkPathObj = new _(cmd.projects[cmd.projectName].path +'/logs', true);
-            try {
-                // in case there is an invalid argument, readlink
-                fs.readlinkSync(logLinkPathObj.toString());
-            } catch (err) {
-                console.warn('[log] Found invalid readlink: fixing it...');
-                logLinkPathObj.rmSync();
-            }
-            if (
-                logLinkPathObj.existsSync()
-                && !logLinkPathObj.isSymlinkSync()
-                ||
-                logLinkPathObj.existsSync()
-                && fs.readlinkSync(logLinkPathObj.toString()) != cmd.projectLogsPath
-            ) {
-                logLinkPathObj.rmSync();
-            }
-            if (!logLinkPathObj.existsSync()) {
-                console.debug('[ FRAMEWORK ][ CmdHelper ] Linking ['+ projectLogsPathObj.toString() +'] to [ '+ logLinkPathObj.toString() +' ] ');
-                projectLogsPathObj.symlinkSync(logLinkPathObj.toString());
-            }
+            // // logs symlink
+            // var logLinkPathObj = new _(cmd.projects[cmd.projectName].path +'/logs', true);
+            // try {
+            //     // in case there is an invalid argument, readlink
+            //     fs.readlinkSync(logLinkPathObj.toString());
+            // } catch (err) {
+            //     console.warn('[log] Found invalid readlink: fixing it...');
+            //     logLinkPathObj.rmSync();
+            // }
+            // if (
+            //     logLinkPathObj.existsSync()
+            //     && !logLinkPathObj.isSymlinkSync()
+            //     ||
+            //     logLinkPathObj.existsSync()
+            //     && fs.readlinkSync(logLinkPathObj.toString()) != cmd.projectLogsPath
+            // ) {
+            //     logLinkPathObj.rmSync();
+            // }
+            // if (!logLinkPathObj.existsSync()) {
+            //     console.debug('[ FRAMEWORK ][ CmdHelper ] Linking ['+ projectLogsPathObj.toString() +'] to [ '+ logLinkPathObj.toString() +' ] ');
+            //     projectLogsPathObj.symlinkSync(logLinkPathObj.toString());
+            // }
             projectLogsPathObj = null;
 
             // tmp
-            var projectTmpPathObj = new _(cmd.projects[cmd.projectName].homedir +'/tmp', true);
+            var projectTmpPathObj = new _(cmd.projects[cmd.projectName].path +'/tmp', true);
             if (!projectTmpPathObj.existsSync() ) {
                 projectTmpPathObj.mkdirSync();
             }
             cmd.projectTmpPath = projectTmpPathObj.toString();
-            // tmp symlink
-            var tmpLinkPathObj = new _(cmd.projects[cmd.projectName].path +'/tmp', true);
-            try {
-                // in case there is an invalid argument, readlink
-                fs.readlinkSync(tmpLinkPathObj.toString());
-            } catch (err) {
-                console.warn('[tmp] Found invalid readlink: fixing it...');
-                tmpLinkPathObj.rmSync();
-            }
-            if (
-                tmpLinkPathObj.existsSync()
-                && !tmpLinkPathObj.isSymlinkSync()
-                ||
-                tmpLinkPathObj.existsSync()
-                && fs.readlinkSync(tmpLinkPathObj.toString()) != cmd.projectTmpPath
-            ) {
-                tmpLinkPathObj.rmSync();
-            }
-            if (!tmpLinkPathObj.existsSync()) {
-                console.debug('[ FRAMEWORK ][ CmdHelper ] Linking ['+ projectTmpPathObj.toString() +'] to [ '+ tmpLinkPathObj.toString() +' ] ');
-                projectTmpPathObj.symlinkSync(tmpLinkPathObj.toString());
-            }
+            // // tmp symlink
+            // var tmpLinkPathObj = new _(cmd.projects[cmd.projectName].path +'/tmp', true);
+            // try {
+            //     // in case there is an invalid argument, readlink
+            //     fs.readlinkSync(tmpLinkPathObj.toString());
+            // } catch (err) {
+            //     console.warn('[tmp] Found invalid readlink: fixing it...');
+            //     tmpLinkPathObj.rmSync();
+            // }
+            // if (
+            //     tmpLinkPathObj.existsSync()
+            //     && !tmpLinkPathObj.isSymlinkSync()
+            //     ||
+            //     tmpLinkPathObj.existsSync()
+            //     && fs.readlinkSync(tmpLinkPathObj.toString()) != cmd.projectTmpPath
+            // ) {
+            //     tmpLinkPathObj.rmSync();
+            // }
+            // if (!tmpLinkPathObj.existsSync()) {
+            //     console.debug('[ FRAMEWORK ][ CmdHelper ] Linking ['+ projectTmpPathObj.toString() +'] to [ '+ tmpLinkPathObj.toString() +' ] ');
+            //     projectTmpPathObj.symlinkSync(tmpLinkPathObj.toString());
+            // }
             projectTmpPathObj = null;
 
             // cache
-            var projectCachePathObj = new _(cmd.projects[cmd.projectName].homedir +'/cache', true);
+            var projectCachePathObj = new _(cmd.projects[cmd.projectName].path +'/cache', true);
             if (!projectCachePathObj.existsSync() ) {
                 projectCachePathObj.mkdirSync();
             }
             cmd.projectCachePath = projectCachePathObj.toString();
             // cache symlink
-            var cacheLinkPathObj = new _(cmd.projects[cmd.projectName].path +'/cache', true);
-            try {
-                // in case there is an invalid argument, readlink
-                fs.readlinkSync(cacheLinkPathObj.toString());
-            } catch (err) {
-                console.warn('[cache] Found invalid readlink: fixing it...');
-                cacheLinkPathObj.rmSync();
-            }
-            if (
-                cacheLinkPathObj.existsSync()
-                && !cacheLinkPathObj.isSymlinkSync()
-                ||
-                cacheLinkPathObj.existsSync()
-                && fs.readlinkSync(cacheLinkPathObj.toString()) != cmd.projectCachePath
-            ) {
-                cacheLinkPathObj.rmSync();
-            }
-            if (!cacheLinkPathObj.existsSync()) {
-                console.debug('[ FRAMEWORK ][ CmdHelper ] Linking ['+ projectCachePathObj.toString() +'] to [ '+ cacheLinkPathObj.toString() +' ] ');
-                projectCachePathObj.symlinkSync(cacheLinkPathObj.toString());
-            }
+            // var cacheLinkPathObj = new _(cmd.projects[cmd.projectName].path +'/cache', true);
+            // try {
+            //     // in case there is an invalid argument, readlink
+            //     fs.readlinkSync(cacheLinkPathObj.toString());
+            // } catch (err) {
+            //     console.warn('[cache] Found invalid readlink: fixing it...');
+            //     cacheLinkPathObj.rmSync();
+            // }
+            // if (
+            //     cacheLinkPathObj.existsSync()
+            //     && !cacheLinkPathObj.isSymlinkSync()
+            //     ||
+            //     cacheLinkPathObj.existsSync()
+            //     && fs.readlinkSync(cacheLinkPathObj.toString()) != cmd.projectCachePath
+            // ) {
+            //     cacheLinkPathObj.rmSync();
+            // }
+            // if (!cacheLinkPathObj.existsSync()) {
+            //     console.debug('[ FRAMEWORK ][ CmdHelper ] Linking ['+ projectCachePathObj.toString() +'] to [ '+ cacheLinkPathObj.toString() +' ] ');
+            //     projectCachePathObj.symlinkSync(cacheLinkPathObj.toString());
+            // }
             projectCachePathObj = null;
 
 
