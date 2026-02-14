@@ -20,6 +20,7 @@ const { Resolver } = require('node:dns').promises;
 const resolver = new Resolver();
 
 var lib             = require('./../../lib') || require.cache[require.resolve('./../../lib')];
+const cache         = new lib.Cache();
 var merge           = lib.merge;
 var inherits        = lib.inherits;
 var console         = lib.logger;
@@ -110,11 +111,6 @@ function SuperController(options) {
 
     var headersSent = function(res) {
         var _res = ( typeof(res) != 'undefined' ) ? res : local.res;
-
-        if ( typeof(_res.headersSent) != 'undefined' ) {
-            return _res.headersSent
-        }
-
         if (
             typeof(_res.stream) != 'undefined'
             && typeof(_res.stream.headersSent) != 'undefined'
@@ -122,6 +118,11 @@ function SuperController(options) {
         ) {
             return true
         }
+
+        if ( typeof(_res.headersSent) != 'undefined' ) {
+            return _res.headersSent
+        }
+
 
         return false;
     }
@@ -2638,7 +2639,7 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
         }
     }
 
-    var handleHTTP2ClientRequest = function(browser, options, callback) {
+    var handleHTTP2ClientRequest = function(browser, options, callback, isRetry = false) {
 
         //cleanup
         options[':authority'] = options.hostname;
@@ -2692,7 +2693,62 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
         delete options.queryData;
 
 
-        const client = browser.connect(options.hostname, options);
+        options.settings = {
+            // Prevents the NGHTTP2_PROTOCOL_ERROR on long URLs (UUIDs)
+            maxHeaderListSize: 65535,
+            maxConcurrentStreams: 100,
+            enablePush: false
+        }
+
+        let authority = options.hostname;
+        cache.from(self.serverInstance._cached);
+        let sessKey = "http2session:"+ authority;
+        let requestId = `${options[':method']}:${options[':path']}:${Date.now()}`; // For debugging
+
+        let client = cache.get(sessKey);
+        // Checking client status: is closed or being closed
+        if (client && (client.closed || client.destroyed || client.connecting === false)) {
+            client = null;
+            cache.delete(sessKey);
+        }
+
+        if (!client || client.destroyed || client.closed) {
+            client = browser.connect(authority, options);
+
+            // Optional but recommended on M4/Orbstack
+            client.setTimeout(0); // disable the default timeout to keep session active
+
+            client.on('error', (error) => {
+                console.error( '`'+ options[':path']+ '` : '+ error.stack||error.message);
+                cache.delete(sessKey);
+                if (
+                    typeof(error.cause) != 'undefined' && typeof(error.cause.code) != 'undefined' && /ECONNREFUSED|ECONNRESET/.test(error.cause.code)
+                    || /ECONNREFUSED|ECONNRESET/.test(error.code)
+                ) {
+
+                    var port = getContext('gina').ports[options.protocol][options.scheme.replace(/\:/, '')][ options.port ];
+                    if ( typeof(port) != 'undefined' ) {
+                        error.accessPoint = port;
+                        error.message = 'Could not connect to [ ' + error.accessPoint + ' ].\nThe `'+port.split(/\@/)[0]+'` bundle is offline or unreachable.\n';
+                    }
+                }
+                self.throwError(error);
+                return;
+            });
+
+            client.on('close', () => {
+                console.log('[CLIENT] Session expired or closed by server. Removing from cache.');
+                cache.delete(sessKey);
+            });
+
+            client.on('goaway', () => {
+                console.warn('[CLIENT] Server is going away. Draining session.');
+                cache.delete(sessKey);
+            });
+
+            cache.set(sessKey, client);
+        }
+
 
         const {
             HTTP2_HEADER_PROTOCOL,
@@ -2701,7 +2757,7 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
             HTTP2_HEADER_PATH,
             HTTP2_HEADER_METHOD,
             HTTP2_HEADER_STATUS
-          } = browser.constants;
+        } = browser.constants;
 
 
         if ( typeof(local.req.headers['x-requested-with']) != 'undefined' ) {
@@ -2730,28 +2786,11 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
             options.headers['x-ingress-ip'] = local.req.headers['x-ingress-ip']
         }
 
-        // x-forwarded-for check
-        // console.debug('[ CONTROLLER ][ HTTP/2.0#query ] checking x-forwarded-for');
-        // if (
-        //     // Previous proxies
-        //     typeof(local.req.headers['x-forwarded-for']) != 'undefined'
-        //     && local.req.headers['x-forwarded-for'] != ""
-        //     // current proxy
-        //     && typeof(local.req.headers['x-real-ip']) != 'undefined'
-        // ) {
-        //     // console.debug('[ CONTROLLER ][ HTTP/2.0#query ] options.headers', JSON.stringify(options.headers, null, 2));
-        //     // console.debug('[ CONTROLLER ][ HTTP/2.0#query ] local.req.headers', JSON.stringify(local.req.headers, null, 2));
-        //     var xForwardedFor = "" + local.req.headers['x-forwarded-for'];
-        //     // Adding the current IP to the list
-        //     xForwardedFor += ", "+local.req.headers['x-real-ip'];
-        //     xForwardedFor = null;
-        //     // console.debug('[ CONTROLLER ][ HTTP/2.0#query ] options.headers["x-forwarded-for"]', options.headers['x-forwarded-for']);
-        // }
-
         var headers = merge({
             [HTTP2_HEADER_METHOD]: options[':method'],
             [HTTP2_HEADER_PATH]: options[':path']
         }, options.headers);
+
 
         // merging with user options
         for (var o in options) {
@@ -2763,212 +2802,338 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
                 headers[o] = options[o]
             }
         }
+        // 2. CRUCIAL SECURITY: Remove manual content-length for HTTP/2
+        // Node.js will calculate it automatically and correctly with req.end(body)
+        delete headers['content-length'];
+        delete headers['Content-Length'];
 
-
-
-
-        client.on('error', (error) => {
-
-            console.error( '`'+ options[':path']+ '` : '+ error.stack||error.message);
-            if (
-                typeof(error.cause) != 'undefined' && typeof(error.cause.code) != 'undefined' && /ECONNREFUSED|ECONNRESET/.test(error.cause.code)
-                || /ECONNREFUSED|ECONNRESET/.test(error.code)
-            ) {
-
-                var port = getContext('gina').ports[options.protocol][options.scheme.replace(/\:/, '')][ options.port ];
-                if ( typeof(port) != 'undefined' ) {
-                    error.accessPoint = port;
-                    error.message = 'Could not connect to [ ' + error.accessPoint + ' ].\nThe `'+port.split(/\@/)[0]+'` bundle is offline or unreachable.\n';
-                }
-            }
-            self.throwError(error);
-            return;
+        // Strict sanitization for HTTP/2 (no undefined)
+        Object.keys(headers).forEach(key => {
+            if (headers[key] === undefined || headers[key] === null) delete headers[key];
         });
 
-        client.on('connect', () => {
-            /**
-             * sessionOptions
-             * endStream <boolean> true if the Http2Stream writable side should be closed initially, such as when sending a GET request that should not expect a payload body.
-             * exclusive <boolean> When true and parent identifies a parent Stream, the created stream is made the sole direct dependency of the parent, with all other existing dependents made a dependent of the newly created stream. Default: false.
-             * parent <number> Specifies the numeric identifier of a stream the newly created stream is dependent on.
-             * weight <number> Specifies the relative dependency of a stream in relation to other streams with the same parent. The value is a number between 1 and 256 (inclusive).
-             * waitForTrailers <boolean> When true, the Http2Stream will emit the 'wantTrailers' event after the final DATA frame has been sent.
-             */
-            var sessionOptions = {}, endStream = true;
-            if ( body.length > 0 || options.headers['x-requested-with'] ) {
-                endStream = false;
-                sessionOptions.endStream = endStream;
+
+        const req = client.request(headers);
+
+        // TODO - Add client::http2Ping option (only usefull for realtime apps like trading)
+        // Optional: Keep the pipe warm
+        // setInterval(() => {
+        //     for (let [auth, client] of sessions) {
+        //         if (!client.destroyed && !client.closed) client.ping((err, duration) => {});
+        //     }
+        // }, 30000);
+
+        let isFinished = false;
+        let data = '';
+        req.on('data', function onQueryDataChunk(chunk) {
+            data += chunk;
+        });
+
+        req.on('error', function onQueryError(error) {
+            // 1. Multiplexing Safety: prevent double callback/emit if stream ends & errors simultaneously
+            if (isFinished) return;
+
+             // --- CRITICAL FIXES FOR PRODUCTION ---
+            // A. Error object name: using 'error' (from function arg) instead of 'err'
+            const errorCode = error.code || (error.cause ? error.cause.code : null);
+
+
+            // If the session closed exactly when we sent the request (Race Condition)
+            // We attempt ONE retry with a fresh connection
+            if (!isRetry && (errorCode === 'ERR_HTTP2_STREAM_ERROR' || errorCode === 'ECONNRESET')) {
+                isFinished = true; // Mark current attempt as done
+                console.warn(`[HTTP2][RETRYING] Stream failed on ${options[':path']}. Retrying with fresh session...`);
+                cache.delete(sessKey);
+                if (!client.destroyed) client.destroy();
+                // Recursive call with isRetry = true to prevent infinite loops
+                return handleHTTP2ClientRequest(browser, options, callback, true);
             }
 
-            var req = client.request( headers, sessionOptions );
+            isFinished = true;
 
+            // 2. Connection error handling (ECONNREFUSED, ECONNRESET, etc.)
+            const isConnError = (
+                (error.cause && error.cause.code && /ECONNREFUSED|ECONNRESET/.test(error.cause.code)) ||
+                (error.code && /ECONNREFUSED|ECONNRESET/.test(error.code))
+            );
 
-            // req.on('response', function onQueryResponse(headers, flags) {
-            //     for (const name in headers) {
-            //         console.debug(`${name}: ${headers[name]}`);
-            //     }
-            // });
+            if (isConnError) {
+                // Attempt to find the human-readable port/access point from Gina context
+                try {
+                    const ginaContext = getContext('gina');
+                    const schemeKey = options.scheme ? options.scheme.replace(/\:/, '') : options.protocol;
+                    const portInfo = ginaContext.ports[options.protocol][schemeKey][options.port];
 
-            req.setEncoding('utf8');
-            var data = '';
-            req.on('data', function onQueryDataChunk(chunk) {
-                data += chunk;
-            });
-
-            req.on('error', function onQueryError(error) {
-
-                if (
-                    typeof(error.cause) != 'undefined' && typeof(error.cause.code) != 'undefined' && /ECONNREFUSED|ECONNRESET/.test(error.cause.code)
-                    || /ECONNREFUSED|ECONNRESET/.test(error.code)
-                ) {
-
-                    var port = getContext('gina').ports[options.protocol][options.scheme.replace(/\:/, '')][ options.port ];
-                    if ( typeof(port) != 'undefined' ) {
-                        error.accessPoint = port;
-                        error.message = 'Could not connect to [ ' + error.accessPoint + ' ].\n' + error.message;
+                    if (typeof portInfo !== 'undefined') {
+                        error.accessPoint = portInfo;
+                        error.message = `[HTTP2] Could not connect to [ ${error.accessPoint} ].\n${error.message}`;
                     }
+                } catch (e) {
+                    // Context might be missing, we just log the raw error
+                    console.error(`[HTTP2] Context lookup failed during error handling: ${e.message}`);
                 }
+            }
+
+            // 3. English logging
+            console.error(`[HTTP2] Stream Error on ${options.method} ${options.path}:`);
+            console.error(error.stack || error.message);
+
+            // 4. Response handling
+            // you can get here if :
+            //  - you are trying to query using: `enctype="multipart/form-data"`
+            //  - server responded with an error
+            if (typeof callback !== 'undefined') {
+                // Return the error object to the controller
+                callback(error);
+            } else {
+                // Fallback to Event Emitter for Gina Framework
+                const errorData = {
+                    status: 500,
+                    error: error.stack || error.message
+                };
+                self.emit('query#complete', errorData);
+            }
+
+            // Note: The 'client' session remains in the Map so other parallel requests
+            // on the same session can continue unless the entire session is destroyed.
+        });
 
 
-                console.error(error.stack||error.message);
-                // you can get here if :
-                //  - you are trying to query using: `enctype="multipart/form-data"`
-                //  - server responded with an error
-                if ( typeof(callback) != 'undefined' ) {
-                    callback(error);
+        req.on('close', function onQueryClosed() {
+            console.warn('Request stream closed.');
+        });
+
+        req.on('end', function onEnd() {
+            // 1. Prevention: Ensure the logic only runs once per request
+            if (isFinished) return;
+            isFinished = true;
+
+            // 2. Guard Clause: Handle empty responses or aborted streams
+            if (!data || data.trim() === "") {
+                // If aborted, handle it specifically
+                if (req.aborted || req.destroyed) {
+                    data = { status: 500, error: new Error('Request aborted by client or server') };
                 } else {
-                    error = {
-                        status    : 500,
-                        error     : error.stack ||error.message
-                    };
-
-                    self.emit('query#complete', error)
+                    // Might be a 204 No Content, but usually CoreAPI should return {}
+                    console.warn('[HTTP2] Empty response received');
+                    data = { status: 200, empty: true };
                 }
+            }
+            // 3. Exception filter for ALPN or protocol mismatches
+            if (typeof data === 'string' && /^Unknown ALPN Protocol/.test(data)) {
+                const err = { status: 500, error: new Error(data) };
+                return (typeof callback !== 'undefined') ? callback(err) : self.emit('query#complete', err);
+            }
 
-                return;
-            });
-
-            req.on('close', function onQueryClosed() {
-                console.warn('Request stream closed.');
-            });
-
-            req.on('end', function onEnd() {
-
-                // exceptions filter
-                if ( typeof(data) == 'string' && /^Unknown ALPN Protocol/.test(data) ) {
-                    var err = {
-                        status: 500,
-                        error: new Error(data)
-                    };
-
-                    if ( typeof(callback) != 'undefined' ) {
-                        callback(err)
-                    } else {
-                        self.emit('query#complete', err)
-                    }
-
-                    return
-                }
-
-                //Only when needed.
-                if ( typeof(callback) != 'undefined' ) {
-                    if ( typeof(data) == 'string' && /^(\{|%7B|\[{)|\[\]/.test(data) ) {
-                        try {
-                            data = JSON.parse(data);
-                            // just in case
-                            if ( typeof(data.status) == 'undefined' ) {
-                                var currentRule = local.options.rule || local.req.routing.rule;
-                                console.warn( '['+ currentRule +'] ' + 'Response status code is `undefined`: switching to `200`');
-                                data.status = 200;
-                            }
-                        } catch (err) {
-                            data = {
-                                status    : 500,
-                                error     : err
-                            }
-                            console.error(err);
-                        }
-                    } else if ( !data && this.aborted && this.destroyed) {
-                        data = {
-                            status    : 500,
-                            error     : new Error('request aborted')
-                        }
-                    }
-                    //console.debug(options[':method']+ ' ['+ (data.status || 200) +'] '+ options[':path']);
+            // 4. Data Parsing & Validation
+            if (typeof callback !== 'undefined') {
+                if (typeof data === 'string' && /^(\{|%7B|\[{)|\[\]/.test(data)) {
                     try {
-                        // intercepting fallback redirect
-                        if ( data.status && /^3/.test(data.status) && typeof(data.headers) != 'undefined' ) {
-                            local.res.writeHead(data.status, data.headers);
-                            return local.res.end();
+                        data = JSON.parse(data);
+                        if (typeof data.status === 'undefined') {
+                            const currentRule = local.options.rule || local.req.routing.rule;
+                            console.warn(`[${currentRule}] Response status code is undefined: switching to 200`);
+                            data.status = 200;
                         }
-
-                        if ( data.status && !/^2/.test(data.status) && typeof(local.options.conf.server.coreConfiguration.statusCodes[data.status]) != 'undefined' ) {
-                              if ( /^5/.test(data.status)  ) {
-                                  return callback(data)
-                              } else {
-                                  self.throwError(data);
-                                  return;
-                              }
-                        } else {
-                            // required when control is used in an halted state
-                            // Ref.: resumeRequest()
-                            if ( self && self.isHaltedRequest() && typeof(local.onHaltedRequestResumed) != 'undefined' ) {
-                                local.onHaltedRequestResumed(false);
-                            }
-                            return callback( false, data )
-                        }
-
-                    } catch (e) {
-                        var infos = local.options, controllerName = infos.controller.substring(infos.controller.lastIndexOf('/'));
-                        var msg = 'Controller Query Exception while catching back.\nBundle: '+ infos.bundle +'\nController File: /controllers'+ controllerName +'\nControl: this.'+ infos.control +'(...)\n\r' + e.stack;
-                        var exception = new Error(msg);
-                        exception.status = 500;
-                        self.throwError(exception);
-                        return;
+                    } catch (err) {
+                        data = { status: 500, error: err };
+                        console.error('[HTTP2] JSON Parse Error:', err);
                     }
+                } else if (!data && req.aborted && req.destroyed) {
+                    data = { status: 500, error: new Error('Request aborted') };
+                }
 
-                } else {
-                    if ( typeof(data) == 'string' && /^(\{|%7B|\[{)|\[\]/.test(data) ) {
-                        try {
-                            data = JSON.parse(data)
-                        } catch (e) {
-                            data = {
-                                status    : 500,
-                                error     : data
-                            }
-                            self.emit('query#complete', data)
-                        }
-                    }
-
-                    // intercepting fallback redirect
-                    if ( data.status && /^3/.test(data.status) && typeof(data.headers) != 'undefined' ) {
-                        self.removeAllListeners(['query#complete']);
+                try {
+                    // Intercepting fallback redirect (3xx)
+                    if (data.status && /^3/.test(data.status) && typeof data.headers !== 'undefined') {
                         local.res.writeHead(data.status, data.headers);
                         return local.res.end();
                     }
 
-                    if ( data.status && !/^2/.test(data.status) && typeof(local.options.conf.server.coreConfiguration.statusCodes[data.status]) != 'undefined' ) {
-                        self.emit('query#complete', data)
+                    // Error code handling (non-2xx)
+                    const statusCodes = local.options.conf.server.coreConfiguration.statusCodes;
+                    if (data.status && !/^2/.test(data.status) && typeof statusCodes[data.status] !== 'undefined') {
+                        if (/^5/.test(data.status)) {
+                            return callback(data);
+                        } else {
+                            self.throwError(data);
+                            return;
+                        }
                     } else {
-                        // required when control is used in an halted state
-                        // Ref.: resumeRequest()
-                        if ( self.isHaltedRequest() && typeof(local.onHaltedRequestResumed) != 'undefined' ) {
+                        // Success path
+                        if (self && self.isHaltedRequest() && typeof local.onHaltedRequestResumed !== 'undefined') {
                             local.onHaltedRequestResumed(false);
                         }
-                        self.emit('query#complete', false, data)
+                        return callback(false, data);
+                    }
+                } catch (e) {
+                    const infos = local.options;
+                    const controllerName = infos.controller.substring(infos.controller.lastIndexOf('/'));
+                    const msg = `Controller Query Exception while catching back.\nBundle: ${infos.bundle}\nController: ${controllerName}\nControl: ${infos.control}\n${e.stack}`;
+                    const exception = new Error(msg);
+                    exception.status = 500;
+                    self.throwError(exception);
+                    return;
+                }
+            } else {
+                // Fallback for EventEmitter mode (no callback)
+                if (typeof data === 'string' && /^(\{|%7B|\[{)|\[\]/.test(data)) {
+                    try {
+                        data = JSON.parse(data);
+                    } catch (e) {
+                        data = { status: 500, error: data };
+                        self.emit('query#complete', data);
+                        return;
                     }
                 }
 
-                client.close();
-                // client.destroy(); // Close the session after the request is complete
-            });
+                if (data.status && /^3/.test(data.status) && typeof data.headers !== 'undefined') {
+                    self.removeAllListeners(['query#complete']);
+                    local.res.writeHead(data.status, data.headers);
+                    return local.res.end();
+                }
 
-            if (!endStream) {
-                //req.end(body);
-                req.write(body);
+                if (data.status && !/^2/.test(data.status) && typeof local.options.conf.server.coreConfiguration.statusCodes[data.status] !== 'undefined') {
+                    self.emit('query#complete', data);
+                } else {
+                    if (self.isHaltedRequest() && typeof local.onHaltedRequestResumed !== 'undefined') {
+                        local.onHaltedRequestResumed(false);
+                    }
+                    self.emit('query#complete', false, data);
+                }
+            }
+
+            // IMPORTANT: client (session) is NOT closed here to allow multiplexing
+        });
+
+        // req.on('end', function onEnd() {
+        //     // exceptions filter
+        //     if ( typeof(data) == 'string' && /^Unknown ALPN Protocol/.test(data) ) {
+        //         var err = {
+        //             status: 500,
+        //             error: new Error(data)
+        //         };
+
+        //         if ( typeof(callback) != 'undefined' ) {
+        //             callback(err)
+        //         } else {
+        //             self.emit('query#complete', err)
+        //         }
+
+        //         return
+        //     }
+
+        //     //Only when needed.
+        //     if ( typeof(callback) != 'undefined' ) {
+        //         if ( typeof(data) == 'string' && /^(\{|%7B|\[{)|\[\]/.test(data) ) {
+        //             try {
+        //                 data = JSON.parse(data);
+        //                 // just in case
+        //                 if ( typeof(data.status) == 'undefined' ) {
+        //                     var currentRule = local.options.rule || local.req.routing.rule;
+        //                     console.warn( '['+ currentRule +'] ' + 'Response status code is `undefined`: switching to `200`');
+        //                     data.status = 200;
+        //                 }
+        //             } catch (err) {
+        //                 data = {
+        //                     status    : 500,
+        //                     error     : err
+        //                 }
+        //                 console.error(err);
+        //             }
+        //         } else if ( !data && this.aborted && this.destroyed) {
+        //             data = {
+        //                 status    : 500,
+        //                 error     : new Error('request aborted')
+        //             }
+        //         }
+        //         //console.debug(options[':method']+ ' ['+ (data.status || 200) +'] '+ options[':path']);
+        //         try {
+        //             // intercepting fallback redirect
+        //             if ( data.status && /^3/.test(data.status) && typeof(data.headers) != 'undefined' ) {
+        //                 local.res.writeHead(data.status, data.headers);
+        //                 return local.res.end();
+        //             }
+
+        //             if ( data.status && !/^2/.test(data.status) && typeof(local.options.conf.server.coreConfiguration.statusCodes[data.status]) != 'undefined' ) {
+        //                     if ( /^5/.test(data.status)  ) {
+        //                         return callback(data)
+        //                     } else {
+        //                         self.throwError(data);
+        //                         return;
+        //                     }
+        //             } else {
+        //                 // required when control is used in an halted state
+        //                 // Ref.: resumeRequest()
+        //                 if ( self && self.isHaltedRequest() && typeof(local.onHaltedRequestResumed) != 'undefined' ) {
+        //                     local.onHaltedRequestResumed(false);
+        //                 }
+        //                 return callback( false, data )
+        //             }
+
+        //         } catch (e) {
+        //             var infos = local.options, controllerName = infos.controller.substring(infos.controller.lastIndexOf('/'));
+        //             var msg = 'Controller Query Exception while catching back.\nBundle: '+ infos.bundle +'\nController File: /controllers'+ controllerName +'\nControl: this.'+ infos.control +'(...)\n\r' + e.stack;
+        //             var exception = new Error(msg);
+        //             exception.status = 500;
+        //             self.throwError(exception);
+        //             return;
+        //         }
+
+        //     } else {
+        //         if ( typeof(data) == 'string' && /^(\{|%7B|\[{)|\[\]/.test(data) ) {
+        //             try {
+        //                 data = JSON.parse(data)
+        //             } catch (e) {
+        //                 data = {
+        //                     status    : 500,
+        //                     error     : data
+        //                 }
+        //                 self.emit('query#complete', data)
+        //             }
+        //         }
+
+        //         // intercepting fallback redirect
+        //         if ( data.status && /^3/.test(data.status) && typeof(data.headers) != 'undefined' ) {
+        //             self.removeAllListeners(['query#complete']);
+        //             local.res.writeHead(data.status, data.headers);
+        //             return local.res.end();
+        //         }
+
+        //         if ( data.status && !/^2/.test(data.status) && typeof(local.options.conf.server.coreConfiguration.statusCodes[data.status]) != 'undefined' ) {
+        //             self.emit('query#complete', data)
+        //         } else {
+        //             // required when control is used in an halted state
+        //             // Ref.: resumeRequest()
+        //             if ( self.isHaltedRequest() && typeof(local.onHaltedRequestResumed) != 'undefined' ) {
+        //                 local.onHaltedRequestResumed(false);
+        //             }
+        //             self.emit('query#complete', false, data)
+        //         }
+        //     }
+
+        //     // IMPORTANT, DO not close the client since it is being reused
+        // });
+
+
+        if (
+            body && (/^post$/i.test(headers[':method'])
+            || /^put$/i.test(headers[':method'])
+            || /^patch$/i.test(headers[':method']) )
+        ) {
+            if (!req.destroyed && !req.closed) {
+                // req.write(body, (err) => {
+                //     if (err) console.error('[CONTROLLER][handleHTTP2] Write error:', err);
+                //     // Closing on write success
+                //     req.end();
+                // });
+                req.end(body);
+            }
+        } else {
+            if (!req.destroyed && !req.closed) {
                 req.end();
             }
-        });
+        }
 
 
         return {

@@ -9,11 +9,12 @@ SCRIPT_PATH="$( cd "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P )"
 
 echo -e "Stating build."
 sass_bin=$(which sass)
-csso_bin=$(which sass)
+csso_bin=$(which csso)
 rjs_env=
 rjs_bin=$(which r.js)
 java_bin=$(which java)
 brotli_bin=$(which brotli)
+gzip_bin=$(which gzip)
 
 # filter passed arguments
 for i in $*; do
@@ -46,10 +47,14 @@ for i in $*; do
         --brotli-bin)
             brotli_bin=${value};
 		;;
+
+        --gzip-bin)
+            gzip_bin=${value};
+		;;
 	esac
 
 done
-
+build_env="${rjs_env:-prod}"
 dependency_err=false
 echo -e "\n[ Dependencies check ]"
 
@@ -80,6 +85,12 @@ fi
 # Checking Brotli
 if [ ! "${brotli_bin}" ]; then
     echo -e "Dependency ``Brotli`` not installed: https://formulae.brew.sh/formula/brotli";
+    dependency_err=true
+fi
+
+# Checking Gzip
+if [ ! "${gzip_bin}" ]; then
+    echo -e "Dependency ``Gzip`` not installed: https://formulae.brew.sh/formula/gzip";
     dependency_err=true
 fi
 
@@ -171,7 +182,7 @@ do
             # echo -e "sass file: ${sass_file} -> ${css_file}"
             cmd="${sass_bin} --update ${sass_source}/${sass_file}:${sass_target}/${css_file}"
             # Skip sourceMap for dev
-            if [ "${rjs_env}" == "dev" ]; then
+            if [ "${build_env}" == "dev" ]; then
                 cmd="${sass_bin} --update --no-source-map ${sass_source}/${sass_file}:${sass_target}/${css_file}"
             fi
 
@@ -201,7 +212,7 @@ do
             cmd+=" ${css_file}"
         done
         echo -e "done -> ${css_dist_dir}"
-        if [ "${rjs_env}" == "dev" ]; then
+        if [ "${build_env}" == "dev" ]; then
             cmd+=" > ${css_dist_dir}/$v.min.css"
             if [ -f "${css_dist_dir}/$v.min.css.map" ]; then
                 rm ${css_dist_dir}/$v.min.css.map
@@ -219,17 +230,17 @@ done
 
 # Building RequireJS lib
 filename="build.json"
-if [ "${rjs_env}" == "dev" ]; then
-    filename="build.${rjs_env}.json"
+if [ "${build_env}" == "dev" ]; then
+    filename="build.${build_env}.json"
 fi
 echo -e "Running: ${cmd}"
 eval $cmd
 
 # Packaging gina
-echo -e "\n[ Packaging gina ]\n"
+echo -e "\n[ Packaging gina/${build_env} ]\n"
 filename="build.json"
-if [ "${rjs_env}" == "dev" ]; then
-    filename="build.${rjs_env}.json"
+if [ "${build_env}" == "dev" ]; then
+    filename="build.${build_env}.json"
 fi
 cmd="$rjs_bin -o $SCRIPT_PATH/src/vendor/gina/$filename"
 echo -e "Running: ${cmd}"
@@ -237,7 +248,7 @@ eval $cmd
 
 
 # Skip for dev
-if [ ! "${rjs_env}" == "dev" ]; then
+if [ ! "${build_env}" == "dev" ]; then
     # Compiling & minifying frontent pluging
     echo -e "\n[ Compiling & minifying frontent pluging ]"
     echo -e "\nPlease, wait ..."
@@ -250,7 +261,7 @@ fi
 # Compiling & minifying pluging Loader
 echo -e "\n[ Compiling & minifying pluging loader ]"
 echo -e "\nPlease, wait ..."
-if [ ! "${rjs_env}" == "dev" ]; then
+if [ ! "${build_env}" == "dev" ]; then
     cmd="$java_bin -jar $SCRIPT_PATH/lib/js/compiler.jar --formatting=SINGLE_QUOTES --compilation_level ADVANCED_OPTIMIZATIONS --jscomp_warning=es5Strict --js $SCRIPT_PATH/src/vendor/gina/utils/loader.js --create_source_map $SCRIPT_PATH/dist/vendor/gina/js/gina.onload.min.js.map --js_output_file $SCRIPT_PATH/dist/vendor/gina/js/gina.onload.min.js"
 else
     cmd="cp $SCRIPT_PATH/src/vendor/gina/utils/loader.js $SCRIPT_PATH/dist/vendor/gina/js/gina.onload.min.js"
@@ -329,6 +340,17 @@ find $SCRIPT_PATH/../../../lib/domain/dist -type f \( -name '*_list.dat.gz' \) -
 # Adding new
 find $SCRIPT_PATH/../../../lib/domain/dist -type f \( -name '*_list.dat' \) -exec brotli --best {} \;
 find $SCRIPT_PATH/../../../lib/domain/dist -type f \( -name '*_list.dat' \) -exec gzip -9 -k {} \;
+
+##############################
+# Removing map files         #
+##############################
+if [ "${build_env}" != "dev" ]; then
+    # find and remove *.map files
+    echo -e "\nRemoving map files, wait ..."
+    cmd="find $SCRIPT_PATH/dist -type f \\( -name '*.map' \\) -exec rm {} \\;"
+    echo -e "Running: ${cmd}"
+    eval $cmd
+fi
 
 
 echo -e "\r\nCompleted build.\nAttention, you might need to refresh your page twice to clear the cache."

@@ -214,10 +214,10 @@ function ServerEngineClass(options) {
 
 
     // openssl req -x509 -newkey rsa:2048 -nodes -sha256 -subj "/CN=localhost" -keyout localhost-privkey.pem -out localhost-cert.pem
-    var credentials = {};
+    var http2Options = {};
     if ( /https/.test(options.scheme) ) {
         try {
-            credentials = {
+            http2Options = {
                 key: readSync(options.credentials.privateKey),
                 cert: readSync(options.credentials.certificate)
             };
@@ -232,22 +232,28 @@ function ServerEngineClass(options) {
     if (typeof (options.allowHTTP1) != 'undefined' && options.allowHTTP1 != '' ) {
         allowHTTP1 = options.allowHTTP1;
     }
-    credentials.allowHTTP1 = allowHTTP1;
+    http2Options.allowHTTP1 = allowHTTP1;
 
 
     if (typeof (options.credentials.ca) != 'undefined' && options.credentials.ca != '' )
-        credentials.ca = options.credentials.ca;
+        http2Options.ca = options.credentials.ca;
 
     if (typeof (options.credentials.pfx) != 'undefined' && options.credentials.pfx != '' )
-        credentials.pfx = readSync(options.credentials.pfx);
+        http2Options.pfx = readSync(options.credentials.pfx);
 
     if (typeof (options.credentials.passphrase) != 'undefined' && options.credentials.passphrase != '' )
-        credentials.passphrase = options.credentials.passphrase;
+        http2Options.passphrase = options.credentials.passphrase;
 
     var server = null, http = null, ioServer = null;
 
 
     if ( /^http\/2/.test(options.protocol) ) {
+        http2Options.settings = {
+            // Nombre max de requêtes parallèles sur UNE seule connexion TCP
+            maxConcurrentStreams: 1000,
+            // Taille de la fenêtre de réception (évite les blocages sur gros transferts)
+            initialWindowSize: 65535 * 10
+        };
         var http2   = require('http2');
         switch (options.scheme) {
             case 'http':
@@ -255,13 +261,41 @@ function ServerEngineClass(options) {
                 break;
 
             case 'https':
-                server      = http2.createSecureServer(credentials);
+                server      = http2.createSecureServer(http2Options);
                 break;
 
             default:
                 server      = http2.createServer({ allowHTTP1: allowHTTP1 });
                 break;
         }
+
+        server.on('session', (session) => {
+            // 120 seconds (120000 of inactivity
+            let sessionTimeout = 120000;
+            session.setTimeout(sessionTimeout);
+
+            session.on('timeout', () => {
+                // Check if there are active streams before closing
+                // This prevents killing a POST request that is still processing
+                if (session.activeStreams === 0) {
+                    console.log('[SERVER] Session idle timeout - Closing connection safely');
+                    session.close();
+                } else {
+                    // Reset timeout if streams are still active
+                    session.setTimeout(sessionTimeout);
+                }
+            });
+
+            session.on('stream', () => {
+                // Optional: reduce noise in production logs
+                // console.warn(`[ SERVER ] New stream on existing session (Multiplexing)`);
+            });
+
+            session.on('close', () => {
+                // This is normal after 60s of inactivity
+                console.warn("[ SERVER ] TCP Connection closed");
+            });
+        });
     } else {
 
         switch (options.scheme) {
@@ -272,7 +306,7 @@ function ServerEngineClass(options) {
 
             case 'https':
                 var https   = require('https');
-                server      = https.createServer(credentials);
+                server      = https.createServer(http2Options);
                 break;
 
             default:
@@ -350,30 +384,64 @@ function ServerEngineClass(options) {
             // TODO - on 90% RAM usage, redirect to `come back later then restart bundle`
             // TODO - check url against wroot : getContext() ?
             if ( /^get$/i.test(request.method) && /\_gina\/health\/check$/i.test(request.url) ) {
-                // server.toApi(reques, response)
-                // console.debug('[ SERVER ][200] '+ request.url);
-                response.setHeader('cache-control', 'no-cache, no-store, must-revalidate');
-                response.setHeader('pragma', 'no-cache');
-                response.setHeader('expires', '0');
-                response.setHeader('content-type', 'application/json; charset=utf8');
-                response.setHeader('X-Powered-By', 'Gina/'+ GINA_VERSION);
-                return response.end('{"status":"healthy","timestamp":'+ new Date().toISOString() +'}');
+
+                const healthStatus = JSON.stringify({
+                    status: "healthy",
+                    timestamp: new Date().toISOString() // Correction : JSON valide (string)
+                });
+
+                const healthHeaders = {
+                    'cache-control': 'no-cache, no-store, must-revalidate',
+                    'pragma': 'no-cache',
+                    'expires': '0',
+                    'content-type': 'application/json; charset=utf8',
+                    'X-Powered-By': 'Gina/' + GINA_VERSION
+                };
+
+                // HTTP/2 (Multiplexing)
+                if (response.stream) {
+                    // On utilise le stream pour garder la session ouverte
+                    response.stream.respond({
+                        ':status': 200,
+                        ...healthHeaders
+                    });
+                    return response.stream.end(healthStatus);
+                }
+
+                // Fallback HTTP/1.1
+                response.writeHead(200, healthHeaders);
+                return response.end(healthStatus);
             }
             if ( /^get$/i.test(request.method) && /\_gina\/info$/i.test(request.url) ) {
-                // server.toApi(reques, response)
-                // console.debug('[ SERVER ][200] '+ request.url);
-                response.setHeader('cache-control', 'no-cache, no-store, must-revalidate');
-                response.setHeader('pragma', 'no-cache');
-                response.setHeader('expires', '0');
-                response.setHeader('content-type', 'application/json; charset=utf8');
-                response.setHeader('X-Powered-By', 'Gina/'+ GINA_VERSION);
 
-                return response.end(JSON.stringify({
+                const infoStatus = JSON.stringify({
                     "cache-is-enabled": server._cacheIsEnabled,
                     "memory": process.memoryUsage(),
                     "uptime":  process.uptime(),
                     "version": process.version
-                }));
+                });
+
+                const infoHeaders = {
+                    'cache-control': 'no-cache, no-store, must-revalidate',
+                    'pragma': 'no-cache',
+                    'expires': '0',
+                    'content-type': 'application/json; charset=utf8',
+                    'X-Powered-By': 'Gina/' + GINA_VERSION
+                };
+
+                // HTTP/2 (Multiplexing)
+                if (response.stream) {
+                    // On utilise le stream pour garder la session ouverte
+                    response.stream.respond({
+                        ':status': 200,
+                        ...infoHeaders
+                    });
+                    return response.stream.end(infoHeaders);
+                }
+
+                // Fallback HTTP/1.1
+                response.writeHead(200, infoHeaders);
+                return response.end(infoStatus);
             }
 
             // Proxy detection - Needs to be place after /_gina/health/*

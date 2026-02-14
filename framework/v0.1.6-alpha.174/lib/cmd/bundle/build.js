@@ -98,7 +98,7 @@ function Build(opt, cmd) {
                 && fs.existsSync( self.projectLocation +'/'+ globalBuildScripts.postbuild.split(' ').slice(-1)[0])
             ) {
                 try {
-                    var cmd = globalBuildScripts.postbuild +' --env='+process.env.NODE_ENV+' --scope='+ process.env.NODE_SCOPE;
+                    var cmd = globalBuildScripts.postbuild +' --env='+process.env.NODE_ENV+' --scope='+ process.env.NODE_SCOPE +' --bundles='+self.bundles.toString();
                     // cloning it
                     let currentEnv = { ...process.env };
                     currentEnv['NODE_OPTIONS'] = self.nodeParams.join(' ');
@@ -138,9 +138,9 @@ function Build(opt, cmd) {
                 for (let e = 0, eLen = local.envs.length; e<eLen; e++) {
                     let env = local.envs[e];
                     // Skipping defaut dev env
-                    if ( env === self.projects[self.projectName].dev_env ) {
-                        continue;
-                    }
+                    // if ( env === self.projects[self.projectName].dev_env ) {
+                    //     continue;
+                    // }
 
                     if ( typeof(local.manifest.bundles[bundle].releases[scope][env]) == 'undefined' ) {
                         local.manifest.bundles[bundle].releases[scope][env] = {

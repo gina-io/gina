@@ -3335,8 +3335,20 @@ function FormValidatorUtil(data, $fields, xhrOptions, fieldsSet) {
         var route       = JSON.clone(routing.getRoute(options.url, options.data));
         // var route       = routing.getRoute(options.url, options.data);
 
-        var env         = config.env;
-        var conf        = config[bundle][env];
+        var env             = config.env;
+        var conf            = config[bundle][env];
+        var serverInstance  = conf.content.server;
+        // If you change here, you will also have to refrect changes in the core/server.js
+        if ( typeof(serverInstance._cached) == 'undefined' ) {
+            serverInstance._cached = new Map();
+        }
+        if ( typeof(serverInstance._cachedPath) == 'undefined' ) {
+            serverInstance._cachePath = serverInstance.cache.path;
+        }
+        if ( typeof(serverInstance._cacheIsEnabled) == 'undefined' ) {
+            serverInstance._cacheIsEnabled = serverInstance.cache.enable;
+        }
+
         if (!opt) { // setup opt by default if no proxy conf found
             if (config.bundle == bundle) {
                 var credentials = getConfig( currentBundle, 'settings' ).server.credentials;
@@ -3428,9 +3440,8 @@ function FormValidatorUtil(data, $fields, xhrOptions, fieldsSet) {
         var Controller = require(_(GINA_FRAMEWORK_DIR +'/core/controller/controller.js'), true);
         var controller = new Controller(controllerOptions);
         controller.name = route.param.control;
-        //controller.serverInstance = serverInstance;
+        controller.serverInstance = serverInstance;
         controller.setOptions(request, response, next, controllerOptions);
-
 
         var data = ( typeof(options.data) == 'object' && options.data.count() > 0 )
                 ? options.data
@@ -5309,6 +5320,20 @@ function Routing() {
             ) {
                 request.params[key] = urlVal;
                 if ( typeof(request[requestMethod][key]) == 'undefined' ) {
+                    switch (urlVal) {
+                        case 'null':
+                            urlVal = null;
+                            break;
+                        case 'false':
+                            urlVal = false;
+                            break;
+                        case 'true':
+                        //case 'on':
+                            urlVal = true;
+                            break
+                        default:
+                            break;
+                    }
                     request[requestMethod][key] = urlVal;
                 }
                 return true;
@@ -5421,6 +5446,20 @@ function Routing() {
             if (values.count() == keys.length) {
                 key = null;
                 for (key in values) {
+                    switch (values[key]) {
+                        case 'null':
+                            values[key] = null;
+                            break;
+                        case 'false':
+                            values[key] = false;
+                            break;
+                        case 'true':
+                        //case 'on':
+                            values[key] = true;
+                            break
+                        default:
+                            break;
+                    }
                     request.params[key] = values[key];
                 }
                 return true
@@ -21730,10 +21769,9 @@ define('gina/popin', [ 'require', 'vendor/uuid', 'jquery', 'lib/domain', 'lib/me
                                 popinOpen($popin.name);
                             }
                         });
-
                     }
                 }
-            }
+           }
 
         }
 

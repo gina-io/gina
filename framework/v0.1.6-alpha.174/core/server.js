@@ -343,6 +343,7 @@ function Server(options) {
             instance.getAssets          = getAssets;
             instance.completeHeaders    = completeHeaders;
 
+            // If you change here, you will also have to refrect changes in the form-validator
             if ( typeof(instance._cached) == 'undefined' ) {
                 instance._cached = new Map();
             }

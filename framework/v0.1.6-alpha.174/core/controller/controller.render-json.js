@@ -123,15 +123,9 @@ module.exports = function renderJSON(jsonObj, deps) {
     var request     = local.req;
     var response    = local.res;
     var next        = local.next || null;
-    // var stream      = null;
-    // if ( /http\/2/.test(local.options.conf.server.protocol) ) {
-    //     stream = response.stream;
-    // }
-
-    // Added on 2023-06-12
-    if ( headersSent(response) ) {
-        freeMemory([jsonObj, request, response, next]);
-        return;
+    var stream      = null;
+    if ( typeof(local.res.stream) != 'undefined') {
+        stream = local.res.stream
     }
 
     if (!jsonObj) {
@@ -145,9 +139,12 @@ module.exports = function renderJSON(jsonObj, deps) {
         }
 
 
-        // if( typeof(local.options) != "undefined" && typeof(local.options.charset) != "undefined" ){
-        //     response.setHeader("charset", local.options.charset);
-        // }
+        // Internet Explorer override
+        if ( /msie/i.test(request.headers['user-agent']) ) {
+            response.setHeader('content-type', 'text/plain' + '; charset='+ local.options.conf.encoding)
+        } else {
+            response.setHeader('content-type', local.options.conf.server.coreConfiguration.mime['json'] + '; charset='+ local.options.conf.encoding)
+        }
 
 
         //catching errors
@@ -179,18 +176,14 @@ module.exports = function renderJSON(jsonObj, deps) {
             }
         }
 
-        // Internet Explorer override
-        if ( /msie/i.test(request.headers['user-agent']) ) {
-            response.setHeader('content-type', 'text/plain' + '; charset='+ local.options.conf.encoding)
-        } else {
-            response.setHeader('content-type', local.options.conf.server.coreConfiguration.mime['json'] + '; charset='+ local.options.conf.encoding)
-        }
+
 
         console.info(request.method +' ['+ response.statusCode +'] '+ request.url);
 
         var data = JSON.stringify(jsonObj);
 
         if ( local.options.isXMLRequest && self.isWithCredentials() )  {
+
 
             // content length must be the right size !
             var len = Buffer.byteLength(data, 'utf8') || 0;
@@ -201,24 +194,27 @@ module.exports = function renderJSON(jsonObj, deps) {
             response.write(data);
 
             // required to close connection
-            setTimeout(function () {
-                response.end();
-                try {
-                    response.headersSent = true;
-                } catch(err) {
-                    // Ignoring warning
-                    //console.warn(err);
-                }
+            // return setTimeout(function () {
+            //     // if (!headersSent()) {
+            //         response.end();
+            //         try {
+            //             response.headersSent = true;
+            //         } catch(err) {
+            //             // Ignoring warning
+            //             //console.warn(err);
+            //         }
 
-                if ( next ) {
-                    next()
-                }
+            //         if ( next ) {
+            //             next()
+            //         }
 
-                freeMemory([jsonObj, data, request, response, next]);
-            }, 200);
+            //         freeMemory([jsonObj, data, request, response, next]);
+            //     // }
+            // }, 200);
 
             // force completion
-            return
+            // response.headersSent = true;
+            return response.end(data);
         }
         // normal case
         // E.g.: Caching result for document-get-all@coreapi
@@ -234,10 +230,34 @@ module.exports = function renderJSON(jsonObj, deps) {
         ) {
             writeCache(self._options.bundle, local.options.conf.server.cache, data);
         }
-        response.end(data);
+
+        if (  stream ) {
+            if (!stream.headersSent) {
+                stream.respond({
+                    'content-type': local.options.conf.server.coreConfiguration.mime['json'] + '; charset='+ local.options.conf.encoding,
+                    ':status': 200
+                });
+            }
+
+
+            stream.end(data);
+            response.headersSent = true;
+            freeMemory([jsonObj, data, request, response, next]);
+            return;
+        }
+
+        // Fallback (HTTP/1.1)
         if (!headersSent(response)) {
             try {
+                // Internet Explorer override
+                if ( /msie/i.test(request.headers['user-agent']) ) {
+                    response.setHeader('content-type', 'text/plain' + '; charset='+ local.options.conf.encoding)
+                } else {
+                    response.setHeader('content-type', local.options.conf.server.coreConfiguration.mime['json'] + '; charset='+ local.options.conf.encoding)
+                }
+                response.end(data);
                 response.headersSent = true;
+                return;
             } catch(err) {
                 // Ignoring warning
                 //console.warn(err);

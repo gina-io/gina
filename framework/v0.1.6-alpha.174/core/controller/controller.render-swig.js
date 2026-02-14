@@ -156,7 +156,12 @@ module.exports = function render(userData, displayToolbar, errOptions, deps) {
         , plugin            = null
         // By default
         , isWithoutLayout   = (localOptions.isWithoutLayout) ? true : false
+        , stream            = null
     ;
+
+    if ( typeof(local.res.stream) != 'undefined') {
+        stream = local.res.stream
+    }
 
     try {
         data = getData();
@@ -565,7 +570,7 @@ module.exports = function render(userData, displayToolbar, errOptions, deps) {
 
 
         // errors first
-        if (!headersSent) {
+        if (!headersSent()) {
 
             //catching errors
             local.res.statusCode = ( typeof(localOptions.conf.server.coreConfiguration.statusCodes[data.page.data.status])  != 'undefined' ) ? data.page.data.status : 200; // by default
@@ -647,6 +652,14 @@ module.exports = function render(userData, displayToolbar, errOptions, deps) {
                 }
 
                 console.info(local.req.method +' ['+local.res.statusCode +'] '+ local.req.url);
+                // if ( stream ) {
+                //     stream.respond({
+                //         'content-type': localOptions.conf.server.coreConfiguration.mime['html'] + '; charset='+ localOptions.conf.encoding,
+                //         ':status': 200
+                //     });
+                //     layout = null;
+                //     return stream.end(htmlContent);
+                // }
                 local.res.end( htmlContent );
                 layout = null;
             }
@@ -1046,6 +1059,14 @@ module.exports = function render(userData, displayToolbar, errOptions, deps) {
                 }
 
                 console.info(local.req.method +' ['+local.res.statusCode +'] '+ local.req.url);
+                // if ( stream ) {
+                //     stream.respond({
+                //         'content-type': localOptions.conf.server.coreConfiguration.mime['html'] + '; charset='+ localOptions.conf.encoding,
+                //         ':status': 200
+                //     });
+                //     layout = null;
+                //     return stream.end(htmlContent);
+                // }
                 local.res.end( htmlContent );
 
                 layout = null;
@@ -1063,6 +1084,17 @@ module.exports = function render(userData, displayToolbar, errOptions, deps) {
         if ( typeof(local.req.params.errorObject) != 'undefined' ) {
             return self.throwError(local.req.params.errorObject);
         }
+        // if (
+        //     stream
+        //     && !headersSent()
+        // ) {
+        //     stream.respond({
+        //         'content-type': localOptions.conf.server.coreConfiguration.mime['html'] + '; charset='+ localOptions.conf.encoding,
+        //         ':status': 500
+        //     });
+        //     layout = null;
+        //     return stream.end('Unexpected controller error while trying to render.');
+        // }
         local.res.end('Unexpected controller error while trying to render.');
 
         if (typeof(local.next) != 'undefined') {
