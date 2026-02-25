@@ -1,4 +1,5 @@
-const fs = require('fs');
+const fs       = require('fs');
+const nodePath = require('path'); // CVE-2023-25345: used for template path boundary enforcement
 
 const lib             = require('./../../lib') || require.cache[require.resolve('./../../lib')];
 const Collection      = lib.Collection;
@@ -247,6 +248,23 @@ module.exports = function render(userData, displayToolbar, errOptions, deps) {
                 }
                 re = null;
             } else {
+                    // [CVE-2023-25345] When file starts with . / or \, it was used as-is,
+                    // bypassing the template root entirely and allowing traversal to arbitrary
+                    // filesystem locations (e.g. file = "../../etc/passwd").
+                    // We now validate that any such path resolves within the template root.
+                    // path = (!isRenderingCustomError && !/^(\.|\/|\\)/.test(file)) // replaced: CVE-2023-25345
+                    //     ? _(localOptions.template.html +'/'+ file)
+                    //     : file
+                    if ( /^(\.|\/|\\)/.test(file) && !isRenderingCustomError ) {
+                        var _fileTemplateRoot    = nodePath.resolve(localOptions.template.html);
+                        var _fileResolvedPath    = nodePath.resolve(_fileTemplateRoot, file);
+                        if ( !_fileResolvedPath.startsWith(_fileTemplateRoot + '/') ) {
+                            throw new Error('[CVE-2023-25345] Path traversal attempt blocked: ' + file);
+                        }
+                        _fileTemplateRoot = null;
+                        _fileResolvedPath = null;
+                    }
+                    // [/CVE-2023-25345]
                     path = (!isRenderingCustomError && !/^(\.|\/|\\)/.test(file))
                         ? _(localOptions.template.html +'/'+ file)
                         : file
@@ -321,6 +339,22 @@ module.exports = function render(userData, displayToolbar, errOptions, deps) {
                     }
                     newLayoutDirObj = null;
                     fd = fs.openSync(newLayoutFilename, 'w'); // Open file for writing
+
+                    // [CVE-2023-25345] The layoutPath is extracted from the raw {% extends "..." %}
+                    // directive in the template file. Without a boundary check, a template containing
+                    // {% extends "../../../etc/passwd" %} would cause readFileSync to read arbitrary
+                    // files outside the template root (directory traversal / arbitrary file read).
+                    // We resolve the path and confirm it stays within localOptions.template.html.
+                    var _layoutTemplateRoot     = nodePath.resolve(localOptions.template.html);
+                    var _layoutResolvedPath     = nodePath.resolve(_layoutTemplateRoot, layoutPath);
+                    if ( !_layoutResolvedPath.startsWith(_layoutTemplateRoot + '/') ) {
+                        throw new Error('[CVE-2023-25345] Path traversal attempt blocked in {% extends %}: ' + layoutPath);
+                    }
+                    _layoutTemplateRoot = null;
+                    _layoutResolvedPath = null;
+                    // [/CVE-2023-25345]
+
+                    // buffer = Buffer.from( fs.readFileSync(localOptions.template.html + '/'+ layoutPath) ); // replaced: CVE-2023-25345
                     buffer = Buffer.from( fs.readFileSync(localOptions.template.html + '/'+ layoutPath) );
                     fs.writeSync(fd, buffer, 0, buffer.length, 0); // Write the buffer
                     buffer = null;

@@ -14,6 +14,7 @@ You __cannot__ just install the framework with the `NPM` CLI. You will need to f
 | OS | Mac OS X or Linux |
 | Node js       |   Node js v16.x or later     |
 | NPM      |   v8.x or later     |
+| Changie | v v1.24.x or later |
 
 
 
