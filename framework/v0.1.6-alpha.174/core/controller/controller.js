@@ -2688,8 +2688,11 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
         }
 
 
-        var body = Buffer.from(options.queryData);
+        var body = options.queryData
+            ? Buffer.from(options.queryData)
+            : Buffer.alloc(0);
         options.headers['content-length'] = body.length;
+        options._body = body; // stash before deleting queryData so retries can reuse it
         delete options.queryData;
 
 
@@ -2846,6 +2849,7 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
                 cache.delete(sessKey);
                 if (!client.destroyed) client.destroy();
                 // Recursive call with isRetry = true to prevent infinite loops
+                options.queryData = options._body; // restore body for retry
                 return handleHTTP2ClientRequest(browser, options, callback, true);
             }
 
@@ -2875,7 +2879,7 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
             }
 
             // 3. English logging
-            console.error(`[HTTP2] Stream Error on ${options.method} ${options.path}:`);
+            console.error(`[HTTP2] Stream Error on ${options[':method']} ${options[':path']}:`);
             console.error(error.stack || error.message);
 
             // 4. Response handling
