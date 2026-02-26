@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'Fixed HTTP/2 response chunk string concatenation: chunks are now collected as Buffers and assembled with Buffer.concat() in the end handler, halving peak memory usage for large responses'
+time: 2026-02-26T02:50:39.625864+01:00

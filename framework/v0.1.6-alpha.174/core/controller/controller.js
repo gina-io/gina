@@ -2864,8 +2864,9 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
 
         let isFinished = false;
         let data = '';
+        const chunks = []; // collect Buffer chunks — avoids peak-memory doubling from string concat
         req.on('data', function onQueryDataChunk(chunk) {
-            data += chunk;
+            chunks.push(chunk);
         });
 
         req.on('error', function onQueryError(error) {
@@ -2947,6 +2948,9 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
             // 1. Prevention: Ensure the logic only runs once per request
             if (isFinished) return;
             isFinished = true;
+
+            // Assemble chunks into a single string — one allocation, one conversion
+            data = Buffer.concat(chunks).toString();
 
             // 2. Guard Clause: Handle empty responses or aborted streams
             if (!data || data.trim() === "") {
