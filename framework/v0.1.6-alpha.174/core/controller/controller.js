@@ -2606,6 +2606,9 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
 
         return {
             onComplete  : function(cb) {
+                // Remove any orphaned listener from a previous query call on this instance
+                // before registering the new one to prevent listener accumulation.
+                self.removeAllListeners('query#complete');
                 self.once('query#complete', function(err, data){
 
                     if ( typeof(data) == 'string' && /^(\{|%7B|\[{)|\[\]/.test(data) ) {
@@ -3175,6 +3178,9 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
         return {
             onComplete  : function(cb) {
 
+                // Remove any orphaned listener from a previous query call on this instance
+                // before registering the new one to prevent listener accumulation.
+                self.removeAllListeners('query#complete');
                 self.once('query#complete', function(err, data){
 
                     if ( typeof(data) == 'string' && /^(\{|%7B|\[{)|\[\]/.test(data) ) {
