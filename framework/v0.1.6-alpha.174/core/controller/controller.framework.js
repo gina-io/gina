@@ -6,20 +6,39 @@ var Controller  = require('./controller');
 
 /**
  * FrameworkController
- * */
+ *
+ * Internal controller used by the framework itself (e.g. built-in documentation route).
+ * Extends SuperController so it inherits the full request/response lifecycle.
+ *
+ * @class
+ * @constructor
+ * @this {FrameworkController}
+ * @extends Controller
+ *
+ * @param {object} options - Per-request options injected by the router
+ */
 function FrameworkController(options) {
     this.name = "FrameworkController";
     var self = this;
 
     /**
-     * Init default action
+     * Default init action — no-op placeholder.
      *
-     * @param {object} req
-     * @param {object} res
-     * @param {object} [next]
-     * */
+     * @memberof FrameworkController
+     * @param {object} req - Incoming request
+     * @param {object} res - Server response
+     * @returns {void}
+     */
     this.init = function(req, res) {}
 
+    /**
+     * Built-in documentation action.
+     *
+     * @memberof FrameworkController
+     * @param {object} req - Incoming request
+     * @param {object} res - Server response
+     * @returns {void}
+     */
     this.doc = function(req, res) {
         console.log('got doc action');
         var status = req.get.status || 'ok';
@@ -31,6 +50,13 @@ function FrameworkController(options) {
         render(data)
     }
 
+    /**
+     * Render the documentation page.
+     *
+     * @inner
+     * @param {object} data - Template data
+     * @returns {void}
+     */
     var render = function(data) {
         //var views = self.getConfig('views');// ????
         var dir = getPath('gina').documentation;

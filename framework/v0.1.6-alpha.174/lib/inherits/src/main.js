@@ -8,22 +8,46 @@
  */
 
 /**
- * @class Inherits
+ * @module lib/inherits
+ * @description Prototype-chain inheritance helper compatible with Node.js built-ins
+ * such as EventEmitter. Works as a CommonJS module and as an AMD module.
+ *
+ * Usage: `ChildClass = inherits(ChildClass, ParentClass)`
+ *
+ * The returned constructor calls `Parent.apply(this, args)` then
+ * `Child.apply(this, args)` so both constructors run on every `new` call.
+ *
+ * @example
+ * var inherits = require('lib/inherits');
+ * function Dog(name) { this.name = name; }
+ * Dog = inherits(Dog, EventEmitter);
+ * new Dog('Rex') instanceof EventEmitter // true
+ */
+
+/**
+ * Inheritance factory — returns the composed constructor `z`.
+ * Exported as `inherits(a, b)` via `module.exports = Inherits()`.
+ *
+ * @function inherits
+ * @param {function} a - Child constructor
+ * @param {function} b - Parent constructor (e.g. `EventEmitter`)
+ * @returns {function} Composed constructor that inherits `b`'s prototype
+ * @throws {Error} When either `a` or `b` is undefined
  *
  * @package gina.lib
- * @namesame gina.lib.inherits
- * @author Rhinostone <contact@gina.io>
- *
- * @api Public
- * */
+ * @author  Rhinostone <contact@gina.io>
+ * @api     Public
+ */
 function Inherits(a, b) {
 
     /**
-     * init
-     * @constructor
-     * @param {class} child class
-     * @param {class} super class
-     * */
+     * Build and return the composed constructor.
+     *
+     * @inner
+     * @param {function} a - Child constructor
+     * @param {function} b - Parent constructor
+     * @returns {function} Composed constructor `z`
+     */
     var init = function(a, b) {
         var err = check(a, b);
 

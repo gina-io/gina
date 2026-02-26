@@ -11,6 +11,28 @@ var fs          = require('fs');
 var helpers = require('./../helpers');
 var console = require('./logger');
 
+/**
+ * @module lib/session-store
+ * @description Thin factory that loads the connector-specific session store
+ * implementation from `<connectorsPath>/<connector>/lib/session-store.js`.
+ * Wraps the underlying `express-session` compatible store so the framework
+ * can swap session backends without changing application code.
+ *
+ * Do not call this directly — configure the session backend in
+ * `config/connectors.json` and let the framework instantiate it.
+ */
+
+/**
+ * Load and return the connector-specific session store.
+ *
+ * @class SessionStore
+ * @constructor
+ *
+ * @param {object} session        - Session configuration object (`session.name` must match a connector key)
+ * @param {string} session.name   - Connector name (e.g. `'couchbase'`)
+ * @returns {object} Connector session-store instance (express-session compatible)
+ * @throws {Error} When the connector or its session-store file cannot be found
+ */
 function SessionStore(session) {
 
     var ctx                 = getContext()

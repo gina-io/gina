@@ -1,3 +1,8 @@
+/**
+ * @module core/controller
+ * @description Entry point for the controller layer. Re-exports SuperController,
+ * cache-busting the module in dev mode so hot-reload works without a server restart.
+ */
 var lib = require('../../lib') || require.cache[require.resolve('../../lib')];
 var inherits = lib.inherits;
 var helpers = lib.helpers;

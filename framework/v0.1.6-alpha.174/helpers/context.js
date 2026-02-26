@@ -14,10 +14,23 @@ const {execSync}    = require('child_process');
 /**
  * ContextHelper
  *
+ * Singleton helper that manages the global context registry (paths, env vars,
+ * user-defined key/value pairs). Injected globally as `getContext`/`setContext`
+ * by `gna.js` — do not require this file directly.
+ *
+ * @class
+ * @constructor
+ * @this {ContextHelper}
+ *
+ * @param {object} [contexts]        - Initial context map; defaults to `{ paths: {} }`
+ * @param {object} [contexts.paths]  - Named path registry
+ *
  * @package     Gina.Lib.Helpers
  * @author      Rhinostone <contact@gina.io>
  * @api public
- * */
+ *
+ * @see gna.js
+ */
 function ContextHelper(contexts) {
 
     var merge   = require('./../lib/merge');

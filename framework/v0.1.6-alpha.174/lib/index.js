@@ -7,7 +7,10 @@
  */
 
 /**
- * Lib Class
+ * @module lib
+ * @description Central registry that loads and exposes every framework library.
+ * Assigned to the global `lib` variable on first require so all framework code
+ * can access `lib.merge`, `lib.Collection`, etc. without an explicit `require`.
  *
  * @package    gina.framework
  * @namespace  lib
@@ -16,6 +19,13 @@
 
 //var merge = require('./merge');
 
+/**
+ * Library registry constructor — returns a plain object `self`, not `this`.
+ * Consumed via `lib = new Lib()` in `gna.js`.
+ *
+ * @class Lib
+ * @constructor
+ */
 function Lib() {
 
 
@@ -56,11 +66,14 @@ function Lib() {
     };
 
     /**
-     * Clean files on directory read
-     * Mac os Hack
-     * NB.: use once in the server.js
-     * TODO - remove it...
-     **/
+     * Strip macOS dot-files (`.DS_Store`, `._*`, etc.) from a directory listing.
+     *
+     * @memberof module:lib
+     * @param {string[]} files - Array of filenames from `fs.readdirSync`
+     * @returns {string[]} Filtered array
+     *
+     * @deprecated Use once in `server.js`; TODO — remove entirely
+     */
     self.cleanFiles = function(files){
         for(var f=0; f< files.length; f++){
             if(files[f].substring(0,1) == '.')
@@ -76,7 +89,23 @@ function Lib() {
 // Making it global
 lib = new Lib();
 
-// Needed for by the daemon
+/**
+ * Bootstrap the command dispatcher when running inside the daemon process.
+ * Sets Gina paths, seeds CLI options from the package manifest, and calls
+ * `lib.cmd.onExec()` to start processing commands.
+ *
+ * @memberof module:lib
+ * @param {object}  opt                    - Bootstrap options
+ * @param {Array}   opt.argv               - `process.argv`-style argument array
+ * @param {string}  opt.ginaPath           - Absolute path to gina root
+ * @param {string}  opt.frameworkPath      - Absolute path to the framework version dir
+ * @param {object}  opt.pack               - Package manifest (`version`, `copyright`)
+ * @param {string}  opt.task               - CLI task name
+ * @param {string}  opt.homedir            - User home directory
+ * @param {object}  opt.client             - Socket client reference
+ * @param {boolean} [opt.isFromFramework]  - `true` when invoked from framework internals
+ * @returns {void}
+ */
 lib.cmd.load = function(opt){
 
     process.argv = opt.argv;

@@ -18,6 +18,16 @@ var self                = null
     , cachePath         = null
 ;
 
+/**
+ * Write the rendered HTML to the cache store (memory or file system).
+ * No-op when caching is disabled or the route has no `cache` setting.
+ *
+ * @inner
+ * @param {string} bundle      - Bundle name (used as cache-key namespace)
+ * @param {object} opt         - Server cache configuration (`opt.path`, `opt.ttl`)
+ * @param {string} htmlContent - Compiled HTML string to cache
+ * @returns {void}
+ */
 function writeCache(bundle, opt, htmlContent) {
     if (
         typeof(local.req.routing.cache) == 'undefined'
@@ -102,12 +112,20 @@ function writeCache(bundle, opt, htmlContent) {
  *  N.B.: Filters can be extended through your `<project>/src/<bundle>/templates/swig/filters.js`
  *
  *
- * @param {object} userData
- * @param {boolean} [displayToolbar]
- * @param {object} [errOptions]
- *
+ * @param {object}   userData              - Data merged into the template context
+ * @param {boolean}  [displayToolbar]      - Show the Gina dev toolbar when `true`
+ * @param {object}   [errOptions]          - Override `local.options` when rendering a custom error page
+ * @param {object}   deps                  - Inherited refs from SuperController
+ * @param {object}   deps.self             - The SuperController instance
+ * @param {object}   deps.local            - Per-request closure (`req`, `res`, `next`, `options`)
+ * @param {function} deps.getData          - Returns the merged template data object
+ * @param {function} deps.hasViews         - Returns `true` when the route has a template configured
+ * @param {function} deps.setResources     - Injects CSS/JS resource tags into the template data
+ * @param {object}   deps.swig             - Swig template engine instance
+ * @param {object}   deps.SwigFilters      - Custom Swig filter registry
+ * @param {function} deps.headersSent      - Returns `true` when response headers are already sent
  * @returns {void}
- * */
+ */
 module.exports = function render(userData, displayToolbar, errOptions, deps) {
 
     // Inherited from controller

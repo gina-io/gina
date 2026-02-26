@@ -1,4 +1,25 @@
 'use strict';
+/**
+ * @module lib/merge
+ * @description Deep-merge utility. Exported as a single function `merge(target, source [, override])`.
+ * Works in Node.js (CommonJS) and browser (AMD / GFF) contexts.
+ *
+ * - Objects are merged recursively.
+ * - Arrays and primitives from `source` overwrite `target` (unless `override=false`).
+ * - Pass `true` as the last argument to force overwrite of existing keys.
+ *
+ * @example
+ * var merge = require('lib/merge');
+ * var result = merge({ a: 1 }, { b: 2 }); // { a: 1, b: 2 }
+ * merge({ a: 1 }, { a: 9 }, false); // { a: 1 }  — target wins when override=false
+ */
+
+/**
+ * Merge factory — returns the `browse` function as the public API.
+ * `module.exports = Merge()` exports `browse` directly.
+ *
+ * @private
+ */
 function Merge() {
 
     var newTarget           = []
@@ -8,13 +29,22 @@ function Merge() {
 
 
     /**
+     * Deep-merge `source` into `target` and return the merged result.
+     * This function is exported directly as `module.exports`.
      *
-     * @param {object} target - Target object
-     * @param {object} source - Source object
-     * @param {boolean} [override] - Override when copying
+     * @memberof module:lib/merge
+     * @function merge
      *
-     * @returns {object} [result]
-     * */
+     * @param {object|Array} target    - Target (base) object or array
+     * @param {object|Array} source    - Source object or array to merge into target
+     * @param {boolean}      [override=true] - When `false`, existing target keys are preserved
+     * @returns {object|Array} Merged result (mutates and returns `target`)
+     *
+     * @example
+     * merge({ a: 1 }, { b: 2 })          // { a: 1, b: 2 }
+     * merge({ a: 1 }, { a: 9 }, false)   // { a: 1 }
+     * merge([1, 2],   [3, 4])            // [3, 4]
+     */
     var browse = function (_target, _source) {
 
         var target = _target, source = _source;

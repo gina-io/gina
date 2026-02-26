@@ -21,23 +21,30 @@ if ( typeof(module) !== 'undefined' && module.exports) {
     } catch (err) {}
 }
 /**
- * Domain
- * Credits & thanks to the Mozilla Community :)
- * https://publicsuffix.org/
+ * @module lib/domain
+ * @description Public Suffix List (PSL) based domain parser.
+ * Credits & thanks to the Mozilla Community — https://publicsuffix.org/
+ * Works in both Node.js (server) and browser (GFF) contexts.
  *
- * This lib is using Fetch API (NodeJS >= 18.0.0)
- * See: https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch#browser_compatibility
+ * This lib uses Fetch API (Node.js ≥ 18.0.0).
+ * See: https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch
  *
- * TODO - Write a cron to periodically check updates from `https://publicsuffix.org/`
+ * TODO - Write a cron to periodically pull updates from `https://publicsuffix.org/`
  * TODO - Finalize AMD module support
- * TODO - Replace execSync of `curl` to a NodeJS based synchronous request
+ * TODO - Replace execSync of `curl` with a Node.js-native synchronous request
+ */
+
+/**
+ * Public Suffix List domain parser.
  *
- * @param {string} [options] - {
- *          // `.dat` configuration filename
- *          filename: "./dist/public_suffix_list.dat",
- *          // trigger PSL update pulling
- *          isUpdating: false
- *      }
+ * @class Domain
+ * @constructor
+ * @this {Domain}
+ *
+ * @param {object|function} [options]              - Options object, or a callback (shifts arguments)
+ * @param {string}  [options.filename]             - Path to the `.dat` file (default: `../dist/public_suffix_list.dat`)
+ * @param {boolean} [options.isUpdating=false]     - Trigger PSL update on instantiation
+ * @param {function} [cb]                          - Ready callback `cb(err)`
  */
 function Domain(options, cb) {
 

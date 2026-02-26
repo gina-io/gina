@@ -3,9 +3,32 @@ if ( typeof(module) !== 'undefined' && module.exports ) {
     const lib = require('../../index');
 }
 
+/**
+ * @module lib/cache
+ * @description In-process key/value cache backed by a `Map`. Supports optional
+ * TTL-based auto-expiry, event-driven invalidation, and fs-cached entries.
+ * Works in Node.js (CommonJS) and browser (AMD / GFF) contexts.
+ *
+ * Do not share a single `Cache` instance across requests — call `cache.from()`
+ * to point a new instance at the server's shared Map.
+ *
+ * @example
+ * var cache = new Cache();
+ * cache.from(serverInstance._cached);   // attach to server-level Map
+ * cache.set('key', { value: 'v', ttl: 60 });
+ * cache.get('key');                      // { value: 'v', ttl: 60, createdAt: … }
+ */
+
 var cache = new Map();
 
 
+/**
+ * In-process cache instance factory.
+ * Returns an `instance` object (not `this`) — usage: `var c = new Cache()`.
+ *
+ * @class Cache
+ * @constructor
+ */
 function Cache() {
     var isGFFCtx        = ( ( typeof(module) !== 'undefined' ) && module.exports ) ? false : true;
     var merge           = (isGFFCtx) ? require('lib/merge') : require('../../../lib/merge');
@@ -20,19 +43,26 @@ function Cache() {
     var importedMapInstance = null;
 
     /**
-     * Import exixting cache
-     * @param {array} initialCache
+     * Attach this instance to an existing shared `Map` (e.g. `serverInstance._cached`).
+     * All subsequent reads/writes will operate on that map.
+     *
+     * @memberof Cache
+     * @param {Map} initialCache - Pre-existing cache Map to adopt
+     * @returns {void}
      */
     instance['from'] = function(initialCache) {
         cache = importedMapInstance = initialCache;
     }
 
     /**
-     * Set entry by key
+     * Store a value under `key`. When `value.ttl` is set (seconds), the entry
+     * is automatically deleted after that duration.
      *
-     * @param {string} key
-     * @param {string|object} value
-     * @param {callback} cleanupFn
+     * @memberof Cache
+     * @param {string}        key              - Cache key
+     * @param {string|object} value            - Value to store; objects may include `ttl` (seconds)
+     * @param {function|null} [cleanupFn=null] - Called before the entry is evicted or replaced
+     * @returns {void}
      */
     instance['set'] = function(key, value, cleanupFn = null) {
         const existing = cache.get(key);
@@ -91,10 +121,11 @@ function Cache() {
     }
 
     /**
-     * Check if cache has entry by key
+     * Returns `true` when the cache holds an entry for `key`.
      *
+     * @memberof Cache
      * @param {string} key
-     * @returns
+     * @returns {boolean}
      */
     instance['has'] = function(key) {
         return cache.has(key);
@@ -147,9 +178,10 @@ function Cache() {
     }
 
     /**
-     * Get cache stats
+     * Returns the number of entries currently in the cache.
      *
-     * @return stats
+     * @memberof Cache
+     * @returns {number} Entry count
      */
     instance['size'] = function() {
         return cache.size;
@@ -179,9 +211,14 @@ function Cache() {
 
 
     /**
-     * Invalidate cache by event
+     * Register cache invalidation rules: when any of `cacheEvents` is emitted,
+     * the entry at `cacheKey` is automatically deleted.
      *
-     * @return stats
+     * @memberof Cache
+     * @param {string}   cacheKey    - Key to watch
+     * @param {string[]} cacheEvents - Event names that trigger invalidation
+     * @param {function} [cb]        - Optional callback after registration
+     * @returns {void}
      */
     instance['setEvents'] = function(cacheKey, cacheEvents, cb) {
         if ( typeof(cache._events) == 'undefined' ) {
@@ -217,9 +254,12 @@ function Cache() {
     }
 
     /**
-     * Invalidate cache by event
+     * Manually trigger invalidation for all cache keys registered to `event`.
      *
-     * @return stats
+     * @memberof Cache
+     * @param {string} event - Event name
+     * @param {*}      [data] - Arbitrary event payload (passed to the handler)
+     * @returns {void}
      */
     instance['invalidateByEvent'] = function(event, data) {
         // console.debug('[cache][invalidateByEvent] ',event, data);
