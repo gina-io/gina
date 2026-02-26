@@ -2003,7 +2003,7 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
             'content-type': 'application/json',
             'content-length': local.query.data.length
         },
-        // Will try x3 (0, 1, 2)
+        // Will try x3 (0, 1, 2). Hard ceiling is 10 (see retry handler) to bound timer accumulation under sustained failure.
         maxRetry            : 2,
         // Socket inactivity timeout in milliseconds
         timeout             : 10000,
@@ -2562,7 +2562,7 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
         req.on('error', function onError(err) {
 
             // If conn is down (ECONNRESET, ETIMEDOUT),retry
-            if (retryCount < options.maxRetry) {
+            if (retryCount < Math.min(options.maxRetry, 10)) {
                 const delay = 500 * (retryCount + 1); // Délai progressif
                 return setTimeout(() => handleHTTP1ClientRequest(browser, options, callback, retryCount + 1), delay);
             }
