@@ -1777,7 +1777,8 @@ function SuperController(options) {
                 const req = browser.get(requestOptions, (res) => {
                     // Vérification du status HTTP (optionnel mais conseillé)
                     if (res.statusCode >= 400) {
-                        reject(new Error(`Server responded with ${res.statusCode}`));
+                        res.destroy(); // release the undrained IncomingMessage — nobody will consume it
+                        return reject(new Error(`Server responded with ${res.statusCode}`));
                     }
                     resolve(res);
                 });
