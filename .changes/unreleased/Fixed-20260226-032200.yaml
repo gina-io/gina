@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'Fixed req/res held in controller closure: all response-terminal exit paths in controller.js, controller.render-json.js, and controller.render-swig.js now explicitly null local.req/res/next immediately after the response is sent'
+time: 2026-02-26T03:22:00.000000+01:00

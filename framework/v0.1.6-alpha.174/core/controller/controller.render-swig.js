@@ -698,9 +698,12 @@ module.exports = function render(userData, displayToolbar, errOptions, deps) {
                 layout = null;
             }
 
-            if ( typeof(local.next) != 'undefined' ) {
-                return local.next();
-            }
+            // Release per-request refs — save next first since local.next is used directly here.
+            var _next = ( typeof(local.next) != 'undefined' ) ? local.next : null;
+            local.req = null;
+            local.res = null;
+            local.next = null;
+            if ( _next ) return _next();
             return;
         } // EO /^true$/i.test(self.serverInstance._cacheIsEnabled)
 
@@ -1108,9 +1111,12 @@ module.exports = function render(userData, displayToolbar, errOptions, deps) {
 
             // console.info(local.req.method +' ['+local.res.statusCode +'] '+ local.req.url);
 
-            if ( typeof(local.next) != 'undefined' ) {
-                return local.next();
-            }
+            // Release per-request refs — save next first since local.next is used directly here.
+            var _next = ( typeof(local.next) != 'undefined' ) ? local.next : null;
+            local.req = null;
+            local.res = null;
+            local.next = null;
+            if ( _next ) return _next();
             return;
         }
 
@@ -1131,10 +1137,12 @@ module.exports = function render(userData, displayToolbar, errOptions, deps) {
         // }
         local.res.end('Unexpected controller error while trying to render.');
 
-        if (typeof(local.next) != 'undefined') {
-            return local.next();
-        }
-
+        // Release per-request refs — save next first since local.next is used directly here.
+        var _next = ( typeof(local.next) != 'undefined' ) ? local.next : null;
+        local.req = null;
+        local.res = null;
+        local.next = null;
+        if ( _next ) return _next();
         return;
 
     } catch (err) {

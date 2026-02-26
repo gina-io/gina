@@ -214,6 +214,10 @@ module.exports = function renderJSON(jsonObj, deps) {
 
             // force completion
             // response.headersSent = true;
+            // Release per-request refs — response/request/next are local copies so .end() below is unaffected.
+            local.req = null;
+            local.res = null;
+            local.next = null;
             return response.end(data);
         }
         // normal case
@@ -257,12 +261,21 @@ module.exports = function renderJSON(jsonObj, deps) {
                 }
                 response.end(data);
                 response.headersSent = true;
+                // Release per-request refs — response is a local copy so the .end() above is unaffected.
+                local.req = null;
+                local.res = null;
+                local.next = null;
                 return;
             } catch(err) {
                 // Ignoring warning
                 //console.warn(err);
             }
         }
+        // Release per-request refs — next is a local copy so the call below is unaffected.
+        local.req = null;
+        local.res = null;
+        local.next = null;
+
         if ( next ) {
             return next()
         }

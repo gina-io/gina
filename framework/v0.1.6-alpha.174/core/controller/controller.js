@@ -160,6 +160,10 @@ function SuperController(options) {
         if (/^true$/i.test(isGlobalModeNeeded) ) {
             // all but local.options becasue of `self.requireController('namespace', self._options)` calls
             // local = null;
+            // Release per-request refs — controller is a singleton; local.req/res persist until overwritten otherwise.
+            local.req = null;
+            local.res = null;
+            local.next = null;
         }
     }
 
@@ -1518,10 +1522,13 @@ function SuperController(options) {
 
                 console.info(local.req.method.toUpperCase() +' ['+code+'] '+ path);
 
+                // Release per-request refs before exiting — next is already a local copy.
+                local.req = null;
+                local.res = null;
+                local.next = null;
+
                 if ( typeof(next) != 'undefined' )
                     next();
-                else
-                    return;
             }
 
         }
@@ -4092,6 +4099,10 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
 
                 // console.error('[ BUNDLE ][ '+ bundleConf.bundle +' ][ Controller ] '+ req.method +' ['+res.statusCode +'] '+ req.url +'\n'+ errorObject);
                 console.error('[ BUNDLE ][ '+ bundleConf.bundle +' ][ Controller ] '+ req.method +' ['+res.statusCode +'] '+ req.url +'\n'+ errOutput);
+                // Release per-request refs — req/res are local copies so res.end() below is unaffected.
+                local.req = null;
+                local.res = null;
+                local.next = null;
                 return res.end(errOutput);
             } else {
 
