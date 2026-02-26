@@ -3,16 +3,27 @@ const {spawn}       = require('child_process');
 const {execSync}    = require('child_process');
 var CmdHelper       = require('./../helper');
 var console        = lib.logger;
-
 /**
- * Framework link
+ * @module gina/lib/cmd/framework/link
+ */
+/**
+ * Creates a symlink from the globally installed `gina` package into the project's
+ * `node_modules/gina`. Requires Gina to be installed globally (`GINA_GLOBAL_MODE=true`).
  *
- * e.g.
+ * Usage:
  *  gina framework:link @<project>
- *  or
  *  gina link @<project>
+ *  gina link @<project> --prefix=<path>
  *
- * */
+ * @class Link
+ * @constructor
+ * @param {object} opt - Parsed command-line options
+ * @param {object} opt.client - Socket client for terminal output
+ * @param {string[]} opt.argv - Full argv array
+ * @param {number} [opt.debugPort] - Node.js inspector port
+ * @param {boolean} [opt.debugBrkEnabled] - True when --inspect-brk is active
+ * @param {object} cmd - The cmd dispatcher object (lib/cmd/index.js)
+ */
  function Link(opt, cmd) {
 
     var self    = {
@@ -20,6 +31,13 @@ var console        = lib.logger;
         prefix: null
     };
 
+    /**
+     * Guards against non-global installs, imports CmdHelper, and delegates to link().
+     * @inner
+     * @private
+     * @param {object} opt
+     * @param {object} cmd
+     */
     var init = function(opt, cmd) {
         var err = false;
         if ( !/^true$/i.test(GINA_GLOBAL_MODE) ) {
@@ -51,6 +69,13 @@ var console        = lib.logger;
     }
 
 
+    /**
+     * Creates or updates the gina symlink inside the project's node_modules directory.
+     * @inner
+     * @private
+     * @param {object} opt
+     * @param {object} cmd
+     */
     var link = function(opt, cmd) {
         console.debug('Linking framework');
         var err = null, folder = new _(self.projectLocation, true);

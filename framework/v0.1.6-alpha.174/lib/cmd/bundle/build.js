@@ -4,9 +4,27 @@ var CmdHelper   = require('./../helper');
 var console     = lib.logger;
 
 /**
- * Build a bundle.
- * To debug this part: gina bundle:build <bundle> @<project> --env=prod --scope=local --inspect-gina
- * */
+ * @module gina/lib/cmd/bundle/build
+ */
+/**
+ * Builds a bundle's release artefacts for a given project, scope, and env.
+ * Runs optional user-defined `prepare` and `postbuild` hook scripts defined
+ * in `manifest.json#buildScripts`.
+ *
+ * Usage:
+ *  gina bundle:build <bundle_name> @<project_name> --env=prod --scope=local
+ *
+ * To debug: gina bundle:build <bundle> @<project> --env=prod --scope=local --inspect-gina
+ *
+ * @class Build
+ * @constructor
+ * @param {object} opt - Parsed command-line options
+ * @param {object} opt.client - Socket client for terminal output
+ * @param {string[]} opt.argv - Full argv array
+ * @param {number} [opt.debugPort] - Node.js inspector port
+ * @param {boolean} [opt.debugBrkEnabled] - True when --inspect-brk is active
+ * @param {object} cmd - The cmd dispatcher object (lib/cmd/index.js)
+ */
 function Build(opt, cmd) {
     var self    = {}
         , local     = {
@@ -18,6 +36,12 @@ function Build(opt, cmd) {
     ;
     var globalBuildScripts = null;
 
+    /**
+     * Validates options, runs the optional prepare script, and starts the build.
+     *
+     * @inner
+     * @private
+     */
     var init = function() {
 
         // import CMD helpers
@@ -89,6 +113,15 @@ function Build(opt, cmd) {
     };
 
 
+    /**
+     * Iterates bundles; updates manifest and delegates to buildEnv per scope/env.
+     * Runs the postbuild hook after the last bundle completes.
+     *
+     * @inner
+     * @private
+     * @param {number} b - Bundle index in self.bundles
+     * @param {number} [e] - Env index (reset to 0 internally)
+     */
     var buildBundle = function(b, e) {
         if ( b > self.bundles.length-1 ) {
             // User Post build
@@ -169,6 +202,16 @@ function Build(opt, cmd) {
 
     }
 
+    /**
+     * Copies bundle source to a release path for one scope/env combination.
+     * Symlinks the project node_modules into the release directory.
+     *
+     * @inner
+     * @private
+     * @param {string} scope - Scope name
+     * @param {number} b - Bundle index
+     * @param {number} e - Env index in local.envs
+     */
     var buildEnv = function(scope, b, e) {
         // For each env
         if ( e > local.envs.length-1 ) {
@@ -214,6 +257,15 @@ function Build(opt, cmd) {
         })
     }
 
+    /**
+     * Prints optional output and exits the process.
+     *
+     * @inner
+     * @private
+     * @param {string|Error} [output] - Message or error to display
+     * @param {string} [type] - console method to call (e.g. 'error')
+     * @param {boolean} [messageOnly] - When true, print only the message (not the stack)
+     */
     var end = function (output, type, messageOnly) {
 
 

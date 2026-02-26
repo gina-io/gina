@@ -4,19 +4,37 @@ const {spawn}       = require('child_process');
 const {execSync}    = require('child_process');
 var CmdHelper       = require('./../helper');
 var console         = lib.logger;
-
 /**
- * Framework link node_modules
+ * @module gina/lib/cmd/framework/link-node-modules
+ */
+/**
+ * Symlinks the project's `node_modules` directory to the project home directory
+ * (`~/<project>/lib/node_modules`), allowing node_modules to be shared across
+ * different scopes (e.g. Docker and localhost).
  *
- * e.g.
+ * Usage:
  *  gina framework:link-node-modules @<project>
- *  or
  *  gina link-node-modules @<project>
  *
- * */
+ * @class LinkNodeModules
+ * @constructor
+ * @param {object} opt - Parsed command-line options
+ * @param {object} opt.client - Socket client for terminal output
+ * @param {string[]} opt.argv - Full argv array
+ * @param {number} [opt.debugPort] - Node.js inspector port
+ * @param {boolean} [opt.debugBrkEnabled] - True when --inspect-brk is active
+ * @param {object} cmd - The cmd dispatcher object (lib/cmd/index.js)
+ */
  function LinkNodeModules(opt, cmd) {
 
     var self    = {};
+    /**
+     * Guards against non-global installs, imports CmdHelper, and delegates to linkLocalNodeModules().
+     * @inner
+     * @private
+     * @param {object} opt
+     * @param {object} cmd
+     */
     var init = function(opt, cmd) {
 
         var err = false;
@@ -58,6 +76,13 @@ var console         = lib.logger;
         linkLocalNodeModules(opt, cmd);
     }
 
+    /**
+     * Creates or validates the node_modules symlink from project path to project homedir.
+     * @inner
+     * @private
+     * @param {object} opt
+     * @param {object} cmd
+     */
     var linkLocalNodeModules = function(opt, cmd) {
         var projectObj  = self.projects[ self.projectName ]
             err         = null

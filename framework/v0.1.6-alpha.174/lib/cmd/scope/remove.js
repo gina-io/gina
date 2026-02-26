@@ -3,12 +3,35 @@ var CmdHelper   = require('./../helper');
 var console     = lib.logger;
 
 /**
- * Remove existing scope
+ * @module gina/lib/cmd/scope/remove
+ */
+/**
+ * Removes a scope from a project's scope list in ~/.gina/projects.json.
+ * Refuses to remove the default, local, or production scope.
+ *
+ * Usage:
+ *  gina scope:rm <scope> @<project>
+ *
  * TODO - Prompt for confirmation: "This will remove [ scope ] for the whole project. Proceed ? Y/n: "
- * */
+ *
+ * @class Remove
+ * @constructor
+ * @param {object} opt - Parsed command-line options
+ * @param {object} opt.client - Socket client for terminal output
+ * @param {string[]} opt.argv - Full argv array
+ * @param {number} [opt.debugPort] - Node.js inspector port
+ * @param {boolean} [opt.debugBrkEnabled] - True when --inspect-brk is active
+ * @param {object} cmd - The cmd dispatcher object (lib/cmd/index.js)
+ */
 function Remove(opt, cmd) {
     var self = {}, local = { scope: null };
 
+    /**
+     * Validates argv, resolves the project name, and delegates to removeScope.
+     *
+     * @inner
+     * @private
+     */
     var init = function() {
         // import CMD helpers
         new CmdHelper(self, opt.client, { port: opt.debugPort, brkEnabled: opt.debugBrkEnabled });
@@ -50,6 +73,15 @@ function Remove(opt, cmd) {
         }
     }
 
+    /**
+     * Removes the scope from the project's scopes array in projects.json.
+     * Refuses to remove the default, local, or production scope.
+     *
+     * @inner
+     * @private
+     * @param {object} projects - Parsed contents of ~/.gina/projects.json
+     * @param {string} target - Absolute path to projects.json
+     */
     var removeScope = function(projects, target) {
         var err = null, scope = local.scope;
         // default `local scope` or default `production scope` cannot be removed
@@ -82,6 +114,13 @@ function Remove(opt, cmd) {
         end('Scope [ '+scope+' ] removed with success');
     };
 
+    /**
+     * Removes the scope's release entries from the project manifest and writes it.
+     * Currently unused — commented out at the call site.
+     *
+     * @inner
+     * @private
+     */
     var updateManifest = function() {
         var scope = local.scope;
         var projectData    = JSON.clone(self.projectData);
@@ -96,6 +135,15 @@ function Remove(opt, cmd) {
         lib.generator.createFileFromDataSync(projectData, self.projectManifestPath);
     }
 
+    /**
+     * Prints optional output and exits the process.
+     *
+     * @inner
+     * @private
+     * @param {string|Error} [output] - Message or Error to display
+     * @param {string} [type] - console method to call (e.g. 'error', 'warn')
+     * @param {boolean} [messageOnly] - When true, print only the message, not the stack
+     */
     var end = function (output, type, messageOnly) {
         var err = false;
         if ( typeof(output) != 'undefined') {

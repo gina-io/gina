@@ -2,12 +2,36 @@ var fs          = require('fs');
 var CmdHelper   = require('./../helper');
 var console     = lib.logger;
 /**
- * List all environments
- * TODO - add selected icon (green check) for selected env
- * */
+ * @module gina/lib/cmd/scope/list
+ */
+/**
+ * Lists scopes for a given project or all projects.
+ * Marks the currently selected default scope with `[ * ]`.
+ *
+ * Usage:
+ *  gina scope:list [@<project_name>]
+ *  gina scope:list --all
+ *
+ * TODO - add selected icon (green check) for selected scope
+ *
+ * @class List
+ * @constructor
+ * @param {object} opt - Parsed command-line options
+ * @param {object} opt.client - Socket client for terminal output
+ * @param {string[]} opt.argv - Full argv array
+ * @param {number} [opt.debugPort] - Node.js inspector port
+ * @param {boolean} [opt.debugBrkEnabled] - True when --inspect-brk is active
+ * @param {object} cmd - The cmd dispatcher object (lib/cmd/index.js)
+ */
 function List(opt, cmd){
     var self = {};
 
+    /**
+     * Loads projects, resolves project name, and delegates to listAll or listProjectOnly.
+     *
+     * @inner
+     * @private
+     */
     var init = function(){
 
         // import CMD helpers
@@ -45,6 +69,14 @@ function List(opt, cmd){
         }
     }
 
+    /**
+     * Returns true when a project name exists in the projects registry.
+     *
+     * @inner
+     * @private
+     * @param {string} name - Project name to look up
+     * @returns {boolean}
+     */
     var isDefined = function(name) {
         if ( typeof(self.projects[name]) != 'undefined' ) {
             return true
@@ -52,6 +84,15 @@ function List(opt, cmd){
         return false
     }
 
+    /**
+     * Strips a leading `@` from the name token, stores it in self.name,
+     * and validates it against the allowed pattern.
+     *
+     * @inner
+     * @private
+     * @param {string} name - Raw project name token (may start with `@`)
+     * @returns {boolean}
+     */
     var isValidName = function(name) {
         if (name == undefined) return false;
 
@@ -60,6 +101,12 @@ function List(opt, cmd){
         return patt.test(self.name)
     }
 
+    /**
+     * Lists scopes for every registered project.
+     *
+     * @inner
+     * @private
+     */
     var listAll = function() {
         var projects = self.projects
             , list = []
@@ -94,6 +141,12 @@ function List(opt, cmd){
         end();
     }
 
+    /**
+     * Lists scopes for the resolved project only.
+     *
+     * @inner
+     * @private
+     */
     var listProjectOnly = function (){
         var projects    = self.projects
             , p         = self.name
@@ -121,6 +174,15 @@ function List(opt, cmd){
         end();
     };
 
+    /**
+     * Prints optional output and exits the process.
+     *
+     * @inner
+     * @private
+     * @param {string|Error} [output] - Message or Error to display
+     * @param {string} [type] - console method to call (e.g. 'error', 'warn')
+     * @param {boolean} [messageOnly] - When true, print only the message, not the stack
+     */
     var end = function (output, type, messageOnly) {
         var err = false;
         if ( typeof(output) != 'undefined') {

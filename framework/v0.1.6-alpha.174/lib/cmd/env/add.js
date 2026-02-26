@@ -5,18 +5,36 @@ var console     = lib.logger;
 var scan        = require('../port/inc/scan.js');
 
 /**
- * Add new environment for a given project
+ * @module gina/lib/cmd/env/add
+ */
+/**
+ * Adds a new environment for a given project or registers it globally.
+ * Scans for available ports when bundles are present.
  *
  * Usage:
- * gina env:add <env> @<project>
- * or to register a new one for all your projects
- * gina env:add <env>
+ *  gina env:add <env> @<project>
+ *  gina env:add <env>
  *
  * TODO - updateManifest()
- * */
+ *
+ * @class Add
+ * @constructor
+ * @param {object} opt - Parsed command-line options
+ * @param {object} opt.client - Socket client for terminal output
+ * @param {string[]} opt.argv - Full argv array
+ * @param {number} [opt.debugPort] - Node.js inspector port
+ * @param {boolean} [opt.debugBrkEnabled] - True when --inspect-brk is active
+ * @param {object} cmd - The cmd dispatcher object (lib/cmd/index.js)
+ */
 function Add(opt, cmd) {
     var self = {}, local = {};
 
+    /**
+     * Parses argv for env names and project token, then dispatches to saveEnvs.
+     *
+     * @inner
+     * @private
+     */
     var init = function() {
         // import CMD helpers
         new CmdHelper(self, opt.client, { port: opt.debugPort, brkEnabled: opt.debugBrkEnabled });
@@ -60,6 +78,14 @@ function Add(opt, cmd) {
     }
 
 
+    /**
+     * Dispatches to addEnvToProject (project-scoped) or registerEnv (global),
+     * depending on whether a project name was supplied.
+     *
+     * @inner
+     * @private
+     * @param {string} [projectName] - Registered project name; omitted for global registration
+     */
     var saveEnvs = function(projectName) {
         try {
             if (projectName) {
@@ -71,6 +97,13 @@ function Add(opt, cmd) {
         }
     }
 
+    /**
+     * Loads the project manifest and existing port data, builds the port-ignore list,
+     * and either writes env.json directly (no bundles) or delegates to addEnvToBundles.
+     *
+     * @inner
+     * @private
+     */
     var addEnvToProject = function() {
         var file    = _(self.projects[self.projectName].path + '/env.json')
             , ports = require(_(GINA_HOMEDIR + '/ports.json'))
@@ -129,10 +162,14 @@ function Add(opt, cmd) {
 
 
     /**
-     * Adding envs to /project/root/env.json
+     * Iterates over project bundles, scans for available ports for each bundle,
+     * and assigns ports to the new environment via setPorts.
+     * Calls the projects.json updater when all bundles are processed.
      *
-     * @param {string} file
-     * */
+     * @inner
+     * @private
+     * @param {number} b - Current bundle index into self.bundles
+     */
     var addEnvToBundles = function(b) {
         if (b > self.bundles.length-1) {// done
             try {
@@ -192,10 +229,12 @@ function Add(opt, cmd) {
     }
 
     /**
-     * Adding envs to ~/.gina/projects.json
+     * Appends the new environments to the project entry in ~/.gina/projects.json
+     * and writes the file.
      *
-     * @param {array} envs
-     * */
+     * @inner
+     * @private
+     */
     var addEnvToProject = function() {
         var e = 0
             , newEnvs = self.envs
@@ -218,7 +257,11 @@ function Add(opt, cmd) {
     }
 
     /**
-     * Register a new env
+     * Registers the new environments globally in ~/.gina/settings.json and
+     * propagates them to every registered project in projects.json.
+     *
+     * @inner
+     * @private
      */
     var registerEnv = function() {
         var s           = 0
@@ -270,10 +313,26 @@ function Add(opt, cmd) {
         end('env'+((self.envs.length > 1) ? 's' : '')+' [ '+ self.envs.join(', ') +' ] created');
     }
 
+    /**
+     * Updates the project manifest with the new environments.
+     * Currently a stub — not yet implemented.
+     *
+     * @inner
+     * @private
+     * @param {object} project - Project entry from projects.json
+     */
     var updateManifest = function(project) {
 
     }
 
+    /**
+     * Restores env.json, ports.json, ports.reverse.json, and projects.json to
+     * their pre-operation state, then exits with code 1.
+     *
+     * @inner
+     * @private
+     * @param {Error} err - The error that triggered the rollback
+     */
     var rollback = function(err) {
         console.error('could not complete env registration: ', (err.stack||err.message));
         console.warn('rolling back...');
@@ -297,6 +356,15 @@ function Add(opt, cmd) {
         writeFiles()
     };
 
+    /**
+     * Prints optional output and exits the process.
+     *
+     * @inner
+     * @private
+     * @param {string|Error} [output] - Message or Error to display
+     * @param {string} [type] - console method to call (e.g. 'error', 'warn')
+     * @param {boolean} [messageOnly] - When true, print only the message, not the stack
+     */
     var end = function (output, type, messageOnly) {
         var err = false;
         if ( typeof(output) != 'undefined') {

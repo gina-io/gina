@@ -1,10 +1,34 @@
 var console = lib.logger;
 /**
- * Link scope to local - A way of renaming local
- * */
+ * @module gina/lib/cmd/scope/link-local
+ */
+/**
+ * Links a scope to the local slot in ~/.gina/projects.json,
+ * effectively renaming which scope is treated as "local".
+ * If the current default scope matches the old local scope, the default is updated too.
+ *
+ * Usage:
+ *  gina scope:link-local <scope> [@<project>]
+ *
+ * @class LinkLocal
+ * @constructor
+ * @param {object} opt - Parsed command-line options
+ * @param {object} opt.client - Socket client for terminal output
+ * @param {string[]} opt.argv - Full argv array
+ * @param {number} [opt.debugPort] - Node.js inspector port
+ * @param {boolean} [opt.debugBrkEnabled] - True when --inspect-brk is active
+ * @param {object} cmd - The cmd dispatcher object (lib/cmd/index.js)
+ */
 function LinkLocal(opt, cmd) {
     var self = {};
 
+    /**
+     * Resolves the project name from argv or cwd, validates the scope,
+     * and delegates to link.
+     *
+     * @inner
+     * @private
+     */
     var init = function() {
         self.target = _(GINA_HOMEDIR + '/projects.json');
         self.projects   = require(self.target);
@@ -44,6 +68,14 @@ function LinkLocal(opt, cmd) {
         }
     }
 
+    /**
+     * Returns true when a project name exists in the projects registry.
+     *
+     * @inner
+     * @private
+     * @param {string} name - Project name to look up
+     * @returns {boolean}
+     */
     var isDefined = function(name) {
         if ( typeof(self.projects[name]) != 'undefined' ) {
             return true
@@ -51,6 +83,15 @@ function LinkLocal(opt, cmd) {
         return false
     }
 
+    /**
+     * Strips a leading `@` from the name token, stores it in self.name,
+     * and validates it against the allowed pattern.
+     *
+     * @inner
+     * @private
+     * @param {string} name - Raw project name token (may start with `@`)
+     * @returns {boolean}
+     */
     var isValidName = function(name) {
         if (name == undefined) return false;
 
@@ -59,6 +100,17 @@ function LinkLocal(opt, cmd) {
         return patt.test(self.name)
     }
 
+    /**
+     * Sets local_scope to the given scope in projects.json.
+     * If def_scope matched the old local_scope, def_scope is updated too.
+     * No-ops if the scope is already the local scope.
+     *
+     * @inner
+     * @private
+     * @param {string} scope - Scope name to assign as local
+     * @param {object} projects - Parsed contents of ~/.gina/projects.json
+     * @param {string} target - Absolute path to projects.json
+     */
     var link = function(scope, projects, target) {
 
         if (scope !== projects[self.name]['local_scope']) {

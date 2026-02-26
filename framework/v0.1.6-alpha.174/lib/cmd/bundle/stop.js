@@ -5,18 +5,34 @@ var exec = require('child_process').exec;
 var CmdHelper = require('./../helper');
 var console = lib.logger;
 /**
- * Stop a given bundle or start all bundles at once
+ * @module gina/lib/cmd/bundle/stop
+ */
+/**
+ * Stops a given bundle or all bundles in a project.
  *
- * e.g.
+ * Usage:
  *  gina bundle:stop <bundle_name> @<project_name>
- *
- *  // stop all bundles within the project
  *  gina bundle:stop @<project_name>
  *
- * */
+ * @class Stop
+ * @constructor
+ * @param {object} opt - Parsed command-line options
+ * @param {object} opt.client - Socket client for terminal output
+ * @param {string[]} opt.argv - Full argv array
+ * @param {number} [opt.debugPort] - Node.js inspector port
+ * @param {boolean} [opt.debugBrkEnabled] - True when --inspect-brk is active
+ * @param {object} cmd - The cmd dispatcher object (lib/cmd/index.js)
+ */
 function Stop(opt, cmd) {
     var self = {};
 
+    /**
+     * Imports CmdHelper and delegates to stop() or bulk-stop().
+     * @inner
+     * @private
+     * @param {object} opt
+     * @param {object} cmd
+     */
     var init = function(opt, cmd) {
 
         // import CMD helpers
@@ -36,6 +52,14 @@ function Stop(opt, cmd) {
         }
     }
 
+    /**
+     * Reads the bundle PID file and sends SIGKILL, or falls back to ps lookup.
+     * @inner
+     * @private
+     * @param {object} opt
+     * @param {object} cmd
+     * @param {number} [bundleIndex] - When set, enables bulk-stop mode
+     */
     var stop = function(opt, cmd, bundleIndex) {
 
         var isBulkStop = (typeof(bundleIndex) != 'undefined') ? true : false;
@@ -119,6 +143,16 @@ function Stop(opt, cmd) {
 
     }
 
+    /**
+     * Advances to the next bundle in bulk-stop mode, or exits the process.
+     * @inner
+     * @private
+     * @param {object} opt
+     * @param {object} cmd
+     * @param {boolean} [isBulkStop]
+     * @param {number} [i] - Current bundle index in bulk mode
+     * @param {boolean} [error]
+     */
     var end = function (opt, cmd, isBulkStop, i, error) {
         if ( typeof(opt.msg) != 'undefined' ) {
             opt.client.write('\n\r'+ opt.msg);

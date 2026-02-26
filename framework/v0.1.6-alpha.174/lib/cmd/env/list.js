@@ -1,12 +1,34 @@
 var fs = require('fs');
 var console = lib.logger;
 /**
- * List all environments
+ * @module gina/lib/cmd/env/list
+ */
+/**
+ * Lists environments for a given project or all projects.
+ * Marks the currently selected default env with `[ * ]`.
+ *
+ * Usage:
+ *  gina env:list [@<project_name>]
+ *  gina env:list --all
+ *
  * TODO - add selected icon (green check) for selected env
- * */
+ *
+ * @class List
+ * @constructor
+ * @param {object} opt - Parsed command-line options
+ * @param {object} opt.client - Socket client for terminal output
+ * @param {string[]} opt.argv - Full argv array
+ * @param {object} cmd - The cmd dispatcher object (lib/cmd/index.js)
+ */
 function List(opt, cmd){
     var self = {};
 
+    /**
+     * Loads projects, resolves project name, and delegates to listAll or listProjectOnly.
+     *
+     * @inner
+     * @private
+     */
     var init = function(){
 
         self.projects = require(_(GINA_HOMEDIR + '/projects.json'));
@@ -38,6 +60,14 @@ function List(opt, cmd){
         }
     }
 
+    /**
+     * Returns true when a project name exists in the projects registry.
+     *
+     * @inner
+     * @private
+     * @param {string} name - Project name
+     * @returns {boolean}
+     */
     var isDefined = function(name) {
         if ( typeof(self.projects[name]) != 'undefined' ) {
             return true
@@ -45,6 +75,14 @@ function List(opt, cmd){
         return false
     }
 
+    /**
+     * Validates a project name token (strips leading `@`) and sets self.name.
+     *
+     * @inner
+     * @private
+     * @param {string} name - Raw project name token (may start with `@`)
+     * @returns {boolean}
+     */
     var isValidName = function(name) {
         if (name == undefined) return false;
 
@@ -53,6 +91,12 @@ function List(opt, cmd){
         return patt.test(self.name)
     }
 
+    /**
+     * Lists environments for every registered project.
+     *
+     * @inner
+     * @private
+     */
     var listAll = function() {
         var projects = self.projects
             , list = []
@@ -89,6 +133,12 @@ function List(opt, cmd){
         end();
     }
 
+    /**
+     * Lists environments for self.name project only.
+     *
+     * @inner
+     * @private
+     */
     var listProjectOnly = function (){
         var projects = self.projects
             , p = self.name
@@ -108,6 +158,15 @@ function List(opt, cmd){
         end();
     };
 
+    /**
+     * Prints optional output and exits the process.
+     *
+     * @inner
+     * @private
+     * @param {string|Error} [output] - Message or error to display
+     * @param {string} [type] - console method to call (e.g. 'error')
+     * @param {boolean} [messageOnly] - When true, print only the message (not the stack)
+     */
     var end = function (output, type, messageOnly) {
         var err = false;
         if ( typeof(output) != 'undefined') {

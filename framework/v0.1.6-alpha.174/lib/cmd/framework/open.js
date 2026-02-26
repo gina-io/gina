@@ -1,13 +1,35 @@
 var Open;
-
+/**
+ * @module gina/lib/cmd/framework/open
+ */
 var fs = require('fs');
 var child = require('child_process');
 
 var CmdHelper       = require('./../helper');
 var console         = lib.logger;
-
+/**
+ * Opens a named Gina filesystem path in the OS file manager or Finder.
+ *
+ * Usage:
+ *  gina framework:open <key>
+ *  gina open <key>
+ *
+ * Keys: service | services | gina | framework | tmp | log | run | home
+ *
+ * @class Open
+ * @constructor
+ * @param {object} opt - Parsed command-line options
+ * @param {object} opt.client - Socket client for terminal output
+ * @param {string[]} opt.argv - Full argv array
+ * @param {object} cmd - The cmd dispatcher object (lib/cmd/index.js)
+ */
 function Open(opt, cmd) {
 
+    /**
+     * Resolves the path key from argv and invokes the OS open command.
+     * @inner
+     * @private
+     */
     var init = function(){
         var openCmd = (GINA_IS_WIN32) ?  'start' : 'open';
 

@@ -6,11 +6,35 @@ var rl          = readline.createInterface(process.stdin, process.stdout);
 var console = lib.logger;
 
 /**
- * Remove project or unregister existing one from `~/.gina/projects.json`.
- * */
+ * @module gina/lib/cmd/project/remove
+ */
+/**
+ * Removes a project from ~/.gina/projects.json, cleans up its port assignments,
+ * and optionally deletes the project source directory.
+ *
+ * Usage:
+ *  gina project:rm @<project_name>
+ *  gina project:rm @<project_name> --force
+ *
+ * @class Remove
+ * @constructor
+ * @param {object} opt - Parsed command-line options
+ * @param {object} opt.client - Socket client for terminal output
+ * @param {string[]} opt.argv - Full argv array
+ * @param {number} [opt.debugPort] - Node.js inspector port
+ * @param {boolean} [opt.debugBrkEnabled] - True when --inspect-brk is active
+ * @param {object} cmd - The cmd dispatcher object (lib/cmd/index.js)
+ */
 function Remove(opt, cmd) {
     var self = {};
 
+    /**
+     * Validates the project exists, prompts the user for source deletion,
+     * and delegates to end.
+     *
+     * @inner
+     * @private
+     */
     var init = function() {
 
         // import CMD helpers
@@ -60,6 +84,15 @@ function Remove(opt, cmd) {
     }
 
 
+    /**
+     * Asks the user whether to also delete the project source files.
+     * Skips the prompt and calls cb(true) immediately when force is true.
+     *
+     * @inner
+     * @private
+     * @param {boolean} force - When true, skip the prompt and delete sources
+     * @param {function} cb - Called with `true` to delete sources, `false` to keep them
+     */
     var prompt = function(force, cb) {
         if (!force) {
             rl.setPrompt('Also remove project sources ? (Y/n):\n');
@@ -90,6 +123,14 @@ function Remove(opt, cmd) {
     }
 
 
+    /**
+     * Removes port entries for the project, deletes it from projects.json,
+     * and exits the process.
+     *
+     * @inner
+     * @private
+     * @param {boolean} [removed] - When true, log that the project was removed
+     */
     var end = function(removed) {
 
         // removing ports

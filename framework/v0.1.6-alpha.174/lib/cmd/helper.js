@@ -8,12 +8,37 @@ var inherits    = lib.inherits;
 var Collection  = lib.Collection;
 var helpers     = require( getPath('gina').helpers);
 /**
- * CmdHelper
+ * @module gina/lib/cmd/helper
+ */
+/**
+ * Enriches a cmd handler's `self` object with framework configuration, project
+ * data, port maps, and shared helper globals (isCmdConfigured, isDefined,
+ * isValidName, getHelp, setPorts, loadAssets, exit, etc.).
  *
- * @package     gina.lib.cmd
- * @author      Rhinostone <contact@gina.io>
- * @api public
- * */
+ * Called once at the top of every cmd handler's `init()`:
+ *  new CmdHelper(self, opt.client, { port: opt.debugPort, brkEnabled: opt.debugBrkEnabled });
+ *
+ * After construction, the following globals are available in the handler:
+ *  - isCmdConfigured() — validates and loads all config assets
+ *  - isDefined(type, name) — checks project / bundle / env / scope existence
+ *  - isValidName(name) — validates a project or bundle name
+ *  - getHelp() — prints the command group's help.txt
+ *  - setPorts(bundle, portsAvailable, cb) — allocates ports for a bundle
+ *  - loadAssets() — re-reads all config files without require cache
+ *  - exit(errorMessage) — writes to client and calls process.exit
+ *  - getBundleScanLimit(bundle, env) — calculates remaining port slots
+ *  - getPortsList() — returns sorted list of all registered ports
+ *  - orderBundles(bundles) — sorts a bundles object alphabetically
+ *  - getCoreEnv(bundle, env) — returns rendered core env.json for a bundle
+ *
+ * @class CmdHelper
+ * @constructor
+ * @param {object} cmd - The cmd handler's `self` object to enrich
+ * @param {object} client - Socket client used by exit() to write error output
+ * @param {object} debug - Debug options
+ * @param {number} [debug.port] - Node.js inspector port
+ * @param {boolean} [debug.brkEnabled] - True when --inspect-brk is active
+ */
 function CmdHelper(cmd, client, debug) {
 
     var conf = {
@@ -102,6 +127,15 @@ function CmdHelper(cmd, client, debug) {
     }
 
 
+    /**
+     * Parses process.argv for `--key[=value]` tokens.
+     * Tokens listed in the command group's arguments.json are stored in
+     * cmd.params; all other `--` tokens go to cmd.nodeParams (forwarded to Node).
+     * Also detects --inspect-brk and sets cmd.debugBrkEnabled accordingly.
+     *
+     * @inner
+     * @private
+     */
     var getParams = function () {
 
         // filtering CMD arguments VS node.js argument
@@ -177,13 +211,15 @@ function CmdHelper(cmd, client, debug) {
     }
 
     /**
-     * isCmdConfigured
-     * filter argv & merge cmd properties
-     * Used once at init to filter argv inputs and set some assets variables
+     * Validates the command context, filters argv, and loads all project/bundle
+     * configuration assets into `cmd`. Must be called once at the top of a
+     * handler's `init()`. Delegates to getParams() then loadAssets().
+     * Assigns itself to the global `isCmdConfigured` so all cmd handlers can call it.
      *
-     *
-     * @returns {boolean} isConfigured
-     * */
+     * @global
+     * @async
+     * @returns {boolean} True when configuration loaded successfully; false on error
+     */
     isCmdConfigured = async function() {
 
         cmd.configured = ( typeof(cmd.configured) != 'undefined' ) ? cmd.configured : false;
@@ -495,6 +531,17 @@ function CmdHelper(cmd, client, debug) {
         }
     }
 
+    /**
+     * Loads and renders core/template/conf/env.json with project-specific
+     * substitutions (framework dir, project path, env, bundle, version).
+     * Returns the rendered env config object.
+     * Assigns itself to the global `getCoreEnv`.
+     *
+     * @global
+     * @param {string} bundle - Bundle name to substitute into the env template
+     * @param {string} [env] - Environment name; falls back to project def_env
+     * @returns {object} Rendered core env configuration
+     */
     getCoreEnv = function(bundle, env) {
         var coreEnvPath = _(GINA_CORE + '/template/conf/env.json', true);
         var coreEnv     = requireJSON(coreEnvPath);
@@ -523,12 +570,14 @@ function CmdHelper(cmd, client, debug) {
     }
 
     /**
-     * loadAssets
-     * Will load files & content without cache
-     * Use before require()
+     * Reads all framework config files (main.json, projects.json, manifest.json,
+     * env.json, ports.json, ports.reverse.json) fresh from disk (no require cache).
+     * Populates cmd with scopes, envs, protocols, schemes, port maps, and bundle lists.
+     * Also links node_modules and gina when running start/stop/restart tasks in global mode.
+     * Assigns itself to the global `loadAssets`.
      *
-     * @param {object} [usercmd]
-     * */
+     * @global
+     */
     loadAssets = function () {
 
         var ports = null;
@@ -1312,13 +1361,15 @@ function CmdHelper(cmd, client, debug) {
 
 
     /**
-     * isDefined
+     * Returns true when the named entry exists in the loaded configuration.
+     * Supported types: 'project', 'bundle', 'env', 'scope'.
+     * Assigns itself to the global `isDefined`.
      *
-     * @param {string} type [ project | bundle | env ]
-     * @param {string} name
-     *
-     * @returns {boolean} exists
-     * */
+     * @global
+     * @param {string} type - Entity type: 'project', 'bundle', 'env', or 'scope'
+     * @param {string} name - Entity name to look up
+     * @returns {boolean} True when the entry is found
+     */
     isDefined = function(type, name) {
 
         // if (
@@ -1349,9 +1400,14 @@ function CmdHelper(cmd, client, debug) {
     }
 
     /**
-     * isValidName
-     * test if a given [ project | bundle | env] name is valid or not
-     * */
+     * Returns true when the name matches the allowed pattern `^[a-z0-9_.]`.
+     * Strips a leading `@` before testing.
+     * Assigns itself to the global `isValidName`.
+     *
+     * @global
+     * @param {string} name - Name to validate (may start with `@`)
+     * @returns {boolean} True when valid
+     */
     isValidName = function(name) {
 
         if ( typeof(name) == 'undefined' || name == null || name == undefined || name == '')
@@ -1361,10 +1417,12 @@ function CmdHelper(cmd, client, debug) {
     }
 
     /**
-     * getHelp
+     * Reads and prints the task group's help.txt to stdout.
+     * Derives the group name from the first segment of cmd.task (e.g. 'bundle' from 'bundle:start').
+     * Assigns itself to the global `getHelp`.
      *
-     * Output current help.txt
-     * */
+     * @global
+     */
     getHelp = function () {
 
         var taskGroup   = cmd.task.split(/:/)[0]
@@ -1386,6 +1444,17 @@ function CmdHelper(cmd, client, debug) {
         }
     }
 
+    /**
+     * Calculates how many port slots remain unassigned for a bundle.
+     * The theoretical maximum is: envs × protocols × schemes (or protocols × schemes when
+     * `env` is specified). The actual count of already-assigned slots is subtracted.
+     * Assigns itself to the global `getBundleScanLimit`.
+     *
+     * @global
+     * @param {string} bundle - Bundle name (e.g. 'api')
+     * @param {string} [env] - Restrict calculation to a single env
+     * @returns {number} Number of port slots still available to assign
+     */
     getBundleScanLimit = function(bundle, env) {
         var limit           = null
             , i             = 0
@@ -1416,6 +1485,15 @@ function CmdHelper(cmd, client, debug) {
         return limit;
     }
 
+    /**
+     * Returns a sorted list of all port numbers currently registered in
+     * ports.json and ports.reverse.json, excluding those already assigned to
+     * the current project's bundles.
+     * Assigns itself to the global `getPortsList`.
+     *
+     * @global
+     * @returns {string[]} Sorted array of port number strings
+     */
     getPortsList = function() {
         var ports = require(_(GINA_HOMEDIR + '/ports.json'));
         var portsList = []; // list of all ports to ignore whles scanning
@@ -1453,14 +1531,15 @@ function CmdHelper(cmd, client, debug) {
     }
 
     /**
-     * setPorts
-     * Setting bundle ports per env
+     * Allocates ports for a bundle across all envs × protocols × schemes and
+     * writes the updated ports.json, ports.reverse.json, and env.json to disk.
+     * Assigns itself to the global `setPorts`.
      *
-     * @param {string} bundle
-     * @param {array} portsAvailable
-     *
-     * @callback cb
-    */
+     * @global
+     * @param {string} bundle - Bundle name to allocate ports for
+     * @param {string[]} portsAvailable - Sorted list of candidate port numbers to assign
+     * @param {function} cb - Node-style callback `function(err)` called when done
+     */
     setPorts = function(bundle, portsAvailable, cb) {
         var portsPath           = _(GINA_HOMEDIR + '/ports.json', true)
             , portsReversePath  = _(GINA_HOMEDIR + '/ports.reverse.json', true)
@@ -1663,6 +1742,15 @@ function CmdHelper(cmd, client, debug) {
         }
     }
 
+    /**
+     * Sorts a bundles object (keyed by bundle name) alphabetically by name
+     * and returns a new object with entries in that order.
+     * Assigns itself to the global `orderBundles`.
+     *
+     * @global
+     * @param {object} bundles - Bundles map from a project manifest
+     * @returns {object} New map with entries sorted by name ascending
+     */
     orderBundles = function(bundles) {
         var bList = [], i = 0;
         for (let b in bundles) {
@@ -1684,6 +1772,14 @@ function CmdHelper(cmd, client, debug) {
     }
 
 
+    /**
+     * Writes an optional error message to the socket client, closes it,
+     * and exits the process. Exit code 1 when errorMessage is truthy; 0 otherwise.
+     * Assigns itself to the global `exit`.
+     *
+     * @global
+     * @param {string} [errorMessage] - Error text to send to the client before closing
+     */
     exit = function(errorMessage) {
         // CMD Client exit
         if ( typeof(errorMessage) != 'undefined' ) {

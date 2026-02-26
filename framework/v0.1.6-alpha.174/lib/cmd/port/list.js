@@ -5,20 +5,28 @@ var console = lib.logger;
 var Collection = lib.Collection;
 
 /**
- * List ports for a given bundle, a given project & a given env
+ * @module gina/lib/cmd/port/list
+ */
+/**
+ * Lists port assignments for all projects, a specific project, or a specific bundle.
+ * Supports filtering by protocol, scheme, and bundle, and output to a file.
  *
- * e.g.
+ * Usage:
  *  gina port:list
  *  gina port:list @<project_name>
  *  gina port:list <bundle> @<project_name>
- *
- * You can also filter
  *  gina port:list @<project_name> --format=json,null,2 --protocol=http/2.0 --scheme=https --bundle=frontend,backend
- *
- *
- * You can also export the output to a file with: `--filename`
  *  gina port:list @<project_name> --format=conf --protocol=http/2.0 --scheme=https --filename=$HOME/my_ports.conf
- * */
+ *
+ * @class List
+ * @constructor
+ * @param {object} opt - Parsed command-line options
+ * @param {object} opt.client - Socket client for terminal output
+ * @param {string[]} opt.argv - Full argv array
+ * @param {number} [opt.debugPort] - Node.js inspector port
+ * @param {boolean} [opt.debugBrkEnabled] - True when --inspect-brk is active
+ * @param {object} cmd - The cmd dispatcher object (lib/cmd/index.js)
+ */
 function List(opt, cmd) {
 
     // self will be pre filled if you call `new CmdHelper(self, opt.client, { port: opt.debugPort, brkEnabled: opt.debugBrkEnabled })`
@@ -33,6 +41,13 @@ function List(opt, cmd) {
         }
     ;
 
+    /**
+     * Parses argv for format, filename, protocol, scheme, and bundle filters,
+     * then delegates to listAll, listProjectOnly, or listBundleOnly.
+     *
+     * @inner
+     * @private
+     */
     var init = function() {
 
         // import CMD helpers
@@ -125,7 +140,14 @@ function List(opt, cmd) {
         }
     }
 
-    //  check if bundle is defined
+    /**
+     * Returns true when a project name exists in the projects registry.
+     *
+     * @inner
+     * @private
+     * @param {string} name - Project name to look up
+     * @returns {boolean}
+     */
     var isDefined = function(name) {
         if (typeof (self.projects[name]) != 'undefined') {
             return true
@@ -133,6 +155,15 @@ function List(opt, cmd) {
         return false
     }
 
+    /**
+     * Strips a leading `@` from the name token, stores it in self.name,
+     * and validates it against the allowed pattern.
+     *
+     * @inner
+     * @private
+     * @param {string} name - Raw project name token (may start with `@`)
+     * @returns {boolean}
+     */
     var isValidName = function(name) {
         if (name == undefined) return false;
 
@@ -141,6 +172,14 @@ function List(opt, cmd) {
         return patt.test(self.name)
     }
 
+    /**
+     * Formats the port data according to self.format ('conf', 'json', or plain text)
+     * and either writes it to self.filename or prints it to stdout.
+     *
+     * @inner
+     * @private
+     * @param {string|Array} data - Port data to format and output
+     */
     var outputTo = function(data) {
 
         var targetObj = null;
@@ -200,6 +239,12 @@ function List(opt, cmd) {
     }
 
 
+    /**
+     * Collects and formats port assignments for every registered project.
+     *
+     * @inner
+     * @private
+     */
     var listAll = function() {
 
         var projects  = self.projects
@@ -304,6 +349,12 @@ function List(opt, cmd) {
         outputTo(str);
     }
 
+    /**
+     * Collects and formats port assignments for the project identified by self.projectName.
+     *
+     * @inner
+     * @private
+     */
     var listProjectOnly = function() {
 
         var protocols   = self.protocols
@@ -375,6 +426,13 @@ function List(opt, cmd) {
         outputTo(str);
     };
 
+    /**
+     * Collects and formats port assignments for the bundle identified by self.name
+     * within self.projectName.
+     *
+     * @inner
+     * @private
+     */
     var listBundleOnly = function() {
 
         var protocols   = self.protocols
@@ -439,6 +497,15 @@ function List(opt, cmd) {
         outputTo(str);
     };
 
+    /**
+     * Prints optional output and exits the process.
+     *
+     * @inner
+     * @private
+     * @param {string|Error} [output] - Message or Error to display
+     * @param {string} [type] - console method to call (e.g. 'error', 'warn')
+     * @param {boolean} [messageOnly] - When true, print only the message, not the stack
+     */
     var end = function (output, type, messageOnly) {
         var err = false;
         if ( typeof(output) != 'undefined') {

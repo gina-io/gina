@@ -4,16 +4,33 @@ var console = lib.logger;
 var CmdHelper = require('./../helper');
 
 /**
- * List bundles for a given project
+ * @module gina/lib/cmd/bundle/list
+ */
+/**
+ * Lists bundles for a given project or all projects.
  *
- * e.g.
- *  gina bundle:list [ @<project_name> ]
+ * Usage:
+ *  gina bundle:list [@<project_name>]
  *  gina bundle:list --all
  *
- * */
+ * @class List
+ * @constructor
+ * @param {object} opt - Parsed command-line options
+ * @param {object} opt.client - Socket client for terminal output
+ * @param {string[]} opt.argv - Full argv array
+ * @param {number} [opt.debugPort] - Node.js inspector port
+ * @param {boolean} [opt.debugBrkEnabled] - True when --inspect-brk is active
+ * @param {object} cmd - The cmd dispatcher object (lib/cmd/index.js)
+ */
 function List(opt, cmd) {
     var self = { format: null};
 
+    /**
+     * Parses format/project arguments and delegates to listAll or listProjectOnly.
+     *
+     * @inner
+     * @private
+     */
     var init = function() {
 
         // import CMD helpers
@@ -59,6 +76,14 @@ function List(opt, cmd) {
         process.exit(0)
     }
 
+    /**
+     * Returns true when a project name exists in the projects registry.
+     *
+     * @inner
+     * @private
+     * @param {string} name - Project name
+     * @returns {boolean}
+     */
     var isDefined = function(name) {
         if ( typeof(self.projects[name]) != 'undefined' ) {
             return true
@@ -66,6 +91,14 @@ function List(opt, cmd) {
         return false
     }
 
+    /**
+     * Validates a project name token (strips leading `@`) and sets self.projectName.
+     *
+     * @inner
+     * @private
+     * @param {string} name - Raw project name token (may start with `@`)
+     * @returns {boolean}
+     */
     var isValidName = function(name) {
         if (name == undefined) return false;
 
@@ -75,6 +108,12 @@ function List(opt, cmd) {
     }
 
 
+    /**
+     * Lists bundles for every registered project.
+     *
+     * @inner
+     * @private
+     */
     var listAll = function() {
         var projects = self.projects
             , list = []
@@ -141,6 +180,12 @@ function List(opt, cmd) {
         console.log(str);
     }
 
+    /**
+     * Lists bundles for self.projectName only.
+     *
+     * @inner
+     * @private
+     */
     var listProjectOnly = function () {
         var path = self.projects[self.projectName].path
             , bundles = require( _(path +'/manifest.json')).bundles

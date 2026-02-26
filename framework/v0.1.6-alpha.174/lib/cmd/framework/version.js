@@ -1,9 +1,31 @@
 var os = require('os');
 var fs = require('fs');
 var console = lib.logger;
-
+/**
+ * @module gina/lib/cmd/framework/version
+ */
+/**
+ * Prints the installed Gina framework version, platform, architecture, and middleware.
+ *
+ * Usage:
+ *  gina framework:version
+ *  gina version
+ *  gina version --short=true   (prints version number only)
+ *
+ * @class Version
+ * @constructor
+ * @param {object} opt - Parsed command-line options
+ * @param {string} [opt.frameworkPath] - Absolute path to the framework directory
+ * @param {string} [opt.pack] - Path to package.json for reading the copyright field
+ */
 function Version(opt){
 
+    /**
+     * Reads version info and prints it to the logger.
+     * @inner
+     * @private
+     * @param {object} opt
+     */
     var init = function(opt){
         var arch = process.arch;
         switch (process.arch) {

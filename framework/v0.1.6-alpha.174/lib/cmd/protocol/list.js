@@ -4,19 +4,38 @@ var CmdHelper = require('./../helper');
 var console = lib.logger;
 
 /**
- * List protocols for a given bundle, a given project & a given env
+ * @module gina/lib/cmd/protocol/list
+ */
+/**
+ * Lists the protocols and schemes configured for all projects, a single project,
+ * or a specific bundle. Marks the default protocol/scheme with `[ * ]`.
  *
- * e.g.
+ * Usage:
  *  gina protocol:list
  *  gina protocol:list @<project_name>
  *  gina protocol:list <bundle> @<project_name>
  *
- * */
+ * @class List
+ * @constructor
+ * @param {object} opt - Parsed command-line options
+ * @param {object} opt.client - Socket client for terminal output
+ * @param {string[]} opt.argv - Full argv array
+ * @param {number} [opt.debugPort] - Node.js inspector port
+ * @param {boolean} [opt.debugBrkEnabled] - True when --inspect-brk is active
+ * @param {object} cmd - The cmd dispatcher object (lib/cmd/index.js)
+ */
 function List(opt, cmd) {
 
     // self will be pre filled if you call `new CmdHelper(self, opt.client, { port: opt.debugPort, brkEnabled: opt.debugBrkEnabled })`
     var self = {}, local = {};
 
+    /**
+     * Validates arguments and delegates to listAllByProject, listByBundle
+     * (project scope), or listByBundle (single bundle).
+     *
+     * @inner
+     * @private
+     */
     var init = function() {
         //debugger;
         // import CMD helpers
@@ -38,7 +57,14 @@ function List(opt, cmd) {
         }
     }
 
-    //  check if bundle is defined
+    /**
+     * Returns true when a project name exists in the projects registry.
+     *
+     * @inner
+     * @private
+     * @param {string} name - Project name to look up
+     * @returns {boolean}
+     */
     var isDefined = function(name) {
         if (typeof (self.projects[name]) != 'undefined') {
             return true
@@ -46,6 +72,15 @@ function List(opt, cmd) {
         return false
     }
 
+    /**
+     * Strips a leading `@` from the name token, stores it in self.name,
+     * and validates it against the allowed pattern.
+     *
+     * @inner
+     * @private
+     * @param {string} name - Raw project name token (may start with `@`)
+     * @returns {boolean}
+     */
     var isValidName = function(name) {
         if (name == undefined) return false;
 
@@ -54,7 +89,12 @@ function List(opt, cmd) {
         return patt.test(self.name)
     }
 
-
+    /**
+     * Lists protocols and schemes for every registered project.
+     *
+     * @inner
+     * @private
+     */
     var listAllByProject = function() {
 
         var protocols       = null
@@ -141,6 +181,14 @@ function List(opt, cmd) {
         end();
     }
 
+    /**
+     * Lists protocols and schemes for every bundle in self.projectName,
+     * or for a specific bundle when bundleName is given.
+     *
+     * @inner
+     * @private
+     * @param {string} [bundleName] - Bundle name to filter on; omit for all bundles
+     */
     var listByBundle = function(bundleName) {
 
         var protocols       = null
@@ -235,6 +283,15 @@ function List(opt, cmd) {
         end();
     };
 
+    /**
+     * Prints optional output and exits the process.
+     *
+     * @inner
+     * @private
+     * @param {string|Error} [output] - Message or Error to display
+     * @param {string} [type] - console method to call (e.g. 'error', 'warn')
+     * @param {boolean} [messageOnly] - When true, print only the message, not the stack
+     */
     var end = function (output, type, messageOnly) {
         var err = false;
         if ( typeof(output) != 'undefined') {

@@ -4,9 +4,25 @@ var CmdHelper   = require('./../helper');
 var console     = lib.logger;
 
 /**
- * Build a project.
- * To debug this part: gina project:build @<project> --env=prod --scope=local --inspect-gina
- * */
+ * @module gina/lib/cmd/project/build
+ */
+/**
+ * Builds all bundles of a project for the given scope and environment.
+ * Runs optional `prepare` and `postbuild` hook scripts from manifest.json#buildScripts.
+ *
+ * Usage:
+ *  gina project:build @<project> --env=prod --scope=local
+ *  gina project:build @<project> --env=prod --scope=local --inspect-gina
+ *
+ * @class Build
+ * @constructor
+ * @param {object} opt - Parsed command-line options
+ * @param {object} opt.client - Socket client for terminal output
+ * @param {string[]} opt.argv - Full argv array
+ * @param {number} [opt.debugPort] - Node.js inspector port
+ * @param {boolean} [opt.debugBrkEnabled] - True when --inspect-brk is active
+ * @param {object} cmd - The cmd dispatcher object (lib/cmd/index.js)
+ */
 function Build(opt, cmd) {
     var self    = {}
     , local     = {
@@ -17,6 +33,13 @@ function Build(opt, cmd) {
     };
     var globalBuildScripts = null;
 
+    /**
+     * Validates scope and env, loads the manifest, runs the optional prepare hook,
+     * and starts the bundle build loop.
+     *
+     * @inner
+     * @private
+     */
     var init = function() {
         // import CMD helpers
         new CmdHelper(self, opt.client, { port: opt.debugPort, brkEnabled: opt.debugBrkEnabled });
@@ -87,6 +110,15 @@ function Build(opt, cmd) {
         buildBundle(0);
     }
 
+    /**
+     * Builds one bundle at index `b`, updating its release targets in the manifest,
+     * then calls buildEnv to copy source files per environment.
+     *
+     * @inner
+     * @private
+     * @param {number} b - Current bundle index into self.bundles
+     * @param {number} [e=0] - Current env index into local.envs
+     */
     var buildBundle = function(b, e) {
         if ( b > self.bundles.length-1 ) {
             return end()
@@ -144,6 +176,16 @@ function Build(opt, cmd) {
 
     }
 
+    /**
+     * Copies the bundle source into the release path for one environment,
+     * creates a node_modules symlink, and advances to the next env.
+     *
+     * @inner
+     * @private
+     * @param {string} scope - Build scope (e.g. 'local', 'production')
+     * @param {number} b - Current bundle index into self.bundles
+     * @param {number} e - Current env index into local.envs
+     */
     var buildEnv = function(scope, b, e) {
         // For each env
         if ( e > local.envs.length-1 ) {
@@ -189,6 +231,14 @@ function Build(opt, cmd) {
         })
     }
 
+    /**
+     * Runs the optional postbuild hook script and exits the process.
+     * Exits with code 1 on error.
+     *
+     * @inner
+     * @private
+     * @param {Error} [err] - Build error; omit on success
+     */
     var end = async function(err) {
 
         // User Post build

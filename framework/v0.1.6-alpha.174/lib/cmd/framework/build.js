@@ -1,4 +1,7 @@
 'use strict';
+/**
+ * @module gina/lib/cmd/framework/build
+ */
 var fs          = require('fs');
 const {spawn}       = require('child_process');
 const {execSync}    = require('child_process');
@@ -8,18 +11,32 @@ var promisify   = util.promisify;
 var CmdHelper   = require('./../helper');
 var console = lib.logger;// jshint ignore:line
 /**
- * Framework build command
- * e.g.
+ * Builds the Gina frontend plugin (SCSS → CSS → dist).
+ *
+ * Usage:
  *  gina framework:build
- *  or
  *  gina build
  *
- * @param {object} opt - Constructor options
- * */
+ * @class Build
+ * @constructor
+ * @param {object} opt - Parsed command-line options
+ * @param {object} opt.client - Socket client for terminal output
+ * @param {string[]} opt.argv - Full argv array
+ * @param {number} [opt.debugPort] - Node.js inspector port
+ * @param {boolean} [opt.debugBrkEnabled] - True when --inspect-brk is active
+ * @param {object} cmd - The cmd dispatcher object (lib/cmd/index.js)
+ */
 function Build(opt, cmd){
 
     var self    = {};
 
+    /**
+     * Imports CmdHelper and starts the async build sequence via begin(0).
+     * @inner
+     * @private
+     * @param {object} opt
+     * @param {object} cmd
+     */
     var init = function(opt, cmd) {
         console.log('Building framework, please wait ...');
 
@@ -29,8 +46,11 @@ function Build(opt, cmd){
         begin(0);
     }
     /**
-     * Bebin - Will run checking tasks in order of declaration
-     * */
+     * Runs `self.*` functions in declaration order using async eval scaffolding.
+     * @inner
+     * @private
+     * @param {number} i - Current function index
+     */
      var begin = async function(i) {
         var n = 0, funct = null, functName = null;
         for (let t in self) {
@@ -69,6 +89,14 @@ function Build(opt, cmd){
         done()
     }
 
+    /**
+     * Logs optional output and exits the process.
+     * @inner
+     * @private
+     * @param {string|Error} [output]
+     * @param {string} [type] - Logger method name
+     * @param {boolean} [messageOnly]
+     */
     var end = function (output, type, messageOnly) {
         var err = false;
         if ( typeof(output) != 'undefined') {

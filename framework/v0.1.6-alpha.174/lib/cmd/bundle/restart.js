@@ -7,18 +7,37 @@ var console     = lib.logger;
 // var Shell       = lib.Shell;
 
 /**
- * Restart a given bundle or Restart all running bundles at once
+ * @module gina/lib/cmd/bundle/restart
+ */
+/**
+ * Restarts a given bundle or all running bundles in a project.
  *
- * e.g.
+ * Usage:
  *  gina bundle:restart <bundle_name> @<project_name>
  *  gina bundle:restart @<project_name>
  *  gina bundle:restart --online
  *
- * */
+ * @class Restart
+ * @constructor
+ * @param {object} opt - Parsed command-line options
+ * @param {object} opt.client - Socket client for terminal output
+ * @param {string[]} opt.argv - Full argv array
+ * @param {number} [opt.debugPort] - Node.js inspector port
+ * @param {boolean} [opt.debugBrkEnabled] - True when --inspect-brk is active
+ * @param {object} cmd - The cmd dispatcher object (lib/cmd/index.js)
+ */
 function Restart(opt, cmd) {
 
     var self    = {};
 
+    /**
+     * Validates configuration and triggers single-bundle or bulk restart.
+     *
+     * @inner
+     * @private
+     * @param {object} opt - Parsed command-line options
+     * @param {object} cmd - The cmd dispatcher object
+     */
     var init = function(opt, cmd) {
         // import CMD helpers
         new CmdHelper(self, opt.client, { port: opt.debugPort, brkEnabled: opt.debugBrkEnabled });
@@ -47,6 +66,15 @@ function Restart(opt, cmd) {
         }
     }
 
+    /**
+     * Executes a stop-then-start sequence for one bundle, optionally in bulk.
+     *
+     * @inner
+     * @private
+     * @param {object} opt - Parsed command-line options (includes client, debugPort)
+     * @param {object} cmd - Overwritten internally with the shell command string
+     * @param {number} [bundleIndex] - When provided, performs a bulk restart at this index
+     */
     var restart = function(opt, cmd, bundleIndex) {
 
         var isBulkRestart = (typeof(bundleIndex) != 'undefined') ? true : false;
@@ -126,6 +154,17 @@ function Restart(opt, cmd) {
         }
     }
 
+    /**
+     * Advances to the next bundle in a bulk restart or exits the process.
+     *
+     * @inner
+     * @private
+     * @param {object} opt - Parsed command-line options
+     * @param {object} cmd - Shell command string (stringified)
+     * @param {boolean} isBulkRestart - True when restarting all project bundles
+     * @param {number} i - Current bundle index
+     * @param {Error} [error] - Truthy when restart failed; causes process.exit(1)
+     */
     var end = function (opt, cmd, isBulkRestart, i, error) {
         if (isBulkRestart) {
             ++i;
@@ -153,6 +192,15 @@ function Restart(opt, cmd) {
         }
     }
 
+    /**
+     * Resolves the bundle entry point path (dev source or compiled release) and
+     * verifies it exists and is a directory.
+     *
+     * @inner
+     * @private
+     * @param {string} bundle - Bundle name
+     * @param {function} callback - Node-style callback `(err, appPath)`
+     */
     var isRealApp = function(bundle, callback) {
 
         var p                   = null

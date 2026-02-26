@@ -1,10 +1,30 @@
 var console = lib.logger;
 /**
- * Select the default environment
- * */
+ * @module gina/lib/cmd/env/use
+ */
+/**
+ * Sets the default environment for a project in ~/.gina/projects.json.
+ *
+ * Usage:
+ *  gina env:use <env> [@<project>]
+ *
+ * @class Use
+ * @constructor
+ * @param {object} opt - Parsed command-line options
+ * @param {object} opt.client - Socket client for terminal output
+ * @param {string[]} opt.argv - Full argv array
+ * @param {object} cmd - The cmd dispatcher object (lib/cmd/index.js)
+ */
 function Use(opt, cmd) {
     var self = {};
 
+    /**
+     * Resolves the project name from argv or cwd, validates the env argument,
+     * and delegates to useEnv.
+     *
+     * @inner
+     * @private
+     */
     var init = function() {
         self.target     = _(GINA_HOMEDIR + '/projects.json');
         self.projects   = require(self.target);
@@ -51,6 +71,14 @@ function Use(opt, cmd) {
 
     }
 
+    /**
+     * Returns true when a project name exists in the projects registry.
+     *
+     * @inner
+     * @private
+     * @param {string} name - Project name to look up
+     * @returns {boolean}
+     */
     var isDefined = function(name) {
         if ( typeof(self.projects[name]) != 'undefined' ) {
             return true
@@ -58,6 +86,15 @@ function Use(opt, cmd) {
         return false
     }
 
+    /**
+     * Strips a leading `@` from the name token, stores it in self.name,
+     * and validates it against the allowed pattern.
+     *
+     * @inner
+     * @private
+     * @param {string} name - Raw project name token (may start with `@`)
+     * @returns {boolean}
+     */
     var isValidName = function(name) {
         if (name == undefined) return false;
 
@@ -66,6 +103,16 @@ function Use(opt, cmd) {
         return patt.test(self.name)
     }
 
+    /**
+     * Updates def_env for the project in projects.json and writes the file.
+     * No-ops when the env is already the default.
+     *
+     * @inner
+     * @private
+     * @param {string} env - Environment name to set as default
+     * @param {object} projects - Parsed contents of ~/.gina/projects.json
+     * @param {string} target - Absolute path to projects.json
+     */
     var useEnv = function(env, projects, target) {
         // console.debug('proj.: ', self.name, projects[self.name] , '\nEnv:' + env);
         if (env !== projects[self.name]['def_env']) {
@@ -81,6 +128,15 @@ function Use(opt, cmd) {
         end('Env [ '+ env +' ] selected with success');
     };
 
+    /**
+     * Prints optional output and exits the process.
+     *
+     * @inner
+     * @private
+     * @param {string|Error} [output] - Message or Error to display
+     * @param {string} [type] - console method to call (e.g. 'error', 'warn')
+     * @param {boolean} [messageOnly] - When true, print only the message, not the stack
+     */
     var end = function (output, type, messageOnly) {
         var err = false;
         if ( typeof(output) != 'undefined') {

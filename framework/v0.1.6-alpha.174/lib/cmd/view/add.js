@@ -6,17 +6,35 @@ var CmdHelper   = require('./../helper');
 var console = lib.logger;
 
 /**
- * Add new view to a given project bundle.
- * NB.: If bundle exists, You will be asked if you want to replace.
+ * @module gina/lib/cmd/view/add
+ */
+/**
+ * Adds a templates and public folder to an existing bundle.
+ * Prompts for confirmation if templates already exist.
  *
  * Usage:
- * $ gina bundle:add <bundle_name> @<project_name>
- * */
+ *  gina view:add <bundle_name> @<project_name>
+ *
+ * @class Add
+ * @constructor
+ * @param {object} opt - Parsed command-line options
+ * @param {object} opt.client - Socket client for terminal output
+ * @param {string[]} opt.argv - Full argv array
+ * @param {number} [opt.debugPort] - Node.js inspector port
+ * @param {boolean} [opt.debugBrkEnabled] - True when --inspect-brk is active
+ * @param {object} cmd - The cmd dispatcher object (lib/cmd/index.js)
+ */
 function Add(opt, cmd) {
     var self = { task: 'add' }
         , local = {}
     ;
 
+    /**
+     * Imports CMD helpers, validates project/bundle, and delegates to addViews.
+     *
+     * @inner
+     * @private
+     */
     var init = function() {
 
         // import CMD helpers
@@ -44,11 +62,14 @@ function Add(opt, cmd) {
     }
 
     /**
-     * Browse sources
+     * Recursively walks the source directory and calls parse on each file.
+     * Tracks remaining entries in `list`; sets local.isInstalled when done.
      *
-     * @param {string} source
-     * @param {string} bundle
-     * */
+     * @inner
+     * @private
+     * @param {string} source - Directory path to traverse
+     * @param {string[]} [list] - Remaining entries to process (built at root level)
+     */
      var browse = function(source, list) {
 
         var bundle = local.bundle
@@ -94,11 +115,15 @@ function Add(opt, cmd) {
     }
 
     /**
-     * Parse file and modify only javascripts - *.js
+     * Replaces bundle/namespace placeholders in JS and config/app.json files.
+     * Removes the processed file from `list` and returns the updated list.
      *
-     * @param {string} file - File to parse
-     * @param {array} list
-     * */
+     * @inner
+     * @private
+     * @param {string} file - Absolute path to the file to process
+     * @param {string[]} list - Remaining entries tracking list
+     * @returns {string[]} Updated list with this file removed
+     */
      var parse = function(file, list) {
         //console.log('replacing: ', file);
         try {
@@ -155,12 +180,13 @@ function Add(opt, cmd) {
     // }
 
     /**
-     * Add bundles
+     * Iterates over self.bundles starting at index b and installs views for each.
+     * Exits when all bundles have been processed.
      *
-     * @param {number} b - bundle index
-     * @param {number} e - env index
-     *
-     * */
+     * @inner
+     * @private
+     * @param {number} b - Current bundle index into self.bundles
+     */
     var addViews = function(b) {
         if (b > self.bundles.length-1) {// done
             process.exit(0)
@@ -197,9 +223,13 @@ function Add(opt, cmd) {
 
 
     /**
-     * Adding view configuration
+     * Copies the boilerplate templates.json config to the bundle's config dir.
+     * Prompts for confirmation if templates already exist.
+     * Delegates to createFile once confirmed.
      *
-     * */
+     * @inner
+     * @private
+     */
     var addConfFile = function() {
 
         var templatesConf = new _( getPath('gina').core + '/template/boilerplate/bundle/config/templates.json');
@@ -240,11 +270,13 @@ function Add(opt, cmd) {
 
 
     /**
-     * Create file
+     * Copies the source file to target, then delegates to copyFolder.
      *
-     * @param {string} file
-     * @param {string} target
-     * */
+     * @inner
+     * @private
+     * @param {object} file - PathObject for the source template config file
+     * @param {string} target - Absolute destination path for templates.json
+     */
     var createFile = function(file, target) {
         file.cp(target, function(err) {
             if (err) {
@@ -255,6 +287,13 @@ function Add(opt, cmd) {
         })
     }
 
+    /**
+     * Copies the boilerplate templates and public folders into the bundle directory,
+     * runs browse/parse on the templates handlers, then advances to the next bundle.
+     *
+     * @inner
+     * @private
+     */
     var copyFolder = function() {
         var folder = new _( getPath('gina').core +'/template/boilerplate/bundle_templates' );
         var folderPublic = new _( getPath('gina').core +'/template/boilerplate/bundle_public' );
@@ -286,6 +325,14 @@ function Add(opt, cmd) {
     }
 
 
+    /**
+     * Restores env.json, projects.json, ports.json, and ports.reverse.json to their
+     * pre-install state, removes any partially created bundle folder, and exits with code 1.
+     *
+     * @inner
+     * @private
+     * @param {Error} err - The error that triggered the rollback
+     */
     var rollback = function(err) {
         console.error('could not complete view creation: ', (err.stack||err.message));
         console.warn('rolling back...');

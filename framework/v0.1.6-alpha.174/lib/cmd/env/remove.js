@@ -4,12 +4,35 @@ var CmdHelper   = require('./../helper');
 var console = lib.logger;
 
 /**
- * Remove existing environment
+ * @module gina/lib/cmd/env/remove
+ */
+/**
+ * Removes an environment from a project, cleans up its port assignments,
+ * and updates env.json, ports.json, ports.reverse.json, and the project manifest.
+ *
+ * Usage:
+ *  gina env:rm <env> @<project>
+ *
  * TODO - Prompt for confirmation: "This will remove [ environment ] for the whole project. Proceed ? Y/n: "
- * */
+ *
+ * @class Remove
+ * @constructor
+ * @param {object} opt - Parsed command-line options
+ * @param {object} opt.client - Socket client for terminal output
+ * @param {string[]} opt.argv - Full argv array
+ * @param {number} [opt.debugPort] - Node.js inspector port
+ * @param {boolean} [opt.debugBrkEnabled] - True when --inspect-brk is active
+ * @param {object} cmd - The cmd dispatcher object (lib/cmd/index.js)
+ */
 function Remove(opt, cmd) {
     var self = {}, local = { env: null };
 
+    /**
+     * Validates argv, resolves the project name, and delegates to removeEnv.
+     *
+     * @inner
+     * @private
+     */
     var init = function() {
         // import CMD helpers
         new CmdHelper(self, opt.client, { port: opt.debugPort, brkEnabled: opt.debugBrkEnabled });
@@ -51,6 +74,16 @@ function Remove(opt, cmd) {
         }
     }
 
+    /**
+     * Removes the environment from projects.json, cleans its port entries from
+     * ports.json and ports.reverse.json, updates env.json, and calls updateManifest.
+     * Refuses to remove the default or development environment.
+     *
+     * @inner
+     * @private
+     * @param {object} projects - Parsed contents of ~/.gina/projects.json
+     * @param {string} target - Absolute path to projects.json
+     */
     var removeEnv = function(projects, target) {
         var err = null, env = local.env;
         // default `dev env` cannot be removed
@@ -115,6 +148,13 @@ function Remove(opt, cmd) {
         updateManifest();
     };
 
+    /**
+     * Removes the environment's release target entries from the project manifest
+     * across all scopes, then writes manifest.json and calls end.
+     *
+     * @inner
+     * @private
+     */
     var updateManifest = function() {
         var env     = local.env;
         var scopes  = self.projects[self.projectName].scopes;
@@ -138,6 +178,13 @@ function Remove(opt, cmd) {
         end()
     }
 
+    /**
+     * Prints a success message or an error and exits the process.
+     *
+     * @inner
+     * @private
+     * @param {Error} [err] - Error to report; omit on success
+     */
     var end = function(err) {
         console.debug('GINA_ENV_IS_DEV ', GINA_ENV_IS_DEV);
         if (err) {

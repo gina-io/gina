@@ -1,3 +1,6 @@
+/**
+ * @module gina/lib/cmd/framework/init
+ */
 var fs              = require('fs');
 var EventEmitter    = require('events').EventEmitter;
 var e               = new EventEmitter();
@@ -14,10 +17,32 @@ var help            = require(ginaPath + '/utils/helper');
 
 
 var aliases = require( getPath('gina').lib + '/cmd/aliases.json' );
-
+/**
+ * Runs the framework initialisation/validation sequence before executing a command.
+ * Validation checks (`self.check*`) are run in declaration order via the async `begin()` loop.
+ * When all checks pass, emits `init#complete` with a `run` callback.
+ * For online (socket) commands, emits `init#listen` immediately.
+ *
+ * @class Initialize
+ * @constructor
+ * @param {object} opt - Parsed command-line options
+ * @param {object} [opt.client] - Socket client for terminal output (online commands only)
+ * @param {string[]} opt.argv - Full argv array
+ * @param {string} opt.homedir - Path to the Gina home directory
+ * @param {string} opt.frameworkPath - Absolute path to the framework directory
+ * @param {string} opt.pack - Path to package.json
+ * @fires Initialize#init:complete
+ * @fires Initialize#init:listen
+ */
 function Initialize(opt) {
 
     var self = {}, local = {};
+    /**
+     * Stores opt and starts the begin() loop.
+     * @inner
+     * @private
+     * @param {object} opt
+     */
     var init = function(opt) {
         self.opt = opt;
         begin()
@@ -45,6 +70,13 @@ function Initialize(opt) {
     //     }
     // }
 
+    /**
+     * Iterates over `self.*` functions in declaration order, executing each via promisify().
+     * Emits `init#complete` when all checks have passed.
+     * @inner
+     * @private
+     * @param {number} [i=0] - Current function index
+     */
     var begin = async function(i) {
         i = (typeof(i) == 'undefined') ? 0 : i;
         //console.debug('i is ', i);
@@ -72,6 +104,13 @@ function Initialize(opt) {
     }
 
 
+    /**
+     * Resolves command aliases (e.g. `rm` → `remove`) by looking up the aliases registry.
+     * @inner
+     * @private
+     * @param {object} task - Task descriptor with `topic` and `action` properties
+     * @returns {object} The task with the action resolved to its canonical name
+     */
     var checkForAliases = function(task) {
         try {
             // var aliasArr = aliases[task.topic].toArray();
@@ -88,6 +127,13 @@ function Initialize(opt) {
         return task
     }
 
+    /**
+     * Resolves the command file path, optionally cache-busts in dev mode, and executes it.
+     * @inner
+     * @private
+     * @param {object} opt
+     * @param {object} [cmd]
+     */
     var run = function(opt, cmd) {
         opt.task = checkForAliases(opt.task);
         var filename ='/cmd/' + opt.task.topic + '/' + opt.task.action + '.js'

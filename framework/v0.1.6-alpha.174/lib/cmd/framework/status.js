@@ -6,18 +6,35 @@ const {execSync}    = require('child_process');
 var CmdHelper   = require('./../helper');
 var console     = lib.logger;
 /**
- * Framework status
+ * @module gina/lib/cmd/framework/status
+ */
+/**
+ * Displays the running status of the Gina framework and its versions.
  *
- * e.g.
+ * Usage:
  *  gina framework:status
- *  or
  *  gina status
  *
- * */
+ * @class Status
+ * @constructor
+ * @param {object} opt - Parsed command-line options
+ * @param {object} opt.client - Socket client for terminal output
+ * @param {string[]} opt.argv - Full argv array
+ * @param {number} [opt.debugPort] - Node.js inspector port
+ * @param {boolean} [opt.debugBrkEnabled] - True when --inspect-brk is active
+ * @param {object} cmd - The cmd dispatcher object (lib/cmd/index.js)
+ */
 function Status(opt, cmd) {
     var self    = {};
 
 
+    /**
+     * Imports CmdHelper and delegates to status().
+     * @inner
+     * @private
+     * @param {object} opt
+     * @param {object} cmd
+     */
     var init = function(opt, cmd) {
 
         console.debug('Getting framework status');
@@ -28,6 +45,13 @@ function Status(opt, cmd) {
         status(opt, cmd);
     }
 
+    /**
+     * Discovers processes matching `gina-v*` that are not tracked by PID files
+     * and writes PID files for them, or kills any zombie processes.
+     * @inner
+     * @private
+     * @param {string[]} pidFiles - Array of PID filenames already found in GINA_RUNDIR
+     */
     var checkUnregistered = function(pidFiles) {
         // Those not in file
         var list = execSync("ps -ef | grep -v grep | grep 'gina-v' | awk '{print $2\" \"$8\" \"$9}'").toString().replace(/\n$/, '').split(/\n/g);
@@ -63,6 +87,13 @@ function Status(opt, cmd) {
 
     }
 
+    /**
+     * Reads PID files and prints running framework versions to the logger.
+     * @inner
+     * @private
+     * @param {object} opt
+     * @param {object} cmd
+     */
     var status = function(opt, cmd) {
         var pidFiles = null;
         try {
@@ -118,6 +149,14 @@ function Status(opt, cmd) {
         end();
     }
 
+    /**
+     * Logs optional output and exits the process.
+     * @inner
+     * @private
+     * @param {string|Error} [output]
+     * @param {string} [type] - Logger method name
+     * @param {boolean} [messageOnly]
+     */
     var end = function (output, type, messageOnly) {
         var err = false;
         if ( typeof(output) != 'undefined') {

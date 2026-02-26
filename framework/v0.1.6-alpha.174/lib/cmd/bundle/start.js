@@ -11,31 +11,40 @@ var CmdHelper   = require('./../helper');
 var terminal    = lib.logger;
 // For logs/tail output thru the parent
 var console     = null;
-
 /**
- * Start a given bundle or start all bundles at once
+ * @module gina/lib/cmd/bundle/start
+ */
+/**
+ * Starts a given bundle or all bundles in a project.
  *
- *
- * e.g.
+ * Usage:
  *  gina bundle:start <bundle_name> @<project_name>
- *
- * // start all bundles within the project
  *  gina bundle:start @<project_name>
- * or
  *  gina bundle:start @<project_name> --max-old-space-size=4096 --inspect=5858
  *
+ * To inspect the command handler itself, first restart gina with `--inspect-gina`.
  *
- * If you want to inspect/debug here, you first need to restart gina with `--inspect-gina`
- *   gina start --inspect-gina
- * then
- *   gina bundle:start <bundle_name> @<project_name> --max-old-space-size=4096 --inspect=5858
- *
- * */
+ * @class Start
+ * @constructor
+ * @param {object} opt - Parsed command-line options
+ * @param {object} opt.client - Socket client for terminal output
+ * @param {string[]} opt.argv - Full argv array
+ * @param {number} [opt.debugPort] - Node.js inspector port
+ * @param {boolean} [opt.debugBrkEnabled] - True when --inspect-brk is active
+ * @param {object} cmd - The cmd dispatcher object (lib/cmd/index.js)
+ */
 function Start(opt, cmd) {
     var self    = {};
     // terminal.register(console, opt.client.write);
 
 
+    /**
+     * Imports CmdHelper and delegates to start() or bulk-start().
+     * @inner
+     * @private
+     * @param {object} opt
+     * @param {object} cmd
+     */
     var init = function(opt, cmd) {
 
         // import CMD helpers
@@ -56,6 +65,14 @@ function Start(opt, cmd) {
         start(opt, cmd);
     }
 
+    /**
+     * Checks if the project's node_modules need to be reinstalled due to an arch/platform mismatch.
+     * Reinstalls via `npm install` if needed, then calls cb(false) to proceed.
+     * @inner
+     * @private
+     * @param {object} opt
+     * @param {function} cb - Called with (err) — err is false when node_modules are ready
+     */
     var checkArchAgainstNodeModules = function(opt, cb) {
 
         var currentArch         = GINA_ARCH
@@ -211,6 +228,14 @@ function Start(opt, cmd) {
 
 
 
+    /**
+     * Spawns the bundle process, monitors stdout for start/error signals, and calls end().
+     * @inner
+     * @private
+     * @param {object} opt
+     * @param {object} cmd
+     * @param {number} [bundleIndex] - When set, enables bulk-start mode
+     */
     var start = function(opt, cmd, bundleIndex) {
 
         // getting the debug port
@@ -518,6 +543,16 @@ function Start(opt, cmd) {
 
 
 
+    /**
+     * Advances to the next bundle in bulk-start mode, or emits 'end' on the client socket.
+     * @inner
+     * @private
+     * @param {object} opt
+     * @param {object} cmd
+     * @param {boolean} [isBulkStart]
+     * @param {number} [i] - Current bundle index in bulk mode
+     * @param {boolean} [error]
+     */
     var end = function (opt, cmd, isBulkStart, i, error) {
         if ( typeof(opt.msg) != 'undefined' ) {
             opt.client.write('\n\r'+ opt.msg);
@@ -561,6 +596,13 @@ function Start(opt, cmd) {
 
 
 
+    /**
+     * Resolves the bundle's entry point path based on manifest and env, and verifies it exists.
+     * @inner
+     * @private
+     * @param {string} bundle - Bundle name
+     * @param {function} callback - Called with (err, appPath, bundleDir)
+     */
     var isRealApp = function(bundle, callback) {
         var p               = null
             , d             = null
