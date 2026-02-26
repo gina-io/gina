@@ -2641,6 +2641,8 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
 
     var handleHTTP2ClientRequest = function(browser, options, callback, isRetry = false) {
 
+        var HTTP2_SESSION_MAX = 50; // max concurrent HTTP/2 sessions in cache
+
         //cleanup
         options[':authority'] = options.hostname;
 
@@ -2708,14 +2710,34 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
         let sessKey = "http2session:"+ authority;
         let requestId = `${options[':method']}:${options[':path']}:${Date.now()}`; // For debugging
 
+        // Session key tracker — stored on server instance (same scope as cache)
+        if (!self.serverInstance._http2Sessions) {
+            self.serverInstance._http2Sessions = [];
+        }
+
         let client = cache.get(sessKey);
         // Checking client status: is closed or being closed
         if (client && (client.closed || client.destroyed || client.connecting === false)) {
             client = null;
             cache.delete(sessKey);
+            var _staleIdx = self.serverInstance._http2Sessions.indexOf(sessKey);
+            if (_staleIdx !== -1) self.serverInstance._http2Sessions.splice(_staleIdx, 1);
+            _staleIdx = null;
         }
 
         if (!client || client.destroyed || client.closed) {
+
+            // Evict the oldest session if the cache has reached its limit
+            if (self.serverInstance._http2Sessions.length >= HTTP2_SESSION_MAX) {
+                var _evictKey    = self.serverInstance._http2Sessions.shift();
+                var _evictClient = cache.get(_evictKey);
+                if (_evictClient && !_evictClient.destroyed) _evictClient.destroy();
+                cache.delete(_evictKey);
+                console.warn('[HTTP2] Session cache limit ('+ HTTP2_SESSION_MAX +') reached. Evicted oldest session: '+ _evictKey);
+                _evictKey    = null;
+                _evictClient = null;
+            }
+
             client = browser.connect(authority, options);
 
             // Optional but recommended on M4/Orbstack
@@ -2724,6 +2746,9 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
             client.on('error', (error) => {
                 console.error( '`'+ options[':path']+ '` : '+ error.stack||error.message);
                 cache.delete(sessKey);
+                var _errIdx = self.serverInstance._http2Sessions.indexOf(sessKey);
+                if (_errIdx !== -1) self.serverInstance._http2Sessions.splice(_errIdx, 1);
+                _errIdx = null;
                 if (
                     typeof(error.cause) != 'undefined' && typeof(error.cause.code) != 'undefined' && /ECONNREFUSED|ECONNRESET/.test(error.cause.code)
                     || /ECONNREFUSED|ECONNRESET/.test(error.code)
@@ -2742,14 +2767,21 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
             client.on('close', () => {
                 console.log('[CLIENT] Session expired or closed by server. Removing from cache.');
                 cache.delete(sessKey);
+                var _closeIdx = self.serverInstance._http2Sessions.indexOf(sessKey);
+                if (_closeIdx !== -1) self.serverInstance._http2Sessions.splice(_closeIdx, 1);
+                _closeIdx = null;
             });
 
             client.on('goaway', () => {
                 console.warn('[CLIENT] Server is going away. Draining session.');
                 cache.delete(sessKey);
+                var _goawayIdx = self.serverInstance._http2Sessions.indexOf(sessKey);
+                if (_goawayIdx !== -1) self.serverInstance._http2Sessions.splice(_goawayIdx, 1);
+                _goawayIdx = null;
             });
 
             cache.set(sessKey, client);
+            self.serverInstance._http2Sessions.push(sessKey);
         }
 
 
