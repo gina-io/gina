@@ -15,8 +15,20 @@ var merge           = lib.merge;
 var modelUtil       = new lib.Model();
 
 /**
- * @class Model.EntitySuper class
+ * @class EntitySuper
+ * @constructor
+ * @this {EntitySuper}
+ * @extends EventEmitter
  *
+ * Base class for all Gina model entities. Automatically discovers entity methods
+ * that emit named events (`shortName#methodName`) and wraps them with
+ * `.onComplete(cb)` listener support and optional Promise-style usage.
+ *
+ * Entity method event naming convention: `entityShortName#methodName`
+ * E.g. a `UserEntity` method `findById` → event `user#findById`
+ *
+ * @param {object} conn   - Database connection object from the connector
+ * @param {string} [caller] - Name of the calling context (used for debugging)
  *
  * @package     Gina
  * @namespace   Gina.Model
@@ -56,9 +68,13 @@ function EntitySuper(conn, caller) {
 
 
     /**
-     * Set all main listenners at once
+     * Scan the entity for event-emitting methods and wire up `once` + `.onComplete(cb)` listeners.
+     * Skips entities that set `hasOwnEvents = true`.
      *
-     * */
+     * @inner
+     * @param {string} [caller] - Calling context name (debug only)
+     * @returns {EntitySuper|false} self, or `false` when `hasOwnEvents` is set
+     */
     var setListeners = function(caller) {
 
         var entityName  = self.name.substring(0, 1).toLowerCase() + self.name.substring(1);

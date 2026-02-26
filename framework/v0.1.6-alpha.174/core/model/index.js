@@ -25,8 +25,16 @@ var Module          = require('module');
 
 
 /**
- * @class Model class
+ * @class Model
+ * @constructor
+ * @this {Model}
+ * @extends EventEmitter
  *
+ * Resolves a bundle connector, loads its entities, and emits `model#ready`
+ * when the database connection is established.
+ *
+ * @param {string} namespace - Bundle/connector namespace, e.g. `'myBundle/mongo'`
+ * @param {object} [_config] - Optional pre-loaded config object (skips `getConfigSync`)
  *
  * @package     Gina
  * @namespace
@@ -168,6 +176,15 @@ function Model(namespace, _config) {
     }
 
 
+    /**
+     * Instantiate the connector and open a database connection.
+     * Caches the connection result on the connector registry so subsequent
+     * calls with the same connector name return immediately.
+     *
+     * @param {function} Connector - Connector constructor loaded from the connector path
+     * @param {function} callback  - `callback(err, conn)`
+     * @returns {void}
+     */
     this.connect = function(Connector, callback) {
         if ( typeof(self.connectors[_connector]) == 'undefined' ) {
             //console.debug('[MODEL] Need to create connector instance ...');
@@ -186,22 +203,27 @@ function Model(namespace, _config) {
         }
     }
 
+    /**
+     * Re-run setup and init, refreshing the connector/entity paths from the current config.
+     * Useful in dev mode after a hot-reload.
+     *
+     * @param {object}   conf - Updated configuration (passed through to `init`)
+     * @param {function} cb   - Callback forwarded to `init`
+     * @returns {void}
+     */
     this.reload = function(conf, cb) {
         setup(namespace);
         init(cb)
     }
 
     /**
-     * Get Model configuration
+     * Retrieve the model configuration for a bundle synchronously.
      *
-     * @param {string} bundle
-     *
-     * @callback callback
-     * @param {boolean|string} err - Error Status response
-     * @param {object} conf - Configuration response
-     *
-     * @private
-     * */
+     * @inner
+     * @param {string} bundle  - Bundle name
+     * @param {number} [i]     - Retry counter (internal, starts at 0)
+     * @returns {object|undefined} `{ connectors, path }` or throws when not found
+     */
     var getConfigSync = function(bundle, i) {
         var i = i || 0;
 
@@ -276,6 +298,24 @@ function Model(namespace, _config) {
     }
 
 
+    /**
+     * Register a one-time listener for `model#ready`, then kick off setup and init.
+     * This is the primary entry point: call it after constructing a Model instance.
+     *
+     * @param {function} callback - `callback(err, bundle, model, conn)`
+     * @param {Error|null}  callback.err    - Connection error, or `null` on success
+     * @param {string}      callback.bundle - Bundle name
+     * @param {string}      callback.model  - Model/connector name
+     * @param {object|null} callback.conn   - Database connection, or `null` on error
+     * @returns {Model} self
+     *
+     * @example
+     * var model = new Model('myBundle/mongo');
+     * model.onReady(function(err, bundle, name, conn) {
+     *     if (err) throw err;
+     *     // use conn
+     * });
+     */
     this.onReady = function(callback) {
         self.once('model#ready', function(err, bundle, model, conn) {
             // entities == null when the database server has not started.

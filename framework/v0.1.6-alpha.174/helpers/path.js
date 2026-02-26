@@ -23,12 +23,19 @@ var ContextHelper = require('./context');
 /**
  * PathHelper
  *
+ * Provides cross-platform path normalisation and async file-system operations
+ * (`mkdir`, `cp`, `mv`, `rm`). Injects the global `_()` constructor on first load.
+ *
+ * @class
+ * @constructor
+ * @this {PathHelper}
+ *
  * @package     Gina.Lib.Helpers
  * @author      Rhinzostone <contact@gina.io>
  * @api public
  *
  * TODO - Put debug logs
- * */
+ */
 
 function PathHelper() {
 
@@ -36,17 +43,25 @@ function PathHelper() {
     var _this = this;
 
     /**
-     * _
-     * PathHelper Constructor
+     * Normalise a path string or construct a PathObject for a directory.
      *
-     * @constructor
+     * When called with a plain string it resolves platform separators and optional
+     * `$HOME` / `~` expansion and returns a normalised string.  When called without
+     * `force` on a directory path it returns a PathObject with helpers like
+     * `existsSync()`, `mkdirSync()`, `cp()`, etc.
      *
-     * @param {string} path - Path to convert
-     * @param {boolean} [force] - Force conversion to match platform style (Only for string conversion)
+     * Injected as a global by `PathHelper` — do not import directly.
      *
-     * @returns {string|object} converted
-     * */
-
+     * @global
+     * @function _
+     *
+     * @param {string}  path    - Path to convert
+     * @param {boolean} [force] - Force string conversion (bypasses PathObject construction)
+     *
+     * @returns {string|object} Normalised path string, or a PathObject instance
+     *
+     * @see PathHelper
+     */
     _ = function(path, force) {
 
         if ( typeof(path) == 'undefined' || !path || path == '' || path.length <=2 ) {

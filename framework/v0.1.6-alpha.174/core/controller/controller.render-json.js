@@ -14,6 +14,16 @@ var self                = null
 ;
 
 
+/**
+ * Write the rendered JSON to the cache store (memory or file system).
+ * No-op when caching is disabled or the route has no `cache` setting.
+ *
+ * @inner
+ * @param {string} bundle      - Bundle name (used as cache-key namespace)
+ * @param {object} opt         - Server cache configuration (`opt.path`, `opt.ttl`)
+ * @param {string} jsonContent - Serialised JSON string to cache
+ * @returns {void}
+ */
 function writeCache(bundle, opt, jsonContent) {
     if (
         typeof(local.req.routing.cache) == 'undefined'
@@ -95,12 +105,17 @@ function writeCache(bundle, opt, jsonContent) {
 /**
  * Render JSON
  *
- * @param {object|string} jsonObj
- * @param {object} deps
+ * Serialises `jsonObj` to JSON, sets appropriate content-type headers,
+ * writes the response, and nulls per-request refs on every exit path.
  *
- * @callback {function} [next]
- *
- * */
+ * @param {object|string} jsonObj     - Data to serialise. Parsed if passed as a string.
+ * @param {object}        deps        - Inherited refs from SuperController
+ * @param {object}        deps.self   - The SuperController instance
+ * @param {object}        deps.local  - Per-request closure (`req`, `res`, `next`, `options`)
+ * @param {function}      deps.headersSent  - Returns `true` when response headers are already sent
+ * @param {function}      deps.freeMemory   - Nulls per-request variables after response
+ * @returns {void}
+ */
 module.exports = function renderJSON(jsonObj, deps) {
     // Inherited from controller
     self            = deps.self;

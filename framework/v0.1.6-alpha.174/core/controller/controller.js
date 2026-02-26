@@ -36,7 +36,15 @@ var statusCodes     = requireJSON( _( getPath('gina').core + '/status.codes') );
 
 /**
  * @class SuperController
+ * @constructor
+ * @this {SuperController}
+ * @extends EventEmitter
  *
+ * Base controller class. Instantiated once per bundle (singleton via static
+ * `SuperController.instance`), then reused across requests with `setOptions()`
+ * injecting per-request state into the shared `local` closure.
+ *
+ * @param {object} options - Per-request options injected by the router
  *
  * @package     Gina
  * @namespace
@@ -64,9 +72,12 @@ function SuperController(options) {
     };
 
     /**
-     * SuperController Constructor
+     * SuperController constructor — runs once; subsequent calls delegate to {@link getInstance}.
+     *
+     * @inner
      * @constructor
-     * */
+     * @returns {SuperController}
+     */
     var init = function() {
 
         if ( typeof(SuperController.initialized) != 'undefined' ) {
@@ -81,6 +92,12 @@ function SuperController(options) {
         SuperController.initialized = true;
     }
 
+    /**
+     * Returns the singleton instance, updating the per-request `local.options`.
+     *
+     * @inner
+     * @returns {SuperController}
+     */
     var getInstance = function() {
         // Removed SuperController.instance._options = options (was: local.options = SuperController.instance._options = options).
         // SuperController.instance._options is never read — all reads go through local.options (per-request closure)
@@ -94,6 +111,12 @@ function SuperController(options) {
     }
 
 
+    /**
+     * Returns `true` when the current route has a template configured.
+     *
+     * @inner
+     * @returns {boolean}
+     */
     var hasViews = function() {
         return ( typeof(local.options.template) != 'undefined' ) ? true : false;
     }
@@ -113,6 +136,14 @@ function SuperController(options) {
         return /http2/.test(httpLib)
     }
 
+    /**
+     * Returns `true` when response headers have already been sent.
+     * Checks both HTTP/2 stream and HTTP/1.1 `res.headersSent`.
+     *
+     * @inner
+     * @param {object} [res] - Defaults to `local.res`
+     * @returns {boolean}
+     */
     var headersSent = function(res) {
         var _res = ( typeof(res) != 'undefined' ) ? res : local.res;
         if (
@@ -131,10 +162,10 @@ function SuperController(options) {
         return false;
     }
     /**
-     * isSecured
-     * Returns `true` if server configured to handle a HTTPS exchanges
+     * Returns `true` when the server is configured for HTTPS.
      *
-     * @returns {boolean} isSecured
+     * @inner
+     * @returns {boolean}
      */
     var isSecured = function() {
         return /https/.test(local.options.conf.server.scheme)
@@ -171,14 +202,29 @@ function SuperController(options) {
         }
     }
 
+    /**
+     * Returns the current request object.
+     *
+     * @returns {object} req
+     */
     this.getRequestObject = function() {
         return local.req;
     }
 
+    /**
+     * Returns the current response object.
+     *
+     * @returns {object} res
+     */
     this.getResponseObject = function() {
         return local.res;
     }
 
+    /**
+     * Returns the `next` middleware callback for the current request.
+     *
+     * @returns {function|null} next
+     */
     this.getNextCallback = function() {
         return local.next;
     }
@@ -203,6 +249,16 @@ function SuperController(options) {
     }
 
 
+    /**
+     * Inject per-request state into the shared `local` closure.
+     * Called by the router on every request before the controller action runs.
+     *
+     * @param {object}   req     - Incoming request
+     * @param {object}   res     - Server response
+     * @param {function} next    - Next middleware callback
+     * @param {object}   options - Per-request options (conf, template, routing, …)
+     * @returns {void}
+     */
     this.setOptions = function(req, res, next, options) {
         // Removed SuperController.instance._options = options (was: local.options = SuperController.instance._options = options).
         // Same reason as getInstance(): write-only corruption of the first controller's _options.
@@ -892,6 +948,14 @@ function SuperController(options) {
         return (/(http|ftp|https|sftp):\/\/[\w-]+(\.[\w-]+)+([\w.,@?^=%&amp;:\/~+#-]*[\w@?^=%&amp;\/~+#-])?/.test(url)) ? true : false;
     }
 
+    /**
+     * Render the current view without its layout wrapper.
+     * Delegates to `self.render()` after setting `local.options.isWithoutLayout = true`.
+     *
+     * @param {object}  data            - Template data
+     * @param {boolean} [displayToolbar] - Show the Gina dev toolbar when `true`
+     * @returns {void}
+     */
     this.renderWithoutLayout = function (data, displayToolbar) {
 
         // preventing multiple call of self.renderWithoutLayout() when controller is rendering from another required controller
@@ -949,14 +1013,30 @@ function SuperController(options) {
 
 
 
+    /**
+     * Returns `true` when the current request was made via `XMLHttpRequest`.
+     *
+     * @returns {boolean}
+     */
     this.isXMLRequest = function() {
         return local.options.isXMLRequest;
     }
 
+    /**
+     * Returns `true` when the request was made with credentials (cookies / auth headers).
+     *
+     * @returns {boolean}
+     */
     this.isWithCredentials = function() {
         return ( /true/.test(local.options.withCredentials) ) ? true : false;
     }
 
+    /**
+     * Returns `true` when the request originated from inside a Gina popin
+     * (detected via `x-gina-popin-id` or `x-gina-popin-name` request headers).
+     *
+     * @returns {boolean}
+     */
     this.isPopinContext = function() {
         return (
             typeof(local.req.headers['x-gina-popin-id']) != 'undefined'
@@ -967,15 +1047,12 @@ function SuperController(options) {
 
 
     /**
-     * Render JSON
+     * Serialise `jsonObj` and send it as a JSON response.
+     * Delegates to `controller.render-json.js` (cache-busted in dev mode).
      *
-     * @param {object|string} jsonObj
-     * @param {object} [req]
-     * @param {object} [res]
-     *
-     * @callback {function} [next]
-     *
-     * */
+     * @param {object|string} jsonObj - Data to serialise; parsed if passed as a string
+     * @returns {void}
+     */
     this.renderJSON = function(jsonObj) {
         if  (this.isCacheless() ) {
             delete require.cache[require.resolve( _(__dirname + '/controller.render-json', true))];
@@ -991,6 +1068,13 @@ function SuperController(options) {
 
 
 
+    /**
+     * Send a plain-text response.
+     * Coerces `content` to string if necessary and sets `content-type: text/plain`.
+     *
+     * @param {string|*} content - Response body; coerced via `.toString()` if not a string
+     * @returns {void}
+     */
     this.renderTEXT = function(content) {
 
         // preventing multiple call of self.renderTEXT() when controller is rendering from another required controller
@@ -1062,14 +1146,31 @@ function SuperController(options) {
         return localRequestMethod;
     }
 
+    /**
+     * Returns the (possibly overridden) HTTP method for the current request.
+     *
+     * @returns {string|null} HTTP method in uppercase, e.g. `'GET'`
+     */
     this.getRequestMethod = function() {
         return localRequestMethod;
     }
 
+    /**
+     * Override the parsed request-method params on `req[method]`.
+     *
+     * @param {object} params - Parsed request params to store
+     * @returns {void}
+     */
     this.setRequestMethodParams = function(params) {
         localRequestMethodParams = local.req[local.req.method.toLowerCase()] = localRequestMethodParams = params
     }
 
+    /**
+     * Returns the request-method params set via `setRequestMethodParams`,
+     * falling back to the raw `req[method]` object.
+     *
+     * @returns {object}
+     */
     this.getRequestMethodParams = function() {
         return (localRequestMethodParams) ? localRequestMethodParams : local.req[local.req.method.toLowerCase()]
     }
@@ -1578,6 +1679,15 @@ function SuperController(options) {
         }
     }
 
+    /**
+     * Health-check action — responds with `{ status: 200, isAlive: true }`.
+     * Mount on a route with `"control": "getBundleStatus"` in `routing.json`.
+     *
+     * @param {object}   req  - Incoming request
+     * @param {object}   res  - Server response
+     * @param {function} next - Next middleware callback
+     * @returns {void}
+     */
     this.getBundleStatus = function(req, res, next) {
         var conf = self.getConfig();
         self.renderJSON({
@@ -1589,6 +1699,13 @@ function SuperController(options) {
         });
     }
 
+    /**
+     * Ping a sibling bundle's health-check endpoint and return its status.
+     *
+     * @param {string}   bundle - Bundle name to probe (must have a `bundle-status@<bundle>` route)
+     * @param {function} [cb]   - `cb(err, { isAlive: boolean })` — omit to get a Promise
+     * @returns {Promise<object>|void}
+     */
     this.checkBundleStatus = async function(bundle, cb) {
         var opt     = self.getConfig('app').proxy[bundle];
         var route   = lib.routing.getRoute('bundle-status@'+bundle);
@@ -2067,6 +2184,19 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
 
     };
 
+    /**
+     * Make an outbound HTTP/HTTPS request from a controller action.
+     *
+     * Accepts arguments in any of these forms:
+     * - `query(options, data, callback)`
+     * - `query(options, callback)`
+     * - `query(options, data)` — returns a Promise when the last arg is not a function
+     *
+     * @param {object}   options          - Request options (host, port, path, method, …)
+     * @param {object}   [data]           - Request body / query params
+     * @param {function} [callback]       - `callback(err, result)` — omit to get a Promise
+     * @returns {void|Promise}
+     */
     this.query = function() { // options, data, callback
         var err = null;
         var options = arguments[0];
@@ -3558,6 +3688,16 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
         return rules;
     }
 
+    /**
+     * Push a Server-Sent Events payload to connected clients.
+     * Targets the client whose `sessionID` matches the current session,
+     * or broadcasts to all active clients when no session is found.
+     *
+     * @param {object|null} payload     - Data to push; falls back to `req[method].payload` when `null`
+     * @param {object}      [option]    - Push options (e.g. `{ section: '...' }`)
+     * @param {function}    [callback]  - `callback(err, result)`
+     * @returns {void}
+     */
     this.push = function(payload, option, callback) {
 
         var req = local.req, res = local.res;
@@ -3635,6 +3775,12 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
         return session;
     }
 
+    /**
+     * Returns `true` when the session (or provided storage object) holds a `haltedRequest`.
+     *
+     * @param {object} [session] - Defaults to the current `req.session` / `req.session.user`
+     * @returns {boolean}
+     */
     this.isHaltedRequest = function(session) {
         // trying to retrieve session since it is optional
         if ( typeof(session) == 'undefined' ) {
@@ -3662,6 +3808,15 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
 
     local.haltedRequestUrlResumed = false;
 
+    /**
+     * Snapshot the current request as a `haltedRequest` and store it in `requestStorage`.
+     * Typically called before redirecting to a login page so the original request can be
+     * replayed after authentication via `resumeRequest()`.
+     *
+     * @param {object} data               - Current action data to preserve
+     * @param {object} [requestStorage]   - Storage target; defaults to `req.session`
+     * @returns {object} requestStorage   - The updated storage object
+     */
     this.pauseRequest = function(data, requestStorage) {
 
 
@@ -3841,6 +3996,16 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
     }
 
 
+    /**
+     * Render a custom error page defined in `routing.json` via `req.routing.param.error`.
+     * Sets `local.options.isRenderingCustomError = true` so the render pipeline
+     * bypasses the normal rendering-stack guard.
+     *
+     * @param {object}   req  - Incoming request (reads `req.routing.param`)
+     * @param {object}   res  - Server response
+     * @param {function} next - Next middleware callback
+     * @returns {void}
+     */
     this.renderCustomError = function (req, res, next) {
 
         // preventing multiple call of self.renderWithoutLayout() when controller is rendering from another required controller
