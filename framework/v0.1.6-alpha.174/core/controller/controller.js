@@ -82,7 +82,11 @@ function SuperController(options) {
     }
 
     var getInstance = function() {
-        local.options = SuperController.instance._options = options;
+        // Removed SuperController.instance._options = options (was: local.options = SuperController.instance._options = options).
+        // SuperController.instance._options is never read — all reads go through local.options (per-request closure)
+        // or self._options (per-request property). Writing to it silently corrupts the first controller's _options
+        // on every subsequent request, creating a potential trap for any future code that reads it.
+        local.options = options;
         // Fixed on 2022-03-07 for none-developpement environnements (without cache)
         self._options = local.options;
 
@@ -200,7 +204,9 @@ function SuperController(options) {
 
 
     this.setOptions = function(req, res, next, options) {
-        local.options = SuperController.instance._options = options;
+        // Removed SuperController.instance._options = options (was: local.options = SuperController.instance._options = options).
+        // Same reason as getInstance(): write-only corruption of the first controller's _options.
+        local.options = options;
         local.options.renderingStack = (local.options.renderingStack) ? local.options.renderingStack : [];
         local.options.isRenderingCustomError = (local.options.isRenderingCustomError) ? local.options.isRenderingCustomError : false;
 
