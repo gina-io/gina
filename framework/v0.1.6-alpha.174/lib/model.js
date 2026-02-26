@@ -13,20 +13,29 @@ var math        = require('./math');
 //var checkSum    = math.checkSum;
 
 /**
- * Model uitl
+ * @module lib/model
+ * @description Singleton registry that tracks loaded models, entities, and
+ * database connections across bundles. Used internally by the framework — do
+ * not instantiate directly; access via `lib.Model` or the injected `modelUtil`
+ * context key.
+ */
+
+/**
+ * Internal model registry — singleton.
+ *
+ * @class ModelUtil
+ * @constructor
+ * @this {ModelUtil}
  *
  * @package     Gina.Lib
  * @author      Rhinostone <contact@gina.io>
  * @api public
- * */
+ */
 function ModelUtil() {
     var self        = this;
     var cacheless   = (process.env.NODE_ENV_IS_DEV == 'false') ? false : true;
 
-    /**
-     * Init
-     * @contructor
-     * */
+    /** @inner @constructor */
     var init = function() {
 
         if ( !ModelUtil.instance && !getContext('modelUtil') ) {

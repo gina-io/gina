@@ -52,11 +52,23 @@ var generator   = require( _(__dirname + '/generator') );
 //var helpers     = require( _(__dirname + '/helpers') );
 
 /**
+ * @module lib/proc
+ * @description Process manager — spawns, monitors, and manages child bundle
+ * processes using PID files. Extends EventEmitter.
+ */
+
+/**
+ * Bundle process manager.
+ *
+ * @class Proc
  * @constructor
+ * @this {Proc}
+ * @extends EventEmitter
  *
- * @param {string} bundle
- *
- * */
+ * @param {string}  bundle       - Bundle name
+ * @param {object}  [proc]       - Existing process descriptor to attach to
+ * @param {boolean} [usePidFile] - Write/read PID from a file (default: true)
+ */
 function Proc(bundle, proc, usePidFile){
 
     var e       = new Emitter();

@@ -16,17 +16,27 @@ var generator   = require('./generator');
 
 
 /**
- * Config constructor
- * @contructor
- * */
+ * @module lib/config
+ * @description Low-level configuration utility used internally by the framework
+ * to read and resolve bundle config files. Exposed on `lib` as `lib.Config`.
+ * Application code should use `self.getConfig()` on the controller instead.
+ */
+
+/**
+ * Configuration utility — singleton, returns itself on subsequent `new` calls.
+ *
+ * @class ConfigUtil
+ * @constructor
+ * @this {ConfigUtil}
+ */
 function ConfigUtil() {
 
     var self = this; //, mainConfig
 
     /**
-     * Init
-     * @contructor
-     * */
+     * @inner
+     * @constructor
+     */
     var init = function() {
 
         if ( !ConfigUtil.instance ) {

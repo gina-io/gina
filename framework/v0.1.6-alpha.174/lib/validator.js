@@ -3,25 +3,32 @@ var merge       = require('./merge');
 var dateFormat  = helpers.dateFormat;
 
 /**
+ * @module lib/validator
+ * @description Fluent backend data validator. Chains validation rules on named
+ * fields and collects errors into a single object for response.
+ */
+
+/**
+ * Fluent backend validator.
+ *
  * @class Validator
- * Backend validator
- * e.g.:
- *  var data = req.post;
- *  var d = new Validator(data);
+ * @constructor
+ * @this {Validator}
  *
- *  if ( data.count() > 0 ) {
- *      d.username
- *           .isRequired()
- *           .isString(0, 10)
- *           .isEmail();
- *  }
+ * @param {object} data                    - Data object to validate (e.g. `req.post`)
+ * @param {object} [errorLabels]           - Override default error message templates
+ * @throws {Error} When `data` is falsy
  *
- *  TODO - validate date against country_code or pattern yyyy-mm-dd
- *  dateObj
- *      [ .format('timestamp') ]
- *      .isDate('fr_FR')
+ * @example
+ * var data = req.post;
+ * var v = new Validator(data);
+ * if (data.count() > 0) {
+ *     v.username.isRequired().isString(0, 10).isEmail();
+ * }
  *
- * */
+ * TODO - validate date against country_code or pattern yyyy-mm-dd
+ * dateObj[ .format('timestamp') ].isDate('fr_FR')
+ */
 function Validator(data, errorLabels) {
 
     var local = {

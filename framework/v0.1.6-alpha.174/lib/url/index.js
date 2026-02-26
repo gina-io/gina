@@ -1,4 +1,19 @@
-// Deprecated
+/**
+ * @module lib/url
+ * @description URL and path builder backed by a route registry.
+ * @deprecated Use `lib/routing` instead.
+ */
+
+/**
+ * URL/path builder backed by a route registry.
+ *
+ * @class Url
+ * @constructor
+ * @deprecated Use `lib/routing` instead.
+ *
+ * @param {object} env    - Environment config with `fqdn`, `host`, and `port`
+ * @param {object} routes - Route registry (`{ [routeName]: { url, param } }`)
+ */
 function Url(env, routes) {
     var self = this;
 

@@ -4,47 +4,52 @@ if ( typeof(module) !== 'undefined' && module.exports ) {
 }
 
 /**
- * Collection cLass
- * Allows you to handle your own collections as you would normaly with mongodb
- * Dependencies :
- *  - lib/merge
- *  - uuid
+ * @module lib/collection
+ * @description In-memory array collection with MongoDB-style query, update,
+ * insert, delete, orderBy, and aggregation methods. Each entry gets a `_uuid`
+ * index on construction. Works in Node.js (CommonJS) and browser (GFF/AMD).
  *
+ * `Collection.length` returns entry count — do not use `.count()` as it
+ * includes function properties in the count.
  *
- * @param {array} collection
- * @param {object} [options]
- *      TODO - eg.: deduplicat: true
+ * Dependencies: `lib/merge`, `uuid`
+ */
+
+/**
+ * In-memory document collection with query and mutation methods.
  *
- * @returns {object} instance
+ * @class Collection
+ * @constructor
+ * @this {Collection}
  *
- * Collection.length will return result length : dont't use .count() which is going to include functions to the count
+ * @param {Array}   content      - Initial array of documents (deep-cloned on construction)
+ * @param {object}  [options]                      - Options
+ * @param {boolean} [options.useLocalStorage=false] - Persist to `localStorage` (browser only)
+ * @param {string}  [options.locale='en']           - Locale used for string comparison
+ * @returns {object} Collection instance (the enriched `content` array)
+ * @throws {Error} When `content` is not an Array
  *
- * Collection::find
- *  @param {object} filter
- *      eg.: { uid: 'someUID' }
- *      eg.: { type: 'not null', country: 'France' } // `AND` clause
- *      NB.: To filter `not empty`, use { type: '!=""' }
- *      eg.: { country: 'The Hashemite Kingdom of Jordan' }, { country: 'Libanon'} // `OR` clause
- *      eg.: { 'obj.prop': true }
- *      eg.: { 'contacts[*].name': 'Doe' } // `WITHIN` (array|collection) clause
- *      eg.: { lastUpdate: '>= 2016-12-01T00:00:00' }  // also available for date comparison `=`, `<`, `>`
- *      eg.: { activity: null }
- *      eg.: { isActive: false }
+ * @example
+ * var col = new Collection([{ id: 1, name: 'Alice' }, { id: 2, name: 'Bob' }]);
  *
- *  @returns {array} result
+ * // find — AND clause
+ * col.find({ name: 'Alice' });                          // [{ id:1, name:'Alice', _uuid:'…' }]
+ * // find — comparison
+ * col.find({ id: '>= 1' });                             // both entries
+ * // find — nested
+ * col.find({ 'address.city': 'Paris' });
+ * // find — within array
+ * col.find({ 'tags[*].label': 'news' });
+ * // OR clause (pass two filter objects)
+ * col.or().find({ name: 'Alice' }, { name: 'Bob' });
  *
- * Collection::findOne
- *  @param {object} filter
- *  @returns {object|array|string} result
- *
- * Collection::update
- *  @param {object} filter
- *  @param {object} set
- *
- *  @returns {array} result
- *      rasult.toRaw() will give result without chaining & _uuid
- *
- * */
+ * col.findOne({ id: 1 });                               // { id:1, … }
+ * col.update({ id: 1 }, { name: 'Alicia' });
+ * col.insert({ id: 3, name: 'Carol' });
+ * col.delete({ id: 2 });
+ * col.orderBy({ name: 'asc' });
+ * col.toRaw();                                          // strip _uuid/_hasItsOwnUuid
+ */
 function Collection(content, options) {
 
     var isGFFCtx        = ( ( typeof(module) !== 'undefined' ) && module.exports ) ? false : true;

@@ -7,7 +7,17 @@ var helpers         = require('./../helpers');
 var console         = require('./logger');
 
 /**
- * SSH SHELL
+ * @module lib/shell
+ * @description Spawn-based shell helper for running commands locally or over SSH.
+ * Wraps `child_process.spawn` with an EventEmitter for async result delivery.
+ */
+
+/**
+ * SSH / local shell helper.
+ *
+ * @class Shell
+ * @constructor
+ * @this {Shell}
  */
 function Shell () {
 
@@ -17,6 +27,16 @@ function Shell () {
         console: undefined
     };
 
+    /**
+     * Configure the shell instance.
+     * Supported keys: `chdir` (working directory), `console` (custom logger).
+     *
+     * @param {object}  opt           - Options map
+     * @param {string}  [opt.chdir]   - Working directory for spawned processes
+     * @param {object}  [opt.console] - Custom logger instance (defaults to `lib/logger`)
+     * @throws {Error} When an unsupported option key is passed
+     * @returns {void}
+     */
     this.setOptions = function(opt) {
 
         for (let name in opt) {
@@ -33,11 +53,19 @@ function Shell () {
     }
 
     /**
-     * Run command line
+     * Run a command line, optionally forcing local execution.
+     * Results are delivered via `.onComplete(cb)` on the returned EventEmitter.
      *
-     * @param {string|array} cmdLine
-     * @param {boolean} runLocal
-     * */
+     * @param {string|Array<string>} cmdline  - Command string or argument array
+     * @param {boolean} [runLocal]            - Force local execution (bypass SSH config)
+     * @returns {EventEmitter} Emits `shell#run` with `(err, result)`
+     *
+     * @example
+     * shell.run('ls -la').onComplete(function(err, output) {
+     *     if (err) throw err;
+     *     console.log(output);
+     * });
+     */
     this.run = function(cmdline, runLocal) {
 
         var opt         = getOptions()
