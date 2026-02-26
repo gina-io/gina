@@ -1,0 +1,3 @@
+kind: Fixed
+body: Fixed HTTP/2 session cache growing without bound; sessions are now capped at 50 with FIFO eviction and properly removed on error, close, and goaway events
+time: 2026-02-26T01:18:20.716101+01:00

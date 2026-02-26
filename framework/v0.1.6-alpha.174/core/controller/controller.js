@@ -160,6 +160,10 @@ function SuperController(options) {
         if (/^true$/i.test(isGlobalModeNeeded) ) {
             // all but local.options becasue of `self.requireController('namespace', self._options)` calls
             // local = null;
+            // Release per-request refs — controller is a singleton; local.req/res persist until overwritten otherwise.
+            local.req = null;
+            local.res = null;
+            local.next = null;
         }
     }
 
@@ -1518,10 +1522,13 @@ function SuperController(options) {
 
                 console.info(local.req.method.toUpperCase() +' ['+code+'] '+ path);
 
+                // Release per-request refs before exiting — next is already a local copy.
+                local.req = null;
+                local.res = null;
+                local.next = null;
+
                 if ( typeof(next) != 'undefined' )
                     next();
-                else
-                    return;
             }
 
         }
@@ -1777,7 +1784,8 @@ function SuperController(options) {
                 const req = browser.get(requestOptions, (res) => {
                     // Vérification du status HTTP (optionnel mais conseillé)
                     if (res.statusCode >= 400) {
-                        reject(new Error(`Server responded with ${res.statusCode}`));
+                        res.destroy(); // release the undrained IncomingMessage — nobody will consume it
+                        return reject(new Error(`Server responded with ${res.statusCode}`));
                     }
                     resolve(res);
                 });
@@ -2002,7 +2010,7 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
             'content-type': 'application/json',
             'content-length': local.query.data.length
         },
-        // Will try x3 (0, 1, 2)
+        // Will try x3 (0, 1, 2). Hard ceiling is 10 (see retry handler) to bound timer accumulation under sustained failure.
         maxRetry            : 2,
         // Socket inactivity timeout in milliseconds
         timeout             : 10000,
@@ -2561,7 +2569,7 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
         req.on('error', function onError(err) {
 
             // If conn is down (ECONNRESET, ETIMEDOUT),retry
-            if (retryCount < options.maxRetry) {
+            if (retryCount < Math.min(options.maxRetry, 10)) {
                 const delay = 500 * (retryCount + 1); // Délai progressif
                 return setTimeout(() => handleHTTP1ClientRequest(browser, options, callback, retryCount + 1), delay);
             }
@@ -2606,6 +2614,9 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
 
         return {
             onComplete  : function(cb) {
+                // Remove any orphaned listener from a previous query call on this instance
+                // before registering the new one to prevent listener accumulation.
+                self.removeAllListeners('query#complete');
                 self.once('query#complete', function(err, data){
 
                     if ( typeof(data) == 'string' && /^(\{|%7B|\[{)|\[\]/.test(data) ) {
@@ -2640,6 +2651,8 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
     }
 
     var handleHTTP2ClientRequest = function(browser, options, callback, isRetry = false) {
+
+        var HTTP2_SESSION_MAX = 50; // max concurrent HTTP/2 sessions in cache
 
         //cleanup
         options[':authority'] = options.hostname;
@@ -2708,14 +2721,34 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
         let sessKey = "http2session:"+ authority;
         let requestId = `${options[':method']}:${options[':path']}:${Date.now()}`; // For debugging
 
+        // Session key tracker — stored on server instance (same scope as cache)
+        if (!self.serverInstance._http2Sessions) {
+            self.serverInstance._http2Sessions = [];
+        }
+
         let client = cache.get(sessKey);
         // Checking client status: is closed or being closed
         if (client && (client.closed || client.destroyed || client.connecting === false)) {
             client = null;
             cache.delete(sessKey);
+            var _staleIdx = self.serverInstance._http2Sessions.indexOf(sessKey);
+            if (_staleIdx !== -1) self.serverInstance._http2Sessions.splice(_staleIdx, 1);
+            _staleIdx = null;
         }
 
         if (!client || client.destroyed || client.closed) {
+
+            // Evict the oldest session if the cache has reached its limit
+            if (self.serverInstance._http2Sessions.length >= HTTP2_SESSION_MAX) {
+                var _evictKey    = self.serverInstance._http2Sessions.shift();
+                var _evictClient = cache.get(_evictKey);
+                if (_evictClient && !_evictClient.destroyed) _evictClient.destroy();
+                cache.delete(_evictKey);
+                console.warn('[HTTP2] Session cache limit ('+ HTTP2_SESSION_MAX +') reached. Evicted oldest session: '+ _evictKey);
+                _evictKey    = null;
+                _evictClient = null;
+            }
+
             client = browser.connect(authority, options);
 
             // Optional but recommended on M4/Orbstack
@@ -2724,6 +2757,9 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
             client.on('error', (error) => {
                 console.error( '`'+ options[':path']+ '` : '+ error.stack||error.message);
                 cache.delete(sessKey);
+                var _errIdx = self.serverInstance._http2Sessions.indexOf(sessKey);
+                if (_errIdx !== -1) self.serverInstance._http2Sessions.splice(_errIdx, 1);
+                _errIdx = null;
                 if (
                     typeof(error.cause) != 'undefined' && typeof(error.cause.code) != 'undefined' && /ECONNREFUSED|ECONNRESET/.test(error.cause.code)
                     || /ECONNREFUSED|ECONNRESET/.test(error.code)
@@ -2742,14 +2778,21 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
             client.on('close', () => {
                 console.log('[CLIENT] Session expired or closed by server. Removing from cache.');
                 cache.delete(sessKey);
+                var _closeIdx = self.serverInstance._http2Sessions.indexOf(sessKey);
+                if (_closeIdx !== -1) self.serverInstance._http2Sessions.splice(_closeIdx, 1);
+                _closeIdx = null;
             });
 
             client.on('goaway', () => {
                 console.warn('[CLIENT] Server is going away. Draining session.');
                 cache.delete(sessKey);
+                var _goawayIdx = self.serverInstance._http2Sessions.indexOf(sessKey);
+                if (_goawayIdx !== -1) self.serverInstance._http2Sessions.splice(_goawayIdx, 1);
+                _goawayIdx = null;
             });
 
             cache.set(sessKey, client);
+            self.serverInstance._http2Sessions.push(sessKey);
         }
 
 
@@ -2828,8 +2871,9 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
 
         let isFinished = false;
         let data = '';
+        const chunks = []; // collect Buffer chunks — avoids peak-memory doubling from string concat
         req.on('data', function onQueryDataChunk(chunk) {
-            data += chunk;
+            chunks.push(chunk);
         });
 
         req.on('error', function onQueryError(error) {
@@ -2911,6 +2955,9 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
             // 1. Prevention: Ensure the logic only runs once per request
             if (isFinished) return;
             isFinished = true;
+
+            // Assemble chunks into a single string — one allocation, one conversion
+            data = Buffer.concat(chunks).toString();
 
             // 2. Guard Clause: Handle empty responses or aborted streams
             if (!data || data.trim() === "") {
@@ -3143,6 +3190,9 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
         return {
             onComplete  : function(cb) {
 
+                // Remove any orphaned listener from a previous query call on this instance
+                // before registering the new one to prevent listener accumulation.
+                self.removeAllListeners('query#complete');
                 self.once('query#complete', function(err, data){
 
                     if ( typeof(data) == 'string' && /^(\{|%7B|\[{)|\[\]/.test(data) ) {
@@ -4049,6 +4099,10 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
 
                 // console.error('[ BUNDLE ][ '+ bundleConf.bundle +' ][ Controller ] '+ req.method +' ['+res.statusCode +'] '+ req.url +'\n'+ errorObject);
                 console.error('[ BUNDLE ][ '+ bundleConf.bundle +' ][ Controller ] '+ req.method +' ['+res.statusCode +'] '+ req.url +'\n'+ errOutput);
+                // Release per-request refs — req/res are local copies so res.end() below is unaffected.
+                local.req = null;
+                local.res = null;
+                local.next = null;
                 return res.end(errOutput);
             } else {
 

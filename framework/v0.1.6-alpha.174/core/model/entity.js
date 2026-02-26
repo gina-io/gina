@@ -309,7 +309,9 @@ function EntitySuper(conn, caller) {
             if ( self._triggers.indexOf(trigger) < 0 ) {
                 self._triggers.push(trigger);
 
-                ++self._maxListeners;
+                // Cap to prevent unbounded growth if numbered variants accumulate (e.g. in loop/recursive emit patterns).
+                var ENTITY_MAX_LISTENERS = 100;
+                self._maxListeners = Math.min(self._maxListeners + 1, ENTITY_MAX_LISTENERS);
                 self.setMaxListeners(self._maxListeners);
 
                 var alias       = trigger.split(/\#/)[1]

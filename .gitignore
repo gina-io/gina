@@ -18,6 +18,7 @@ CLAUDE.md
 .*
 !/.gitignore
 !/.npmignore
+!/.changes
 /services
 /logs
 /tmp

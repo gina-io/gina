@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'Fixed HTTP/1 retry timer accumulation: capped maxRetry at 10 via Math.min to bound outstanding setTimeout closures under sustained connection failure regardless of user config'
+time: 2026-02-26T02:59:08.564392+01:00

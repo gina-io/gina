@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'Fixed undrained http.IncomingMessage on 4xx in downloadFromURL: res.destroy() is now called before rejecting the Promise, releasing the TCP connection immediately instead of waiting for remote timeout'
+time: 2026-02-26T02:46:14.945796+01:00
