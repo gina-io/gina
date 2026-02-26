@@ -16,9 +16,8 @@ var merge       = require('./../lib/merge');
 var console     = require('./../lib/logger');
 
 var ContextHelper = require('./context');
-var e =  new Events.EventEmitter();
-//Reminder: let listeners be removed by the V8 garbage collector.
-e.setMaxListeners(100);
+// replaced: per-operation emitters are now created inside mkdir(), cp(), mv() and rm()
+// instead of sharing a single module-level emitter that accumulated orphaned listeners.
 
 
 /**
@@ -491,7 +490,7 @@ function PathHelper() {
         })
     }
 
-    var mkdirEnd = function(self, err, path) {
+    var mkdirEnd = function(e, self, err, path) {
         if (!err) {
             e.emit('mkdir#complete#'+self.value, false, path)
         } else {
@@ -499,15 +498,17 @@ function PathHelper() {
         }
     }
 
-    var mkdir = function(self, permission, pathArr, i, path) {
+    var mkdir = function(self, permission, pathArr, i, path, e) {
+        // Per-call emitter — created on first (non-recursive) call, threaded through recursion.
+        if (!e) e = new Events.EventEmitter();
 
         var addFolder = function(self, permission, pathArr, i, path) {
 
             fs.mkdir(path,  function(err){
                 if (!err) {
-                    mkdir(self, permission, pathArr, i, path)
+                    mkdir(self, permission, pathArr, i, path, e)
                 } else {
-                    mkdirEnd(self, err)
+                    mkdirEnd(e, self, err)
                 }
             })
         };
@@ -538,12 +539,12 @@ function PathHelper() {
                 if (!found) {
                     addFolder(self, permission, pathArr, i, path)
                 } else {
-                    mkdir(self, permission, pathArr, i, path)
+                    mkdir(self, permission, pathArr, i, path, e)
                 }
             })
         } else {
             //console.debug("calling end on ", self.value);
-            mkdirEnd(self, false, path)
+            mkdirEnd(e, self, false, path)
         }
         return {
             /**
@@ -691,6 +692,8 @@ function PathHelper() {
     }
 
     var cp = function(source, destination, excluded) {
+        // Per-call emitter — isolated to this copy operation to prevent cross-call interference.
+        var e = new Events.EventEmitter();
 
         if ( !existsSync(source) ) {
             throw new Error('Cannot complete copy from `'+ source +'`: the path does not exist.');
@@ -1167,6 +1170,8 @@ function PathHelper() {
     }
 
     var mv = function(self, target) {
+        // Per-call emitter — isolated to this move operation to prevent cross-call interference.
+        var e = new Events.EventEmitter();
         if ( typeof(console.debug) != 'undefined' ) {
             console.debug("starting mv/copy from ", self.value, " to ", target);
         }
@@ -1378,6 +1383,8 @@ function PathHelper() {
     }
 
     var rm = function(source) {
+        // Per-call emitter — isolated to this remove operation to prevent cross-call interference.
+        var e = new Events.EventEmitter();
 
         browseRemove(source,  function(err, path) {
             //console.debug('rm done...', err, path, " VS ", source);
