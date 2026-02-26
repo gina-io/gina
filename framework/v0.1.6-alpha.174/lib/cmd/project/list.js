@@ -3,18 +3,39 @@ var fs = require('fs');
 var CmdHelper   = require('./../helper');
 var console     = lib.logger;
 /**
- * List all registerd projects
- * Available options:
- *  --more (to display more infos)
+ * @module gina/lib/cmd/project/list
+ */
+/**
+ * Lists all registered projects with their existence status.
+ * Supports `--more` to include the project path.
  *
- * TODO : check if path exists and add in front of each a green check or a red cross
- * TODO : --help
- * TODO : switch options for `$ gina project:list [ [ —-more ] | [-b | —-with-bundles] | [-e | -—with-envs] ]`
- * */
+ * Usage:
+ *  gina project:list
+ *  gina project:list --more
+ *
+ * TODO: check if path exists and add in front of each a green check or a red cross
+ * TODO: --help
+ * TODO: switch options for `$ gina project:list [ [ --more ] | [-b | --with-bundles] | [-e | --with-envs] ]`
+ *
+ * @class List
+ * @constructor
+ * @param {object} opt - Parsed command-line options
+ * @param {object} opt.client - Socket client for terminal output
+ * @param {string[]} opt.argv - Full argv array
+ * @param {number} [opt.debugPort] - Node.js inspector port
+ * @param {boolean} [opt.debugBrkEnabled] - True when --inspect-brk is active
+ * @param {object} cmd - The cmd dispatcher object (lib/cmd/index.js)
+ */
 function List(opt, cmd){
 
     var self = {};
 
+    /**
+     * Loads CMD helpers, formats all project entries, prints them, and exits.
+     *
+     * @inner
+     * @private
+     */
     var init = function(){
 
         // import CMD helpers
@@ -50,6 +71,15 @@ function List(opt, cmd){
         end();
     }
 
+    /**
+     * Prints optional output and exits the process.
+     *
+     * @inner
+     * @private
+     * @param {string|Error} [output] - Message or Error to display
+     * @param {string} [type] - console method to call (e.g. 'error', 'warn')
+     * @param {boolean} [messageOnly] - When true, print only the message, not the stack
+     */
     var end = function (output, type, messageOnly) {
         var err = false;
         if ( typeof(output) != 'undefined') {

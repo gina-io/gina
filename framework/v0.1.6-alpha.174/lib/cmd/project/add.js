@@ -10,9 +10,27 @@ var console     = lib.logger;
 var scan        = require('../port/inc/scan');
 
 /**
- * Add new project or register old one to `~/.gina/projects.json`.
- * NB.: If project exists, it won't be replaced. You'll only get warnings.
- * */
+ * @module gina/lib/cmd/project/add
+ */
+/**
+ * Creates a new project directory structure and registers it in ~/.gina/projects.json,
+ * or re-registers an existing project (import mode). Optionally adds a scope and env,
+ * scans for available ports, and links the gina module.
+ *
+ * Usage:
+ *  gina project:add @<project_name> --path=<dir>
+ *  gina project:add @<project_name> --path=<dir> --scope=local --env=dev --start-port-from=4100
+ *  gina project:import @<project_name> --path=<dir>
+ *
+ * @class Add
+ * @constructor
+ * @param {object} opt - Parsed command-line options
+ * @param {object} opt.client - Socket client for terminal output
+ * @param {string[]} opt.argv - Full argv array
+ * @param {number} [opt.debugPort] - Node.js inspector port
+ * @param {boolean} [opt.debugBrkEnabled] - True when --inspect-brk is active
+ * @param {object} cmd - The cmd dispatcher object (lib/cmd/index.js)
+ */
 function Add(opt, cmd) {
 
     var self        = {}
@@ -25,6 +43,13 @@ function Add(opt, cmd) {
         }
     ;
 
+    /**
+     * Parses argv flags, ensures the project directory exists, creates package.json,
+     * manifest.json, and env.json, optionally adding scope/env via sub-commands.
+     *
+     * @inner
+     * @private
+     */
     var init = function() {
 
         // import CMD helpers
@@ -155,6 +180,15 @@ function Add(opt, cmd) {
         }
     }
 
+    /**
+     * Handles `project:import` mode: validates the project is already registered,
+     * updates its path, and links gina if the symlink is missing.
+     * Returns true when import mode was handled; returns undefined otherwise.
+     *
+     * @inner
+     * @private
+     * @returns {boolean|undefined}
+     */
     var checkImportMode = function() {
 
         if ( self.task != 'project:import')
@@ -212,6 +246,14 @@ function Add(opt, cmd) {
         }
     }
 
+    /**
+     * Creates or updates manifest.json from the framework template, merging
+     * any existing file contents and applying project-specific substitutions.
+     *
+     * @inner
+     * @private
+     * @param {string} target - Absolute path to manifest.json
+     */
     var createManifestFile = function(target) {
 
         // if ( self.scope ) {
@@ -314,6 +356,13 @@ function Add(opt, cmd) {
         )
     }
 
+    /**
+     * Writes an empty env.json to the project root.
+     *
+     * @inner
+     * @private
+     * @param {string} target - Absolute path to env.json
+     */
     var createEnvFile = function(target) {
         lib.generator.createFileFromDataSync(
             {},
@@ -322,6 +371,15 @@ function Add(opt, cmd) {
     }
 
 
+    /**
+     * Creates or updates package.json from the framework template, merging
+     * any existing file when isCreatedFromExistingPackage is true.
+     *
+     * @inner
+     * @private
+     * @param {string} target - Absolute path to package.json
+     * @param {boolean} [isCreatedFromExistingPackage] - When true, merge with the existing file
+     */
     var createPackageFile = function(target, isCreatedFromExistingPackage) {
 
         loadAssets();
@@ -356,6 +414,14 @@ function Add(opt, cmd) {
         end(true)
     }
 
+    /**
+     * Writes the project entry to projects.json, runs addBundlePorts and
+     * addBundleToManifest in import mode, links gina, and exits the process.
+     *
+     * @inner
+     * @private
+     * @param {boolean} [created] - When true, use all available protocols/schemes (new project)
+     */
     var end = async function(created) {
 
         var target      = _(GINA_HOMEDIR + '/projects.json')
@@ -476,6 +542,16 @@ function Add(opt, cmd) {
         }
     }
 
+    /**
+     * Verifies that the given protocol and scheme are allowed in the framework
+     * configuration, optionally exiting with code 1 on failure.
+     *
+     * @inner
+     * @private
+     * @param {string} protocol - Protocol to validate (e.g. 'http/1.1', 'http/2.0')
+     * @param {string} scheme - Scheme to validate (e.g. 'http', 'https')
+     * @param {boolean} [exitOnError] - When true, call process.exit(1) on validation failure
+     */
     var hasPastProtocolAndSchemeCheck = function (protocol, scheme, exitOnError) {
         loadAssets();
 
@@ -493,15 +569,15 @@ function Add(opt, cmd) {
     }
 
     /**
-     * addBundlePorts
-     * Add / update project default protocol, scheme & ports
+     * Scans for available ports for one bundle at a time (index `b`), then
+     * assigns all collected ports across every protocol/scheme/env combination
+     * and writes ports.json and ports.reverse.json when all bundles are done.
+     * Also used by the `port:reset` command.
      *
-     * NB.: also used in `port:reset` task
-     *
-     * @param {number} b - Bundle index
-     * @callback done
-     *  @param {object|bool} err
-     *  @param {array} ports
+     * @inner
+     * @private
+     * @param {number} b - Current bundle index into self.bundles
+     * @param {function} done - Node-style callback `(err: Error|false) => void`
      */
     var addBundlePorts = async function(b, done) {
         loadAssets();
@@ -734,14 +810,14 @@ function Add(opt, cmd) {
     }
 
     /**
-     * addBundleToManifest
-     * Add / update project manifest
+     * Iterates over bundles and populates their release targets in the manifest,
+     * then writes manifest.json when all bundles are done.
      *
-     *
-     * @param {number} b - Bundle index
-     * @callback done
-     *  @param {object|bool} err
-     *  @param {array} ports
+     * @inner
+     * @private
+     * @param {object|null} data - Working copy of the manifest; null on first call
+     * @param {number} b - Current bundle index into self.bundles
+     * @param {function} done - Node-style callback `(err: Error|false) => void`
      */
     var addBundleToManifest = function(data, b, done) {
 
@@ -807,6 +883,15 @@ function Add(opt, cmd) {
         }
     }
 
+    /**
+     * Runs `gina link @<project>` via Shell to create the node_modules/gina symlink
+     * inside the project directory.
+     *
+     * @inner
+     * @private
+     * @param {function} onError - Called with an Error when the link command fails
+     * @param {function} onSuccess - Called with no arguments on success
+     */
     var linkGina = function ( onError, onSuccess ) {
 
         var npm = new Shell();

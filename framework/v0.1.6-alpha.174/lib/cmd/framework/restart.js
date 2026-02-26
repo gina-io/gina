@@ -7,16 +7,25 @@ var CmdHelper   = require('./../helper');
 // const { start } = require('repl');
 var console     = lib.logger;
 /**
- * Framework restart
+ * @module gina/lib/cmd/framework/restart
+ */
+/**
+ * Restarts the Gina framework server, optionally targeting a specific version.
  *
- * e.g.
+ * Usage:
  *  gina framework:restart
- *  or
  *  gina restart
- *  or
  *  gina restart @1.0.0
  *
- * */
+ * @class Restart
+ * @constructor
+ * @param {object} opt - Parsed command-line options
+ * @param {object} opt.client - Socket client for terminal output
+ * @param {string[]} opt.argv - Full argv array
+ * @param {number} [opt.debugPort] - Node.js inspector port
+ * @param {boolean} [opt.debugBrkEnabled] - True when --inspect-brk is active
+ * @param {object} cmd - The cmd dispatcher object (lib/cmd/index.js)
+ */
 function Restart(opt, cmd) {
     var self    = {
         // Current version of the framework by default
@@ -26,6 +35,13 @@ function Restart(opt, cmd) {
     };
 
 
+    /**
+     * Validates the version argument and delegates to restart().
+     * @inner
+     * @private
+     * @param {object} opt
+     * @param {object} cmd
+     */
     var init = function(opt, cmd) {
         // import CMD helpers
         new CmdHelper(self, opt.client, { port: opt.debugPort, brkEnabled: opt.debugBrkEnabled });
@@ -59,6 +75,13 @@ function Restart(opt, cmd) {
         // }
     }
 
+    /**
+     * Runs stop() then starts the framework via execSync/spawn.
+     * @inner
+     * @private
+     * @param {object} opt
+     * @param {object} cmd
+     */
     var restart = function(opt, cmd) {
         stop();
         // if previous debug session
@@ -82,6 +105,11 @@ function Restart(opt, cmd) {
 
     }
 
+    /**
+     * Stops the framework synchronously via `gina stop`.
+     * @inner
+     * @private
+     */
     var stop = function() {
         var out = null;
         try {
@@ -93,11 +121,11 @@ function Restart(opt, cmd) {
     }
 
     /**
-     * start
-     *
-     * We need to spawn this one as detached
-     * because of the `process.kill(..., 'SIGABRT')` used inside the orginal `start` script
-     * or else, the restart script will be pending forever.
+     * Spawns `gina start` as a detached child process.
+     * Must be detached because the original start script uses `process.kill(..., 'SIGABRT')`.
+     * @inner
+     * @private
+     * @param {object} opt
      */
     var start = async function(opt) {
         console.debug('continue with start now');
@@ -137,6 +165,11 @@ function Restart(opt, cmd) {
         }
     }
 
+    /**
+     * Restarts all bundles found running in GINA_RUNDIR after the framework resumes.
+     * @inner
+     * @private
+     */
     var restartRunningBunldes = function() {
         var list = fs.readdirSync(_(GINA_RUNDIR, true));
         for (let i=0, len=list.length; i<len; i++ ) {
@@ -150,6 +183,14 @@ function Restart(opt, cmd) {
     }
 
 
+    /**
+     * Logs optional output and exits the process.
+     * @inner
+     * @private
+     * @param {string|Error} [output]
+     * @param {string} [type] - Logger method name
+     * @param {boolean} [messageOnly]
+     */
     var end = function (output, type, messageOnly) {
         var err = false;
         if ( typeof(output) != 'undefined') {

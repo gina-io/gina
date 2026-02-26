@@ -1,25 +1,32 @@
 var console = lib.logger;
 /**
- * Add or edit framework settings
+ * @module gina/lib/cmd/env/set
+ */
+/**
+ * Adds or updates key/value entries in the framework settings file.
+ * Passing a flag without a value (`--sample`) removes that key.
  *
- *  // set or change log_level
- *  $ gina env:set --log-level=debug
+ * Usage:
+ *  gina env:set --log-level=debug
+ *  gina env:set --sample=null
+ *  gina env:set --sample             (removes the key)
  *
- *  // remove sample key
- *  $ gina env:set --sample
- *
- *  NB.: key values can be set to undefined or null
- *  $ gina env:set --sample=undefined
- *  $ gina env:set --sample=null
- *
- *  Once set, you can call the constant from your application
- *  $ gina env:set --my-contant
- *  console.log(GINA_MY_CONTSTANT)
- *
- * */
+ * @class Set
+ * @constructor
+ * @param {object} opt - Parsed command-line options
+ * @param {object} opt.client - Socket client for terminal output
+ * @param {string[]} opt.argv - Full argv array
+ * @param {object} cmd - The cmd dispatcher object (lib/cmd/index.js)
+ */
 function Set(opt, cmd){
     var self = {};
 
+    /**
+     * Loads settings, applies all --flag[=value] arguments, and saves.
+     *
+     * @inner
+     * @private
+     */
     var init = function(){
         self.target = _(GINA_HOMEDIR +'/' + GINA_RELEASE + '/settings.json');
         self.settings = require(self.target);
@@ -37,6 +44,14 @@ function Set(opt, cmd){
             save(self.settings, self.target);
     };
 
+    /**
+     * Applies a single `--key[=value]` token to self.settings.
+     * Deletes the key when no value is provided.
+     *
+     * @inner
+     * @private
+     * @param {string[]} arr - Result of splitting the flag on `=`; arr[0] is the key, arr[1] the value
+     */
     var set = function(arr) {
         if ( typeof(arr[1]) == 'undefined' ) {
             delete self.settings[arr[0].replace(/\-\-/, '').replace(/\-/, '_')];
@@ -45,6 +60,14 @@ function Set(opt, cmd){
         }
     };
 
+    /**
+     * Writes the updated settings object to disk and exits with a success message.
+     *
+     * @inner
+     * @private
+     * @param {object} data - Settings object to persist
+     * @param {string} target - Absolute path to settings.json
+     */
     var save = function(data, target) {
         lib.generator.createFileFromDataSync(
             data,
@@ -54,6 +77,15 @@ function Set(opt, cmd){
         end('Env variable(s) set with success');
     };
 
+    /**
+     * Prints optional output and exits the process.
+     *
+     * @inner
+     * @private
+     * @param {string|Error} [output] - Message or Error to display
+     * @param {string} [type] - console method to call (e.g. 'error', 'warn')
+     * @param {boolean} [messageOnly] - When true, print only the message, not the stack
+     */
     var end = function (output, type, messageOnly) {
         var err = false;
         if ( typeof(output) != 'undefined') {

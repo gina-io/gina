@@ -1,10 +1,26 @@
 var os      = require('os');
 var exec    = require('child_process').exec;
-
+/**
+ * @module gina/lib/cmd/framework/dot
+ */
 var console = lib.logger;
-
+/**
+ * Opens a Gina-related directory in a new terminal window (macOS only).
+ *
+ * Usage:
+ *  gina .
+ *  gina . home | framework | services | lib
+ *
+ * @class Dot
+ * @constructor
+ */
 function Dot(){
 
+    /**
+     * Reads process.argv[3] for the target key and delegates to proceed().
+     * @inner
+     * @private
+     */
     var init = function(opt){
         if ( typeof(process.argv[3]) == 'undefined') {
             proceed('framework')
@@ -13,6 +29,12 @@ function Dot(){
         }
     }
 
+    /**
+     * Opens `target` in a new Terminal.app window (macOS only).
+     * @inner
+     * @private
+     * @param {string} target - Absolute path to open
+     */
     var open = function(target){
         var platform = os.platform();
         switch (platform) {
@@ -24,6 +46,12 @@ function Dot(){
         }
     }
 
+    /**
+     * Maps the key argument to a known Gina path and calls open().
+     * @inner
+     * @private
+     * @param {string} key - One of: home | framework | services | lib | --help | -h
+     */
     var proceed = function(key){
         switch (key) {
             case '--help':

@@ -1,24 +1,31 @@
 var console = lib.logger;
 /**
- * Get framework settings
+ * @module gina/lib/cmd/env/get
+ */
+/**
+ * Reads and prints one or more entries from the framework settings file.
  *
- * e.g.
- *  // get all
- *  $ gina env:get
+ * Usage:
+ *  gina env:get                        (prints all keys)
+ *  gina env:get --rundir
+ *  gina env:get --rundir --log-level
  *
- *  // get rundir
- *  $ gina env:get --rundir
- *
- *  //get rundir & log_level
- *  $ gina env:get --rundir --log-level
- *
- *  // set or change log_level
- *  $ gina env:set --log-level=debug
- *
- * */
+ * @class Get
+ * @constructor
+ * @param {object} opt - Parsed command-line options
+ * @param {object} opt.client - Socket client for terminal output
+ * @param {string[]} opt.argv - Full argv array
+ * @param {object} cmd - The cmd dispatcher object (lib/cmd/index.js)
+ */
 function Get(opt, cmd){
     var self = {};
 
+    /**
+     * Loads settings and determines whether to print all keys or a specific subset.
+     *
+     * @inner
+     * @private
+     */
     var init = function(){
         self.target     = _(GINA_HOMEDIR +'/' + GINA_RELEASE + '/settings.json');
         self.settings   = require(self.target);
@@ -30,6 +37,13 @@ function Get(opt, cmd){
         get()
     }
 
+    /**
+     * Formats and prints the requested settings entries, then exits with code 0.
+     * Prints all entries when no `--flag` arguments are present (non-bulk mode).
+     *
+     * @inner
+     * @private
+     */
     var get = function() {
         var str = ''
             , key = ''

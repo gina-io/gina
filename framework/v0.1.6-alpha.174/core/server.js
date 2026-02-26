@@ -1,3 +1,30 @@
+'use strict';
+/**
+ * @module gina/core/server
+ */
+/**
+ * Orchestrates the HTTP/HTTPS/HTTP2 server lifecycle for a Gina bundle.
+ * Loads routing, initialises the Swig template engine, wires the request
+ * pipeline (statics, preflight, middleware, routing), and emits `'configured'`
+ * once the server engine is ready.
+ *
+ * Supports three engine backends selected by `options.conf` server settings:
+ * - `engine: 'isaac'` — built-in Gina HTTP/HTTP2 engine (`server.isaac.js`)
+ * - `engine: 'express'` — Express.js adapter (`server.express.js`)
+ * - default (no engine) — bare Node.js `http`/`https`/`http2`
+ *
+ * @class Server
+ * @constructor
+ * @param {object} options - Server initialisation options
+ * @param {string} options.projectName - Project name
+ * @param {string} options.bundle - Bundle name being started
+ * @param {string} options.env - Active environment name
+ * @param {string} options.scope - Active scope name
+ * @param {boolean} options.isStandalone - When true, multiple bundles share one server port
+ * @param {string[]} options.bundles - All bundle names in the project
+ * @param {string} options.executionPath - Project root path
+ * @param {object} options.conf - Merged env configuration object
+ */
 //Imports.
 const fs            = require('fs');
 const os            = require('os');
@@ -43,6 +70,14 @@ function Server(options) {
     this.routing = {};
     //this.activeChild = 0;
 
+    /**
+     * Configures the Swig template engine for the given bundle config: sets
+     * loader root, cache mode, and registers all custom Swig filters.
+     *
+     * @inner
+     * @private
+     * @param {object} conf - Bundle/env configuration object
+     */
     var initSwigEngine = function(conf) {
         // swig options
         var dir = conf.content.templates._common.html;
@@ -75,13 +110,13 @@ function Server(options) {
     }
 
     /**
-     * Set Configuration
-     * @param {object} options Configuration
+     * Applies the server configuration options, builds the Config/Router
+     * instances, selects the server engine, and emits `'configured'` with
+     * `(err, instance, middleware, conf)` once the engine is ready.
      *
-     *
-     * @callback callback responseCallback
-     * @param {boolean} complete
-     * @public
+     * @inner
+     * @private
+     * @param {object} options - Same options passed to the outer `Server` constructor
      */
     var init = function(options) {
 
@@ -206,24 +241,40 @@ function Server(options) {
         }
     }
     /**
-     * Check if env is running cacheless
-     * */
+     * Returns `true` when running in dev mode (`NODE_ENV_IS_DEV=true`).
+     *
+     * @memberof module:gina/core/server
+     * @returns {boolean}
+     */
     this.isCacheless = function() {
         return (/^true$/i.test(process.env.NODE_ENV_IS_DEV)) ? true : false
     }
     /**
-     * Check if the project scope is set for local
-     * */
+     * Returns `true` when the active scope is `local` (`NODE_SCOPE_IS_LOCAL=true`).
+     *
+     * @memberof module:gina/core/server
+     * @returns {boolean}
+     */
     this.isLocalScope = function() {
         return (/^true$/i.test(process.env.NODE_SCOPE_IS_LOCAL)) ? true : false;
     }
     /**
-     * Check if the project scope is set for production
-     * */
+     * Returns `true` when the active scope is `production` (`NODE_SCOPE_IS_PRODUCTION=true`).
+     *
+     * @memberof module:gina/core/server
+     * @returns {boolean}
+     */
     this.isProductionScope = function() {
         return (/^true$/i.test(process.env.NODE_SCOPE_IS_PRODUCTION)) ? true : false;
     }
 
+    /**
+     * Registers a one-time listener for the `'configured'` event, then kicks
+     * off `init()`. The callback receives `(err, instance, middleware, conf)`.
+     *
+     * @memberof module:gina/core/server
+     * @param {function} callback - `function(err, instance, middleware, conf)`
+     */
     this.onConfigured = function(callback) {
         self.once('configured', function(err, instance, middleware, conf) {
             callback(err, instance, middleware, conf)
@@ -233,11 +284,14 @@ function Server(options) {
     }
 
     /**
-     * Verify certificate validity
+     * Checks TLS certificate validity for an HTTPS endpoint using `ssl-checker`.
+     * Logs an emergency-level warning when the certificate is invalid or the
+     * wildcard exception applies.
      *
-     * @param {string} endpoint
-     * @param {number} port
-     * @returns
+     * @memberof module:gina/core/server
+     * @param {string} endpoint - Hostname to verify (e.g. `'myapp.dev'`)
+     * @param {number} [port=443] - HTTPS port
+     * @returns {Promise<void>} Resolves when valid; throws if DNS/cert check fails
      */
     this.verifyCertificate = async function(endpoint, port) {
         let sslDetails = null;
@@ -333,6 +387,15 @@ function Server(options) {
         }
     }
 
+    /**
+     * Attaches the server engine instance, injects helper references
+     * (`throwError`, `getAssets`, `completeHeaders`) onto it, and returns
+     * `onRequest()` to begin serving HTTP traffic.
+     *
+     * @memberof module:gina/core/server
+     * @param {object} instance - Server engine instance (Express app or Isaac server)
+     * @returns {*} Return value of `onRequest()`
+     */
     this.start = function(instance) {
         if (instance) {
             self.instance       = instance;
@@ -363,10 +426,14 @@ function Server(options) {
 
 
     /**
-     * onRoutesLoaded
+     * Called once route files are loaded. Builds the merged routing and
+     * reverse-routing maps across all bundles, registers them on the Config
+     * singleton and the Router, and calls `callback(false)`.
      *
-     *
-     * */
+     * @inner
+     * @private
+     * @param {function} callback - `function(err)` called on completion
+     */
     var onRoutesLoaded = function(callback) {
 
         var config                  = new Config()
@@ -590,6 +657,15 @@ function Server(options) {
         callback(false)
     }
 
+    /**
+     * Returns `true` if the bundle has a templates directory defined in its
+     * env config (result cached per bundle for the lifetime of the server).
+     *
+     * @inner
+     * @private
+     * @param {string} bundle - Bundle name
+     * @returns {boolean}
+     */
     var hasViews = function(bundle) {
         var _hasViews   = false
             , conf      = new Config().getInstance(bundle)
@@ -605,6 +681,17 @@ function Server(options) {
     }
 
 
+    /**
+     * Resolves a request URL to an absolute asset filename by consulting
+     * `publicResources`, `staticResources`, reverse-routing aliases, and
+     * the bundle's `content.statics` map. Returns `'404.html'` when not found.
+     *
+     * @inner
+     * @private
+     * @param {object} bundleConf - Bundle/env configuration slice
+     * @param {string} url - Decoded request URL
+     * @returns {string} Absolute filename path, or `'404.html'`
+     */
     var getAssetFilenameFromUrl = function(bundleConf, url) {
 
         var staticsArr  = bundleConf.publicResources;
@@ -657,6 +744,15 @@ function Server(options) {
         }
     }
 
+    /**
+     * Synchronously fetches the body of a URL via HTTP GET using `httpclient`.
+     *
+     * @inner
+     * @private
+     * @param {string} url - Fully-qualified URL to fetch
+     * @param {string} [encoding] - Character encoding for decoding the body
+     * @returns {string} Decoded response body
+     */
     var readFromUrl = function(url, encoding) {
         return new (require('httpclient').HttpClient)({
             method: 'GET',
@@ -665,12 +761,19 @@ function Server(options) {
     }
 
     /**
-     * Get Assets
+     * Parses a rendered layout string for `<link>`, `<script>`, `<source>`,
+     * and `<img>` tags, resolves each asset URL to an absolute file path, and
+     * returns a structured assets map used by the rendering pipeline.
+     * When `swig` and `data` are provided the function was called from a
+     * controller action (in-request asset resolution).
      *
-     * @param {object} bundleConf
-     * @param {string} layoutStr
-     * @param {object} [swig] - when called from controller
-     * @param {object} [data] - when called from controller
+     * @inner
+     * @private
+     * @param {object} bundleConf - Bundle/env configuration slice
+     * @param {string} layoutStr - Rendered HTML layout string to scan for asset tags
+     * @param {object} [swig] - Swig instance when called from the controller
+     * @param {object} [data] - Template data when called from the controller
+     * @returns {object} Assets map keyed by URL
      */
     var getAssets = function (bundleConf, layoutStr, swig, data) {
 
@@ -1121,6 +1224,18 @@ function Server(options) {
     //     return header
     // }
 
+    /**
+     * Merges configured response headers (CORS, cache-control, etc.) into the
+     * response. Resolves `Access-Control-Allow-Origin` against the bundle's
+     * allowed origins list and normalises HTTP/1.1 vs HTTP/2 header names.
+     *
+     * @inner
+     * @private
+     * @param {object|null} responseHeaders - Extra headers to merge, or null to use conf defaults
+     * @param {object} request - Incoming request object
+     * @param {object} response - Server response object
+     * @returns {object} The merged response headers object
+     */
     var completeHeaders = function(responseHeaders, request, response) {
 
         var resHeaders      = null
@@ -1285,6 +1400,16 @@ function Server(options) {
         }
     }
 
+    /**
+     * HTTP/2 server-push handler. Resolves asset paths for the current request
+     * and pushes static files to the client over open HTTP/2 streams.
+     * Attached to the server instance by the Isaac engine.
+     *
+     * @memberof module:gina/core/server
+     * @param {object} stream - Node.js `Http2ServerRequest` stream
+     * @param {object} headers - HTTP/2 request headers object
+     * @param {object} response - HTTP/2 response object
+     */
     this.onHttp2Stream = function(stream, headers, response) {
         var header          = null
             , isWebroot     = false
@@ -1512,6 +1637,16 @@ function Server(options) {
 
 
 
+    /**
+     * Returns the negotiated response protocol string (e.g. `'http/1.1'` or
+     * `'http/2'`). Upgrades to `'http/2'` when the bundle is configured for
+     * HTTP/2 and the response has an open stream.
+     *
+     * @inner
+     * @private
+     * @param {object} response - Server response object
+     * @returns {string} Protocol string
+     */
     var getResponseProtocol = function (response) {
 
         var protocol    = 'http/'+ local.request.httpVersion; // inheriting request protocol version by default
@@ -1525,11 +1660,17 @@ function Server(options) {
     }
 
     /**
-     * Default http/1.x statics handler - For http/2.x check the SuperController
-     * @param {object} staticProps - Expected : .isStaticFilename & .firstLevel
-     * @param {object} request
-     * @param {object} response
-     * @param {callback} next
+     * Default HTTP/1.x static file handler. Resolves the filename from the URL,
+     * streams the file to the response with the correct MIME type, or calls
+     * `next` when the file is not found or falls through to routing.
+     * For HTTP/2.x statics, see `SuperController`.
+     *
+     * @inner
+     * @private
+     * @param {object} staticProps - Object with `.isStaticFilename` and `.firstLevel` URL segment
+     * @param {object} request - Incoming request object
+     * @param {object} response - Server response object
+     * @param {function} next - Next middleware callback
      */
     var handleStatics = function(staticProps, request, response, next) {
 
@@ -1983,6 +2124,15 @@ function Server(options) {
     }
 
 
+    /**
+     * Attaches the catch-all `*` route handler to the server instance.
+     * Handles statics, preflight (CORS OPTIONS), body parsing, Express
+     * middleware chain, and final routing delegation to the Router.
+     *
+     * @inner
+     * @private
+     * @returns {void}
+     */
     var onRequest = function() {
 
         var apps = self.bundles;
@@ -2489,6 +2639,17 @@ function Server(options) {
         self.emit('started', self.conf[self.appName][self.env], true);
     }
 
+    /**
+     * Parses and normalises the request body for POST/PUT/PATCH/DELETE methods.
+     * Handles `application/json`, `application/x-www-form-urlencoded`, and
+     * `multipart/form-data` (via Busboy). Calls `next` when done.
+     *
+     * @inner
+     * @private
+     * @param {object} request - Incoming request object
+     * @param {object} response - Server response object
+     * @param {function} next - Next middleware callback
+     */
     var processRequestData = function(request, response, next) {
 
         var bodyStr = null, obj = null, exception = null;
@@ -2754,6 +2915,16 @@ function Server(options) {
         })
     }
 
+    /**
+     * Looks up the MIME type for a filename by its extension using the
+     * bundle's core MIME configuration. Falls back to `'plain/text'` when
+     * the extension is unknown.
+     *
+     * @inner
+     * @private
+     * @param {string} filename - File path or name with extension
+     * @returns {string} MIME type string
+     */
     var getContentTypeByFilename = function(filename) {
         try {
             var s       = filename.split(/\./);
@@ -2774,6 +2945,18 @@ function Server(options) {
 
     }
 
+    /**
+     * Retrieves the current Config singleton and resolves which bundle owns
+     * the request URL. Then calls `onBundleConfigLoaded` which invokes
+     * `callback(err, bundle, pathname, config, req, res, next)`.
+     *
+     * @inner
+     * @private
+     * @param {object} req - Incoming request object
+     * @param {object} res - Server response object
+     * @param {function} next - Next middleware callback
+     * @param {function} callback - `function(err, bundle, pathname, config, req, res, next)`
+     */
     var loadBundleConfiguration = function(req, res, next, callback) {
 
         var config = new Config();
@@ -2830,6 +3013,23 @@ function Server(options) {
         return;
     }
 
+    /**
+     * Invokes the routing `callback` once per request with the resolved bundle
+     * and config. In cacheless mode this would also trigger a config refresh
+     * (currently commented out).
+     *
+     * @inner
+     * @private
+     * @param {string} bundle - Resolved bundle name for this request
+     * @param {object} options - Options bag from `loadBundleConfiguration`
+     * @param {boolean|Error} options.err - Error state
+     * @param {object} options.config - Config singleton
+     * @param {string} options.pathname - Request URL pathname
+     * @param {object} options.req - Incoming request object
+     * @param {object} options.res - Server response object
+     * @param {function} options.next - Next middleware callback
+     * @param {function} options.callback - Final callback `function(err, bundle, pathname, config, req, res, next)`
+     */
     var onBundleConfigLoaded = function(bundle, options) {
         var err             = options.err
             , isCacheless   = options.config.isCacheless()
@@ -2858,7 +3058,16 @@ function Server(options) {
         // }
     }
 
-    // Express middleware portability when using another engine instead of expressjs
+    /**
+     * Iterates through the Express-compatible middleware stack attached to
+     * `instance._expressMiddlewares`, calling each in sequence and routing
+     * to either `router.route` or `handleStatics` when the chain is exhausted.
+     * Provides Express middleware portability for non-Express engines.
+     *
+     * @inner
+     * @private
+     * @param {Error|boolean} err - Error from the previous middleware, or false
+     */
     var nextMiddleware = function(err) {
 
         var router              = local.router;
@@ -2898,6 +3107,17 @@ function Server(options) {
         });
     };
 
+    /**
+     * Detects CORS preflight (OPTIONS) requests by inspecting the method,
+     * `Access-Control-Request-Method` header, and configured allowed-origin
+     * lists. Sets `request.isPreflightRequest` accordingly.
+     *
+     * @inner
+     * @private
+     * @param {object} request - Incoming request object (mutated with `isPreflightRequest`)
+     * @param {object} response - Server response object
+     * @returns {object} The (mutated) request object
+     */
     var checkPreflightRequest = function(request, response) {
         var config = self.conf[self.appName][self.env];
         // by default, if not set in `${projectPath}/env.json`
@@ -3162,6 +3382,18 @@ function Server(options) {
 
 
 
+    /**
+     * Sends an HTTP error response. Renders an HTML error page when the
+     * bundle has views and the request is not an XHR, or a JSON error body
+     * for XHR/API requests. Also exposed on the server engine instance.
+     *
+     * @inner
+     * @private
+     * @param {object} res - Server response object
+     * @param {number} code - HTTP status code (e.g. 404, 500)
+     * @param {string|object} msg - Error message string or error object
+     * @param {function} next - Next middleware callback
+     */
     var throwError = function(res, code, msg, next) {
 
         var withViews       = local.hasViews[self.appName] || hasViews(self.appName);

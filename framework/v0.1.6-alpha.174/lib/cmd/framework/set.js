@@ -1,5 +1,25 @@
 var console = lib.logger;
-
+/**
+ * @module gina/lib/cmd/framework/set
+ */
+/**
+ * Sets one or more framework configuration values in `~/.gina/main.json` and
+ * `~/.gina/{shortVersion}/settings.json`.
+ *
+ * Usage:
+ *  gina framework:set --prefix=<path>
+ *  gina framework:set --env=<env>
+ *  gina framework:set --scope=<scope>
+ *  gina framework:set --log-level=<level>
+ *  gina framework:set --port=<port>
+ *  gina framework:set --culture=<culture>
+ *  gina framework:set --timezone=<tz>
+ *  (and more — see switch cases inside set())
+ *
+ * @class Set
+ * @constructor
+ * @param {object} opt - Parsed command-line options
+ */
 function Set(opt){
 
     var mainConfPath        = _(GINA_HOMEDIR + '/main.json', true)
@@ -9,6 +29,12 @@ function Set(opt){
         , pack              = require(_(GINA_DIR +'/package.json', true ))
     ;
 
+    /**
+     * Iterates over process.argv from index 3 and calls set(k, v) for each key=value pair.
+     * @inner
+     * @private
+     * @param {object} opt
+     */
     var init = function(opt){
 
         var a = [], k = null, v = null;
@@ -24,6 +50,13 @@ function Set(opt){
 
 
 
+    /**
+     * Dispatches a single key/value setting to the appropriate setter function.
+     * @inner
+     * @private
+     * @param {string} k - Flag name (e.g. '--env', '--prefix')
+     * @param {string} v - Value to set
+     */
     var set = function(k, v) {
         var err = null;
         if ( /^-—/.test(k) ) {
@@ -101,10 +134,11 @@ function Set(opt){
     }
 
     /**
-     * setKeyVal
-     * Generic method
-     * @param {string} key
-     * @param {string|number|boolean} value
+     * Generic setter — writes a key/value pair to `process.gina` and `settings.json`.
+     * @inner
+     * @private
+     * @param {string} key - Settings key
+     * @param {string|number|boolean} value - Value to store
      */
      var setKeyVal = function(key, value) {
         console.debug('Setting `'+key+'` to '+ value);
@@ -118,6 +152,12 @@ function Set(opt){
         lib.generator.createFileFromDataSync(mainSettingsConf, mainSettingsPath);
     }
 
+    /**
+     * Updates the install prefix in main.json, settings.json, and package.json.
+     * @inner
+     * @private
+     * @param {string} prefix - Absolute filesystem prefix path
+     */
     var setPrefix = function(prefix) {
         var err = null;
         if ( !prefix || typeof(prefix) == 'undefined' || prefix == '' ) {
@@ -145,6 +185,12 @@ function Set(opt){
     }
 
 
+    /**
+     * Updates the global_mode flag in main.json, settings.json, and package.json.
+     * @inner
+     * @private
+     * @param {string} globalMode - 'true' or 'false'
+     */
     var setGlobalMode = function(globalMode) {
         var err = null;
         try {
@@ -181,6 +227,12 @@ function Set(opt){
         }
     }
 
+    /**
+     * Updates the log level in main.json and settings.json.
+     * @inner
+     * @private
+     * @param {string} level - Log level (must be in main.json log_levels list)
+     */
     var setLogLevel = function(level) {
         var supported   = mainConf['log_levels'][GINA_SHORT_VERSION]
             , err       = null
@@ -199,6 +251,12 @@ function Set(opt){
         lib.generator.createFileFromDataSync(mainSettingsConf, mainSettingsPath);
     }
 
+    /**
+     * Updates the default environment in main.json.
+     * @inner
+     * @private
+     * @param {string} env - Environment name (must be registered in main.json)
+     */
     var setEnv = function(env) {
         var supported   = mainConf['envs'][GINA_SHORT_VERSION]
             , err       = null
@@ -213,6 +271,12 @@ function Set(opt){
         lib.generator.createFileFromDataSync(mainConf, mainConfPath);
     }
 
+    /**
+     * Updates the default scope in main.json.
+     * @inner
+     * @private
+     * @param {string} scope - Scope name (must be registered in main.json)
+     */
     var setScope = function(scope) {
         var supported   = mainConf['scopes'][GINA_SHORT_VERSION]
             , err       = null
@@ -227,6 +291,12 @@ function Set(opt){
         lib.generator.createFileFromDataSync(mainConf, mainConfPath);
     }
 
+    /**
+     * Updates the default culture in main.json and settings.json.
+     * @inner
+     * @private
+     * @param {string} culture - Culture string (must be registered in main.json)
+     */
     var setCulture = function(culture) {
         var supported   = mainConf['cultures'][GINA_SHORT_VERSION]
             , err       = null
@@ -262,6 +332,12 @@ function Set(opt){
     //     lib.generator.createFileFromDataSync(mainSettingsConf, mainSettingsPath);
     // }
 
+    /**
+     * Updates the default timezone in main.json and settings.json.
+     * @inner
+     * @private
+     * @param {string} timezone - IANA timezone string (e.g. 'Europe/Paris')
+     */
     var setTimezone = function(timezone) {
         // save to ~/.gina/main.json
         mainConf['def_timezone'][GINA_SHORT_VERSION] = timezone;

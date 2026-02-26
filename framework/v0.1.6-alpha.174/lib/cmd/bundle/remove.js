@@ -6,11 +6,26 @@ var CmdHelper   = require('./../helper');
 var console     = lib.logger;
 
 /**
- * Remove existing bundle from a given project.
- * NB.: If bundle exists, it won't be replaced. You'll only get warnings.
+ * @module gina/lib/cmd/bundle/remove
+ */
+/**
+ * Removes an existing bundle from a given project.
+ * NB.: if the bundle exists it will not be replaced; you will only get warnings.
  *
  * TODO - Remove multiple bundles at once - ref. bundle/add
- * */
+ *
+ * Usage:
+ *  gina bundle:remove <bundle_name> @<project_name>
+ *
+ * @class Remove
+ * @constructor
+ * @param {object} opt - Parsed command-line options
+ * @param {object} opt.client - Socket client for terminal output
+ * @param {string[]} opt.argv - Full argv array
+ * @param {number} [opt.debugPort] - Node.js inspector port
+ * @param {boolean} [opt.debugBrkEnabled] - True when --inspect-brk is active
+ * @param {object} cmd - The cmd dispatcher object (lib/cmd/index.js)
+ */
 function Remove(opt, cmd) {
 
     var self    = {}
@@ -21,6 +36,13 @@ function Remove(opt, cmd) {
         }
     ;
 
+    /**
+     * Validates project path and delegates to removeBundle.
+     *
+     * @inner
+     * @private
+     * @param {object} opt - Parsed command-line options
+     */
     var init = function(opt) {
 
         // import CMD helpers
@@ -56,6 +78,13 @@ function Remove(opt, cmd) {
 
     }
 
+    /**
+     * Processes the bundle at index `b`; prompts for confirmation unless `--force`.
+     *
+     * @inner
+     * @private
+     * @param {number} b - Bundle index in self.bundles
+     */
     var removeBundle = function (b) {
 
         if (b > self.bundles.length-1) { // exits when done
@@ -77,6 +106,12 @@ function Remove(opt, cmd) {
 
     }
 
+    /**
+     * Prompts whether to delete bundle source files and dispatches to remove.
+     *
+     * @inner
+     * @private
+     */
     var check = function() {
 
 
@@ -114,6 +149,13 @@ function Remove(opt, cmd) {
             })
     }
 
+    /**
+     * Deletes bundle sources, removes port entries, and saves updated config files.
+     *
+     * @inner
+     * @private
+     * @param {string} bundle - Bundle name to remove
+     */
     var remove = function (bundle) {
 
         // reload assets context with changes
@@ -216,6 +258,15 @@ function Remove(opt, cmd) {
     }
 
 
+    /**
+     * Prints optional output and exits the process.
+     *
+     * @inner
+     * @private
+     * @param {string|Error} [output] - Message or error to display
+     * @param {string} [type] - console method to call (e.g. 'error')
+     * @param {boolean} [messageOnly] - When true, print only the message (not the stack)
+     */
     var end = function (output, type, messageOnly) {
         var err = false;
         if ( typeof(output) != 'undefined') {

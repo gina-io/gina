@@ -6,16 +6,26 @@ const {execSync}    = require('child_process');
 var CmdHelper   = require('./../helper');
 var console     = lib.logger;
 /**
- * Framework stop
+ * @module gina/lib/cmd/framework/stop
+ */
+/**
+ * Stops the running Gina framework server.
+ * Optionally targets a specific version via `@{version}` argument.
  *
- * e.g.
+ * Usage:
  *  gina framework:stop
- *  or
  *  gina stop
- *  or
  *  gina stop @1.0.0
  *
- * */
+ * @class Stop
+ * @constructor
+ * @param {object} opt - Parsed command-line options
+ * @param {object} opt.client - Socket client for terminal output
+ * @param {string[]} opt.argv - Full argv array
+ * @param {number} [opt.debugPort] - Node.js inspector port
+ * @param {boolean} [opt.debugBrkEnabled] - True when --inspect-brk is active
+ * @param {object} cmd - The cmd dispatcher object (lib/cmd/index.js)
+ */
 function Stop(opt, cmd) {
     var self    = {
         // Current version of the framework by default
@@ -28,6 +38,13 @@ function Stop(opt, cmd) {
     };
 
 
+    /**
+     * Validates the target version and delegates to stop().
+     * @inner
+     * @private
+     * @param {object} opt
+     * @param {object} cmd
+     */
     var init = function(opt, cmd) {
         // import CMD helpers
         new CmdHelper(self, opt.client, { port: opt.debugPort, brkEnabled: opt.debugBrkEnabled });
@@ -71,6 +88,13 @@ function Stop(opt, cmd) {
         // }
     }
 
+    /**
+     * Reads PID files, sends SIGTERM/SIGKILL to the matching framework process, and exits.
+     * @inner
+     * @private
+     * @param {object} opt
+     * @param {object} cmd
+     */
     var stop = function(opt, cmd) {
         var pidFiles = null, err = null;
         try {
@@ -166,6 +190,14 @@ function Stop(opt, cmd) {
         end()
     }
 
+    /**
+     * Logs optional output and exits the process.
+     * @inner
+     * @private
+     * @param {string|Error} [output]
+     * @param {string} [type] - Logger method name
+     * @param {boolean} [messageOnly]
+     */
     var end = function (output, type, messageOnly) {
         var err = false;
         if ( typeof(output) != 'undefined') {

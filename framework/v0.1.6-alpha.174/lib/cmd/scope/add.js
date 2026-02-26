@@ -4,18 +4,35 @@ var CmdHelper   = require('./../helper');
 var console = lib.logger;
 
 /**
- * Add new scope for a given project
+ * @module gina/lib/cmd/scope/add
+ */
+/**
+ * Adds a new scope to a specific project or registers it globally across all projects.
  *
  * Usage:
- * gina scope:add <scope> @<project>
- * or to register a new one for all your projects
- * gina scope:add <scope>
+ *  gina scope:add <scope> @<project>
+ *  gina scope:add <scope>
  *
  * TODO - updateManifest()
- * */
+ *
+ * @class Add
+ * @constructor
+ * @param {object} opt - Parsed command-line options
+ * @param {object} opt.client - Socket client for terminal output
+ * @param {string[]} opt.argv - Full argv array
+ * @param {number} [opt.debugPort] - Node.js inspector port
+ * @param {boolean} [opt.debugBrkEnabled] - True when --inspect-brk is active
+ * @param {object} cmd - The cmd dispatcher object (lib/cmd/index.js)
+ */
 function Add(opt, cmd) {
     var self = {}, local = {};
 
+    /**
+     * Parses argv for scope names and project token, then dispatches to saveScopes.
+     *
+     * @inner
+     * @private
+     */
     var init = function() {
         // import CMD helpers
         new CmdHelper(self, opt.client, { port: opt.debugPort, brkEnabled: opt.debugBrkEnabled });
@@ -59,6 +76,14 @@ function Add(opt, cmd) {
     }
 
 
+    /**
+     * Dispatches to addScopeToProject (project-scoped) or registerScope (global),
+     * depending on whether a project name was supplied.
+     *
+     * @inner
+     * @private
+     * @param {string} [projectName] - Registered project name; omitted for global registration
+     */
     var saveScopes = function(projectName) {
         try {
             if (projectName) {
@@ -71,10 +96,12 @@ function Add(opt, cmd) {
     }
 
     /**
-     * Adding scopes to ~/.gina/projects.json
+     * Appends the new scopes to the project entry in ~/.gina/projects.json
+     * and writes the file.
      *
-     * @param {array} scopes
-     * */
+     * @inner
+     * @private
+     */
     var addScopeToProject = function() {
         var s = 0
             , newScopes = self.scopes
@@ -107,7 +134,11 @@ function Add(opt, cmd) {
     }
 
     /**
-     * Register a new scope
+     * Registers the new scopes globally in ~/.gina/settings.json and
+     * propagates them to every registered project in projects.json.
+     *
+     * @inner
+     * @private
      */
     var registerScope = function() {
         var s           = 0
@@ -160,12 +191,29 @@ function Add(opt, cmd) {
     }
 
 
+    /**
+     * Updates the project manifest with the new scopes.
+     * Currently a stub — not yet implemented.
+     *
+     * @inner
+     * @private
+     * @param {object} project - Project entry from projects.json
+     */
     var updateManifest = function(project) {
 
     }
 
 
 
+    /**
+     * Prints optional output and exits the process.
+     *
+     * @inner
+     * @private
+     * @param {string|Error} [output] - Message or Error to display
+     * @param {string} [type] - console method to call (e.g. 'error', 'warn')
+     * @param {boolean} [messageOnly] - When true, print only the message, not the stack
+     */
     var end = function (output, type, messageOnly) {
         var err = false;
         if ( typeof(output) != 'undefined') {

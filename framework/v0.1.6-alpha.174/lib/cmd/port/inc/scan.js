@@ -1,14 +1,29 @@
 var net     = require('net');
 var console = lib.logger;
 /**
- * Scan for available port between ranges
+ * @module gina/lib/cmd/port/inc/scan
+ */
+/**
+ * @callback ScanCallback
+ * @param {Error|false} err - Error if scan failed; false on success
+ * @param {number[]} [ports] - Sorted array of available port numbers
+ */
+/**
+ * Scans for available TCP ports in a configurable range by attempting socket
+ * connections and collecting ports that return ECONNREFUSED (not in use).
+ * Wraps `net.Socket` — do not call the underlying module directly.
  *
- * @param {object} [opt]
- *
- * @callback cb
- *  @param {object|bool} err
- *  @param {array} ports
- * */
+ * @function Scanner
+ * @param {object} [opt] - Scan options
+ * @param {string} [opt.host='127.0.0.1'] - Host to scan against
+ * @param {number} [opt.start=3100] - First port number to test
+ * @param {number} [opt.startFrom] - Override for opt.start (parsed from --start-port-from)
+ * @param {number} [opt.maxEnd=49151] - Hard upper bound (RFC 6335 user-assigned range)
+ * @param {number} [opt.timeout=2000] - Socket connection timeout in milliseconds
+ * @param {string[]} [opt.ignore=[]] - Port numbers to skip (as strings)
+ * @param {number} [opt.limit=1] - Number of available ports to find
+ * @param {ScanCallback} cb - Called with found ports or an error
+ */
 module.exports = function Scanner(opt, cb){
 
     var defaultOptions = {
@@ -53,6 +68,15 @@ module.exports = function Scanner(opt, cb){
         , total = ~~opt.limit
     ;
 
+    /**
+     * Recursively tests one port at a time until `limit` available ports are found
+     * or the scan range is exhausted.
+     *
+     * @inner
+     * @private
+     * @param {number} port - Port number to test next
+     * @param {ScanCallback} cb - Completion callback
+     */
     var find = function(port, cb) {
 
         // Not available port found

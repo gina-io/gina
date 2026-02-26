@@ -9,18 +9,28 @@ var scan        = require('../port/inc/scan');
 
 
 /**
- * Add new bundle to a given project.
+ * @module gina/lib/cmd/bundle/add
+ */
+/**
+ * Adds a new bundle to a given project.
  * NB.:
- *  - if bundle exists, You will be asked if you want to replace
- *  - if scope or env not existing, will add
+ *  - if the bundle exists, you will be asked if you want to replace it
+ *  - if scope or env does not exist, it will be added
  *
  * Usage:
- * $ gina bundle:add <bundle_name> @<project_name>
- * or
- * $ gina bundle:add <bundle_name> @<project_name> --start-port-from=<port_number>
- * or
- * $ gina bundle:add <bundle_name> @<project_name> --scope=<scope> --env=<env>
- * */
+ *  gina bundle:add <bundle_name> @<project_name>
+ *  gina bundle:add <bundle_name> @<project_name> --start-port-from=<port_number>
+ *  gina bundle:add <bundle_name> @<project_name> --scope=<scope> --env=<env>
+ *
+ * @class Add
+ * @constructor
+ * @param {object} opt - Parsed command-line options
+ * @param {object} opt.client - Socket client for terminal output
+ * @param {string[]} opt.argv - Full argv array
+ * @param {number} [opt.debugPort] - Node.js inspector port
+ * @param {boolean} [opt.debugBrkEnabled] - True when --inspect-brk is active
+ * @param {object} cmd - The cmd dispatcher object (lib/cmd/index.js)
+ */
 function Add(opt, cmd) {
 
     var self    = {
@@ -35,6 +45,12 @@ function Add(opt, cmd) {
         }
     ;
 
+    /**
+     * Parses --start-port-from option, validates project/bundle args, and starts addition.
+     *
+     * @inner
+     * @private
+     */
     var init = function() {
 
         // import CMD helpers
@@ -100,11 +116,12 @@ function Add(opt, cmd) {
 
 
     /**
-     * Add bundles
+     * Scans for available ports and starts bundle creation at index `b`.
      *
-     * @param {number} b - bundle index
-     *
-     * */
+     * @inner
+     * @private
+     * @param {number} b - Bundle index in self.bundles
+     */
     var addBundles = function(b) {
 
         if (b > self.bundles.length-1) { // exits when done
@@ -162,6 +179,12 @@ function Add(opt, cmd) {
         }
     }
 
+    /**
+     * Checks if the bundle already exists and prompts for replace/import/cancel.
+     *
+     * @inner
+     * @private
+     */
     var check = function() {
 
         if ( typeof(self.projectData.bundles[local.bundle]) != 'undefined' ) {
@@ -251,6 +274,14 @@ function Add(opt, cmd) {
         }
     }
 
+    /**
+     * Loads assets, assigns ports, saves env/project files, then creates the bundle.
+     *
+     * @inner
+     * @private
+     * @param {string} bundle - Bundle name
+     * @param {boolean} rewrite - When true, deletes existing bundle config before recreating
+     */
     var makeBundle = async function(bundle, rewrite) {
 
         loadAssets();
@@ -295,12 +326,12 @@ function Add(opt, cmd) {
     }
 
     /**
-     * Save manifest.json
+     * Saves the updated project manifest with the new bundle entry.
      *
-     * @param {string} projectPath
-     * @param {object} content - Project file content to save
-     *
-     * */
+     * @inner
+     * @private
+     * @param {function} callback - Node-style callback `(err, data)`
+     */
     var saveProjectFile = function(callback) {
 
         var data    = JSON.clone(self.projectData);
@@ -349,9 +380,12 @@ function Add(opt, cmd) {
     }
 
     /**
-     * Save env path
+     * Saves bundle env entries to the project env.json file.
      *
-     * */
+     * @inner
+     * @private
+     * @param {function} callback - Node-style callback `(err)`
+     */
     var saveEnvFile = function(callback) {
 
         loadAssets();
@@ -395,11 +429,12 @@ function Add(opt, cmd) {
 
 
     /**
-     * Create bundle default sources under /src
+     * Copies the boilerplate template into the project src directory and
+     * substitutes bundle name tokens via browse/parse.
      *
-     * @param {string} bundle
-     * @param {object} project
-     * */
+     * @inner
+     * @private
+     */
     var createBundle = function() {
 
         loadAssets();
@@ -448,11 +483,13 @@ function Add(opt, cmd) {
     }
 
     /**
-     * Browse sources
+     * Recursively traverses the copied bundle tree and calls parse() on each file.
      *
-     * @param {string} source
-     * @param {string} bundle
-     * */
+     * @inner
+     * @private
+     * @param {string} source - Current directory path
+     * @param {string[]} [list] - Remaining files to process (built at root call)
+     */
     var browse = function(source, list) {
 
         var newSource   = null
@@ -498,11 +535,14 @@ function Add(opt, cmd) {
     }
 
     /**
-     * Parse file and modify only javascripts - *.js
+     * Replaces bundle name tokens in JS and JSON files using the whisper dictionary.
      *
+     * @inner
+     * @private
      * @param {string} file - File to parse
-     * @param {array} list
-     * */
+     * @param {string[]} list - Remaining files list; entry is spliced out when processed
+     * @returns {string[]} Updated list
+     */
     var parse = function(file, list) {
         //console.log('replacing: ', file);
         try {
@@ -535,6 +575,13 @@ function Add(opt, cmd) {
         }
     }
 
+    /**
+     * Restores env, manifest, and ports files to their pre-add state, then exits.
+     *
+     * @inner
+     * @private
+     * @param {Error} err - The error that triggered the rollback
+     */
     var rollback = function(err) {
         console.error('could not complete bundle creation: ', (err.stack||err.message));
         console.warn('rolling back...');

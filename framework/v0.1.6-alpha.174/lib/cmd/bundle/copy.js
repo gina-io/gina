@@ -1,4 +1,7 @@
 /**
+ * @module gina/lib/cmd/bundle/copy
+ */
+/**
  * Copy and insall the source bundle into another existing project
  *
  * - throw error if project does not exist

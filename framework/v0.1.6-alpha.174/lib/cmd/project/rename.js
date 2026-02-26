@@ -4,8 +4,25 @@ var CmdHelper   = require('./../helper');
 var console     = lib.logger;
 
 /**
- * Rename existing project.
- * */
+ * @module gina/lib/cmd/project/rename
+ */
+/**
+ * Renames an existing project: moves the source directory, updates
+ * manifest.json, package.json, ports.json, ports.reverse.json,
+ * and projects.json.
+ *
+ * Usage:
+ *  gina project:rename @<old_project> @<new_project>
+ *
+ * @class Rename
+ * @constructor
+ * @param {object} opt - Parsed command-line options
+ * @param {object} opt.client - Socket client for terminal output
+ * @param {string[]} opt.argv - Full argv array
+ * @param {number} [opt.debugPort] - Node.js inspector port
+ * @param {boolean} [opt.debugBrkEnabled] - True when --inspect-brk is active
+ * @param {object} cmd - The cmd dispatcher object (lib/cmd/index.js)
+ */
 function Rename(opt, cmd) {
 
     var self    = {}
@@ -15,6 +32,12 @@ function Rename(opt, cmd) {
         }
     ;
 
+    /**
+     * Validates that exactly two project tokens are provided, then delegates to rename.
+     *
+     * @inner
+     * @private
+     */
     var init = function() {
 
         // import CMD helpers
@@ -41,6 +64,13 @@ function Rename(opt, cmd) {
     }
 
 
+    /**
+     * Moves the source directory, updates all config files with the new name,
+     * rewrites port entries, and calls end.
+     *
+     * @inner
+     * @private
+     */
     var rename = function() {
 
         self.projects[local.target] = JSON.clone(self.projects[local.source]);
@@ -139,6 +169,13 @@ function Rename(opt, cmd) {
         })
     }
 
+    /**
+     * Writes the updated projects.json and exits the process.
+     *
+     * @inner
+     * @private
+     * @param {boolean} [renamed] - When true, log the rename confirmation
+     */
     var end = function(renamed) {
         var target = _(GINA_HOMEDIR + '/projects.json')
             , projects = self.projects;

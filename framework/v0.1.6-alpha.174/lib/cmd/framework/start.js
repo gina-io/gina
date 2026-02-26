@@ -1,4 +1,7 @@
 'use strict';
+/**
+ * @module gina/lib/cmd/framework/start
+ */
 var fs      = require('fs');
 const {execSync}    = require('child_process');
 var help    = require( getPath('gina').root + '/utils/helper');// jshint ignore:line
@@ -14,8 +17,11 @@ var console = lib.logger;
  *  $ sudo mkdir /var/run/gina
  *  $ sudo chown -R gina:www-data /var/run/gina
  *
- * @param {object} opt - Constructor options
- * */
+ * @class Start
+ * @constructor
+ * @param {object} opt - Parsed command-line options
+ * @param {number} [opt.pid] - PID assigned to the framework server process
+ */
 function Start(opt){
 
     //Get services list.
@@ -29,6 +35,12 @@ function Start(opt){
     //    servicesList : list.services[opt.release]
     //};
 
+    /**
+     * Sets up the framework runtime state and cleans stale PID files.
+     * @inner
+     * @private
+     * @param {object} opt
+     */
     var init = function(opt){
 
 
@@ -46,6 +58,11 @@ function Start(opt){
     };
 
     // TODO  - not working with execSync ... should try with spawn, like or restart
+    /**
+     * Restarts any bundles that were running before the framework stopped.
+     * @inner
+     * @private
+     */
     var restartRunningBunldes = function() {
         var list = fs.readdirSync(_(GINA_RUNDIR, true));// jshint ignore:line
         for (let i=0, len=list.length; i<len; i++ ) {
@@ -58,6 +75,11 @@ function Start(opt){
         }
     }
 
+    /**
+     * Removes stale framework PID files from GINA_RUNDIR that do not match the current PID.
+     * @inner
+     * @private
+     */
     var cleanPIDs = function() {
         var f = 0
             , path = _(GINA_RUNDIR)// jshint ignore:line
@@ -100,6 +122,14 @@ function Start(opt){
         }
     }
 
+    /**
+     * Logs optional output and exits the process.
+     * @inner
+     * @private
+     * @param {string|Error} [output] - Message or error to log
+     * @param {string} [type] - Logger method name (e.g. 'crit', 'error', 'log')
+     * @param {boolean} [messageOnly] - When true, logs only the message rather than the full stack
+     */
     var end = function (output, type, messageOnly) {
         var err = false;
         if ( typeof(output) != 'undefined') {

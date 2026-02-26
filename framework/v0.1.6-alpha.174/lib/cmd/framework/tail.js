@@ -10,21 +10,29 @@ var e               = new EventEmitter();
 var CmdHelper       = require('./../helper');
 var console         = lib.logger;
 var LoggerHelper    = require( _(GINA_FRAMEWORK_DIR + '/lib/logger/src/helper.js', true) );
-
 /**
- * Framework tail
- * By default, tail will exit when a bundle is exiting. If you want to prevent
- * tail from exiting, you should use `--follow` or `-f`
- * This will also will restart bundle in case of crach
+ * @module gina/lib/cmd/framework/tail
+ */
+/**
+ * Connects to the framework MQ listener on port 8125 and streams log output.
+ * Exits when a bundle exits (unless `--follow`/`-f` is passed, which auto-restarts bundles).
  *
- * e.g.
+ * Usage:
  *  gina framework:tail
- *  or
  *  gina tail
- *  or
  *  gina tail --follow | -f
  *
- * */
+ * @class Tail
+ * @constructor
+ * @param {object} opt - Parsed command-line options
+ * @param {object} opt.client - Socket client for terminal output
+ * @param {string[]} opt.argv - Full argv array
+ * @param {number} [opt.mqPort] - MQ listener port (defaults to GINA_MQ_PORT / 8125)
+ * @param {string} [opt.hostV4] - MQ listener host (defaults to GINA_HOST_V4 / 127.0.0.1)
+ * @param {number} [opt.debugPort] - Node.js inspector port
+ * @param {boolean} [opt.debugBrkEnabled] - True when --inspect-brk is active
+ * @param {object} cmd - The cmd dispatcher object (lib/cmd/index.js)
+ */
 function Tail(opt, cmd) {
 
     process.title = 'gina-tail';
@@ -35,6 +43,13 @@ function Tail(opt, cmd) {
     var cmdUsedToStart = null;
 
 
+    /**
+     * Imports CmdHelper, registers the mqlistener-started event handler, and delegates to tail().
+     * @inner
+     * @private
+     * @param {object} opt
+     * @param {object} cmd
+     */
     var init = function(opt, cmd) {
 
         console.debug('Getting framework logs');
@@ -71,6 +86,15 @@ function Tail(opt, cmd) {
     }
 
 
+    /**
+     * Opens a TCP connection to the MQ listener and streams formatted log payloads to stdout.
+     * Re-connects automatically when the MQ listener comes back online.
+     * @inner
+     * @private
+     * @param {object} opt
+     * @param {object} cmd
+     * @param {boolean} [isResuming] - True when reconnecting after a disconnect
+     */
     var tail = function(opt, cmd, isResuming) {
 
         var port = opt.mqPort || GINA_MQ_PORT || 8125;

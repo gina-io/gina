@@ -1,7 +1,28 @@
 "use strict";
 /**
- * Express JS Server Integration
+ * @module gina/core/server.express
+ */
+/**
+ * Wraps an Express application for use inside the Gina server pipeline.
+ * Patches `express.createApplication` to inject TLS credentials and selects
+ * the correct Node.js transport (http, https, http2.createServer, or
+ * http2.createSecureServer) based on `options.protocol` and `options.scheme`.
  *
+ * Returns `{ instance: app, middleware: express }` where `instance` is the
+ * configured Express app and `middleware` is the raw express module.
+ *
+ * @class ServerEngineClass
+ * @constructor
+ * @param {object} options - Server configuration
+ * @param {object} options.credentials - TLS/SSL credential paths
+ * @param {string} options.credentials.privateKey - Path to the private key file
+ * @param {string} options.credentials.certificate - Path to the certificate file
+ * @param {string} [options.credentials.ca] - Path to the CA bundle file
+ * @param {string} [options.credentials.passphrase] - PEM passphrase
+ * @param {string} options.protocol - Protocol string (e.g. 'http/1.1', 'http/2')
+ * @param {string} options.scheme - Scheme: 'http' or 'https'
+ * @param {boolean} [options.allowHTTP1=true] - Allow HTTP/1.x fallback for HTTP/2 servers
+ * @returns {{ instance: object, middleware: function }} Configured Express app and express module
  */
 const fs        = require('fs');
 const express   = require('express');
@@ -40,6 +61,16 @@ function ServerEngineClass(options) {
         credentials.passphrase = options.credentials.passphrase;
 
 
+    /**
+     * Replacement for Express's internal `createApplication` factory.
+     * Creates an Express application, mixes in EventEmitter and proto,
+     * and calls `app.init(credentials)` with the provided TLS credentials.
+     *
+     * @inner
+     * @private
+     * @param {object} credentials - TLS credential object (key, cert, ca, passphrase)
+     * @returns {function} Configured Express application
+     */
     var createApplication = function (credentials) {
         var app = function(req, res, next) {
             app.handle(req, res, next);

@@ -27,10 +27,16 @@ cmd.option = [];
 
 
 /**
- * Set option
+ * @module gina/lib/cmd
+ */
+
+/**
+ * Sets one or more named options on the cmd dispatcher.
+ * When `option` is an array, each element must have a `name` and `content` property.
  *
- * @param {array|string} option
- * */
+ * @memberof module:gina/lib/cmd
+ * @param {Array<{name: string, content: *}>|{name: string, content: *}} option - Option or array of options to register
+ */
 cmd.setOption = function(option) {
     if (option instanceof Array) {
         for (var i=0; i<option.length; ++i) {
@@ -41,6 +47,13 @@ cmd.setOption = function(option) {
     }
 }
 
+/**
+ * Returns the gina CLI string that was used to invoke the current process,
+ * reconstructed from process.argv (replacing the node binary with 'gina').
+ *
+ * @memberof module:gina/lib/cmd
+ * @returns {string} The reconstructed gina command string
+ */
 cmd.getString = function() {
     var cmd = process.argv
         .toString()
@@ -55,21 +68,43 @@ cmd.getString = function() {
 
 
 /**
- * Get option by name
+ * Returns the content of a named option previously registered with setOption.
  *
- * @param {string} name
- *
- * @returns {string|object} content
- * */
+ * @memberof module:gina/lib/cmd
+ * @param {string} name - Option name to retrieve
+ * @returns {string|object} The option content, or undefined if not found
+ */
 cmd.getOption = function(name) {
     return cmd.option[name]
 }
 
+/**
+ * Returns the full options array.
+ *
+ * @memberof module:gina/lib/cmd
+ * @returns {Array} All registered options
+ */
 cmd.getOptions = function() {
     return cmd.option
 }
 
 
+/**
+ * Main dispatcher called by `bin/cmd` after receiving an argv packet over the socket.
+ * Routes to the appropriate framework or bundle command handler based on `opt.task`.
+ * For framework 'start' tasks it sets up the Proc master and waits for onReady.
+ * For other framework tasks it runs the handler directly after init.
+ * For online bundle commands it starts the framework socket listener first.
+ *
+ * @memberof module:gina/lib/cmd
+ * @param {object} client - Socket client for writing responses
+ * @param {boolean} isFromFramework - True when the command originates from the framework
+ * @param {object} opt - Parsed command options
+ * @param {string} opt.task.topic - Command group (e.g. 'bundle')
+ * @param {string} opt.task.action - Command action (e.g. 'start')
+ * @param {boolean} [opt.isFromFramework] - Overrides isFromFramework parameter
+ * @param {boolean} [opt.isOnlineCommand] - True when cmd needs a live framework socket
+ */
 cmd.onExec = function(client, isFromFramework, opt) {
 
     var console = lib.logger;// jshint ignore:line

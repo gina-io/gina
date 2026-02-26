@@ -7,13 +7,25 @@ var scan        = require('../port/inc/scan');
 const { setFips } = require('crypto');
 
 /**
- * Reset ports for a given project
+ * @module gina/lib/cmd/port/reset
+ */
+/**
+ * Clears all port assignments for a project and re-scans to assign fresh ports,
+ * optionally starting from a user-supplied port number.
  *
- * e.g.:
+ * Usage:
  *  gina port:reset @<project_name>
  *  gina port:reset @<project_name> --start-port-from=4100
  *
- * */
+ * @class Reset
+ * @constructor
+ * @param {object} opt - Parsed command-line options
+ * @param {object} opt.client - Socket client for terminal output
+ * @param {string[]} opt.argv - Full argv array
+ * @param {number} [opt.debugPort] - Node.js inspector port
+ * @param {boolean} [opt.debugBrkEnabled] - True when --inspect-brk is active
+ * @param {object} cmd - The cmd dispatcher object (lib/cmd/index.js)
+ */
 function Reset(opt, cmd) {
 
     // self will be pre filled if you call `new CmdHelper(self, opt.client, { port: opt.debugPort, brkEnabled: opt.debugBrkEnabled })`
@@ -27,6 +39,13 @@ function Reset(opt, cmd) {
         }
     ;
 
+    /**
+     * Parses argv for --start-port-from, resolves the target project,
+     * and delegates to reset.
+     *
+     * @inner
+     * @private
+     */
     var init = function() {
 
         // import CMD helpers
@@ -61,6 +80,13 @@ function Reset(opt, cmd) {
     }
 
 
+    /**
+     * Removes all existing port entries for the project from ports.json and
+     * ports.reverse.json, then calls addBundlePorts to re-assign fresh ports.
+     *
+     * @inner
+     * @private
+     */
     var reset = function() {
         // get bundles list
         var bundlesCollection = null, out = null;
@@ -108,6 +134,16 @@ function Reset(opt, cmd) {
 
     }
 
+    /**
+     * Verifies that the given protocol and scheme are allowed in the framework
+     * configuration, optionally exiting with code 1 on failure.
+     *
+     * @inner
+     * @private
+     * @param {string} protocol - Protocol to validate (e.g. 'http/1.1', 'http/2.0')
+     * @param {string} scheme - Scheme to validate (e.g. 'http', 'https')
+     * @param {boolean} [exitOnError] - When true, call process.exit(1) on validation failure
+     */
     var hasPastProtocolAndSchemeCheck = function (protocol, scheme, exitOnError) {
         loadAssets();
 
@@ -125,13 +161,14 @@ function Reset(opt, cmd) {
     }
 
     /**
-     * addBundlePorts
-     * Add / update project default protocol, scheme & ports
+     * Scans for available ports for one bundle at a time (index `b`), then
+     * assigns all collected ports across every protocol/scheme/env combination
+     * and writes ports.json and ports.reverse.json when all bundles are done.
+     * Also used by the `project:add` command.
      *
-     * NB.: also used in `project:add` task
-     *
-     * @param {number} b - bundle index
-     *
+     * @inner
+     * @private
+     * @param {number} b - Current bundle index into self.bundles
      */
     var addBundlePorts = function(b) {
         loadAssets();
@@ -392,6 +429,15 @@ function Reset(opt, cmd) {
         }
     } // EO addBundlePorts(bundleIndex)
 
+    /**
+     * Prints optional output and exits the process.
+     *
+     * @inner
+     * @private
+     * @param {string|Error} [output] - Message or Error to display
+     * @param {string} [type] - console method to call (e.g. 'error', 'warn')
+     * @param {boolean} [messageOnly] - When true, print only the message, not the stack
+     */
     var end = function (output, type, messageOnly) {
         var err = false;
         if ( typeof(output) != 'undefined') {

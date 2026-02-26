@@ -1,6 +1,19 @@
 var console = lib.logger;
 var open    = require('./open');
-
+/**
+ * @module gina/lib/cmd/framework/help
+ */
+/**
+ * Displays help by opening a relevant documentation path.
+ * Delegates to the `open` command with the given key.
+ *
+ * Usage:
+ *  gina framework:help [<key>]
+ *
+ * @class Help
+ * @constructor
+ * @param {object} opt - Parsed command-line options
+ */
 function Help(opt) {
     var init = function() {
         if ( typeof(process.argv[3]) == 'undefined') {
