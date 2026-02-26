@@ -25,17 +25,27 @@ var modelUtil       = new lib.Model();
 
 
 /**
- * @class Config
- *
- *
- * @package     Gina
- * @namespace
- * @author      Rhinostone <contact@gina.io>
- * @api         Public
+ * @module gina/core/config
+ */
+/**
+ * Loads, merges, and exposes the full project configuration for all registered
+ * bundles, environments, and scopes. Acts as a singleton after first
+ * initialisation (`Config.initialized`). Raises `'config#complete'` when all
+ * bundle configs have been resolved.
  *
  * TODO - split Config.Env & Config.Host
+ *
+ * @class Config
+ * @constructor
+ * @param {object} opt - Configuration options
+ * @param {string} opt.env - Active environment name (e.g. `'development'`)
+ * @param {string} opt.scope - Active scope (e.g. `'local'`)
+ * @param {string} opt.projectName - Name of the project being loaded
+ * @param {string} opt.startingApp - Bundle name being started
+ * @param {string} opt.ginaPath - Absolute path to the gina framework install
+ * @param {string} opt.executionPath - Project root path
+ * @param {boolean} [contextResetNeeded] - When `true`, resets the global context before init
  */
-
 function Config(opt, contextResetNeeded) {
 
     var self = this;
@@ -67,9 +77,15 @@ function Config(opt, contextResetNeeded) {
     this.allScopes  = getContext('scopes');
 
     /**
-     * Config Constructor
-     * @constructor
-     * */
+     * Initialises the Config singleton: loads framework port/project files,
+     * delegates to `Env.load` and `Host.setMaster`, then calls
+     * `loadBundlesConfiguration` and emits `'config#complete'` on success.
+     *
+     * @inner
+     * @private
+     * @param {object} opt - Same options passed to the outer constructor
+     * @param {boolean} [contextResetNeeded]
+     */
     var init =  function(opt, contextResetNeeded) {
 
 
@@ -119,6 +135,15 @@ function Config(opt, contextResetNeeded) {
     }
 
 
+    /**
+     * Loads framework port, reverse-port, and project JSON files, then calls
+     * `Env.load` to build the merged envConf object.
+     *
+     * @inner
+     * @private
+     * @param {string} env - Environment name
+     * @param {string} scope - Scope name
+     */
     var getConf = function(env, scope) {
 
         self.env    = env;
@@ -255,12 +280,14 @@ function Config(opt, contextResetNeeded) {
 
 
     /**
-     * Get Instance
+     * Returns the active Config instance or, when `bundle` is given, the
+     * per-bundle/per-env configuration slice. Merges `gina.config` from
+     * the global context if the singleton has not been fully set yet.
      *
-     * @param {string} [bundle]
-     * @returns {(Object|Undefined)} configuration|"undefined"
-     * */
-
+     * @memberof module:gina/core/config
+     * @param {string} [bundle] - Bundle name; omit to return the full envConf
+     * @returns {object|undefined} Config instance, envConf slice, or undefined
+     */
     this.getInstance = function(bundle) {
 
         if ( typeof(Config.instance) == 'undefined' && typeof(getContext('gina')) != 'undefined' ) {
@@ -306,16 +333,30 @@ function Config(opt, contextResetNeeded) {
     }
 
     /**
-     * Set server core conf
+     * Stores the server core configuration (status codes, MIME types, etc.)
+     * for a specific bundle/env combination.
      *
-     * Status Code, Mime Types etc ...
-     * */
+     * @memberof module:gina/core/config
+     * @param {string} bundle - Bundle name
+     * @param {string} env - Environment name
+     * @param {string} scope - Scope name
+     * @param {object} conf - Core server configuration object
+     */
     this.setServerCoreConf = function(bundle, env, scope, conf) {
         self.env    = env;
         self.scope  = scope;
         self.envConf[bundle][env].server['coreConfiguration'] = conf;
     }
 
+    /**
+     * Retrieves the server core configuration for a bundle/env combination.
+     * Calls `process.exit(1)` on read failure.
+     *
+     * @memberof module:gina/core/config
+     * @param {string} bundle - Bundle name
+     * @param {string} env - Environment name
+     * @returns {object} Core server configuration object
+     */
     this.getServerCoreConf = function(bundle, env) {
         try {
             return self.envConf[bundle][env].server['coreConfiguration']
@@ -327,12 +368,12 @@ function Config(opt, contextResetNeeded) {
     }
 
     /**
-     * @class Env Sub class
+     * Environment sub-object.
+     * Manages the active environment name and loads the merged env configuration
+     * via `loadWithTemplate`.
      *
-     *
-     * @package     Gina.Config
-     * @namespace   Gina.Config.Env
-     * @author      Rhinostone <contact@gina.io>
+     * @memberof module:gina/core/config
+     * @type {object}
      */
     this.Env = {
         template : requireJSON( getEnvVar('GINA_FRAMEWORK_DIR') +'/core/template/conf/env.json'),
@@ -486,6 +527,17 @@ function Config(opt, contextResetNeeded) {
         }
     }
 
+    /**
+     * Recursively merges `content` into `confObject` at the dotted path
+     * described by `section` (e.g. `'server.options'`).
+     *
+     * @inner
+     * @private
+     * @param {object} confObject - Target configuration object to merge into
+     * @param {string|string[]} section - Dot-separated path string or pre-split array
+     * @param {*} content - Value to merge at the target path
+     * @param {number} [i=0] - Current recursion depth (internal)
+     */
     var mergeConfig = function(confObject, section, content, i) {
 
         if (!Array.isArray(section)) {
@@ -550,11 +602,17 @@ function Config(opt, contextResetNeeded) {
     // }
 
     /**
-     * Load config according to specific template
-     * @param {String} filename  Path of source config file
-     * @param {String} template Path of the template to merge with
-     * @returns {Oject} JSON of the merged config
-     **/
+     * Merges the user's project config (`userConf`) against the framework's
+     * `env.json` template, resolving port assignments, bundle paths, model
+     * paths, and hostname substitutions for every bundle/env/scope combination.
+     * Calls `callback(false, mergedConf)` on success.
+     *
+     * @inner
+     * @private
+     * @param {object} userConf - Raw parsed project config object
+     * @param {object} template - Framework env template (from `core/template/conf/env.json`)
+     * @param {function} callback - `function(err, mergedConf)`
+     */
     var loadWithTemplate = function(userConf, template, callback) {
 
         var content     = userConf,
@@ -1061,6 +1119,14 @@ function Config(opt, contextResetNeeded) {
         callback(false, newContent)
     }
 
+    /**
+     * Tests whether a JSON config file exists at `executionPath/<file>.json`.
+     *
+     * @inner
+     * @private
+     * @param {string} file - Relative file name without the `.json` extension
+     * @returns {boolean} `true` if the file can be `require()`d, `false` otherwise
+     */
     var isFileInProject = function(file) {
         try {
             var usrConf = require(self.executionPath +'/'+ file +'.json');
@@ -1072,38 +1138,58 @@ function Config(opt, contextResetNeeded) {
     }
 
     /**
-     * Get Registered bundles sharing the same port #
+     * Returns the list of registered bundles sharing the same server port.
      *
-     * @returns {Array} bundles
-     * */
+     * @memberof module:gina/core/config
+     * @returns {string[]} Bundle names sharing the current port
+     */
     this.getBundles = function() {
         //Registered apps only.
         return self.bundles
     }
 
+    /**
+     * Returns all registered bundles for the project.
+     *
+     * @memberof module:gina/core/config
+     * @returns {string[]} All bundle names
+     */
     this.getAllBundles = function() {
         //Registered apps only.
         return self.allBundles
     }
 
+    /**
+     * Returns all registered environment names for the project.
+     *
+     * @memberof module:gina/core/config
+     * @returns {string[]} All environment names
+     */
     this.getAllEnvs = function() {
         //Registered apps only.
         return self.allEnvs
     }
 
+    /**
+     * Returns all registered scope names for the project.
+     *
+     * @memberof module:gina/core/config
+     * @returns {string[]} All scope names
+     */
     this.getAllScopes = function() {
         //Registered apps only.
         return self.allScopes
     }
 
     /**
-     * Get original rule
+     * Finds the base routing rule that a derived (parameterised) rule was
+     * generated from, by matching action, bundle, and suffix pattern.
      *
-     * @param {string} rule
-     * @param {object} routing
-     *
-     * @returns {string} originalRule
-     * */
+     * @memberof module:gina/core/config
+     * @param {string} rule - Derived rule name to look up
+     * @param {object} routing - Full routing map
+     * @returns {string|undefined} The original base rule name, or undefined if not found
+     */
     this.getOriginalRule = function(rule, routing) {
 
         var currentRouting  = routing[rule];
@@ -1122,6 +1208,15 @@ function Config(opt, contextResetNeeded) {
     }
 
 
+    /**
+     * Recursively freezes `obj` and all of its nested plain-object properties
+     * using `Object.freeze`. Returns the frozen object.
+     *
+     * @inner
+     * @private
+     * @param {object} obj - Object to freeze
+     * @returns {object} The deeply frozen object
+     */
     var deepFreeze = function (obj) {
 
         // On récupère les noms des propriétés définies sur obj
@@ -1138,6 +1233,21 @@ function Config(opt, contextResetNeeded) {
         return Object.freeze(obj);
     }
 
+    /**
+     * Recursively walks a config object along a dotted-key path (`arr`) and
+     * merges `content` into the leaf node. Converts kebab-case keys to
+     * camelCase before traversal.
+     *
+     * @inner
+     * @private
+     * @param {object} root - Top-level config object (used for error context)
+     * @param {string[]} arr - Exploded path segments (e.g. `['server','options']`)
+     * @param {object} obj - Current node being traversed
+     * @param {number} len - Total path depth (`arr.length`)
+     * @param {number} i - Current depth index
+     * @param {*} content - Value to merge at the leaf
+     * @param {string} [pathname] - Accumulated dotted path string (for logging)
+     */
     var parseFileConf = function(root, arr, obj, len, i, content, pathname) {
 
 
@@ -1214,6 +1324,16 @@ function Config(opt, contextResetNeeded) {
         }
     }
 
+    /**
+     * Replaces `{bundle@project[/env]}` placeholders in a hostname string
+     * with the resolved scheme+host+port (or pre-computed `hostname`) of the
+     * referenced bundle.
+     *
+     * @inner
+     * @private
+     * @param {string} name - Hostname string potentially containing placeholders
+     * @returns {string} Hostname with all placeholders substituted
+     */
     var originHostReplacement = function(name) {
         var matched = name.match(/\{\s*(.*)\s*\}/g);
         if (!matched || !Array.isArray(matched) || Array.isArray(matched) && matched.length == 0 ) {
@@ -1248,6 +1368,20 @@ function Config(opt, contextResetNeeded) {
         return name;
     }
 
+    /**
+     * Loads the full configuration for a single bundle at index `b` from the
+     * `bundles` array. Handles routing, models, forms, views, plugins, and
+     * host/origin resolution. Recursively calls itself for the next bundle.
+     * Calls `callback(err, files, collectedRules)` when all bundles are done.
+     *
+     * @inner
+     * @private
+     * @param {string[]} bundles - Ordered list of bundle names to process
+     * @param {number} b - Current bundle index
+     * @param {function} callback - `function(err, files, collectedRules)`
+     * @param {boolean} [reload=false] - When true, bypasses require cache (cacheless mode)
+     * @param {object} [collectedRules] - Accumulated routing rules across all bundles
+     */
     var loadBundleConfig = function(bundles, b, callback, reload, collectedRules) {
 
         // current bundle
@@ -2520,6 +2654,15 @@ function Config(opt, contextResetNeeded) {
     }
 
 
+    /**
+     * Recursively reads form definition JSON files from `formsDir` and returns
+     * an object with a `rules` map keyed by dotted path.
+     *
+     * @inner
+     * @private
+     * @param {string} formsDir - Absolute path to the bundle's forms directory
+     * @returns {object} Form rules object `{ rules: { ... } }`
+     */
     var loadForms = function(formsDir) {
         var forms           = { rules: {}}
             , isCacheless   = self.isCacheless()
@@ -2581,10 +2724,15 @@ function Config(opt, contextResetNeeded) {
     }
 
     /**
-     * Load Apps Configuration
+     * Triggers configuration loading for all registered bundles by calling
+     * `loadBundleConfig` starting at index 0.
      *
      * TODO - simplify / optimize
-     * */
+     *
+     * @inner
+     * @private
+     * @param {function} callback - `function(err, files, collectedRules)` forwarded to `loadBundleConfig`
+     */
     var loadBundlesConfiguration = function(callback) {
         //var bundles = self.getBundles();
         var bundles = self.getAllBundles();
@@ -2593,34 +2741,43 @@ function Config(opt, contextResetNeeded) {
     }
 
     /**
-     * Check is cache is disabled
+     * Returns `true` when running in dev mode (`NODE_ENV_IS_DEV=true`),
+     * meaning module require caches should be bypassed on every request.
      *
-     * @returns {boolean} isUsingCache
-     * */
+     * @memberof module:gina/core/config
+     * @returns {boolean} `true` if cacheless (dev) mode is active
+     */
     this.isCacheless = function() {
         //Also defined in core/gna.
         return (/^true$/i.test(process.env.NODE_ENV_IS_DEV)) ? true : false;
     }
     /**
-     * Check if the project scope is set for local
-     * */
+     * Returns `true` when the active scope is `local` (`NODE_SCOPE_IS_LOCAL=true`).
+     *
+     * @memberof module:gina/core/config
+     * @returns {boolean}
+     */
     this.isLocalScope = function() {
         return (/^true$/i.test(process.env.NODE_SCOPE_IS_LOCAL)) ? true : false;
     }
     /**
-     * Check if the project scope is set for production
-     * */
+     * Returns `true` when the active scope is `production` (`NODE_SCOPE_IS_PRODUCTION=true`).
+     *
+     * @memberof module:gina/core/config
+     * @returns {boolean}
+     */
     this.isProductionScope = function() {
         return (/^true$/i.test(process.env.NODE_SCOPE_IS_PRODUCTION)) ? true : false;
     }
     /**
-     * Refresh for cachless mode
+     * Reloads all bundle configurations from disk (used in cacheless/dev mode).
+     * Calls `loadBundleConfig` over `allBundles` starting at index 0, then
+     * invokes `callback` with the refreshed routing rules.
      *
-     * @param {string} bundle
-     *
-     * @callback callback
-     * @param {boolean|string} err
-     * */
+     * @memberof module:gina/core/config
+     * @param {string} bundle - Bundle name (reserved; currently not used to filter)
+     * @param {function} callback - `function(err, routing)` called on completion
+     */
     this.refresh = function(bundle, callback) {
         //Reload conf. who likes repetition ?
         loadBundleConfig(
@@ -2636,12 +2793,15 @@ function Config(opt, contextResetNeeded) {
     }//EO refresh.
 
     /**
-     * Reloading bundle model
+     * Reloads the model files for a bundle/env combination by calling
+     * `modelUtil.reloadModels`. Only reloads when the models path exists
+     * and the bundle is the currently starting bundle.
      *
-     * @param {string} bundle - bundle name
-     * @callback {function} callback
-     * @param {boolean} error
-     * */
+     * @memberof module:gina/core/config
+     * @param {string} bundle - Bundle name
+     * @param {string} env - Environment name
+     * @param {function} callback - `function(err)` called on completion
+     */
     this.refreshModels = function(bundle, env, callback) {
         var conf            = self.envConf[bundle][env]
             //Reload models.
@@ -2664,10 +2824,15 @@ function Config(opt, contextResetNeeded) {
     }
 
     /**
-     * Setting routing for non dev env
+     * Stores the routing table for a bundle/env/scope combination and merges
+     * it into the global `envConf.routing` map.
      *
-     * @param {object} routing
-     * */
+     * @memberof module:gina/core/config
+     * @param {string} bundle - Bundle name
+     * @param {string} env - Environment name
+     * @param {string} scope - Scope name
+     * @param {object} routing - Routing rules object
+     */
     this.setRouting = function(bundle, env, scope, routing) {
 
         if (!self.envConf.routing)
@@ -2681,11 +2846,13 @@ function Config(opt, contextResetNeeded) {
     }
 
     /**
-     * Get routing
+     * Returns the routing table for a specific bundle/env, or the merged global
+     * routing map when called without arguments.
      *
-     * @param {string} [bundle]
-     * @param {string} [env]
-     *
+     * @memberof module:gina/core/config
+     * @param {string} [bundle] - Bundle name; omit to return the global routing map
+     * @param {string} [env] - Environment name; defaults to the active env
+     * @returns {object} Routing rules object
      */
     this.getRouting = function(bundle, env) {
 
@@ -2700,6 +2867,16 @@ function Config(opt, contextResetNeeded) {
         return self.envConf.routing;
     }
 
+    /**
+     * Stores the reverse routing table for a bundle/env/scope combination and
+     * merges it into the global `envConf.reverseRouting` map.
+     *
+     * @memberof module:gina/core/config
+     * @param {string} bundle - Bundle name
+     * @param {string} env - Environment name
+     * @param {string} scope - Scope name
+     * @param {object} reverseRouting - Reverse routing rules object
+     */
     this.setReverseRouting = function(bundle, env, scope, reverseRouting) {
 
         if (!self.envConf.reverseRouting)
@@ -2715,6 +2892,13 @@ function Config(opt, contextResetNeeded) {
 
     if (!opt) {
 
+        /**
+         * Replaces the registered bundles list (used when Config is called
+         * without `opt` to inject a pre-computed bundle array).
+         *
+         * @memberof module:gina/core/config
+         * @param {string[]} bundles - Array of bundle names
+         */
         this.setBundles = function(bundles) {
             self.bundles = bundles
         }
@@ -2730,6 +2914,21 @@ function Config(opt, contextResetNeeded) {
         this.env = opt.env;
 
 
+        /**
+         * Registers a one-time listener for the `'config#complete'` event
+         * and returns `self` for chaining.
+         *
+         * @memberof module:gina/core/config
+         * @param {function} callback - `function(err, config)` called once config is ready
+         * @returns {Config} `self` for chaining
+         *
+         * @example
+         * var config = new Config(opt);
+         * config.onReady(function(err, conf) {
+         *     if (err) throw err;
+         *     // conf.envConf is now populated
+         * });
+         */
         this.onReady = function(callback) {
             self.once('config#complete', function(err, config) {
                 callback(err, config)

@@ -1,7 +1,6 @@
 "use strict";
 /**
- * Isaac Server Integration
- *
+ * @module gina/core/server.isaac
  */
 const fs                    = require('fs');
 const { execSync }          = require('child_process');
@@ -24,6 +23,13 @@ const env               = process.env.NODE_ENV
     , isProductionScope = (/^true$/i.test(process.env.NODE_SCOPE_IS_PRODUCTION)) ? true : false
 ;
 
+/**
+ * Reloads all core and lib modules from disk by replacing their require.cache
+ * entries with fresh exports. Excludes gna.js itself. Also refreshes the
+ * plugins index so the running instance picks up any hot-reloaded code.
+ *
+ * @memberof module:gina/core/server.isaac
+ */
 var refreshCore = function() {
 
     var corePath    = getPath('gina').core;
@@ -55,11 +61,44 @@ var refreshCore = function() {
 const slice = Array.prototype.slice;
 
 
+/**
+ * Isaac server engine — Gina's built-in HTTP/1.1 and HTTP/2 server.
+ * Creates an HTTP or HTTPS server (Node `http`, `https`, or `http2`),
+ * sets up asset caching, routing cache, brotli/gzip compression detection,
+ * and wires the `onPath` request handler.
+ * Also attaches an optional engine.io WebSocket server when `options.ioServer` is defined.
+ *
+ * Returns `{ instance: server, middleware: middleware }`.
+ *
+ * @class ServerEngineClass
+ * @constructor
+ * @param {object} options - Bundle server configuration
+ * @param {string} options.protocol - Protocol string (e.g. 'http/1.1', 'http/2')
+ * @param {string} options.scheme - Scheme: 'http' or 'https'
+ * @param {string} options.bundle - Bundle name
+ * @param {string} options.cachePath - Absolute path to the bundle cache directory
+ * @param {boolean} options.isCacheless - True in dev mode; clears local cache on startup
+ * @param {object} options.credentials - TLS credentials (privateKey, certificate, ca, passphrase)
+ * @param {object} options.allRoutes - Full routing map (used for frontend routing cache)
+ * @param {string} options.preferedCompressionEncodingOrder - Ordered list of accepted encodings
+ * @param {number} [options.keepAliveTimeout] - Server keep-alive timeout in ms
+ * @param {number} [options.headersTimeout] - Server headers timeout in ms
+ * @param {object} [options.ioServer] - engine.io server options; omit to disable WebSocket support
+ * @returns {{ instance: object, middleware: function }} Configured Node server and middleware factory
+ */
 function ServerEngineClass(options) {
 
     console.debug('[ ENGINE ] Isaac says hello !');
 
-    // TOTO - See if it would be interesting to add it to Helper::Path & to extend it to also readdirSync, returning the directory content
+    // TODO - See if it would be interesting to add it to Helper::Path & to extend it to also readdirSync, returning the directory content
+    /**
+     * Reads a file synchronously, resolving symlinks before reading.
+     *
+     * @inner
+     * @private
+     * @param {string} filename - Absolute path to the file (may be a symlink)
+     * @returns {string} UTF-8 file contents
+     */
     var readSync = function(filename) {
         var fileObj = new _(filename, true);
         if ( fileObj.isSymlinkSync() ) {
@@ -329,6 +368,15 @@ function ServerEngineClass(options) {
 
 
 
+    /**
+     * Placeholder middleware factory (currently a stub).
+     * Reserved for future path-scoped middleware support.
+     *
+     * @inner
+     * @private
+     * @param {string} path - Route path to match
+     * @param {function} cb - Middleware callback
+     */
     const middleware = function(path, cb) {
 
         // if (request.path === path) {
@@ -343,6 +391,18 @@ function ServerEngineClass(options) {
     }
 
 
+    /**
+     * Core HTTP request handler. Wires the server's `request` event listener,
+     * dispatches health-check and info endpoints internally, handles static asset
+     * serving with brotli/gzip negotiation, and delegates all other requests to
+     * the Gina Router via `cb`. Called by `server.all` with `allowAll=true`.
+     *
+     * @inner
+     * @private
+     * @param {string} path - Base path this handler is mounted at
+     * @param {function} cb - Gina router callback invoked for non-static requests
+     * @param {boolean} [allowAll=false] - When true, all paths are handled (set by server.all)
+     */
     const onPath = function(path, cb, allowAll) {
 
         var queryParams         = null
@@ -749,6 +809,14 @@ function ServerEngineClass(options) {
     }
 
 
+    /**
+     * Registers a catch-all request handler for every path.
+     * Delegates to onPath with `allowAll=true`.
+     *
+     * @memberof ServerEngineClass
+     * @param {string} path - Base path (usually '/')
+     * @param {function} cb - Gina router callback
+     */
     // All paths allowed
     server.all = function(path, cb) {
         onPath.call(this, path, cb, true)
@@ -757,10 +825,12 @@ function ServerEngineClass(options) {
     // configuring express plugins|middlewares
     server._expressMiddlewares = [];
     /**
-     * <server>.use()
-     * Applies middleware for every single route
+     * Registers one or more middleware functions to be called for every request.
+     * Accepts either a plain function or an array of functions (Express-compatible signature).
+     * Middlewares are stored in `server._expressMiddlewares` and invoked in registration order.
      *
-     * @param {function} fn
+     * @memberof ServerEngineClass
+     * @param {function|function[]} fn - Middleware function or array of middleware functions
      */
     server.use = function use(fn) {
 

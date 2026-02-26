@@ -8,10 +8,20 @@
  */
 
 /**
- * Gina Core Bootstrap
+ * @module gina/core/gna
+ */
+/**
+ * Gina core bootstrap. Initialises the framework process, mounts bundles, and
+ * exposes the `gna` / `process` lifecycle API to bundle code:
+ *  - gna.onInitialize / gna.onStarted / gna.onRouting / gna.onError
+ *  - gna.start / gna.stop / gna.restart / gna.status
+ *  - gna.mount / gna.getProjectConfiguration
+ *  - gna.getMountedBundles / gna.getMountedBundlesSync / gna.getRunningBundlesSync
+ *  - gna.getShutdownConnector / gna.getShutdownConnectorSync
+ *  - gna.getVersion
  *
- * @package    Gina
- * @author     Rhinostone <contact@gina.io>
+ * All `gna.X` are also aliased to `process.X` so bundle controllers can call
+ * `process.onStarted(cb)` etc. without importing gna directly.
  */
 
 var fs              = require('fs');
@@ -328,10 +338,13 @@ if (!isPath) {
 
 // Todo - load from env.json or locals  or manifest.json ??
 /**
- * abort
+ * Logs a fatal error and terminates the process.
+ * Formats the message differently depending on whether gina was loaded through
+ * the CLI, a worker, or a manual `node` invocation.
  *
- * @param {string|object} err
- * @param {string} [bunlde]
+ * @memberof module:gina/core/gna
+ * @param {string|Error} err - Error or message to log
+ * @param {string} [bundle] - Bundle name involved in the failure
  */
 var abort = function(err, bundle) {
     gna.isAborting = true;
@@ -359,6 +372,17 @@ var abort = function(err, bundle) {
 gna.emit = e.emit;
 gna.started = false;
 
+/**
+ * Checks whether a bundle has a release entry in the project manifest and is
+ * therefore considered "mounted" (ready to start). Skips the check for worker
+ * processes and calls `cb(false)` immediately in that case.
+ *
+ * @memberof module:gina/core/gna
+ * @param {object} projects - Projects registry from ~/.gina/projects.json
+ * @param {string} bundlesPath - Absolute path to the project's bundles directory
+ * @param {string} bundle - Bundle name to check
+ * @param {function} cb - Node-style callback `function(err, isMounted)`
+ */
 var isBundleMounted = function(projects, bundlesPath, bundle, cb) {
     var isMounted       = false
         , env           = process.env.NODE_ENV
@@ -423,12 +447,14 @@ var isBundleMounted = function(projects, bundlesPath, bundle, cb) {
 
 
 /**
- * Get project conf from manifest.json
+ * Reads the project's manifest.json and resolves the bundle list.
+ * Merges the manifest into the `project` object and calls `callback(err, project)`.
  *
- *
- * @param {function} callback
- * @returns {object} data - Result conf object
- * */
+ * @memberof module:gina/core/gna
+ * @param {function} callback - Node-style callback `function(err, project)`
+ * @param {boolean|Error} callback.err - False on success, Error on failure
+ * @param {object} callback.project - Parsed project manifest
+ */
 gna.getProjectConfiguration = function (callback){
 
     var modulesPackage = _(root + '/manifest.json');
@@ -502,14 +528,19 @@ gna.getProjectConfiguration = function (callback){
 };
 
 /**
- * mount release => bundle
- * @param {string} source
- * @param {string} target
- * @param {string} type
+ * Mounts a bundle release directory into the project's bundles/ directory
+ * by creating required folders (bundles, tmp, cache) and symlinking the source.
+ * When `type` is omitted it defaults to `'dir'`.
  *
- * @callback callback
- * @param {boolean|string} err
- * */
+ * Also exposed as `process.mount`.
+ *
+ * @memberof module:gina/core/gna
+ * @param {string} bundlesPath - Absolute path to the project's bundles directory
+ * @param {string} source - Source release path to mount
+ * @param {string} target - Target symlink/directory path inside bundles/
+ * @param {string} [type='dir'] - Mount type: 'dir' or 'junction'
+ * @param {function} callback - Node-style callback `function(err)`
+ */
 gna.mount = process.mount = function(bundlesPath, source, target, type, callback){
     if ( typeof(type) == 'function') {
         callback = type;
@@ -637,11 +668,15 @@ isBundleMounted(projects, bundlesPath, getContext('bundle'), function onBundleMo
         if (err) console.error(err.stack);
 
         /**
-         * On middleware initialization
+         * Registers a callback to run when the framework middleware is initialised.
+         * Loads all models for the project's bundles, then fires the callback with
+         * `(instance, middleware, conf)` when the 'init' event is emitted.
          *
-         * @callback callback
+         * Also exposed as `process.onInitialize`.
          *
-         * */
+         * @memberof module:gina/core/gna
+         * @param {function} callback - Called with `(instance, middleware, conf)` after models load
+         */
         gna.onInitialize = process.onInitialize = function(callback) {
 
             console.debug('[ FRAMEWORK ] Bootstrap Initialization... ');
@@ -688,11 +723,15 @@ isBundleMounted(projects, bundlesPath, getContext('bundle'), function onBundleMo
         }
 
         /**
-         * On Server started
+         * Registers a callback to run once the HTTP server is listening.
+         * Fired by the 'server#started' event. Useful for starting file watchers
+         * or opening a browser in dev mode.
          *
-         * @callback callback
+         * Also exposed as `process.onStarted`.
          *
-         * */
+         * @memberof module:gina/core/gna
+         * @param {function} callback - Called with no arguments when the server is ready
+         */
         gna.onStarted = process.onStarted = function(callback) {
 
             gna.started = true;
@@ -720,6 +759,14 @@ isBundleMounted(projects, bundlesPath, getContext('bundle'), function onBundleMo
             })
         }
 
+        /**
+         * Registers a callback to be invoked on every routed HTTP request.
+         * The callback receives `(e, request, response, next, params)`.
+         * Also exposed as `process.onRouting`.
+         *
+         * @memberof module:gina/core/gna
+         * @param {function} callback - Called with `(emitter, request, response, next, params)`
+         */
         gna.onRouting = process.onRouting = function(callback) {
 
             gna.routed = true;
@@ -734,6 +781,14 @@ isBundleMounted(projects, bundlesPath, getContext('bundle'), function onBundleMo
             })
         }
 
+        /**
+         * Asynchronously reads the bundle's connector.json and returns the
+         * `httpClient.shutdown` config section via callback.
+         * Also exposed as `process.getShutdownConnector`.
+         *
+         * @memberof module:gina/core/gna
+         * @param {function} callback - Node-style callback `function(err, shutdownConf)`
+         */
         gna.getShutdownConnector = process.getShutdownConnector = function(callback) {
             var connPath = _(bundlesPath +'/'+ appName + '/config/connector.json');
             fs.readFile(connPath, function onRead(err, content) {
@@ -745,6 +800,15 @@ isBundleMounted(projects, bundlesPath, getContext('bundle'), function onBundleMo
             })
         }
 
+        /**
+         * Registers a persistent error handler for framework-level errors.
+         * The callback receives `(err, request, response, next)`.
+         * Unlike onInitialize/onStarted, this uses `e.on` (not `.once`).
+         * Also exposed as `process.onError`.
+         *
+         * @memberof module:gina/core/gna
+         * @param {function} callback - Called with `(err, request, response, next)` on each error
+         */
         gna.onError = process.onError = function(callback) {
             gna.errorCatched = true;
             e.on('error', function(err, request, response, next) {
@@ -753,6 +817,14 @@ isBundleMounted(projects, bundlesPath, getContext('bundle'), function onBundleMo
             })
         }
 
+        /**
+         * Synchronously reads the bundle's connector.json and returns the
+         * `httpClient.shutdown` config section. Returns `undefined` on error.
+         * Also exposed as `process.getShutdownConnectorSync`.
+         *
+         * @memberof module:gina/core/gna
+         * @returns {object|undefined} The shutdown connector config, or undefined if not found
+         */
         gna.getShutdownConnectorSync = process.getShutdownConnectorSync = function() {
             var connPath = _(bundlesPath +'/'+ appName + '/config/connector.json');
             try {
@@ -763,12 +835,27 @@ isBundleMounted(projects, bundlesPath, getContext('bundle'), function onBundleMo
             }
         }
 
+        /**
+         * Asynchronously lists the entries in the project's bundles directory.
+         * Also exposed as `process.getMountedBundles`.
+         *
+         * @memberof module:gina/core/gna
+         * @param {function} callback - Node-style callback `function(err, files)`
+         */
         gna.getMountedBundles = process.getMountedBundles = function(callback) {
             fs.readdir(bundlesPath, function onRead(err, files) {
                 callback(err, files)
             })
         }
 
+        /**
+         * Synchronously lists the entries in the project's bundles directory.
+         * Returns an error stack string on failure.
+         * Also exposed as `process.getMountedBundlesSync`.
+         *
+         * @memberof module:gina/core/gna
+         * @returns {string[]|string} Array of bundle directory entries, or error stack on failure
+         */
         gna.getMountedBundlesSync = process.getMountedBundlesSync = function() {
             try {
                 return fs.readdirSync(bundlesPath)
@@ -777,6 +864,14 @@ isBundleMounted(projects, bundlesPath, getContext('bundle'), function onBundleMo
             }
         }
 
+        /**
+         * Synchronously reads the global pid directory and returns two arrays:
+         * running bundle pids and the gina master pid list.
+         * Also exposed as `process.getRunningBundlesSync`.
+         *
+         * @memberof module:gina/core/gna
+         * @returns {Array[]} Tuple `[bundlePids, ginaPids]` — arrays of PID objects
+         */
         gna.getRunningBundlesSync = process.getRunningBundlesSync = function() {
 
             //TODO - Do that thru IPC or thru socket. ???
@@ -832,6 +927,15 @@ isBundleMounted(projects, bundlesPath, getContext('bundle'), function onBundleMo
             return content
         }
 
+        /**
+         * Reads the version field from a bundle's config/app.json.
+         * Defaults to the current running bundle when `bundle` is omitted.
+         * Also exposed as `process.getVersion`.
+         *
+         * @memberof module:gina/core/gna
+         * @param {string} [bundle] - Bundle name; defaults to the running bundle
+         * @returns {string|Error|undefined} Version string, Error on read failure, or undefined
+         */
         gna.getVersion = process.getVersion = function(bundle) {
             var name = bundle || appName;
             name = name.replace(/gina: /, '');
@@ -850,10 +954,19 @@ isBundleMounted(projects, bundlesPath, getContext('bundle'), function onBundleMo
         }
 
         /**
-         * Start server
+         * Starts the server for the current bundle.
+         * Reads the bundle name and project name from the global context,
+         * inherits the parent gina context from `process.argv[3]` (JSON-serialised),
+         * creates a Config instance (or reuses the existing singleton), then
+         * waits for `config.onReady` before constructing the Server and calling
+         * `server.start(instance)` once the engine emits `'complete'`.
+         * Emits `'init'` with `(instance, middleware, conf)` so user bundles can
+         * attach their own initialisation logic.
+         * Also exposed as `process.start`.
          *
-         * @param {string} [executionPath]
-         * */
+         * @memberof module:gina/core/gna
+         * @returns {void}
+         */
         gna.start = process.start = function() { //TODO - Add protocol in arguments
 
             var core    = gna.core;
@@ -1042,8 +1155,16 @@ isBundleMounted(projects, bundlesPath, getContext('bundle'), function onBundleMo
         }
 
         /**
-         * Stop server
-         * */
+         * Stops the server process.
+         * Logs a notice and calls `process.exit(code)` when a code is provided,
+         * or `process.exit()` with no argument otherwise.
+         * Also exposed as `process.stop`.
+         *
+         * @memberof module:gina/core/gna
+         * @param {number} [pid] - PID of the process to stop (informational; not used directly)
+         * @param {number} [code] - Exit code to pass to `process.exit`; defaults to 0
+         * @returns {void}
+         */
         gna.stop = process.stop = function(pid, code) {
             console.info('[ FRAMEWORK ] Stopped service');
             if (typeof(code) != 'undefined')
@@ -1053,14 +1174,25 @@ isBundleMounted(projects, bundlesPath, getContext('bundle'), function onBundleMo
         }
 
         /**
-         * Get Status
-         * */
+         * Reports the running status of a bundle.
+         * Currently a stub — logs a notice and returns.
+         * Also exposed as `process.status`.
+         *
+         * @memberof module:gina/core/gna
+         * @param {string} [bundle] - Bundle name to query; reserved for future use
+         * @returns {void}
+         */
         gna.status = process.status = function(bundle) {
             console.info('[ FRAMEWORK ] Getting service status')
         }
         /**
-         * Restart server
-         * */
+         * Restarts the server.
+         * Currently a stub — logs a notice and returns.
+         * Also exposed as `process.restart`.
+         *
+         * @memberof module:gina/core/gna
+         * @returns {void}
+         */
         gna.restart = process.restart = function() {
             console.info('[ FRAMEWORK ] Starting service')
         }
