@@ -2149,6 +2149,27 @@ define("requireLib", function(){});
 
 !function(r,n){"object"==typeof exports&&"undefined"!=typeof module?n(exports):"function"==typeof define&&define.amd?define('vendor/uuid',["exports"],n):n((r=r||self).uuid={})}(this,(function(r){"use strict";var n="undefined"!=typeof crypto&&crypto.getRandomValues&&crypto.getRandomValues.bind(crypto)||"undefined"!=typeof msCrypto&&"function"==typeof msCrypto.getRandomValues&&msCrypto.getRandomValues.bind(msCrypto),e=new Uint8Array(16);function t(){if(!n)throw new Error("crypto.getRandomValues() not supported. See https://github.com/uuidjs/uuid#getrandomvalues-not-supported");return n(e)}for(var o,a,u=[],f=0;f<256;++f)u[f]=(f+256).toString(16).substr(1);function c(r,n){var e=n||0,t=u;return[t[r[e++]],t[r[e++]],t[r[e++]],t[r[e++]],"-",t[r[e++]],t[r[e++]],"-",t[r[e++]],t[r[e++]],"-",t[r[e++]],t[r[e++]],"-",t[r[e++]],t[r[e++]],t[r[e++]],t[r[e++]],t[r[e++]],t[r[e++]]].join("")}var i=0,s=0;function v(r,n,e){var t=function(r,t,o,a){var u=o&&a||0;if("string"==typeof r&&(r=function(r){r=unescape(encodeURIComponent(r));for(var n=new Array(r.length),e=0;e<r.length;e++)n[e]=r.charCodeAt(e);return n}(r)),"string"==typeof t&&(t=function(r){var n=[];return r.replace(/[a-fA-F0-9]{2}/g,(function(r){n.push(parseInt(r,16))})),n}(t)),!Array.isArray(r))throw TypeError("value must be an array of bytes");if(!Array.isArray(t)||16!==t.length)throw TypeError("namespace must be uuid string or an Array of 16 byte values");var f=e(t.concat(r));if(f[6]=15&f[6]|n,f[8]=63&f[8]|128,o)for(var i=0;i<16;++i)o[u+i]=f[i];return o||c(f)};try{t.name=r}catch(r){}return t.DNS="6ba7b810-9dad-11d1-80b4-00c04fd430c8",t.URL="6ba7b811-9dad-11d1-80b4-00c04fd430c8",t}function d(r,n){var e=(65535&r)+(65535&n);return(r>>16)+(n>>16)+(e>>16)<<16|65535&e}function l(r,n,e,t,o,a){return d((u=d(d(n,r),d(t,a)))<<(f=o)|u>>>32-f,e);var u,f}function p(r,n,e,t,o,a,u){return l(n&e|~n&t,r,n,o,a,u)}function y(r,n,e,t,o,a,u){return l(n&t|e&~t,r,n,o,a,u)}function h(r,n,e,t,o,a,u){return l(n^e^t,r,n,o,a,u)}function g(r,n,e,t,o,a,u){return l(e^(n|~t),r,n,o,a,u)}var m=v("v3",48,(function(r){if("string"==typeof r){var n=unescape(encodeURIComponent(r));r=new Array(n.length);for(var e=0;e<n.length;e++)r[e]=n.charCodeAt(e)}return function(r){var n,e,t,o=[],a=32*r.length;for(n=0;n<a;n+=8)e=r[n>>5]>>>n%32&255,t=parseInt("0123456789abcdef".charAt(e>>>4&15)+"0123456789abcdef".charAt(15&e),16),o.push(t);return o}(function(r,n){var e,t,o,a,u;r[n>>5]|=128<<n%32,r[14+(n+64>>>9<<4)]=n;var f=1732584193,c=-271733879,i=-1732584194,s=271733878;for(e=0;e<r.length;e+=16)t=f,o=c,a=i,u=s,f=p(f,c,i,s,r[e],7,-680876936),s=p(s,f,c,i,r[e+1],12,-389564586),i=p(i,s,f,c,r[e+2],17,606105819),c=p(c,i,s,f,r[e+3],22,-1044525330),f=p(f,c,i,s,r[e+4],7,-176418897),s=p(s,f,c,i,r[e+5],12,1200080426),i=p(i,s,f,c,r[e+6],17,-1473231341),c=p(c,i,s,f,r[e+7],22,-45705983),f=p(f,c,i,s,r[e+8],7,1770035416),s=p(s,f,c,i,r[e+9],12,-1958414417),i=p(i,s,f,c,r[e+10],17,-42063),c=p(c,i,s,f,r[e+11],22,-1990404162),f=p(f,c,i,s,r[e+12],7,1804603682),s=p(s,f,c,i,r[e+13],12,-40341101),i=p(i,s,f,c,r[e+14],17,-1502002290),c=p(c,i,s,f,r[e+15],22,1236535329),f=y(f,c,i,s,r[e+1],5,-165796510),s=y(s,f,c,i,r[e+6],9,-1069501632),i=y(i,s,f,c,r[e+11],14,643717713),c=y(c,i,s,f,r[e],20,-373897302),f=y(f,c,i,s,r[e+5],5,-701558691),s=y(s,f,c,i,r[e+10],9,38016083),i=y(i,s,f,c,r[e+15],14,-660478335),c=y(c,i,s,f,r[e+4],20,-405537848),f=y(f,c,i,s,r[e+9],5,568446438),s=y(s,f,c,i,r[e+14],9,-1019803690),i=y(i,s,f,c,r[e+3],14,-187363961),c=y(c,i,s,f,r[e+8],20,1163531501),f=y(f,c,i,s,r[e+13],5,-1444681467),s=y(s,f,c,i,r[e+2],9,-51403784),i=y(i,s,f,c,r[e+7],14,1735328473),c=y(c,i,s,f,r[e+12],20,-1926607734),f=h(f,c,i,s,r[e+5],4,-378558),s=h(s,f,c,i,r[e+8],11,-2022574463),i=h(i,s,f,c,r[e+11],16,1839030562),c=h(c,i,s,f,r[e+14],23,-35309556),f=h(f,c,i,s,r[e+1],4,-1530992060),s=h(s,f,c,i,r[e+4],11,1272893353),i=h(i,s,f,c,r[e+7],16,-155497632),c=h(c,i,s,f,r[e+10],23,-1094730640),f=h(f,c,i,s,r[e+13],4,681279174),s=h(s,f,c,i,r[e],11,-358537222),i=h(i,s,f,c,r[e+3],16,-722521979),c=h(c,i,s,f,r[e+6],23,76029189),f=h(f,c,i,s,r[e+9],4,-640364487),s=h(s,f,c,i,r[e+12],11,-421815835),i=h(i,s,f,c,r[e+15],16,530742520),c=h(c,i,s,f,r[e+2],23,-995338651),f=g(f,c,i,s,r[e],6,-198630844),s=g(s,f,c,i,r[e+7],10,1126891415),i=g(i,s,f,c,r[e+14],15,-1416354905),c=g(c,i,s,f,r[e+5],21,-57434055),f=g(f,c,i,s,r[e+12],6,1700485571),s=g(s,f,c,i,r[e+3],10,-1894986606),i=g(i,s,f,c,r[e+10],15,-1051523),c=g(c,i,s,f,r[e+1],21,-2054922799),f=g(f,c,i,s,r[e+8],6,1873313359),s=g(s,f,c,i,r[e+15],10,-30611744),i=g(i,s,f,c,r[e+6],15,-1560198380),c=g(c,i,s,f,r[e+13],21,1309151649),f=g(f,c,i,s,r[e+4],6,-145523070),s=g(s,f,c,i,r[e+11],10,-1120210379),i=g(i,s,f,c,r[e+2],15,718787259),c=g(c,i,s,f,r[e+9],21,-343485551),f=d(f,t),c=d(c,o),i=d(i,a),s=d(s,u);return[f,c,i,s]}(function(r){var n,e=[];for(e[(r.length>>2)-1]=void 0,n=0;n<e.length;n+=1)e[n]=0;var t=8*r.length;for(n=0;n<t;n+=8)e[n>>5]|=(255&r[n/8])<<n%32;return e}(r),8*r.length))}));function b(r,n,e,t){switch(r){case 0:return n&e^~n&t;case 1:return n^e^t;case 2:return n&e^n&t^e&t;case 3:return n^e^t}}function A(r,n){return r<<n|r>>>32-n}var w=v("v5",80,(function(r){var n=[1518500249,1859775393,2400959708,3395469782],e=[1732584193,4023233417,2562383102,271733878,3285377520];if("string"==typeof r){var t=unescape(encodeURIComponent(r));r=new Array(t.length);for(var o=0;o<t.length;o++)r[o]=t.charCodeAt(o)}r.push(128);var a=r.length/4+2,u=Math.ceil(a/16),f=new Array(u);for(o=0;o<u;o++){f[o]=new Array(16);for(var c=0;c<16;c++)f[o][c]=r[64*o+4*c]<<24|r[64*o+4*c+1]<<16|r[64*o+4*c+2]<<8|r[64*o+4*c+3]}for(f[u-1][14]=8*(r.length-1)/Math.pow(2,32),f[u-1][14]=Math.floor(f[u-1][14]),f[u-1][15]=8*(r.length-1)&4294967295,o=0;o<u;o++){for(var i=new Array(80),s=0;s<16;s++)i[s]=f[o][s];for(s=16;s<80;s++)i[s]=A(i[s-3]^i[s-8]^i[s-14]^i[s-16],1);var v=e[0],d=e[1],l=e[2],p=e[3],y=e[4];for(s=0;s<80;s++){var h=Math.floor(s/20),g=A(v,5)+b(h,d,l,p)+y+n[h]+i[s]>>>0;y=p,p=l,l=A(d,30)>>>0,d=v,v=g}e[0]=e[0]+v>>>0,e[1]=e[1]+d>>>0,e[2]=e[2]+l>>>0,e[3]=e[3]+p>>>0,e[4]=e[4]+y>>>0}return[e[0]>>24&255,e[0]>>16&255,e[0]>>8&255,255&e[0],e[1]>>24&255,e[1]>>16&255,e[1]>>8&255,255&e[1],e[2]>>24&255,e[2]>>16&255,e[2]>>8&255,255&e[2],e[3]>>24&255,e[3]>>16&255,e[3]>>8&255,255&e[3],e[4]>>24&255,e[4]>>16&255,e[4]>>8&255,255&e[4]]}));r.v1=function(r,n,e){var u=n&&e||0,f=n||[],v=(r=r||{}).node||o,d=void 0!==r.clockseq?r.clockseq:a;if(null==v||null==d){var l=r.random||(r.rng||t)();null==v&&(v=o=[1|l[0],l[1],l[2],l[3],l[4],l[5]]),null==d&&(d=a=16383&(l[6]<<8|l[7]))}var p=void 0!==r.msecs?r.msecs:(new Date).getTime(),y=void 0!==r.nsecs?r.nsecs:s+1,h=p-i+(y-s)/1e4;if(h<0&&void 0===r.clockseq&&(d=d+1&16383),(h<0||p>i)&&void 0===r.nsecs&&(y=0),y>=1e4)throw new Error("uuid.v1(): Can't create more than 10M uuids/sec");i=p,s=y,a=d;var g=(1e4*(268435455&(p+=122192928e5))+y)%4294967296;f[u++]=g>>>24&255,f[u++]=g>>>16&255,f[u++]=g>>>8&255,f[u++]=255&g;var m=p/4294967296*1e4&268435455;f[u++]=m>>>8&255,f[u++]=255&m,f[u++]=m>>>24&15|16,f[u++]=m>>>16&255,f[u++]=d>>>8|128,f[u++]=255&d;for(var b=0;b<6;++b)f[u+b]=v[b];return n||c(f)},r.v3=m,r.v4=function(r,n,e){var o=n&&e||0;"string"==typeof r&&(n="binary"===r?new Array(16):null,r=null);var a=(r=r||{}).random||(r.rng||t)();if(a[6]=15&a[6]|64,a[8]=63&a[8]|128,n)for(var u=0;u<16;++u)n[o+u]=a[u];return n||c(a)},r.v5=w,Object.defineProperty(r,"__esModule",{value:!0})}));
 
+/**
+ * @module lib/merge
+ * @description Deep-merge utility. Exported as a single function `merge(target, source [, override])`.
+ * Works in Node.js (CommonJS) and browser (AMD / GFF) contexts.
+ *
+ * - Objects are merged recursively.
+ * - Arrays and primitives from `source` overwrite `target` (unless `override=false`).
+ * - Pass `true` as the last argument to force overwrite of existing keys.
+ *
+ * @example
+ * var merge = require('lib/merge');
+ * var result = merge({ a: 1 }, { b: 2 }); // { a: 1, b: 2 }
+ * merge({ a: 1 }, { a: 9 }, false); // { a: 1 }  — target wins when override=false
+ */
+
+/**
+ * Merge factory — returns the `browse` function as the public API.
+ * `module.exports = Merge()` exports `browse` directly.
+ *
+ * @private
+ */
 function Merge() {
 
     var newTarget           = []
@@ -2158,13 +2179,22 @@ function Merge() {
 
 
     /**
+     * Deep-merge `source` into `target` and return the merged result.
+     * This function is exported directly as `module.exports`.
      *
-     * @param {object} target - Target object
-     * @param {object} source - Source object
-     * @param {boolean} [override] - Override when copying
+     * @memberof module:lib/merge
+     * @function merge
      *
-     * @returns {object} [result]
-     * */
+     * @param {object|Array} target    - Target (base) object or array
+     * @param {object|Array} source    - Source object or array to merge into target
+     * @param {boolean}      [override=true] - When `false`, existing target keys are preserved
+     * @returns {object|Array} Merged result (mutates and returns `target`)
+     *
+     * @example
+     * merge({ a: 1 }, { b: 2 })          // { a: 1, b: 2 }
+     * merge({ a: 1 }, { a: 9 }, false)   // { a: 1 }
+     * merge([1, 2],   [3, 4])            // [3, 4]
+     */
     var browse = function (_target, _source) {
 
         var target = _target, source = _source;
@@ -7942,47 +7972,52 @@ if ( typeof(module) !== 'undefined' && module.exports ) {
 }
 
 /**
- * Collection cLass
- * Allows you to handle your own collections as you would normaly with mongodb
- * Dependencies :
- *  - lib/merge
- *  - uuid
+ * @module lib/collection
+ * @description In-memory array collection with MongoDB-style query, update,
+ * insert, delete, orderBy, and aggregation methods. Each entry gets a `_uuid`
+ * index on construction. Works in Node.js (CommonJS) and browser (GFF/AMD).
  *
+ * `Collection.length` returns entry count — do not use `.count()` as it
+ * includes function properties in the count.
  *
- * @param {array} collection
- * @param {object} [options]
- *      TODO - eg.: deduplicat: true
+ * Dependencies: `lib/merge`, `uuid`
+ */
+
+/**
+ * In-memory document collection with query and mutation methods.
  *
- * @returns {object} instance
+ * @class Collection
+ * @constructor
+ * @this {Collection}
  *
- * Collection.length will return result length : dont't use .count() which is going to include functions to the count
+ * @param {Array}   content      - Initial array of documents (deep-cloned on construction)
+ * @param {object}  [options]                      - Options
+ * @param {boolean} [options.useLocalStorage=false] - Persist to `localStorage` (browser only)
+ * @param {string}  [options.locale='en']           - Locale used for string comparison
+ * @returns {object} Collection instance (the enriched `content` array)
+ * @throws {Error} When `content` is not an Array
  *
- * Collection::find
- *  @param {object} filter
- *      eg.: { uid: 'someUID' }
- *      eg.: { type: 'not null', country: 'France' } // `AND` clause
- *      NB.: To filter `not empty`, use { type: '!=""' }
- *      eg.: { country: 'The Hashemite Kingdom of Jordan' }, { country: 'Libanon'} // `OR` clause
- *      eg.: { 'obj.prop': true }
- *      eg.: { 'contacts[*].name': 'Doe' } // `WITHIN` (array|collection) clause
- *      eg.: { lastUpdate: '>= 2016-12-01T00:00:00' }  // also available for date comparison `=`, `<`, `>`
- *      eg.: { activity: null }
- *      eg.: { isActive: false }
+ * @example
+ * var col = new Collection([{ id: 1, name: 'Alice' }, { id: 2, name: 'Bob' }]);
  *
- *  @returns {array} result
+ * // find — AND clause
+ * col.find({ name: 'Alice' });                          // [{ id:1, name:'Alice', _uuid:'…' }]
+ * // find — comparison
+ * col.find({ id: '>= 1' });                             // both entries
+ * // find — nested
+ * col.find({ 'address.city': 'Paris' });
+ * // find — within array
+ * col.find({ 'tags[*].label': 'news' });
+ * // OR clause (pass two filter objects)
+ * col.or().find({ name: 'Alice' }, { name: 'Bob' });
  *
- * Collection::findOne
- *  @param {object} filter
- *  @returns {object|array|string} result
- *
- * Collection::update
- *  @param {object} filter
- *  @param {object} set
- *
- *  @returns {array} result
- *      rasult.toRaw() will give result without chaining & _uuid
- *
- * */
+ * col.findOne({ id: 1 });                               // { id:1, … }
+ * col.update({ id: 1 }, { name: 'Alicia' });
+ * col.insert({ id: 3, name: 'Carol' });
+ * col.delete({ id: 2 });
+ * col.orderBy({ name: 'asc' });
+ * col.toRaw();                                          // strip _uuid/_hasItsOwnUuid
+ */
 function Collection(content, options) {
 
     var isGFFCtx        = ( ( typeof(module) !== 'undefined' ) && module.exports ) ? false : true;
@@ -19428,23 +19463,30 @@ if ( typeof(module) !== 'undefined' && module.exports) {
     } catch (err) {}
 }
 /**
- * Domain
- * Credits & thanks to the Mozilla Community :)
- * https://publicsuffix.org/
+ * @module lib/domain
+ * @description Public Suffix List (PSL) based domain parser.
+ * Credits & thanks to the Mozilla Community — https://publicsuffix.org/
+ * Works in both Node.js (server) and browser (GFF) contexts.
  *
- * This lib is using Fetch API (NodeJS >= 18.0.0)
- * See: https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch#browser_compatibility
+ * This lib uses Fetch API (Node.js ≥ 18.0.0).
+ * See: https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch
  *
- * TODO - Write a cron to periodically check updates from `https://publicsuffix.org/`
+ * TODO - Write a cron to periodically pull updates from `https://publicsuffix.org/`
  * TODO - Finalize AMD module support
- * TODO - Replace execSync of `curl` to a NodeJS based synchronous request
+ * TODO - Replace execSync of `curl` with a Node.js-native synchronous request
+ */
+
+/**
+ * Public Suffix List domain parser.
  *
- * @param {string} [options] - {
- *          // `.dat` configuration filename
- *          filename: "./dist/public_suffix_list.dat",
- *          // trigger PSL update pulling
- *          isUpdating: false
- *      }
+ * @class Domain
+ * @constructor
+ * @this {Domain}
+ *
+ * @param {object|function} [options]              - Options object, or a callback (shifts arguments)
+ * @param {string}  [options.filename]             - Path to the `.dat` file (default: `../dist/public_suffix_list.dat`)
+ * @param {boolean} [options.isUpdating=false]     - Trigger PSL update on instantiation
+ * @param {function} [cb]                          - Ready callback `cb(err)`
  */
 function Domain(options, cb) {
 
@@ -22429,22 +22471,46 @@ define("utils/polyfill", function(){});
  */
 
 /**
- * @class Inherits
+ * @module lib/inherits
+ * @description Prototype-chain inheritance helper compatible with Node.js built-ins
+ * such as EventEmitter. Works as a CommonJS module and as an AMD module.
+ *
+ * Usage: `ChildClass = inherits(ChildClass, ParentClass)`
+ *
+ * The returned constructor calls `Parent.apply(this, args)` then
+ * `Child.apply(this, args)` so both constructors run on every `new` call.
+ *
+ * @example
+ * var inherits = require('lib/inherits');
+ * function Dog(name) { this.name = name; }
+ * Dog = inherits(Dog, EventEmitter);
+ * new Dog('Rex') instanceof EventEmitter // true
+ */
+
+/**
+ * Inheritance factory — returns the composed constructor `z`.
+ * Exported as `inherits(a, b)` via `module.exports = Inherits()`.
+ *
+ * @function inherits
+ * @param {function} a - Child constructor
+ * @param {function} b - Parent constructor (e.g. `EventEmitter`)
+ * @returns {function} Composed constructor that inherits `b`'s prototype
+ * @throws {Error} When either `a` or `b` is undefined
  *
  * @package gina.lib
- * @namesame gina.lib.inherits
- * @author Rhinostone <contact@gina.io>
- *
- * @api Public
- * */
+ * @author  Rhinostone <contact@gina.io>
+ * @api     Public
+ */
 function Inherits(a, b) {
 
     /**
-     * init
-     * @constructor
-     * @param {class} child class
-     * @param {class} super class
-     * */
+     * Build and return the composed constructor.
+     *
+     * @inner
+     * @param {function} a - Child constructor
+     * @param {function} b - Parent constructor
+     * @returns {function} Composed constructor `z`
+     */
     var init = function(a, b) {
         var err = check(a, b);
 

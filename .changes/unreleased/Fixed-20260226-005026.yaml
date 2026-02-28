@@ -1,0 +1,3 @@
+kind: Fixed
+body: Fixed HTTP/2 client requests crashing on retry when a request body was present, and corrected misleading undefined method/path in HTTP/2 stream error logs.
+time: 2026-02-26T00:50:26.61771+01:00

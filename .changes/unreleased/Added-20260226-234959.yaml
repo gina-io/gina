@@ -1,0 +1,3 @@
+kind: Added
+body: Added JSDoc to all lib/cmd/ command handlers (63 files) covering bundle, env, framework, minion, port, project, protocol, scope, view groups plus CmdHelper and the cmd dispatcher
+time: 2026-02-26T23:49:59.715879+01:00
