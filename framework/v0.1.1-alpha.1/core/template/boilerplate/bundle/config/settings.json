@@ -1,9 +1,0 @@
-// bundle needs to be restarted on changes !!
-{
-    "region": {
-        "code": "en_CM",
-        "shortCode": "en",
-        "date": "yyyy/mm/dd",
-        "timeZone": "Africa/Douala"
-    }
-}
