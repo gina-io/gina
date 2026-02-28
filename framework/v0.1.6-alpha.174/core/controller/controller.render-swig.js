@@ -163,6 +163,7 @@ module.exports = function render(userData, displayToolbar, errOptions, deps) {
     var data                = null
         , layout            = null
         , newLayoutFilename = null
+        , layoutCacheFailed = false
         , fd                = null
         , buffer            = null
         , compiledTemplate  = null
@@ -393,11 +394,14 @@ module.exports = function render(userData, displayToolbar, errOptions, deps) {
 
             } catch (extendErr) {
                 // Layout cache setup failed (e.g. EACCES on cache dir).
-                // Clear newLayoutFilename so line 1070 does not attempt to write
+                // Clear newLayoutFilename so line 1076 does not attempt to write
                 // to a directory that was never created, which would produce a
                 // misleading ENOENT 500. Rendering continues from the original
                 // configured layout path via localOptions.template.layout.
+                // layoutCacheFailed suppresses both the swig template cache and
+                // writeCache so the warning repeats on every request until fixed.
                 newLayoutFilename = null;
+                layoutCacheFailed = true;
                 console.warn('[render] Layout cache setup failed: ' + (extendErr.stack||extendErr.message||extendErr));
             }
         }
@@ -1091,6 +1095,7 @@ module.exports = function render(userData, displayToolbar, errOptions, deps) {
                 /^true$/i.test(self.serverInstance._cacheIsEnabled)
                 && hasLayoutInPath
                 && !cache.has(cacheKey)
+                && !layoutCacheFailed
             ) {
                 // Caching template
                 cacheObject = {
@@ -1107,14 +1112,17 @@ module.exports = function render(userData, displayToolbar, errOptions, deps) {
                 local.res.setHeader('content-type', localOptions.conf.server.coreConfiguration.mime['html'] + '; charset='+ localOptions.conf.encoding );
 
                 if (
-                    !self.isCacheless()
-                    && typeof(local.req.routing.cache) != 'undefined'
-                    && /^GET$/i.test(local.req.method)
-                    ||
-                    // allowing caching even for dev env
-                    /^true$/i.test(self.serverInstance._cacheIsEnabled)
-                    && typeof(local.req.routing.cache) != 'undefined'
-                    && /^GET$/i.test(local.req.method)
+                    !layoutCacheFailed
+                    && (
+                        !self.isCacheless()
+                        && typeof(local.req.routing.cache) != 'undefined'
+                        && /^GET$/i.test(local.req.method)
+                        ||
+                        // allowing caching even for dev env
+                        /^true$/i.test(self.serverInstance._cacheIsEnabled)
+                        && typeof(local.req.routing.cache) != 'undefined'
+                        && /^GET$/i.test(local.req.method)
+                    )
                 ) {
                     writeCache(localOptions.bundle, localOptions.conf.server.cache, htmlContent);
                 }
