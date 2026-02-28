@@ -392,7 +392,13 @@ module.exports = function render(userData, displayToolbar, errOptions, deps) {
                 localOptions.template.layout = layoutPath;
 
             } catch (extendErr) {
-                // nothing to do
+                // Layout cache setup failed (e.g. EACCES on cache dir).
+                // Clear newLayoutFilename so line 1070 does not attempt to write
+                // to a directory that was never created, which would produce a
+                // misleading ENOENT 500. Rendering continues from the original
+                // configured layout path via localOptions.template.layout.
+                newLayoutFilename = null;
+                console.warn('[render] Layout cache setup failed: ' + (extendErr.stack||extendErr.message||extendErr));
             }
         }
         extendFound = null;

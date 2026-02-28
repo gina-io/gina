@@ -1,0 +1,3 @@
+kind: Fixed
+body: Fixed a silent ENOENT 500 on requests when the swig layout cache directory could not be created (e.g. permission denied). The renderer now clears the cache target and logs a warning, then falls back to the original configured layout path so the page renders normally.
+time: 2026-02-28T00:00:00.000000+00:00
