@@ -1,0 +1,3 @@
+kind: Fixed
+body: prepare_version no longer attempts a stale recovery or a no-op rename when the working version is already in sync with the published one
+time: 2026-03-01T19:19:56.034927+01:00
