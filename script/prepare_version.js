@@ -140,18 +140,12 @@ function PrepareVersion() {
         var package = require(pack);
         var selectedVersion = mainConfig.def_framework.replace(/^v/, '');
         var targetedVersion = package.version.replace(/^v/, '');
-        // Just in case...
+        // Versions are already in sync (post_publish bumped and committed everything).
+        // Just load the framework so helpers/lib are available for the steps below.
         if (selectedVersion == targetedVersion) {
-            mainConfig.def_framework = package.main.match(/v[-.a-z0-9]+/)[0].replace(/^v/, '');
-            selectedVersion = mainConfig.def_framework;
-            frameworkPath   = './../framework/v'+selectedVersion;
-            helpers         = require(frameworkPath +'/helpers');
-            lib             = require(frameworkPath +'/lib');
-            new _(mainConfigPath, true).rmSync();
-            lib.generator.createFileFromDataSync(JSON.stringify(mainConfig, null, 2), mainConfigPath);
-            delete require.cache[require.resolve(mainConfigPath)];
-            mainConfig = require(mainConfigPath);
-
+            frameworkPath = './../framework/v'+selectedVersion;
+            helpers       = require(frameworkPath +'/helpers');
+            lib           = require(frameworkPath +'/lib');
         }
 
         self.selectedVersion = selectedVersion;
@@ -270,21 +264,23 @@ function PrepareVersion() {
             // }
         }
 
-        // rename folder version
-        destination = _(ginaPath +'/framework/v'+targetedVersion, true);
-        frameworkPathObj.renameSync(destination);
+        if (selectedVersion != targetedVersion) {
+            // rename folder version
+            destination = _(ginaPath +'/framework/v'+targetedVersion, true);
+            frameworkPathObj.renameSync(destination);
 
-        // updating requirements
-        self.selectedVersion = targetedVersion;
-        self.frameworkPath = frameworkPath = ginaPath +'/framework/v'+targetedVersion;
-        helpers             = require(frameworkPath +'/helpers');
-        lib                 = require(frameworkPath +'/lib');
+            // updating requirements
+            self.selectedVersion = targetedVersion;
+            self.frameworkPath = frameworkPath = ginaPath +'/framework/v'+targetedVersion;
+            helpers             = require(frameworkPath +'/helpers');
+            lib                 = require(frameworkPath +'/lib');
 
-        // keeping package.json up to date
-        //"main": "./framework/v{version}/core/gna",
-        package.main = './framework/v'+ targetedVersion +'/core/gna';
-        new _(pack, true).rmSync();
-        lib.generator.createFileFromDataSync(JSON.stringify(package, null, 2), pack);
+            // keeping package.json up to date
+            //"main": "./framework/v{version}/core/gna",
+            package.main = './framework/v'+ targetedVersion +'/core/gna';
+            new _(pack, true).rmSync();
+            lib.generator.createFileFromDataSync(JSON.stringify(package, null, 2), pack);
+        }
 
         done()
     };
