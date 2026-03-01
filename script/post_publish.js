@@ -173,6 +173,86 @@ function PostPublish() {
         }
     }
 
+    self.bumpVersion = function(done) {
+
+        // Skip on dry-run
+        if (typeof(process.env.npm_config_dry_run) != 'undefined') {
+            return done();
+        }
+
+        var packObj = requireJSON(_(pack, true));
+        var currentVersion = packObj.version;
+
+        // Increment the trailing alpha number: "0.1.6-alpha.175" -> "0.1.6-alpha.176"
+        var newVersion = currentVersion.replace(/(\d+)$/, function(_match, n) {
+            return String(parseInt(n, 10) + 1);
+        });
+
+        console.info('Bumping version: ' + currentVersion + ' -> ' + newVersion);
+
+        // Rename the framework directory
+        var oldVersionDir = _(self.gina + '/framework/v' + currentVersion, true);
+        var newVersionDir = _(self.gina + '/framework/v' + newVersion, true);
+        var oldVersionDirObj = new _(oldVersionDir);
+        if (oldVersionDirObj.existsSync()) {
+            oldVersionDirObj.renameSync(newVersionDir);
+        }
+
+        // Update package.json
+        packObj.version = newVersion;
+        packObj.main = './framework/v' + newVersion + '/core/gna';
+        new _(pack, true).rmSync();
+        lib.generator.createFileFromDataSync(JSON.stringify(packObj, null, 2), pack);
+
+        // Update ~/.gina/main.json and ~/.gina/{shortVersion}/settings.json
+        var shortVersion = newVersion.split('.');
+        shortVersion.splice(2);
+        shortVersion = shortVersion.join('.');
+        var ginaHomeDir = getUserHome() + '/.gina';
+        var mainConfigPath = _(ginaHomeDir + '/main.json', true);
+        var settingsConfigPath = _(ginaHomeDir + '/' + shortVersion + '/settings.json', true);
+
+        try {
+            var mainConfig = requireJSON(mainConfigPath);
+            mainConfig.def_framework = newVersion;
+            if (mainConfig.frameworks[shortVersion].indexOf(newVersion) < 0) {
+                mainConfig.frameworks[shortVersion].push(newVersion);
+            }
+            new _(mainConfigPath).rmSync();
+            lib.generator.createFileFromDataSync(JSON.stringify(mainConfig, null, 2), mainConfigPath);
+        } catch (e) {
+            console.warn('Could not update ' + mainConfigPath + ': ' + e.message);
+        }
+
+        try {
+            var settingsConfig = requireJSON(settingsConfigPath);
+            settingsConfig.version = newVersion;
+            settingsConfig.def_framework = newVersion;
+            new _(settingsConfigPath).rmSync();
+            lib.generator.createFileFromDataSync(JSON.stringify(settingsConfig, null, 2), settingsConfigPath);
+        } catch (e) {
+            console.warn('Could not update ' + settingsConfigPath + ': ' + e.message);
+        }
+
+        // Commit and push to develop
+        var initialDir = process.cwd();
+        process.chdir(self.gina);
+        try {
+            execSync('$(which git) add --all');
+            execSync("$(which git) commit -am'Version bump to " + newVersion + "'");
+            execSync('$(which git) push origin develop');
+        } catch (err) {
+            var errOut = err.output ? err.output.toString() : (err.message || '');
+            if (!/nothing to commit/i.test(errOut)) {
+                process.chdir(initialDir);
+                return done(err);
+            }
+        }
+        process.chdir(initialDir);
+
+        done();
+    }
+
     self.end = function(done) {
 
         restoreSymlinks(done);

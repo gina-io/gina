@@ -1,6 +1,6 @@
 {
   "name": "gina",
-  "version": "0.1.6-alpha.174",
+  "version": "0.1.6-alpha.175",
   "description": "MVC Framework for Node.",
   "keywords": [
     "framework",
@@ -41,7 +41,7 @@
   ],
   "copyright": "Copyright (c) 2009-2026 Rhinostone <contact@gina.io>",
   "engine": {
-    "node": ">= 0.10.0 <25"
+    "node": ">= 0.10.0 <26"
   },
   "config": {
     "optionalPrefix": "~/.npm-global",
@@ -51,7 +51,7 @@
   "bin": {
     "gina": "./bin/gina"
   },
-  "main": "./framework/v0.1.6-alpha.174/core/gna",
+  "main": "./framework/v0.1.6-alpha.175/core/gna",
   "scripts": {
     "prepare": "node script/prepare_version.js",
     "postpublish": "node script/post_publish.js",

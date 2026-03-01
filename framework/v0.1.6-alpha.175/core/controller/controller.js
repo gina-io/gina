@@ -409,7 +409,11 @@ function SuperController(options) {
                 "middleware"    : ctx.middleware
             };
 
-            set('page.environment.allocated memory', (require('v8').getHeapStatistics().heap_size_limit / (1024 * 1024 * 1024)).toFixed(2) +' GB');
+            set('page.environment.memory allocated', (require('v8').getHeapStatistics().heap_size_limit / (1024 * 1024 * 1024)).toFixed(2) +' GB');
+            if ( isLocalScope() ) {
+                const mem = process.memoryUsage();
+                set('page.environment.memory heap', `${(mem.heapUsed / 1024 / 1024).toFixed(2)} MB` );
+            }
 
             set('page.environment.gina', version.number);
             set('page.environment.gina pid', GINA_PID);
