@@ -51,7 +51,7 @@ if ( typeof(getContext) == 'undefined' ) {
 /**
  * @class Logger
  *
- * @package gina.lib
+ * @memberof module:lib
  * @namesame gina.lib.logger
  * @author Rhinostone <contact@gina.io>
  *
@@ -638,7 +638,7 @@ function Logger() {
      *
      * @param {string} level hierarchy
      * @param {string} group - existing application or service
-     * @returns
+     * @returns {void}
      */
     self.setLevel = function(level, group) {
         if ( typeof(group) == 'undefined' || /^gina\-/.test(group) ) {

@@ -34,7 +34,7 @@
  * @returns {function} Composed constructor that inherits `b`'s prototype
  * @throws {Error} When either `a` or `b` is undefined
  *
- * @package gina.lib
+ * @memberof module:lib
  * @author  Rhinostone <contact@gina.io>
  * @api     Public
  */

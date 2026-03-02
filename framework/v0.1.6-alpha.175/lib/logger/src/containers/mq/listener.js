@@ -42,7 +42,7 @@ function MQListener(opt, cb) {
      *
      * @param {string} name - `project name` or `hostname`
      *
-     * @returns
+     * @returns {void}
      */
     function startLogRotator(name) {
 
