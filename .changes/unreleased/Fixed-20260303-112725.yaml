@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'Fixed post_install.js MIDDLEWARE update: .toString missing () caused comparison to always be true; added missing done() call in the already-in-sync branch to prevent hang'
+time: 2026-03-03T11:27:25.323813+01:00

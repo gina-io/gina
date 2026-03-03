@@ -807,7 +807,7 @@ function PostInstall() {
         }
 
         if ( fs.existsSync(filename) ) { // update
-            var def = fs.readFileSync(filename).toString;
+            var def = fs.readFileSync(filename).toString(); // was: .toString (missing call — def was a function ref, comparison always true)
             // TODO - uninstall old if installed ??
             if (def !== middleware) {
                 fs.writeFile(filename, middleware, function onWrote(err){
@@ -819,7 +819,9 @@ function PostInstall() {
                     console.info(msg);
                     done()
                 })
-            } // else, nothing to do
+            } else {
+                done() // was: missing — would hang when middleware file already matches
+            }
         } else { // create
             fs.writeFile(filename, middleware, function onWrote(err){
                 if (err) {
