@@ -3014,13 +3014,31 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
         const chunks = []; // collect Buffer chunks — avoids peak-memory doubling from string concat
 
         // Stream-level timeout — mirrors the HTTP/1 path (handleHTTP1ClientRequest line ~2744).
-        // Without this, a stream that receives no events hangs indefinitely.
-        // req.destroy(err) sends RST_STREAM to the server, which triggers 'error' then 'close'.
+        // Without this, a stream that receives no events hangs indefinitely (OrbStack ARM64
+        // silently drops idle inter-container TCP connections without RST or FIN).
+        // On timeout: evict the dead session and retry once with a fresh connection.
+        // If the retry also times out, surface the error to the caller.
         var _streamTimeout = options.timeout || 10000;
         req.setTimeout(_streamTimeout, function onStreamTimeout() {
             if (isFinished) return;
-            console.warn('[HTTP2] Stream timeout ('+ _streamTimeout +'ms) on '+ options[':method'] +' '+ options[':path']);
-            req.destroy(new Error('[HTTP2] No response from '+ options[':authority'] +' after '+ _streamTimeout +'ms'));
+            isFinished = true;
+            console.warn('[HTTP2] Stream timeout ('+ _streamTimeout +'ms) on '+ options[':method'] +' '+ options[':path'] +' — evicting dead session');
+            // Synchronous eviction ensures the retry below creates a fresh session.
+            cache.delete(sessKey);
+            var _tIdx = self.serverInstance._http2Sessions.indexOf(sessKey);
+            if (_tIdx !== -1) self.serverInstance._http2Sessions.splice(_tIdx, 1);
+            if (!client.destroyed) client.destroy(); // no error arg — suppresses session 'error' event
+            if (!isRetry) {
+                options.queryData = options._body;
+                return handleHTTP2ClientRequest(browser, options, callback, true);
+            }
+            // Retry also timed out — surface the error
+            var _timeoutErr = new Error('[HTTP2] No response from '+ options[':authority'] +' after '+ _streamTimeout +'ms');
+            if (typeof callback === 'function') {
+                callback(_timeoutErr);
+            } else {
+                self.emit('query#complete', { status: 503, error: _timeoutErr });
+            }
         });
 
         req.on('data', function onQueryDataChunk(chunk) {
