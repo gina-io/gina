@@ -76,6 +76,10 @@ function PostPublish() {
      * Bebin - Will run checking tasks in order of declaration
      * */
      var begin = async function(i) {
+        if (!lib) {
+            var _version = requireJSON(_(pack, true)).version;
+            lib = require(ginaPath + '/framework/v' + _version + '/lib');
+        }
         //console.debug('i is ', i);
         var n = 0, funct = null, functName = null;
         for (let t in self) {
