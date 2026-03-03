@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'Added stream-level timeout to HTTP/2 client requests (mirrors HTTP/1 path): streams that receive no events now time out instead of hanging indefinitely'
+time: 2026-03-03T15:46:14.299138+01:00

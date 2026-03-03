@@ -2894,6 +2894,16 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
             // Optional but recommended on M4/Orbstack
             client.setTimeout(0); // disable the default timeout to keep session active
 
+            // On ARM64/OrbStack, idle inter-container TCP connections are silently dropped
+            // without RST or FIN — Node.js never receives any event and streams hang forever.
+            // TCP keepalive sends a probe 1s after the last data exchange, resetting OrbStack's
+            // idle connection timer before it can kill the connection.
+            // setNoDelay disables Nagle batching for lower-latency inter-bundle API calls.
+            client.on('connect', function onHttp2SessionConnect(session, socket) {
+                socket.setKeepAlive(true, 1000);
+                socket.setNoDelay(true);
+            });
+
             client.on('error', (error) => {
                 console.error( '`'+ options[':path']+ '` : '+ error.stack||error.message);
                 cache.delete(sessKey);
@@ -3012,6 +3022,17 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
         let isFinished = false;
         let data = '';
         const chunks = []; // collect Buffer chunks — avoids peak-memory doubling from string concat
+
+        // Stream-level timeout — mirrors the HTTP/1 path (handleHTTP1ClientRequest line ~2744).
+        // Without this, a stream that receives no events hangs indefinitely.
+        // req.destroy(err) sends RST_STREAM to the server, which triggers 'error' then 'close'.
+        var _streamTimeout = options.timeout || 10000;
+        req.setTimeout(_streamTimeout, function onStreamTimeout() {
+            if (isFinished) return;
+            console.warn('[HTTP2] Stream timeout ('+ _streamTimeout +'ms) on '+ options[':method'] +' '+ options[':path']);
+            req.destroy(new Error('[HTTP2] No response from '+ options[':authority'] +' after '+ _streamTimeout +'ms'));
+        });
+
         req.on('data', function onQueryDataChunk(chunk) {
             chunks.push(chunk);
         });
