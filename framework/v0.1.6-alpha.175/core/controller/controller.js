@@ -3087,8 +3087,22 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
         });
 
 
+        // req.on('close', function onQueryClosed() {
+        //     console.warn('Request stream closed.');
+        // });
+        // Fixed: stream closing before 'end' left requests hanging indefinitely
+        // (no callback, no query#complete). Now emits an error when the stream
+        // closes prematurely — covers GOAWAY race, server timeout, and network reset.
         req.on('close', function onQueryClosed() {
-            console.warn('Request stream closed.');
+            if (isFinished) return;
+            isFinished = true;
+            var prematureCloseErr = new Error('[HTTP2] Stream closed before response was complete (GOAWAY / session timeout / network reset)');
+            console.warn('[HTTP2] Premature stream close on '+ options[':method'] +' '+ options[':path']);
+            if (typeof callback !== 'undefined') {
+                callback(prematureCloseErr);
+            } else {
+                self.emit('query#complete', { status: 503, error: prematureCloseErr });
+            }
         });
 
         req.on('end', function onEnd() {

@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'Fixed HTTP/2 client stream premature close silently hanging requests: req.on(''close'') now emits an error when the stream closes before ''end'' fires (GOAWAY race, network reset, or session timeout)'
+time: 2026-03-03T15:36:03.993954+01:00
