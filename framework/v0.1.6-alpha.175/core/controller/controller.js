@@ -2876,6 +2876,8 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
             _staleIdx = null;
         }
 
+        var _pingInterval = null; // keepalive interval — scoped here so all handlers below can reference it
+
         if (!client || client.destroyed || client.closed) {
 
             // Evict the oldest session if the cache has reached its limit
@@ -2895,6 +2897,7 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
             client.setTimeout(0); // disable the default timeout to keep session active
 
             client.on('error', (error) => {
+                if (_pingInterval) { clearInterval(_pingInterval); _pingInterval = null; }
                 console.error( '`'+ options[':path']+ '` : '+ error.stack||error.message);
                 cache.delete(sessKey);
                 var _errIdx = self.serverInstance._http2Sessions.indexOf(sessKey);
@@ -2916,6 +2919,7 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
             });
 
             client.on('close', () => {
+                if (_pingInterval) { clearInterval(_pingInterval); _pingInterval = null; }
                 console.log('[CLIENT] Session expired or closed by server. Removing from cache.');
                 cache.delete(sessKey);
                 var _closeIdx = self.serverInstance._http2Sessions.indexOf(sessKey);
@@ -2924,6 +2928,7 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
             });
 
             client.on('goaway', () => {
+                if (_pingInterval) { clearInterval(_pingInterval); _pingInterval = null; }
                 console.warn('[CLIENT] Server is going away. Draining session.');
                 cache.delete(sessKey);
                 var _goawayIdx = self.serverInstance._http2Sessions.indexOf(sessKey);
@@ -2933,6 +2938,49 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
 
             cache.set(sessKey, client);
             self.serverInstance._http2Sessions.push(sessKey);
+
+            // Proactive keepalive: send HTTP/2 PING frames to prevent OrbStack ARM64 (and
+            // any network layer) from silently dropping idle TCP connections. PING is the
+            // application-level mechanism designed for exactly this — no socket manipulation.
+            //
+            // Two-layer detection:
+            //   1. client.ping() callback — fires immediately if the server replies (fast path)
+            //   2. _pingDeadline setTimeout — fires if PONG never arrives (silent TCP drop:
+            //      kernel won't know the connection is dead without TCP keepalive probes,
+            //      so the PONG callback becomes a ghost listener). The deadline evicts the
+            //      dead session proactively so the next request uses a fresh connection
+            //      instead of waiting for the 10s stream timeout.
+            _pingInterval = setInterval(function onHttp2Ping() {
+                if (!client || client.destroyed || client.closed) {
+                    clearInterval(_pingInterval);
+                    _pingInterval = null;
+                    return;
+                }
+                var _pingDeadline = setTimeout(function onPingDeadline() {
+                    // PONG never arrived within 3s — connection is silently dead
+                    clearInterval(_pingInterval);
+                    _pingInterval = null;
+                    console.warn('[HTTP2] PING timeout — evicting dead session proactively: '+ sessKey);
+                    if (!client.destroyed) client.destroy();
+                    cache.delete(sessKey);
+                    var _pingDeadErrIdx = self.serverInstance._http2Sessions.indexOf(sessKey);
+                    if (_pingDeadErrIdx !== -1) self.serverInstance._http2Sessions.splice(_pingDeadErrIdx, 1);
+                    _pingDeadErrIdx = null;
+                }, 3000);
+                client.ping(function(err) {
+                    clearTimeout(_pingDeadline); // PONG arrived — cancel the deadline
+                    if (err) {
+                        clearInterval(_pingInterval);
+                        _pingInterval = null;
+                        console.warn('[HTTP2] PING failed — evicting dead session proactively: '+ sessKey);
+                        if (!client.destroyed) client.destroy();
+                        cache.delete(sessKey);
+                        var _pingErrIdx = self.serverInstance._http2Sessions.indexOf(sessKey);
+                        if (_pingErrIdx !== -1) self.serverInstance._http2Sessions.splice(_pingErrIdx, 1);
+                        _pingErrIdx = null;
+                    }
+                });
+            }, 5000);
         }
 
 
@@ -3000,14 +3048,6 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
 
 
         const req = client.request(headers);
-
-        // TODO - Add client::http2Ping option (only usefull for realtime apps like trading)
-        // Optional: Keep the pipe warm
-        // setInterval(() => {
-        //     for (let [auth, client] of sessions) {
-        //         if (!client.destroyed && !client.closed) client.ping((err, duration) => {});
-        //     }
-        // }, 30000);
 
         let isFinished = false;
         let data = '';
