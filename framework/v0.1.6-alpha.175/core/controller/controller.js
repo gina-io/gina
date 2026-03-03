@@ -2894,16 +2894,6 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
             // Optional but recommended on M4/Orbstack
             client.setTimeout(0); // disable the default timeout to keep session active
 
-            // On ARM64/OrbStack, idle inter-container TCP connections are silently dropped
-            // without RST or FIN — Node.js never receives any event and streams hang forever.
-            // TCP keepalive sends a probe 1s after the last data exchange, resetting OrbStack's
-            // idle connection timer before it can kill the connection.
-            // setNoDelay disables Nagle batching for lower-latency inter-bundle API calls.
-            client.on('connect', function onHttp2SessionConnect(session, socket) {
-                socket.setKeepAlive(true, 1000);
-                socket.setNoDelay(true);
-            });
-
             client.on('error', (error) => {
                 console.error( '`'+ options[':path']+ '` : '+ error.stack||error.message);
                 cache.delete(sessKey);
