@@ -107,12 +107,10 @@ var console        = lib.logger;
             }
             destination = new _(destination.toString() +'/gina', true);
             // var source = new _(GINA_PREFIX + '/lib/node_modules/gina', true);
-            // replaced: use project's def_prefix when available instead of npm prefix
-            // which may differ (e.g. ~/.npm-global vs /usr/local)
-            var prefixPath = (self.projects && self.projects[self.projectName] && self.projects[self.projectName].def_prefix)
-                ? self.projects[self.projectName].def_prefix
-                : execSync('$(which npm) config get prefix --quiet').toString().replace(/\n$/g, '');
-            var source = new _(prefixPath + '/lib/node_modules/gina', true);
+            // replaced: resolve gina package root from this file's own location
+            // instead of relying on GINA_PREFIX or npm prefix which may differ
+            // from the actual install path (e.g. container with --prefix=$HOME/.npm-global)
+            var source = new _(require('path').resolve(__dirname, '../../../../..'), true);
 
 
 
@@ -131,7 +129,7 @@ var console        = lib.logger;
             }
 
             if (!source.existsSync()) {
-                console.error('Link Error: Source `'+ source +'` [VS] prefix `'+ prefixPath +'`');
+                console.error('Link Error: Source `'+ source +'` (resolved from __dirname)');
 
                 err = new Error('Link '+ source + ' not existing !!');
                 return end(err, 'error');

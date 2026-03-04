@@ -1042,8 +1042,9 @@ function CmdHelper(cmd, client, debug) {
                     try {
                         console.debug(execSync('$(which gina) link @'+cmd.projectName +cmd.paramsStringified).toString().trim());// +' --inspect-gina'
                     } catch (err) {
-                        console.emerg(err.message || err.stack);
-                        return exit(err.message || err.stack);
+                        var errOutput = (err.stderr) ? err.stderr.toString().trim() : (err.message || err.stack);
+                        console.emerg(errOutput);
+                        return exit(errOutput);
                     }
                 }
 
