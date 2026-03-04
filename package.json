@@ -41,7 +41,7 @@
   ],
   "copyright": "Copyright (c) 2009-2026 Rhinostone <contact@gina.io>",
   "engine": {
-    "node": ">= 16 <26"
+    "node": ">= 18 <26"
   },
   "config": {
     "optionalPrefix": "~/.npm-global",
@@ -53,6 +53,7 @@
   },
   "main": "./framework/v0.1.6-alpha.177/core/gna",
   "scripts": {
+    "test": "node --test test/**/*.test.js",
     "prepare": "node script/prepare_version.js",
     "postpublish": "node script/post_publish.js",
     "preinstall": "node script/pre_install.js",
