@@ -191,19 +191,19 @@ function CmdHelper(cmd, client, debug) {
 
                 if ( cmdArguments.indexOf('--' + arr[0]) > -1 ) {
                     cmd.params[arr[0]] = arr[1];
+                    cmd.paramsStringified += ' --' + arr[0] +'='+ arr[1];
                 } else {
                     cmd.nodeParams.push('--' + arr[0] +'='+ arr[1]);
                 }
-                cmd.paramsStringified += ' --' + arr[0] +'='+ arr[1];
 
             } else if ( process.argv[a].indexOf('--') > -1 ) {
 
                 if ( cmdArguments.indexOf(process.argv[a]) > -1 ) {
                     cmd.params[ process.argv[a].replace(/--/, '') ] = true;
+                    cmd.paramsStringified += ' '+process.argv[a] +'='+ true;
                 } else {
                     cmd.nodeParams.push(process.argv[a]);
                 }
-                cmd.paramsStringified += ' '+process.argv[a] +'='+ true;
             }
         }
 
