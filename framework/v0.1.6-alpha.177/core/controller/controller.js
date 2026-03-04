@@ -2914,6 +2914,12 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
                         error.message = 'Could not connect to [ ' + error.accessPoint + ' ].\nThe `'+port.split(/\@/)[0]+'` bundle is offline or unreachable.\n';
                     }
                 }
+                // local.req/res may be null when the error fires outside a request context
+                // (background socket event) — log and return instead of crashing
+                if (!local.req || !local.res) {
+                    console.error('[HTTP2] Session error outside request context — cannot send error response.\n' + (error.stack || error.message));
+                    return;
+                }
                 self.throwError(error);
                 return;
             });
@@ -4159,10 +4165,13 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
         // var options =  local.options;
         // var protocolVersion = ~~options.conf.server.protocol.match(/\/(.*)$/)[1].replace(/\.\d+/, '');
 
-        var protocol    = 'http/'+ local.req.httpVersion; // inheriting request protocol version by default
         var bundleConf  = options.conf;
+        // local.req may be null when called from a background HTTP/2 session error
+        var protocol    = (local.req)
+            ? 'http/'+ local.req.httpVersion
+            : bundleConf.server.protocol; // fall back to configured protocol
         // switching protocol to h2 when possible
-        if ( /http\/2/.test(bundleConf.server.protocol) && response.stream ) {
+        if ( /http\/2/.test(bundleConf.server.protocol) && response && response.stream ) {
             protocol    = bundleConf.server.protocol;
         }
 
