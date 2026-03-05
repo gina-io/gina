@@ -303,6 +303,7 @@ function Server(options) {
                 // rejectUnauthorized: true,
                 port: port || 443,
                 path: "/_gina/health/check",
+                timeout: 5000,
                 ca: fs.readFileSync(self.conf[self.appName][self.env].content.settings.server.credentials.ca),
                 agent: new https.Agent({
                     maxCachedSessions: 0

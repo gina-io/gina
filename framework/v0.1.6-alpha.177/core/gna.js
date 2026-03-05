@@ -1094,8 +1094,8 @@ isBundleMounted(projects, bundlesPath, getContext('bundle'), function onBundleMo
                                         try {
                                             await server.verifyCertificate(conf.host, conf.server.port);
                                         } catch (err) {
-                                            // console.emerg(err.stack);
-                                            throw err;
+                                            // replaced: throw err — caused unhandled rejection + bundle crash on DNS failure inside containers (Node.js 15+)
+                                            console.emerg(err.stack);
                                         }
                                     }
 
