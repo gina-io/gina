@@ -60,22 +60,12 @@ function Connector(dbString) {
      *
      * @return {string} stringifyiedArray
      */
+    // replaced: string += in loop + regex typeof — use Array.map() + join (#P27)
     var arrayToValues = function(arr) {
-        var val = '[';
-        for (let i=0, len=arr.length; i<len; i++) {
-            if ( /string/i.test( typeof(arr[i]) )) {
-                val += '"'+ arr[i] + '"'+',';
-                continue;
-            }
-            val += arr[i] +','
-        }
-
-        if ( typeof(arr.length) && arr.length > 0 ) {
-            val = val.substring(0, val.length-1);
-        }
-        val += ']';
-
-        return val;
+        var parts = arr.map(function(item) {
+            return typeof(item) === 'string' ? '"' + item + '"' : '' + item;
+        });
+        return '[' + parts.join(',') + ']';
     };
 
     /**

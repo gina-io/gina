@@ -132,19 +132,17 @@ function ServerEngineClass(options) {
         }
         // For frontend template routing if needed
         // TODO - Used `options.routing` instead after having filtered `options.allRoutes` vs `options.formsRules` to use only external routes exposed by `"query"` validation
+        // replaced: delete operator + for...in — destructuring rest builds clean objects (#P21, #P22)
         var _routing = JSON.clone(options.allRoutes);
         // var _routing = JSON.clone(options.routing);
-        for (let rule in _routing) {
-            if ( typeof(_routing[rule]._comment) != 'undefined' ) {
-                delete _routing[rule]._comment;
-            }
-            if ( typeof(_routing[rule].middleware) != 'undefined' ) {
-                delete _routing[rule].middleware;
-            }
+        var _routingKeys = Object.keys(_routing);
+        for (var ri = 0; ri < _routingKeys.length; ++ri) {
+            var { _comment, middleware, ...clean } = _routing[_routingKeys[ri]];
+            _routing[_routingKeys[ri]] = clean;
 
-            // reverseRouting in done on te frontend side
+            // reverseRouting is done on the frontend side
 
-        }// EO for (let rule in _routing)
+        }// EO for routing keys
 
         // Checking if brotli is installed
         var brotliBin = null;

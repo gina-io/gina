@@ -524,13 +524,16 @@ function SuperController(options) {
             var routing = local.options.conf.routing = ctx.config.envConf._routingCloned; // all routes
             if ( String(ctx.config.envConf._isRoutingUpdateNeeded).toLowerCase() === 'true' ) {
 
-                for (let r in ctx.config.envConf.routing) {
+                // replaced: for...in — use Object.keys() (#P22)
+                var routingKeys = Object.keys(ctx.config.envConf.routing);
+                for (var ri = 0; ri < routingKeys.length; ++ri) {
+                    var r = routingKeys[ri];
                     if ( isProxyHost ) {
                         local.options.conf.routing[r].host = hostname.replace(/^(https|http)\:\/\//, '');
                         local.options.conf.routing[r].hostname = hostname;
-                        let scheme = hostname.match(/^(https|http)/)[0];
+                        var scheme = hostname.match(/^(https|http)/)[0];
                         local.options.conf.routing[r].hostname    = scheme + '://'+ (local.req.headers.host||local.req.headers[':host']);
-                        let requestPort = (local.req.headers.port||local.req.headers[':port']);
+                        var requestPort = (local.req.headers.port||local.req.headers[':port']);
                         // replaced: /^(80|443)$/ + new RegExp(requestPort+'$') — use string methods (#P1, #P12)
                         if (
                             requestPort !== '80' && requestPort !== '443' && requestPort !== 80 && requestPort !== 443
@@ -698,9 +701,12 @@ function SuperController(options) {
         freeMemory([action, rule, ext, isWithoutLayout, namespace, ctx, version, routing, reverseRouting, forms, parameters, acceptLanguage, userCulture, userCultureCode, userLangCode, userCountryCode, locales, userLocales], false);
     }
 
+    // replaced: for...in — use Object.keys() (#P22)
     var parseDataObject = function(o, obj, override) {
 
-        for (let i in o) {
+        var keys = Object.keys(o);
+        for (var ki = 0; ki < keys.length; ++ki) {
+            var i = keys[ki];
             if ( o[i] !== null && typeof(o[i]) == 'object' || override && o[i] !== null && typeof(o[i]) == 'object' ) {
                 parseDataObject(o[i], obj);
             } else if (o[i] == '_content_'){
@@ -1782,9 +1788,12 @@ function SuperController(options) {
 
         var opt = ( typeof(options) != 'undefined' ) ? merge(options, defaultOptions) : defaultOptions;
 
+        // replaced: for...in + regex test — use Object.keys() + string checks (#P22)
         var requestOptions = {};
-        for (var o in opt) {
-            if ( !/(toLocalDir|contentDisposition|contentType|file)/.test(o) )
+        var optKeys = Object.keys(opt);
+        for (var oi = 0; oi < optKeys.length; ++oi) {
+            var o = optKeys[oi];
+            if ( o !== 'toLocalDir' && o !== 'contentDisposition' && o !== 'contentType' && o !== 'file' )
                 requestOptions[o] = opt[o];
         }
 
@@ -2214,16 +2223,14 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
      * @param {function} [callback]       - `callback(err, result)` — omit to get a Promise
      * @returns {void|Promise}
      */
-    this.query = function() { // options, data, callback
+    // replaced: arguments object — use named params (#P23)
+    this.query = function(options, data, callback) {
         var err = null;
-        var options = arguments[0];
-        var data = arguments[1] || {};
-        var callback = null;
-        if ( typeof(arguments[arguments.length-1]) == 'function' ) {
-            callback = arguments[arguments.length-1];
-        }  else {
-            data = arguments[arguments.length-1]
+        if ( typeof(data) == 'function' ) {
+            callback = data;
+            data = {};
         }
+        data = data || {};
         // preventing multiple call of self.query() when controller is rendering from another required controller
         if (
             typeof(local.options) != 'undefined'
@@ -2243,12 +2250,15 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
 
         // options must be used as a copy in case of multiple calls of self.query(options, ...)
         options = merge(JSON.clone(options), defaultOptions);
-        //cleaning
-        for (let o in options) {
-            if ( typeof(options[o]) == 'undefined' || options[o] == undefined) {
-                delete options[o]
+        // replaced: for...in + delete — build filtered copy (#P22, #P20)
+        var cleanedOptions = {};
+        var optionKeys = Object.keys(options);
+        for (var oi = 0; oi < optionKeys.length; ++oi) {
+            if ( typeof(options[optionKeys[oi]]) != 'undefined' && options[optionKeys[oi]] != undefined) {
+                cleanedOptions[optionKeys[oi]] = options[optionKeys[oi]];
             }
         }
+        options = cleanedOptions;
 
 
         if (self.isCacheless() || self.isLocalScope() ) {
@@ -2275,8 +2285,11 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
                 //Sample request.
                 //options.path = '/updater/start?release={"version":"0.0.5-dev","url":"http://10.1.0.1:8080/project/bundle/repository/archive?ref=0.0.5-dev","date":1383669077141}&pid=46493';
                 // do not alter the orignal data
+                // replaced: for...in — use Object.keys() (#P22)
                 var tmpData = JSON.clone(data);
-                for (let d in tmpData) {
+                var dataKeys = Object.keys(tmpData);
+                for (var di = 0; di < dataKeys.length; ++di) {
+                    var d = dataKeys[di];
                     if ( typeof(tmpData[d]) == 'object') {
                         tmpData[d] = JSON.stringify(tmpData[d]);
                     }
@@ -2312,10 +2325,13 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
 
         // adding gina headers
         if ( local.req != null && typeof(local.req.ginaHeaders) != 'undefined' ) {
-            // gina form headers
-            for (let h in local.req.ginaHeaders.form) {
-                let k = h.substring(0,1).toUpperCase() + h.substring(1);
-                options.headers['X-Gina-Form-' +  k ] = local.req.ginaHeaders.form[h];
+            // replaced: for...in — use Object.keys() + cache property ref (#P22, #P24)
+            var formHeaders = local.req.ginaHeaders.form;
+            var formKeys = Object.keys(formHeaders);
+            for (var fi = 0; fi < formKeys.length; ++fi) {
+                var h = formKeys[fi];
+                var k = h.charAt(0).toUpperCase() + h.substring(1);
+                options.headers['X-Gina-Form-' + k] = formHeaders[h];
             }
         }
 
@@ -3039,31 +3055,39 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
             options.headers['x-ingress-ip'] = local.req.headers['x-ingress-ip']
         }
 
+        // replaced: delete operator + for...in + forEach-delete — build filtered object in one pass (#P20, #P22)
         var headers = merge({
             [HTTP2_HEADER_METHOD]: options[':method'],
             [HTTP2_HEADER_PATH]: options[':path']
         }, options.headers);
 
-
-        // merging with user options
-        for (var o in options) {
+        // merging with user options — filter out pseudo-headers, `headers` key, content-length, and null/undefined
+        var optKeys = Object.keys(options);
+        for (var oi = 0; oi < optKeys.length; ++oi) {
+            var o = optKeys[oi];
             if (
-                !/^\:/.test(o)
-                && !/headers/.test(o)
+                o.charAt(0) !== ':'
+                && o !== 'headers'
                 && typeof(headers[o]) == 'undefined'
             ) {
-                headers[o] = options[o]
+                headers[o] = options[o];
             }
         }
         // 2. CRUCIAL SECURITY: Remove manual content-length for HTTP/2
         // Node.js will calculate it automatically and correctly with req.end(body)
-        delete headers['content-length'];
-        delete headers['Content-Length'];
-
-        // Strict sanitization for HTTP/2 (no undefined)
-        Object.keys(headers).forEach(key => {
-            if (headers[key] === undefined || headers[key] === null) delete headers[key];
-        });
+        // Strict sanitization for HTTP/2 (no undefined/null values)
+        var headerKeys = Object.keys(headers);
+        var cleanHeaders = {};
+        for (var hi = 0; hi < headerKeys.length; ++hi) {
+            var hk = headerKeys[hi];
+            if (
+                hk !== 'content-length' && hk !== 'Content-Length'
+                && headers[hk] !== undefined && headers[hk] !== null
+            ) {
+                cleanHeaders[hk] = headers[hk];
+            }
+        }
+        headers = cleanHeaders;
 
 
         const req = client.request(headers);
@@ -4564,6 +4588,7 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
     }
 
     // converting references to objects
+    // replaced: for...in (both loops) — use Object.keys() + index (#P22)
     var refToObj = function (arr){
         var tmp = null,
             curObj = {},
@@ -4571,30 +4596,32 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
             count = 0,
             data = {},
             last = null;
-        for (var r in arr) {
+        var arrKeys = Object.keys(arr);
+        for (var ri = 0; ri < arrKeys.length; ++ri) {
+            var r = arrKeys[ri];
             tmp = r.split(".");
             //Creating structure - Adding sub levels
-            for (var o in tmp) {
+            for (var oi = 0; oi < tmp.length; ++oi) {
                 count++;
                 if (last && typeof(obj[last]) == "undefined") {
                     curObj[last] = {};
                     if (count >= tmp.length) {
                         // assigning.
                         // !!! if null or undefined, it will be ignored while extending.
-                        curObj[last][tmp[o]] = (arr[r]) ? arr[r] : "undefined";
+                        curObj[last][tmp[oi]] = (arr[r]) ? arr[r] : "undefined";
                         last = null;
                         count = 0;
                         break
                     } else {
-                        curObj[last][tmp[o]] = {}
+                        curObj[last][tmp[oi]] = {}
                     }
                 } else if (tmp.length === 1) { //Just one root var
-                    curObj[tmp[o]] = (arr[r]) ? arr[r] : "undefined";
+                    curObj[tmp[oi]] = (arr[r]) ? arr[r] : "undefined";
                     obj = curObj;
                     break
                 }
                 obj = curObj;
-                last = tmp[o]
+                last = tmp[oi]
             }
             //data = merge(data, obj, true);
             data = merge(obj, data);
