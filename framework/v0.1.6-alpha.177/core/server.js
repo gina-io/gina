@@ -304,7 +304,8 @@ function Server(options) {
                 port: port || 443,
                 path: "/_gina/health/check",
                 timeout: 5000,
-                ca: fs.readFileSync(self.conf[self.appName][self.env].content.settings.server.credentials.ca),
+                // replaced: fs.readFileSync(credentials.ca) — credentials paths use ~/ which fs.readFileSync does not expand; _() expands $HOME via execSync('echo $HOME')
+                ca: fs.readFileSync(_(self.conf[self.appName][self.env].content.settings.server.credentials.ca, true)),
                 agent: new https.Agent({
                     maxCachedSessions: 0
                 })

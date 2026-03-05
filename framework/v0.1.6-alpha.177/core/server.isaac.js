@@ -273,7 +273,8 @@ function ServerEngineClass(options) {
 
 
     if (typeof (options.credentials.ca) != 'undefined' && options.credentials.ca != '' )
-        http2Options.ca = options.credentials.ca;
+        // replaced: http2Options.ca = options.credentials.ca — credentials.ca is a path string; readSync() expands ~/ via _() before fs.readFileSync
+        http2Options.ca = readSync(options.credentials.ca);
 
     if (typeof (options.credentials.pfx) != 'undefined' && options.credentials.pfx != '' )
         http2Options.pfx = readSync(options.credentials.pfx);
