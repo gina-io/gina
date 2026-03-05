@@ -33,6 +33,11 @@ const { type }      = require('node:os');
 var SwigFilters     = lib.SwigFilters;
 var statusCodes     = requireJSON( _( getPath('gina').core + '/status.codes') );
 
+// cached at module load — these env vars never change at runtime (#P19)
+var _isDev          = process.env.NODE_ENV_IS_DEV && process.env.NODE_ENV_IS_DEV.toLowerCase() === 'true';
+var _isLocalScope   = process.env.NODE_SCOPE_IS_LOCAL && process.env.NODE_SCOPE_IS_LOCAL.toLowerCase() === 'true';
+var _isProdScope    = process.env.NODE_SCOPE_IS_PRODUCTION && process.env.NODE_SCOPE_IS_PRODUCTION.toLowerCase() === 'true';
+
 
 /**
  * @class SuperController
@@ -192,7 +197,7 @@ function SuperController(options) {
             ++i;
         }
 
-        if (/^true$/i.test(isGlobalModeNeeded) ) {
+        if (String(isGlobalModeNeeded).toLowerCase() === 'true') {
             // all but local.options becasue of `self.requireController('namespace', self._options)` calls
             // local = null;
             // Release per-request refs — controller is a singleton; local.req/res persist until overwritten otherwise.
@@ -232,20 +237,21 @@ function SuperController(options) {
     /**
      * Check if env is running cacheless
      * */
+    // replaced: per-request process.env lookup — use cached booleans (#P19)
     this.isCacheless = function() {
-        return (/^true$/i.test(process.env.NODE_ENV_IS_DEV)) ? true : false;
+        return _isDev;
     }
     /**
      * Check if the project scope is set for local
      * */
     this.isLocalScope = function() {
-        return (/^true$/i.test(process.env.NODE_SCOPE_IS_LOCAL)) ? true : false;
+        return _isLocalScope;
     }
     /**
      * Check if the project scope is set for production
      * */
     this.isProductionScope = function() {
-        return (/^true$/i.test(process.env.NODE_SCOPE_IS_PRODUCTION)) ? true : false;
+        return _isProdScope;
     }
 
 
@@ -380,7 +386,8 @@ function SuperController(options) {
 
 
                 set('page.view.file', local.options.file);
-                set('page.view.title', rule.replace(new RegExp('@' + options.conf.bundle), ''));
+                // replaced: new RegExp('@' + bundle) — use split/join instead (#P1)
+                set('page.view.title', rule.split('@' + options.conf.bundle).join(''));
                 set('page.view.namespace', namespace);
             }
 
@@ -421,10 +428,11 @@ function SuperController(options) {
             set('page.environment.engine', options.conf.server.engine);//version.middleware
             set('page.environment.uvThreadpoolSize', process.env.UV_THREADPOOL_SIZE);
             set('page.environment.env', process.env.NODE_ENV);
-            set('page.environment.envIsDev', /^true$/i.test(process.env.NODE_ENV_IS_DEV) );
+            // replaced: per-request process.env lookups — use cached booleans (#P19)
+            set('page.environment.envIsDev', _isDev);
             set('page.environment.scope', process.env.NODE_SCOPE);
-            set('page.environment.scopeIsLocal', /^true$/i.test(process.env.NODE_SCOPE_IS_LOCAL) );
-            set('page.environment.scopeIsProduction', /^true$/i.test(process.env.NODE_SCOPE_IS_PRODUCTION) );
+            set('page.environment.scopeIsLocal', _isLocalScope);
+            set('page.environment.scopeIsProduction', _isProdScope);
             set('page.environment.date.now', new Date().format("isoDateTime"));
             set('page.environment.isCacheless', self.isCacheless());
 
@@ -514,7 +522,7 @@ function SuperController(options) {
             }
 
             var routing = local.options.conf.routing = ctx.config.envConf._routingCloned; // all routes
-            if ( /^true$/i.test(ctx.config.envConf._isRoutingUpdateNeeded) ) {
+            if ( String(ctx.config.envConf._isRoutingUpdateNeeded).toLowerCase() === 'true' ) {
 
                 for (let r in ctx.config.envConf.routing) {
                     if ( isProxyHost ) {
@@ -523,9 +531,10 @@ function SuperController(options) {
                         let scheme = hostname.match(/^(https|http)/)[0];
                         local.options.conf.routing[r].hostname    = scheme + '://'+ (local.req.headers.host||local.req.headers[':host']);
                         let requestPort = (local.req.headers.port||local.req.headers[':port']);
+                        // replaced: /^(80|443)$/ + new RegExp(requestPort+'$') — use string methods (#P1, #P12)
                         if (
-                            !/^(80|443)$/.test(requestPort)
-                            && !new RegExp(requestPort+'$').test(local.options.conf.routing[r].hostname)
+                            requestPort !== '80' && requestPort !== '443' && requestPort !== 80 && requestPort !== 443
+                            && !local.options.conf.routing[r].hostname.endsWith('' + requestPort)
                         ) {
                             local.options.conf.routing[r].hostname += ':'+ requestPort
                         }
@@ -571,13 +580,14 @@ function SuperController(options) {
             set('page.view.namespace', namespace); // by default
             set('page.view.url', req.url);
             if ( local.options.template ) {
-                set('page.view.layout', local.options.template.layout.replace(new RegExp(local.options.template.templates+'/'), '').split(/\//g).slice(1).join('/'));
+                // replaced: new RegExp(templates+'/') — use split/join instead (#P1)
+                set('page.view.layout', local.options.template.layout.split(local.options.template.templates+'/').join('').split('/').slice(1).join('/'));
                 set('page.view.html.properties.mode.javascriptsDeferEnabled', local.options.template.javascriptsDeferEnabled);
                 set('page.view.html.properties.mode.routeNameAsFilenameEnabled', local.options.template.routeNameAsFilenameEnabled);
             }
 
 
-            if ( /^true$/i.test(self.serverInstance._cacheIsEnabled) ) {
+            if ( String(self.serverInstance._cacheIsEnabled).toLowerCase() === 'true' ) {
                 set('page.view.cacheIsEnabled', self.serverInstance._cacheIsEnabled);
                 set('page.view.cacheKey', "static:"+ local.req.url);
                 // Some routes might not have caching strategy
@@ -768,7 +778,7 @@ function SuperController(options) {
         authority += '://'+ local.req.headers.host;
         var useWebroot = false;
         if (
-            !/^\/$/.test(local.options.conf.server.webroot)
+            local.options.conf.server.webroot !== '/'
             && local.options.conf.server.webroot.length > 0
             // && local.options.conf.hostname.replace(/\:\d+$/, '') == authority
         ) {
@@ -776,7 +786,8 @@ function SuperController(options) {
         }
         authority = null;
 
-        var reURL = new RegExp('^'+ local.options.conf.server.webroot);
+        // replaced: new RegExp('^'+ webroot) — use startsWith instead (#P1)
+        var _webroot = local.options.conf.server.webroot;
 
         var cssStr      = ''
             , jsStr     = ''
@@ -786,7 +797,7 @@ function SuperController(options) {
             // cssStr  = getNodeRes('css', viewConf.stylesheets, useWebroot, reURL);
             // Fixed on 2025-03-08: ordered by route, making sure that _common could all be loaded first
             var cssColl = new Collection(viewConf.stylesheets).orderBy({route: 'asc'})
-            cssStr   = getNodeRes('css', cssColl, useWebroot, reURL);
+            cssStr   = getNodeRes('css', cssColl, useWebroot, _webroot);
             cssColl = null;
         }
         //Get js
@@ -794,14 +805,14 @@ function SuperController(options) {
             // jsStr   = getNodeRes('js', viewConf.javascripts, useWebroot, reURL);
             // Fixed on 2025-03-08: ordered by route, making sure that _common could all be loaded first
             var jsColl = new Collection(viewConf.javascripts).orderBy({route: 'asc'})
-            jsStr   = getNodeRes('js', jsColl, useWebroot, reURL);
+            jsStr   = getNodeRes('js', jsColl, useWebroot, _webroot);
             jsColl = null;
         }
 
         set('page.view.stylesheets', cssStr);
         set('page.view.scripts', jsStr);
 
-        reURL   = null;
+        _webroot = null;
         cssStr  = null;
         jsStr   = null;
     }
@@ -813,13 +824,13 @@ function SuperController(options) {
      * @param {string} resStr
      * @param {array} resArr
      * @param {boolean} useWebroot
-     * @param {object} reURL - RegExp for webroot
+     * @param {string} webrootStr - Webroot string prefix for startsWith check (#P1)
      *
      * @returns {object} content
      *
      * @private
      * */
-    var getNodeRes = function(type, resArr, useWebroot, reURL) {
+    var getNodeRes = function(type, resArr, useWebroot, webrootStr) {
 
         var r               = 0
             , rLen          = resArr.length
@@ -856,9 +867,10 @@ function SuperController(options) {
 
             hostname    = scheme + '://'+ (local.req.headers.host||local.req.headers[':host']||process.gina.PROXY_HOST);
 
+            // replaced: /^(80|443)$/ + new RegExp(requestPort+'$') — use string methods (#P1, #P12)
             if (
-                !/^(80|443)$/.test(requestPort)
-                && !new RegExp(requestPort+'$').test(hostname)
+                requestPort !== '80' && requestPort !== '443' && requestPort !== 80 && requestPort !== 443
+                && !hostname.endsWith('' + requestPort)
             ) {
                 hostname += ':'+ requestPort;
             }
@@ -868,7 +880,7 @@ function SuperController(options) {
             case 'css':
                 for (; r < rLen; ++r) {
                     obj = resArr[r];
-                    if (useWebroot && !reURL.test(obj.url) ) {
+                    if (useWebroot && !obj.url.startsWith(webrootStr) ) {
                         obj.url = local.options.conf.server.webroot + obj.url.substring(1);
                     }
                     // HTTP2 Push via Link
@@ -897,7 +909,7 @@ function SuperController(options) {
 
                 for (; r < rLen; ++r) {
                     obj = resArr[r];
-                    if (useWebroot && !reURL.test(obj.url) ) {
+                    if (useWebroot && !obj.url.startsWith(webrootStr) ) {
                         obj.url = local.options.conf.server.webroot + obj.url.substring(1);
                     }
                     // HTTP2 Push via Link
@@ -1190,7 +1202,8 @@ function SuperController(options) {
      */
     var isStaticRoute = function(url, method, bundle, env, conf) {
 
-        if ( !/get/i.test(method) ) {
+        // replaced: !/get/i.test() (#P13)
+        if ( method.toUpperCase() !== 'GET' ) {
             return false
         }
 
@@ -1325,12 +1338,8 @@ function SuperController(options) {
             } else {
                 // detect by default
                 if (!ignoreWebRoot) {
-                    var re = new RegExp('^'+wroot)
-                    if ( re.test(req) ) {
-                        ignoreWebRoot = true;
-                    } else {
-                        ignoreWebRoot = false;
-                    }
+                    // replaced: new RegExp('^'+wroot) — use startsWith instead (#P1)
+                    ignoreWebRoot = req.startsWith(wroot);
                 }
 
             }
@@ -1399,7 +1408,8 @@ function SuperController(options) {
                     bundle = rteArr[1];
 
                 } else {
-                    rte = route = ( new RegExp('^/'+conf.bundle+'-$').test(req) ) ? req : wroot.match(/[^/]/g).join('') +'-'+ req;
+                    // replaced: new RegExp('^/'+bundle+'-$') — use === instead (#P1)
+                    rte = route = ( req === '/'+conf.bundle+'-' ) ? req : wroot.match(/[^/]/g).join('') +'-'+ req;
                 }
 
 
@@ -1436,7 +1446,7 @@ function SuperController(options) {
             var isProxyHost = (
                 typeof(local.req.headers.host) != 'undefined'
                 && typeof(localRequestPort) != 'undefined'
-                &&  /^(80|443)$/.test(localRequestPort)
+                && (localRequestPort === '80' || localRequestPort === '443' || localRequestPort === 80 || localRequestPort === 443)
                 && local.options.conf.server.scheme +'://'+ local.req.headers.host +':'+ localRequestPort != local.options.conf.hostname.replace(/\:\d+$/, '') +':'+ local.options.conf.server.port
                 ||
                 typeof(local.req.headers[':authority']) != 'undefined'
@@ -1444,11 +1454,11 @@ function SuperController(options) {
                 ||
                 typeof(local.req.headers.host) != 'undefined'
                 && typeof(localRequestPort) != 'undefined'
-                && /^(80|443)$/.test(localRequestPort)
+                && (localRequestPort === '80' || localRequestPort === '443' || localRequestPort === 80 || localRequestPort === 443)
                 && req.headers.host == local.options.conf.host
                 ||
                 typeof(local.req.headers['x-nginx-proxy']) != 'undefined'
-                && /^true$/i.test(local.req.headers['x-nginx-proxy'])
+                && String(local.req.headers['x-nginx-proxy']).toLowerCase() === 'true'
                 ||
                 typeof(process.gina.PROXY_HOSTNAME) != 'undefined'
             ) ? true : false;
@@ -1490,7 +1500,7 @@ function SuperController(options) {
             var isPopinContext = false;
             if (
                 typeof(req.routing.param.isPopinContext) != 'undefined'
-                && /^true$/i.test(req.routing.param.isPopinContext)
+                && String(req.routing.param.isPopinContext).toLowerCase() === 'true'
                 && self.isXMLRequest()
                 ||
                 self.isPopinContext()
@@ -1510,10 +1520,11 @@ function SuperController(options) {
                     return;
                 }
 
+                // replaced: !/GET/i.test() (#P13)
                 if (
-                    !/GET/i.test(req.method)
+                    req.method.toUpperCase() !== 'GET'
                     ||
-                    originalMethod && !/GET/i.test(originalMethod)
+                    originalMethod && originalMethod.toUpperCase() !== 'GET'
                 ) { // trying to redirect using the wrong method ?
 
                     console.warn(new Error('Your are trying to redirect using the wrong method: `'+ req.method+'`.\nThis can often occur while redirecting from a controller to another controller or from a bundle to another.\nA redirection is not permitted in this scenario.\nDon\'t panic :)\nSwitching request method to `GET` method instead.\n').message);
@@ -1600,7 +1611,8 @@ function SuperController(options) {
                     typeof(resHeaderACAM) != 'undefined'
                     && resHeaderACAM != req.method
                     ||
-                    !new RegExp(req.method, 'i').test( res.getHeader('access-control-allow-methods') )
+                    // replaced: new RegExp(method, 'i') — use indexOf + toLowerCase instead (#P1)
+                    (res.getHeader('access-control-allow-methods') || '').toLowerCase().indexOf(req.method.toLowerCase()) < 0
                 ) {
                     res.setHeader('access-control-allow-methods', req.method.toUpperCase() );
                 }
@@ -1804,7 +1816,8 @@ function SuperController(options) {
         }
 
         // defining hostname & path
-        var parts = url.replace(new RegExp( scheme + '\:\/\/'), '').split(/\//g);
+        // replaced: new RegExp(scheme + '://') — use string replace (#P1)
+        var parts = url.replace(scheme + '://', '').split('/');
         requestOptions.host = parts[0].replace(/\:\d+/, '');
         requestOptions.path = '/' + parts.splice(1).join('/');
 
@@ -4030,7 +4043,7 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
         req[haltedRequest.method] = data;
 
         local.haltedRequestUrlResumed = true;
-        if ( /GET/i.test(req.method) ) {
+        if ( req.method.toUpperCase() === 'GET' ) {
             if ( typeof(requestStorage.haltedRequest) != 'undefined' ) {
                 delete requestStorage.haltedRequest;
             }
@@ -4040,7 +4053,7 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
 
             if (
                 typeof(req.routing.param.isPopinContext) != 'undefined'
-                && /^true$/i.test(req.routing.param.isPopinContext)
+                && String(req.routing.param.isPopinContext).toLowerCase() === 'true'
                 && self.isXMLRequest()
                 ||
                 self.isPopinContext()

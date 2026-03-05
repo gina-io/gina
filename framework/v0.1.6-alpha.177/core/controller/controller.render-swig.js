@@ -5,6 +5,8 @@ const lib             = require('./../../lib') || require.cache[require.resolve(
 const Collection      = lib.Collection;
 const cache           = new lib.Cache();
 var statusCodes       = requireJSON( _( getPath('gina').core + '/status.codes') );
+// Precompiled regex — avoids per-request RegExp allocation (#P3)
+var blacklistRe       = /[<>]/g;
 
 // Inherited from controller
 var self                = null
@@ -34,7 +36,8 @@ function writeCache(bundle, opt, htmlContent) {
         ||
         ! local.req.routing.cache
         ||
-        ! /^true$/i.test(self.serverInstance._cacheIsEnabled)
+        // replaced: /^true$/i.test() (#P6)
+        String(self.serverInstance._cacheIsEnabled).toLowerCase() !== 'true'
     ) {
         return;
     }
@@ -71,7 +74,8 @@ function writeCache(bundle, opt, htmlContent) {
         // - default ttl is 3600 sec
         if ( /^fs$/i.test(cachingOption.type) ) {
             var url = local.req.originalUrl;
-            if ( /\/$/.test(url) ) {
+            // replaced: /\/$/.test(url) (#P7)
+            if ( url.endsWith('/') ) {
                 url += 'index'
             }
             var htmlFilename = _(opt.path +'/'+ bundle +'/html'+ url + '.html', true);
@@ -147,7 +151,7 @@ module.exports = function render(userData, displayToolbar, errOptions, deps) {
     var err = null;
     var isRenderingCustomError = (
                                 typeof(userData.isRenderingCustomError) != 'undefined'
-                                && /^true$/i.test(userData.isRenderingCustomError)
+                                && String(userData.isRenderingCustomError).toLowerCase() === 'true'
                             ) ? true : false;
     if (isRenderingCustomError)
         delete userData.isRenderingCustomError;
@@ -255,17 +259,18 @@ module.exports = function render(userData, displayToolbar, errOptions, deps) {
         } else {
             if ( localOptions.path && !/(\?|\#)/.test(localOptions.path) ) {
                 path = _(localOptions.path);
-                var re = new RegExp( data.page.view.ext+'$');
-                if ( data.page.view.ext && re.test(data.page.view.file) ) {
+                // replaced: new RegExp(ext+'$') — use endsWith + slice instead (#P1)
+                var _ext = data.page.view.ext;
+                if ( _ext && data.page.view.file.endsWith(_ext) ) {
                     data.page.view.path = path.replace('/'+ data.page.view.file, '');
 
-                    path            = path.replace(re, '');
-                    data.page.view.file  = data.page.view.file.replace(re, '');
+                    path            = path.slice(0, -_ext.length);
+                    data.page.view.file  = data.page.view.file.slice(0, -_ext.length);
 
                 } else {
                     data.page.view.path = path.replace('/'+ data.page.view.file, '');
                 }
-                re = null;
+                _ext = null;
             } else {
                     // [CVE-2023-25345] When file starts with . / or \, it was used as-is,
                     // bypassing the template root entirely and allowing traversal to arbitrary
@@ -290,7 +295,8 @@ module.exports = function render(userData, displayToolbar, errOptions, deps) {
             }
         }
 
-        if (data.page.view.ext && !new RegExp(data.page.view.ext+ '$').test(file) ) {
+        // replaced: new RegExp(ext+'$') — use endsWith instead (#P2)
+        if (data.page.view.ext && !file.endsWith(data.page.view.ext) ) {
             path += data.page.view.ext
         }
 
@@ -344,7 +350,7 @@ module.exports = function render(userData, displayToolbar, errOptions, deps) {
 
                 // For dev/cacheless envs
                 if (
-                    !/^true$/i.test(self.serverInstance._cacheIsEnabled)
+                    String(self.serverInstance._cacheIsEnabled).toLowerCase() !== 'true'
                     && fs.existsSync( newLayoutFilename )
                 ) {
                     fs.rmSync( newLayoutFilename )
@@ -416,12 +422,15 @@ module.exports = function render(userData, displayToolbar, errOptions, deps) {
         && typeof(local.req[ local.req.method.toLowerCase() ]) != 'undefined'
         && typeof(local.req[ local.req.method.toLowerCase() ].debug) != 'undefined'
     ) {
-        if ( !/^(true|false)$/i.test(local.req[ local.req.method.toLowerCase() ].debug) ) {
+        // replaced: /^(true|false)$/i.test() — use string comparison (#P6)
+        var _debugVal = String(local.req[ local.req.method.toLowerCase() ].debug).toLowerCase();
+        if ( _debugVal !== 'true' && _debugVal !== 'false' ) {
             console.warn('Detected wrong value for `debug`: '+ local.req[ local.req.method.toLowerCase() ].debug);
             console.warn('Switching `debug` to `true` as `cacheless` mode is enabled');
             local.req[ local.req.method.toLowerCase() ].debug = true;
+            _debugVal = 'true';
         }
-        localOptions.debugMode = ( /^true$/i.test(local.req[ local.req.method.toLowerCase() ].debug) ) ? true : false;
+        localOptions.debugMode = _debugVal === 'true';
     } else if (
         self.isCacheless()
         && hasViews()
@@ -482,7 +491,7 @@ module.exports = function render(userData, displayToolbar, errOptions, deps) {
         if (
             !localOptions.isRenderingCustomError
             && typeof(data.page.data.status) != 'undefined'
-            && !/^2/.test(data.page.data.status)
+            && !String(data.page.data.status).startsWith('2')
             && typeof(data.page.data.error) != 'undefined'
         ) {
 
@@ -533,7 +542,7 @@ module.exports = function render(userData, displayToolbar, errOptions, deps) {
         var isProxyHost = (
             typeof(local.req.headers.host) != 'undefined'
             && typeof(localRequestPort) != 'undefined'
-            &&  /^(80|443)$/.test(localRequestPort)
+            &&  (localRequestPort === '80' || localRequestPort === '443' || localRequestPort === 80 || localRequestPort === 443)
             && localOptions.conf.server.scheme +'://'+ local.req.headers.host+':'+ localRequestPort != localOptions.conf.hostname.replace(/\:\d+$/, '') +':'+ localOptions.conf.server.port
             ||
             typeof(local.req.headers[':authority']) != 'undefined'
@@ -541,11 +550,11 @@ module.exports = function render(userData, displayToolbar, errOptions, deps) {
             ||
             typeof(local.req.headers.host) != 'undefined'
             && typeof(localRequestPort) != 'undefined'
-            && /^(80|443)$/.test(localRequestPort)
+            && (localRequestPort === '80' || localRequestPort === '443' || localRequestPort === 80 || localRequestPort === 443)
             && local.req.headers.host == localOptions.conf.host
             ||
             typeof(local.req.headers['x-nginx-proxy']) != 'undefined'
-            && /^true$/i.test(local.req.headers['x-nginx-proxy'])
+            && String(local.req.headers['x-nginx-proxy']).toLowerCase() === 'true'
             ||
             typeof(process.gina.PROXY_HOSTNAME) != 'undefined'
         ) ? true : false;
@@ -567,7 +576,8 @@ module.exports = function render(userData, displayToolbar, errOptions, deps) {
             // e.g.: swig.setFilter('getWebroot', filters.getWebroot);
             // e.g.: swig.setFilter('nl2br', filters.nl2br);
             for (let filter in filters) {
-                if ( typeof(filters[filter]) == 'function' && !/^getConfig$/.test(filter) ) {
+                // replaced: !/^getConfig$/.test() — use !== instead (#P11)
+                if ( typeof(filters[filter]) == 'function' && filter !== 'getConfig' ) {
                     swig.setFilter(filter, filters[filter]);
                 }
             }
@@ -604,7 +614,8 @@ module.exports = function render(userData, displayToolbar, errOptions, deps) {
 
             // by default
             layoutPath = localOptions.template.layout;
-            if ( !/^\//.test(layoutPath)) {
+            // replaced: !/^\//.test() (#P8)
+            if ( !layoutPath.startsWith('/')) {
                 layoutPath = localOptions.template.templates +'/'+ layoutPath;
             }
             // default layout
@@ -643,12 +654,12 @@ module.exports = function render(userData, displayToolbar, errOptions, deps) {
             // and there is no field for a human-readable status message.
             if (
                 typeof(data.page.data.errno) != 'undefined'
-                    && /^2/.test(data.page.data.status)
+                    && String(data.page.data.status).startsWith('2')
                     && typeof(localOptions.conf.server.coreConfiguration.statusCodes[data.page.data.status]) != 'undefined'
                     && !/http\/2/.test(localOptions.conf.server.protocol)
                 ||
                 typeof(data.page.data.status) != 'undefined'
-                    && !/^2/.test(data.page.data.status)
+                    && !String(data.page.data.status).startsWith('2')
                     && typeof(localOptions.conf.server.coreConfiguration.statusCodes[data.page.data.status]) != 'undefined'
                     && !/http\/2/.test(localOptions.conf.server.protocol)
             ) {
@@ -665,18 +676,16 @@ module.exports = function render(userData, displayToolbar, errOptions, deps) {
 
             try {
 
-                // escape special chars
-                var blacklistRe = new RegExp('[\<\>]', 'g');
+                // escape special chars — uses module-level precompiled blacklistRe (#P3)
                 // DO NOT REPLACE IT BY JSON.clone() !!!!
-
+                blacklistRe.lastIndex = 0;
                 data.page.data = JSON.parse(JSON.stringify(data.page.data).replace(blacklistRe, '\$&'));
-                blacklistRe = null;
             } catch (err) {
                 filename = localOptions.template.html;
-                filename += ( typeof(data.page.view.namespace) != 'undefined' && data.page.view.namespace != '' && new RegExp('^' + data.page.view.namespace +'-').test(data.page.view.file) ) ? '/' + data.page.view.namespace + data.page.view.file.split(data.page.view.namespace +'-').join('/') + ( (data.page.view.ext != '') ? data.page.view.ext: '' ) : '/' + data.page.view.file+ ( (data.page.view.ext != '') ? data.page.view.ext: '' );
+                // replaced: new RegExp('^' + namespace + '-') — use startsWith instead (#P2)
+                filename += ( typeof(data.page.view.namespace) != 'undefined' && data.page.view.namespace != '' && data.page.view.file.startsWith(data.page.view.namespace + '-') ) ? '/' + data.page.view.namespace + data.page.view.file.split(data.page.view.namespace +'-').join('/') + ( (data.page.view.ext != '') ? data.page.view.ext: '' ) : '/' + data.page.view.file+ ( (data.page.view.ext != '') ? data.page.view.ext: '' );
                 self.throwError(local.res, 500, new Error('Controller::render(...) compilation error encountered while trying to process template `'+ filename + '`\n' + (err.stack||err.message||err) ));
                 filename = null;
-                blacklistRe = null;
                 return;
             }
         }
@@ -687,7 +696,7 @@ module.exports = function render(userData, displayToolbar, errOptions, deps) {
         layout = fs.readFileSync(layoutPath, 'utf8');
         // Loading from cache
         if (
-            /^true$/i.test(self.serverInstance._cacheIsEnabled)
+            String(self.serverInstance._cacheIsEnabled).toLowerCase() === 'true'
             && cache.has(cacheKey)
         ) {
             compiledTemplate = cache.get(cacheKey).template;
@@ -703,12 +712,12 @@ module.exports = function render(userData, displayToolbar, errOptions, deps) {
                 if (
                     !self.isCacheless()
                     && typeof(local.req.routing.cache) != 'undefined'
-                    && /^GET$/i.test(local.req.method)
+                    && local.req.method.toUpperCase() === 'GET'
                     ||
                     // allowing caching even for dev env
-                    /^true$/i.test(self.serverInstance._cacheIsEnabled)
+                    String(self.serverInstance._cacheIsEnabled).toLowerCase() === 'true'
                     && typeof(local.req.routing.cache) != 'undefined'
-                    && /^GET$/i.test(local.req.method)
+                    && local.req.method.toUpperCase() === 'GET'
                 ) {
                     writeCache(localOptions.bundle, localOptions.conf.server.cache, htmlContent);
                 }
@@ -733,14 +742,16 @@ module.exports = function render(userData, displayToolbar, errOptions, deps) {
             local.next = null;
             if ( _next ) return _next();
             return;
-        } // EO /^true$/i.test(self.serverInstance._cacheIsEnabled)
+        } // EO String(self.serverInstance._cacheIsEnabled).toLowerCase() === 'true'
 
 
 
+        // replaced: /\<html|head|body/i.test() — use toLowerCase().indexOf() (#P14)
+        var _layoutLower = layout.toLowerCase();
         isLoadingPartial = (
-            !/\<html/i.test(layout)
-            || !/\<head/i.test(layout)
-            || !/\<body/i.test(layout)
+            _layoutLower.indexOf('<html') < 0
+            || _layoutLower.indexOf('<head') < 0
+            || _layoutLower.indexOf('<body') < 0
         ) ? true : false;
 
         // if (isLoadingPartial) {
@@ -751,7 +762,7 @@ module.exports = function render(userData, displayToolbar, errOptions, deps) {
         hasExternalsPlugins = (localOptions.template.externalPlugins.length > 0) ? true : false;
 
         // iframe case - without HTML TAG
-        if (!self.isXMLRequest() && !/\<html/.test(layout) ) {
+        if (!self.isXMLRequest() && _layoutLower.indexOf('<html') < 0 ) {
             layout = '<html>\n\t<head></head>\n\t<body class="gina-iframe-body">\n\t\t'+ layout +'\n\t</body>\n</html>';
         }
 
@@ -778,7 +789,7 @@ module.exports = function render(userData, displayToolbar, errOptions, deps) {
             }
 
             // iframe case - without HTML TAG
-            if (self.isXMLRequest() || !/\<html/.test(layout) ) {
+            if (self.isXMLRequest() || _layoutLower.indexOf('<html') < 0 ) {
                 layout += scripts;
                 //layout += stylesheets;
             }
@@ -975,12 +986,12 @@ module.exports = function render(userData, displayToolbar, errOptions, deps) {
             // // and there is no field for a human-readable status message.
             // if (
             //     typeof(data.page.data.errno) != 'undefined'
-            //         && /^2/.test(data.page.data.status)
+            //         && String(data.page.data.status).startsWith('2')
             //         && typeof(localOptions.conf.server.coreConfiguration.statusCodes[data.page.data.status]) != 'undefined'
             //         && !/http\/2/.test(localOptions.conf.server.protocol)
             //     ||
             //     typeof(data.page.data.status) != 'undefined'
-            //         && !/^2/.test(data.page.data.status)
+            //         && !String(data.page.data.status).startsWith('2')
             //         && typeof(localOptions.conf.server.coreConfiguration.statusCodes[data.page.data.status]) != 'undefined'
             //         && !/http\/2/.test(localOptions.conf.server.protocol)
             // ) {
@@ -1092,7 +1103,7 @@ module.exports = function render(userData, displayToolbar, errOptions, deps) {
             compiledTemplate = swig.compile(_templateContent, mapping);
 
             if (
-                /^true$/i.test(self.serverInstance._cacheIsEnabled)
+                String(self.serverInstance._cacheIsEnabled).toLowerCase() === 'true'
                 && hasLayoutInPath
                 && !cache.has(cacheKey)
                 && !layoutCacheFailed
@@ -1116,12 +1127,12 @@ module.exports = function render(userData, displayToolbar, errOptions, deps) {
                     && (
                         !self.isCacheless()
                         && typeof(local.req.routing.cache) != 'undefined'
-                        && /^GET$/i.test(local.req.method)
+                        && local.req.method.toUpperCase() === 'GET'
                         ||
                         // allowing caching even for dev env
-                        /^true$/i.test(self.serverInstance._cacheIsEnabled)
+                        String(self.serverInstance._cacheIsEnabled).toLowerCase() === 'true'
                         && typeof(local.req.routing.cache) != 'undefined'
-                        && /^GET$/i.test(local.req.method)
+                        && local.req.method.toUpperCase() === 'GET'
                     )
                 ) {
                     writeCache(localOptions.bundle, localOptions.conf.server.cache, htmlContent);

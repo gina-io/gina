@@ -17,10 +17,10 @@ const cache             = new lib.Cache();
 
 
 const env               = process.env.NODE_ENV
-    , isDev             = (/^true$/i.test(process.env.NODE_ENV_IS_DEV)) ? true : false
+    , isDev             = process.env.NODE_ENV_IS_DEV && process.env.NODE_ENV_IS_DEV.toLowerCase() === 'true'
     , scope             = process.env.NODE_SCOPE
-    , isLocalScope      = (/^true$/i.test(process.env.NODE_SCOPE_IS_LOCAL)) ? true : false
-    , isProductionScope = (/^true$/i.test(process.env.NODE_SCOPE_IS_PRODUCTION)) ? true : false
+    , isLocalScope      = process.env.NODE_SCOPE_IS_LOCAL && process.env.NODE_SCOPE_IS_LOCAL.toLowerCase() === 'true'
+    , isProductionScope = process.env.NODE_SCOPE_IS_PRODUCTION && process.env.NODE_SCOPE_IS_PRODUCTION.toLowerCase() === 'true'
 ;
 
 /**
@@ -35,13 +35,13 @@ var refreshCore = function() {
     var corePath    = getPath('gina').core;
     var libPath     = getPath('gina').lib;
 
-    var core        = new RegExp( corePath );
+    // replaced: new RegExp(corePath) — use indexOf instead (#P4)
     var excluded    = [
         _(corePath + '/gna.js', true)
     ];
 
     for (let c in require.cache) {
-        if ( (core).test(c) && excluded.indexOf(c) < 0 ) {
+        if ( c.indexOf(corePath) > -1 && excluded.indexOf(c) < 0 ) {
             require.cache[c].exports = require( _(c, true) )
         }
     }
@@ -443,7 +443,7 @@ function ServerEngineClass(options) {
             // TODO - add a top level API : server.api.js (check, get ...)
             // TODO - on 90% RAM usage, redirect to `come back later then restart bundle`
             // TODO - check url against wroot : getContext() ?
-            if ( /^get$/i.test(request.method) && /\_gina\/health\/check$/i.test(request.url) ) {
+            if ( request.method.toUpperCase() === 'GET' && /\_gina\/health\/check$/i.test(request.url) ) {
 
                 const healthStatus = JSON.stringify({
                     status: "healthy",
@@ -472,7 +472,7 @@ function ServerEngineClass(options) {
                 response.writeHead(200, healthHeaders);
                 return response.end(healthStatus);
             }
-            if ( /^get$/i.test(request.method) && /\_gina\/info$/i.test(request.url) ) {
+            if ( request.method.toUpperCase() === 'GET' && /\_gina\/info$/i.test(request.url) ) {
 
                 const infoStatus = JSON.stringify({
                     "cache-is-enabled": server._cacheIsEnabled,
@@ -530,9 +530,9 @@ function ServerEngineClass(options) {
 
 
             if (
-                /^get$/i.test(request.method) && /\_gina\/assets\/public_suffix_list.dat$/i.test(request.url)
+                request.method.toUpperCase() === 'GET' && /\_gina\/assets\/public_suffix_list.dat$/i.test(request.url)
                 ||
-                /^get$/i.test(request.method) && /\_gina\/assets\/routing\.json$/i.test(request.url)
+                request.method.toUpperCase() === 'GET' && /\_gina\/assets\/routing\.json$/i.test(request.url)
             ) {
                 // server.toApi(reques, response)
                 // console.debug('[ SERVER ][200] '+ request.url);
@@ -585,10 +585,10 @@ function ServerEngineClass(options) {
                 refreshCore()
             }
 
-            if (!isCacheless || /^true$/i.test(server._cacheIsEnabled)) {
-                if ( /^GET$/i.test(request.method) ) {
+            if (!isCacheless || String(server._cacheIsEnabled).toLowerCase() === 'true') {
+                if ( request.method.toUpperCase() === 'GET' ) {
                     var cacheStatus = null;
-                    if ( /^true$/i.test(server._cacheIsEnabled) ) {
+                    if ( String(server._cacheIsEnabled).toLowerCase() === 'true' ) {
                         cacheStatus = 'gina-cache';
                     }
 
@@ -655,7 +655,7 @@ function ServerEngineClass(options) {
                     cacheKey        = null;
                     hasCachedKey    = null;
                     keyPrefixes     = null;
-                } // EO if ( /^GET$/i.test(request.method) )
+                } // EO if ( request.method.toUpperCase() === 'GET' )
             } // EO if (!isCacheless)
 
 
@@ -664,13 +664,13 @@ function ServerEngineClass(options) {
                 console.debug('[ SERVER ] engine.io request');
             }
 
-            if (/^\*$/.test(path) || path == request.url) {
+            if (path === '*' || path == request.url) {
                 request.params  = {};
                 request.query   = {};
 
-                if ( /\?/.test(request.url) ) {
+                if ( request.url.indexOf('?') > -1 ) {
 
-                    queryParams = request.url.split(/\?/);
+                    queryParams = request.url.split('?');
 
                     len = queryParams.length;
                     // fixing `?` > 1 occurence
@@ -682,21 +682,22 @@ function ServerEngineClass(options) {
                     }
                     request.params[0] = queryParams[0];
 
-                    if ( /\&/.test(queryParams[1]) ) {
+                    if ( queryParams[1].indexOf('&') > -1 ) {
                         i = 1;
                         for (; i < len; ++i) {
 
-                            arr = queryParams[i].split(/\&/);
+                            arr = queryParams[i].split('&');
                             p = 0;
                             for (; p < arr.length; ++p) {
-                                a = arr[p].split(/\=/);
-                                // false & true case
-                                if ( /^(false|true|on)$/i.test(a[1]) )
-                                    a[1] = ( /^(true|on)$/i.test(a[1]) ) ? true : false;
+                                a = arr[p].split('=');
+                                // false & true case — replaced: regex with string comparison (#P16)
+                                var _aLower = a[1] && a[1].toLowerCase();
+                                if ( _aLower === 'false' || _aLower === 'true' || _aLower === 'on' )
+                                    a[1] = ( _aLower === 'true' || _aLower === 'on' ) ? true : false;
                                 else if (a[1] && a[1].indexOf('%') > -1)
                                     a[1] = decodeURIComponent(a[1]);
 
-                                if (/^(\{|\[)/.test(a[1]) ) {
+                                if (a[1] && (a[1].charAt(0) === '{' || a[1].charAt(0) === '[') ) {
                                     try {
                                         a[1] = JSON.parse(a[1]);
                                     } catch(notAJsonError) {
@@ -707,12 +708,13 @@ function ServerEngineClass(options) {
                             }
                         }
                     } else {
-                        a = queryParams[1].split(/\=/);
+                        a = queryParams[1].split('=');
 
                         if (a.length > 1) {
-                            // false & true case
-                            if ( /^(false|true|on)$/i.test(a[1]) )
-                                a[1] = ( /^(true|on)$/i.test(a[1]) ) ? true : false;
+                            // false & true case — replaced: regex with string comparison (#P16)
+                            var _aLower2 = a[1] && a[1].toLowerCase();
+                            if ( _aLower2 === 'false' || _aLower2 === 'true' || _aLower2 === 'on' )
+                                a[1] = ( _aLower2 === 'true' || _aLower2 === 'on' ) ? true : false;
 
                             request.query[ a[0] ] = a[1]
                         } else { // for redirection purposes or when passing `?encodedJsonObject`
@@ -728,7 +730,7 @@ function ServerEngineClass(options) {
                         }
 
                     }
-                    request.url = request.url.replace(/\?.*/, '')
+                    request.url = request.url.split('?')[0]
                 } else {
                     request.params[0] = request.url
                 }

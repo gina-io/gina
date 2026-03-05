@@ -27,6 +27,9 @@ var fs                  = require('fs')
  * @author      Rhinostone <contact@gina.io>
  * @api         Public
  */
+// cached at module load — these env vars never change at runtime (#P18)
+var _isDev = process.env.NODE_ENV_IS_DEV && process.env.NODE_ENV_IS_DEV.toLowerCase() === 'true';
+
 function Router(env, scope) {
 
     this.name = 'Router';
@@ -97,8 +100,9 @@ function Router(env, scope) {
     /**
      * Check if env is running cacheless
      * */
+    // replaced: per-request process.env lookup — use cached boolean (#P18)
     this.isCacheless = function() {
-        return (/^true$/i.test(process.env.NODE_ENV_IS_DEV)) ? true : false
+        return _isDev;
     }
 
 
@@ -171,7 +175,7 @@ function Router(env, scope) {
         var isProxyHost = (
             typeof(request.headers.host) != 'undefined'
             && typeof(requestPort) != 'undefined'
-            &&  /^(80|443)$/.test(requestPort)
+            &&  (requestPort === '80' || requestPort === '443' || requestPort === 80 || requestPort === 443)
             && conf.server.scheme +'://'+ request.headers.host +':'+ requestPort != conf.hostname.replace(/\:\d+$/, '') +':'+ conf.server.port
             ||
             typeof(request.headers[':authority']) != 'undefined'
@@ -179,11 +183,11 @@ function Router(env, scope) {
             ||
             typeof(request.headers.host) != 'undefined'
             && typeof(requestPort) != 'undefined'
-            && /^(80|443)$/.test(requestPort)
+            && (requestPort === '80' || requestPort === '443' || requestPort === 80 || requestPort === 443)
             && request.headers.host == conf.host
             ||
             typeof(request.headers['x-nginx-proxy']) != 'undefined'
-            && /^true$/i.test(request.headers['x-nginx-proxy'])
+            && String(request.headers['x-nginx-proxy']).toLowerCase() === 'true'
             ||
             typeof(process.gina.PROXY_HOSTNAME) != 'undefined'
         ) ? true : false;
@@ -344,7 +348,8 @@ function Router(env, scope) {
         }
 
         // for redirect with `hidden inheritedData`
-        if ( /^get$/i.test(request.method) && typeof(request.session) != 'undefined' ) {
+        // replaced: /^get$/i.test() (#P15)
+        if ( request.method.toUpperCase() === 'GET' && typeof(request.session) != 'undefined' ) {
             var userSession = request.session.user || request.session;
             if ( typeof(userSession.inheritedData) != 'undefined' ) {
                 if (!request.get) {
@@ -551,7 +556,8 @@ function Router(env, scope) {
              * */
             var requireController = function (namespace, options) {
 
-                var isCacheless = ( /^true$/i.test(process.env.NODE_ENV_IS_DEV) ) ? true: false;
+                // replaced: per-request process.env lookup — use cached boolean (#P18)
+                var isCacheless = _isDev;
                 var corePath    = getPath('gina').core;
                 var config      = getContext('gina').Config.instance;
                 var bundle      = config.bundle;
@@ -739,7 +745,7 @@ function Router(env, scope) {
             , sharedPath    = _(local.conf.sharedPath, true)
             , middleware    = null
             , constructor   = null
-            , re            = new RegExp('^'+bundlePath)
+            // removed: unused new RegExp('^'+bundlePath) (#P15)
         ;
 
         for (let m=0; m<middlewares.length; ++m) {

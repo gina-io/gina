@@ -106,7 +106,7 @@ function SwigFilters(conf) {
 
         var url     = null
             , prop  = self.options.envObj.getConf(obj, options.conf.env)
-            , isProxyHost  = ( ctx.isProxyHost && /^true$/i.test(ctx.isProxyHost) ) ? true : (( typeof(process.gina.PROXY_HOSTNAME) != 'undefined' ) ? true : false)
+            , isProxyHost  = ( ctx.isProxyHost && String(ctx.isProxyHost).toLowerCase() === 'true' ) ? true : (( typeof(process.gina.PROXY_HOSTNAME) != 'undefined' ) ? true : false)
         ;
         if ( isProxyHost ) {
             url = prop.server.scheme + '://'+ prop.host;
@@ -171,7 +171,7 @@ function SwigFilters(conf) {
             , wrootRe           = null
             , isStandalone      = null
             , isMaster          = null
-            , isProxyHost       = ( ctx.isProxyHost && /^true$/i.test(ctx.isProxyHost) ) ? true : (( typeof(process.gina) != 'undefined' && typeof(process.gina.PROXY_HOSTNAME) != 'undefined' ) ? true : false)
+            , isProxyHost       = ( ctx.isProxyHost && String(ctx.isProxyHost).toLowerCase() === 'true' ) ? true : (( typeof(process.gina) != 'undefined' && typeof(process.gina.PROXY_HOSTNAME) != 'undefined' ) ? true : false)
             , routingRules      = null
             , rule              = null
             , url               = NaN
@@ -257,9 +257,10 @@ function SwigFilters(conf) {
 
                         hostname    = scheme + '://'+ (process.gina.PROXY_HOST||ctx.req.headers.host||ctx.req.headers[':host']);
 
+                        // replaced: new RegExp(requestPort+'$') — use endsWith instead (#P5)
                         if (
-                            !/^(80|443)$/.test(requestPort)
-                            && !new RegExp(requestPort+'$').test(hostname)
+                            requestPort !== '80' && requestPort !== '443' && requestPort !== 80 && requestPort !== 443
+                            && !hostname.endsWith('' + requestPort)
                         ) {
                             hostname += ':'+ requestPort;
                         }

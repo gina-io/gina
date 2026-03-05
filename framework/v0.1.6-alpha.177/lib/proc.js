@@ -160,29 +160,28 @@ function Proc(bundle, proc, usePidFile){
             proc.isMaster = isMaster;
 
 
-            proc.on('SIGTERM', function(code){
-                if ( typeof(code) == 'undefined')
-                    code = 0;
+            // Fixed: signal handlers receive the signal name (string), not a numeric code.
+            // Node.js 25+ enforces process.exit() argument as number.
+            // Using 128+signo (Unix convention) instead of passing the signal string.
+            // Was: proc.on('SIGTERM', function(code){ ... proc.exit(code); });
+            proc.on('SIGTERM', function(){
                 // will handle `dismiss()`
-                proc.exit(code);
+                proc.exit(143); // 128 + 15 (SIGTERM)
             });
 
-            proc.on('SIGABRT', function(code){
-                if ( typeof(code) == 'undefined')
-                    code = 0;
+            // Was: proc.on('SIGABRT', function(code){ ... proc.exit(code); });
+            proc.on('SIGABRT', function(){
                 // will handle `dismiss()`
-                proc.exit(code);
+                proc.exit(134); // 128 + 6 (SIGABRT)
             });
 
 
-            proc.on('SIGINT', function(code){
+            // Was: proc.on('SIGINT', function(code){ ... proc.exit(code); });
+            proc.on('SIGINT', function(signal){
 
-                if (code == undefined)
-                    code = 0;
-
-                console.warn('[ PROC ] Got exit code. Now killing: ', code);
+                console.warn('[ PROC ] Got signal. Now killing: ', signal);
                 // will handle `dismiss()`
-                proc.exit(code);
+                proc.exit(130); // 128 + 2 (SIGINT)
             });
 
             // proc.on('heapOutOfMemory', function(err) {
