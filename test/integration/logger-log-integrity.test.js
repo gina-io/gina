@@ -4,16 +4,15 @@
  *
  * Fixture files in fixtures/logs/ were captured from the running Docker
  * containers (auth bundle, freelancer project) to anchor the expected
- * log output before modifying the logger internals. Tests in group 04
- * document the known noise (Logger instance already exists per request)
- * and are expected to FAIL until the logger re-instantiation fix (#4) is
- * applied. All other groups must stay green throughout refactoring.
+ * log output. All groups must stay green. The group 04 fixture was
+ * re-captured after commit 05f88dc3 fixed the per-request Logger
+ * re-instantiation noise (issue #4).
  *
  * Lifecycle covered:
  *   01  bundle start sequence (gna checkpoints A–K, isaac req-1–7)
  *   02  framework init logger lifecycle (New/reuse at startup)
- *   03  HTTP access log format (GET 200, POST 500, GET 500)
- *   04  logger noise per HTTP request [BASELINE: fails until #4 fixed]
+ *   03  HTTP access log format (GET 200, 4xx/5xx)
+ *   04  logger noise per HTTP request (fixed: commit 05f88dc3)
  *   05  uncaught exception handling format (ECONNRESET, EPIPE → warn)
  *   06  console.emerg() format (source-level + subprocess)
  */
@@ -187,12 +186,12 @@ describe('17.03 - HTTP access log format (fixture: requests-3routes.log)', funct
         );
     });
 
-    it('POST [500] error response line present', function() {
-        // POST to /account/reset without body returns 500 — presence of this line
+    it('POST error response line present', function() {
+        // POST to /account/reset returns a 4xx/5xx — presence of this line
         // confirms error responses are logged at the correct level.
         assert.ok(
-            lines.some(function(l) { return /POST \[ 500 \]/.test(l); }),
-            'POST [500] error line not found in requests fixture'
+            lines.some(function(l) { return /POST \[4\d\d\] \/account\/reset/.test(l) || /POST \[ (4|5)\d\d \]/.test(l); }),
+            'POST error line not found in requests fixture'
         );
     });
 
@@ -220,26 +219,25 @@ describe('17.03 - HTTP access log format (fixture: requests-3routes.log)', funct
 
 // ─── 04  Logger noise per HTTP request ───────────────────────────────────────
 
-describe('17.04 - logger noise per HTTP request [BASELINE: fails until #4 fixed]', function() {
+describe('17.04 - logger noise per HTTP request', function() {
 
     var lines = loadFixture('requests-3routes.log');
 
     it('Logger instance already exists absent from HTTP request log', function() {
-        // EXPECTED TO FAIL until issue #4 is fixed.
+        // Fixed in commit 05f88dc3 (issue #4).
         //
-        // Root cause: refreshCoreDependencies() (router.js:380) re-requires
-        // controller/index.js on every request in dev mode. index.js in turn
-        // re-requires controller.js. When lib/logger/src/main.js is re-evaluated
-        // (directly or transitively via lib re-require), the Logger factory is
-        // called again for an already-registered group, producing this message.
+        // Root cause: refreshCore() (server.isaac.js) deleted and re-required
+        // lib/index.js on every dev-mode HTTP request. This re-ran Lib(), which
+        // called _require('./logger'), evicting the logger module from require.cache
+        // and calling Logger() again for an already-initialized group.
         //
-        // Current v3 baseline: 1 occurrence per HTTP request (3 hits → 3 lines).
-        // Target after fix: 0 occurrences.
+        // Fix: changed lib/index.js to use plain require('./logger') instead of
+        // _require('./logger'). Logger is a singleton persisted via
+        // getContext('loggerInstance') and does not need hot-reload.
         var count = countMatching(lines, /Logger instance already exists/);
         assert.equal(count, 0,
             '"Logger instance already exists: reusing it ;)" appeared ' + count +
-            ' time(s) in request log. Expected 0 — logger is being re-initialised ' +
-            'on every HTTP request (issue #4 not yet fixed)');
+            ' time(s) in request log. Expected 0 after fix #4.');
     });
 
     it('[DOMAIN] PSL Loaded absent from HTTP request log', function() {

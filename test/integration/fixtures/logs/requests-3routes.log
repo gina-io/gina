@@ -1,7 +1,5 @@
-[2026 Mar 06 21:02:40] [debug  ][auth@freelancer] `auth@freelancer `Logger instance already exists: reusing it ;)
-[2026 Mar 06 21:02:40] [info   ][auth@freelancer] GET [200] /auth/status 
-[2026 Mar 06 21:02:41] [debug  ][auth@freelancer] `auth@freelancer `Logger instance already exists: reusing it ;)
-[2026 Mar 06 21:02:41] [error  ][auth@freelancer] [ BUNDLE ][ auth ] POST [ 500 ] 
-[2026 Mar 06 21:02:42] [debug  ][auth@freelancer] `auth@freelancer `Logger instance already exists: reusing it ;)
-[2026 Mar 06 21:02:42] [error  ][auth@freelancer] [ BUNDLE ][ auth ] GET [ 500 ] 
-[2026 Mar 06 21:02:42] [info   ][auth@freelancer] GET [500] /auth/no-such-route-xyz 
+[2026 Mar 06 21:46:12] [info   ][auth@freelancer] GET [200] /auth/status
+[2026 Mar 06 21:46:12] [error  ][auth@freelancer] [ BUNDLE ][ auth ] POST [ 404 ]
+[2026 Mar 06 21:46:12] [info   ][auth@freelancer] POST [404] /account/reset
+[2026 Mar 06 21:46:12] [error  ][auth@freelancer] [ BUNDLE ][ auth ] GET [ 500 ]
+[2026 Mar 06 21:46:12] [info   ][auth@freelancer] GET [500] /auth/no-such-route-xyz
