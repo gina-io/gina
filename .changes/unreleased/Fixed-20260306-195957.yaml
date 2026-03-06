@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'Eliminated [DOMAIN] PSL Loaded ×2 noise per request in dev mode: removed unused Domain import and instantiation from controller.js (dead code), and removed redundant direct pre-load of controller.js from refreshCoreDependencies() in router.js'
+time: 2026-03-06T19:59:57.9438+01:00
