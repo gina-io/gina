@@ -513,6 +513,14 @@ module.exports = async function render(userData, displayToolbar, errOptions, dep
         for (let d in data.page) {
             dic['page.'+d] = data.page[d]
         }
+        // Flatten page.environment so whisper() can resolve {{ page.environment.key }}
+        // placeholders in ginaLoader (gina.onload.min.js), which is inserted after Swig
+        // compilation and therefore cannot rely on Swig to substitute these tokens.
+        if (typeof data.page.environment === 'object' && data.page.environment !== null) {
+            for (let k in data.page.environment) {
+                dic['page.environment.' + k] = data.page.environment[k];
+            }
+        }
 
 
 
