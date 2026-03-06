@@ -111,7 +111,8 @@ module.exports = async function render(userData, displayToolbar, errOptions, dep
         if ( typeof(localOptions.namespace) != 'undefined' && localOptions.namespace ) {
             // excepted for custom paths
             var fileNamingConvention = file.replace(localOptions.namespace+'-', '');
-            if ( !/^(\.|\/|\\)/.test(file) && file != fileNamingConvention ) {
+            // replaced: !/^(\.|\/|\\)/.test(file) → charAt(0) checks (#P9)
+            if ( file.charAt(0) !== '.' && file.charAt(0) !== '/' && file.charAt(0) !== '\\' && file != fileNamingConvention ) {
                 var _ext = data.page.view.ext;
 
                 console.warn('file `'+ file +'` used in routing `'+ localOptions.rule +'` does not respect gina naming convention ! You should rename the file `'+ file + _ext +'` to `'+ ''+ fileNamingConvention + _ext +'`');
@@ -142,7 +143,8 @@ module.exports = async function render(userData, displayToolbar, errOptions, dep
                 }
                 re = null;
             } else {
-                    path = (!isRenderingCustomError && !/^(\.|\/|\\)/.test(file))
+                    // replaced: !/^(\.|\/|\\)/.test(file) → charAt(0) checks (#P9)
+                    path = (!isRenderingCustomError && file.charAt(0) !== '.' && file.charAt(0) !== '/' && file.charAt(0) !== '\\')
                         ? _(localOptions.template.html +'/'+ file)
                         : file
             }
