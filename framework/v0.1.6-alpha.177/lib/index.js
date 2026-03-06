@@ -55,7 +55,13 @@ function Lib() {
         generator       : _require('./generator'),//move to gina.dev
         Proc            : _require('./proc'),
         Shell           : _require('./shell'),
-        logger          : _require('./logger'),
+        // replaced: _require('./logger') — Logger is a singleton persisted via getContext('loggerInstance').
+        // refreshCore() (server.isaac.js) re-runs Lib() on every dev-mode HTTP request by deleting and
+        // re-requiring lib/index.js. _require would then delete logger from require.cache and re-require it,
+        // calling Logger() again → "Logger instance already exists: reusing it ;)" once per request (#4).
+        // Logger hot-reload is unnecessary: the singleton state survives through getContext regardless of
+        // module eviction, and Logger() returns the existing instance anyway. Use plain require (cache hit).
+        logger          : require('./logger'),
         math            : _require('./math'),
         routing         : _require('./routing'),
         archiver        : _require('./archiver'),
