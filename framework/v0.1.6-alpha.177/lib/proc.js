@@ -209,10 +209,20 @@ function Proc(bundle, proc, usePidFile){
                     console.warn('[ SERVER ][ UNCAUGHT NETWORK EXCEPTION ] If you are running your project with Docker Engine, please consider checking your dns settings (~/.docker/daemon.json) by making sure the ip of your dns server is listed to avoid latencies.');
                 }
 
-                // if ( /ECONNRESET/.test(err.code) ) {
-                //     console.warn('[ SERVER ][ ECONNRESET UNCAUGHT EXCEPTION ]', err.stack);
-                //     return false;
-                // }
+                // ECONNRESET/EPIPE are normal TCP lifecycle events — a client or peer
+                // dropped the connection. Treat as warnings, never kill the bundle over this.
+                // Previously commented out; restored because missing session.on('error') in
+                // server.isaac.js could leak these as uncaughtException in non-gina-v bundles.
+                // NOTE: EPIPE must use proc.stdout.write — calling console.warn when the logger
+                // pipe is broken causes an infinite loop (warn → broken pipe → EPIPE → warn...).
+                if ( /ECONNRESET/.test(err.code) ) {
+                    console.warn('[ SERVER ][ ECONNRESET UNCAUGHT EXCEPTION ]', err.message);
+                    return false;
+                }
+                if ( /EPIPE/.test(err.code) ) {
+                    proc.stdout.write('[ SERVER ][ EPIPE UNCAUGHT EXCEPTION ] ' + err.message + '\n');
+                    return false;
+                }
 
                 //console.debug("[ PROC ] @=>", self.args);
                 var bundle = self.bundle;

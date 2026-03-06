@@ -3,9 +3,26 @@
  * @module gina/core/server.isaac
  */
 const fs                    = require('fs');
+var _isDebugLog = function() {
+    return process.env.LOG_LEVEL === 'debug' || process.env.LOG_LEVEL === 'trace';
+};
+var _dbg = function(msg) {
+    if (!_isDebugLog()) return;
+    var d = new Date()
+        , _m = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+        , p2 = function(n) { return (n < 10 ? '0' : '') + n; };
+    fs.writeSync(2, '\u001b[90m[' + d.getFullYear() +' '+ _m[d.getMonth()] +' '+ p2(d.getDate())
+        +' '+ p2(d.getHours()) +':'+ p2(d.getMinutes()) +':'+ p2(d.getSeconds())
+        + '] [debug  ][gina:isaac] ' + msg + '\u001b[39m\n');
+};
+_dbg('isaac-req-1: fs ok');
 const { execSync }          = require('child_process');
+_dbg('isaac-req-2: child_process ok');
 const {EventEmitter}        = require('events');
+_dbg('isaac-req-3: events ok');
+_dbg('isaac-req-4: requiring engine.io...');
 const Eio                   = require('engine.io');
+_dbg('isaac-req-5: engine.io ok, requiring lib');
 // const zlib                  = require('zlib'); // gzip / deflate
 
 const lib               = require('./../lib');
@@ -13,7 +30,9 @@ const inherits          = lib.inherits;
 const merge             = lib.merge;
 const console           = lib.logger;
 const Collection        = lib.Collection;
+_dbg('isaac-req-6: cache');
 const cache             = new lib.Cache();
+_dbg('isaac-req-7: module-level done');
 
 
 const env               = process.env.NODE_ENV
@@ -137,7 +156,7 @@ function ServerEngineClass(options) {
         // var _routing = JSON.clone(options.routing);
         var _routingKeys = Object.keys(_routing);
         for (var ri = 0; ri < _routingKeys.length; ++ri) {
-            var { _comment, middleware, ...clean } = _routing[_routingKeys[ri]];
+            const { _comment, middleware, ...clean } = _routing[_routingKeys[ri]];
             _routing[_routingKeys[ri]] = clean;
 
             // reverseRouting is done on the frontend side
@@ -332,6 +351,17 @@ function ServerEngineClass(options) {
             session.on('close', () => {
                 // This is normal after 60s of inactivity
                 console.warn("[ SERVER ] TCP Connection closed");
+            });
+
+            // Without this handler, an abrupt client disconnect (ECONNRESET, EPROTO)
+            // emits 'error' on the session with no listener → escalates to uncaughtException
+            // → proc.js kills the bundle. Absorb these as warnings.
+            session.on('error', (err) => {
+                if (/ECONNRESET|EPROTO|ETIMEDOUT/i.test(err.code)) {
+                    console.warn('[ SERVER ] Session error (absorbed):', err.message);
+                    return;
+                }
+                console.error('[ SERVER ] Session error:', err.stack);
             });
         });
     } else {
@@ -696,7 +726,7 @@ function ServerEngineClass(options) {
                                 else if (a[1] && a[1].indexOf('%') > -1)
                                     a[1] = decodeURIComponent(a[1]);
 
-                                if (a[1] && (a[1].charAt(0) === '{' || a[1].charAt(0) === '[') ) {
+                                if (a[1] && typeof a[1] === 'string' && (a[1].charAt(0) === '{' || a[1].charAt(0) === '[') ) {
                                     try {
                                         a[1] = JSON.parse(a[1]);
                                     } catch(notAJsonError) {

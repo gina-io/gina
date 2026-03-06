@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'Fixed bundle crash when HTTP/2 client abruptly disconnects (ECONNRESET): added session error handler in server.isaac.js and restored ECONNRESET guard in proc.js uncaughtException handler'
+time: 2026-03-06T04:21:45.857793+01:00
