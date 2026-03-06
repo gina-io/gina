@@ -165,8 +165,36 @@ function Proc(bundle, proc, usePidFile){
             // Using 128+signo (Unix convention) instead of passing the signal string.
             // Was: proc.on('SIGTERM', function(code){ ... proc.exit(code); });
             proc.on('SIGTERM', function(){
-                // will handle `dismiss()`
-                proc.exit(143); // 128 + 15 (SIGTERM)
+                // Graceful shutdown: stop accepting new connections, drain in-flight
+                // requests, then exit. Hard timeout prevents lingering on stuck requests.
+                // process.server is set by server.js at listen() time.
+                // Tune the drain window via GINA_SHUTDOWN_TIMEOUT (ms). Default: 10s.
+                // K8s terminationGracePeriodSeconds (default 30s) should be set above
+                // this value to give the drain window time to complete before SIGKILL.
+                var _shutdownMs = parseInt(process.env.GINA_SHUTDOWN_TIMEOUT) || 10000;
+                var _httpServer = proc.server || null;
+                if (_httpServer && typeof _httpServer.close === 'function') {
+                    var _shutdownTimer = setTimeout(function() {
+                        console.warn('[ PROC ] Graceful shutdown timed out (' + _shutdownMs + 'ms), forcing exit');
+                        proc.exit(143);
+                    }, _shutdownMs);
+                    // unref: do not keep the event loop alive for the timer alone —
+                    // if the server drains before the timeout, the process can exit cleanly.
+                    if (typeof _shutdownTimer.unref === 'function') _shutdownTimer.unref();
+                    // Close idle keep-alive connections immediately (Node 18.2+ http.Server).
+                    // Avoids waiting for client-side keep-alive timeouts (up to 60-120s).
+                    // No-op on http2.Server and older Node versions where the method is absent.
+                    if (typeof _httpServer.closeIdleConnections === 'function') {
+                        _httpServer.closeIdleConnections();
+                    }
+                    _httpServer.close(function() {
+                        clearTimeout(_shutdownTimer);
+                        proc.exit(143); // 128 + 15 (SIGTERM)
+                    });
+                } else {
+                    // Server not yet up (crash during startup) — exit immediately.
+                    proc.exit(143); // 128 + 15 (SIGTERM)
+                }
             });
 
             // Was: proc.on('SIGABRT', function(code){ ... proc.exit(code); });

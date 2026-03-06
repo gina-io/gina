@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'Added graceful HTTP shutdown on SIGTERM: server.close() drains in-flight requests before exit, with configurable timeout (GINA_SHUTDOWN_TIMEOUT env var, default 10s) and closeIdleConnections() for keep-alive connections (Node 18.2+ http.Server)'
+time: 2026-03-06T20:10:52.437249+01:00

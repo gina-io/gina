@@ -2653,7 +2653,13 @@ function Server(options) {
         // If you get "connection refused", make sure that `/proc/sys/net/ipv6/bindv6only` is set to 0
         // TODO - compare core/config.js and core/template/conf/settings.json
         // self.instance.listen(self.conf[self.appName][self.env].server.port, self.conf[self.appName][self.env].server.address, self.conf[self.appName][self.env].server.backlog);
-        self.instance.listen(self.conf[self.appName][self.env].server.port);
+        // Capture the raw server returned by listen() so proc.js can call
+        // server.close() on SIGTERM for graceful shutdown. For the isaac engine,
+        // self.instance IS the raw server and listen() returns it unchanged. For
+        // the express engine, app.listen() creates the underlying http/http2 server
+        // internally and returns it — without capturing here it is unreachable.
+        var _rawServer = self.instance.listen(self.conf[self.appName][self.env].server.port);
+        process.server = (_rawServer && typeof _rawServer.close === 'function') ? _rawServer : self.instance;
 
         self.emit('started', self.conf[self.appName][self.env], true);
     }
