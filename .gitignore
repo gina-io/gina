@@ -49,6 +49,7 @@ Thumbs.db
 *.old.js
 src.old
 *.log
+!test/**/fixtures/**/*.log
 *.afdesign
 
 # Framework
