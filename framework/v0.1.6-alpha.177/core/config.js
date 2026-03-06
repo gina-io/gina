@@ -613,7 +613,7 @@ function Config(opt, contextResetNeeded) {
      * @param {object} template - Framework env template (from `core/template/conf/env.json`)
      * @param {function} callback - `function(err, mergedConf)`
      */
-    var loadWithTemplate = async function(userConf, template, callback) {
+    var loadWithTemplate = function(userConf, template, callback) {
 
         var content     = userConf,
             //if nothing to merge.
@@ -741,15 +741,15 @@ function Config(opt, contextResetNeeded) {
 
             if ( typeof(content[app][env]) != "undefined" ) {
                 try {
-                    // replaced: fs.readdirSync — async readdir (#P33)
-                    configFiles = await fs.promises.readdir(_(appPath + '/config'));
+                    // reverted: async readdir (#P33) breaks synchronous Config init contract
+                    configFiles = fs.readdirSync(_(appPath + '/config'));
                 } catch (mountingError) {
                     //console.emerg('Dependency bundle config not found for `'+ app +'/'+ env +'`: trying to load on the fly from src');
                     console.warn('[CONFIG] Dependency bundle config not found for `'+ app +'/'+ env +'`: trying to load on the fly from src');
                     let appSrcPath = _(root +'/'+ pkg[app].src, true);
                     try {
-                        // replaced: fs.readdirSync — async readdir (#P33)
-                        configFiles = await fs.promises.readdir(_(appSrcPath + '/config'));
+                        // reverted: async readdir (#P33) breaks synchronous Config init contract
+                        configFiles = fs.readdirSync(_(appSrcPath + '/config'));
                     } catch (srcReadErr) {
                         return callback(srcReadErr);
                     }
@@ -1388,7 +1388,7 @@ function Config(opt, contextResetNeeded) {
      * @param {boolean} [reload=false] - When true, bypasses require cache (cacheless mode)
      * @param {object} [collectedRules] - Accumulated routing rules across all bundles
      */
-    var loadBundleConfig = async function(bundles, b, callback, reload, collectedRules) {
+    var loadBundleConfig = function(bundles, b, callback, reload, collectedRules) {
 
         // current bundle
         var bundle = null;
@@ -1505,18 +1505,18 @@ function Config(opt, contextResetNeeded) {
             , sharedconfigPath      = null
             , sharedConfigFiles     = []
         ;
-        // replaced: fs.readdirSync — async readdir (#P33)
+        // reverted: async readdir (#P33) breaks synchronous Config init contract
         try {
-            configFiles = await fs.promises.readdir(_(appPath + '/config', true));
+            configFiles = fs.readdirSync(_(appPath + '/config', true));
         } catch (configReadErr) {
             return callback(configReadErr);
         }
 
         if ( sharedConfigPathObj.existsSync() ) {
             sharedconfigPath = sharedConfigPathObj.toString();
-            // replaced: fs.readdirSync — async readdir (#P33)
+            // reverted: async readdir (#P33) breaks synchronous Config init contract
             try {
-                sharedConfigFiles = await fs.promises.readdir(sharedconfigPath);
+                sharedConfigFiles = fs.readdirSync(sharedconfigPath);
             } catch (sharedReadErr) {
                 return callback(sharedReadErr);
             }
@@ -2156,9 +2156,9 @@ function Config(opt, contextResetNeeded) {
                 ;
 
                 d = 0;
-                // replaced: fs.readdirSync — async readdir (#P33)
+                // reverted: async readdir (#P33) breaks synchronous Config init contract
                 try {
-                    dirsOrFiles = await fs.promises.readdir(publicPath);
+                    dirsOrFiles = fs.readdirSync(publicPath);
                 } catch (publicReadErr) {
                     return callback(publicReadErr);
                 }
@@ -2669,7 +2669,7 @@ function Config(opt, contextResetNeeded) {
 
         ++b;
         if (b < bundles.length) {
-            await loadBundleConfig(bundles, b, callback, reload, collectedRules)
+            loadBundleConfig(bundles, b, callback, reload, collectedRules)
         } else {
             callback(err, files, collectedRules)
         }
