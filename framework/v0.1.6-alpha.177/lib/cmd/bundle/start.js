@@ -395,6 +395,11 @@ function Start(opt, cmd) {
                     child.stdout.on('data', function(data) {
                         // terminal.log(data);
 
+                        // Startup watchdog only — once the bundle is running, proc.js owns its lifecycle.
+                        // Without this guard, every runtime emerg log (written to stdout by the logger's
+                        // 'default' container) triggers child.kill('SIGKILL') and silences the error.
+                        if (isStarting) return;
+
                         // handle errors
                         if ( /EADDRINUSE.*port/i.test(data) && !errorFound ) {
                             terminal.log(data);
@@ -489,6 +494,14 @@ function Start(opt, cmd) {
 
                         if (/Waiting for the debugger to disconnect: will be reused if not disconected./.test(error) ) { // dual debug --inspect-gina && --inspect
                             onException = true;
+                        }
+
+                        // gina framework startup debug traces: pre-formatted with colors, forward raw only
+                        if (/\[debug  \]\[gina:/.test(error)) {
+                            if (!opt.client.destroyed) {
+                                opt.client.write(error);
+                            }
+                            return;
                         }
 
                         if (/Debugger listening|Debugger attached|Warning|address already in use/i.test(error)) {

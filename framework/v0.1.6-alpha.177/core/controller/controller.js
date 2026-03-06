@@ -154,7 +154,11 @@ function SuperController(options) {
         if (
             typeof(_res.stream) != 'undefined'
             && typeof(_res.stream.headersSent) != 'undefined'
-            && _res.stream.headersSent != 'null'
+            // Fixed: was `!= 'null'` (string comparison), which evaluated true for
+            // boolean `false` (Http2ServerStream.headersSent before any write), causing
+            // self.render() to always fall through to the "Unexpected controller error"
+            // error path on HTTP/2. Use strict boolean check instead.
+            && _res.stream.headersSent === true
         ) {
             return true
         }

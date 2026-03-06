@@ -1,0 +1,3 @@
+kind: Fixed
+body: Fixed bundle being SIGKILL'd by start.js stdout watchdog when a runtime uncaughtException triggered an emerg log — the emerg-detection guard in child.stdout.on('data') is now skipped once the bundle is running, letting proc.js handle the lifecycle cleanly and allowing the actual error to reach the logs
+time: 2026-03-06T05:34:02.927499+01:00

@@ -376,7 +376,7 @@ async function onExec() {
                 return
             }
             // printing out
-            console.log( data.toString() + '\n');
+            process.stdout.write(data.toString());
             // intercept printed output
             if (/address already in use/.test(data)) {
                 console.log('If you have previously started a debugger process, you should stop it before.\nIf not running, try to start it then stop it before relaunching your command line.');

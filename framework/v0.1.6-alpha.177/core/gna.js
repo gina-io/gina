@@ -25,6 +25,18 @@
  */
 
 var fs              = require('fs');
+var _isDebugLog = function() {
+    return process.env.LOG_LEVEL === 'debug' || process.env.LOG_LEVEL === 'trace';
+};
+var _debugLog = function(msg) {
+    if (!_isDebugLog()) return;
+    var d = new Date()
+        , _m = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+        , p2 = function(n) { return (n < 10 ? '0' : '') + n; };
+    fs.writeSync(2, '\u001b[90m[' + d.getFullYear() +' '+ _m[d.getMonth()] +' '+ p2(d.getDate())
+        +' '+ p2(d.getHours()) +':'+ p2(d.getMinutes()) +':'+ p2(d.getSeconds())
+        + '] [debug  ][gina:gna] ' + msg + '\u001b[39m\n');
+};
 const os            = require('os');
 process.env.UV_THREADPOOL_SIZE = (os.cpus().length);
 
@@ -43,9 +55,12 @@ var Config      = require('./config');
 var config      = null;
 // helpers were previously loaded
 
+_debugLog('checkpoint A: loading lib');
 var lib         = require('./../lib');
+_debugLog('checkpoint B: lib loaded, setting up logger');
 
 var console     = lib.logger;
+_debugLog('checkpoint C: logger ready');
 var Proc        = lib.Proc;
 var locales     = require('./locales');
 var plugins     = require('./../core/plugins');
@@ -312,11 +327,14 @@ var bundlesPath = (isDev) ? projects[projectName]['path'] + '/src' : projects[pr
 setPath('bundles', _(bundlesPath, true));
 
 
+_debugLog('checkpoint D0: loading Router');
 var Router      = require('./router');
 setContext('gina.Router', Router);
 //TODO require('./server').http
 //TODO  - HTTP vs HTTPS
+_debugLog('checkpoint D1: loading Server');
 var Server  = require('./server');
+_debugLog('checkpoint D2: Server loaded');
 
 
 var p = new _(process.argv[1]).toUnixStyle().split("/");
@@ -658,10 +676,12 @@ gna.mount = process.mount = function(bundlesPath, source, target, type, callback
 
 
 // mounting bundle if needed
+_debugLog('checkpoint D: calling isBundleMounted');
 isBundleMounted(projects, bundlesPath, getContext('bundle'), function onBundleMounted(err) {
     if (err) {
         return abort(err);
     }
+    _debugLog('checkpoint E: isBundleMounted OK, calling getProjectConfiguration');
     // get configuration
     gna.getProjectConfiguration( async function onGettingProjectConfig(err, project) {
 
@@ -1006,17 +1026,21 @@ isBundleMounted(projects, bundlesPath, getContext('bundle'), function onBundleMo
 
 
             setContext('gina.config', config);
+            _debugLog('checkpoint F: calling config.onReady');
             config.onReady( function(err, obj){
+                _debugLog('checkpoint G: config.onReady fired err=' + (err ? (err.message||err) : 'none'));
                 var isStandalone = obj.isStandalone;
 
                 if (err) console.error(err, err.stack);
 
                 var initialize = function(err, instance, middleware, conf) {
+                    _debugLog('checkpoint I: initialize called err=' + (err ? (err.message||err) : 'none'));
                     var errMsg = null;
                     if (!err) {
 
                         //On user conf complete.
                         e.on('complete', function(instance){
+                            _debugLog('checkpoint J: complete event fired');
 
                             server.on('started', async function (conf) {
 
@@ -1123,6 +1147,7 @@ isBundleMounted(projects, bundlesPath, getContext('bundle'), function onBundleMo
                         });
 
                         // -- BO
+                        _debugLog('checkpoint K: emitting init');
                         e.emit('init', instance, middleware, conf);
                         //In case there is no user init.
                         if (!gna.initialized) {
@@ -1149,7 +1174,9 @@ isBundleMounted(projects, bundlesPath, getContext('bundle'), function onBundleMo
                     conf            : obj.conf
                 };
 
+                _debugLog('checkpoint H: creating Server');
                 var server = new Server(opt);
+                _debugLog('checkpoint H2: server.onConfigured call');
                 server.onConfigured(initialize);
             })//EO config.
         }

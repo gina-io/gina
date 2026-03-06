@@ -311,6 +311,17 @@ function Logger() {
         }
 
         opt = merge(userOptions, defaultOptions);
+
+        // Validate hierarchy at init time — same guard used by setLevel(), but applied here so that
+        // setting LOG_LEVEL to a level name that has no hierarchy entry (e.g. 'notice', 'alert',
+        // 'crit', 'warning') does not cause `undefined.indexOf()` TypeErrors that silently swallow
+        // all log output. setLevel() already catches this at runtime; this closes the init-time gap.
+        if ( typeof(opt.hierarchies[opt.hierarchy]) == 'undefined' ) {
+            process.stdout.write('gina: `' + opt.hierarchy + '` is not a valid log hierarchy: switching to `info`\n');
+            opt.hierarchy = 'info';
+            process.env.LOG_LEVEL = 'info';
+        }
+
         // if ( new _(optionsPath).existsSync() ) {
         //     if (userOptions.flows.indexOf('mq') < 0) {
         //         userOptions.flows.splice(0, 0, 'mq')

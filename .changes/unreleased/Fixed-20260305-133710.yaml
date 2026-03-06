@@ -1,0 +1,3 @@
+kind: Fixed
+body: Fixed credentials.ca path not expanding ~/ before fs.readFileSync in verifyCertificate (server.js) and http2Options (server.isaac.js); credentials paths use ~/ which fs.readFileSync cannot resolve — now uses _() for tilde expansion
+time: 2026-03-05T13:37:10.298255+01:00
