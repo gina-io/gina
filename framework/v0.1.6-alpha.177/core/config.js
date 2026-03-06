@@ -613,7 +613,7 @@ function Config(opt, contextResetNeeded) {
      * @param {object} template - Framework env template (from `core/template/conf/env.json`)
      * @param {function} callback - `function(err, mergedConf)`
      */
-    var loadWithTemplate = function(userConf, template, callback) {
+    var loadWithTemplate = async function(userConf, template, callback) {
 
         var content     = userConf,
             //if nothing to merge.
@@ -741,12 +741,18 @@ function Config(opt, contextResetNeeded) {
 
             if ( typeof(content[app][env]) != "undefined" ) {
                 try {
-                    configFiles = fs.readdirSync(_(appPath + '/config'));
+                    // replaced: fs.readdirSync — async readdir (#P33)
+                    configFiles = await fs.promises.readdir(_(appPath + '/config'));
                 } catch (mountingError) {
                     //console.emerg('Dependency bundle config not found for `'+ app +'/'+ env +'`: trying to load on the fly from src');
                     console.warn('[CONFIG] Dependency bundle config not found for `'+ app +'/'+ env +'`: trying to load on the fly from src');
                     let appSrcPath = _(root +'/'+ pkg[app].src, true);
-                    configFiles = fs.readdirSync(_(appSrcPath + '/config'));
+                    try {
+                        // replaced: fs.readdirSync — async readdir (#P33)
+                        configFiles = await fs.promises.readdir(_(appSrcPath + '/config'));
+                    } catch (srcReadErr) {
+                        return callback(srcReadErr);
+                    }
                     setPath('bundles', _(appSrcPath, true));
                     appPath = appSrcPath;
                     newContent[app][env].bundlesPath = bundlesPath = appSrcPath.replace( new RegExp('/'+ app), '' );
@@ -1382,7 +1388,7 @@ function Config(opt, contextResetNeeded) {
      * @param {boolean} [reload=false] - When true, bypasses require cache (cacheless mode)
      * @param {object} [collectedRules] - Accumulated routing rules across all bundles
      */
-    var loadBundleConfig = function(bundles, b, callback, reload, collectedRules) {
+    var loadBundleConfig = async function(bundles, b, callback, reload, collectedRules) {
 
         // current bundle
         var bundle = null;
@@ -1493,16 +1499,27 @@ function Config(opt, contextResetNeeded) {
         ;
 
         // getting bundle config files
-        var configFiles             = fs.readdirSync(_(appPath + '/config', true))
+        var configFiles             = null
             , e                     = null
             , sharedConfigPathObj   = new _(conf[bundle][env].sharedPath + '/config', true)
             , sharedconfigPath      = null
             , sharedConfigFiles     = []
         ;
+        // replaced: fs.readdirSync — async readdir (#P33)
+        try {
+            configFiles = await fs.promises.readdir(_(appPath + '/config', true));
+        } catch (configReadErr) {
+            return callback(configReadErr);
+        }
 
         if ( sharedConfigPathObj.existsSync() ) {
             sharedconfigPath = sharedConfigPathObj.toString();
-            sharedConfigFiles = fs.readdirSync(sharedconfigPath);
+            // replaced: fs.readdirSync — async readdir (#P33)
+            try {
+                sharedConfigFiles = await fs.promises.readdir(sharedconfigPath);
+            } catch (sharedReadErr) {
+                return callback(sharedReadErr);
+            }
             for (let i=0, len = sharedConfigFiles.length; i<len; i++) {
                 let file = sharedConfigFiles[i];
 
@@ -2139,7 +2156,12 @@ function Config(opt, contextResetNeeded) {
                 ;
 
                 d = 0;
-                dirsOrFiles = fs.readdirSync(publicPath);
+                // replaced: fs.readdirSync — async readdir (#P33)
+                try {
+                    dirsOrFiles = await fs.promises.readdir(publicPath);
+                } catch (publicReadErr) {
+                    return callback(publicReadErr);
+                }
                 // ignoring html (template files) directory
                 //dirsOrFiles.splice(dirsOrFiles.indexOf(new _(reps.html, true).toArray().last()), 1);
 
@@ -2647,7 +2669,7 @@ function Config(opt, contextResetNeeded) {
 
         ++b;
         if (b < bundles.length) {
-            loadBundleConfig(bundles, b, callback, reload, collectedRules)
+            await loadBundleConfig(bundles, b, callback, reload, collectedRules)
         } else {
             callback(err, files, collectedRules)
         }

@@ -28,9 +28,9 @@ var self                = null
  * @param {string} bundle      - Bundle name (used as cache-key namespace)
  * @param {object} opt         - Server cache configuration (`opt.path`, `opt.ttl`)
  * @param {string} htmlContent - Compiled HTML string to cache
- * @returns {void}
+ * @returns {Promise<void>}
  */
-function writeCache(bundle, opt, htmlContent) {
+async function writeCache(bundle, opt, htmlContent) {
     if (
         typeof(local.req.routing.cache) == 'undefined'
         ||
@@ -87,12 +87,8 @@ function writeCache(bundle, opt, htmlContent) {
             htmlDirObj = null;
 
             // console.debug("Writting cache to: ", htmlFilename);
-            var fd = fs.openSync(htmlFilename, 'w'); // Open file for writing
-            var buffer = Buffer.from( htmlContent );
-            fs.writeSync(fd, buffer, 0, buffer.length, 0); // Write the buffer
-            buffer = null;
-            fs.closeSync(fd); // Close the file descriptor
-            fd = null;
+            // replaced: openSync/writeSync/closeSync — async write (#P30)
+            await fs.promises.writeFile(htmlFilename, htmlContent);
 
             // filename is mandatory here
             cacheObject.filename = htmlFilename;
@@ -128,9 +124,9 @@ function writeCache(bundle, opt, htmlContent) {
  * @param {object}   deps.swig             - Swig template engine instance
  * @param {object}   deps.SwigFilters      - Custom Swig filter registry
  * @param {function} deps.headersSent      - Returns `true` when response headers are already sent
- * @returns {void}
+ * @returns {Promise<void>}
  */
-module.exports = function render(userData, displayToolbar, errOptions, deps) {
+module.exports = async function render(userData, displayToolbar, errOptions, deps) {
 
     // Inherited from controller
     self            = deps.self;
@@ -168,7 +164,7 @@ module.exports = function render(userData, displayToolbar, errOptions, deps) {
         , layout            = null
         , newLayoutFilename = null
         , layoutCacheFailed = false
-        , fd                = null
+        // fd removed: no longer needed after async I/O conversion (#P31)
         , buffer            = null
         , compiledTemplate  = null
         , template          = null
@@ -312,7 +308,8 @@ module.exports = function render(userData, displayToolbar, errOptions, deps) {
     var pageContentObj  = new _(data.page.view.path);
     var _templateContent = null;
     try {
-        _templateContent = fs.readFileSync(path).toString()
+        // replaced: fs.readFileSync — async read (#P28)
+        _templateContent = (await fs.promises.readFile(path)).toString()
     } catch (pathException) {
             console.warn("Path exception: ", pathException);
     }
@@ -366,13 +363,12 @@ module.exports = function render(userData, displayToolbar, errOptions, deps) {
                         newLayoutDirObj.mkdirSync()
                     }
                     newLayoutDirObj = null;
-                    fd = fs.openSync(newLayoutFilename, 'w'); // Open file for writing
-
                     // [CVE-2023-25345] The layoutPath is extracted from the raw {% extends "..." %}
                     // directive in the template file. Without a boundary check, a template containing
                     // {% extends "../../../etc/passwd" %} would cause readFileSync to read arbitrary
                     // files outside the template root (directory traversal / arbitrary file read).
                     // We resolve the path and confirm it stays within localOptions.template.html.
+                    // Boundary check now runs BEFORE any file operation (was after openSync previously).
                     var _layoutTemplateRoot     = nodePath.resolve(localOptions.template.html);
                     var _layoutResolvedPath     = nodePath.resolve(_layoutTemplateRoot, layoutPath);
                     if ( !_layoutResolvedPath.startsWith(_layoutTemplateRoot + '/') ) {
@@ -382,12 +378,11 @@ module.exports = function render(userData, displayToolbar, errOptions, deps) {
                     _layoutResolvedPath = null;
                     // [/CVE-2023-25345]
 
+                    // replaced: openSync/readFileSync/writeSync/closeSync — async read + write (#P29, #P31)
                     // buffer = Buffer.from( fs.readFileSync(localOptions.template.html + '/'+ layoutPath) ); // replaced: CVE-2023-25345
-                    buffer = Buffer.from( fs.readFileSync(localOptions.template.html + '/'+ layoutPath) );
-                    fs.writeSync(fd, buffer, 0, buffer.length, 0); // Write the buffer
+                    buffer = await fs.promises.readFile(localOptions.template.html + '/'+ layoutPath);
+                    await fs.promises.writeFile(newLayoutFilename, buffer);
                     buffer = null;
-                    fs.closeSync(fd); // Close the file descriptor
-                    fd = null;
                 }
 
                 // updating extends
@@ -696,7 +691,8 @@ module.exports = function render(userData, displayToolbar, errOptions, deps) {
 
         var isLoadingPartial = false;
         assets  = {assets:"${assets}"};
-        layout = fs.readFileSync(layoutPath, 'utf8');
+        // replaced: fs.readFileSync — async read (#P29)
+        layout = await fs.promises.readFile(layoutPath, 'utf8');
         // Loading from cache
         if (
             String(self.serverInstance._cacheIsEnabled).toLowerCase() === 'true'
@@ -722,7 +718,7 @@ module.exports = function render(userData, displayToolbar, errOptions, deps) {
                     && typeof(local.req.routing.cache) != 'undefined'
                     && local.req.method.toUpperCase() === 'GET'
                 ) {
-                    writeCache(localOptions.bundle, localOptions.conf.server.cache, htmlContent);
+                    await writeCache(localOptions.bundle, localOptions.conf.server.cache, htmlContent);
                 }
 
                 console.info(local.req.method +' ['+local.res.statusCode +'] '+ local.req.url);
@@ -1092,12 +1088,8 @@ module.exports = function render(userData, displayToolbar, errOptions, deps) {
             }
 
             if (newLayoutFilename) {
-                fd = fs.openSync(newLayoutFilename, 'w'); // Open file for writing
-                buffer = Buffer.from( layout );
-                fs.writeSync(fd, buffer, 0, buffer.length, 0); // Write the buffer
-                buffer = null;
-                fs.closeSync(fd); // Close the file descriptor
-                fd = null;
+                // replaced: openSync/writeSync/closeSync — async write (#P31)
+                await fs.promises.writeFile(newLayoutFilename, layout);
             }
 
             // Last compilation before rendering
@@ -1138,7 +1130,7 @@ module.exports = function render(userData, displayToolbar, errOptions, deps) {
                         && local.req.method.toUpperCase() === 'GET'
                     )
                 ) {
-                    writeCache(localOptions.bundle, localOptions.conf.server.cache, htmlContent);
+                    await writeCache(localOptions.bundle, localOptions.conf.server.cache, htmlContent);
                 }
 
                 console.info(local.req.method +' ['+local.res.statusCode +'] '+ local.req.url);
