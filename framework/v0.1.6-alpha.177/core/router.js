@@ -112,7 +112,9 @@ function Router(env, scope) {
         // Super controller
         delete require.cache[require.resolve(_(corePath +'/controller/controller.js', true))];
         delete require.cache[require.resolve(_(corePath +'/controller/index.js', true))];
-        require.cache[_(corePath +'/controller/controller.js', true)] = require( _(corePath +'/controller/controller.js', true) );
+        // removed: direct pre-load of controller.js — index.js (in dev/cacheless mode) deletes and
+        // re-requires controller.js internally, so pre-loading it here caused a double instantiation
+        // (Domain constructor, swig init, etc.) on every request. Let index.js own the re-require.
         require.cache[_(corePath +'/controller/index.js', true)] = require( _(corePath +'/controller/index.js', true) );
 
         SuperController = require.cache[_(corePath +'/controller/index.js', true)];

@@ -26,8 +26,9 @@ var inherits        = lib.inherits;
 var console         = lib.logger;
 var Collection      = lib.Collection;
 var routingLib      = lib.routing;
-var Domain          = lib.Domain;
-var domainLib       = new Domain();
+// removed: Domain import + domainLib instantiation — domainLib was never used in active code
+// (only usage at line 508 is commented out); re-instantiating Domain on every dev-mode request
+// via refreshCoreDependencies() caused [DOMAIN] PSL Loaded ×2 noise per request
 var swig            = require('./../deps/swig-1.4.2');
 const { type }      = require('node:os');
 var SwigFilters     = lib.SwigFilters;
