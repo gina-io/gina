@@ -1,0 +1,3 @@
+kind: Fixed
+body: Replaced per-request regex /^(\.|\/|\\)/.test(file) with charAt(0) checks in render-swig.js and render-v1.js
+time: 2026-03-06T15:35:05.502771+01:00

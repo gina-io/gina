@@ -1,0 +1,3 @@
+kind: Fixed
+body: Fixed {{ page.environment.* }} placeholders not substituted in ginaLoader (gina.onload.min.js) — ginaLoader is injected after Swig compilation so whisper() must resolve them; dic was missing page.environment.key flattened entries in render-swig.js and render-v1.js
+time: 2026-03-06T17:35:47.096649+01:00

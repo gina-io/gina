@@ -16,7 +16,7 @@ var _dbg = function(msg) {
         + '] [debug  ][gina:isaac] ' + msg + '\u001b[39m\n');
 };
 _dbg('isaac-req-1: fs ok');
-const { execSync }          = require('child_process');
+const { execSync, exec }    = require('child_process');
 _dbg('isaac-req-2: child_process ok');
 const {EventEmitter}        = require('events');
 _dbg('isaac-req-3: events ok');
@@ -213,7 +213,12 @@ function ServerEngineClass(options) {
                     }
                     // Creating a new br version
                     cmd = brotliBin +' --best '+ _(targetDir +'/'+ targetFile, true);
-                    console.debug( execSync( cmd ).toString() );
+                    // replaced: execSync — async exec to avoid blocking event loop during startup (#P32)
+                    // console.debug( execSync( cmd ).toString() );
+                    exec(cmd, function(brCmdErr, stdout) {
+                        if (brCmdErr) { console.error('[ SERVER ] brotli compression error: ' + (brCmdErr.stack || brCmdErr.message)); return; }
+                        if (stdout) console.debug(stdout.toString().trim());
+                    });
                 }
             } catch (brError) {
                 console.error('[ SERVER ] '+ brError.stack);
@@ -230,9 +235,14 @@ function ServerEngineClass(options) {
                     if ( gzFileObj.existsSync() ) {
                         gzFileObj.rmSync();
                     }
-                    // Creating a new br version
+                    // Creating a new gz version
                     cmd = gZipBin +' -9 -k '+ _(targetDir +'/'+ targetFile, true);
-                    console.debug( execSync( cmd ).toString() );
+                    // replaced: execSync — async exec to avoid blocking event loop during startup (#P32)
+                    // console.debug( execSync( cmd ).toString() );
+                    exec(cmd, function(gzCmdErr, stdout) {
+                        if (gzCmdErr) { console.error('[ SERVER ] gzip compression error: ' + (gzCmdErr.stack || gzCmdErr.message)); return; }
+                        if (stdout) console.debug(stdout.toString().trim());
+                    });
                 }
             } catch (gzError) {
                 console.error('[ SERVER ] '+ gzError.stack);
