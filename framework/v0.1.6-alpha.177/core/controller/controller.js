@@ -299,37 +299,40 @@ function SuperController(options) {
         // }
 
         if ( typeof(options.conf.content.routing[options.rule].param) !=  'undefined' ) {
-            var str = 'page.'
+            // replaced: var str = 'page.' — use Array.push()+join() for V8 optimization (#P26)
+            var strParts = ['page']
                 , p = options.conf.content.routing[options.rule].param
             ;
 
             for (let key in p) {
                 if ( p.hasOwnProperty(key) && !/^(control)$/.test(key) ) {
-                    str += key + '.';
-                    let obj = p[key], value = '';
+                    strParts.push(key); // replaced: str += key + '.'
+                    let obj = p[key];
+                    let valueParts = []; // replaced: value = ''
                     for (let prop in obj) {
                         if (obj.hasOwnProperty(prop)) {
-                            value += obj[prop];
+                            valueParts.push(obj[prop]); // replaced: value += obj[prop]
                             continue;
                         }
 
+                        let value = valueParts.join(''); // replaced: accumulated value string
                         if ( /^:/.test(value) ) {
-                            str = 'page.view.params.'+ key + '.';
-                            set(str.substring(0, str.length-1), req.params[value.substring(1)]);
+                            strParts = ['page', 'view', 'params', key]; // replaced: str = 'page.view.params.' + key + '.'
+                            set(strParts.join('.'), req.params[value.substring(1)]); // replaced: set(str.substring(0, str.length-1), ...)
                         } else if (/^(file|title)$/.test(key)) {
-                            str = 'page.view.'+ key + '.';
-                            set(str.substring(0, str.length-1), value);
+                            strParts = ['page', 'view', key]; // replaced: str = 'page.view.' + key + '.'
+                            set(strParts.join('.'), value); // replaced: set(str.substring(0, str.length-1), ...)
                         } else {
-                            set(str.substring(0, str.length-1), value)
+                            set(strParts.join('.'), value) // replaced: set(str.substring(0, str.length-1), value)
                         }
 
-                        str = 'page.'
+                        strParts = ['page'] // replaced: str = 'page.'
 
                     }
                 }
             }
 
-            freeMemory([str, p], false);
+            freeMemory([strParts, p], false);
         }
 
         local.req = req;
