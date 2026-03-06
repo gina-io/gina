@@ -161,7 +161,7 @@ module.exports = function(session, bundle){
     CouchbaseStore.prototype.get = async function(sid, fn){
         if ('function' !== typeof fn) { fn = noop; }
         sid = this.prefix + sid;
-        console.debug('[SessionStore v4] GET "%s"', sid);
+        console.debug('[SessionStore v4] GET "' + sid + '"');
 
 
         var err = false, result = null, data = null;
@@ -198,7 +198,7 @@ module.exports = function(session, bundle){
         if (!data || !data.value) return fn();
         // console.debug('[SessionStore v4] (1) GOT %s', data);
         data = data.value.toString();
-        console.debug('[SessionStore v4] (2) GOT %s', data);
+        console.debug('[SessionStore v4] (2) GOT ' + data);
         try {
             result = JSON.parse(data);
         } catch (err) {
@@ -274,7 +274,7 @@ module.exports = function(session, bundle){
 
             sess = JSON.stringify(sess);
 
-            console.debug('[SessionStore v4] SETEX "%s" ttl:%s %s', sid, ttl, sess);
+            console.debug('[SessionStore v4] SETEX "' + sid + '" ttl:' + ttl + ' ' + sess);
             debug('[SessionStore v4] SETEX "%s" ttl:%s %s', sid, ttl, sess);
             this.client.upsert(sid, sess, {expiry:ttl}, function(err){
                 err || debug('Session Set complete');

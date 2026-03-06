@@ -1,0 +1,3 @@
+kind: Fixed
+body: Fixed %s placeholders not substituted in session-store v3/v4 debug log calls (gina logger does not support printf-style formatting)
+time: 2026-03-06T19:03:50.186941+01:00
