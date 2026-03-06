@@ -30,6 +30,38 @@ var fs                  = require('fs')
 // cached at module load — these env vars never change at runtime (#P18)
 var _isDev = process.env.NODE_ENV_IS_DEV && process.env.NODE_ENV_IS_DEV.toLowerCase() === 'true';
 
+// extracted from Router::route() — try-catch prevents V8 JIT optimization of the outer function (#P25)
+function resolveRouteConfig(serverInstance, params, response, controllerFile, local) {
+    try {
+        var config = new Config().getInstance();
+        if (!params.bundle) {
+            try {
+                //params.bundle = config.bundle;
+                //params.param = config.routing[config.reverseRouting[params.param.url]];
+                var _rule = config.reverseRouting[params.param.url];
+                params = merge(params, config.routing[_rule]);
+                params.rule = _rule;
+            } catch(reverseRoutingError) {
+                serverInstance.throwError(response, 500, reverseRoutingError);
+                return null;
+            }
+        }
+        var bundle = params.bundle;
+        local.bundle = bundle;
+        return {
+            config  : config,
+            bundle  : bundle,
+            env     : config.env,
+            scope   : config.scope,
+            conf    : config[bundle][config.env],
+            params  : params
+        };
+    } catch (configErr) {
+        serverInstance.throwError(response, 500, new Error('syntax error(s) found in `'+ controllerFile +'` \nTrace: ') + (configErr.stack || configErr.message) );
+        return null;
+    }
+}
+
 function Router(env, scope) {
 
     this.name = 'Router';
@@ -130,36 +162,14 @@ function Router(env, scope) {
         // return ;
 
 
-       var serverInstance   = self.getServerInstance();
-       var config               = null
-            , conf              = null
-            , bundle            = null
-            , env               = null
-            , scope             = null
-            , isCacheless       = self.isCacheless()
-       ;
-        try {
-            config      = new Config().getInstance();
-            if (!params.bundle) {
-                try {
-                    //params.bundle = config.bundle;
-                    //params.param = config.routing[config.reverseRouting[params.param.url]];
-                    var _rule = config.reverseRouting[params.param.url];
-                    params = merge(params, config.routing[_rule]);
-                    params.rule = _rule;
-                } catch(reverseRoutingError) {
-                    serverInstance.throwError(response, 500, reverseRoutingError);
-                    return;
-                }
-            }
-            bundle      = local.bundle = params.bundle;
-            env         = config.env;
-            scope       = config.scope;
-            conf        = config[bundle][env];
-        } catch (configErr) {
-            serverInstance.throwError(response, 500, new Error('syntax error(s) found in `'+ controllerFile +'` \nTrace: ') + (configErr.stack || configErr.message) );
-            return;
-        }
+        var serverInstance   = self.getServerInstance();
+        var isCacheless      = self.isCacheless();
+        // replaced: inline try-catch — extracted to resolveRouteConfig() for V8 optimization (#P25)
+        var _resolved = resolveRouteConfig(serverInstance, params, response, controllerFile, local);
+        if (!_resolved) return;
+        var bundle  = _resolved.bundle;
+        var conf    = _resolved.conf;
+        params      = _resolved.params;
 
         local.isCacheless   = isCacheless;
         local.request       = request;
