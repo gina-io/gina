@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'Fixed _maxListeners growing unbounded in entity.js: capped at 100 via Math.min to ensure Node''s memory leak warning still fires if trigger accumulation goes beyond the realistic method count ceiling'
-time: 2026-02-26T02:35:55.625203+01:00

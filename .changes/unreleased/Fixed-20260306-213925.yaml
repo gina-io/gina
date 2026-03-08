@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'Fixed per-request "Logger instance already exists: reusing it ;)" debug noise in dev mode. Root cause: refreshCore() (server.isaac.js) deleted and re-required lib/index.js on every HTTP request, which re-ran Lib() and called _require(''./logger''), evicting and re-loading the logger singleton on every request. Logger is persisted via getContext(''loggerInstance'') and does not benefit from hot-reload. Changed lib/index.js to use plain require(''./logger'') instead of _require(''./logger'').'
-time: 2026-03-06T21:39:25.534837+01:00

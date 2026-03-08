@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'Fixed shared module-level EventEmitter in path helper: mkdir, cp, mv and rm now each create a per-call emitter, eliminating orphaned listener accumulation and cross-call event interference'
-time: 2026-02-26T01:59:58.125533+01:00

@@ -1,3 +1,0 @@
-kind: Added
-body: 'Added JSDoc across core/controller/, core/model/, and helpers/: constructor @class/@constructor/@extends, @inner on private helpers, complete @param/@returns on all public methods, @global on the _ path helper, @module on controller/index.js'
-time: 2026-02-26T05:00:00.000000+01:00

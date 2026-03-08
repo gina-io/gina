@@ -1,3 +1,0 @@
-kind: Added
-body: Added unit tests for V8 arm64 regression (const vs var object rest), routing cleanup, _isDebugLog gate, _debugLog format, and ANSI color codes in startup debug traces
-time: 2026-03-05T18:10:04.118748+01:00

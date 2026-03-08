@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'Fixed logger silently swallowing all log output when LOG_LEVEL is set to a level name with no hierarchy entry (e.g. ''notice'', ''alert'', ''crit''): init now falls back to ''info'' with a warning, matching the existing setLevel() guard'
-time: 2026-03-05T19:57:17.26561+01:00

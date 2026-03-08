@@ -1,3 +1,0 @@
-kind: Added
-body: post_publish now auto-increments the alpha version, renames the framework directory, updates ~/.gina config, and commits after each npm publish
-time: 2026-03-01T19:19:54.896557+01:00

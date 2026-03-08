@@ -1,3 +1,0 @@
-kind: Security
-body: Removed internal development files from the npm package. The published tarball no longer includes .env, CLAUDE.md, .claude/ (internal notes), .changes/ (changie entries), .changie.yaml, services/ (WIP bundles), vendor benchmark and CI files, library example and test files, locale build sources, and stray backup files. Previously .npmignore did not cover these paths.
-time: 2026-02-28T16:00:00.000000+00:00

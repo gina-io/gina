@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'Fixed SuperController.instance._options written on every request: removed write in getInstance() and setOptions() — _options was never read (all reads go through per-request local.options/self._options), making the write a silent corruption trap for future code'
-time: 2026-02-26T04:00:00.000000+01:00

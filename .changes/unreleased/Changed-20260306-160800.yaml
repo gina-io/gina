@@ -1,3 +1,0 @@
-kind: Changed
-body: Replaced synchronous fs I/O in render-swig.js (readFileSync, openSync/writeSync/closeSync), server.isaac.js (execSync for brotli/gzip), and config.js (readdirSync) with async equivalents (fs.promises, child_process.exec)
-time: 2026-03-06T16:08:00.390911+01:00

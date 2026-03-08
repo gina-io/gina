@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'Fixed query#complete listener accumulation: removeAllListeners() is now called before each once() registration in both HTTP/1 and HTTP/2 onComplete paths'
-time: 2026-02-26T01:39:19.005832+01:00

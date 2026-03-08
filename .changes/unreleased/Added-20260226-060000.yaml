@@ -1,3 +1,0 @@
-kind: Added
-body: 'Added JSDoc to lib/ runtime libraries: @module on all 13 files; @class/@constructor on Cache, Collection, ConfigUtil, Domain, Inherits, Merge, ModelUtil, Proc, SessionStore, Shell, Url, Validator; complete @param/@returns on all public methods; fixed @contructor typos and empty @returns stubs'
-time: 2026-02-26T06:00:00.000000+01:00

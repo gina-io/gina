@@ -1,3 +1,0 @@
-kind: Fixed
-body: Fixed bundle crash on startup when verifyCertificate DNS lookup fails inside containers (unhandled rejection from async setTimeout callback now logs at emerg level instead of aborting the process; added 5 s timeout to ssl-checker to prevent indefinite hangs)
-time: 2026-03-05T04:22:35.734574+01:00

@@ -1,3 +1,0 @@
-kind: Fixed
-body: Fixed invalid JSDoc tags (@package, bare @returns) in lib/inherits and lib/logger that caused jsdoc-to-markdown parse errors
-time: 2026-03-02T21:09:21.499158+01:00

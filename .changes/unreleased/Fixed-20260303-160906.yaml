@@ -1,3 +1,0 @@
-kind: Fixed
-body: Added TCP keepalive and setNoDelay on HTTP/2 session socket to prevent OrbStack (ARM64) from silently dropping idle inter-container connections
-time: 2026-03-03T16:09:06.555822+01:00

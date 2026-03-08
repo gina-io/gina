@@ -1,3 +1,0 @@
-kind: Fixed
-body: Fixed null lib.generator crash in post_publish.js by initializing lib inside begin() to avoid circular dependency at module load time
-time: 2026-03-03T22:53:06.841983+01:00
