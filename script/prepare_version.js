@@ -57,9 +57,17 @@ function PrepareVersion() {
         }
 
         // Overriding thru passed arguments
+        // npm lifecycle scripts receive --tag as npm_config_tag env var, not process.argv
+        var npmTag = process.env.npm_config_tag || 'latest';
+        if (npmTag !== self.git.tag) {
+            self.git.tag = npmTag;
+            self.isGitPushNeeded = ( typeof(process.env.npm_config_dry_run) != 'undefined' ) ? false : true;
+        }
+
         var args = process.argv, i = 0, len = args.length;
         for (; i < len; ++i) {
             if ( /^\-\-tag/.test(args[i]) ) {
+                // fallback: direct script invocation with --tag
                 var tag = args[i].split(/\=/)[1];
                 if ( tag != self.git.tag) {
                     self.git.tag = tag;
@@ -494,7 +502,9 @@ function PrepareVersion() {
         }
         // git commit -m'Packaging version v'+ version
         try {
-            var msg = (!branchExists) ? 'New version' : 'Prerelease update'; //+ new Date().format("isoDateTime");
+            var isAlpha = /alpha\.\d+$/.test(self.targetedVersion);
+            var msg = (!branchExists) ? 'New version'
+                : (isAlpha ? 'Prerelease update' : 'Release v' + self.targetedVersion);
             if (self.git.msg) {
                 msg += ' - '+ self.git.msg
             }
