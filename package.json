@@ -18,7 +18,7 @@
   "homepage": "https://gina.io",
   "repository": {
     "type": "git",
-    "url": "https://github.com/rhinostone/gina.git"
+    "url": "git+https://github.com/rhinostone/gina.git"
   },
   "bugs": {
     "url": "https://github.com/rhinostone/gina/issues",
@@ -49,8 +49,8 @@
     "globalMode": true
   },
   "bin": {
-    "gina": "./bin/gina",
-    "gina-container": "./bin/gina-container"
+    "gina": "bin/gina",
+    "gina-container": "bin/gina-container"
   },
   "main": "./framework/v0.1.6/core/gna",
   "scripts": {
