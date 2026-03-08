@@ -187,10 +187,18 @@ function PostPublish() {
         var packObj = requireJSON(_(pack, true));
         var currentVersion = packObj.version;
 
-        // Increment the trailing alpha number: "0.1.6-alpha.175" -> "0.1.6-alpha.176"
-        var newVersion = currentVersion.replace(/(\d+)$/, function(_match, n) {
-            return String(parseInt(n, 10) + 1);
-        });
+        // Alpha: increment trailing number  "0.1.6-alpha.177" -> "0.1.6-alpha.178"
+        // Stable: bump patch, start new alpha cycle "0.1.6" -> "0.1.7-alpha.1"
+        var newVersion;
+        if (/alpha\.\d+$/.test(currentVersion)) {
+            newVersion = currentVersion.replace(/(\d+)$/, function(_match, n) {
+                return String(parseInt(n, 10) + 1);
+            });
+        } else {
+            newVersion = currentVersion.replace(/(\d+)$/, function(_match, n) {
+                return String(parseInt(n, 10) + 1);
+            }) + '-alpha.1';
+        }
 
         console.info('Bumping version: ' + currentVersion + ' -> ' + newVersion);
 
