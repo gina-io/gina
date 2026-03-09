@@ -1,0 +1,7 @@
+{
+    "error" : {
+        "code" : "403",
+        "message" : "GNA:GLOBAL:ERR:403",
+        "explicit" : "Forbidden"
+    }
+}

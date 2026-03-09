@@ -1,0 +1,1685 @@
+[
+    {
+        "callsign": "MILE-AIR",
+        "country": "United States",
+        "iata": "Q5",
+        "icao": "MLA",
+        "id": 10,
+        "name": "40-Mile Air",
+        "type": "airline"
+    },
+    {
+        "callsign": "TXW",
+        "country": "United States",
+        "iata": "TQ",
+        "icao": "TXW",
+        "id": 10123,
+        "name": "Texas Wings",
+        "type": "airline"
+    },
+    {
+        "callsign": "atifly",
+        "country": "United States",
+        "iata": "A1",
+        "icao": "A1F",
+        "id": 10226,
+        "name": "Atifly",
+        "type": "airline"
+    },
+    {
+        "callsign": null,
+        "country": "United Kingdom",
+        "iata": null,
+        "icao": "JRB",
+        "id": 10642,
+        "name": "Jc royal.britannica",
+        "type": "airline"
+    },
+    {
+        "callsign": "LOCAIR",
+        "country": "United States",
+        "iata": "ZQ",
+        "icao": "LOC",
+        "id": 10748,
+        "name": "Locair",
+        "type": "airline"
+    },
+    {
+        "callsign": "SASQUATCH",
+        "country": "United States",
+        "iata": "K5",
+        "icao": "SQH",
+        "id": 10765,
+        "name": "SeaPort Airlines",
+        "type": "airline"
+    },
+    {
+        "callsign": "ACE AIR",
+        "country": "United States",
+        "iata": "KO",
+        "icao": "AER",
+        "id": 109,
+        "name": "Alaska Central Express",
+        "type": "airline"
+    },
+    {
+        "callsign": "FLYSTAR",
+        "country": "United Kingdom",
+        "iata": "5W",
+        "icao": "AEU",
+        "id": 112,
+        "name": "Astraeus",
+        "type": "airline"
+    },
+    {
+        "callsign": "REUNION",
+        "country": "France",
+        "iata": "UU",
+        "icao": "REU",
+        "id": 1191,
+        "name": "Air Austral",
+        "type": "airline"
+    },
+    {
+        "callsign": "AIRLINAIR",
+        "country": "France",
+        "iata": "A5",
+        "icao": "RLA",
+        "id": 1203,
+        "name": "Airlinair",
+        "type": "airline"
+    },
+    {
+        "callsign": "CITRUS",
+        "country": "United States",
+        "iata": "FL",
+        "icao": "TRS",
+        "id": 1316,
+        "name": "AirTran Airways",
+        "type": "airline"
+    },
+    {
+        "callsign": null,
+        "country": "United States",
+        "iata": "-+",
+        "icao": "--+",
+        "id": 13391,
+        "name": "U.S. Air",
+        "type": "airline"
+    },
+    {
+        "callsign": "SPEEDBIRD",
+        "country": "United Kingdom",
+        "iata": "BA",
+        "icao": "BAW",
+        "id": 1355,
+        "name": "British Airways",
+        "type": "airline"
+    },
+    {
+        "callsign": null,
+        "country": "United States",
+        "iata": "WQ",
+        "icao": "PQW",
+        "id": 13633,
+        "name": "PanAm World Airways",
+        "type": "airline"
+    },
+    {
+        "callsign": "AIRFRANS",
+        "country": "France",
+        "iata": "AF",
+        "icao": "AFR",
+        "id": 137,
+        "name": "Air France",
+        "type": "airline"
+    },
+    {
+        "callsign": "AIRCALIN",
+        "country": "France",
+        "iata": "SB",
+        "icao": "ACI",
+        "id": 139,
+        "name": "Air Caledonie International",
+        "type": "airline"
+    },
+    {
+        "callsign": "T&",
+        "country": "France",
+        "iata": "&T",
+        "icao": "T&O",
+        "id": 13947,
+        "name": "Tom\\'s & co airliners",
+        "type": "airline"
+    },
+    {
+        "callsign": "BRINTEL",
+        "country": "United Kingdom",
+        "iata": "BS",
+        "icao": "BIH",
+        "id": 1411,
+        "name": "British International Helicopters",
+        "type": "airline"
+    },
+    {
+        "callsign": "MIDLAND",
+        "country": "United Kingdom",
+        "iata": "BD",
+        "icao": "BMA",
+        "id": 1437,
+        "name": "bmi",
+        "type": "airline"
+    },
+    {
+        "callsign": "BABY",
+        "country": "United Kingdom",
+        "iata": "WW",
+        "icao": "BMI",
+        "id": 1441,
+        "name": "bmibaby",
+        "type": "airline"
+    },
+    {
+        "callsign": "BEMIDJI",
+        "country": "United States",
+        "iata": "CH",
+        "icao": "BMJ",
+        "id": 1442,
+        "name": "Bemidji Airlines",
+        "type": "airline"
+    },
+    {
+        "callsign": null,
+        "country": "United Kingdom",
+        "iata": null,
+        "icao": "BMR",
+        "id": 1445,
+        "name": "British Midland Regional",
+        "type": "airline"
+    },
+    {
+        "callsign": "BERING AIR",
+        "country": "United States",
+        "iata": "8E",
+        "icao": "BRG",
+        "id": 1472,
+        "name": "Bering Air",
+        "type": "airline"
+    },
+    {
+        "callsign": "NIGHT CARGO",
+        "country": "United States",
+        "iata": "2Q",
+        "icao": "SNC",
+        "id": 149,
+        "name": "Air Cargo Carriers",
+        "type": "airline"
+    },
+    {
+        "callsign": "BRITAIR",
+        "country": "France",
+        "iata": "DB",
+        "icao": "BZH",
+        "id": 1523,
+        "name": "Brit Air",
+        "type": "airline"
+    },
+    {
+        "callsign": "BEE MED",
+        "country": "United Kingdom",
+        "iata": "KJ",
+        "icao": "LAJ",
+        "id": 1543,
+        "name": "British Mediterranean Airways",
+        "type": "airline"
+    },
+    {
+        "callsign": "AIRMAX",
+        "country": "United States",
+        "iata": null,
+        "icao": "XBM",
+        "id": 15887,
+        "name": "CBM America",
+        "type": "airline"
+    },
+    {
+        "callsign": "Stallion",
+        "country": "United States",
+        "iata": "BZ",
+        "icao": "BSA",
+        "id": 15975,
+        "name": "Black Stallion Airways",
+        "type": "airline"
+    },
+    {
+        "callsign": null,
+        "country": "United Kingdom",
+        "iata": "1F",
+        "icao": "CIF",
+        "id": 16261,
+        "name": "CB Airways UK ( Interliging Flights )",
+        "type": "airline"
+    },
+    {
+        "callsign": null,
+        "country": "United States",
+        "iata": "T6",
+        "icao": "TP6",
+        "id": 16264,
+        "name": "Trans Pas Air",
+        "type": "airline"
+    },
+    {
+        "callsign": "CAIR",
+        "country": "United States",
+        "iata": "9K",
+        "icao": "KAP",
+        "id": 1629,
+        "name": "Cape Air",
+        "type": "airline"
+    },
+    {
+        "callsign": "USKY",
+        "country": "United States",
+        "iata": "E1",
+        "icao": "ES2",
+        "id": 16702,
+        "name": "Usa Sky Cargo",
+        "type": "airline"
+    },
+    {
+        "callsign": "ERAH",
+        "country": "United States",
+        "iata": "7H",
+        "icao": "ERR",
+        "id": 16726,
+        "name": "Era Alaska",
+        "type": "airline"
+    },
+    {
+        "callsign": null,
+        "country": "United States",
+        "iata": "H1",
+        "icao": "HA1",
+        "id": 16735,
+        "name": "Hankook Air US",
+        "type": "airline"
+    },
+    {
+        "callsign": "Vickjet",
+        "country": "France",
+        "iata": "KT",
+        "icao": "VKJ",
+        "id": 16837,
+        "name": "VickJet",
+        "type": "airline"
+    },
+    {
+        "callsign": "Cudlua",
+        "country": "United Kingdom",
+        "iata": null,
+        "icao": "CUD",
+        "id": 16881,
+        "name": "Air Cudlua",
+        "type": "airline"
+    },
+    {
+        "callsign": "Orbit",
+        "country": "United States",
+        "iata": null,
+        "icao": "OBT",
+        "id": 16932,
+        "name": "Orbit Airlines",
+        "type": "airline"
+    },
+    {
+        "callsign": "CHAUTAUQUA",
+        "country": "United States",
+        "iata": "RP",
+        "icao": "CHQ",
+        "id": 1739,
+        "name": "Chautauqua Airlines",
+        "type": "airline"
+    },
+    {
+        "callsign": null,
+        "country": "United States",
+        "iata": null,
+        "icao": "XOJ",
+        "id": 17563,
+        "name": "XOJET",
+        "type": "airline"
+    },
+    {
+        "callsign": "OA",
+        "country": "United States",
+        "iata": null,
+        "icao": "OAI",
+        "id": 17628,
+        "name": "Orbit International Airlines",
+        "type": "airline"
+    },
+    {
+        "callsign": "OA",
+        "country": "United States",
+        "iata": null,
+        "icao": "OAR",
+        "id": 17629,
+        "name": "Orbit Regional Airlines",
+        "type": "airline"
+    },
+    {
+        "callsign": null,
+        "country": "United States",
+        "iata": null,
+        "icao": "OAN",
+        "id": 17630,
+        "name": "Orbit Atlantic Airways",
+        "type": "airline"
+    },
+    {
+        "callsign": "aws",
+        "country": "United States",
+        "iata": "B0",
+        "icao": "666",
+        "id": 17841,
+        "name": "Aws express",
+        "type": "airline"
+    },
+    {
+        "callsign": null,
+        "country": "United States",
+        "iata": "76",
+        "icao": "SJS",
+        "id": 17859,
+        "name": "Southjet",
+        "type": "airline"
+    },
+    {
+        "callsign": null,
+        "country": "United States",
+        "iata": "77",
+        "icao": "ZCS",
+        "id": 17860,
+        "name": "Southjet connect",
+        "type": "airline"
+    },
+    {
+        "callsign": null,
+        "country": "United States",
+        "iata": "78",
+        "icao": "XAN",
+        "id": 17862,
+        "name": "Southjet cargo",
+        "type": "airline"
+    },
+    {
+        "callsign": "FLYER",
+        "country": "United Kingdom",
+        "iata": "CJ",
+        "icao": "CFE",
+        "id": 1795,
+        "name": "BA CityFlyer",
+        "type": "airline"
+    },
+    {
+        "callsign": "RUBY",
+        "country": "United States",
+        "iata": "V2",
+        "icao": "RBY",
+        "id": 18178,
+        "name": "Vision Airlines (V2)",
+        "type": "airline"
+    },
+    {
+        "callsign": "COLGAN",
+        "country": "United States",
+        "iata": "9L",
+        "icao": "CJC",
+        "id": 1821,
+        "name": "Colgan Air",
+        "type": "airline"
+    },
+    {
+        "callsign": null,
+        "country": "United States",
+        "iata": "YE",
+        "icao": "YEL",
+        "id": 18239,
+        "name": "Yellowtail",
+        "type": "airline"
+    },
+    {
+        "callsign": "RAW",
+        "country": "United States",
+        "iata": "KG",
+        "icao": "RAW",
+        "id": 18241,
+        "name": "Royal Airways",
+        "type": "airline"
+    },
+    {
+        "callsign": null,
+        "country": "United States",
+        "iata": null,
+        "icao": "XSR",
+        "id": 18257,
+        "name": "Executive AirShare",
+        "type": "airline"
+    },
+    {
+        "callsign": "COMAIR",
+        "country": "United States",
+        "iata": "OH",
+        "icao": "COM",
+        "id": 1828,
+        "name": "Comair",
+        "type": "airline"
+    },
+    {
+        "callsign": "COMMUTAIR",
+        "country": "United States",
+        "iata": "C5",
+        "icao": "UCA",
+        "id": 1843,
+        "name": "CommutAir",
+        "type": "airline"
+    },
+    {
+        "callsign": "T.J. Air",
+        "country": "United States",
+        "iata": "TJ",
+        "icao": "TJA",
+        "id": 18529,
+        "name": "T.J. Air",
+        "type": "airline"
+    },
+    {
+        "callsign": "Compass Rose",
+        "country": "United States",
+        "iata": "CP",
+        "icao": "CPZ",
+        "id": 1860,
+        "name": "Compass Airlines",
+        "type": "airline"
+    },
+    {
+        "callsign": "CONTINENTAL",
+        "country": "United States",
+        "iata": "CO",
+        "icao": "COA",
+        "id": 1881,
+        "name": "Continental Airlines",
+        "type": "airline"
+    },
+    {
+        "callsign": "AIR MIKE",
+        "country": "United States",
+        "iata": "CS",
+        "icao": "CMI",
+        "id": 1884,
+        "name": "Continental Micronesia",
+        "type": "airline"
+    },
+    {
+        "callsign": "Maryland Flight",
+        "country": "United States",
+        "iata": "M1",
+        "icao": "M1F",
+        "id": 18930,
+        "name": "Maryland Air",
+        "type": "airline"
+    },
+    {
+        "callsign": "APACHE",
+        "country": "United States",
+        "iata": "ZM",
+        "icao": "IWA",
+        "id": 19016,
+        "name": "Apache Air",
+        "type": "airline"
+    },
+    {
+        "callsign": "CORSAIR",
+        "country": "France",
+        "iata": "SS",
+        "icao": "CRL",
+        "id": 1908,
+        "name": "Corsairfly",
+        "type": "airline"
+    },
+    {
+        "callsign": "CORSICA",
+        "country": "France",
+        "iata": "XK",
+        "icao": "CCM",
+        "id": 1909,
+        "name": "Corse-Mediterranee",
+        "type": "airline"
+    },
+    {
+        "callsign": "CREST",
+        "country": "United Kingdom",
+        "iata": null,
+        "icao": "CAN",
+        "id": 1923,
+        "name": "Crest Aviation",
+        "type": "airline"
+    },
+    {
+        "callsign": null,
+        "country": "United States",
+        "iata": "N8",
+        "icao": "NCR",
+        "id": 19287,
+        "name": "National Air Cargo",
+        "type": "airline"
+    },
+    {
+        "callsign": "EAVA",
+        "country": "United States",
+        "iata": "13",
+        "icao": "EAV",
+        "id": 19290,
+        "name": "Eastern Atlantic Virtual Airlines",
+        "type": "airline"
+    },
+    {
+        "callsign": "CROWN AIRWAYS",
+        "country": "United States",
+        "iata": null,
+        "icao": "CRO",
+        "id": 1931,
+        "name": "Crown Airways",
+        "type": "airline"
+    },
+    {
+        "callsign": "Comfort Express",
+        "country": "United States",
+        "iata": null,
+        "icao": "EVC",
+        "id": 19350,
+        "name": "Comfort Express Virtual Charters Albany",
+        "type": "airline"
+    },
+    {
+        "callsign": null,
+        "country": "United States",
+        "iata": null,
+        "icao": "CEO",
+        "id": 19351,
+        "name": "Comfort Express Virtual Charters",
+        "type": "airline"
+    },
+    {
+        "callsign": "XAIR",
+        "country": "United States",
+        "iata": "XA",
+        "icao": "XAU",
+        "id": 19433,
+        "name": "XAIR USA",
+        "type": "airline"
+    },
+    {
+        "callsign": "BBN",
+        "country": "United Kingdom",
+        "iata": null,
+        "icao": "EGH",
+        "id": 19525,
+        "name": "BBN-Airways",
+        "type": "airline"
+    },
+    {
+        "callsign": "Envoy",
+        "country": "United States",
+        "iata": null,
+        "icao": "ENY",
+        "id": 19619,
+        "name": "Envoy Air",
+        "type": "airline"
+    },
+    {
+        "callsign": "Rainbow",
+        "country": "United States",
+        "iata": "RN",
+        "icao": "RAB",
+        "id": 19674,
+        "name": "Rainbow Air (RAI)",
+        "type": "airline"
+    },
+    {
+        "callsign": "Rainbow Air",
+        "country": "United States",
+        "iata": "RX",
+        "icao": "RPO",
+        "id": 19676,
+        "name": "Rainbow Air Polynesia",
+        "type": "airline"
+    },
+    {
+        "callsign": "Rainbow Air",
+        "country": "United Kingdom",
+        "iata": "RU",
+        "icao": "RUE",
+        "id": 19677,
+        "name": "Rainbow Air Euro",
+        "type": "airline"
+    },
+    {
+        "callsign": "Rainbow Air",
+        "country": "United States",
+        "iata": "RM",
+        "icao": "RNY",
+        "id": 19678,
+        "name": "Rainbow Air US",
+        "type": "airline"
+    },
+    {
+        "callsign": "Spike Air",
+        "country": "United States",
+        "iata": "S0",
+        "icao": "SAL",
+        "id": 19774,
+        "name": "Spike Airlines",
+        "type": "airline"
+    },
+    {
+        "callsign": null,
+        "country": "United States",
+        "iata": "A2",
+        "icao": "AL2",
+        "id": 19804,
+        "name": "All America",
+        "type": "airline"
+    },
+    {
+        "callsign": null,
+        "country": "United Kingdom",
+        "iata": "N9",
+        "icao": "N99",
+        "id": 19808,
+        "name": "All Europe",
+        "type": "airline"
+    },
+    {
+        "callsign": "DELTA",
+        "country": "United States",
+        "iata": "DL",
+        "icao": "DAL",
+        "id": 2009,
+        "name": "Delta Air Lines",
+        "type": "airline"
+    },
+    {
+        "callsign": "AIGLE AZUR",
+        "country": "France",
+        "iata": "ZI",
+        "icao": "AAF",
+        "id": 21,
+        "name": "Aigle Azur",
+        "type": "airline"
+    },
+    {
+        "callsign": "AIRLIFT",
+        "country": "United States",
+        "iata": null,
+        "icao": "AIR",
+        "id": 210,
+        "name": "Airlift International",
+        "type": "airline"
+    },
+    {
+        "callsign": "EASTFLIGHT",
+        "country": "United Kingdom",
+        "iata": "T3",
+        "icao": "EZE",
+        "id": 2117,
+        "name": "Eastern Airways",
+        "type": "airline"
+    },
+    {
+        "callsign": "ALOHA",
+        "country": "United States",
+        "iata": "AQ",
+        "icao": "AAH",
+        "id": 22,
+        "name": "Aloha Airlines",
+        "type": "airline"
+    },
+    {
+        "callsign": "TAHITI AIRLINES",
+        "country": "France",
+        "iata": "TN",
+        "icao": "THT",
+        "id": 225,
+        "name": "Air Tahiti Nui",
+        "type": "airline"
+    },
+    {
+        "callsign": "EVERGREEN",
+        "country": "United States",
+        "iata": "EZ",
+        "icao": "EIA",
+        "id": 2261,
+        "name": "Evergreen International Airlines",
+        "type": "airline"
+    },
+    {
+        "callsign": "EXPO",
+        "country": "United Kingdom",
+        "iata": "JN",
+        "icao": "XLA",
+        "id": 2264,
+        "name": "Excel Airways",
+        "type": "airline"
+    },
+    {
+        "callsign": "HELI EXCEL",
+        "country": "United Kingdom",
+        "iata": null,
+        "icao": "XEL",
+        "id": 2265,
+        "name": "Excel Charter",
+        "type": "airline"
+    },
+    {
+        "callsign": "LONGHORN",
+        "country": "United States",
+        "iata": "EO",
+        "icao": "LHN",
+        "id": 2293,
+        "name": "Express One International",
+        "type": "airline"
+    },
+    {
+        "callsign": "JET LINK",
+        "country": "United States",
+        "iata": "XE",
+        "icao": "BTA",
+        "id": 2295,
+        "name": "ExpressJet",
+        "type": "airline"
+    },
+    {
+        "callsign": "EASY",
+        "country": "United Kingdom",
+        "iata": "U2",
+        "icao": "EZY",
+        "id": 2297,
+        "name": "easyJet",
+        "type": "airline"
+    },
+    {
+        "callsign": "JETSET",
+        "country": "United Kingdom",
+        "iata": "DP",
+        "icao": "FCA",
+        "id": 2357,
+        "name": "First Choice Airways",
+        "type": "airline"
+    },
+    {
+        "callsign": "FLIGHTLINE",
+        "country": "United Kingdom",
+        "iata": "B5",
+        "icao": "FLT",
+        "id": 2395,
+        "name": "Flightline",
+        "type": "airline"
+    },
+    {
+        "callsign": "AMERICAN",
+        "country": "United States",
+        "iata": "AA",
+        "icao": "AAL",
+        "id": 24,
+        "name": "American Airlines",
+        "type": "airline"
+    },
+    {
+        "callsign": "FLO WEST",
+        "country": "United States",
+        "iata": "RF",
+        "icao": "FWL",
+        "id": 2404,
+        "name": "Florida West International Airways",
+        "type": "airline"
+    },
+    {
+        "callsign": "JERSEY",
+        "country": "United Kingdom",
+        "iata": "BE",
+        "icao": "BEE",
+        "id": 2421,
+        "name": "Flybe",
+        "type": "airline"
+    },
+    {
+        "callsign": "GLOBESPAN",
+        "country": "United Kingdom",
+        "iata": "B4",
+        "icao": "GSM",
+        "id": 2425,
+        "name": "Flyglobespan",
+        "type": "airline"
+    },
+    {
+        "callsign": "FREEDOM",
+        "country": "United States",
+        "iata": "FP",
+        "icao": "FRE",
+        "id": 2454,
+        "name": "Freedom Air",
+        "type": "airline"
+    },
+    {
+        "callsign": "FREEDOM AIR",
+        "country": "United States",
+        "iata": null,
+        "icao": "FRL",
+        "id": 2456,
+        "name": "Freedom Airlines",
+        "type": "airline"
+    },
+    {
+        "callsign": "FRONTIER FLIGHT",
+        "country": "United States",
+        "iata": "F9",
+        "icao": "FFT",
+        "id": 2468,
+        "name": "Frontier Airlines",
+        "type": "airline"
+    },
+    {
+        "callsign": "FRONTIER-AIR",
+        "country": "United States",
+        "iata": "2F",
+        "icao": "FTA",
+        "id": 2470,
+        "name": "Frontier Flying Service",
+        "type": "airline"
+    },
+    {
+        "callsign": "GEEBEE AIRWAYS",
+        "country": "United Kingdom",
+        "iata": "GT",
+        "icao": "GBL",
+        "id": 2486,
+        "name": "GB Airways",
+        "type": "airline"
+    },
+    {
+        "callsign": "GATEWAY",
+        "country": "United States",
+        "iata": "G7",
+        "icao": "GJS",
+        "id": 2577,
+        "name": "GoJet Airlines",
+        "type": "airline"
+    },
+    {
+        "callsign": "LAKES AIR",
+        "country": "United States",
+        "iata": "ZK",
+        "icao": "GLA",
+        "id": 2607,
+        "name": "Great Lakes Airlines",
+        "type": "airline"
+    },
+    {
+        "callsign": "GULF FLIGHT",
+        "country": "United States",
+        "iata": null,
+        "icao": "GFT",
+        "id": 2645,
+        "name": "Gulfstream International Airlines",
+        "type": "airline"
+    },
+    {
+        "callsign": "HAGELAND",
+        "country": "United States",
+        "iata": "H6",
+        "icao": "HAG",
+        "id": 2657,
+        "name": "Hageland Aviation Services",
+        "type": "airline"
+    },
+    {
+        "callsign": "HAWAIIAN",
+        "country": "United States",
+        "iata": "HA",
+        "icao": "HAL",
+        "id": 2688,
+        "name": "Hawaiian Airlines",
+        "type": "airline"
+    },
+    {
+        "callsign": "HELIFRANCE",
+        "country": "France",
+        "iata": "8H",
+        "icao": "HFR",
+        "id": 2704,
+        "name": "Heli France",
+        "type": "airline"
+    },
+    {
+        "callsign": "HEX AIRLINE",
+        "country": "France",
+        "iata": "UD",
+        "icao": "HER",
+        "id": 2757,
+        "name": "Hex'Air",
+        "type": "airline"
+    },
+    {
+        "callsign": "HIWAY",
+        "country": "United Kingdom",
+        "iata": null,
+        "icao": "HWY",
+        "id": 2761,
+        "name": "Highland Airways",
+        "type": "airline"
+    },
+    {
+        "callsign": "HORIZON AIR",
+        "country": "United States",
+        "iata": "QX",
+        "icao": "QXE",
+        "id": 2778,
+        "name": "Horizon Air",
+        "type": "airline"
+    },
+    {
+        "callsign": "CACTUS",
+        "country": "United States",
+        "iata": "HP",
+        "icao": "AWE",
+        "id": 281,
+        "name": "America West Airlines",
+        "type": "airline"
+    },
+    {
+        "callsign": "AIR WISCONSIN",
+        "country": "United States",
+        "iata": "ZW",
+        "icao": "AWI",
+        "id": 282,
+        "name": "Air Wisconsin",
+        "type": "airline"
+    },
+    {
+        "callsign": "INDIGO BLUE",
+        "country": "United States",
+        "iata": "I9",
+        "icao": "IBU",
+        "id": 2855,
+        "name": "Indigo",
+        "type": "airline"
+    },
+    {
+        "callsign": "ALLEGHENY",
+        "country": "United States",
+        "iata": null,
+        "icao": "ALO",
+        "id": 287,
+        "name": "Allegheny Commuter Airlines",
+        "type": "airline"
+    },
+    {
+        "callsign": "AIR SUNSHINE",
+        "country": "United States",
+        "iata": null,
+        "icao": "RSI",
+        "id": 295,
+        "name": "Air Sunshine",
+        "type": "airline"
+    },
+    {
+        "callsign": "CHANNEX",
+        "country": "United Kingdom",
+        "iata": "LS",
+        "icao": "EXS",
+        "id": 3026,
+        "name": "Jet2.com",
+        "type": "airline"
+    },
+    {
+        "callsign": "JETBLUE",
+        "country": "United States",
+        "iata": "B6",
+        "icao": "JBU",
+        "id": 3029,
+        "name": "JetBlue Airways",
+        "type": "airline"
+    },
+    {
+        "callsign": "KENMORE",
+        "country": "United States",
+        "iata": "M5",
+        "icao": "KEN",
+        "id": 3123,
+        "name": "Kenmore Air",
+        "type": "airline"
+    },
+    {
+        "callsign": "AMTRAN",
+        "country": "United States",
+        "iata": null,
+        "icao": "AMT",
+        "id": 315,
+        "name": "ATA Airlines",
+        "type": "airline"
+    },
+    {
+        "callsign": "AIR SHUTTLE",
+        "country": "United States",
+        "iata": "YV",
+        "icao": "ASH",
+        "id": 3466,
+        "name": "Mesa Airlines",
+        "type": "airline"
+    },
+    {
+        "callsign": "MESABA",
+        "country": "United States",
+        "iata": "XJ",
+        "icao": "MES",
+        "id": 3467,
+        "name": "Mesaba Airlines",
+        "type": "airline"
+    },
+    {
+        "callsign": "MIDWAY",
+        "country": "United States",
+        "iata": "JI",
+        "icao": "MDW",
+        "id": 3494,
+        "name": "Midway Airlines",
+        "type": "airline"
+    },
+    {
+        "callsign": null,
+        "country": "United States",
+        "iata": "YX",
+        "icao": "MEP",
+        "id": 3497,
+        "name": "Midwest Airlines",
+        "type": "airline"
+    },
+    {
+        "callsign": "ALLEGIANT",
+        "country": "United States",
+        "iata": "G4",
+        "icao": "AAY",
+        "id": 35,
+        "name": "Allegiant Air",
+        "type": "airline"
+    },
+    {
+        "callsign": "MONARCH",
+        "country": "United Kingdom",
+        "iata": "ZB",
+        "icao": "MON",
+        "id": 3532,
+        "name": "Monarch Airlines",
+        "type": "airline"
+    },
+    {
+        "callsign": "KESTREL",
+        "country": "United Kingdom",
+        "iata": "VZ",
+        "icao": "MYT",
+        "id": 3568,
+        "name": "MyTravel Airways",
+        "type": "airline"
+    },
+    {
+        "callsign": "EXECJET",
+        "country": "United States",
+        "iata": "1I",
+        "icao": "EJA",
+        "id": 3641,
+        "name": "NetJets",
+        "type": "airline"
+    },
+    {
+        "callsign": "NEW ENGLAND",
+        "country": "United States",
+        "iata": "EJ",
+        "icao": "NEA",
+        "id": 3644,
+        "name": "New England Airlines",
+        "type": "airline"
+    },
+    {
+        "callsign": "COUNTY",
+        "country": "United Kingdom",
+        "iata": null,
+        "icao": "NCF",
+        "id": 3684,
+        "name": "Norfolk County Flight College",
+        "type": "airline"
+    },
+    {
+        "callsign": "NORTHWEST",
+        "country": "United States",
+        "iata": "NW",
+        "icao": "NWA",
+        "id": 3731,
+        "name": "Northwest Airlines",
+        "type": "airline"
+    },
+    {
+        "callsign": "OMNI-EXPRESS",
+        "country": "United States",
+        "iata": "OY",
+        "icao": "OAE",
+        "id": 3781,
+        "name": "Omni Air International",
+        "type": "airline"
+    },
+    {
+        "callsign": "PACIFIC ISLE",
+        "country": "United States",
+        "iata": null,
+        "icao": "PSA",
+        "id": 3860,
+        "name": "Pacific Island Aviation",
+        "type": "airline"
+    },
+    {
+        "callsign": "TSUNAMI",
+        "country": "United States",
+        "iata": "LW",
+        "icao": "NMI",
+        "id": 3865,
+        "name": "Pacific Wings",
+        "type": "airline"
+    },
+    {
+        "callsign": "PENINSULA",
+        "country": "United States",
+        "iata": "KS",
+        "icao": "PEN",
+        "id": 3935,
+        "name": "Peninsula Airways",
+        "type": "airline"
+    },
+    {
+        "callsign": "PIEDMONT",
+        "country": "United States",
+        "iata": "PI",
+        "icao": "PDT",
+        "id": 3969,
+        "name": "Piedmont Airlines (1948-1989)",
+        "type": "airline"
+    },
+    {
+        "callsign": "BIG A",
+        "country": "United States",
+        "iata": "JW",
+        "icao": "APW",
+        "id": 397,
+        "name": "Arrow Air",
+        "type": "airline"
+    },
+    {
+        "callsign": "FLAGSHIP",
+        "country": "United States",
+        "iata": "9E",
+        "icao": "FLG",
+        "id": 3976,
+        "name": "Pinnacle Airlines",
+        "type": "airline"
+    },
+    {
+        "callsign": "DISTRICT",
+        "country": "United States",
+        "iata": "BK",
+        "icao": "PDC",
+        "id": 4026,
+        "name": "Potomac Air",
+        "type": "airline"
+    },
+    {
+        "callsign": "KINLOSS",
+        "country": "United Kingdom",
+        "iata": null,
+        "icao": "KIN",
+        "id": 4113,
+        "name": "Kinloss Flying Training Unit",
+        "type": "airline"
+    },
+    {
+        "callsign": "BRICKYARD",
+        "country": "United States",
+        "iata": "RW",
+        "icao": "RPA",
+        "id": 4187,
+        "name": "Republic Airlines",
+        "type": "airline"
+    },
+    {
+        "callsign": "RYAN AIR",
+        "country": "United States",
+        "iata": null,
+        "icao": "RYA",
+        "id": 4294,
+        "name": "Ryan Air Services",
+        "type": "airline"
+    },
+    {
+        "callsign": "RYAN INTERNATIONAL",
+        "country": "United States",
+        "iata": "RD",
+        "icao": "RYN",
+        "id": 4295,
+        "name": "Ryan International Airlines",
+        "type": "airline"
+    },
+    {
+        "callsign": "REGIONAL EUROPE",
+        "country": "France",
+        "iata": "YS",
+        "icao": "RAE",
+        "id": 4299,
+        "name": "RÃ©gional",
+        "type": "airline"
+    },
+    {
+        "callsign": "SUCKLING",
+        "country": "United Kingdom",
+        "iata": null,
+        "icao": "SAY",
+        "id": 4323,
+        "name": "ScotAirways",
+        "type": "airline"
+    },
+    {
+        "callsign": "SEABORNE",
+        "country": "United States",
+        "iata": "BB",
+        "icao": "SBS",
+        "id": 4335,
+        "name": "Seaborne Airlines",
+        "type": "airline"
+    },
+    {
+        "callsign": "SCENIC",
+        "country": "United States",
+        "iata": null,
+        "icao": "SCE",
+        "id": 4342,
+        "name": "Scenic Airlines",
+        "type": "airline"
+    },
+    {
+        "callsign": "SUN COUNTRY",
+        "country": "United States",
+        "iata": "SY",
+        "icao": "SCX",
+        "id": 4356,
+        "name": "Sun Country Airlines",
+        "type": "airline"
+    },
+    {
+        "callsign": "SOUTHEAST AIR",
+        "country": "United States",
+        "iata": null,
+        "icao": "SEA",
+        "id": 4370,
+        "name": "Southeast Air",
+        "type": "airline"
+    },
+    {
+        "callsign": "SKAGWAY AIR",
+        "country": "United States",
+        "iata": "N5",
+        "icao": "SGY",
+        "id": 4411,
+        "name": "Skagway Air Service",
+        "type": "airline"
+    },
+    {
+        "callsign": "ACEY",
+        "country": "United States",
+        "iata": "EV",
+        "icao": "ASQ",
+        "id": 452,
+        "name": "Atlantic Southeast Airlines",
+        "type": "airline"
+    },
+    {
+        "callsign": "SOUTHWEST",
+        "country": "United States",
+        "iata": "WN",
+        "icao": "SWA",
+        "id": 4547,
+        "name": "Southwest Airlines",
+        "type": "airline"
+    },
+    {
+        "callsign": "SKYWAY-EX",
+        "country": "United States",
+        "iata": "AL",
+        "icao": "SYX",
+        "id": 4589,
+        "name": "Skywalk Airlines",
+        "type": "airline"
+    },
+    {
+        "callsign": "SPIRIT WINGS",
+        "country": "United States",
+        "iata": "NK",
+        "icao": "NKS",
+        "id": 4687,
+        "name": "Spirit Airlines",
+        "type": "airline"
+    },
+    {
+        "callsign": "SKYWEST",
+        "country": "United States",
+        "iata": "OO",
+        "icao": "SKW",
+        "id": 4738,
+        "name": "SkyWest",
+        "type": "airline"
+    },
+    {
+        "callsign": null,
+        "country": "France",
+        "iata": "PJ",
+        "icao": "SPM",
+        "id": 477,
+        "name": "Air Saint Pierre",
+        "type": "airline"
+    },
+    {
+        "callsign": "SOUTHERN EXPRESS",
+        "country": "United States",
+        "iata": null,
+        "icao": "SOU",
+        "id": 4804,
+        "name": "Southern Airways",
+        "type": "airline"
+    },
+    {
+        "callsign": "SOUTH PACIFIC",
+        "country": "United States",
+        "iata": null,
+        "icao": "SPI",
+        "id": 4816,
+        "name": "South Pacific Island Airways",
+        "type": "airline"
+    },
+    {
+        "callsign": "MERCURY",
+        "country": "United States",
+        "iata": "S5",
+        "icao": "TCF",
+        "id": 4822,
+        "name": "Shuttle America",
+        "type": "airline"
+    },
+    {
+        "callsign": "KESTREL",
+        "country": "United Kingdom",
+        "iata": "MT",
+        "icao": "TCX",
+        "id": 4897,
+        "name": "Thomas Cook Airlines",
+        "type": "airline"
+    },
+    {
+        "callsign": "SWALLOW",
+        "country": "United Kingdom",
+        "iata": null,
+        "icao": "WOW",
+        "id": 492,
+        "name": "Air Southwest",
+        "type": "airline"
+    },
+    {
+        "callsign": "TWINJET",
+        "country": "France",
+        "iata": "T7",
+        "icao": "TJT",
+        "id": 4965,
+        "name": "Twin Jet",
+        "type": "airline"
+    },
+    {
+        "callsign": "TOMSON",
+        "country": "United Kingdom",
+        "iata": "BY",
+        "icao": "TOM",
+        "id": 5013,
+        "name": "Thomsonfly",
+        "type": "airline"
+    },
+    {
+        "callsign": "AYLINE",
+        "country": "United Kingdom",
+        "iata": "GR",
+        "icao": "AUR",
+        "id": 508,
+        "name": "Aurigny Air Services",
+        "type": "airline"
+    },
+    {
+        "callsign": "WATERSKI",
+        "country": "United States",
+        "iata": "AX",
+        "icao": "LOF",
+        "id": 5160,
+        "name": "Trans States Airlines",
+        "type": "airline"
+    },
+    {
+        "callsign": "GETAWAY",
+        "country": "United States",
+        "iata": "U5",
+        "icao": "GWY",
+        "id": 5207,
+        "name": "USA3000 Airlines",
+        "type": "airline"
+    },
+    {
+        "callsign": "UNITED",
+        "country": "United States",
+        "iata": "UA",
+        "icao": "UAL",
+        "id": 5209,
+        "name": "United Airlines",
+        "type": "airline"
+    },
+    {
+        "callsign": "U S AIR",
+        "country": "United States",
+        "iata": "US",
+        "icao": "USA",
+        "id": 5265,
+        "name": "US Airways",
+        "type": "airline"
+    },
+    {
+        "callsign": "US-HELI",
+        "country": "United States",
+        "iata": null,
+        "icao": "USH",
+        "id": 5268,
+        "name": "US Helicopter",
+        "type": "airline"
+    },
+    {
+        "callsign": "AIR CHIEF",
+        "country": "United States",
+        "iata": null,
+        "icao": "AIO",
+        "id": 5279,
+        "name": "United States Air Force",
+        "type": "airline"
+    },
+    {
+        "callsign": "REDWOOD",
+        "country": "United States",
+        "iata": "VX",
+        "icao": "VRD",
+        "id": 5331,
+        "name": "Virgin America",
+        "type": "airline"
+    },
+    {
+        "callsign": "VIRGIN",
+        "country": "United Kingdom",
+        "iata": "VS",
+        "icao": "VIR",
+        "id": 5347,
+        "name": "Virgin Atlantic Airways",
+        "type": "airline"
+    },
+    {
+        "callsign": "WESTERN",
+        "country": "United States",
+        "iata": "WA",
+        "icao": "WAL",
+        "id": 5424,
+        "name": "Western Airlines",
+        "type": "airline"
+    },
+    {
+        "callsign": "WORLD",
+        "country": "United States",
+        "iata": "WO",
+        "icao": "WOA",
+        "id": 5465,
+        "name": "World Airways",
+        "type": "airline"
+    },
+    {
+        "callsign": "MEDITERRANEE",
+        "country": "France",
+        "iata": "DR",
+        "icao": "BIE",
+        "id": 547,
+        "name": "Air Mediterranee",
+        "type": "airline"
+    },
+    {
+        "callsign": "STARWAY",
+        "country": "France",
+        "iata": "SE",
+        "icao": "SEU",
+        "id": 5479,
+        "name": "XL Airways France",
+        "type": "airline"
+    },
+    {
+        "callsign": "AIR MOOREA",
+        "country": "France",
+        "iata": null,
+        "icao": "TAH",
+        "id": 551,
+        "name": "Air Moorea",
+        "type": "airline"
+    },
+    {
+        "callsign": "RED DRAGON",
+        "country": "United Kingdom",
+        "iata": "6G",
+        "icao": "AWW",
+        "id": 565,
+        "name": "Air Wales",
+        "type": "airline"
+    },
+    {
+        "callsign": "FRENCH WEST",
+        "country": "France",
+        "iata": "TX",
+        "icao": "FWI",
+        "id": 567,
+        "name": "Air CaraÃ¯bes",
+        "type": "airline"
+    },
+    {
+        "callsign": "EAGLE FLIGHT",
+        "country": "United States",
+        "iata": "MQ",
+        "icao": "EGF",
+        "id": 659,
+        "name": "American Eagle Airlines",
+        "type": "airline"
+    },
+    {
+        "callsign": "FLIGHTVUE",
+        "country": "United Kingdom",
+        "iata": null,
+        "icao": "VUE",
+        "id": 665,
+        "name": "AD Aviation",
+        "type": "airline"
+    },
+    {
+        "callsign": "FOYLE",
+        "country": "United Kingdom",
+        "iata": "GS",
+        "icao": "UPA",
+        "id": 690,
+        "name": "Air Foyle",
+        "type": "airline"
+    },
+    {
+        "callsign": "CYCLONE",
+        "country": "United States",
+        "iata": "ZA",
+        "icao": "CYD",
+        "id": 792,
+        "name": "Access Air",
+        "type": "airline"
+    },
+    {
+        "callsign": "FRENCH SUN",
+        "country": "France",
+        "iata": "TO",
+        "icao": "TVF",
+        "id": 8745,
+        "name": "Transavia France",
+        "type": "airline"
+    },
+    {
+        "callsign": null,
+        "country": "United States",
+        "iata": "WP",
+        "icao": "MKU",
+        "id": 8809,
+        "name": "Island Air (WP)",
+        "type": "airline"
+    },
+    {
+        "callsign": "AIR FLORIDA",
+        "country": "United States",
+        "iata": "QH",
+        "icao": "FLZ",
+        "id": 882,
+        "name": "Air Florida",
+        "type": "airline"
+    },
+    {
+        "callsign": "GIANT",
+        "country": "United States",
+        "iata": "5Y",
+        "icao": "GTI",
+        "id": 928,
+        "name": "Atlas Air",
+        "type": "airline"
+    },
+    {
+        "callsign": "Epic",
+        "country": "United States",
+        "iata": "FA",
+        "icao": "4AA",
+        "id": 9833,
+        "name": "Epic Holiday",
+        "type": "airline"
+    }
+]

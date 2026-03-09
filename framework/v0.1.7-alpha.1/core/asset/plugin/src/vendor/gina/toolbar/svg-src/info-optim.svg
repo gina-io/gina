@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 12">
+  <defs>
+  <mask id="m1" x="0" y="0" width="12" height="12" >
+    <rect x="3" y="2" width= "6" height="1" />
+    <rect x="3" y="4" width= "6" height="1" />
+    <rect x="3" y="6" width= "6" height="1" />
+  </mask>
+</defs>
+  <g style="fill:green; mask:url(#m1)">
+    <rect x="0" y="0" rx="2" ry="2" width="12" height="9" />
+    <polygon points="2,8 2,12 3,12 8,8" />
+  </g>
+</svg>

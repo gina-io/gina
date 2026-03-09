@@ -1,0 +1,7 @@
+{
+  "name": "{project}",
+  "version": "{version}",
+  "scope": "{scope}",
+  "rootDomain": "{rootDomain}",
+  "bundles": {}
+}

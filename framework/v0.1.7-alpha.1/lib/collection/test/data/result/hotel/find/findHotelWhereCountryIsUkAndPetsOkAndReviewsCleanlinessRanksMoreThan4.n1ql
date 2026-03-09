@@ -1,0 +1,6 @@
+SELECT h.*
+FROM `travel-sample` h
+WHERE h.type = 'hotel'
+AND h.country = 'United Kingdom'
+AND h.pets_ok = true
+AND ANY r WITHIN h.reviews[*] SATISFIES r.Cleanliness >= 4 END;

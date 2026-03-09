@@ -1,0 +1,57 @@
+******************************
+* Protocol command lines e.g. *
+******************************
+
+Protocols represents the kind of server you want to attach to your bundle.
+By default, Gina uses `http` server and will therefore launch an http instance of
+your server.
+you have with `gina:protocol` the ability to change the type of intance you
+want your bundle to run with.
+Gina allows you to set protocol instances like https, http/2 :
+this will determining the prefered protocol used when your bundle
+will interact with other application as a client (agent). Don't worry you
+still have the choice in the end.
+
+N.B.: You need to restart your bundle or you whole project if you are not running with a developer environment
+
+
+[ Listing installed protocols ]
+
+    $ gina protocol:list <bundle_name> @<project_name>
+
+    or
+
+    $ gina protocol:list <bundle_name> @<project_name>/<environment>
+
+
+
+[ Set a protocol ]
+
+    Setting up a new protocol or selecting an existing one
+    ----------
+
+    Allows you to install or to select a protocol for an existing bundle. Use the following command line.
+    
+    Set default a protocol for all your bundle :
+    - If no <protocol> is mentioned, you will be prompted to enter an existing protocol
+
+    $ gina protocol:set <bundle_name> @<project_name>
+    
+    Set default a protocol for all your project :
+    - If no <protocol> is mentioned, you will be prompted to enter an existing protocol
+
+    $ gina protocol:set @<project_name>
+
+
+
+[ Remove a protocol ]
+
+    Removing a protocol
+    ----------
+
+    To remove a protocol for an existing bundle, use the following command line.
+    
+    Set default a protocol for all your bundle's environments :
+    - If no <protocol> is mentioned, you will be prompted to enter an existing protocol
+
+    $ gina protocol:remouve <bundle_name> @<project_name>

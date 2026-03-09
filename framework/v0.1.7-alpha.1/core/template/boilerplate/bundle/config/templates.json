@@ -1,0 +1,42 @@
+// bundle needs to be restarted on changes !!
+{
+    // common definitions : will apply for all templates
+    "_common": {
+        // by default, or it will load `layout.html` if exists or `nolayout.html`(from the framework assets)
+        "layout": "{templatesPath}/html/layouts/main.html",
+        // means that the file name of the template is the same as the route name
+        // You can override it through the routing.json
+        "routeNameAsFilenameEnabled": true,
+        "http-metas": {
+            "content-type": "text/html"
+        },
+        // global css - Will fetch from {bundle}/public
+        "stylesheets": [
+            {
+                "url": "/css/default.css"
+            }
+        ],
+        "javascriptsDeferEnabled": true,
+        "javascripts": [
+            // "/js/vendor/jquery/jquery-3.1.0.min.js",
+            // "/js/vendor/modernizr-2.8.3.min.js",
+            "/handlers/main.js"
+        ]
+    },
+
+    "home": {
+        // If you want to exclude all global css
+        //"stylesheetsExcluded": "*",
+        // If you also want to get rid of `gina` definitions, use "**" while excluding
+
+        // local css - Will fetch from {bundle}/public
+        "stylesheets": [
+            {
+                "url": "/css/home.css"
+            }
+        ]
+
+        // If you want to exclude all global js
+        //"javascriptsExcluded": "*"
+    }
+}
