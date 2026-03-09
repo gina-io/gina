@@ -1,6 +1,8 @@
-# IDE
+.DS_Store
+browser/**
 .jshintrc
 .idea
+.lh
 nbproject
 .vscode
 .history
@@ -8,12 +10,13 @@ support
 test
 examples
 *.sock
+doc
 script/prepare.js
 test/workspace
 framework/v*/node_modules
-framework/v*/core/asset/js/plugin/lib
-framework/v*/core/asset/js/plugin/src
-framework/v*/core/asset/js/plugin/build*
+framework/v*/core/asset/plugin/lib
+framework/v*/core/asset/plugin/src
+framework/v*/core/asset/plugin/build*
 framework/v*/SUCCESS
 framework/v*/MIDDLEWARE
 node_modules
@@ -24,3 +27,46 @@ tmp/*
 gina.com
 MIDDLEWARE
 package-lock.json
+script/post_publish.js
+script/prepare_version.js
+
+# AI / internal development notes
+.claude/
+CLAUDE.md
+
+# Secrets
+.env
+
+# Contributor docs (not for npm consumers)
+README-4Contributors.md
+
+# Changie tooling
+.changes/
+.changie.yaml
+
+# Framework services (WIP — not ready for distribution)
+services/
+
+# Vendor dep extras — CI configs, benchmarks, examples
+framework/v*/core/deps/busboy-*/.github/
+framework/v*/core/deps/busboy-*/bench/
+framework/v*/core/deps/optimist-*/.travis.yml
+framework/v*/core/deps/optimist-*/example/
+
+# Vendor dep backup originals and source maps (in .gitignore but .npmignore overrides it)
+*.dist
+*.map
+
+# Library examples and standalone test files
+framework/v*/lib/domain/exemples/
+framework/v*/lib/inherits/example/
+framework/v*/lib/merge/example/
+framework/v*/lib/url/test.js
+framework/v*/lib/url/mocks.json
+
+# Locale build sources (compiled dist/ is already included)
+framework/v*/core/locales/src/
+
+# Stray backup files (*.bak / *.bak.* in .gitignore but not here; *.old already covered above)
+*.bak
+*.bak.*

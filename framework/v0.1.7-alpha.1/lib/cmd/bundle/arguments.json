@@ -1,0 +1,8 @@
+[
+  "--env",
+  "--scope",
+  "--force",
+  "--import",
+  "--replace",
+  "--start-port-from"
+]

@@ -1,0 +1,82 @@
+ {
+    "address": "5 rue de la Dîme",
+    "alias": null,
+    "checkin": null,
+    "checkout": null,
+    "city": "Giverny",
+    "country": "France",
+    "description": "Situated near the church and just a few minutes walking distance from Monet's gardens and the Museum of Impressionisms, you will find Danielle and Claude's home, surrounded by a large magnificent garden, where you will find a haven of peace and tranquillity. Danielle speaks fluent English having spent many years in Australia.",
+    "directions": "27620 Giverny",
+    "email": null,
+    "fax": null,
+    "free_breakfast": true,
+    "free_internet": true,
+    "free_parking": true,
+    "geo": {
+      "accuracy": "ROOFTOP",
+      "lat": 49.0763077,
+      "lon": 1.5234464
+    },
+    "id": 10064,
+    "name": "Le Clos Fleuri",
+    "pets_ok": false,
+    "phone": "+33 2 32 21 36 51",
+    "price": null,
+    "public_likes": [
+      "Thomas Wilkinson",
+      "Jesse Goyette",
+      "Dallas Smitham",
+      "Madilyn Kub",
+      "Roxanne Murazik",
+      "Kale Runte",
+      "Ephraim Hane"
+    ],
+    "reviews": [
+      {
+        "author": "Earlene Feest",
+        "content": "Very basic place to stay with adjoining buildings still run down from Katrina. If you have a car and looking for good value this is perfect. Complimentary Breakfast is adequate for what you pay. Overall we saved money on staying in french quarter... Taxi was $20 one way and closer to $45 to get to the airport.",
+        "date": "2013-06-13 01:39:18 +0300",
+        "ratings": {
+          "Cleanliness": 2,
+          "Location": 2,
+          "Overall": 3,
+          "Rooms": 2,
+          "Service": 3,
+          "Value": 5
+        }
+      },
+      {
+        "author": "Mr. Adelia Daniel",
+        "content": "the bed were never cleaned, the same linens were on the bed. i would like a refund of $265.36. the office people who checked you in were not the friendly people either. they did not tell me just what time check-out was so i got charged for another day. it was so that i needed to get back on the road off the rain. when we went into the room the night of september 01,2011 it had not been clean because their was no toilet paper nor soap in it.every day i had to ask for towels and thing to use to get cleaned up. please send me a refund of the money that i spend for 4 nights of not been serviced at this motel. doris myers room 253",
+        "date": "2015-11-28 13:29:30 +0300",
+        "ratings": {
+          "Cleanliness": 1,
+          "Location": 3,
+          "Overall": 2,
+          "Rooms": 3,
+          "Service": 1,
+          "Sleep Quality": 3,
+          "Value": 1
+        }
+      },
+      {
+        "author": "Domenick Waters DVM",
+        "content": "Well, I was quite skeptical of staying in this area of town. It looks rough. I.Was.Wrong. Kenneth was off, but Nimesh was Awesome! He recommended a terrific Bistro for brunch. The room was spotless and smelled fresh. We were treated like we had spent 3 Times the amount of money for the room. They also had a terrific deal For cruise parking. I will stay again!",
+        "date": "2014-12-02 19:38:33 +0300",
+        "ratings": {
+          "Cleanliness": 5,
+          "Location": 3,
+          "Overall": 5,
+          "Rooms": 5,
+          "Service": 5,
+          "Value": 5
+        }
+      }
+    ],
+    "state": "Haute-Normandie",
+    "title": "Giverny",
+    "tollfree": null,
+    "type": "hotel",
+    "url": "http://www.giverny-leclosfleuri.fr/",
+    "vacancy": true
+}

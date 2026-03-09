@@ -12,7 +12,7 @@
 
 
 NODE=/opt/node/bin/node
-DAEMON=/usr/local/lib/node_modules/gina
+DAEMON=$(which gina)
 DAEMON_NAME=gina
 
 CMD=/usr/local/gina

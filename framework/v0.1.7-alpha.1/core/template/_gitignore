@@ -1,0 +1,19 @@
+# SCM
+.svn
+.git
+
+# Desktop
+.DS_Store
+._.DS_Store
+desktop.ini
+
+# Project
+.gna
+bundles
+package-lock.json
+node_modules
+npm-debug.log
+releases
+bundles
+logs
+tmp

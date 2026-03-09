@@ -1,7 +1,0 @@
-{
-    "error" : {
-        "code" : "401",
-        "message" : "GNA:GLOBAL:ERR:401",
-        "explicit" : "Unauthorized"
-    }
-}

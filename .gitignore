@@ -1,44 +1,61 @@
-
 # IDE
+.lh
 .jshintrc
 .idea
 nbproject
 .vscode
 .history
+*.codekit3
+
+# SCM
+.svn
+.git
+
+# Claude AI
+CLAUDE.md
 
 # Gina
+.*
+!/.gitignore
+!/.npmignore
+!/.changes
+/services
 /logs
 /tmp
-/cache
+/cache/*
 .gna
-node_modules*
+node_modules/
 VERSION
 MIDDLEWARE
 package-lock.json
 * copy
-# SCM
-.svn
-.git
 test/workspace
 SUCCESS
 
 # Desktop
 .DS_Store
+._.DS_Store
+Icon?
 desktop.ini
+Thumbs.db
 
 # Misc
 /data
 /cgi-bin
-._.DS_Store
+.env
 *.bak
+*.bak.*
 *.old
 *.old.js
 src.old
+*.log
+!test/**/fixtures/**/*.log
+*.afdesign
 
-
-framework/v0.1.0/package-lock.json
-
-framework/v0.1.0/package.json
-
-*.codekit3
-package-lock.json
+# Framework
+framework/v*/package-lock.json
+framework/v*/package.json
+# framework/v*/
+framework/v*/test/workspace
+*.jar
+*.map

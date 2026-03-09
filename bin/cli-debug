@@ -3,11 +3,13 @@
 /**
  * Mainly used to debug framework CMD lib - default port should be #5858 by default
  * To modify the debug port :
- * 
+ *
  * $ gina framework:set --debug-port=<your new debug port>
  */
 const fs    = require('fs');
 const {exec} = require('child_process');
+const {execSync}   = require('child_process');
+const {spawn}   = require('child_process');
 const os    = require('os');
 
 var isWin32 = function() {
@@ -15,9 +17,9 @@ var isWin32 = function() {
 }
 
 var argv = process.argv.splice(2);
-argv = argv.join(' ');
+var argvStr = argv.join(' ');
 
-console.log('running: gina ' + argv );
+console.log('running: gina ' + argvStr );
 
 // fetching config
 var homeDir = (process.env[(isWin32()) ? 'USERPROFILE' : 'HOME'] );
@@ -30,31 +32,61 @@ version = version.splice(0, 2).join('.');
 var settings = require(homeDir + ((isWin32()) ? '\\' + version + '\\settings.json' : '/' + version +'/settings.json'));
 
 var debugPort = null;
-var params = argv.split(/\s+/g);
+var params = argvStr.split(/\s+/g);
 if ( params.length > 0 ) {
-    for (var p = 0, len = params.length; p < len; ++p) {
+    for (let p = 0, len = params.length; p < len; ++p) {
         if ( /^\-\-port/.test(params[p]) ) {
-            setEnvVar('GINA_PORT', ~~params[p].split(/\=/)[1]);
+            setEnvVar('GINA_PORT', ~~params[p].split(/\=/)[1]);// jshint ignore:line
             continue;
         }
         if ( /^\-\-debug(\_|\-)port/.test(params[p]) ) {
-            setEnvVar('GINA_DEBUG_PORT', ~~params[p].split(/\=/)[1]);
+            setEnvVar('GINA_DEBUG_PORT', ~~params[p].split(/\=/)[1]);// jshint ignore:line
             continue;
         }
-        if ( /^\-\-(inspect|debug)/.test(params[p]) ) {
-            debugPort = ~~params[p].split(/\=/)[1];
-            process.argv.splice(p,1);   
+        if ( /^\-\-(inspect|debug)\-gina/.test(params[p]) ) {
+            debugPort = ~~params[p].split(/\=/)[1] || null;
+
+            argv.splice(argv.indexOf('--inspect-gina'), 1);
+            Array.prototype.splice.call(process.argv, argv.indexOf('--inspect-gina'), 1);
+            argvStr = argv.join(' ');
         }
     }
 }
 
-// gina defaullt debug port
-debugPort = (debugPort != null) ? debugPort : '--inspect-brk=' + settings.debug_port;
-console.log('You should now start debug on port #'+ settings.debug_port);
-exec('node ' + debugPort +' '+ __dirname +'/cli ' + argv, (error, stdout, stderr) => {
-    if (error) {
-        console.error(`exec error: ${error}`);
-        return;
+
+// gina default debug port
+debugPort = (debugPort != null) ? '--inspect-brk=0.0.0.0:'+debugPort : '--inspect-brk=0.0.0.0:' + settings.debug_port;
+
+// console.debug('OK ? ', 'node ' + debugPort +' '+ __dirname +'/cli ' + argvStr);
+// console.debug('\r\nDebugger attached.');
+console.log('\nYou should now start debug on port #'+ settings.debug_port +' before doing anything else ...');
+
+var nodeBin         = execSync('which node').toString().trim();
+var cliBin          = __dirname + '/cli';
+
+argv.splice(0, 0, debugPort);
+argv.splice(1, 0, cliBin);
+
+// console.debug('node ' + debugPort +' '+ __dirname +'/cli ' + argvStr);
+// console.debug('debugPort ', debugPort);
+// console.debug('argvStr ', argvStr);
+// console.debug('argv ', argv);
+
+var child = spawn(nodeBin, argv,
+    {
+        detached: true
     }
-    console.log(`${stdout}`);
+);
+
+// set encoding
+child.stdout.setEncoding('utf8');
+child.stdout.on('data', function(data) {
+    process.stdout.write('[debugger]'+data);
 });
+
+// when an exception is thrown, it is sent to the client
+child.stderr.setEncoding('utf8');
+child.stderr.on('data', function(data) {
+    process.stdout.write('[debugger]'+ data)
+});
+// exit is handle by the parent process

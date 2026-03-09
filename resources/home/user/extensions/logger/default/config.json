@@ -1,6 +1,6 @@
 {
-    "_comment": "For `text colors` definitions: https://www.npmjs.com/package/colors"
-    "template": "%d [%s][%a] %m",
+    "_comment": "For `text colors` definitions: https://www.npmjs.com/package/colors",
+    "template": "[%d] [%s][%a] %m",
     "flows": [],
     "levels" : {
         "emerg": {

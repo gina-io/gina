@@ -1,0 +1,183 @@
+{% extends "./layout.html" %}
+{% import "./includes/macros.html" as docmacro %}
+
+{% block title %}{% parent %} &raquo; Extending Swig{% endblock %}
+
+{% block content %}
+
+<h1 id="extending">Extending Swig</h1>
+
+<section id="filters">
+  <h2>Custom Filters</h2>
+
+  {% for t in ext %}
+  {% if t.kind === 'typedef' and t.undocumented !== true and t.name === 'Filter' %}
+  <section class="doc">
+    {{ docmacro.description(t) }}
+
+    <h4>Arguments</h4>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Optional</th>
+          <th>Default</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for p in t.params %}
+      <tr>
+        <td><var data-language="js">{{ p.name }}</var></td>
+        <td><code data-language="js">{{ p.type.names.join(', ') }}</code></td>
+        <td>{% if p.optional === true %}✔{% endif %}</td>
+        <td><samp data-language="js">{{ p.defaultvalue }}</samp></td>
+        <td>{{ docmacro.description(p) }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+
+    {% for ex in t.examples %}
+    <pre><code data-language="js">{{ ex }}</code></pre>
+    {% endfor %}
+  </section>
+  {% endif %}{% endfor %}
+</section>
+
+<hr>
+
+<section id="tags">
+  <h2>Custom Tags</h2>
+
+  <p>Swig can be extended to handle custom tags that will perform operations on full blocks of your templates. Use <a href="{{ baseurl }}/docs/api/#setTag"><code data-language="js">swig.setTag(name, parse, compile, ends, blockLevel)</code></a> to add your custom tag.</p>
+
+  <p>All of Swig's tags are written using the same api (with a few exceptions for core modules, like <var>extends</var> and <var>block</var>). View a tag's source to see more examples to write your own custom tags.</p>
+
+  {% set isMethod = ['parse', 'compile'] %}
+  {% for t in ext %}{% if t.undocumented !== true and t.kind === 'typedef' and isMethod.indexOf(t.name) !== -1 %}
+  <section id="{{ t.name }}" class="doc">
+    <h3>{{ t.name }}({% for p in t.params %}{{ p.name }}{% if not loop.last %}, {% endif %}{% endfor %})</h3>
+
+    <p>{{ docmacro.description(t) }}</p>
+
+    <h4>Arguments</h4>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Optional</th>
+          <th>Default</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for p in t.params %}
+      <tr>
+        <td><var data-language="js">{{ p.name }}</var></td>
+        <td><code data-language="js">{{ p.type.names.join(', ') }}</code></td>
+        <td>{% if p.optional === true %}✔{% endif %}</td>
+        <td><samp data-language="js">{{ p.defaultvalue }}</samp></td>
+        <td>{{ docmacro.description(p) }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+
+    {% for ex in t.examples %}
+    <pre><code data-language="js">{{ ex }}</code></pre>
+    {% endfor %}
+
+  </section>
+  {% endif %}{% endfor %}
+
+  <section id="ends" class="doc">
+    <h3>ends</h3>
+
+    <p>Controls whether or not a tag must have an <code data-language="swig">{% raw %}{% end[tagName] %}{% endraw %}</code> declared after usage in templates.</p>
+
+    <pre><code data-language="js">exports.ends = true;
+// => A template that fails to close this tag will throw an Error.</code></pre>
+
+    <pre><code data-language="js">exports.ends = false;
+// => A template attempts close this tag will throw an Error.</code></pre>
+   </section>
+
+   <section id="blockLevel" class="doc">
+     <h3>blockLevel</h3>
+
+     <p>Allow the tag to be written outside of <code data-language="swig">{% raw %}{% block &lt;name&gt; %}{% endblock %}{% endraw %}</code> tags when extending a parent template.</p>
+
+     <pre><code data-language="js">exports.blockLevel = true;</code></pre>
+     <pre><code data-language="swig">{% raw %}{% extends "foo" %}
+{% mytag foo bar baz %}
+// Normally this will be ignored, but since we allowed it to be block-level,
+// it will be included in the fully-parsed template.
+
+{% block content %}
+  ...
+{% endblock %}{% endraw %}</code></pre>
+   </section>
+
+  {% for prop in ext %}
+    {% if prop.isEnum %}
+    <section id="{{ prop.name }}" class="doc">
+      <h3>{{ prop.name }}</h3>
+      {{ docmacro.source(prop, 1) }}
+      {{ docmacro.description(prop) }}
+      <table>
+        <thead>
+          <tr>
+            <th>Value</th>
+            <th>Name</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+        <tr>
+          <td><samp data-language="js">'*'</samp></td>
+          <td></td>
+          <td>For every token, run the given callback.</td>
+        </tr>
+        <tr>
+          <td><samp data-language="js">'start'</samp></td>
+          <td></td>
+          <td>Run before any token is parsed.</td>
+        </tr>
+        <tr>
+          <td><samp data-language="js">'end'</samp></td>
+          <td></td>
+          <td>Run after all other tokens have been parsed.</td>
+        </tr>
+        {% for p in prop.properties %}
+        <tr>
+          <td><samp data-language="js">{{ p.defaultvalue }}</samp></td>
+          <td><var data-language="js">types.{{ p.name }}</var></td>
+          <td>{{ docmacro.description(p) }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </section>
+    {% endif %}
+  {% endfor %}
+</section>
+{% endblock %}
+
+{% block extendingsubnav %}
+<ol>
+  <li><a href="#filters">Custom Filters</a></li>
+  <li>
+    <a href="#tags">Custom Tags</a>
+    <ol>
+      <li><a href="#parse">parse</a></li>
+      <li><a href="#compile">compile</a></li>
+      <li><a href="#ends">ends</a></li>
+      <li><a href="#blockLevel">blockLevel</a></li>
+      <li><a href="#TYPES">Token Types</a></li>
+    </ol>
+  </li>
+</ol>
+{% endblock %}
