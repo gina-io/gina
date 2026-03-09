@@ -1,6 +1,6 @@
 /**
  * clone array
- * 
+ *
  * @returns {array} Return cloned array
  * @supress {misplacedTypeAnnotation}
  **/
@@ -21,14 +21,14 @@ if ( typeof(JSON.escape) == 'undefined' ) {
     /**
      * JSON.escape
      * Escape special characters
-     * 
-     * Changes made here must be reflected in: 
+     *
+     * Changes made here must be reflected in:
      *  - gina/utils/prototypes.js
      *  - gina/framework/version/helpers/prototypes.js
-     *  - gina/framework/version/core/asset/js/plugin/src/gina/utils/polyfill.js
-     * 
+     *  - gina/framework/version/core/asset/plugin/src/vendor/gina/js/utils/polyfill.js
+     *
      * @param {object} jsonStr
-     * 
+     *
      * @returns {object} escaped JSON string
      **/
      var escape = function(jsonStr){
@@ -38,11 +38,11 @@ if ( typeof(JSON.escape) == 'undefined' ) {
                        .replace(/\r/g, "\\r")
                        .replace(/\t/g, "\\t")
                    ;
-        } catch (err) {         
+        } catch (err) {
            throw err;
         }
     };
-    
+
     JSON.escape = escape;
 }
 
@@ -98,7 +98,7 @@ Object.defineProperty( Object.prototype, 'functionCount', {
 /**
  * __stack Get current stack
  * @returns {Object} stack Current stack
- * 
+ *
  * @suppress {es5Strict}
  **/
 Object.defineProperty(global, '__stack', {

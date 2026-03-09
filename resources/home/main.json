@@ -3,6 +3,52 @@
         "{release}": [ "{version}" ]
     },
     "def_framework": "{version}",
+    "def_prefix": {
+        "{release}": "{prefix}"
+    },
+    "def_global_mode": {
+        "{release}": "{global_mode}"
+    },
+    "archs": {
+        "{release}": [
+            "arm",
+            "arm64",
+            "x64",
+            "amd64"
+        ]
+    },
+    "def_arch": {
+        "{release}": "x64"
+    },
+    "platforms": {
+        "{release}": [
+            "darwin",
+            "linux",
+            "win32",
+            "freebsd",
+            "openbsd",
+            "sunos",
+            "aix"
+        ]
+    },
+    "def_platform": {
+        "{release}": "linux"
+    },
+    "scopes": {
+        "{release}": [
+            "local",
+            "production"
+        ]
+    },
+    "def_scope": {
+        "{release}": "local"
+    },
+    "local_scope": {
+        "{release}": "local"
+    },
+    "production_scope": {
+        "{release}": "production"
+    },
     "envs": {
         "{release}": [ "dev", "prod" ]
     },
@@ -12,7 +58,7 @@
     "dev_env": {
         "{release}": "dev"
     },
-    
+
     "protocols": {
         "_comment": "e.g.:  http/1.1, http/2.0, net",
         "{release}": [  "http/1.1", "http/2.0" ]
@@ -28,14 +74,20 @@
         "{release}": "http"
     },
     "cultures": {
-        "_comment": "e.g.:  en-US, fr-FR ... available for the framework then used to translate the admin dashboard",
-        "{release}": [  "en-US", "fr-FR" ]
+        "_comment": "e.g.:  en_US, fr_FR etc. available for the framework then used to translate the admin dashboard",
+        "{release}": [  "en_CM", "fr_CM" ]
     },
     "def_culture": {
-        "{release}": "en-US"
+        "{release}": "en_CM"
+    },
+    "def_iso_short": {
+        "{release}": "cm"
     },
     "def_timezone": {
         "{release}": "Africa/Douala"
+    },
+    "def_date": {
+        "{release}": "yyyy/mm/dd"
     },
     "log_levels": {
         "_comment": "hierarchy",

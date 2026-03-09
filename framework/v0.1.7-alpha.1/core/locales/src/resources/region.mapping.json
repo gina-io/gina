@@ -1,0 +1,43 @@
+// extract from region.csv
+{
+  "name": "countryName",
+  "official_name_en": "officialStateName",
+  "Languages": "languages",
+  "Capital": "capital",
+  "Continent": "continent",
+  "is_independent": "isIndependent",
+  // ISO Standardized country code on 2 or 3 letters
+  "ISO3166-1-Alpha-2": "isoShort",
+  "ISO3166-1-Alpha-3": "isoLong",
+  // Standard Country or Area Codes for Statistical Use (Series M, No. 49)
+  // "M49": "m49",
+  // Country codes for the International Telecommunication Union (1 or 3 letters)
+  // "ITU": "itu",
+  // Country codes for the U.S. library of congress (2 or 3 letters)
+  // "MARC": "marc",
+  // Country codes for the World Meteorological Organization
+  // "WMO": "wmo",
+  // Country codes for the U.S. Departement of State
+  // "DS": "ds",
+  // Country codes for the FIFA association
+  // "FIFA": "fifa",
+  // Country codes for the US government (DEPRECATED)
+  // "FIPS": "fips",
+  // Country codes for the The Global Administrative Unit Layers (GAUL) used by the Food and Agriculture Organization (FAO) of the United Nations.
+  // "GAUL": "gaul",
+  // Country codes for the International Olympic Committee
+  // "IOC": "ioc",
+  // Country codes for the Electronic Data Gathering, Analysis, and Retrieval (EDGAR) Extensible Markup Language (XML) as used by the U.S. securities and exchnage commission
+  // "EDGAR": "edgar",
+  // Country codes for the Geoname database
+  // "Geoname ID": "geonameId",
+  // Country dial-in codes, telephone number prefixes
+  "Dial": "dial",
+  "ISO4217-currency_name": "currency.name",
+  "ISO4217-currency_alphabetic_code": "currency.alphacode",
+  // "ISO4217-currency_numeric_code": "currency.numCode",
+  "ISO4217-currency_minor_unit": "currency.minorUnit",
+  // "ISO4217-currency_country_name": "currency.countryName",
+  // Top level domain for the country
+  "TLD": "tld"
+}
