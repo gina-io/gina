@@ -1,0 +1,40 @@
+        ('-. .-.   ('-.             _ (`-.
+       ( OO )  / _(  OO)           ( (OO  )
+       ,--. ,--.(,------.,--.     _.`     \
+       |  | |  | |  .---'|  |.-')(__...--''
+       |   .|  | |  |    |  | OO )|  /  | |
+       |       |(|  '--. |  |`-' ||  |_.' |
+       |  .-.  | |  .--'(|  '---.'|  .___.'
+       |  | |  | |  `---.|      | |  |
+       `--' `--' `------'`------' `--'
+
+usage:
+
+$ gina <option>
+[basic options]:
+    -h or --help
+    -v or --version
+
+$ gina <option>
+[project options]:
+    -i or --init <project_name>
+    -b or --build (will build all bundles at once)
+
+
+$ gina <option> <bundle_name> <arguments>
+[option]:
+    -a or --add <bundle> <argument>
+    -av or --add-views <bundle>
+    -d or --delete <bundle>
+    -b or --build <bundle>
+    -r or --restart <bundle>
+    -s or --start <bundle> [<argument>]
+    -c or --connect (will add a database connector)
+
+[arguments]:
+    <add>   -wv or --with-views
+
+    <start>     <app_name> [ dev | debug | stage or staging | prod ] [ --debug-brk=<port>]
+    <status>    <app_name>
+    <stop>      <app_name>
+    <restart>   <app_name>

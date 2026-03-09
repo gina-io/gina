@@ -1,0 +1,28 @@
+{
+  "baseUrl": "./src",
+  "paths": {
+    "requireLib"            : "../../../../../node_modules/requirejs/require",
+    "jquery"                : "vendor/jquery/1.12.4.min",
+    "vendor/uuid"           : "../../../../../node_modules/uuid/index",
+    "vendor/engine.io"      : "../../../../../node_modules/engine.io-client/engine.io",
+
+    "core"                  : "main",
+    "gina"                  : "gina/main",
+    "gina/toolbar"          : "gina/toolbar/main",
+    "gina/popin"            : "gina/popin/main",
+    "gina/storage"          : "../../../../plugins/lib/storage/src/main",
+    "gina/validator"        : "../../../../plugins/lib/validator/src/main",
+    "utils/events"          : "gina/utils/events",
+    "utils/dom"             : "gina/utils/dom",
+    "utils/collection"      : "../../../../utils/lib/collection/src/main",
+    "utils/merge"           : "../../../../utils/lib/merge/src/main",
+    "utils/inherits"        : "../../../../utils/lib/inherits/src/main",
+    "utils/form-validator"  : "../../../../plugins/lib/validator/src/form-validator",
+    "helpers/dateFormat"    : "../../../../utils/helpers/dateFormat"
+  },
+  "include": [
+    "requireLib"
+  ],
+  "name": "core",
+  "out": "./dist/gina.min.js"
+}

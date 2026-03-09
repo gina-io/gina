@@ -1,0 +1,1 @@
+`Views` is the public directory.

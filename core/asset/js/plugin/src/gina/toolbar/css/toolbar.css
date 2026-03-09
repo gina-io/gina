@@ -1,0 +1,433 @@
+.gina-toolbar, .gina-toolbar div, .gina-toolbar p, .gina-toolbar ul, .gina-toolbar li, .gina-toolbar form, .gina-toolbar fieldset, .gina-toolbar legend, .gina-toolbar a, .gina-toolbar span, .gina-toolbar strong, .gina-toolbar small, .gina-toolbar label {
+  clear: none;
+  float: none;
+  position: static;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  vertical-align: baseline;
+  background: none; }
+
+.gina-toolbar {
+  color: #fff;
+  font: 12px/18px "Lucida Grande", Lucida, Arial, Helvetica, sans-serif; }
+  .gina-toolbar div, .gina-toolbar p, .gina-toolbar ul, .gina-toolbar li, .gina-toolbar form, .gina-toolbar fieldset, .gina-toolbar legend {
+    display: block; }
+  .gina-toolbar a, .gina-toolbar span, .gina-toolbar strong, .gina-toolbar small, .gina-toolbar label {
+    display: inline; }
+  .gina-toolbar a:focus {
+    outline: none; }
+
+.gina-toolbar {
+  position: fixed !important;
+  width: auto;
+  height: auto;
+  min-width: 260px;
+  color: #888;
+  font: 12px/18px "Lucida Grande", Lucida, Arial, Helvetica, sans-serif;
+  overflow: hidden;
+  background-color: rgba(0, 0, 0, 0.8);
+  z-index: 2147483647; }
+  @supports ((-webkit-backdrop-filter: none) or (backdrop-filter: none)) {
+    .gina-toolbar {
+      -webkit-backdrop-filter: blur(6px);
+      backdrop-filter: blur(6px); } }
+  .gina-toolbar p {
+    margin: 0 0 6px; }
+  .gina-toolbar svg {
+    position: relative;
+    display: block;
+    width: 16px;
+    height: 16px;
+    fill: #fff; }
+
+.gina-toolbar fieldset {
+  clear: both;
+  padding: 0;
+  margin: 0;
+  border: none; }
+  .gina-toolbar fieldset + fieldset {
+    padding: 12px 0 0;
+    margin: 12px 0 0;
+    border-top: 1px solid #444; }
+.gina-toolbar legend {
+  margin: 6px 0;
+  color: #888;
+  font-size: 12px;
+  font-weight: normal; }
+.gina-toolbar label {
+  color: #fff;
+  font-size: 12px;
+  font-weight: normal; }
+.gina-toolbar input {
+  -webkit-appearance: none;
+     -moz-appearance: none;
+          appearance: none;
+  color: #fff;
+  font-size: 12px;
+  font-weight: normal;
+  text-align: center;
+  background: transparent;
+  border: none; }
+  .gina-toolbar input:focus, .gina-toolbar input:active {
+    outline: none;
+    border-color: #fff;
+    background: #444; }
+.gina-toolbar input[type="file"] {
+  display: none; }
+.gina-toolbar select {
+  -webkit-appearance: none;
+     -moz-appearance: none;
+          appearance: none;
+  height: 24px;
+  width: auto;
+  padding: 0 10px;
+  margin: 0;
+  color: #fff;
+  font-size: 11px;
+  font-weight: normal;
+  background: transparent;
+  border: 1px solid #666; }
+  .gina-toolbar select:focus, .gina-toolbar select:active {
+    outline: none;
+    border-color: #fff;
+    background: #333; }
+  .gina-toolbar select:hover {
+    border-color: #f2af0d; }
+.gina-toolbar .gina-toolbar-inline-list > li {
+  display: inline-block; }
+.gina-toolbar .gina-toolbar-list-item {
+  margin: 0 0 12px; }
+.gina-toolbar .gina-toolbar-button, .gina-toolbar .gina-toolbar-input-file {
+  display: inline-block;
+  padding: 3px 10px;
+  color: #fff;
+  text-decoration: none;
+  border: 1px solid #888;
+  border-radius: 24px; }
+  .gina-toolbar .gina-toolbar-button:hover, .gina-toolbar .gina-toolbar-input-file:hover {
+    border-color: #f2af0d; }
+  .gina-toolbar .gina-toolbar-button:focus, .gina-toolbar .gina-toolbar-input-file:focus, .gina-toolbar .gina-toolbar-button:active, .gina-toolbar .gina-toolbar-input-file:active {
+    outline: none;
+    border-color: #fff; }
+
+.gina-toolbar-hidden {
+  display: none !important;
+  visibility: hidden;
+}
+.gina-toolbar-copy {
+  position: absolute;
+  top: -200%;
+  left: -200%; }
+
+.gina-toolbar-top-left {
+  top: 0;
+  left: 0;
+  border-bottom-right-radius: 10px; }
+
+.gina-toolbar-top-right {
+  top: 0;
+  right: 0;
+  border-bottom-left-radius: 10px; }
+
+.gina-toolbar-bottom-left {
+  bottom: 0;
+  left: 0;
+  border-top-right-radius: 10px; }
+
+.gina-toolbar-bottom-right {
+  bottom: 0;
+  right: 0;
+  border-top-left-radius: 10px; }
+
+.gina-toolbar-auto {
+  width: auto; }
+
+.gina-toolbar-30 {
+  width: 30%; }
+
+.gina-toolbar-40 {
+  width: 40%; }
+
+.gina-toolbar-50 {
+  width: 50%; }
+
+.gina-toolbar-60 {
+  width: 60%; }
+
+.gina-toolbar-80 {
+  width: 80%; }
+
+.gina-toolbar-100 {
+  width: 100%; }
+  .gina-toolbar-100:not(.gina-toolbar-collapsed) {
+    border-radius: 0; }
+
+.gina-toolbar .gina-toolbar-header {
+  width: 100%;
+  height: 32px;
+  margin: 0;
+  background: #111; }
+  .gina-toolbar .gina-toolbar-header a {
+    display: block;
+    height: 18px;
+    padding: 7px 10px 5px;
+    margin: 0 5px;
+    color: #fff;
+    text-decoration: none;
+    border-bottom: 2px solid transparent; }
+    .gina-toolbar .gina-toolbar-header a:hover {
+      color: #111;
+      background-color: #f2af0d; }
+  .gina-toolbar .gina-toolbar-header .gina-toolbar-tabs {
+    float: left;
+    margin: 0;
+    padding: 0; }
+  .gina-toolbar .gina-toolbar-header .gina-toolbar-active {
+    color: #f2af0d;
+    border-color: #f2af0d; }
+    .gina-toolbar .gina-toolbar-header .gina-toolbar-active:hover {
+      color: #f2af0d;
+      background-color: transparent; }
+  .gina-toolbar .gina-toolbar-header .gina-toolbar-tab {
+    float: left; }
+
+.gina-toolbar .gina-toolbar-header .gina-toolbar-logo a,
+.gina-toolbar .gina-toolbar-header .gina-toolbar-tab-settings a {
+  height: auto;
+  margin: 0;
+  padding: 8px 10px 6px; }
+  .gina-toolbar .gina-toolbar-header .gina-toolbar-logo a:hover svg,
+  .gina-toolbar .gina-toolbar-header .gina-toolbar-tab-settings a:hover svg {
+    fill: #111; }
+.gina-toolbar .gina-toolbar-header .gina-toolbar-logo .gina-toolbar-active svg, .gina-toolbar .gina-toolbar-header .gina-toolbar-logo .gina-toolbar-active:hover svg,
+.gina-toolbar .gina-toolbar-header .gina-toolbar-tab-settings .gina-toolbar-active svg,
+.gina-toolbar .gina-toolbar-header .gina-toolbar-tab-settings .gina-toolbar-active:hover svg {
+  fill: #f2af0d; }
+.gina-toolbar .gina-toolbar-header .gina-toolbar-logo a:hover svg {
+  -webkit-animation: gina-toolbar-shake 0.5s both;
+          animation: gina-toolbar-shake 0.5s both; }
+.gina-toolbar .gina-toolbar-header .gina-toolbar-tab-settings a:hover svg {
+  -webkit-animation: gina-toolbar-rotate 2s both;
+          animation: gina-toolbar-rotate 2s both; }
+
+@-webkit-keyframes gina-toolbar-shake {
+  10%, 90% {
+    -webkit-transform: rotate3d(0, 0, 1, -6deg);
+            transform: rotate3d(0, 0, 1, -6deg); }
+  20%, 80% {
+    -webkit-transform: rotate3d(0, 0, 1, 5deg);
+            transform: rotate3d(0, 0, 1, 5deg); }
+  30%, 50%, 70% {
+    -webkit-transform: rotate3d(0, 0, 1, -5deg);
+            transform: rotate3d(0, 0, 1, -5deg); }
+  40%, 60% {
+    -webkit-transform: rotate3d(0, 0, 1, 6deg);
+            transform: rotate3d(0, 0, 1, 6deg); } }
+
+@keyframes gina-toolbar-shake {
+  10%, 90% {
+    -webkit-transform: rotate3d(0, 0, 1, -6deg);
+            transform: rotate3d(0, 0, 1, -6deg); }
+  20%, 80% {
+    -webkit-transform: rotate3d(0, 0, 1, 5deg);
+            transform: rotate3d(0, 0, 1, 5deg); }
+  30%, 50%, 70% {
+    -webkit-transform: rotate3d(0, 0, 1, -5deg);
+            transform: rotate3d(0, 0, 1, -5deg); }
+  40%, 60% {
+    -webkit-transform: rotate3d(0, 0, 1, 6deg);
+            transform: rotate3d(0, 0, 1, 6deg); } }
+@-webkit-keyframes gina-toolbar-rotate {
+  from {
+    -webkit-transform: rotate3d(0, 0, 1, 0deg);
+            transform: rotate3d(0, 0, 1, 0deg); }
+  to {
+    -webkit-transform: rotate3d(0, 0, 1, 180deg);
+            transform: rotate3d(0, 0, 1, 180deg); } }
+@keyframes gina-toolbar-rotate {
+  from {
+    -webkit-transform: rotate3d(0, 0, 1, 0deg);
+            transform: rotate3d(0, 0, 1, 0deg); }
+  to {
+    -webkit-transform: rotate3d(0, 0, 1, 180deg);
+            transform: rotate3d(0, 0, 1, 180deg); } }
+.gina-toolbar-top-left .gina-toolbar-header .gina-toolbar-logo,
+.gina-toolbar-bottom-left .gina-toolbar-header .gina-toolbar-logo {
+  float: left; }
+.gina-toolbar-top-left .gina-toolbar-header .gina-toolbar-tabs,
+.gina-toolbar-bottom-left .gina-toolbar-header .gina-toolbar-tabs {
+  float: right; }
+.gina-toolbar-top-left .gina-toolbar-header .gina-toolbar-tab-settings,
+.gina-toolbar-bottom-left .gina-toolbar-header .gina-toolbar-tab-settings {
+  float: right; }
+
+.gina-toolbar-top-right .gina-toolbar-header .gina-toolbar-logo,
+.gina-toolbar-bottom-right .gina-toolbar-header .gina-toolbar-logo {
+  float: right; }
+
+.gina-toolbar .gina-toolbar-panel {
+  clear: both;
+  display: none;
+  width: 100%; }
+  .gina-toolbar .gina-toolbar-panel.gina-toolbar-active {
+    display: block; }
+.gina-toolbar .gina-toolbar-main {
+  overflow: auto;
+  max-height: 500px; }
+.gina-toolbar .gina-toolbar-options {
+  padding: 12px 15px 0;
+  border-bottom: 1px solid #444; }
+.gina-toolbar .gina-toolbar-content {
+  padding: 12px 15px; }
+  .gina-toolbar .gina-toolbar-content.gina-toolbar-content-end:after {
+    content: "";
+    display: block;
+    padding: 3px 0;
+    margin: 12px 0 0;
+    text-align: center;
+    color: #fff;
+    background: #444;
+    background: -webkit-repeating-linear-gradient(135deg, #f4b125, #f4b125 10px, #111 10px, #111 20px);
+    background: repeating-linear-gradient(-45deg, #f4b125, #f4b125 10px, #111 10px, #111 20px);
+    border-radius: 10px; }
+
+.gina-toolbar-collapsed {
+  width: auto;
+  min-width: 0; }
+  .gina-toolbar-collapsed .gina-toolbar-logo svg {
+    fill: #f2af0d; }
+  .gina-toolbar-collapsed .gina-toolbar-tab,
+  .gina-toolbar-collapsed .gina-toolbar-panels {
+    display: none; }
+
+.gina-toolbar .gina-toolbar-data .gina-toolbar-code.gina-toolbar-code-end:after {
+  content: "";
+  display: block;
+  padding: 3px 0;
+  margin: 12px 0 0;
+  text-align: center;
+  color: #fff;
+  background: #444;
+  background: -webkit-repeating-linear-gradient(135deg, #f4b125, #f4b125 10px, #111 10px, #111 20px);
+  background: repeating-linear-gradient(-45deg, #f4b125, #f4b125 10px, #111 10px, #111 20px);
+  border-radius: 10px; }
+.gina-toolbar .gina-toolbar-data .gina-toolbar-code ul {
+  display: none; }
+  .gina-toolbar .gina-toolbar-data .gina-toolbar-code ul li {
+    margin: 0 0 3px;
+    padding-left: 20px; }
+.gina-toolbar .gina-toolbar-data .gina-toolbar-code .gina-toolbar-object > a:first-child, .gina-toolbar .gina-toolbar-data .gina-toolbar-code .gina-toolbar-collection > a:first-child {
+  display: block;
+  text-decoration: none; }
+  .gina-toolbar .gina-toolbar-data .gina-toolbar-code .gina-toolbar-object > a:first-child span, .gina-toolbar .gina-toolbar-data .gina-toolbar-code .gina-toolbar-collection > a:first-child span {
+    color: #888; }
+  .gina-toolbar .gina-toolbar-data .gina-toolbar-code .gina-toolbar-object > a:first-child:before, .gina-toolbar .gina-toolbar-data .gina-toolbar-code .gina-toolbar-collection > a:first-child:before {
+    content: "";
+    position: relative;
+    top: 1px;
+    display: inline-block;
+    width: 0;
+    height: 0;
+    margin-right: 5px;
+    border-top: 5px solid transparent;
+    border-bottom: 5px solid transparent;
+    border-left: 8px solid #888;
+    -webkit-transition: border-left-color 0.5s;
+    transition: border-left-color 0.5s; }
+  .gina-toolbar .gina-toolbar-data .gina-toolbar-code .gina-toolbar-object > a:first-child:hover:before, .gina-toolbar .gina-toolbar-data .gina-toolbar-code .gina-toolbar-collection > a:first-child:hover:before {
+    border-left-color: #eeffff; }
+.gina-toolbar .gina-toolbar-data .gina-toolbar-code .gina-toolbar-unfolded:before {
+  -webkit-transform: rotate(90deg);
+          transform: rotate(90deg); }
+.gina-toolbar .gina-toolbar-key {
+  color: #fff; }
+.gina-toolbar .gina-toolbar-key-added {
+  color: #c3e88d; }
+.gina-toolbar .gina-toolbar-value {
+  display: inline-block;
+  padding: 0 5px;
+  color: #5ba1cf;
+  border-radius: 3px; }
+  .gina-toolbar .gina-toolbar-value:hover {
+    color: #111;
+    background: #5ba1cf; }
+.gina-toolbar .gina-toolbar-value-type-is-number {
+  color: #f78c6a; }
+.gina-toolbar .gina-toolbar-value-type-is-null {
+  color: #f78c6a; }
+.gina-toolbar .gina-toolbar-value-type-is-boolean {
+  color: #ffaa3e; }
+.gina-toolbar .gina-toolbar-is-overridden > .gina-toolbar-key, .gina-toolbar .gina-toolbar-is-overridden > .gina-toolbar-value {
+  color: #888;
+  text-decoration: line-through; }
+.gina-toolbar .gina-toolbar-is-overridden > .gina-toolbar-value:hover {
+  color: #111;
+  background: #888; }
+
+.gina-toolbar .gina-toolbar-tab-logs.gina-toolbar-debug > a:after, .gina-toolbar .gina-toolbar-tab-logs.gina-toolbar-info > a:after, .gina-toolbar .gina-toolbar-tab-logs.gina-toolbar-notice > a:after, .gina-toolbar .gina-toolbar-tab-logs.gina-toolbar-warning > a:after, .gina-toolbar .gina-toolbar-tab-logs.gina-toolbar-error > a:after, .gina-toolbar .gina-toolbar-tab-logs.gina-toolbar-crit > a:after, .gina-toolbar .gina-toolbar-tab-logs.gina-toolbar-alert > a:after, .gina-toolbar .gina-toolbar-tab-logs.gina-toolbar-emerg > a:after {
+  content: "";
+  position: relative;
+  top: 1px;
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-left: 5px;
+  background-position: 100% 50%;
+  background-repeat: no-repeat;
+  background-size: 12px 12px;
+  border-radius: 100%;
+  -webkit-animation: gina-toolbar-heart-beats 3.5s infinite;
+          animation: gina-toolbar-heart-beats 3.5s infinite; }
+
+.gina-toolbar .gina-toolbar-tab-logs.gina-toolbar-debug > a:after {
+  background-color: #888; }
+.gina-toolbar .gina-toolbar-tab-logs.gina-toolbar-info > a:after {
+  background-color: #218af3; }
+.gina-toolbar .gina-toolbar-tab-logs.gina-toolbar-notice > a:after {
+  background-color: #f4b125; }
+.gina-toolbar .gina-toolbar-tab-logs.gina-toolbar-warning > a:after {
+  background-color: #f78c6a; }
+.gina-toolbar .gina-toolbar-tab-logs.gina-toolbar-error > a:after, .gina-toolbar .gina-toolbar-tab-logs.gina-toolbar-crit > a:after, .gina-toolbar .gina-toolbar-tab-logs.gina-toolbar-alert > a:after, .gina-toolbar .gina-toolbar-tab-logs.gina-toolbar-emerg > a:after {
+  background-color: #f63625; }
+.gina-toolbar .gina-toolbar-logs-report > li {
+  box-sizing: border-box;
+  display: inline-block;
+  padding-left: 18px;
+  margin: 0 5% 0 0;
+  width: 30%;
+  line-height: 13px;
+  background-position: 0 0;
+  background-repeat: no-repeat;
+  background-size: 12px 12px; }
+  .gina-toolbar .gina-toolbar-logs-report > li:last-child {
+    margin: 0; }
+.gina-toolbar .gina-toolbar-logs-infos {
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 11 11"><rect x="3" y="2" width="5" height="1" fill="#fff"/><rect x="3" y="4" width="5" height="1" fill="#fff"/><rect x="3" y="6" width="5" height="1" fill="#fff"/><path d="M9.052 0.001l0.051 0.002 0.051 0.003 0.051 0.005 0.05 0.006 0.05 0.007 0.05 0.009 0.049 0.009 0.049 0.011 0.048 0.012 0.048 0.013 0.047 0.014 0.047 0.015 0.046 0.017 0.046 0.017 0.045 0.019 0.045 0.019 0.044 0.021 0.043 0.021 0.043 0.023 0.042 0.024 0.042 0.024 0.041 0.026 0.04 0.026 0.039 0.028 0.039 0.028 0.038 0.03 0.038 0.03 0.036 0.031 0.036 0.032 0.035 0.032 0.035 0.034 0.033 0.034 0.033 0.035 0.032 0.036 0.031 0.037 0.03 0.037 0.029 0.038 0.028 0.039 0.027 0.04 0.027 0.04 0.025 0.041 0.025 0.041 0.023 0.042 0.023 0.043 0.021 0.043 0.021 0.044 0.019 0.045 0.019 0.045 0.017 0.045 0.016 0.046 0.015 0.047 0.014 0.047 0.013 0.048 0.012 0.048 0.011 0.048 0.009 0.049 0.008 0.049 0.007 0.05 0.006 0.05 0.004 0.051 0.003 0.05 0.002 0.052 0.001 0.051 0 5 -0.001 0.052 -0.002 0.051 -0.003 0.051 -0.004 0.05 -0.006 0.051 -0.007 0.049 -0.008 0.05 -0.01 0.049 -0.01 0.048 -0.012 0.049 -0.013 0.047 -0.014 0.047 -0.015 0.047 -0.016 0.046 -0.018 0.046 -0.018 0.045 -0.02 0.045 -0.02 0.044 -0.022 0.043 -0.023 0.043 -0.023 0.042 -0.025 0.042 -0.025 0.041 -0.027 0.04 -0.027 0.039 -0.029 0.039 -0.029 0.038 -0.03 0.038 -0.031 0.037 -0.032 0.035 -0.033 0.036 -0.033 0.034 -0.034 0.033 -0.036 0.033 -0.035 0.032 -0.037 0.031 -0.038 0.03 -0.038 0.029 -0.039 0.029 -0.039 0.027 -0.04 0.027 -0.041 0.025 -0.042 0.025 -0.042 0.023 -0.043 0.023 -0.043 0.022 -0.044 0.02 -0.045 0.02 -0.045 0.018 -0.046 0.018 -0.046 0.016 -0.047 0.015 -0.047 0.014 -0.047 0.013 -0.049 0.012 -0.048 0.01 -0.049 0.01 -0.05 0.008 -0.049 0.007 -0.051 0.006 -0.05 0.004 -0.051 0.003 -0.051 0.002 -0.052 0.001 -2.32 0 -2.639 2 -1.041 0 0-2 -1 0 -0.052-0.001 -0.051-0.002 -0.051-0.003 -0.05-0.004 -0.051-0.006 -0.049-0.007 -0.05-0.008 -0.049-0.01 -0.048-0.01 -0.049-0.012 -0.047-0.013 -0.047-0.014 -0.047-0.015 -0.046-0.016 -0.046-0.018 -0.045-0.018 -0.045-0.02 -0.044-0.02 -0.043-0.022 -0.043-0.023 -0.042-0.023 -0.042-0.025 -0.041-0.025 -0.04-0.027 -0.039-0.027 -0.039-0.029 -0.038-0.029 -0.038-0.03 -0.037-0.031 -0.035-0.032 -0.036-0.033 -0.034-0.033 -0.033-0.034 -0.033-0.036 -0.032-0.035 -0.031-0.037 -0.03-0.038 -0.029-0.038 -0.029-0.039 -0.027-0.039 -0.027-0.04 -0.025-0.041 -0.025-0.042 -0.023-0.042 -0.023-0.043 -0.022-0.043 -0.02-0.044 -0.02-0.045 -0.018-0.045 -0.018-0.046 -0.016-0.046 -0.015-0.047 -0.014-0.047 -0.013-0.047 -0.012-0.049 -0.01-0.048 -0.01-0.049 -0.008-0.05 -0.007-0.049 -0.006-0.051 -0.004-0.05 -0.003-0.051 -0.002-0.051 -0.001-0.052 0-5 0.001-0.051 0.002-0.052 0.003-0.05 0.004-0.051 0.006-0.05 0.007-0.05 0.008-0.049 0.009-0.049 0.011-0.048 0.012-0.048 0.013-0.048 0.014-0.047 0.015-0.047 0.016-0.046 0.017-0.045 0.019-0.045 0.019-0.045 0.021-0.044 0.021-0.043 0.023-0.043 0.023-0.042 0.025-0.041 0.025-0.041 0.027-0.04 0.027-0.04 0.028-0.039 0.029-0.038 0.03-0.037 0.031-0.037 0.032-0.036 0.033-0.035 0.033-0.034 0.035-0.034 0.035-0.032 0.036-0.032 0.036-0.031 0.038-0.03 0.038-0.03 0.039-0.028 0.039-0.028 0.04-0.026 0.041-0.026 0.042-0.024 0.042-0.024 0.043-0.023 0.043-0.021 0.044-0.021 0.045-0.019 0.045-0.019 0.046-0.017 0.046-0.017 0.047-0.015 0.047-0.014 0.048-0.013 0.048-0.012 0.049-0.011 0.049-0.009 0.05-0.009 0.05-0.007 0.05-0.006 0.051-0.005 0.051-0.003 0.051-0.002 0.052-0.001 7 0 0.052 0.001ZM2.008 1l-0.031 0.001 -0.026 0.001 -0.026 0.001 -0.026 0.003 -0.025 0.003 -0.026 0.003 -0.025 0.005 -0.024 0.004 -0.025 0.006 -0.024 0.006 -0.024 0.006 -0.023 0.007 -0.024 0.008 -0.023 0.008 -0.023 0.009 -0.022 0.009 -0.022 0.01 -0.022 0.01 -0.022 0.011 -0.022 0.011 -0.021 0.012 -0.021 0.013 -0.02 0.012 -0.02 0.014 -0.02 0.013 -0.02 0.015 -0.019 0.014 -0.019 0.016 -0.018 0.015 -0.018 0.016 -0.018 0.017 -0.017 0.017 -0.017 0.017 -0.016 0.018 -0.016 0.018 -0.016 0.018 -0.015 0.019 -0.015 0.019 -0.014 0.019 -0.014 0.02 -0.013 0.02 -0.012 0.021 -0.013 0.02 -0.011 0.021 -0.012 0.022 -0.01 0.021 -0.011 0.022 -0.009 0.022 -0.009 0.022 -0.009 0.023 -0.008 0.023 -0.007 0.023 -0.007 0.023 -0.007 0.024 -0.005 0.023 -0.006 0.024 -0.004 0.025 -0.004 0.024 -0.004 0.025 -0.003 0.025 -0.002 0.025 -0.002 0.026 -0.001 0.026 0 0.032 0 4.988 0 0.032 0.001 0.026 0.002 0.026 0.002 0.025 0.003 0.025 0.004 0.025 0.004 0.025 0.004 0.024 0.006 0.024 0.005 0.024 0.007 0.024 0.007 0.023 0.007 0.023 0.008 0.023 0.009 0.023 0.009 0.022 0.01 0.023 0.01 0.021 0.011 0.022 0.011 0.021 0.012 0.022 0.012 0.02 0.013 0.021 0.013 0.02 0.014 0.02 0.014 0.019 0.015 0.019 0.015 0.019 0.016 0.019 0.016 0.018 0.016 0.017 0.017 0.018 0.018 0.017 0.017 0.016 0.018 0.016 0.019 0.016 0.019 0.015 0.019 0.015 0.019 0.014 0.02 0.014 0.02 0.013 0.021 0.013 0.02 0.012 0.022 0.012 0.021 0.011 0.022 0.011 0.021 0.01 0.023 0.01 0.022 0.009 0.023 0.009 0.023 0.008 0.023 0.007 0.023 0.007 0.024 0.007 0.024 0.005 0.024 0.006 0.024 0.004 0.025 0.004 0.025 0.004 0.025 0.003 0.025 0.002 0.026 0.002 0.026 0.001 0.032 0 1.994 0 0 1.776 2.344-1.776 2.65 0 0.032 0 0.026-0.001 0.026-0.002 0.025-0.002 0.025-0.003 0.025-0.004 0.025-0.004 0.024-0.004 0.024-0.006 0.024-0.005 0.024-0.007 0.023-0.007 0.023-0.007 0.023-0.008 0.023-0.009 0.022-0.009 0.023-0.01 0.021-0.01 0.022-0.011 0.021-0.011 0.022-0.012 0.02-0.012 0.021-0.013 0.02-0.013 0.02-0.014 0.019-0.014 0.019-0.015 0.019-0.015 0.019-0.016 0.018-0.016 0.017-0.016 0.018-0.017 0.017-0.018 0.016-0.017 0.016-0.018 0.016-0.019 0.015-0.019 0.015-0.019 0.014-0.019 0.014-0.02 0.013-0.02 0.013-0.021 0.012-0.02 0.012-0.022 0.011-0.021 0.011-0.022 0.01-0.021 0.01-0.023 0.009-0.022 0.009-0.023 0.008-0.023 0.007-0.023 0.007-0.023 0.007-0.024 0.005-0.024 0.006-0.024 0.004-0.024 0.004-0.025 0.004-0.025 0.003-0.025 0.002-0.025 0.002-0.026 0.001-0.026 0-0.032 0-4.988 0-0.032 -0.001-0.026 -0.002-0.026 -0.002-0.025 -0.003-0.025 -0.004-0.025 -0.004-0.024 -0.004-0.025 -0.006-0.024 -0.005-0.023 -0.007-0.024 -0.007-0.023 -0.007-0.023 -0.008-0.023 -0.009-0.023 -0.009-0.022 -0.009-0.022 -0.011-0.022 -0.01-0.021 -0.012-0.022 -0.011-0.021 -0.013-0.02 -0.012-0.021 -0.013-0.02 -0.014-0.02 -0.014-0.019 -0.015-0.019 -0.015-0.019 -0.016-0.018 -0.016-0.019 -0.016-0.017 -0.017-0.017 -0.017-0.017 -0.018-0.017 -0.018-0.016 -0.018-0.015 -0.019-0.016 -0.019-0.014 -0.02-0.015 -0.02-0.013 -0.02-0.014 -0.02-0.012 -0.021-0.013 -0.021-0.012 -0.022-0.011 -0.022-0.011 -0.022-0.01 -0.022-0.01 -0.022-0.009 -0.023-0.009 -0.023-0.008 -0.024-0.008 -0.023-0.007 -0.024-0.006 -0.024-0.006 -0.025-0.006 -0.024-0.004 -0.025-0.005 -0.026-0.003 -0.025-0.003 -0.026-0.003 -0.026-0.001 -0.026-0.001 -0.031-0.001 -6.984 0Z" fill="#fff"/></svg>'); }
+.gina-toolbar .gina-toolbar-logs-warnings {
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 11 11" version="1.1" xml:space="preserve" style="clip-rule:evenodd;fill-rule:evenodd;stroke-linejoin:round;stroke-miterlimit:1"><path d="M5.529 0.001l0.028 0.001 0.029 0.003 0.028 0.003 0.027 0.005 0.028 0.005 0.027 0.006 0.027 0.008 0.027 0.008 0.026 0.009 0.026 0.01 0.026 0.011 0.025 0.011 0.025 0.013 0.024 0.013 0.024 0.014 0.023 0.015 0.023 0.016 0.022 0.016 0.022 0.018 0.021 0.018 0.02 0.018 0.02 0.02 0.019 0.02 0.019 0.021 0.018 0.022 0.017 0.022 0.016 0.023 0.016 0.023 0.015 0.024 0.014 0.025 0.013 0.026 4.691 9.381 0.011 0.023 0.01 0.024 0.01 0.025 0.009 0.024 0.008 0.024 0.008 0.025 0.006 0.025 0.006 0.025 0.005 0.025 0.004 0.026 0.003 0.025 0.002 0.025 0.002 0.026 0.001 0.025 0 0.026 -0.001 0.025 -0.001 0.026 -0.003 0.025 -0.003 0.025 -0.004 0.025 -0.005 0.025 -0.005 0.025 -0.006 0.025 -0.007 0.025 -0.008 0.024 -0.009 0.024 -0.01 0.024 -0.01 0.024 -0.011 0.024 -0.012 0.023 -0.012 0.023 -0.014 0.022 -0.014 0.022 -0.015 0.022 -0.015 0.021 -0.016 0.02 -0.017 0.02 -0.017 0.019 -0.018 0.019 -0.018 0.018 -0.019 0.017 -0.019 0.017 -0.02 0.016 -0.021 0.015 -0.02 0.015 -0.022 0.014 -0.021 0.014 -0.022 0.013 -0.023 0.012 -0.022 0.011 -0.024 0.011 -0.023 0.009 -0.024 0.01 -0.024 0.008 -0.024 0.008 -0.025 0.007 -0.025 0.006 -0.025 0.005 -0.026 0.005 -0.025 0.003 -0.026 0.003 -0.026 0.002 -0.026 0.002 -0.026 0 -9.381 0 -0.027 0 -0.026-0.002 -0.026-0.002 -0.026-0.003 -0.025-0.003 -0.025-0.005 -0.026-0.005 -0.025-0.006 -0.024-0.007 -0.025-0.008 -0.024-0.008 -0.024-0.01 -0.023-0.009 -0.023-0.011 -0.023-0.011 -0.023-0.012 -0.022-0.013 -0.021-0.014 -0.021-0.014 -0.021-0.015 -0.02-0.015 -0.02-0.016 -0.02-0.017 -0.019-0.017 -0.018-0.018 -0.018-0.019 -0.017-0.019 -0.016-0.02 -0.016-0.02 -0.016-0.021 -0.015-0.022 -0.014-0.022 -0.013-0.022 -0.013-0.023 -0.012-0.023 -0.011-0.024 -0.01-0.024 -0.01-0.024 -0.008-0.024 -0.008-0.024 -0.007-0.025 -0.007-0.025 -0.005-0.025 -0.005-0.025 -0.004-0.025 -0.003-0.025 -0.002-0.025 -0.002-0.026 -0.001-0.025 0-0.026 0.001-0.025 0.002-0.026 0.002-0.025 0.004-0.025 0.004-0.026 0.005-0.025 0.005-0.025 0.007-0.025 0.007-0.025 0.008-0.024 0.009-0.024 0.01-0.025 0.01-0.024 0.012-0.023 4.69-9.381 0.014-0.026 0.014-0.025 0.015-0.024 0.015-0.023 0.017-0.023 0.017-0.022 0.018-0.022 0.018-0.021 0.019-0.02 0.02-0.02 0.021-0.018 0.021-0.018 0.021-0.018 0.023-0.016 0.022-0.016 0.024-0.015 0.023-0.014 0.025-0.013 0.024-0.013 0.026-0.011 0.025-0.011 0.026-0.01 0.026-0.009 0.027-0.008 0.027-0.008 0.027-0.006 0.028-0.005 0.028-0.005 0.028-0.003 0.028-0.003 0.028-0.001 0.029-0.001 0.029 0.001ZM1.118 10l8.764 0 -4.382-8.764 -4.382 8.764ZM6 8l0 1 -1 0 0-1 1 0ZM6 4l0 3 -1 0 0-3 1 0Z" fill="#fff"/></svg>'); }
+.gina-toolbar .gina-toolbar-logs-errors {
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 11 11"><path d="M11 3.04l0 4.95 -3.04 3.01 -4.92 0 -3.04-3.01 0-4.95 3.04-3.04 4.92 0 3.04 3.04ZM3.45 1l-2.45 2.45 0 4.12 2.45 2.43 4.1 0 2.45-2.43 0-4.12 -2.45-2.45 -4.09 0ZM6 7.99l0 1.01 -1 0 0-1.01 1 0ZM6 2l0 4.99 -1 0 0-4.99 1 0Z" fill="#fff"/></svg>'); }
+
+@-webkit-keyframes gina-toolbar-heart-beats {
+  0% {
+    -webkit-transform: scale(1);
+            transform: scale(1); }
+  50% {
+    -webkit-transform: scale(0.5);
+            transform: scale(0.5); }
+  100% {
+    -webkit-transform: scale(1);
+            transform: scale(1); } }
+
+@keyframes gina-toolbar-heart-beats {
+  0% {
+    -webkit-transform: scale(1);
+            transform: scale(1); }
+  50% {
+    -webkit-transform: scale(0.5);
+            transform: scale(0.5); }
+  100% {
+    -webkit-transform: scale(1);
+            transform: scale(1); } }
