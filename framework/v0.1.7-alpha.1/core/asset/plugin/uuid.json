@@ -1,0 +1,23 @@
+{
+  "baseUrl": "../../../../node_modules/uuid",
+  "paths": {
+    "requireLib"            : "../requirejs/require",
+    "lib/rng": "lib/rng",
+    "lib/bytesToUuid": "lib/bytesToUuid",
+    "v1": "v1",
+    "v4": "v4",
+    "v5": "v5",
+    "uuid": "index"
+  },
+  "include": [
+    "requireLib",
+    "v1",
+    "lib/rng",
+    "lib/bytesToUuid"
+  ],
+  "name": "uuid",
+  "out": "./src/vendor/uuid.min.js",
+  "generateSourceMaps": true,
+  "preserveLicenseComments": true,
+  "optimize": "none"
+}

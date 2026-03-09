@@ -1,0 +1,148 @@
+{
+
+    "404": {
+        "url": "/404.html",
+        "param": { "control": "throw404" }
+    },
+    "home": {
+        "url": "/",
+        "param": {
+            "control": "home"
+        },
+        "middleware": [ "middlewares.session.update" ]
+    },
+    "register-xml": {
+        "namespace": "account",
+        "url": "/account/register.ajax",
+        "method": "POST",
+        "param": { "control": "registerXML" }
+    },
+    "help": {
+        "url": [
+            "/help",
+            "/resources"
+        ],
+        "param": {
+            "control": "help",
+            "title": "Resources"
+        }
+    },
+    "docs": {
+        "namespace": "docs",
+        "url": [
+            "/docs",
+            "/documentation"
+        ],
+        "param": {
+            "control": "renderFromMock"
+        }
+    },
+    "doc": {
+        "namespace": "docs",
+        "url": [
+            "/docs/:id",
+            "/documentation/:id"
+        ],
+        "param": {
+            "control":    "renderFromMock",
+            "id":        ":id"
+        },
+        "requirements": {
+            "id":      "([-a-z0-9]+)"
+        }
+    },
+    "tutorials": {
+        "url": [
+            "/tutorials",
+            "/tutorials"
+        ],
+        "param": {
+            "control": "tutorials"
+        }
+    },
+
+    "factsheets": {
+        "namespace": "factsheets",
+        "url": [
+            "/factsheets/:section",
+            "/fiches-pratiques/:section"
+        ],
+        "requirements": {
+            "section": "mda-agessa|urssaf"
+        },
+        "param": {
+            "control":    "renderFromMock",
+            "section":   ":section"
+        }
+    },
+    "factsheet": {
+        "namespace": "factsheets",
+        "url": [
+            "/factsheets/:section/:id",
+            "/fiches-pratiques/:section/:id"
+        ],
+        "param": {
+            "control":    "renderFromMock",
+            "section":   ":section",
+            "id":        ":id"
+        },
+        "requirements": {
+            "section": "mda-agessa|urssaf",
+            "id":      "([-a-z0-9]+)"
+        }
+    },
+
+    "roadmap": {
+        "url": [
+            "/roadmap",
+            "/feuille-de-route"
+        ],
+        "param": {
+            "control": "roadmap"
+        }
+    },
+
+    "about": {
+        "url": [
+            "/about",
+            "/a-propos"
+        ],
+        "param": {
+            "control": "about"
+        }
+    },
+
+    "cgu": {
+        "url": [
+            "/cgu",
+            "/cgv"
+        ],
+        "param": {
+            "control": "cgu"
+        }
+    },
+
+    "privacy": {
+        "url": [
+            "/privacy",
+            "/politique-de-confidentialite"
+        ],
+        "param": {
+            "control": "privacy"
+        }
+    },
+
+    "newsletter": {
+        "url": "/:section/:file",
+        "param": {
+            "path": "{bundlesPath}/coreapi/views/emailing/src/:section/:file",
+            "control":    "renderNewsletter",
+            "section": ":section",
+            "file": ":file"
+        },
+        "requirements": {
+            "section": "(messages|newsletters)",
+            "file":    "([-a-z0-9]+).html$"
+        }
+    }
+}

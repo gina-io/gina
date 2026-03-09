@@ -1,0 +1,1 @@
+Vendor is used for dependecies like `jquery.min.js`

@@ -1,0 +1,179 @@
+[
+  {
+    "address": "6 rue aux Juifs",
+    "alias": "Les Rouges Gorges",
+    "checkin": null,
+    "checkout": null,
+    "city": "Giverny",
+    "country": "France",
+    "description": "The rustic style of the renovation - stones and exposed beams - and the vintage countryside decoration give these several-hundred-year-old cute little houses a Bohemian charm. In the summer you will have breakfast in the garden under the canopy of the bread oven. Dogs admitted. Open all year round.",
+    "directions": "27620 Giverny",
+    "email": null,
+    "fax": null,
+    "free_breakfast": false,
+    "free_internet": true,
+    "free_parking": true,
+    "geo": {
+      "accuracy": "APPROXIMATE",
+      "lat": 49.078069,
+      "lon": 1.520866
+    },
+    "id": 10063,
+    "name": "The Robins",
+    "pets_ok": false,
+    "phone": null,
+    "price": "60 / 70 euros",
+    "public_likes": [],
+    "reviews": [
+      {
+        "author": "Blaise O'Connell IV",
+        "content": "Staff need a bit of a refresher in customer service...we couldn't get a safe and there were 6 of us - \"sorry, none left\" and not too helpful, the location was terrific but the staff let us down...no water to drink in the rooms - no bar fridge or coffee making facilities...there is a bar next door which is okay - serves breakfast & lunch & dinner...stay here only for the location",
+        "date": "2015-12-02 09:11:19 +0300",
+        "ratings": {
+          "Cleanliness": 3,
+          "Overall": 3,
+          "Rooms": 3,
+          "Service": 1,
+          "Value": 3
+        }
+      },
+      {
+        "author": "Nedra Cronin",
+        "content": "We ended up choosing the Holiday Inn because it had a combination of a low price and a really convenient location. It's close to some great restaurants and just far enough from Bourbon street so that it isn't noisy. The indoor pool on the 10th floor was nice, too. No complaints here.",
+        "date": "2012-01-14 02:15:51 +0300",
+        "ratings": {
+          "Overall": 4
+        }
+      },
+      {
+        "author": "Marianna Schmeler",
+        "content": "I must explain this history in order that you know what kind of hotel you are going to stay. 2011- Mardi Grass. During the week of the 9th March, we stayed at this hotel for a few days. When we checked out, we drove direction Baton Rouge. As we arrived, we found out that my husband had lost his back bag with all documents, passport, computer, etc. somewhere... The recepcionist in Super 8 La Place helped us a lot. We were very nervous, and she even let us phone to New Orleans just to check if our bag was there. No news, but finally, we decided to drove back to New Orleans. As we arrived the recepcionist, Nimahs, helped us a lot! Security guy, Dal, also. But as they didnÂ´t know about the lost bag, we asked to check the security cameras. The responsible guy came, and checked the cameras with my husband. Thanks to that, the bag was found! Happy end of the history thanks to that people! No one accepted any tips from us. We surely will recomend Super 8 hotels from now on. On the other hand, I must say that this is not a well located hotel if you want to party every night in the French Quarter. But we thought it was a good choice, also thinking about prices, and because we had our own car.",
+        "date": "2015-11-29 16:27:44 +0300",
+        "ratings": {
+          "Cleanliness": 3,
+          "Location": 1,
+          "Overall": 4,
+          "Rooms": 3,
+          "Service": 5,
+          "Sleep Quality": 3,
+          "Value": 4
+        }
+      },
+      {
+        "author": "Davon Price",
+        "content": "Nice staff, road trip for our family and wanted cheap but clean. And close to French quarter.",
+        "date": "2012-04-19 21:41:59 +0300",
+        "ratings": {
+          "Cleanliness": 4,
+          "Location": 3,
+          "Overall": 3,
+          "Rooms": 3,
+          "Service": 5,
+          "Value": 4
+        }
+      },
+      {
+        "author": "Joannie Barrows DDS",
+        "content": "We read reviews of motels in New Orleans before choosing this one based on good feedback from others. It turned out to be a good choice, for it was a comfortable stay and the staff obviously put a lot of effort into making it a quality establishment. When we left they even had staff doing work in the garden. The room itself was good, with two beds, a fridge and coffee maker. Amazingly, the wifi also worked in the room, which I found to be something of a rarity for places in this price range. The floor sloped slightly downwards, which was a bit odd, but it didn't matter at all. There is plenty of parking, even if the spaces are quite tight. The motel is equipped with a gym, which I didn't use, plus an outdoor pool, which looked quite good but was far too cold when I was there. The business center was very useful, for I was able to print out flight tickets. Breakfast was good (though waffles would enhance it!), but was packed away promptly at 9:30. It was good to fill up in the morning while watching the news before going into New Orleans for the day. That brings me to the location - it's not in an area that you'd want to walk around, but isn't too far from fast food places and is very close to the interstate, so it's easy to get into New Orleans itself. A lot of the motels in New Orleans are in this area. This is an impressive motel and I would happily stay here again if I was every lucky enough to be able to return to New Orleans.",
+        "date": "2014-06-24 10:20:55 +0300",
+        "ratings": {
+          "Cleanliness": 5,
+          "Location": 3,
+          "Overall": 4,
+          "Rooms": 4,
+          "Service": 5,
+          "Sleep Quality": 4,
+          "Value": 4
+        }
+      }
+    ],
+    "state": "Haute-Normandie",
+    "title": "Giverny",
+    "tollfree": null,
+    "type": "hotel",
+    "url": "http://givernyguesthouse.com/robin.htm",
+    "vacancy": true
+  },
+  {
+    "address": "5 rue de la Dîme",
+    "alias": null,
+    "checkin": null,
+    "checkout": null,
+    "city": "Giverny",
+    "country": "France",
+    "description": "Situated near the church and just a few minutes walking distance from Monet's gardens and the Museum of Impressionisms, you will find Danielle and Claude's home, surrounded by a large magnificent garden, where you will find a haven of peace and tranquillity. Danielle speaks fluent English having spent many years in Australia.",
+    "directions": "27620 Giverny",
+    "email": null,
+    "fax": null,
+    "free_breakfast": true,
+    "free_internet": true,
+    "free_parking": true,
+    "geo": {
+      "accuracy": "ROOFTOP",
+      "lat": 49.0763077,
+      "lon": 1.5234464
+    },
+    "id": 10064,
+    "name": "Le Clos Fleuri",
+    "pets_ok": false,
+    "phone": "+33 2 32 21 36 51",
+    "price": null,
+    "public_likes": [
+      "Thomas Wilkinson",
+      "Jesse Goyette",
+      "Dallas Smitham",
+      "Madilyn Kub",
+      "Roxanne Murazik",
+      "Kale Runte",
+      "Ephraim Hane"
+    ],
+    "reviews": [
+      {
+        "author": "Earlene Feest",
+        "content": "Very basic place to stay with adjoining buildings still run down from Katrina. If you have a car and looking for good value this is perfect. Complimentary Breakfast is adequate for what you pay. Overall we saved money on staying in french quarter... Taxi was $20 one way and closer to $45 to get to the airport.",
+        "date": "2013-06-13 01:39:18 +0300",
+        "ratings": {
+          "Cleanliness": 2,
+          "Location": 2,
+          "Overall": 3,
+          "Rooms": 2,
+          "Service": 3,
+          "Value": 5
+        }
+      },
+      {
+        "author": "Mr. Adelia Daniel",
+        "content": "the bed were never cleaned, the same linens were on the bed. i would like a refund of $265.36. the office people who checked you in were not the friendly people either. they did not tell me just what time check-out was so i got charged for another day. it was so that i needed to get back on the road off the rain. when we went into the room the night of september 01,2011 it had not been clean because their was no toilet paper nor soap in it.every day i had to ask for towels and thing to use to get cleaned up. please send me a refund of the money that i spend for 4 nights of not been serviced at this motel. doris myers room 253",
+        "date": "2015-11-28 13:29:30 +0300",
+        "ratings": {
+          "Cleanliness": 1,
+          "Location": 3,
+          "Overall": 2,
+          "Rooms": 3,
+          "Service": 1,
+          "Sleep Quality": 3,
+          "Value": 1
+        }
+      },
+      {
+        "author": "Domenick Waters DVM",
+        "content": "Well, I was quite skeptical of staying in this area of town. It looks rough. I.Was.Wrong. Kenneth was off, but Nimesh was Awesome! He recommended a terrific Bistro for brunch. The room was spotless and smelled fresh. We were treated like we had spent 3 Times the amount of money for the room. They also had a terrific deal For cruise parking. I will stay again!",
+        "date": "2014-12-02 19:38:33 +0300",
+        "ratings": {
+          "Cleanliness": 5,
+          "Location": 3,
+          "Overall": 5,
+          "Rooms": 5,
+          "Service": 5,
+          "Value": 5
+        }
+      }
+    ],
+    "state": "Haute-Normandie",
+    "title": "Giverny",
+    "tollfree": null,
+    "type": "hotel",
+    "url": "http://www.giverny-leclosfleuri.fr/",
+    "vacancy": true
+  }
+]
