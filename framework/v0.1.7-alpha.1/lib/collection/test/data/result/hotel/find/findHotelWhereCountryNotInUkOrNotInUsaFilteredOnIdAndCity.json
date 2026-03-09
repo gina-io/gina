@@ -1,0 +1,562 @@
+[
+  {
+    "city": "Giverny",
+    "id": 10063
+  },
+  {
+    "city": "Giverny",
+    "id": 10064
+  },
+  {
+    "city": "Preaux",
+    "id": 1072
+  },
+  {
+    "city": "Avignon",
+    "id": 1357
+  },
+  {
+    "city": "Avignon",
+    "id": 1358
+  },
+  {
+    "city": "Avignon",
+    "id": 1359
+  },
+  {
+    "city": "Avignon",
+    "id": 1360
+  },
+  {
+    "city": "Avignon",
+    "id": 1361
+  },
+  {
+    "city": "Avignon",
+    "id": 1362
+  },
+  {
+    "city": "Avignon",
+    "id": 1363
+  },
+  {
+    "city": "Avignon",
+    "id": 1364
+  },
+  {
+    "city": "Beaumont-du-Ventoux",
+    "id": 19198
+  },
+  {
+    "city": "Malaucène",
+    "id": 19199
+  },
+  {
+    "city": "Nice",
+    "id": 20419
+  },
+  {
+    "city": "Nice",
+    "id": 20420
+  },
+  {
+    "city": "Nice",
+    "id": 20421
+  },
+  {
+    "city": "Nice",
+    "id": 20422
+  },
+  {
+    "city": "Nice",
+    "id": 20423
+  },
+  {
+    "city": "Nice",
+    "id": 20424
+  },
+  {
+    "city": "Nice",
+    "id": 20425
+  },
+  {
+    "city": "Orange",
+    "id": 21241
+  },
+  {
+    "city": "Orange",
+    "id": 21242
+  },
+  {
+    "city": "Orange",
+    "id": 21243
+  },
+  {
+    "city": "Orange",
+    "id": 21244
+  },
+  {
+    "city": "Paris",
+    "id": 21608
+  },
+  {
+    "city": "Paris",
+    "id": 21649
+  },
+  {
+    "city": "Paris",
+    "id": 21650
+  },
+  {
+    "city": "Paris",
+    "id": 21651
+  },
+  {
+    "city": "Paris",
+    "id": 21652
+  },
+  {
+    "city": "Paris",
+    "id": 21653
+  },
+  {
+    "city": "Paris-15E-Arrondissement",
+    "id": 21654
+  },
+  {
+    "city": "Paris",
+    "id": 21655
+  },
+  {
+    "city": "Paris",
+    "id": 21656
+  },
+  {
+    "city": "Paris",
+    "id": 21657
+  },
+  {
+    "city": "Paris",
+    "id": 21661
+  },
+  {
+    "city": "Paris",
+    "id": 21662
+  },
+  {
+    "city": "Paris",
+    "id": 21663
+  },
+  {
+    "city": "Paris",
+    "id": 21664
+  },
+  {
+    "city": "Paris",
+    "id": 21665
+  },
+  {
+    "city": "Paris",
+    "id": 21666
+  },
+  {
+    "city": "Paris",
+    "id": 21668
+  },
+  {
+    "city": "Paris",
+    "id": 21669
+  },
+  {
+    "city": "Paris",
+    "id": 21670
+  },
+  {
+    "city": "Paris-17E-Arrondissement",
+    "id": 21671
+  },
+  {
+    "city": "Paris",
+    "id": 21672
+  },
+  {
+    "city": "Paris",
+    "id": 21673
+  },
+  {
+    "city": "Paris",
+    "id": 21674
+  },
+  {
+    "city": "Paris",
+    "id": 21675
+  },
+  {
+    "city": "Paris",
+    "id": 21676
+  },
+  {
+    "city": "Paris",
+    "id": 21677
+  },
+  {
+    "city": "Paris",
+    "id": 21679
+  },
+  {
+    "city": "Paris",
+    "id": 21680
+  },
+  {
+    "city": "Paris",
+    "id": 21720
+  },
+  {
+    "city": "Paris-1ER-Arrondissement",
+    "id": 21721
+  },
+  {
+    "city": "Paris",
+    "id": 21722
+  },
+  {
+    "city": "Paris",
+    "id": 21723
+  },
+  {
+    "city": "Paris",
+    "id": 21724
+  },
+  {
+    "city": "Paris",
+    "id": 21725
+  },
+  {
+    "city": "Paris",
+    "id": 21726
+  },
+  {
+    "city": "Paris",
+    "id": 21727
+  },
+  {
+    "city": "Paris",
+    "id": 21728
+  },
+  {
+    "city": "Paris",
+    "id": 21729
+  },
+  {
+    "city": "Paris",
+    "id": 21730
+  },
+  {
+    "city": "Paris",
+    "id": 21731
+  },
+  {
+    "city": "Paris",
+    "id": 21732
+  },
+  {
+    "city": "Paris",
+    "id": 21733
+  },
+  {
+    "city": "Paris",
+    "id": 21734
+  },
+  {
+    "city": "Paris",
+    "id": 21735
+  },
+  {
+    "city": "Paris-8E-Arrondissement",
+    "id": 21837
+  },
+  {
+    "city": "Paris",
+    "id": 21838
+  },
+  {
+    "city": "Paris",
+    "id": 21839
+  },
+  {
+    "city": "Paris",
+    "id": 21840
+  },
+  {
+    "city": "Paris",
+    "id": 21841
+  },
+  {
+    "city": "Paris",
+    "id": 21842
+  },
+  {
+    "city": "Paris-8E-Arrondissement",
+    "id": 21843
+  },
+  {
+    "city": "Paris",
+    "id": 21844
+  },
+  {
+    "city": "Paris",
+    "id": 21845
+  },
+  {
+    "city": "Paris",
+    "id": 21846
+  },
+  {
+    "city": "Paris",
+    "id": 21847
+  },
+  {
+    "city": "Paris",
+    "id": 21848
+  },
+  {
+    "city": "Paris",
+    "id": 21849
+  },
+  {
+    "city": "Paris-8E-Arrondissement",
+    "id": 21850
+  },
+  {
+    "city": "Paris",
+    "id": 21851
+  },
+  {
+    "city": "Paris",
+    "id": 21852
+  },
+  {
+    "city": "Paris",
+    "id": 21853
+  },
+  {
+    "city": "Paris",
+    "id": 21854
+  },
+  {
+    "city": "Paris",
+    "id": 21855
+  },
+  {
+    "city": "Paris",
+    "id": 21856
+  },
+  {
+    "city": "Paris",
+    "id": 21859
+  },
+  {
+    "city": "Paris",
+    "id": 21860
+  },
+  {
+    "city": "Puteaux",
+    "id": 21871
+  },
+  {
+    "city": "Courbevoie",
+    "id": 21872
+  },
+  {
+    "city": "Courbevoie",
+    "id": 21873
+  },
+  {
+    "city": "Puteaux",
+    "id": 21874
+  },
+  {
+    "city": "Courbevoie",
+    "id": 21875
+  },
+  {
+    "city": "Puteaux",
+    "id": 21876
+  },
+  {
+    "city": "Saint-Saturnin",
+    "id": 23386
+  },
+  {
+    "city": "Puy-l'Évêque",
+    "id": 23387
+  },
+  {
+    "city": "Rouen",
+    "id": 24536
+  },
+  {
+    "city": "Bosc-Guérard-Saint-Adrien",
+    "id": 24537
+  },
+  {
+    "city": "Saint-Florent",
+    "id": 24686
+  },
+  {
+    "city": "Saint-Florent",
+    "id": 24687
+  },
+  {
+    "city": "Semur-en-Auxois",
+    "id": 26993
+  },
+  {
+    "city": "Saint-Chaffrey",
+    "id": 26999
+  },
+  {
+    "city": "Saint-Raphaël",
+    "id": 28676
+  },
+  {
+    "city": "Hergnies",
+    "id": 30637
+  },
+  {
+    "city": "La Roche-Derrien",
+    "id": 30930
+  },
+  {
+    "city": "Val-d'Isère",
+    "id": 31944
+  },
+  {
+    "city": "Vence",
+    "id": 32143
+  },
+  {
+    "city": "Paris",
+    "id": 34194
+  },
+  {
+    "city": "Paris",
+    "id": 34195
+  },
+  {
+    "city": "Beynac-et-Cazenac",
+    "id": 3430
+  },
+  {
+    "city": "Vaison-la-Romaine",
+    "id": 35854
+  },
+  {
+    "city": "Vaison-la-Romaine",
+    "id": 35855
+  },
+  {
+    "city": "Saint-Marcellin-lès-Vaison",
+    "id": 35856
+  },
+  {
+    "city": "Vaison-la-Romaine",
+    "id": 35857
+  },
+  {
+    "city": "Vaison-la-Romaine",
+    "id": 35858
+  },
+  {
+    "city": "Bonifacio",
+    "id": 3852
+  },
+  {
+    "city": "Canisy",
+    "id": 39979
+  },
+  {
+    "city": "Carpentras",
+    "id": 40356
+  },
+  {
+    "city": "L'Isle-sur-la-Sorgue",
+    "id": 40382
+  },
+  {
+    "city": "Le Thor",
+    "id": 40383
+  },
+  {
+    "city": "Vittel",
+    "id": 40662
+  },
+  {
+    "city": "Paris",
+    "id": 41208
+  },
+  {
+    "city": "Paris",
+    "id": 41209
+  },
+  {
+    "city": "Bretteville-sur-Odon",
+    "id": 4668
+  },
+  {
+    "city": "Cannes",
+    "id": 5031
+  },
+  {
+    "city": "Chamonix-Mont-Blanc",
+    "id": 5332
+  },
+  {
+    "city": "Chamonix-Mont-Blanc",
+    "id": 5333
+  },
+  {
+    "city": "Chamonix-Mont-Blanc",
+    "id": 5334
+  },
+  {
+    "city": "Chamonix-Mont-Blanc",
+    "id": 5335
+  },
+  {
+    "city": "Chamonix-Mont-Blanc",
+    "id": 5336
+  },
+  {
+    "city": "Chamonix-Mont-Blanc",
+    "id": 5337
+  },
+  {
+    "city": "Chamonix-Mont-Blanc",
+    "id": 5338
+  },
+  {
+    "city": "Pierry",
+    "id": 8962
+  },
+  {
+    "city": "Éragny",
+    "id": 8966
+  },
+  {
+    "city": "Bourron-Marlotte",
+    "id": 9292
+  },
+  {
+    "city": "Fontainebleau",
+    "id": 9293
+  },
+  {
+    "city": "Fontainebleau",
+    "id": 9294
+  },
+  {
+    "city": "Ferney-Voltaire",
+    "id": 9905
+  }
+]

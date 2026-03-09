@@ -1,0 +1,6 @@
+SELECT DISTINCT h.*
+FROM `travel-sample` h
+WHERE h.type = 'hotel'
+AND h.country = 'France'
+AND h.state = "Provence-Alpes-Côte d'Azur"
+AND h.city NOT IN(['Orange'])

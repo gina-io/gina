@@ -1,0 +1,69 @@
+******************************
+* Bundle command lines e.g. *
+******************************
+
+
+[ Adding a new bundle ]
+
+    Adding/importing bundle
+    ----------
+
+    To add a new bundle or to import an existing one, use the following command line.
+
+    $ gina bundle:add <bundle_name> @<project_name>
+    Or
+    $ gina bundle:add <bundle_name> @<project_name> --start-port-from<port_number>
+
+
+    Adding multiple
+    ----------
+    $ gina bundle:add <bundle_name_1> <bundle_name_2> <bundle_name_3> @<project_name>
+
+
+
+[ Removing an existing bundle ]
+
+    $ gina bundle:remove <bundle_name> @<project_name>
+
+
+
+[ Listing all bundles inside your project ]
+
+    $ gina bundle:list @<project_name>
+
+    or to list all projects bundles
+
+    $ gina bundle:list
+
+
+[ Starting a bundle ]
+
+    $ gina bundle:start <bundle_name> @<project_name>
+
+    or to start more than one at once under the same project
+
+    $ gina bundle:start <bundle_name_1> <bundle_name_2> @<project_name>
+
+    [ Starting a bundle in debug mode ]
+
+    $ gina bundle:start <bundle_name> @<project_name> --debug-brk=5656 --max-old-space-size=2048
+
+
+[ Stopping a bundle ]
+
+    $ gina bundle:stop <bundle_name> @<project_name>
+
+
+[ Stopping all your project bundles ]
+
+    $ gina bundle:stop @<project_name>
+
+
+[ Restarting a bundle ]
+
+    $ gina bundle:restart <bundle_name> @<project_name>
+
+
+[ Restarting all your project bundles ]
+
+    $ gina bundle:restart @<project_name>

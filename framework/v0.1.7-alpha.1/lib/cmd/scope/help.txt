@@ -1,0 +1,33 @@
+******************************
+* Scope command lines e.g.     *
+******************************
+
+
+[ Adding a new scope ]
+
+    Adding/refreshing scope to a project
+    ----------
+
+    To add a new scope or to refresh an existing one, use the following command line.
+
+    $ gina scope:add <scope_name> @<project_name>
+
+
+    Adding/refreshing scope to a bundle
+    ----------
+
+    $ gina scope:add <bundle_name>/<scope_name> @<project_name>
+
+
+[ Removing an existing scope ]
+
+    $ gina scope:remove <scope_name> @<project_name>
+
+
+[ Listing all scopes inside your project ]
+
+    $ gina scope:list @<project_name>
+
+    or to list all projects scopes
+
+    $ gina scope:list

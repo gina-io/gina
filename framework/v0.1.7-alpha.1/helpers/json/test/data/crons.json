@@ -1,0 +1,25 @@
+{
+    "_comment": "Configuration for cron lib",
+    "mailing": {
+        "active": true,
+        "_comment": "This cron checks every 30 seconds if there are mails to be sent",
+        "interval": "30s",
+        "task": "checkForMailsToBeSent"
+    },
+    "fonts": {
+        "active": true,
+        "_comment": "This cron checks every day at 4:55am if there are new fonts to be added from Google fonts API",
+        "interval": "55 4 * * *",
+        "task": "downloadNewFonts",
+        "tmp": "{tmpPath}/google.fonts.json",
+        "target": "{bundlePath}/config/google.fonts.json",
+        "url": "https://www.googleapis.com/webfonts/v1/webfonts",
+        "apiKey": "wxxxzgfGEZGZgzefz"
+    },
+    "robot": {
+        "active": false,
+        "_comment": "This cron says Hi every 10 seconds if there are mails to be sent",
+        "interval": "10s",
+        "task": "sayHi"
+    }
+}

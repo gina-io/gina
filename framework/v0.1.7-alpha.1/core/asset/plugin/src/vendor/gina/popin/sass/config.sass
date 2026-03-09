@@ -1,0 +1,37 @@
+@function toPercent($width, $container: 960)
+    @return percentage($width/$container)
+
+@mixin media($type)
+    @if ($type == 'small')
+        @media screen and (min-width: 650px)
+            @content
+    @else if ($type == 'medium')
+        @media screen and (min-width: 768px)
+            @content
+    @else if ($type == 'large')
+        @media screen and (min-width: 960px)
+            @content
+
+////////////////////////////////////
+
+$white: #fff
+$black: #333
+
+$grey-tuatara: #444
+$grey: #8c8c8c
+$grey-light: #999
+$grey-concrete: #f3f3f3
+
+$salomie: #ffd470
+$yellow: #f0b036
+$fuel-yellow: #d38b38
+
+$blue: #2eb3fe
+
+////////////////////////////////////
+
+@font-face
+    font-family: 'have_heart_oneregular'
+    src: url('fonts/have_heart_one-webfont.woff2') format('woff2'), url('fonts/have_heart_one-webfont.woff') format('woff')
+    font-weight: normal
+    font-style: normal

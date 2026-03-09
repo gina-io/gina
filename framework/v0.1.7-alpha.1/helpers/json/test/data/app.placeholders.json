@@ -1,0 +1,187 @@
+{
+    // "ignore this part"
+    "_comment_disabled": [
+        {
+            "key": "[NOM DU CLIENT]",
+            "label": "nom du client",
+            "value": "{% if client && client.lastName %}{{ client.lastName }}{% else %}{{ null }}{% endif %}"
+        },
+        {
+            "key": "[PRÉNOM DU CLIENT]",
+            "label": "prénom du client",
+            "value": "{% if client && client.firstName %}{{ client.firstName }}{% else %}{{ null }}{% endif %}"
+        },
+        {
+            "key": "[RÉFÉRENCE DU DOCUMENT]",
+            "label": "reference du document",
+            "value": "{% if document && document.documentId %}{{ document.documentId }}{% else %}null{% endif %}"
+        },
+        {
+            "key": "[LIEN D'ACCÈS CLIENT AU DOCUMENT]",
+            "label": "lien d'accès au document",
+            "value": "http://www.google.com"
+        },
+        {
+            "key": "[TAUX DES INDEMNITÉS À VERSER EN CAS DE DÉDIT]",
+            "label": "taux des indemnités à verser en cas de dédit",
+            "value": "{{ company.global.damagesRate }} %"
+        },
+        {
+            "key": "[MONTANT DE L’ACOMPTE]",
+            "label": "montant de l’acompte",
+            "value": "{% if document.depositType == 'value' %}{{ document.depositValue }} €{% else %}{{ document.depositRate }} %{% endif %}"
+        },
+        {
+            "key": "[DATE DE CONFIRMATION DU DEVIS]",
+            "label": "date de confirmation du devis",
+            "value": "5 avril 2017"
+        },
+        {
+            "key": "[ADRESSE DE L’ORGANISME]",
+            "label": "adresse de l’organisme",
+            "value": "null",
+            "isHidden": "{% if session.company.socialSecurityOrganism == 'mda' %}true{%else%}false{% endif %}"
+        },
+        {
+            "key": "[SITE DE L’ORGANISME]",
+            "label": "site de l’organisme",
+            "value": "null",
+            "isHidden": "{% if session.company.socialSecurityOrganism == 'mda' %}true{%else%}false{% endif %}"
+        }
+    ],
+    "terms": [
+        {
+            "key": "[TYPE DE DOCUMENT]",
+            "label": "document",
+            "value": "{% if document.documentType == 'estimate' %}devis{% elseif document.documentType == 'invoice' %}facture{% else %}avenant{% endif %}"
+        },
+        {
+            "key": "[LE TYPE DE DOCUMENT]",
+            "label": "le document",
+            "value": "{% if document.documentType == 'estimate' %}le devis{% elseif document.documentType == 'invoice' %}la facture{% else %}l’avenant{% endif %}"
+        },
+        {
+            "key": "[CE TYPE DE DOCUMENT]",
+            "label": "ce document",
+            "value": "{% if document.documentType == 'estimate' %}ce devis{% elseif document.documentType == 'invoice' %}cette facture{% else %}cet avenant{% endif %}"
+        },
+        {
+            "key": "[DU TYPE DE DOCUMENT]",
+            "label": "du document",
+            "value": "{% if document.documentType == 'estimate' %}du devis{% elseif document.documentType == 'invoice' %}de la facture{% else %}de l’avenant{% endif %}"
+        },
+        {
+            "key": "[DÉLAI AVANT EXPIRATION DU DEVIS]",
+            "label": "délai avant expiration",
+            "value": "{{ document.validityPeriod }} jours",
+            "isHidden": "{% if document.documentType == 'invoice' %}true{%else%}false{% endif %}"
+        },
+        {
+            "key": "[DÉLAI DE PAIEMENT DE LA FACTURE]",
+            "label": "délai de paiement de la facture",
+            "value": "{% if document.paymentPeriod == 5 %}dès réception{% else %}sous {{ document.paymentPeriod }} jours{% endif %}"
+        },
+        {
+            "key": "[DATE LIMITE DE PAIEMENT DE LA FACTURE]",
+            "label": "date limite de paiement de la facture",
+            "value": "avant le {{ document.invoicePeriod }}",
+            "isHidden": "{% if document._collection != 'invoice' %}true{%else%}false{% endif %}"
+        },
+        {
+            "key": "[L’ORGANISME]",
+            "label": "l’organisme",
+            "value": "{% if session.company.socialSecurityOrganism == 'mda' %}la Maison des Artistes{%else%}l’AGESSA{% endif %}",
+            "isHidden": "{% if session.company.socialSecurityOrganism == 'mda' %}true{%else%}false{% endif %}"
+        }
+    ],
+    "mails": [
+        {
+            "key": "[RÉFÉRENCE DU DOCUMENT]",
+            "label": "reference du document",
+            "value": "{% if document && document.documentId %}{{ document.documentId }}{% else %}null{% endif %}"
+        },
+        {
+            "key": "[LIEN D’ACCÈS CLIENT AU DOCUMENT]",
+            "label": "lien d’accès au document",
+            "value": "http://www.google.com"
+        },
+        {
+            "key": "[NOM DU PROJET]",
+            "label": "nom du projet",
+            "value": "{% if document.project && document.project.name %}{{ document.project.name }}{% else %}null{% endif %}"
+        },
+        {
+            "key": "[CHÈRE MADAME]",
+            "label": "Chère Madame, Cher Monsieur",
+            "value": "{% if session.company.firmType == 'company' %}Chère Madame, Cher Monsieur{% else %}{% if session.company.civility == 'mr' || contact.civility == 'mr' %}Cher Monsieur{% else %}Chère Madame{% endif %}{% endif %}"
+        },
+        {
+            "key": "[MADAME]",
+            "label": "Madame, Monsieur",
+            "value": "{% if recipient && recipient.type == 'company' %}Madame, Monsieur{% else %}{% if recipient.civility == 'mr' %}Monsieur{% else %}Madame{% endif %}{% endif %}"
+        },
+        {
+            "key": "[NOM DU CLIENT]",
+            "label": "Nom du client",
+            "value": "{% if recipient.lastName != '' %}{{ recipient.lastName }}{% endif %}"
+        },
+        {
+            "key": "[PRÉNOM DU CLIENT]",
+            "label": "Prénom du client",
+            "value": "{% if recipient.firstName != '' %}{{ recipient.firstName }}{% endif %}"
+        }
+    ],
+    "signatures": [
+        {
+            "_comment": "defined in dashboard/controller.settings.js -> this.editXML",
+            "key": "[NOM]",
+            "label": "nom",
+            "value": "{% if session && session.lastName != '' %}{{ session.lastName }}{% else %}{{ null }}{% endif %}"
+        },
+        {
+            "key": "[PRÉNOM]",
+            "label": "prénom",
+            "value": "{% if session && session.firstName != '' %}{{ session.firstName }}{% else %}{{ null }}{% endif %}"
+        },
+        {
+            "key": "[NOM DE LA SOCIÉTÉ]",
+            "label": "nom de la société",
+            "value": "{% if company && company.fullName %}{{ company.fullName }}{% else %}{{ null }}{% endif %}"
+        },
+        {
+            "key": "[NOM COMMERCIAL]",
+            "label": "nom commercial",
+            "value": "{% if company && company.tradingName %}{{ company.tradingName }}{% else %}{{ null }}{% endif %}"
+        },
+        {
+            "key": "[RUE]",
+            "label": "rue",
+            "value": "{% if company && company.address %}{{ company.address }}{% else %}{{ null }}{% endif %}"
+        },
+        {
+            "key": "[CODE POSTAL]",
+            "label": "code postal",
+            "value": "{% if company && company.zip %}{{ company.zip }}{% else %}{{ null }}{% endif %}"
+        },
+        {
+            "key": "[VILLE]",
+            "label": "ville",
+            "value": "{% if company && company.city %}{{ company.city }}{% else %}{{ null }}{% endif %}"
+        },
+        {
+            "key": "[PAYS]",
+            "label": "pays",
+            "value": "{% if company && company.country %}{{ company.country }}{% else %}{{ null }}{% endif %}"
+        },
+        {
+            "key": "[SITE INTERNET]",
+            "label": "site internet",
+            "value": "{% if company && company.extra && company.extra.website %}{{ company.extra.website }}{% else %}{{ null }}{% endif %}"
+        },
+        {
+            "key": "[TELEPHONE PORTABLE]",
+            "label": "telephone portable",
+            "value": "{% if company && company.extra && company.extra.mobile %}{{ company.extra.mobile }}{% else %}{{ null }}{% endif %}"
+        }
+    ]
+}
