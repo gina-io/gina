@@ -2169,8 +2169,8 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
         },
         // Will try x3 (0, 1, 2). Hard ceiling is 10 (see retry handler) to bound timer accumulation under sustained failure.
         maxRetry            : 2,
-        // Socket inactivity timeout in milliseconds
-        timeout             : 10000,
+        // Socket inactivity timeout — accepts "30s", "500ms", "1m" or a number (ms)
+        timeout             : "10s",
         agent               : false/**,
         checkServerIdentity: function(host, cert) {
             // Make sure the certificate is issued to the host we are connected to
