@@ -2386,7 +2386,7 @@ function Server(options) {
                         &&  opt.autoTmpCleanupTimeout != 0
                         &&  !/false/i.test(opt.autoTmpCleanupTimeout)
                     ) ? true : false;
-                    var autoTmpCleanupTimeout = (!hasAutoTmpCleanupTimeout) ? null : opt.autoTmpCleanupTimeout; //ms
+                    var autoTmpCleanupTimeout = (!hasAutoTmpCleanupTimeout) ? null : parseTimeout(opt.autoTmpCleanupTimeout);
 
                     if (fileSize > maxSize) {
                         return throwError(response, 431, 'Attachment exceeded maximum file size [ '+ opt.maxFieldsSize +' ]');

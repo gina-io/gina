@@ -2268,6 +2268,11 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
         }
         options = cleanedOptions;
 
+        // Normalize timeout to ms once — covers both HTTP/1 and HTTP/2 paths,
+        // including the raw options passed to http2.connect() at session creation.
+        if (typeof options.timeout !== 'undefined') {
+            options.timeout = parseTimeout(options.timeout);
+        }
 
         if (self.isCacheless() || self.isLocalScope() ) {
             options.rejectUnauthorized = false;
@@ -2778,7 +2783,7 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
             })
         });
 
-        req.setTimeout(options.timeout, () => {
+        req.setTimeout(parseTimeout(options.timeout), () => {
             req.destroy(); // Will trigger 'error' event
         });
 
@@ -2905,7 +2910,9 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
 
         let client = cache.get(sessKey);
         // Checking client status: is closed or being closed
-        if (client && (client.closed || client.destroyed || client.connecting === false)) {
+        // Note: client.connecting === false means the session is ESTABLISHED (connected), not stale.
+        // Only evict sessions that are actually closed or destroyed.
+        if (client && (client.closed || client.destroyed)) {
             client = null;
             cache.delete(sessKey);
             var _staleIdx = self.serverInstance._http2Sessions.indexOf(sessKey);
@@ -2970,9 +2977,8 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
                 _closeIdx = null;
             });
 
-            client.on('goaway', () => {
+            client.on('goaway', (errorCode, lastStreamID) => {
                 if (_pingInterval) { clearInterval(_pingInterval); _pingInterval = null; }
-                console.warn('[CLIENT] Server is going away. Draining session.');
                 cache.delete(sessKey);
                 var _goawayIdx = self.serverInstance._http2Sessions.indexOf(sessKey);
                 if (_goawayIdx !== -1) self.serverInstance._http2Sessions.splice(_goawayIdx, 1);
@@ -3083,7 +3089,20 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
         }
         // 2. CRUCIAL SECURITY: Remove manual content-length for HTTP/2
         // Node.js will calculate it automatically and correctly with req.end(body)
-        // Strict sanitization for HTTP/2 (no undefined/null values)
+        // Strict sanitization for HTTP/2:
+        //   - Remove content-length (auto-computed by Node.js)
+        //   - Remove Buffer-valued entries (e.g. _body — the request body stash): sending a
+        //     166KB Buffer as a header value exceeds maxHeaderListSize (64KB) and causes
+        //     nghttp2 to refuse the stream client-side with NGHTTP2_REFUSED_STREAM
+        //   - Remove known TLS/connection config keys that leaked in from the options object
+        //     and are not valid HTTP headers
+        //   - Remove undefined/null values
+        var _NON_HTTP_OPTS = new Set([
+            '_body', '_comment', 'ca', 'hostname', 'host', 'port',
+            'timeout', 'keepAlive', 'maxSockets', 'keepAliveMsecs', 'maxFreeSockets',
+            'rejectUnauthorized', 'maxRetry', 'agent', 'protocol', 'scheme',
+            'nameservers', 'settings', 'webroot', 'queryData', 'method', 'path'
+        ]);
         var headerKeys = Object.keys(headers);
         var cleanHeaders = {};
         for (var hi = 0; hi < headerKeys.length; ++hi) {
@@ -3091,6 +3110,8 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
             if (
                 hk !== 'content-length' && hk !== 'Content-Length'
                 && headers[hk] !== undefined && headers[hk] !== null
+                && !Buffer.isBuffer(headers[hk])
+                && !_NON_HTTP_OPTS.has(hk)
             ) {
                 cleanHeaders[hk] = headers[hk];
             }
@@ -3109,7 +3130,7 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
         // silently drops idle inter-container TCP connections without RST or FIN).
         // On timeout: evict the dead session and retry once with a fresh connection.
         // If the retry also times out, surface the error to the caller.
-        var _streamTimeout = options.timeout || 10000;
+        var _streamTimeout = parseTimeout(options.timeout) || 10000;
         req.setTimeout(_streamTimeout, function onStreamTimeout() {
             if (isFinished) return;
             isFinished = true;

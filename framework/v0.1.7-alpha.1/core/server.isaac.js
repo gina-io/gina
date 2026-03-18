@@ -395,14 +395,13 @@ function ServerEngineClass(options) {
     }
 
     // Setting up server options
-    // Set the keep-alive timeout to 60 seconds (60000 ms)
     if ( typeof(options.keepAliveTimeout) != 'undefined' ) {
-        server.keepAliveTimeout = ~~options.keepAliveTimeout;
+        server.keepAliveTimeout = parseTimeout(options.keepAliveTimeout);
     }
 
     // Set headersTimeout slightly longer than keepAliveTimeout
     if ( typeof(options.headersTimeout) != 'undefined' ) {
-        server.headersTimeout = ~~options.headersTimeout;
+        server.headersTimeout = parseTimeout(options.headersTimeout);
     }
 
 
@@ -925,6 +924,14 @@ function ServerEngineClass(options) {
     ) {
         console.info('[IO SERVER ] `eio` found using `'+ options.ioServer.integrationMode +'` integration mode');
         delete options.ioServer.integrationMode;
+        // Normalize timeout fields to ms before passing to engine.io constructor,
+        // which calls setTimeout() internally and requires numeric values.
+        var _ioTimeoutKeys = ['pingTimeout', 'pingInterval', 'timeout', 'interval', 'ackTimeout'];
+        for (var _k = 0; _k < _ioTimeoutKeys.length; ++_k) {
+            if (typeof options.ioServer[_ioTimeoutKeys[_k]] !== 'undefined') {
+                options.ioServer[_ioTimeoutKeys[_k]] = parseTimeout(options.ioServer[_ioTimeoutKeys[_k]]);
+            }
+        }
         // test done in case we would like to switch to socket.io-server
         ioServer = ( typeof(Eio.attach) != 'undefined' ) ? new Eio.attach(server, options.ioServer) : new Eio(server, options.ioServer);
 
@@ -936,9 +943,9 @@ function ServerEngineClass(options) {
                 id: this.id,//socket.id,
                 handshake: 'Welcomed to `'+ options.bundle +'` main socket !',
                 // how many ms before sending a new ping packet
-                pingTimeout: options.ioServer.pingTimeout || options.ioServer.timeout,
+                pingTimeout: parseTimeout(options.ioServer.pingTimeout || options.ioServer.timeout),
                 // how many ms without a pong packet to consider the connection closed
-                pingInterval: options.ioServer.pingInterval || options.ioServer.interval
+                pingInterval: parseTimeout(options.ioServer.pingInterval || options.ioServer.interval)
             }));
 
             socket.on('message', function(payload){

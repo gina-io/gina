@@ -23,9 +23,9 @@
       // https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods
       // ? connect, head, options, trace, patch, cookies, copy
     },
-    "keepAliveTimeout": 5000,
-    // slightly longer than keepAliveTimeout (x1,085)
-    "headersTimeout": 5500,
+    "keepAliveTimeout": "5s",
+    // slightly longer than keepAliveTimeout — must remain > keepAliveTimeout
+    "headersTimeout": "5500ms",
     // TODO - http2Options -> core/server.isaac.js
     "http2Options": {
       "maxConcurrentStreams": 128
@@ -43,10 +43,9 @@
     // timeout for tmp files removal - can be redifined under the group
     // will be ignored by server if set to 0 or false
     // but you will have to setup a cron to remove files from tmp dir
-    // eg.: (int) 5000 for 5 sec
-    // eg.: (string) 10m for 10 minutes
-    // eg.: (int) 0 to disable autoTmpCleanupTimeout
-    // eg.: (boolean) false to disable autoTmpCleanupTimeout
+    // eg.: "5s" for 5 seconds, "10m" for 10 minutes, "1h" for 1 hour
+    // eg.: "500ms" for sub-second precision
+    // eg.: 0 or false to disable
     "autoTmpCleanupTimeout": false,
     // You need to set groups in order to enable uploads
     "groups": {
