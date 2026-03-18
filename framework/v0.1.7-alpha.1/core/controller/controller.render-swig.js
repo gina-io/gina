@@ -1103,6 +1103,14 @@ module.exports = async function render(userData, displayToolbar, errOptions, dep
             // Last compilation before rendering
             // Now we can use `data` instead of `swigData`
             mapping = { filename: path  };
+            if (isWithoutLayout && localOptions.debugMode || localOptions.debugMode ) {
+                if (self.isXMLRequest()) {
+                    // popin case
+                    if ( !/<\/body>/i.test(layout) ) {
+                        _templateContent += layout
+                    }
+                }
+            }
             compiledTemplate = swig.compile(_templateContent, mapping);
 
             if (

@@ -353,4 +353,4 @@ if [ "${build_env}" != "dev" ]; then
 fi
 
 
-echo -e "\r\nCompleted build.\nAttention, you might need to refresh your page twice to clear the cache."
+echo -e "\r\nCompleted build.\n----------------\nAttention:\n- you might need to rebuild your bundles to reflect the changes in assets\n- you might need to reload your Nginx Proxy/CDN\n- you might need to refresh your page twice to clear the cache and empty browser cache"
