@@ -1,6 +1,0 @@
-{
-  "favicon.ico": "{views}/favicon.ico",
-  "html": "{views}/html",
-  "common": "{root}/common",
-  "js/vendor/gina": "{gina}/core/asset/js/plugin/dist"
-}
