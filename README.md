@@ -2,6 +2,8 @@
 
 [![GitHub version](https://badge.fury.io/gh/Rhinostone%2Fgina.svg)](https://badge.fury.io/gh/Rhinostone%2Fgina) [![npm version](https://badge.fury.io/js/gina.svg)](https://badge.fury.io/js/gina)
 
+> **Documentation:** [https://gina.io/docs/](https://gina.io/docs/)
+
 <strong>Gina I/O</strong> - Node.js MVC and Event Driven framework
 
 > We are looking for people to help us test and improve `Windows` support.
@@ -612,6 +614,10 @@ This has been mostly observed for Windows users.
 After this, try again to start, it should run better.
 
 More documentation and tutorials are coming soon !
+
+---
+
+For the full documentation, visit [https://gina.io/docs/](https://gina.io/docs/)
 
 ## License (MIT)
 
