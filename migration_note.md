@@ -8,7 +8,7 @@ Cache config — sliding window and absolute ceiling (additive, backward compati
     "sliding"  (boolean, default false) — when true, the ttl resets on every
                request that hits the cached entry. The entry stays warm as long
                as it keeps receiving traffic.
-    "maxAge"   (number, seconds) — absolute lifetime ceiling from creation time.
+    "maxAge"   (number, seconds, fractional ok) — absolute lifetime ceiling from creation time.
                Only meaningful when sliding is true. The entry is evicted at
                createdAt + maxAge regardless of traffic. Strongly recommended
                whenever sliding is enabled.
@@ -35,6 +35,12 @@ Cache config — sliding window and absolute ceiling (additive, backward compati
     Sliding:     gina-cache; hit; ttl=NNN; max-age=MMM
       ttl=    remaining seconds in the current idle window
       max-age= remaining seconds until absolute ceiling
+
+
+Cache config — sub-second TTL and maxAge values now supported:
+  ttl and maxAge accept fractional seconds (e.g. 0.5 for 500 ms). Previously,
+  fractional values were silently truncated to zero, causing immediate eviction.
+  Integer values are unchanged — no action required on existing configs.
 
 
 Timeout config — human-readable string format:

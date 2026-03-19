@@ -28,9 +28,9 @@ full object:
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `type` | `"memory"` \| `"fs"` | — | Storage backend. `memory` keeps the rendered output in the shared Map. `fs` writes it to disk and stores only the filename in the Map. |
-| `ttl` | number (seconds) | server default | Expiry duration. Meaning depends on `sliding` — see below. |
+| `ttl` | number (seconds, fractional ok) | server default | Expiry duration. Meaning depends on `sliding` — see below. |
 | `sliding` | boolean | `false` | Enable sliding-window expiration. |
-| `maxAge` | number (seconds) | — | Absolute lifetime ceiling. Only meaningful when `sliding: true`. |
+| `maxAge` | number (seconds, fractional ok) | — | Absolute lifetime ceiling. Only meaningful when `sliding: true`. |
 | `invalidateOnEvents` | string[] | — | Event names that trigger invalidation of this entry. |
 
 ---
