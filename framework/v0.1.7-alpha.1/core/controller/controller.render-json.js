@@ -17,14 +17,15 @@ var self                = null
 /**
  * Write the rendered JSON to the cache store (memory or file system).
  * No-op when caching is disabled or the route has no `cache` setting.
+ * FS writes are performed asynchronously to avoid blocking the event loop.
  *
  * @inner
  * @param {string} bundle      - Bundle name (used as cache-key namespace)
  * @param {object} opt         - Server cache configuration (`opt.path`, `opt.ttl`)
  * @param {string} jsonContent - Serialised JSON string to cache
- * @returns {void}
+ * @returns {Promise<void>}
  */
-function writeCache(bundle, opt, jsonContent) {
+async function writeCache(bundle, opt, jsonContent) {
     if (
         typeof(local.req.routing.cache) == 'undefined'
         ||
@@ -90,12 +91,8 @@ function writeCache(bundle, opt, jsonContent) {
         jsonDirObj = null;
 
         // console.debug("Writting cache to: ", jsonFilename);
-        var fd = fs.openSync(jsonFilename, 'w'); // Open file for writing
-        var buffer = Buffer.from( jsonContent );
-        fs.writeSync(fd, buffer, 0, buffer.length, 0); // Write the buffer
-        buffer = null;
-        fs.closeSync(fd); // Close the file descriptor
-        fd = null;
+        // replaced: sync fs.openSync/writeSync/closeSync — blocks event loop
+        await fs.promises.writeFile(jsonFilename, jsonContent);
 
         // filename is mandatory here
         cacheObject.filename = jsonFilename;
@@ -261,7 +258,9 @@ module.exports = function renderJSON(jsonObj, deps) {
             && typeof(request.routing.cache) != 'undefined'
             && /^GET$/i.test(request.method)
         ) {
-            writeCache(self._options.bundle, local.options.conf.server.cache, data);
+            writeCache(self._options.bundle, local.options.conf.server.cache, data).catch(function(err) {
+                console.error('[render-json] writeCache failed:', err);
+            });
         }
 
         if (  stream ) {

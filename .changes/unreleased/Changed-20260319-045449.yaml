@@ -1,0 +1,3 @@
+kind: Changed
+body: Cache FS writes in the JSON renderer are now asynchronous (fs.promises.writeFile), avoiding event-loop blocking on cache misses.
+time: 2026-03-19T04:54:49.493495+01:00

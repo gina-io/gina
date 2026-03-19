@@ -113,7 +113,7 @@ function Cache() {
             // Pre-compute absolute expiry timestamp — used by get() for the lazy ceiling check.
             // maxAge is only meaningful when sliding is enabled.
             if ( slidingEnabled && typeof(value.maxAge) != 'undefined' && value.maxAge > 0 ) {
-                value.expiresAt = new Date( value.createdAt.getTime() + (~~(value.maxAge) * 1000) );
+                value.expiresAt = new Date( value.createdAt.getTime() + Math.round(value.maxAge * 1000) );
             }
 
             var timeout = undefined;
@@ -125,14 +125,14 @@ function Cache() {
                     // The sliding window is enforced lazily in get().
                     timeout = setTimeout(() => {
                         cache.delete(key);
-                    }, 1000 * ~~(value.maxAge));
+                    }, Math.round(value.maxAge * 1000));
                 } else if ( typeof(value.ttl) != 'undefined' && value.ttl > 0 ) {
                     // Pure sliding (no hard ceiling):
                     // Timer as a GC safety net for entries that are written but never
                     // accessed again. Reset on each get() call.
                     timeout = setTimeout(() => {
                         cache.delete(key);
-                    }, 1000 * ~~(value.ttl));
+                    }, Math.round(value.ttl * 1000));
                 }
                 // No ttl, no maxAge: no timer — entry lives until manually deleted
             } else {
@@ -140,7 +140,7 @@ function Cache() {
                 if ( typeof(value.ttl) != 'undefined' && value.ttl > 0 ) {
                     timeout = setTimeout(() => {
                         cache.delete(key);
-                    }, 1000 * ~~(value.ttl));
+                    }, Math.round(value.ttl * 1000));
                 }
             }
 
@@ -191,7 +191,7 @@ function Cache() {
 
         // 2. Sliding window check
         if ( value.sliding === true && typeof(value.ttl) != 'undefined' && value.ttl > 0 ) {
-            var ttlMs = 1000 * ~~(value.ttl);
+            var ttlMs = Math.round(value.ttl * 1000);
             var lastAccess = value.lastAccessedAt
                 ? value.lastAccessedAt.getTime()
                 : value.createdAt.getTime();
