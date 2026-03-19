@@ -1,0 +1,3 @@
+kind: Added
+body: Cached routes now emit `Cache-Control` headers synchronised with the server-side TTL. A new optional `visibility` field (`"public" | "private"`, default `"private"`) in the per-route cache config controls the directive sent to browsers and CDNs. The hit path uses the remaining TTL so downstream caches do not over-serve stale content.
+time: 2026-03-19T06:28:52.142497+01:00
