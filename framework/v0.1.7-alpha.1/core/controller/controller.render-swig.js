@@ -55,6 +55,17 @@ async function writeCache(bundle, opt, htmlContent) {
         if ( cachingOption.ttl > 0) {
             cacheObject.ttl = cachingOption.ttl;
         }
+        // Sliding window (opt-in, default false).
+        // When true, ttl becomes the idle eviction threshold (seconds since last access)
+        // rather than an absolute duration from creation.
+        if ( cachingOption.sliding === true ) {
+            cacheObject.sliding = true;
+        }
+        // Absolute expiration ceiling — only meaningful when sliding is enabled.
+        // The entry is evicted at createdAt + maxAge regardless of access patterns.
+        if ( cacheObject.sliding && typeof(cachingOption.maxAge) != 'undefined' && cachingOption.maxAge > 0 ) {
+            cacheObject.maxAge = ~~(cachingOption.maxAge);
+        }
         // Caching to `memory`
         // Use this method carefully since it can lead to memory overflow:
         // - only for most visited static content
@@ -93,7 +104,10 @@ async function writeCache(bundle, opt, htmlContent) {
             // filename is mandatory here
             cacheObject.filename = htmlFilename;
 
-            cache.set(cacheKey, cacheObject);
+            // cleanupFn: delete the cached file from disk when the entry is evicted
+            cache.set(cacheKey, cacheObject, function() {
+                try { fs.rmSync(cacheObject.filename); } catch(e) {}
+            });
         }
 
 

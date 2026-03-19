@@ -6,17 +6,32 @@ if ( typeof(module) !== 'undefined' && module.exports ) {
 /**
  * @module lib/cache
  * @description In-process key/value cache backed by a `Map`. Supports optional
- * TTL-based auto-expiry, event-driven invalidation, and fs-cached entries.
+ * TTL-based auto-expiry, sliding-window expiration, absolute expiration ceiling
+ * (maxAge), event-driven invalidation, and fs-cached entries.
  * Works in Node.js (CommonJS) and browser (AMD / GFF) contexts.
  *
  * Do not share a single `Cache` instance across requests — call `cache.from()`
  * to point a new instance at the server's shared Map.
+ *
+ * ### Expiration modes
+ *
+ * | Config | Behaviour |
+ * |--------|-----------|
+ * | `{ ttl }` | Absolute: entry expires `ttl` seconds after creation. Default. |
+ * | `{ ttl, sliding: true }` | Sliding: entry expires `ttl` seconds after the **last access**. No hard ceiling — entry may live indefinitely while busy. |
+ * | `{ ttl, sliding: true, maxAge }` | Sliding + ceiling: entry expires `ttl` seconds after the last access **or** `maxAge` seconds after creation, whichever comes first. Recommended when `sliding` is enabled. |
+ *
+ * `maxAge` is only meaningful when `sliding: true`. Without sliding, `ttl` already
+ * defines the absolute lifetime.
  *
  * @example
  * var cache = new Cache();
  * cache.from(serverInstance._cached);   // attach to server-level Map
  * cache.set('key', { value: 'v', ttl: 60 });
  * cache.get('key');                      // { value: 'v', ttl: 60, createdAt: … }
+ *
+ * cache.set('key2', { content: '…', ttl: 300, sliding: true, maxAge: 3600 });
+ * cache.get('key2');  // resets the 300 s sliding window; hard ceiling stays at 1 h
  */
 
 var cache = new Map();
@@ -55,20 +70,35 @@ function Cache() {
     }
 
     /**
-     * Store a value under `key`. When `value.ttl` is set (seconds), the entry
-     * is automatically deleted after that duration.
+     * Store a value under `key`.
+     *
+     * When `value.sliding` is `false` (the default), `value.ttl` is an absolute
+     * duration from creation — the entry is deleted `ttl` seconds after `set()`.
+     * This is the existing behaviour, unchanged.
+     *
+     * When `value.sliding` is `true`, `value.ttl` becomes a sliding window: the
+     * entry is evicted if not accessed for `ttl` seconds. An optional `value.maxAge`
+     * (seconds) caps the absolute lifetime from creation regardless of access — this
+     * is strongly recommended when `sliding` is enabled to prevent unbounded growth.
+     *
+     * `set()` counts as the first access: `lastAccessedAt` is stamped equal to
+     * `createdAt` at write time.
      *
      * @memberof Cache
-     * @param {string}        key              - Cache key
-     * @param {string|object} value            - Value to store; objects may include `ttl` (seconds)
-     * @param {function|null} [cleanupFn=null] - Called before the entry is evicted or replaced
+     * @param {string}        key                   - Cache key
+     * @param {string|object} value                 - Value to store
+     * @param {number}   [value.ttl]                - Seconds: absolute TTL (default) or sliding window (`sliding: true`)
+     * @param {boolean}  [value.sliding=false]      - Enable sliding expiration
+     * @param {number}   [value.maxAge]             - Seconds: absolute lifetime ceiling (only with `sliding: true`)
+     * @param {function|null} [cleanupFn=null]      - Called before the entry is evicted or replaced
      * @returns {void}
      */
     instance['set'] = function(key, value, cleanupFn = null) {
         const existing = cache.get(key);
-        // If old entry exists, clean it up first
-        if (existing && existing.cleanup) {
-            existing.cleanup();
+        // Cancel existing timer and run cleanup before replacing the entry
+        if (existing) {
+            if (existing.timeout) clearTimeout(existing.timeout);
+            if (existing.cleanup) existing.cleanup();
         }
 
         if (
@@ -76,23 +106,48 @@ function Cache() {
         ) {
             value.createdAt = new Date();
 
-            if ( typeof(value.ttl) != 'undefined' ) {
-                // Converting Ms to secondes
-                var ttlMs = 1000 * ~~(value.ttl);
-                const timeout = setTimeout(() => {
-                    cache.delete(key);
-                }, ttlMs);
+            var slidingEnabled = (value.sliding === true);
+            // set() counts as the first access
+            value.lastAccessedAt = value.createdAt;
 
-                cache.set(key, {
-                    value,
-                    timeout,
-                    cleanup: cleanupFn || null
-                });
+            // Pre-compute absolute expiry timestamp — used by get() for the lazy ceiling check.
+            // maxAge is only meaningful when sliding is enabled.
+            if ( slidingEnabled && typeof(value.maxAge) != 'undefined' && value.maxAge > 0 ) {
+                value.expiresAt = new Date( value.createdAt.getTime() + (~~(value.maxAge) * 1000) );
+            }
+
+            var timeout = undefined;
+
+            if ( slidingEnabled ) {
+                if ( typeof(value.maxAge) != 'undefined' && value.maxAge > 0 ) {
+                    // Sliding + absolute ceiling:
+                    // One timer for the hard ceiling only — no per-access churn.
+                    // The sliding window is enforced lazily in get().
+                    timeout = setTimeout(() => {
+                        cache.delete(key);
+                    }, 1000 * ~~(value.maxAge));
+                } else if ( typeof(value.ttl) != 'undefined' && value.ttl > 0 ) {
+                    // Pure sliding (no hard ceiling):
+                    // Timer as a GC safety net for entries that are written but never
+                    // accessed again. Reset on each get() call.
+                    timeout = setTimeout(() => {
+                        cache.delete(key);
+                    }, 1000 * ~~(value.ttl));
+                }
+                // No ttl, no maxAge: no timer — entry lives until manually deleted
             } else {
-                cache.set(key, {
-                    value,
-                    cleanup: cleanupFn || null
-                });
+                // Non-sliding (existing behaviour): absolute TTL from creation
+                if ( typeof(value.ttl) != 'undefined' && value.ttl > 0 ) {
+                    timeout = setTimeout(() => {
+                        cache.delete(key);
+                    }, 1000 * ~~(value.ttl));
+                }
+            }
+
+            if ( timeout !== undefined ) {
+                cache.set(key, { value, timeout, cleanup: cleanupFn || null });
+            } else {
+                cache.set(key, { value, cleanup: cleanupFn || null });
             }
         } else {
             cache.set(key, {
@@ -101,23 +156,70 @@ function Cache() {
             });
         }
 
-
-
         if (importedMapInstance) {
             importedMapInstance = cache;
         }
     }
 
     /**
-     * Get entry by key
+     * Get entry by key.
      *
+     * For sliding-window entries (`sliding: true`), stamps `lastAccessedAt` and
+     * resets the GC safety-net timer (pure sliding only — no timer churn when
+     * `maxAge` is set). Returns `undefined` and evicts the entry if either the
+     * sliding window or the absolute ceiling has expired.
+     *
+     * @memberof Cache
      * @param {string} key
-     *
-     * @return {object} entry
+     * @returns {string|object|undefined} The stored value, or `undefined` on miss or expiry
      */
     instance['get'] = function(key) {
         const entry = cache.get(key);
-        return entry ? entry.value : undefined;
+        if (!entry) return undefined;
+
+        const value = entry.value;
+        // Only object values carry sliding/expiry metadata
+        if (!value || !/^object$/i.test(typeof(value))) return value;
+
+        var now = Date.now();
+
+        // 1. Absolute ceiling check (sliding + maxAge)
+        if ( value.expiresAt && now >= value.expiresAt.getTime() ) {
+            instance['delete'](key);
+            return undefined;
+        }
+
+        // 2. Sliding window check
+        if ( value.sliding === true && typeof(value.ttl) != 'undefined' && value.ttl > 0 ) {
+            var ttlMs = 1000 * ~~(value.ttl);
+            var lastAccess = value.lastAccessedAt
+                ? value.lastAccessedAt.getTime()
+                : value.createdAt.getTime();
+
+            if ( now - lastAccess > ttlMs ) {
+                // Sliding window expired: not accessed within ttl seconds
+                instance['delete'](key);
+                return undefined;
+            }
+
+            // Still alive: stamp the access time
+            value.lastAccessedAt = new Date(now);
+
+            // Pure sliding (no maxAge): reset the GC safety-net timer.
+            // Sliding + maxAge: no timer reset — the absolute ceiling timer handles final GC.
+            if ( !value.expiresAt && entry.timeout ) {
+                clearTimeout(entry.timeout);
+                entry.timeout = setTimeout(() => {
+                    cache.delete(key);
+                }, ttlMs);
+            }
+        }
+
+        if (importedMapInstance) {
+            importedMapInstance = cache;
+        }
+
+        return value;
     }
 
     /**

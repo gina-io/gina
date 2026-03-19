@@ -1,5 +1,42 @@
 [ 0.1.6 => 0.1.7 ]
 
+Cache config — sliding window and absolute ceiling (additive, backward compatible):
+  Two optional fields added to per-route cache config in routing.json.
+  Existing configs with only `ttl` are unchanged.
+
+  New fields:
+    "sliding"  (boolean, default false) — when true, the ttl resets on every
+               request that hits the cached entry. The entry stays warm as long
+               as it keeps receiving traffic.
+    "maxAge"   (number, seconds) — absolute lifetime ceiling from creation time.
+               Only meaningful when sliding is true. The entry is evicted at
+               createdAt + maxAge regardless of traffic. Strongly recommended
+               whenever sliding is enabled.
+
+  The meaning of "ttl" changes depending on "sliding":
+    sliding: false (default)  → ttl is absolute duration from creation (unchanged)
+    sliding: true             → ttl is the idle eviction threshold (seconds since
+                                last access); maxAge is the hard ceiling
+
+  Examples:
+    { "type": "memory", "ttl": 3600 }
+      Unchanged — absolute TTL of 1 hour from first cache write.
+
+    { "type": "memory", "ttl": 300, "sliding": true }
+      Evict if not accessed for 5 minutes. No hard ceiling — entry may live
+      indefinitely on busy routes. Use with care.
+
+    { "type": "memory", "ttl": 300, "sliding": true, "maxAge": 3600 }
+      Evict if idle for 5 minutes OR after 1 hour from creation, whichever
+      comes first. Recommended pattern.
+
+  Cache-Status response header format updated:
+    Non-sliding: gina-cache; hit; ttl=NNN          (unchanged)
+    Sliding:     gina-cache; hit; ttl=NNN; max-age=MMM
+      ttl=    remaining seconds in the current idle window
+      max-age= remaining seconds until absolute ceiling
+
+
 Timeout config — human-readable string format:
   All timeout fields in settings.json and app.json now accept duration strings
   in addition to millisecond integers (backward compatible).

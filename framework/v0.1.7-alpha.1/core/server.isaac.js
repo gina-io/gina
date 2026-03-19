@@ -645,19 +645,46 @@ function ServerEngineClass(options) {
                     }
 
                     if ( hasCachedKey ) {
-                        // Getting cache from key
+                        // Getting cache from key.
+                        // get() may return undefined when a sliding window expires between
+                        // has() and get() — treat that as a miss and fall through.
                         cachedContentObj = cache.get(cacheKey);
+                        if ( !cachedContentObj ) {
+                            hasCachedKey = false;
+                        }
+                    }
 
+                    if ( hasCachedKey ) {
                         // Getting the headers
                         cacheStatus += '; hit';
-                        if ( typeof(cachedContentObj.ttl) != 'undefined' && cachedContentObj.ttl > 0) {
-                            var createdAt = cachedContentObj.createdAt.getTime()+ (~~(cachedContentObj.ttl)*1000);
-                            var remainingSeconds = Math.floor( (createdAt - new Date().getTime()) /1000);
-
-                            cacheStatus += '; ttl='+remainingSeconds;
-                            createdAt = null;
-                            remainingSeconds = null;
+                        var cacheNow = new Date().getTime();
+                        if ( cachedContentObj.sliding === true ) {
+                            // Sliding: report remaining idle window and absolute ceiling separately
+                            if ( typeof(cachedContentObj.ttl) != 'undefined' && cachedContentObj.ttl > 0 ) {
+                                var lastAccess = cachedContentObj.lastAccessedAt
+                                    ? cachedContentObj.lastAccessedAt.getTime()
+                                    : cachedContentObj.createdAt.getTime();
+                                var slidingRemainingSeconds = Math.max(0, Math.floor( (lastAccess + (~~(cachedContentObj.ttl)*1000) - cacheNow) / 1000 ));
+                                cacheStatus += '; ttl=' + slidingRemainingSeconds;
+                                lastAccess = null;
+                                slidingRemainingSeconds = null;
+                            }
+                            if ( cachedContentObj.expiresAt ) {
+                                var absoluteRemainingSeconds = Math.max(0, Math.floor( (cachedContentObj.expiresAt.getTime() - cacheNow) / 1000 ));
+                                cacheStatus += '; max-age=' + absoluteRemainingSeconds;
+                                absoluteRemainingSeconds = null;
+                            }
+                        } else {
+                            // Non-sliding (existing behaviour): report remaining absolute TTL
+                            if ( typeof(cachedContentObj.ttl) != 'undefined' && cachedContentObj.ttl > 0) {
+                                var createdAt = cachedContentObj.createdAt.getTime()+ (~~(cachedContentObj.ttl)*1000);
+                                var remainingSeconds = Math.floor( (createdAt - cacheNow) /1000);
+                                cacheStatus += '; ttl='+remainingSeconds;
+                                createdAt = null;
+                                remainingSeconds = null;
+                            }
                         }
+                        cacheNow = null;
 
                         if ( typeof(cachedContentObj.responseHeaders) != 'undefined' ) {
                             for (let h in cachedContentObj.responseHeaders ) {
@@ -683,7 +710,7 @@ function ServerEngineClass(options) {
                                 console.info(request.method +' [200] '+ request.url);
                             })
                             .pipe(response);
-                    } // EO if ( cache.has(cacheKey) )
+                    } // EO if ( hasCachedKey )
                     if (cacheStatus) {
                         cacheStatus += '; uri-miss';
                         response.setHeader('Cache-Status', cacheStatus);
