@@ -1,0 +1,3 @@
+kind: Fixed
+body: Cache entries are now capped via LRU eviction. Cache(options) accepts a `maxEntries` option (default 0 = unlimited); when reached, the least-recently-accessed entry is evicted before each insert. The shared server cache defaults to 1000 entries, configurable via `server.cache.maxEntries` in env.json. The routing cache is capped at 5000 entries (FIFO).
+time: 2026-03-19T06:23:18.473973+01:00
