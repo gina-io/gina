@@ -428,6 +428,10 @@ function Server(options) {
             // If you change here, you will also have to refrect changes in the form-validator
             if ( typeof(instance._cached) == 'undefined' ) {
                 instance._cached = new Map();
+                // Tag with LRU cap so all Cache instances pointing at this Map share the same limit.
+                // Reads server.cache.maxEntries from env.json; defaults to 1000. Set to 0 to disable.
+                var _cacheConf = self.conf[self.appName][self.env].server.cache;
+                instance._cached._maxEntries = ( _cacheConf.maxEntries > 0 ) ? ~~(_cacheConf.maxEntries) : 1000;
             }
             if ( typeof(instance._cachedPath) == 'undefined' ) {
                 instance._cachePath = self.conf[self.appName][self.env].server.cache.path;

@@ -43,9 +43,15 @@ var cache = new Map();
  *
  * @class Cache
  * @constructor
+ * @param {object} [options]
+ * @param {number} [options.maxEntries=0] - Maximum number of entries (0 = unlimited).
+ *   When the limit is reached and a new key is inserted, the least-recently-accessed
+ *   entry is evicted first. Ignored for updates to existing keys.
  */
-function Cache() {
+function Cache(options) {
     var isGFFCtx        = ( ( typeof(module) !== 'undefined' ) && module.exports ) ? false : true;
+    // LRU cap: 0 means unlimited. Overridden by from() if the shared Map carries _maxEntries.
+    var maxEntries      = (options && options.maxEntries > 0) ? ~~(options.maxEntries) : 0;
     var merge           = (isGFFCtx) ? require('lib/merge') : require('../../../lib/merge');
     var uuid            = (isGFFCtx) ? require('vendor/uuid') : require('uuid');
     var Collection      = (isGFFCtx) ? require('lib/collection') : require('../../../lib/collection');
@@ -67,6 +73,10 @@ function Cache() {
      */
     instance['from'] = function(initialCache) {
         cache = importedMapInstance = initialCache;
+        // If the shared map was tagged with a cap by server.js, honour it
+        if (typeof initialCache._maxEntries === 'number' && initialCache._maxEntries > 0) {
+            maxEntries = initialCache._maxEntries;
+        }
     }
 
     /**
@@ -93,12 +103,31 @@ function Cache() {
      * @param {function|null} [cleanupFn=null]      - Called before the entry is evicted or replaced
      * @returns {void}
      */
+    /**
+     * Evict the least-recently-accessed entry (O(n) scan).
+     * Entries without a `lastAccessedAt` timestamp are treated as oldest and evicted first.
+     * @inner
+     */
+    function evictLRU() {
+        var oldest = null, oldestTime = Infinity;
+        for (const [k, entry] of cache.entries()) {
+            if (!entry.value || !entry.value.lastAccessedAt) { oldest = k; break; }
+            var t = entry.value.lastAccessedAt.getTime();
+            if (t < oldestTime) { oldestTime = t; oldest = k; }
+        }
+        if (oldest !== null) instance['delete'](oldest);
+    }
+
     instance['set'] = function(key, value, cleanupFn = null) {
         const existing = cache.get(key);
         // Cancel existing timer and run cleanup before replacing the entry
         if (existing) {
             if (existing.timeout) clearTimeout(existing.timeout);
             if (existing.cleanup) existing.cleanup();
+        }
+        // Evict LRU entry when at capacity and this is a new key (not an update)
+        if (maxEntries > 0 && !existing && cache.size >= maxEntries) {
+            evictLRU();
         }
 
         if (
@@ -202,9 +231,6 @@ function Cache() {
                 return undefined;
             }
 
-            // Still alive: stamp the access time
-            value.lastAccessedAt = new Date(now);
-
             // Pure sliding (no maxAge): reset the GC safety-net timer.
             // Sliding + maxAge: no timer reset — the absolute ceiling timer handles final GC.
             if ( !value.expiresAt && entry.timeout ) {
@@ -214,6 +240,10 @@ function Cache() {
                 }, ttlMs);
             }
         }
+
+        // 3. Always stamp lastAccessedAt — needed for LRU eviction tracking across all entry types.
+        //    For sliding entries this also resets the window (checked above using the old value).
+        value.lastAccessedAt = new Date(now);
 
         if (importedMapInstance) {
             importedMapInstance = cache;
