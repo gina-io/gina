@@ -35,7 +35,8 @@ async function writeCache(bundle, opt, jsonContent) {
     ) {
         return;
     }
-    var cacheKey = "data:"+ local.req.originalUrl;
+    // before: "data:" + local.req.originalUrl  (#C3 — added bundle namespace to prevent silent collisions when two bundles serve the same URL path)
+    var cacheKey = "data:" + bundle + ":" + local.req.originalUrl;
     var responseHeaders = local.res.getHeaders() || {};
 
     // Caching kinds are: `memory` & `fs`

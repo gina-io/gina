@@ -654,7 +654,8 @@ function ServerEngineClass(options) {
                     cache.from(server._cached);
                     var cacheKey        = null
                         , hasCachedKey  = false
-                        , keyPrefixes   = ['data:', 'static:']
+                        // before: ['data:', 'static:']  (#C3 — bundle namespace prevents silent cache collisions)
+                        , keyPrefixes   = ['data:' + options.bundle + ':', 'static:' + options.bundle + ':']
                     ;
                     for (let p=0, pLen=keyPrefixes.length; p<pLen; p++ ) {
                         cacheKey = keyPrefixes[p] + request.url;

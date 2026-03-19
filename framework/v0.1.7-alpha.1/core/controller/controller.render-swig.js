@@ -41,7 +41,8 @@ async function writeCache(bundle, opt, htmlContent) {
     ) {
         return;
     }
-    var cacheKey = "static:"+ local.req.originalUrl;
+    // before: "static:" + local.req.originalUrl  (#C3 — added bundle namespace to prevent silent collisions when two bundles serve the same URL path)
+    var cacheKey = "static:" + bundle + ":" + local.req.originalUrl;
     var responseHeaders = local.res.getHeaders() || {};
     if ( !cache.has(cacheKey) ) {
         // Caching kinds are: `memory` & `fs`
