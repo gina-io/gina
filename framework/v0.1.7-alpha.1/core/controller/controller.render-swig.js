@@ -53,6 +53,9 @@ async function writeCache(bundle, opt, htmlContent) {
         var cacheObject = {
             responseHeaders : responseHeaders
         };
+        // Store visibility for Cache-Control header on the hit path.
+        // Default is 'private' — opt in to 'public' explicitly for truly static pages.
+        cacheObject.visibility = ( cachingOption.visibility === 'public' ) ? 'public' : 'private';
         if ( cachingOption.ttl > 0) {
             cacheObject.ttl = cachingOption.ttl;
         }
@@ -752,6 +755,15 @@ module.exports = async function render(userData, displayToolbar, errOptions, dep
                     await writeCache(localOptions.bundle, localOptions.conf.server.cache, htmlContent);
                 }
 
+                // Cache-Control: miss path — inform browsers/CDNs of the response lifetime (#C6)
+                if ( typeof(local.req.routing.cache) != 'undefined' && local.req.routing.cache ) {
+                    var _ccCfg = ( typeof(local.req.routing.cache) == 'string' ) ? { type: local.req.routing.cache } : local.req.routing.cache;
+                    var _ccTtl = ( typeof(_ccCfg.ttl) != 'undefined' && _ccCfg.ttl > 0 ) ? _ccCfg.ttl : localOptions.conf.server.cache.ttl;
+                    if ( _ccTtl > 0 ) {
+                        local.res.setHeader('Cache-Control', ( _ccCfg.visibility === 'public' ? 'public' : 'private' ) + ', max-age=' + ~~(_ccTtl));
+                    }
+                }
+
                 console.info(local.req.method +' ['+local.res.statusCode +'] '+ local.req.url);
                 // if ( stream ) {
                 //     stream.respond({
@@ -1170,6 +1182,15 @@ module.exports = async function render(userData, displayToolbar, errOptions, dep
                     )
                 ) {
                     await writeCache(localOptions.bundle, localOptions.conf.server.cache, htmlContent);
+                }
+
+                // Cache-Control: miss path — inform browsers/CDNs of the response lifetime (#C6)
+                if ( typeof(local.req.routing.cache) != 'undefined' && local.req.routing.cache ) {
+                    var _ccCfg = ( typeof(local.req.routing.cache) == 'string' ) ? { type: local.req.routing.cache } : local.req.routing.cache;
+                    var _ccTtl = ( typeof(_ccCfg.ttl) != 'undefined' && _ccCfg.ttl > 0 ) ? _ccCfg.ttl : localOptions.conf.server.cache.ttl;
+                    if ( _ccTtl > 0 ) {
+                        local.res.setHeader('Cache-Control', ( _ccCfg.visibility === 'public' ? 'public' : 'private' ) + ', max-age=' + ~~(_ccTtl));
+                    }
                 }
 
                 console.info(local.req.method +' ['+local.res.statusCode +'] '+ local.req.url);

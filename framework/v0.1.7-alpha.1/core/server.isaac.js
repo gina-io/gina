@@ -713,6 +713,28 @@ function ServerEngineClass(options) {
                             }
                         }
                         response.setHeader('Cache-Status', cacheStatus);
+
+                        // Cache-Control: hit path — use remaining TTL so downstream caches don't over-serve (#C6)
+                        var _ccHitMaxAge = null;
+                        var _ccHitNow = new Date().getTime();
+                        if ( cachedContentObj.sliding === true ) {
+                            if ( typeof(cachedContentObj.ttl) != 'undefined' && cachedContentObj.ttl > 0 ) {
+                                var _ccHitLast = cachedContentObj.lastAccessedAt
+                                    ? cachedContentObj.lastAccessedAt.getTime()
+                                    : cachedContentObj.createdAt.getTime();
+                                _ccHitMaxAge = Math.max(0, Math.floor( (_ccHitLast + Math.round(cachedContentObj.ttl * 1000) - _ccHitNow) / 1000 ));
+                            }
+                        } else {
+                            if ( typeof(cachedContentObj.ttl) != 'undefined' && cachedContentObj.ttl > 0 ) {
+                                _ccHitMaxAge = Math.max(0, Math.floor( (cachedContentObj.createdAt.getTime() + Math.round(cachedContentObj.ttl * 1000) - _ccHitNow) / 1000 ));
+                            }
+                        }
+                        if ( _ccHitMaxAge !== null ) {
+                            var _ccHitVis = ( cachedContentObj.visibility === 'public' ) ? 'public' : 'private';
+                            response.setHeader('Cache-Control', _ccHitVis + ', max-age=' + _ccHitMaxAge);
+                        }
+                        _ccHitMaxAge = null; _ccHitNow = null;
+
                         if (
                             typeof(cachedContentObj.fromMemory) != 'undefined'
                         ) {

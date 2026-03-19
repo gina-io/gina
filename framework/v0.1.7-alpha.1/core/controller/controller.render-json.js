@@ -47,6 +47,9 @@ async function writeCache(bundle, opt, jsonContent) {
     var cacheObject = {
         responseHeaders : responseHeaders
     };
+    // Store visibility for Cache-Control header on the hit path.
+    // Default is 'private' — opt in to 'public' explicitly for truly static pages.
+    cacheObject.visibility = ( cachingOption.visibility === 'public' ) ? 'public' : 'private';
     if ( cachingOption.ttl > 0) {
         cacheObject.ttl = cachingOption.ttl;
     }
@@ -264,12 +267,24 @@ module.exports = function renderJSON(jsonObj, deps) {
             });
         }
 
+        // Cache-Control: miss path — inform browsers/CDNs of the response lifetime (#C6)
+        var _cc = null;
+        if ( typeof(request.routing.cache) != 'undefined' && request.routing.cache ) {
+            var _ccCfg = ( typeof(request.routing.cache) == 'string' ) ? { type: request.routing.cache } : request.routing.cache;
+            var _ccTtl = ( typeof(_ccCfg.ttl) != 'undefined' && _ccCfg.ttl > 0 ) ? _ccCfg.ttl : local.options.conf.server.cache.ttl;
+            if ( _ccTtl > 0 ) {
+                _cc = ( _ccCfg.visibility === 'public' ? 'public' : 'private' ) + ', max-age=' + ~~(_ccTtl);
+            }
+        }
+
         if (  stream ) {
             if (!stream.headersSent) {
-                stream.respond({
+                var _streamHeaders = {
                     'content-type': local.options.conf.server.coreConfiguration.mime['json'] + '; charset='+ local.options.conf.encoding,
                     ':status': 200
-                });
+                };
+                if (_cc) _streamHeaders['cache-control'] = _cc;
+                stream.respond(_streamHeaders);
             }
 
 
@@ -288,6 +303,7 @@ module.exports = function renderJSON(jsonObj, deps) {
                 } else {
                     response.setHeader('content-type', local.options.conf.server.coreConfiguration.mime['json'] + '; charset='+ local.options.conf.encoding)
                 }
+                if (_cc) response.setHeader('Cache-Control', _cc);
                 response.end(data);
                 response.headersSent = true;
                 // Release per-request refs — response is a local copy so the .end() above is unaffected.
