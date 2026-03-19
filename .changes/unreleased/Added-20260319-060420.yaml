@@ -1,0 +1,3 @@
+kind: Added
+body: Added gina cache:stats <bundle> @<project> CLI command. Fetches and prints a grouped table of in-memory cache entries from a running bundle. Requires the bundle to be running.
+time: 2026-03-19T06:04:20.988812+01:00
