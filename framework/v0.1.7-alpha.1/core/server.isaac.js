@@ -542,6 +542,26 @@ function ServerEngineClass(options) {
                 return response.end(infoStatus);
             }
 
+            if ( request.method.toUpperCase() === 'GET' && /\/_gina\/cache\/stats$/i.test(request.url) ) {
+                cache.from(server._cached);
+                const cacheStatsData = JSON.stringify(cache.stats());
+                const cacheStatsHeaders = {
+                    'cache-control': 'no-cache, no-store, must-revalidate',
+                    'pragma': 'no-cache',
+                    'expires': '0',
+                    'content-type': 'application/json; charset=utf8',
+                    'X-Powered-By': 'Gina/' + GINA_VERSION
+                };
+                // HTTP/2 (Multiplexing)
+                if (response.stream) {
+                    response.stream.respond({ ':status': 200, ...cacheStatsHeaders });
+                    return response.stream.end(cacheStatsData);
+                }
+                // Fallback HTTP/1.1
+                response.writeHead(200, cacheStatsHeaders);
+                return response.end(cacheStatsData);
+            }
+
             // Proxy detection - Needs to be place after /_gina/health/*
             isProxyHost = getContext('isProxyHost') || false;
             requestHost = request.headers.host || request.headers[':authority'];

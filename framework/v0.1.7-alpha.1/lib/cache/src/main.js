@@ -289,6 +289,86 @@ function Cache() {
         return cache.size;
     }
 
+    /**
+     * Returns a snapshot of the current cache state.
+     *
+     * Entry type is inferred from the key prefix and value properties:
+     * - `'memory'`  — in-process response cache (`fromMemory: true`)
+     * - `'fs'`      — filesystem response cache (`filename` set)
+     * - `'session'` — HTTP/2 session (`http2session:` key prefix)
+     * - `'other'`   — compiled swig templates and anything else
+     *
+     * `ttlRemaining` / `maxAgeRemaining` are in seconds (1 decimal place).
+     * Both are `null` when no TTL is configured or the value is not an object.
+     *
+     * @memberof Cache
+     * @returns {{ size: number, entries: Array<{
+     *   key: string,
+     *   type: 'memory'|'fs'|'session'|'other',
+     *   sliding: boolean,
+     *   createdAt: Date|null,
+     *   lastAccessedAt: Date|null,
+     *   ttlRemaining: number|null,
+     *   maxAgeRemaining: number|null
+     * }> }}
+     */
+    instance['stats'] = function() {
+        var now = Date.now();
+        var entries = [];
+
+        for (const [key, entry] of cache.entries()) {
+            var value = entry.value;
+            if (!value || !/^object$/i.test(typeof(value))) continue;
+
+            // Classify by key prefix, then value properties
+            var type;
+            if ( /^http2session:/.test(key) ) {
+                type = 'session';
+            } else if ( value.fromMemory ) {
+                type = 'memory';
+            } else if ( value.filename ) {
+                type = 'fs';
+            } else {
+                type = 'other';
+            }
+
+            var ttlRemaining = null;
+            if ( typeof(value.ttl) != 'undefined' && value.ttl > 0 && value.createdAt ) {
+                var ttlMs = Math.round(value.ttl * 1000);
+                if ( value.sliding === true ) {
+                    var lastAccess = value.lastAccessedAt
+                        ? value.lastAccessedAt.getTime()
+                        : value.createdAt.getTime();
+                    ttlRemaining = Math.max(0, (lastAccess + ttlMs - now) / 1000);
+                } else {
+                    ttlRemaining = Math.max(0, (value.createdAt.getTime() + ttlMs - now) / 1000);
+                }
+                ttlRemaining = Math.round(ttlRemaining * 10) / 10;
+            }
+
+            var maxAgeRemaining = null;
+            if ( value.expiresAt ) {
+                maxAgeRemaining = Math.max(0, (value.expiresAt.getTime() - now) / 1000);
+                maxAgeRemaining = Math.round(maxAgeRemaining * 10) / 10;
+            }
+
+            entries.push({
+                key            : key,
+                type           : type,
+                sliding        : value.sliding === true,
+                createdAt      : value.createdAt      || null,
+                lastAccessedAt : value.lastAccessedAt || null,
+                ttlRemaining   : ttlRemaining,
+                maxAgeRemaining: maxAgeRemaining
+            });
+        }
+
+        return {
+            size   : cache.size,
+            entries: entries
+        };
+    }
+
     function onInvalidateEvent(event, data) {
         console.debug('[cache::onInvalidateEvent] ', event, data);
 
