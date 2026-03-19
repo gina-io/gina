@@ -664,7 +664,7 @@ function ServerEngineClass(options) {
                                 var lastAccess = cachedContentObj.lastAccessedAt
                                     ? cachedContentObj.lastAccessedAt.getTime()
                                     : cachedContentObj.createdAt.getTime();
-                                var slidingRemainingSeconds = Math.max(0, Math.floor( (lastAccess + (~~(cachedContentObj.ttl)*1000) - cacheNow) / 1000 ));
+                                var slidingRemainingSeconds = Math.max(0, Math.floor( (lastAccess + Math.round(cachedContentObj.ttl * 1000) - cacheNow) / 1000 ));
                                 cacheStatus += '; ttl=' + slidingRemainingSeconds;
                                 lastAccess = null;
                                 slidingRemainingSeconds = null;
@@ -677,7 +677,7 @@ function ServerEngineClass(options) {
                         } else {
                             // Non-sliding (existing behaviour): report remaining absolute TTL
                             if ( typeof(cachedContentObj.ttl) != 'undefined' && cachedContentObj.ttl > 0) {
-                                var createdAt = cachedContentObj.createdAt.getTime()+ (~~(cachedContentObj.ttl)*1000);
+                                var createdAt = cachedContentObj.createdAt.getTime() + Math.round(cachedContentObj.ttl * 1000);
                                 var remainingSeconds = Math.floor( (createdAt - cacheNow) /1000);
                                 cacheStatus += '; ttl='+remainingSeconds;
                                 createdAt = null;

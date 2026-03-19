@@ -58,7 +58,7 @@ async function writeCache(bundle, opt, jsonContent) {
     // Absolute expiration ceiling — only meaningful when sliding is enabled.
     // The entry is evicted at createdAt + maxAge regardless of access patterns.
     if ( cacheObject.sliding && typeof(cachingOption.maxAge) != 'undefined' && cachingOption.maxAge > 0 ) {
-        cacheObject.maxAge = ~~(cachingOption.maxAge);
+        cacheObject.maxAge = cachingOption.maxAge;
     }
     // Caching to `memory`
     // Use this method carefully since it can lead to memory overflow:
@@ -106,7 +106,7 @@ async function writeCache(bundle, opt, jsonContent) {
     // Invalidation
     if ( typeof(cachingOption.invalidateOnEvents) != 'undefined' ) {
         if ( !Array.isArray(cachingOption.invalidateOnEvents) ) {
-            return self.throwError(response, 500, new Error('cache.invalidateOn must be an array'));
+            return self.throwError(local.res, 500, new Error('cache.invalidateOn must be an array'));
         }
         // Placing event listeners
         cache.setEvents(cacheKey, cachingOption.invalidateOnEvents);
