@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'Sub-second TTL and maxAge values (e.g. ttl: 0.5) now work correctly in the cache. Previously, fractional seconds were truncated to zero, causing immediate eviction.'
-time: 2026-03-19T04:54:45.157866+01:00

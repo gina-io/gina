@@ -1,3 +1,0 @@
-kind: Changed
-body: 'app.json proxy target field "timeout" renamed to "requestTimeout" — unambiguous name for the per-request outgoing timeout. Update any app.json proxy target that declares a "timeout" to use "requestTimeout" instead. self.query() call sites that passed options.timeout must also be updated to options.requestTimeout.'
-time: 2026-03-20T15:10:00.570061+01:00

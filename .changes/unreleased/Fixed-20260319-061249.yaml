@@ -1,3 +1,0 @@
-kind: Fixed
-body: Cache keys now include the bundle name ("static:{bundle}:{url}" and "data:{bundle}:{url}") to prevent silent cache collisions when two bundles serve the same URL path on the same server instance.
-time: 2026-03-19T06:12:49.91958+01:00

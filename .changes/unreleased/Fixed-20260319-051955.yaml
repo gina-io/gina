@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'Completed sub-second maxAge fix (#C1): both renderers were pre-truncating maxAge with ~~ before passing it to lib/cache, bypassing the Math.round fix. Removed ~~ from render-swig.js and render-json.js. Also fixed Cache-Status header calculation in server.isaac.js.'
-time: 2026-03-19T05:19:55.064071+01:00

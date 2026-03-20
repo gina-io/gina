@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'self.query() queryTimeout fallback now fires correctly: moved the req.routing.queryTimeout check to before the merge with defaultOptions, which was silently overwriting timeout with the "10s" framework default before the check could run'
-time: 2026-03-20T14:43:44.872632+01:00
