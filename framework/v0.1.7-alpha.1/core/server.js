@@ -3230,7 +3230,7 @@ function Server(options) {
         // never written — causing the browser's CORS check to fail.
         if ( req.isPreflightRequest ) {
             var preflightHeader = null;
-            if ( /http\/2/.test(config.server.protocol) && res.stream ) {
+            if ( /http\/2/.test(self.conf[self.appName][self.env].server.protocol) && res.stream ) {
                 preflightHeader = { ':status': 204 };
                 preflightHeader = completeHeaders(preflightHeader, req, res);
                 if ( !res.stream.destroyed ) {
