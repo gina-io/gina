@@ -711,22 +711,23 @@ function ContextHelper(contexts) {
         if (!jsonString) return replaceable;
 
         let processed = jsonString
-            .replace(/\"\{(\w+)\}\"/g, function(s, key) {
+            // Accepts both {variable} and ${variable} syntax.
+            .replace(/\"\$?\{(\w+)\}\"/g, function(s, key) {
                 if (dictionary[key] !== undefined && /^(true|false|null)$/i.test(String(dictionary[key]))) {
                     return dictionary[key];
                 }
                 return dictionary[key] !== undefined ? '"' + dictionary[key] + '"' : s;
             })
-            .replace(/\{(\w+)\}/g, function(s, key) {
+            .replace(/\$?\{(\w+)\}/g, function(s, key) {
                 return dictionary[key] || s;
             })
             /**
-             * Handles complex cases like: ~/.{projectName}
+             * Handles complex cases like: ~/.{projectName} or ~/.${projectName}
              */
-            .replace(/.*\{(\w+)\}.*/g, function(s, key) {
+            .replace(/.*\$?\{(\w+)\}.*/g, function(s, key) {
                 if (dictionary[key] !== undefined) {
-                    // Manual replace to avoid infinite recursion
-                    return s.replace('{' + key + '}', dictionary[key]);
+                    // Manual replace to avoid infinite recursion — handles both syntaxes.
+                    return s.replace(new RegExp('\\$?\\{' + key + '\\}'), dictionary[key]);
                 } else {
                     // Generate stack trace to identify the caller
                     const stack = new Error().stack;
