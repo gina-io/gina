@@ -228,45 +228,128 @@ function EntitySuper(conn, caller) {
                             return promise;
                         } //else is normal case
 
-                        cached.apply(this[m], arguments);
+                        // ─────────────────────────────────────────────────────────
+                        // Option B — native Promise return (2026-03-20)
+                        //
+                        // Why: JS entity methods previously returned `this[m]`
+                        //   (the entity function, with .onComplete attached as a
+                        //   property). This was not directly awaitable without first
+                        //   wrapping in util.promisify — which itself only worked
+                        //   because of the separate fast-path above (lines 192-229)
+                        //   that detects a trailing-function argument and a missing
+                        //   `this[m]` context. Easy to miss, fragile under refactors.
+                        //
+                        // What changed: we now return a native Promise. The once-
+                        //   listener is registered BEFORE calling cached() so there
+                        //   is no race where a synchronous emit fires before we
+                        //   are ready to receive it.
+                        //
+                        //   `.onComplete(cb)` is attached to the Promise so ALL
+                        //   existing callers keep working unchanged:
+                        //     entity.method(args).onComplete(function(err, data) {...})
+                        //
+                        //   entity._callbacks[shortName] is now used as a boolean
+                        //   guard only (truthy = listener active, null = consumed).
+                        //   The same check as before, just no longer stores the cb.
+                        //
+                        // The util.promisify fast-path above (lines 192-229) is
+                        //   untouched — it fires when this[m] is undefined (called
+                        //   without entity context). This Promise path fires in the
+                        //   normal entity-context case.
+                        // ─────────────────────────────────────────────────────────
 
-                        this[m].onComplete = function (cb) {
+                        var _resolve, _reject;
 
-                            //Setting local listener : normal case
-                            if (entity._triggers.indexOf(events[i].shortName) > -1) {
-                                console.debug('[ MODEL ][ ENTITY ] Setting listener for: [ ' + self.model + '/' + events[i].entityName + '::' + events[i].shortName + ' ]');
+                        var _promise = new Promise(function(resolve, reject) {
+                            _resolve = resolve;
+                            _reject  = reject;
+                        });
 
-                                if (typeof(entity._arguments) == 'undefined' || typeof(entity._arguments) != 'undefined' && typeof(entity._arguments[events[i].shortName]) == 'undefined') {
+                        if (entity._triggers.indexOf(events[i].shortName) > -1) {
 
-                                    if (entity.listenerCount(events[i].shortName) > 0) {
-                                        entity.removeAllListeners([events[i].shortName])
-                                    }
+                            if (typeof(entity._arguments) == 'undefined' || typeof(entity._arguments) != 'undefined' && typeof(entity._arguments[events[i].shortName]) == 'undefined') {
 
-                                    entity.once(events[i].shortName, function () { // cannot be `entity.on` for prod/stage
-                                        // check if not already fired
-                                        if (entity._callbacks[events[i].shortName]) {
-
-                                            entity.removeAllListeners([events[i].shortName]);
-                                            console.log('\nFIRING #1 ' + events[i].shortName +'('+ events[i].index  +')');
-                                            cb.apply(this[m], arguments);
-                                            //cb.apply(this, arguments);
-                                        }
-
-                                    });
-
-
-                                    // backing up callback
-                                    entity._callbacks[events[i].shortName] = cb;
-                                } else { // in case the event is not ready yet
-                                    console.log('\nFIRING #2 ' + events[i].shortName);
-                                    cb.apply(entity[m], entity._arguments[events[i].shortName])
+                                if (entity.listenerCount(events[i].shortName) > 0) {
+                                    entity.removeAllListeners([events[i].shortName]);
                                 }
+
+                                // Shared resolver — whichever fires first (FIRING #4 or the
+                                // once-listener) resolves/rejects the Promise. The second call
+                                // is a no-op (guard: _callbacks[shortName] is null after first).
+                                //
+                                // Why store a function in _callbacks (not `true`):
+                                //   The entity's custom emit (entity.js:~494) has three conditions
+                                //   that call setListener(). Condition 3 fires when
+                                //   `typeof(_callbacks[type]) != 'undefined'` — which includes
+                                //   boolean `true`. setListener's FIRING #4 then calls
+                                //   `_callbacks[trigger].apply(this, args)` — `true.apply` throws.
+                                //   Storing a function makes FIRING #4 the primary resolution
+                                //   path (same as old code where _callbacks stored the cb).
+                                var _resolver = function(err, data) {
+                                    // Guard: delete after first call to prevent double-resolution.
+                                    // Using delete (not null) so that FIRING #4's
+                                    // typeof(_callbacks[trigger]) != 'undefined' check correctly
+                                    // sees 'undefined' and skips the null.apply() call.
+                                    if (!entity._callbacks[events[i].shortName]) return;
+                                    delete entity._callbacks[events[i].shortName];
+                                    entity.removeAllListeners([events[i].shortName]);
+                                    if (err) _reject(err);
+                                    else     _resolve(data);
+                                };
+
+                                // once-listener as fallback in case FIRING #4 doesn't run
+                                // (e.g. custom emit conditions not met). cannot be `entity.on`
+                                // for prod/stage — must stay `once`.
+                                entity.once(events[i].shortName, function () {
+                                    _resolver.apply(null, arguments);
+                                });
+
+                                // Store resolver: satisfies condition 3, enables FIRING #4
+                                entity._callbacks[events[i].shortName] = _resolver;
+
+                            } else {
+                                // Event already fired — args were buffered in _arguments.
+                                // Resolve/reject immediately from the cached result.
+                                var _args = entity._arguments[events[i].shortName];
+                                if (_args[0]) _reject(_args[0]);
+                                else          _resolve(_args[1]);
                             }
                         }
 
+                        var _innerResult = cached.apply(this[m], arguments);
 
+                        // If the underlying method returns a Promise (connector Option B
+                        // with _mainCallback=null, or async custom entity methods), chain
+                        // on it so that _promise resolves/rejects when the inner operation
+                        // completes.
+                        //
+                        // Without this, _promise only resolves when
+                        // entity.emit('entity#method') fires. Connector N1QL methods resolve
+                        // via 'N1QL:entity#method' (different event), so entity.emit() is
+                        // never called for them — _promise would hang forever.
+                        //
+                        // _resolver already guards against double-resolution: its first call
+                        // deletes _callbacks[shortName], so any subsequent call (from
+                        // FIRING #4 or the once-listener) hits the !_callbacks guard and exits.
+                        if (_innerResult && typeof(_innerResult.then) === 'function') {
+                            _innerResult.then(
+                                function(data) { _resolver(null, data); },
+                                function(err)  { _resolver(err); }
+                            );
+                        }
 
-                        return this[m] // chaining event & method
+                        // Backward-compatible .onComplete(cb):
+                        //   chains on the Promise resolution so the callback
+                        //   receives (err, data) exactly as before.
+                        _promise.onComplete = function(cb) {
+                            _promise.then(
+                                function(data) { cb(null, data); },
+                                function(err)  { cb(err); }
+                            );
+                            return _promise; // preserve chaining
+                        };
+
+                        return _promise; // was: return this[m]
                     };
 
                 }(events[i].shortName, f, i, fSource));

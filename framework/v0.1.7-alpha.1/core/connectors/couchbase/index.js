@@ -795,42 +795,109 @@ function Couchbase(conn, infos) {
                         }
                     } //EO register
 
-                    var _proto = {
-                        onComplete : function(cb) {
-                            // console.warn('onComplete trigger: ', trigger, self._isRegisteredFromProto);
-                            if ( sdkVersion > 2 ) {
-                                register(trigger, queryOptions, onQueryCallback, cb)
+                    // ─────────────────────────────────────────────────────────────
+                    // Option B — native Promise return (2026-03-20)
+                    //
+                    // Why: N1QL methods previously returned a plain _proto object
+                    //   { onComplete: fn }. This made them:
+                    //   • not directly awaitable — `await entity.method()` resolved
+                    //     to the _proto object, not the query result
+                    //   • fragile with util.promisify — promisify injects a trailing
+                    //     callback, caught here via the _mainCallback detection, but
+                    //     losing `this` context made certain methods hang silently
+                    //
+                    // What changed: when no _mainCallback is present we now return
+                    //   a native Promise instead of _proto. The Promise resolves
+                    //   with `data` (rows) so `await entity.method(args)` works
+                    //   directly — V8 native fast path, zero extra microtask hops.
+                    //
+                    //   `.onComplete(cb)` is attached to the Promise so ALL
+                    //   existing callers keep working unchanged:
+                    //     entity.method(args).onComplete(function(err, data, meta) {...})
+                    //
+                    //   meta is captured alongside data so .onComplete() callbacks
+                    //   receive the original (err, data, meta) signature unchanged.
+                    //
+                    //   The query executes exactly once — register() is called with
+                    //   _internalCb in the setTimeout(0), same deferred-execution
+                    //   timing as before. .onComplete() chains on the resolved
+                    //   Promise instead of calling register() again.
+                    //
+                    // The _mainCallback path (util.promisify / explicit callback) is
+                    //   unchanged — register() is still called synchronously.
+                    // ─────────────────────────────────────────────────────────────
+
+                    if ( _mainCallback == null ) {
+
+                        var _resolve, _reject, _internalData, _internalMeta;
+
+                        var _promise = new Promise(function(resolve, reject) {
+                            _resolve = resolve;
+                            _reject  = reject;
+                        });
+
+                        // Internal callback fed to register() — resolves/rejects
+                        // the Promise and captures meta for .onComplete() callers.
+                        var _internalCb = function(err, data, meta) {
+                            if (err) {
+                                _reject(err);
                             } else {
-                                register(trigger, queryParams, onQueryCallback, cb)
+                                _internalData = data;
+                                _internalMeta = meta;
+                                _resolve(data);
                             }
-                        }
-                    };
+                        };
 
+                        // Backward-compatible .onComplete(cb):
+                        //   chains on the Promise resolution so the callback
+                        //   receives (err, data, meta) exactly as before.
+                        _promise.onComplete = function(cb) {
+                            _promise.then(
+                                function()    { cb(null, _internalData, _internalMeta); },
+                                function(err) { cb(err); }
+                            );
+                            return _promise; // preserve chaining
+                        };
 
-                    if ( sdkVersion > 2 ) {
-                        if ( _mainCallback == null ) {
-                            setTimeout((trigger, queryOptions, onQueryCallback) => {
-                                if (!self._isRegisteredFromProto) {
-                                    // needed when used as a synchrone method
-                                    register(trigger, queryOptions, onQueryCallback);
-                                }
-                            }, 0, trigger, queryOptions, onQueryCallback);
-                            return _proto
+                        // Trigger the query via the existing setTimeout(0) mechanism.
+                        // Preserves original timing: .onComplete() and await both
+                        // have time to set up before the query fires.
+                        //
+                        // _isRegisteredFromProto guard is intentionally REMOVED here.
+                        //
+                        // Background: the old _proto.onComplete() called register()
+                        // synchronously, so the guard prevented accidental double-
+                        // registration if .onComplete() was called more than once.
+                        //
+                        // With Option B, .onComplete() only chains on the Promise — it
+                        // never calls register(). So there is no double-registration
+                        // risk. More importantly, _isRegisteredFromProto is a shared
+                        // flag on `self` (the connector entity). When a _mainCallback-
+                        // path call (e.g. util.promisify) sets the flag to true, any
+                        // *subsequent* Promise-path call on the SAME entity would see
+                        // the flag set and skip register() — silently dropping the N1QL
+                        // query and hanging the await forever.
+                        //
+                        // Example that broke: inside account.entity.delete, the call
+                        // promisify(db.accountEntity.getOneByIdAndJwtLogin)() runs first
+                        // (sets _isRegisteredFromProto=true via register()), then
+                        // await db.accountEntity.getAllOwnedCompaniesIds() (Promise path)
+                        // hit the guard and skipped register() — query never fired.
+                        setTimeout(function() {
+                            if ( sdkVersion > 2 ) {
+                                register(trigger, queryOptions, onQueryCallback, _internalCb);
+                            } else {
+                                register(trigger, queryParams,  onQueryCallback, _internalCb);
+                            }
+                        }, 0);
 
-                        } else {
-                            register(trigger, queryOptions, onQueryCallback, _mainCallback)
-                        }
+                        return _promise;
+
                     } else {
-
-                        if ( _mainCallback == null ) {
-                            setTimeout((trigger, queryParams, onQueryCallback) => {
-                                if (!self._isRegisteredFromProto) {
-                                    // needed when used as a synchrone method
-                                    register(trigger, queryParams, onQueryCallback);
-                                }
-                            }, 0, trigger, queryParams, onQueryCallback);
-                            return _proto
-
+                        // Direct callback path (util.promisify or explicit _mainCallback)
+                        // — unchanged, register() called synchronously.
+                        if ( sdkVersion > 2 ) {
+                            register(trigger, queryOptions, onQueryCallback, _mainCallback)
                         } else {
                             register(trigger, queryParams, onQueryCallback, _mainCallback)
                         }
