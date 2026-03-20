@@ -1,0 +1,3 @@
+kind: Changed
+body: self.query() options field "timeout" renamed to "requestTimeout" — consistent with app.json::proxy.<service>.requestTimeout. The internal pipeline (both HTTP/1 and HTTP/2 handlers) and the defaultOptions fallback now use requestTimeout throughout
+time: 2026-03-20T15:26:43.87369+01:00

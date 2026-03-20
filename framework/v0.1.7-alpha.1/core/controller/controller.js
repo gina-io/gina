@@ -2170,7 +2170,7 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
         // Will try x3 (0, 1, 2). Hard ceiling is 10 (see retry handler) to bound timer accumulation under sustained failure.
         maxRetry            : 2,
         // Socket inactivity timeout — accepts "30s", "500ms", "1m" or a number (ms)
-        timeout             : "10s",
+        requestTimeout      : "10s",
         agent               : false/**,
         checkServerIdentity: function(host, cert) {
             // Make sure the certificate is issued to the host we are connected to
@@ -2257,24 +2257,18 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
         ;
 
         // Priority chain — all checks must run BEFORE merge(defaultOptions), which fills in "10s":
-        //   1. options.timeout        — explicit call-site override (highest priority)
-        //   2. options.requestTimeout — proxy config convention (app.json::proxy.<service>.requestTimeout)
-        //   3. req.routing.queryTimeout — per-route default from routing.json
-        //   4. "10s" from defaultOptions (lowest, filled by merge below)
-
-        // Map proxy config requestTimeout → timeout so the rest of the pipeline has one field.
-        if ( typeof options.timeout === 'undefined' && typeof options.requestTimeout !== 'undefined' ) {
-            options.timeout = options.requestTimeout;
-        }
+        //   1. options.requestTimeout  — explicit call-site override (highest priority)
+        //   2. req.routing.queryTimeout — per-route default from routing.json
+        //   3. "10s" from defaultOptions (lowest, filled by merge below)
 
         // Fall back to the calling route's queryTimeout if still not set.
         if (
-            typeof options.timeout === 'undefined'
+            typeof options.requestTimeout === 'undefined'
             && typeof local.req !== 'undefined' && local.req
             && local.req.routing
             && local.req.routing.queryTimeout
         ) {
-            options.timeout = local.req.routing.queryTimeout;
+            options.requestTimeout = local.req.routing.queryTimeout;
         }
 
         // options must be used as a copy in case of multiple calls of self.query(options, ...)
@@ -2289,10 +2283,9 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
         }
         options = cleanedOptions;
 
-        // Normalize timeout to ms once — covers both HTTP/1 and HTTP/2 paths,
-        // including the raw options passed to http2.connect() at session creation.
-        if (typeof options.timeout !== 'undefined') {
-            options.timeout = parseTimeout(options.timeout);
+        // Normalize requestTimeout to ms once — covers both HTTP/1 and HTTP/2 paths.
+        if (typeof options.requestTimeout !== 'undefined') {
+            options.requestTimeout = parseTimeout(options.requestTimeout);
         }
 
         if (self.isCacheless() || self.isLocalScope() ) {
@@ -2804,7 +2797,7 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
             })
         });
 
-        req.setTimeout(parseTimeout(options.timeout), () => {
+        req.setTimeout(parseTimeout(options.requestTimeout), () => {
             req.destroy(); // Will trigger 'error' event
         });
 
@@ -3120,7 +3113,7 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
         //   - Remove undefined/null values
         var _NON_HTTP_OPTS = new Set([
             '_body', '_comment', 'ca', 'hostname', 'host', 'port',
-            'timeout', 'keepAlive', 'maxSockets', 'keepAliveMsecs', 'maxFreeSockets',
+            'requestTimeout', 'keepAlive', 'maxSockets', 'keepAliveMsecs', 'maxFreeSockets',
             'rejectUnauthorized', 'maxRetry', 'agent', 'protocol', 'scheme',
             'nameservers', 'settings', 'webroot', 'queryData', 'method', 'path'
         ]);
@@ -3151,7 +3144,7 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
         // silently drops idle inter-container TCP connections without RST or FIN).
         // On timeout: evict the dead session and retry once with a fresh connection.
         // If the retry also times out, surface the error to the caller.
-        var _streamTimeout = parseTimeout(options.timeout) || 10000;
+        var _streamTimeout = parseTimeout(options.requestTimeout) || 10000;
         req.setTimeout(_streamTimeout, function onStreamTimeout() {
             if (isFinished) return;
             isFinished = true;
