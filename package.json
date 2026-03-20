@@ -1,6 +1,6 @@
 {
   "name": "gina",
-  "version": "0.1.7-alpha.1",
+  "version": "0.1.7",
   "description": "MVC Framework for Node.",
   "keywords": [
     "framework",
