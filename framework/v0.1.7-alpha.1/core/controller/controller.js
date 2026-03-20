@@ -2275,9 +2275,9 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
             typeof options.timeout === 'undefined'
             && typeof local.req !== 'undefined' && local.req
             && local.req.routing
-            && local.req.routing.timeout
+            && local.req.routing.queryTimeout
         ) {
-            options.timeout = local.req.routing.timeout;
+            options.timeout = local.req.routing.queryTimeout;
         }
 
         // Normalize timeout to ms once — covers both HTTP/1 and HTTP/2 paths,
@@ -4327,7 +4327,17 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
                 arguments[arguments.length-1] instanceof Error
                 || typeof(res) == 'object' && typeof(res.stack) != 'undefined'
             ) {
-                errorObject = merge(arguments[arguments.length-1], errorObject)
+                var _lastArg = arguments[arguments.length-1];
+                if (_lastArg instanceof Error) {
+                    // Error properties (message, stack) are non-enumerable —
+                    // merge() silently drops them. Extract explicitly so they
+                    // survive JSON.stringify and reach the client error dialog.
+                    if (_lastArg.message) errorObject.message = _lastArg.message;
+                    if (_lastArg.stack)   errorObject.stack   = _lastArg.stack;
+                    if (!errorObject.error) errorObject.error  = _lastArg.message || standardErrorMessage;
+                } else {
+                    errorObject = merge(_lastArg, errorObject);
+                }
             } else if (
                 !(arguments[arguments.length-1] instanceof Error)
                 && typeof(res) == 'object'
