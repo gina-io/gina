@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'controller.render-swig.js: isRenderingCustomError now detected from both userData and localOptions (set by renderCustomError() in controller.js). Adds null-guard on userData. localOptions is now resolved before the flag check.'
+time: 2026-03-20T15:44:27.172753+01:00

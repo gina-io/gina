@@ -1,0 +1,3 @@
+kind: Changed
+body: Entity methods and Couchbase N1QL methods now return a native Promise (Option B). await entity.method(args) works directly without util.promisify. .onComplete(cb) remains fully backward-compatible. Removes the _isRegisteredFromProto guard that was silently dropping queries when a callback-path call preceded a Promise-path call on the same entity.
+time: 2026-03-20T15:44:28.3686+01:00

@@ -171,14 +171,21 @@ module.exports = async function render(userData, displayToolbar, errOptions, dep
     cachePath       = self.serverInstance._cachePath;
 
     var err = null;
+    // localOptions must be resolved before the isRenderingCustomError check below
+    // because renderCustomError() sets the flag on local.options, not on userData.
+    var localOptions = (errOptions) ? errOptions : local.options;
+    // isRenderingCustomError is true when either:
+    // - userData carries the flag (legacy path via throwError pass-through)
+    // - local.options / errOptions carries it (set by renderCustomError at controller.js)
     var isRenderingCustomError = (
-                                typeof(userData.isRenderingCustomError) != 'undefined'
-                                && String(userData.isRenderingCustomError).toLowerCase() === 'true'
+                                (typeof(userData) != 'undefined' && userData !== null
+                                    && typeof(userData.isRenderingCustomError) != 'undefined'
+                                    && String(userData.isRenderingCustomError).toLowerCase() === 'true')
+                                || localOptions.isRenderingCustomError === true
                             ) ? true : false;
-    if (isRenderingCustomError)
+    if (isRenderingCustomError && userData && typeof(userData.isRenderingCustomError) != 'undefined')
         delete userData.isRenderingCustomError;
 
-    var localOptions = (errOptions) ? errOptions : local.options;
     localOptions.renderingStack.push( self.name );
     // preventing multiple call of self.render() when controller is rendering from another required controller
     if ( localOptions.renderingStack.length > 1 && !isRenderingCustomError ) {
