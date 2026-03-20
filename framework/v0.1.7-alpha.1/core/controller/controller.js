@@ -2256,9 +2256,18 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
             , browser           = null
         ;
 
-        // Fall back to the calling route's queryTimeout if not explicitly set by the caller.
-        // Must be checked BEFORE the merge with defaultOptions: merge() fills in timeout="10s"
-        // from defaultOptions when the caller omits it, making the post-merge check unreachable.
+        // Priority chain — all checks must run BEFORE merge(defaultOptions), which fills in "10s":
+        //   1. options.timeout        — explicit call-site override (highest priority)
+        //   2. options.requestTimeout — proxy config convention (app.json::proxy.<service>.requestTimeout)
+        //   3. req.routing.queryTimeout — per-route default from routing.json
+        //   4. "10s" from defaultOptions (lowest, filled by merge below)
+
+        // Map proxy config requestTimeout → timeout so the rest of the pipeline has one field.
+        if ( typeof options.timeout === 'undefined' && typeof options.requestTimeout !== 'undefined' ) {
+            options.timeout = options.requestTimeout;
+        }
+
+        // Fall back to the calling route's queryTimeout if still not set.
         if (
             typeof options.timeout === 'undefined'
             && typeof local.req !== 'undefined' && local.req

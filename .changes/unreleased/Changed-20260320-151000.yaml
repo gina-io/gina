@@ -1,0 +1,3 @@
+kind: Changed
+body: app.json proxy target field "timeout" renamed to "requestTimeout" — unambiguous name for the per-request outgoing timeout. self.query() maps requestTimeout → timeout internally, so no call-site changes are needed; only app.json config files require updating
+time: 2026-03-20T15:10:00.570061+01:00
