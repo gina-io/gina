@@ -17,10 +17,19 @@ var promisify       = util.promisify;
 var EventEmitter    = require('events').EventEmitter;
 
 const { Resolver } = require('node:dns').promises;
-const resolver = new Resolver();
 
 var lib             = require('./../../lib') || require.cache[require.resolve('./../../lib')];
-const cache         = new lib.Cache();
+
+// #B3 — persist resolver and cache across dev-mode cache-busts.
+// controller.js is re-required on every request when isCacheless (dev mode), which would
+// create a new Resolver and Cache instance each time, silently abandoning in-flight DNS
+// lookups and dropping cache-invalidation listeners. Storing on process.gina (which survives
+// module cache evictions) ensures both are created exactly once per process lifetime.
+if (!process.gina) process.gina = {};
+if (!process.gina._resolver) process.gina._resolver = new Resolver();
+const resolver = process.gina._resolver;
+if (!process.gina._cache) process.gina._cache = new lib.Cache();
+const cache = process.gina._cache;
 var merge           = lib.merge;
 var inherits        = lib.inherits;
 var console         = lib.logger;

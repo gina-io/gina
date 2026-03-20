@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'Fixed dev-mode resource churn (#B3): DNS resolver and cache wrapper were recreated on every HTTP request because controller.js is re-required each time by the hot-reload mechanism. Both are now persisted on process.gina and reused across re-requires. Eliminates silent abandonment of in-flight DNS lookups and loss of cache-invalidation listeners between requests.'
+time: 2026-03-20T23:19:33.615057+01:00
