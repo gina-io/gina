@@ -284,6 +284,14 @@ module.exports = function renderJSON(jsonObj, deps) {
                     ':status': 200
                 };
                 if (_cc) _streamHeaders['cache-control'] = _cc;
+                // Merge response headers pre-set earlier in the pipeline (e.g. CORS headers
+                // written by completeHeaders() in handle()). stream.respond() on the raw
+                // HTTP/2 stream does not include headers set via response.setHeader(), so
+                // we pull them explicitly from getHeaders() and fold them in here.
+                var _pendingHeaders = response.getHeaders ? response.getHeaders() : {};
+                for (var _rhk in _pendingHeaders) {
+                    if (!(_rhk in _streamHeaders)) _streamHeaders[_rhk] = _pendingHeaders[_rhk];
+                }
                 stream.respond(_streamHeaders);
             }
 

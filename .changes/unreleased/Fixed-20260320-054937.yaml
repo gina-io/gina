@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'CORS preflight (OPTIONS) requests are now handled before routing: the server responds with HTTP 204 and the correct Access-Control-Allow-Origin header immediately, instead of forwarding to the controller action which returned an error without CORS headers. CORS response headers are now also included on all HTTP/2 JSON responses.'
+time: 2026-03-20T05:49:37.774184+01:00

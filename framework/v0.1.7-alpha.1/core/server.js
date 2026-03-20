@@ -3221,6 +3221,35 @@ function Server(options) {
         //matched = routingLib.getRouteByUrl(req.url, bundle, (req.method||req[':method']), req);
 
         req = checkPreflightRequest(req, res);
+
+        // Short-circuit OPTIONS preflight: respond immediately with CORS headers and
+        // HTTP 204, without routing the request to the controller.
+        // Without this, checkPreflightRequest() overwrites the OPTIONS method to the
+        // requested method (e.g. POST), the controller action runs without a body,
+        // returns an error response (e.g. 412), and Access-Control-Allow-Origin is
+        // never written — causing the browser's CORS check to fail.
+        if ( req.isPreflightRequest ) {
+            var preflightHeader = null;
+            if ( /http\/2/.test(config.server.protocol) && res.stream ) {
+                preflightHeader = { ':status': 204 };
+                preflightHeader = completeHeaders(preflightHeader, req, res);
+                if ( !res.stream.destroyed ) {
+                    res.stream.respond(preflightHeader);
+                    res.stream.end();
+                }
+            } else {
+                completeHeaders(null, req, res);
+                res.writeHead(204);
+                res.end();
+            }
+            return;
+        }
+
+        // Pre-set CORS and default response headers on the response object.
+        // render-json.js merges response.getHeaders() into the HTTP/2 stream.respond()
+        // headers object, so headers written here reach the client on every JSON response.
+        completeHeaders(null, req, res);
+
         var params      = {}
             , _routing  = {}
             , method    = ( /http\/2/.test(self.conf[self.appName][self.env].server.protocol) ) ? req.headers[':method'] : req.method
