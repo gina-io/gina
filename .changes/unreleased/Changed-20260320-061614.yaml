@@ -1,3 +1,3 @@
 kind: Changed
-body: Default HTTP/2 inter-bundle request timeout increased from 10 s to 30 s. Per-request timeout is still configurable via options.timeout.
+body: Default HTTP/2 inter-bundle request timeout kept at 10 s. Per-route timeout is now configurable via "timeout" in routing.json; per-request timeout remains configurable via options.timeout passed to self.query().
 time: 2026-03-20T06:16:14.240357+01:00

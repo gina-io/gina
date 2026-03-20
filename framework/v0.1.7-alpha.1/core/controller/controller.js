@@ -2256,6 +2256,18 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
             , browser           = null
         ;
 
+        // Fall back to the calling route's queryTimeout if not explicitly set by the caller.
+        // Must be checked BEFORE the merge with defaultOptions: merge() fills in timeout="10s"
+        // from defaultOptions when the caller omits it, making the post-merge check unreachable.
+        if (
+            typeof options.timeout === 'undefined'
+            && typeof local.req !== 'undefined' && local.req
+            && local.req.routing
+            && local.req.routing.queryTimeout
+        ) {
+            options.timeout = local.req.routing.queryTimeout;
+        }
+
         // options must be used as a copy in case of multiple calls of self.query(options, ...)
         options = merge(JSON.clone(options), defaultOptions);
         // replaced: for...in + delete — build filtered copy (#P22, #P20)
@@ -2267,18 +2279,6 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
             }
         }
         options = cleanedOptions;
-
-        // Fall back to the calling route's timeout if not set in options.
-        // Lets routing.json declare a per-route timeout budget for outgoing sub-requests
-        // (e.g. "timeout": 30000) without requiring changes in every controller action.
-        if (
-            typeof options.timeout === 'undefined'
-            && typeof local.req !== 'undefined' && local.req
-            && local.req.routing
-            && local.req.routing.queryTimeout
-        ) {
-            options.timeout = local.req.routing.queryTimeout;
-        }
 
         // Normalize timeout to ms once — covers both HTTP/1 and HTTP/2 paths,
         // including the raw options passed to http2.connect() at session creation.
