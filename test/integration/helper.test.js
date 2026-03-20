@@ -388,6 +388,18 @@ describe('13 - whisper', function () {
         var result = whisper(dict, 'Hello {name}');
         assert.equal(result, 'Hello Gina');
     });
+
+    it('replaces ${key} tokens in a string (new syntax)', function () {
+        var dict = { name: 'Gina', version: '0.1.7' };
+        var result = whisper(dict, 'Hello ${name} v${version}');
+        assert.equal(result, 'Hello Gina v0.1.7');
+    });
+
+    it('handles mixed {key} and ${key} tokens in the same string', function () {
+        var dict = { scope: 'production', host: 'app.example.com' };
+        var result = whisper(dict, '${scope}/{host}');
+        assert.equal(result, 'production/app.example.com');
+    });
 });
 
 
