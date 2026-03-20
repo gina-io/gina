@@ -4670,6 +4670,10 @@ function Routing() {
         return self;
     }
 
+    // Maximum number of distinct route IDs kept in the route cache.
+    // When exceeded, the oldest entry (insertion order) is evicted first.
+    var MAX_CACHED_ROUTES = 5000;
+
 
     self.allowedMethodsString   = self.allowedMethods.join(',');
 
@@ -4793,6 +4797,10 @@ function Routing() {
      */
     self.cache = function(routeId, name, routeObject, params, methodParams) {
         if ( Routing._cached.indexOf(routeId) == -1 ) {
+            // FIFO eviction: when at capacity, drop the oldest entry before inserting
+            if ( Routing._cached.length >= MAX_CACHED_ROUTES ) {
+                self.invalidateCached(Routing._cached[0]);
+            }
             Routing._cached.push(routeId);
             Routing._cachedRoutes[routeId] = {
                 name            : name,
@@ -4839,6 +4847,9 @@ function Routing() {
             }
             if ( typeof(routeObject.cache) != 'undefined' ) {
                 params.cache = routeObject.cache;
+            }
+            if ( typeof(routeObject.queryTimeout) != 'undefined' ) {
+                params.queryTimeout = parseTimeout(routeObject.queryTimeout);
             }
 
             // isRoute
