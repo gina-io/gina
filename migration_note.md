@@ -2,6 +2,34 @@
 
 ---
 
+## 0.1.7 → 0.1.8
+
+### Config interpolation — `${variable}` syntax required (breaking change)
+
+`whisper()` — the engine that substitutes variables in config files (`env.json`,
+`settings.json`, `app.json`, `templates.json`, `statics.json`, etc.) — now
+requires the `${variable}` syntax. The legacy `{variable}` (no dollar sign) is
+no longer replaced.
+
+**Action required** if your project's config files use bare `{variable}` placeholders:
+
+```jsonc
+// Before (no longer works)
+"logDir": "{GINA_HOMEDIR}/logs/{scope}/{bundleName}"
+
+// After
+"logDir": "${GINA_HOMEDIR}/logs/${scope}/${bundleName}"
+```
+
+All built-in framework templates shipped with gina have already been updated.
+User-managed config files under your bundle's `config/` directory must be
+updated manually.
+
+Variables with dots (`{gina.core}`, `{gina.utils}`) and the `{src:...}` wrapper
+syntax in `templates.json` are not processed by whisper and are unaffected.
+
+---
+
 ## 0.1.6 → 0.1.7
 
 ### Cache — Sliding window and absolute ceiling

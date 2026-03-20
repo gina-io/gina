@@ -6,8 +6,8 @@
     "bundles" : {
         "gina" : {
             "comment" : "Framework module - Source path must be relative.",
-            "version" : "{version}",
-            "src" : "node_modules/{version}/gina.framework",
+            "version" : "${}",
+            "src" : "node_modules/${}/gina.framework",
             "repo" : {
                 "ssh" : "git@wgit.rhinostone.net:gina/gina.module.framework.git",
                 "https" : "http://wgit.rhinostone.net:45980/gina/gina.module.framework.git"

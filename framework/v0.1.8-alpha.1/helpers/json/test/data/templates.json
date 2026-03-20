@@ -1,12 +1,12 @@
 {
   "_common": {
-    "layout": "{templatesPath}/html/layout.html",
-    "noLayout": "{gina}/framework/v{version}/core/asset/html/nolayout.html",
-    "templates": "{templatesPath}", // only if hasView()
-    "html": "{templatesPath}/html",  // only if hasView()
+    "layout": "${}/html/layout.html",
+    "noLayout": "${}/framework/v${}/core/asset/html/nolayout.html",
+    "templates": "${}", // only if hasView()
+    "html": "${}/html",  // only if hasView()
     "theme": "default_theme", // only if hasView()
-    "forms": "{templatesPath}/forms",
-    "handlers": "{templatesPath}/handlers",
+    "forms": "${}/forms",
+    "handlers": "${}/handlers",
     "routeNameAsFilenameEnabled": true,
     "ginaEnabled": true, // set to false, this will exclude gina assets from being loaded
     "http-metas": {
@@ -33,7 +33,7 @@
         "url"     : "/js/vendor/gina/gina.min.js"
       }
     ],
-    "_pluginLoader": "{src:{gina}/framework/v{version}/core/asset/plugin/src/vendor/gina/utils/loader.js}",
-    "pluginLoader": "{src:{gina}/framework/v{version}/core/asset/plugin/dist/vendor/gina/js/gina.onload.min.js}"
+    "_pluginLoader": "{src:${}/framework/v${}/core/asset/plugin/src/vendor/gina/utils/loader.js}",
+    "pluginLoader": "{src:${}/framework/v${}/core/asset/plugin/dist/vendor/gina/js/gina.onload.min.js}"
   }
 }

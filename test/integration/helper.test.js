@@ -376,16 +376,16 @@ describe('13 - whisper', function () {
         assert.equal(typeof whisper, 'function');
     });
 
-    it('replaces {key} tokens in a string', function () {
+    it('bare {key} tokens are not replaced (deprecated since 0.1.8, use ${key})', function () {
         var dict = { name: 'Gina', version: '0.1.6' };
         var result = whisper(dict, 'Hello {name} v{version}');
-        assert.equal(result, 'Hello Gina v0.1.6');
+        assert.equal(result, 'Hello {name} v{version}');
     });
 
     it('handles missing keys gracefully', function () {
         var dict = { name: 'Gina' };
         // whisper logs an error for missing keys but doesn't throw
-        var result = whisper(dict, 'Hello {name}');
+        var result = whisper(dict, 'Hello ${name}');
         assert.equal(result, 'Hello Gina');
     });
 
@@ -395,10 +395,10 @@ describe('13 - whisper', function () {
         assert.equal(result, 'Hello Gina v0.1.7');
     });
 
-    it('handles mixed {key} and ${key} tokens in the same string', function () {
+    it('leaves bare {key} tokens unreplaced (${key} syntax required since 0.1.8)', function () {
         var dict = { scope: 'production', host: 'app.example.com' };
         var result = whisper(dict, '${scope}/{host}');
-        assert.equal(result, 'production/app.example.com');
+        assert.equal(result, 'production/{host}');
     });
 });
 

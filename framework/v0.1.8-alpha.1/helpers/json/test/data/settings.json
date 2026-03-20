@@ -3,8 +3,8 @@
       "engine": "isaac",
       "credentials": {
         "_comment": "Project ENV override: SSL Credentials: private key & certificate",
-        "privateKey": "{projectPath}/ssl/server.key",
-        "certificate": "{projectPath}/ssl/server.crt",
+        "privateKey": "${}/ssl/server.key",
+        "certificate": "${}/ssl/server.crt",
         "allowHTTP1": true
       }
     },

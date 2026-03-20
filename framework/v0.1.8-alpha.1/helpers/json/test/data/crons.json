@@ -11,8 +11,8 @@
         "_comment": "This cron checks every day at 4:55am if there are new fonts to be added from Google fonts API",
         "interval": "55 4 * * *",
         "task": "downloadNewFonts",
-        "tmp": "{tmpPath}/google.fonts.json",
-        "target": "{bundlePath}/config/google.fonts.json",
+        "tmp": "${}/google.fonts.json",
+        "target": "${}/config/google.fonts.json",
         "url": "https://www.googleapis.com/webfonts/v1/webfonts",
         "apiKey": "wxxxzgfGEZGZgzefz"
     },

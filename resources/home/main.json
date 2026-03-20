@@ -1,16 +1,16 @@
 {
     "frameworks": {
-        "{release}": [ "{version}" ]
+        "${}": [ "${}" ]
     },
-    "def_framework": "{version}",
+    "def_framework": "${}",
     "def_prefix": {
-        "{release}": "{prefix}"
+        "${}": "${}"
     },
     "def_global_mode": {
-        "{release}": "{global_mode}"
+        "${}": "${}"
     },
     "archs": {
-        "{release}": [
+        "${}": [
             "arm",
             "arm64",
             "x64",
@@ -18,10 +18,10 @@
         ]
     },
     "def_arch": {
-        "{release}": "x64"
+        "${}": "x64"
     },
     "platforms": {
-        "{release}": [
+        "${}": [
             "darwin",
             "linux",
             "win32",
@@ -32,68 +32,68 @@
         ]
     },
     "def_platform": {
-        "{release}": "linux"
+        "${}": "linux"
     },
     "scopes": {
-        "{release}": [
+        "${}": [
             "local",
             "production"
         ]
     },
     "def_scope": {
-        "{release}": "local"
+        "${}": "local"
     },
     "local_scope": {
-        "{release}": "local"
+        "${}": "local"
     },
     "production_scope": {
-        "{release}": "production"
+        "${}": "production"
     },
     "envs": {
-        "{release}": [ "dev", "prod" ]
+        "${}": [ "dev", "prod" ]
     },
     "def_env": {
-      "{release}": "dev"
+      "${}": "dev"
     },
     "dev_env": {
-        "{release}": "dev"
+        "${}": "dev"
     },
 
     "protocols": {
         "_comment": "e.g.:  http/1.1, http/2.0, net",
-        "{release}": [  "http/1.1", "http/2.0" ]
+        "${}": [  "http/1.1", "http/2.0" ]
     },
     "def_protocol": {
-        "{release}": "http/1.1"
+        "${}": "http/1.1"
     },
     "schemes": {
         "_comment": "e.g.:  http, https",
-        "{release}": [  "http", "https" ]
+        "${}": [  "http", "https" ]
     },
     "def_scheme": {
-        "{release}": "http"
+        "${}": "http"
     },
     "cultures": {
         "_comment": "e.g.:  en_US, fr_FR etc. available for the framework then used to translate the admin dashboard",
-        "{release}": [  "en_CM", "fr_CM" ]
+        "${}": [  "en_CM", "fr_CM" ]
     },
     "def_culture": {
-        "{release}": "en_CM"
+        "${}": "en_CM"
     },
     "def_iso_short": {
-        "{release}": "cm"
+        "${}": "cm"
     },
     "def_timezone": {
-        "{release}": "Africa/Douala"
+        "${}": "Africa/Douala"
     },
     "def_date": {
-        "{release}": "yyyy/mm/dd"
+        "${}": "yyyy/mm/dd"
     },
     "log_levels": {
         "_comment": "hierarchy",
-        "{release}": [  "trace", "debug", "info", "warn", "error", "fatal" ]
+        "${}": [  "trace", "debug", "info", "warn", "error", "fatal" ]
     },
     "def_log_level": {
-        "{release}": "info"
+        "${}": "info"
     }
 }

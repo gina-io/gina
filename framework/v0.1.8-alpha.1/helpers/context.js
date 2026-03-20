@@ -711,23 +711,23 @@ function ContextHelper(contexts) {
         if (!jsonString) return replaceable;
 
         let processed = jsonString
-            // Accepts both {variable} and ${variable} syntax.
-            .replace(/\"\$?\{(\w+)\}\"/g, function(s, key) {
+            // Requires ${variable} syntax (breaking change from 0.1.8 — {variable} no longer supported).
+            .replace(/\"\$\{(\w+)\}\"/g, function(s, key) {
                 if (dictionary[key] !== undefined && /^(true|false|null)$/i.test(String(dictionary[key]))) {
                     return dictionary[key];
                 }
                 return dictionary[key] !== undefined ? '"' + dictionary[key] + '"' : s;
             })
-            .replace(/\$?\{(\w+)\}/g, function(s, key) {
+            .replace(/\$\{(\w+)\}/g, function(s, key) {
                 return dictionary[key] || s;
             })
             /**
-             * Handles complex cases like: ~/.{projectName} or ~/.${projectName}
+             * Handles complex cases like: ~/.${projectName}
              */
-            .replace(/.*\$?\{(\w+)\}.*/g, function(s, key) {
+            .replace(/.*\$\{(\w+)\}.*/g, function(s, key) {
                 if (dictionary[key] !== undefined) {
-                    // Manual replace to avoid infinite recursion — handles both syntaxes.
-                    return s.replace(new RegExp('\\$?\\{' + key + '\\}'), dictionary[key]);
+                    // Manual replace to avoid infinite recursion.
+                    return s.replace(new RegExp('\\$\\{' + key + '\\}'), dictionary[key]);
                 } else {
                     // Generate stack trace to identify the caller
                     const stack = new Error().stack;

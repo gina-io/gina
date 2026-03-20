@@ -3,9 +3,9 @@
     "paths": {
         "gina": "{gina.core}",
         "utils": "{gina.utils}",
-        "root": "{gina}",
-        "env": "{homedir}/{release}/framework/env.json",
-        "tmp": "{tmpdir}"
+        "root": "${}",
+        "env": "${}/${}/framework/env.json",
+        "tmp": "${}"
     },
     "bundles": [
         "shutdown",
