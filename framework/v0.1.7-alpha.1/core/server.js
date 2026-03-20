@@ -3329,7 +3329,7 @@ function Server(options) {
                     url                 : decodeURI(pathname), /// avoid %20
                     rule                : routing[name].originalRule || name,
                     cache               : routing[name].cache || null,
-                    timeout             : routing[name].timeout || null,
+                    timeout             : parseTimeout(routing[name].timeout) || null,
                     // We clone because we are going to modify it while comparing urls
                     param               : JSON.clone(routing[name].param),
                     // We clone because we are going to modify it while routing (.splice(..))

@@ -217,7 +217,7 @@ function Routing() {
                 params.cache = routeObject.cache;
             }
             if ( typeof(routeObject.timeout) != 'undefined' ) {
-                params.timeout = routeObject.timeout;
+                params.timeout = parseTimeout(routeObject.timeout);
             }
 
             // isRoute
