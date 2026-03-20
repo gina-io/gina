@@ -3130,7 +3130,7 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
         // silently drops idle inter-container TCP connections without RST or FIN).
         // On timeout: evict the dead session and retry once with a fresh connection.
         // If the retry also times out, surface the error to the caller.
-        var _streamTimeout = parseTimeout(options.timeout) || 10000;
+        var _streamTimeout = parseTimeout(options.timeout) || 30000;
         req.setTimeout(_streamTimeout, function onStreamTimeout() {
             if (isFinished) return;
             isFinished = true;
