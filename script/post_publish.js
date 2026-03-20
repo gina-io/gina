@@ -64,6 +64,12 @@ function PostPublish() {
         }
 
         self.gina = __dirname +'/..';
+
+        // Capture the version that was just published (before bumpVersion changes it).
+        var packObj = requireJSON(_(pack, true));
+        self.publishedVersion = packObj.version;
+        self.isAlpha = /alpha/i.test(self.publishedVersion);
+        self.isBeta  = /beta/i.test(self.publishedVersion);
     }
 
     var init = function() {
@@ -175,6 +181,61 @@ function PostPublish() {
                 return done(e)
             }
         }
+    }
+
+    self.syncDocs = function(done) {
+
+        // Skip on dry-run
+        if (typeof(process.env.npm_config_dry_run) != 'undefined') {
+            return done();
+        }
+
+        var os = require('os');
+        var docsConfigPath = _(os.homedir() + '/Sites/gina-docs/repo/docusaurus.config.js', true);
+
+        // Skip gracefully if the docs repo is not present on this machine.
+        if (!fs.existsSync(docsConfigPath)) {
+            console.info('[syncDocs] gina-io/docs not found at ' + docsConfigPath + ' — skipping');
+            return done();
+        }
+
+        var content = fs.readFileSync(docsConfigPath, 'utf8');
+        var updated = content.replace(
+            /^const ginaVersion = '.*?';/m,
+            "const ginaVersion = '" + self.publishedVersion + "';"
+        );
+
+        if (updated === content) {
+            console.info('[syncDocs] ginaVersion already up to date — skipping');
+            return done();
+        }
+
+        fs.writeFileSync(docsConfigPath, updated, 'utf8');
+
+        var docsRepoPath = _(os.homedir() + '/Sites/gina-docs/repo', true);
+        var initialDir = process.cwd();
+        process.chdir(docsRepoPath);
+        try {
+            execSync('$(which git) add docusaurus.config.js');
+            execSync("$(which git) commit -m'Updated gina version to " + self.publishedVersion + "'");
+
+            if (!self.isAlpha) {
+                // Stable / beta — push; GitHub Actions deploys automatically on push to main.
+                execSync('$(which git) push origin main');
+                console.info('[syncDocs] Pushed docs update for v' + self.publishedVersion + ' — deployment triggered');
+            } else {
+                console.info('[syncDocs] Alpha release — docs committed locally, push skipped');
+            }
+        } catch (err) {
+            var errOut = err.output ? err.output.toString() : (err.message || '');
+            if (!/nothing to commit/i.test(errOut)) {
+                process.chdir(initialDir);
+                return done(err);
+            }
+        }
+        process.chdir(initialDir);
+
+        done();
     }
 
     self.bumpVersion = function(done) {

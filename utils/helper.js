@@ -519,6 +519,39 @@ function MainHelper(opt) {
         obj = null;
     }// jshint ignore:line
 
+    /**
+     * parseTimeout
+     * Converts a user-facing timeout value to milliseconds.
+     * Accepts:
+     *   - string with unit suffix: "30s", "500ms", "1m", "2h"
+     *   - number: treated as milliseconds (backward compat), 0 disables the timeout
+     *   - false / null / undefined / '': returns null (disabled / unset)
+     *
+     * @param {string|number|boolean|null|undefined} value
+     * @returns {number|null} milliseconds, or null when disabled/invalid
+     */
+    parseTimeout = function(value) {
+        if (value === false || value === null || typeof value === 'undefined' || value === '') {
+            return null;
+        }
+        if (typeof value === 'number') {
+            // 0 is a valid value — it disables the timeout in Node.js APIs
+            return value;
+        }
+        if (typeof value === 'string') {
+            var _match = value.match(/^(\d+(?:\.\d+)?)(ms|s|m|h)$/);
+            if (!_match) return null;
+            var _n = parseFloat(_match[1]);
+            switch (_match[2]) {
+                case 'ms': return Math.round(_n);
+                case 's':  return Math.round(_n * 1000);
+                case 'm':  return Math.round(_n * 60000);
+                case 'h':  return Math.round(_n * 3600000);
+            }
+        }
+        return null;
+    }
+
     init(opt)
 
 }
