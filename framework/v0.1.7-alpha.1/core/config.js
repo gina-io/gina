@@ -2547,10 +2547,12 @@ function Config(opt, contextResetNeeded) {
                 }
 
             }
+
+            // Sort by descending length so more-specific paths are matched before the
+            // catch-all root `/` entry in server.js handleStatics prefix-regex loop.
+            conf[bundle][env].staticResources.sort(function(a, b) { return b.length - a.length; });
         }
 
-        console.warn('['+bundle+'/'+env+']files:', files);
-        console.warn('['+bundle+'/'+env+']reps:', JSON.stringify(reps, null, 2));
         files = whisper(reps, files);
 
         if (hasViews) {

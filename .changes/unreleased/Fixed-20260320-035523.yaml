@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'Fixed handler files returning 404 when a catch-all root statics mapping (empty key) was defined: staticResources is now sorted by descending path length so specific prefixes like /handlers/ are matched before / in the prefix-regex loop'
+time: 2026-03-20T03:55:23.794505+01:00
