@@ -73,6 +73,12 @@ function Couchbase(conn, infos) {
                 } else {
                     Entity = require(_(path + '/' +files[f], true));
 
+                    // Skip helper/utility modules that export objects, not constructors.
+                    // Only constructor functions (entity classes) should be wrapped with inherits.
+                    if ( typeof(Entity) !== 'function' ) {
+                        continue;
+                    }
+
                     Entity = inherits(Entity, EntitySuperClass);
 
                     Entity.prototype.name           = className;
