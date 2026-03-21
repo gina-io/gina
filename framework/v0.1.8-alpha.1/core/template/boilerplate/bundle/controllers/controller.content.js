@@ -1,10 +1,10 @@
 //Imports goes here.
 
 /**
- * {Bundle}ContentController
+ * ${Bundle}ContentController
  * Here are handled all contents
  * */
-function {Bundle}ContentController() {
+function ${Bundle}ContentController() {
     var self = this;
     // get config/app.json content
     var appConf = this.getConfig('app');
@@ -36,4 +36,4 @@ function {Bundle}ContentController() {
     //}
 };
 
-module.exports = {Bundle}ContentController
+module.exports = ${Bundle}ContentController

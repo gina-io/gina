@@ -1,11 +1,11 @@
 {
-  "name": "${}",
+  "name": "${project}",
   "version": "1.0.0",
-  "description": "${} is a nice project !",
+  "description": "${project} is a nice project !",
   "dependencies": {
-    // "gina" : "${}"
+    // "gina" : "${gina_version}"
   },
   "engine": [
-    "node >=${}"
+    "node >=${node_version}"
   ]
 }

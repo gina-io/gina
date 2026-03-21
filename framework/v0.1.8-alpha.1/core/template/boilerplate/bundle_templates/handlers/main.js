@@ -1,10 +1,10 @@
 /**
- * {Bundle} Main handler
+ * ${Bundle} Main handler
  */
 
 // requires are put here
  
- var {Bundle}Handler = ( function on{Bundle}MainHandled() {
+ var ${Bundle}Handler = ( function on${Bundle}MainHandled() {
      var self                = {}
      ;
  
@@ -17,7 +17,7 @@
  
  
      var handle = function () {
-         console.debug('Main {Bundle} handler loaded !');         
+         console.debug('Main ${Bundle} handler loaded !');         
      };
      
      init();

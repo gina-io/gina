@@ -1,9 +1,9 @@
 //Imports goes here.
 
 /**
- * {Bundle}{Namespace}Controller
+ * ${Bundle}${Namespace}Controller
  * */
-function {Bundle}{Namespace}Controller() {
+function ${Bundle}${Namespace}Controller() {
     var self = this;
     // get config/app.json content
     // var appConf = this.getConfig('app');
@@ -31,4 +31,4 @@ function {Bundle}{Namespace}Controller() {
     //}
 };
 
-module.exports = {Bundle}{Namespace}Controller
+module.exports = ${Bundle}${Namespace}Controller

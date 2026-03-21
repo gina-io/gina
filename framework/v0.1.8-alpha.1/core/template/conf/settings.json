@@ -7,9 +7,9 @@
     "backlog": 511,
     "credentials": {
       "_comment": "Project ENV override: SSL Credentials: private key & certificate",
-      "privateKey": "${}/certificates/scopes/${}/${}/private.key",
-      "certificate": "${}/certificates/scopes/${}/${}/certificate.crt",
-      "ca": "${}/certificates/scopes/${}/${}/ca_bundle.crt",
+      "privateKey": "${GINA_HOMEDIR}/certificates/scopes/${scope}/${host}/private.key",
+      "certificate": "${GINA_HOMEDIR}/certificates/scopes/${scope}/${host}/certificate.crt",
+      "ca": "${GINA_HOMEDIR}/certificates/scopes/${scope}/${host}/ca_bundle.crt",
       "allowHTTP1": true
     },
     // refers to server.js, lib.routing & controller.js
@@ -37,7 +37,7 @@
   "upload": {
     "_comment": "for more details, check out https://github.com/mscdex/busboy",
     "encoding": "utf8",
-    "tmpPath": "${}",
+    "tmpPath": "${tmpPath}",
     "maxFieldsSize": "2MB", // for all uploads by default - can be redefined under the group
     "maxFields": 1000, // number of assets when isMultipleAllowed - can be redifined under the group
     // timeout for tmp files removal - can be redifined under the group
@@ -50,7 +50,7 @@
     // You need to set groups in order to enable uploads
     "groups": {
       "untagged": {
-        "path": "${}",
+        "path": "${tmpPath}",
         "allowedExtensions": "*", // or [ "jpg", "jpeg", "png", "svg" ]
         "isMultipleAllowed": false
         // optional sample

@@ -135,7 +135,7 @@
     "newsletter": {
         "url": "/:section/:file",
         "param": {
-            "path": "${}/coreapi/views/emailing/src/:section/:file",
+            "path": "${bundlesPath}/coreapi/views/emailing/src/:section/:file",
             "control":    "renderNewsletter",
             "section": ":section",
             "file": ":file"

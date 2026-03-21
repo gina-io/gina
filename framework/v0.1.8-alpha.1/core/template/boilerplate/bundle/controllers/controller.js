@@ -1,17 +1,17 @@
 //Imports goes here.
 
 /**
- * {Bundle}Controller
+ * ${Bundle}Controller
  * This controller is inherited by all the namespace controllers.
  * This means that all public methods written here are reusable by the other controllers
  * without calling `require` in case you decide to add a namespace.
  * It is strongly advised to use namespaces to organize you code :
  * E.g.:
- *      gina namespace:add {bundle}/blogpost @{project}
- *      gina namespace:add {bundle}/account @{project}
+ *      gina namespace:add ${bundle}/blogpost @${project}
+ *      gina namespace:add ${bundle}/account @${project}
  *      ...
  * */
-function {Bundle}Controller() {
+function ${Bundle}Controller() {
     var self = this;
     // get config/app.json content
     // var appConf = this.getConfig('app');
@@ -27,4 +27,4 @@ function {Bundle}Controller() {
     }
 };
 
-module.exports = {Bundle}Controller
+module.exports = ${Bundle}Controller

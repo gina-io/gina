@@ -1,16 +1,16 @@
 {
   "_common": {
     // if layout == "" or layout == false => isWithoutLayout will be set to `true`
-    "layout"                    : "${}/html/layout.html",
-    "noLayout"                  : "${}/framework/v${}/core/asset/html/nolayout.html",
-    "templates"                 : "${}", // only if hasView() - deprecated
-    "html"                      : "${}/html",  // only if hasView()
+    "layout"                    : "${templatesPath}/html/layout.html",
+    "noLayout"                  : "${gina}/framework/v${version}/core/asset/html/nolayout.html",
+    "templates"                 : "${templatesPath}", // only if hasView() - deprecated
+    "html"                      : "${templatesPath}/html",  // only if hasView()
     "theme"                     : "default_theme", // only if hasView()
-    "forms"                     : "${}/forms",
-    "handlers"                  : "${}/handlers",
+    "forms"                     : "${bundlePath}/forms",
+    "handlers"                  : "${templatesPath}/handlers",
     "routeNameAsFilenameEnabled": true,
     "ginaEnabled"               : true, // set to false, this will exclude gina assets from being loaded
-    "pluginLoader"              : "{src:${}/framework/v${}/core/asset/plugin/dist/vendor/gina/js/gina.onload.min.js}",
+    "pluginLoader"              : "{src:${gina}/framework/v${version}/core/asset/plugin/dist/vendor/gina/js/gina.onload.min.js}",
     "http-metas": {
       "content-type": "text/html"
     },

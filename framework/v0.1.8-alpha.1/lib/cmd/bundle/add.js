@@ -467,7 +467,7 @@ function Add(opt, cmd) {
                 if (self.bundlesByProject[self.projectName].count() == 1) {
                     var settingsServerPath = _(destination + '/config/settings.server.json', true);
                     var serverSettings = fs.readFileSync(settingsServerPath).toString();
-                    serverSettings = serverSettings.replace('"webroot": "/{bundle}"', '"webroot": "/"');
+                    serverSettings = serverSettings.replace('"webroot": "/${bundle}"', '"webroot": "/"');
                     lib.generator.createFileFromDataSync(serverSettings, settingsServerPath);
                 }
 

@@ -1,13 +1,13 @@
 /**
- * {Bundle} bundle
+ * ${Bundle} bundle
  *
  * */
 //import sample
 //var session = require('express-session');
-var {bundle} = require('gina');
+var ${bundle} = require('gina');
 
 // gina lib samples
-// var lib             = {bundle}.lib;
+// var lib             = ${bundle}.lib;
 // var routing         = lib.routing;
 // var console         = lib.logger;
 // var operate         = lib.math.operate;
@@ -19,8 +19,8 @@ var {bundle} = require('gina');
 // Do whatever things you need to do before server starts
 // e.g.: register session, set a shared path for your template engine ...
 // This is mostly pre-start configuration
-//{bundle}.onInitialize( function(event, app, express){//
-//    var self = {bundle};
+//${bundle}.onInitialize( function(event, app, express){//
+//    var self = ${bundle};
 //    // getting config/app.json would be: self.getConfig('app')
 //    // or self.getConfig().app
 //    var conf = self.getConfig();
@@ -33,14 +33,14 @@ var {bundle} = require('gina');
 
 // If you need to do something once the server has started
 // e.g.: start a cron or a watcher
-// {bundle}.onStarted(function(){
-//     console.info('{bundle} has started ! ');
+// ${bundle}.onStarted(function(){
+//     console.info('${bundle} has started ! ');
 // });
 
 // Catch unhandled errors
-{bundle}.onError(function(err, req, res, next){
-    console.error('[ BOOTSTRAP ] <{bundle}> fatal error: ' + err.message + '\nstack:\n'+ err.stack);
+${bundle}.onError(function(err, req, res, next){
+    console.error('[ BOOTSTRAP ] <${bundle}> fatal error: ' + err.message + '\nstack:\n'+ err.stack);
     next(err);
 });
 
-{bundle}.start();
+${bundle}.start();

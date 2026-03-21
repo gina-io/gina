@@ -1,9 +1,9 @@
 {
-    //"favicon.ico": "${}/favicon.ico",
-    //"favicons": "${}/favicons",
-    "html": "${}/html",  // used for templating
-    "sass": "${}/sass",  // used for templating
-    "handlers": "${}",  // used for templating
-    //"common": "${}",
-    "js/vendor/gina": "${}/framework/v${}/core/asset/plugin/dist/vendor/gina/js"
+    //"favicon.ico": "${templatesPath}/favicon.ico",
+    //"favicons": "${templatesPath}/favicons",
+    "html": "${templatesPath}/html",  // used for templating
+    "sass": "${templatesPath}/sass",  // used for templating
+    "handlers": "${handlersPath}",  // used for templating
+    //"common": "${sharedPath}",
+    "js/vendor/gina": "${gina}/framework/v${version}/core/asset/plugin/dist/vendor/gina/js"
 }
