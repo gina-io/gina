@@ -706,11 +706,13 @@ isBundleMounted(projects, bundlesPath, getContext('bundle'), function onBundleMo
 
                 var configuration = config.getInstance();
 
+                _debugLog('checkpoint K1: calling loadAllModels bundles=' + JSON.stringify(conf.bundles));
                 modelUtil.loadAllModels(
                     conf.bundles,
                     configuration,
                     env,
                     function() {
+                        _debugLog('checkpoint K2: loadAllModels done');
 
                         joinContext(conf.contexts);
                         gna.getConfig = function(name){
@@ -729,6 +731,7 @@ isBundleMounted(projects, bundlesPath, getContext('bundle'), function onBundleMo
                             }
                             return tmp
                         };
+                        _debugLog('checkpoint K3: conf.settings=' + (typeof(conf.settings) !== 'undefined' ? 'defined' : 'UNDEFINED') + ' conf.security=' + (typeof(conf.security) !== 'undefined' ? 'defined' : 'UNDEFINED'));
                         try {
                             //configureMiddleware(instance, express); // no, no and no...
                             callback(e, instance, middleware)

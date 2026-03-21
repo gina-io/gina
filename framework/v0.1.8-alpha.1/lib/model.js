@@ -262,7 +262,7 @@ function ModelUtil() {
 
                             for (var name in self.models[bundle]) {//name as connector name
                                 conn            = self.models[bundle][name]['_connection'];
-                                connectorPath   = _(conf.connectorsPath +'/'+ conf.content['connectors'][name].connector);
+                                connectorPath   = _(GINA_FRAMEWORK_DIR + '/core/connectors/' + conf.content['connectors'][name].connector);
                                 modelPath       = _(conf.modelsPath + '/' + name);
                                 entitiesPath    = _(modelPath + '/entities');
                                 //Getting Entities Manager thru connector.
