@@ -108,6 +108,7 @@ const slice = Array.prototype.slice;
 function ServerEngineClass(options) {
 
     console.debug('[ ENGINE ] Isaac says hello !');
+    console.debug('[ ENGINE ] I2a: scheme=' + options.scheme + ' protocol=' + options.protocol + ' cachePath=' + options.cachePath);
 
     // TODO - See if it would be interesting to add it to Helper::Path & to extend it to also readdirSync, returning the directory content
     /**
@@ -137,6 +138,7 @@ function ServerEngineClass(options) {
         , cachePathObj          = null
         , localCachePathObj     = null
     ;
+    console.debug('[ ENGINE ] I2b: entering asset setup try block');
     try {
 
         // Adding cache directory if not found
@@ -152,8 +154,10 @@ function ServerEngineClass(options) {
         // For frontend template routing if needed
         // TODO - Used `options.routing` instead after having filtered `options.allRoutes` vs `options.formsRules` to use only external routes exposed by `"query"` validation
         // replaced: delete operator + for...in — destructuring rest builds clean objects (#P21, #P22)
+        console.debug('[ ENGINE ] I2c: allRoutes type=' + typeof(options.allRoutes));
         var _routing = JSON.clone(options.allRoutes);
         // var _routing = JSON.clone(options.routing);
+        console.debug('[ ENGINE ] I2d: _routing type=' + typeof(_routing));
         var _routingKeys = Object.keys(_routing);
         for (var ri = 0; ri < _routingKeys.length; ++ri) {
             const { _comment, middleware, ...clean } = _routing[_routingKeys[ri]];
@@ -278,6 +282,7 @@ function ServerEngineClass(options) {
         console.error('[ SERVER ] '+ assetsError.stack);
     }
 
+    console.debug('[ ENGINE ] I2e: asset setup done, entering credentials/server setup; scheme=' + options.scheme);
 
     // openssl req -x509 -newkey rsa:2048 -nodes -sha256 -subj "/CN=localhost" -keyout localhost-privkey.pem -out localhost-cert.pem
     var http2Options = {};
@@ -301,6 +306,7 @@ function ServerEngineClass(options) {
     http2Options.allowHTTP1 = allowHTTP1;
 
 
+    console.debug('[ ENGINE ] I2f: credentials check; hasCredentials=' + (typeof(options.credentials) != 'undefined'));
     if (typeof (options.credentials.ca) != 'undefined' && options.credentials.ca != '' )
         // replaced: http2Options.ca = options.credentials.ca — credentials.ca is a path string; readSync() expands ~/ via _() before fs.readFileSync
         http2Options.ca = readSync(options.credentials.ca);
@@ -311,6 +317,7 @@ function ServerEngineClass(options) {
     if (typeof (options.credentials.passphrase) != 'undefined' && options.credentials.passphrase != '' )
         http2Options.passphrase = options.credentials.passphrase;
 
+    console.debug('[ ENGINE ] I2g: creating server; protocol=' + options.protocol + ' scheme=' + options.scheme);
     var server = null, http = null, ioServer = null;
 
 
@@ -1050,6 +1057,7 @@ function ServerEngineClass(options) {
 
 
 
+    console.debug('[ ENGINE ] I2h: constructor complete, returning instance');
     return {
         instance: server,
         middleware: middleware

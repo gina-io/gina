@@ -230,7 +230,7 @@ function Server(options) {
 
             _debugLog('checkpoint I1: requiring engine ' + ((typeof (serverOpt.engine) != 'undefined' && serverOpt.engine != '') ? serverOpt.engine : 'express'));
             Engine = require('./server.' + ((typeof (serverOpt.engine) != 'undefined' && serverOpt.engine != '') ? serverOpt.engine : 'express'));
-            _debugLog('checkpoint I2: engine required, instantiating');
+            _debugLog('checkpoint I2: engine required, instantiating; scheme=' + serverOpt.scheme + ' protocol=' + serverOpt.protocol + ' cachePath=' + serverOpt.cachePath + ' hasCredentials=' + (typeof(serverOpt.credentials) != 'undefined') + ' hasAllRoutes=' + (typeof(options.conf.routing) != 'undefined'));
             var engine = new Engine(serverOpt);
             _debugLog('checkpoint I3: engine instantiated');
 
