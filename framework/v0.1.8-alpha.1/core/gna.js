@@ -1041,7 +1041,6 @@ isBundleMounted(projects, bundlesPath, getContext('bundle'), function onBundleMo
                         //On user conf complete.
                         e.on('complete', function(instance){
                             _debugLog('checkpoint J: complete event fired');
-                            _debugLog('checkpoint J2: registering server.on(started)');
 
                             server.on('started', async function (conf) {
 
@@ -1120,7 +1119,8 @@ isBundleMounted(projects, bundlesPath, getContext('bundle'), function onBundleMo
                                             await server.verifyCertificate(conf.host, conf.server.port);
                                         } catch (err) {
                                             // replaced: throw err — caused unhandled rejection + bundle crash on DNS failure inside containers (Node.js 15+)
-                                            console.emerg(err.stack);
+                                            // replaced: console.emerg — emerg triggers start.js abort detection even though the error is non-fatal (server is already listening)
+                                            console.warn('[verifyCertificate] ' + (err.stack || err.message));
                                         }
                                     }
 
@@ -1141,12 +1141,10 @@ isBundleMounted(projects, bundlesPath, getContext('bundle'), function onBundleMo
                                 }, 700); // 1000 - Wait to make sure that the bundle is mounted on the file system
                             });
 
-                            _debugLog('checkpoint J3: calling server.start; conf.bundle=' + conf.bundle + ' conf.server.cache=' + JSON.stringify(conf.server && conf.server.cache));
                             // placing strat:flag to allow the CLI to retrieve bundl info from here
                             console.notice('[ FRAMEWORK ][ '+ process.pid +' ] '+ conf.bundle +'@'+ core.projectName +' mounted !');
 
                             server.start(instance);
-                            _debugLog('checkpoint J4: server.start returned');
                         });
 
                         // -- BO
