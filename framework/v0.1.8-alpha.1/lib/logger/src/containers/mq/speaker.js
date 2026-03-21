@@ -37,7 +37,10 @@ function MQSpeaker(opt, loggers, cb) {
             settings = require( getUserHome() + '/.gina/' + shortVersion + '/settings.json');
         } catch (err) {}
 
-        opt.mqPort = settings.mq_port;
+        // Guard: settings.mq_port may be an unresolved template placeholder (e.g. '${}'
+        // from a broken W2 migration write). Convert to int and fall back to 8125 if invalid.
+        var _mqPort = ~~settings.mq_port;
+        opt.mqPort = (_mqPort > 0 && _mqPort < 65536) ? _mqPort : 8125;
         opt.hostV4 = settings.host_v4;
         // ---------- EO - hack for early calls
 

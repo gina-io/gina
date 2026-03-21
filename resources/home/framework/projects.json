@@ -1,6 +1,6 @@
 {
-  "${}": {
-    "path": "${}",
-    "framework": "${}"
+  "${projectName}": {
+    "path": "${projectPath}",
+    "framework": "${version}"
   }
 }

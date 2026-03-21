@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'Fixed W2 migration regression: resource template placeholders were written as \${} (empty variable) instead of \${variableName}, causing gina CLI to crash with RangeError on container startup. Also added mq_port validation in MQSpeaker to guard against malformed settings values.'
+time: 2026-03-21T02:48:35.543965+01:00
