@@ -145,7 +145,7 @@ exports['requireJSON: app2.json case'] = function(test) {
         "proxy": {
             "coreapi": {
                 "_comment": "this is the targeted host to send API queries: pointing to coreapi env",
-                "ca": "{projectPath}/ssl/server/*.domain.com.local.pem",
+                "ca": "${projectPath}/ssl/server/*.domain.com.local.pem",
                 "hostname" : "coreapi@freelancer",
                 "_protocol": "https",
                 "port": "coreapi@freelancer",
@@ -153,7 +153,7 @@ exports['requireJSON: app2.json case'] = function(test) {
             },
             "dashboard": {
               "_comment": "this is the targeted host to send Dashboard queries: pointing to Dashboard env",
-              "ca": "{projectPath}/ssl/server/*.domain.com.local.pem",
+              "ca": "${projectPath}/ssl/server/*.domain.com.local.pem",
               "hostname" : "dashboard@freelancer",
               "port": "dashboard@freelancer",
               "path": "/"
@@ -629,8 +629,8 @@ exports['requireJSON: crons.json case'] = function(test) {
         "_comment": "This cron checks every day at 4:55am if there are new fonts to be added from Google fonts API",
         "interval": "55 4 * * *",
         "task": "downloadNewFonts",
-        "tmp": "{tmpPath}/google.fonts.json",
-        "target": "{bundlePath}/config/google.fonts.json",
+        "tmp": "${tmpPath}/google.fonts.json",
+        "target": "${bundlePath}/config/google.fonts.json",
         "url": "https://www.googleapis.com/webfonts/v1/webfonts",
         "apiKey": "wxxxzgfGEZGZgzefz"
     },
@@ -786,7 +786,7 @@ exports['requireJSON: routing.json case'] = function(test) {
     "newsletter": {
         "url": "/:section/:file",
         "param": {
-            "path": "{bundlesPath}/coreapi/views/emailing/src/:section/:file",
+            "path": "${bundlesPath}/coreapi/views/emailing/src/:section/:file",
             "control":    "renderNewsletter",
             "section": ":section",
             "file": ":file"
@@ -810,8 +810,8 @@ exports['requireJSON: settings.json case'] = function(test) {
       "engine": "isaac",
       "credentials": {
         "_comment": "Project ENV override: SSL Credentials: private key & certificate",
-        "privateKey": "{projectPath}/ssl/server.key",
-        "certificate": "{projectPath}/ssl/server.crt",
+        "privateKey": "${projectPath}/ssl/server.key",
+        "certificate": "${projectPath}/ssl/server.crt",
         "allowHTTP1": true
       }
     },
@@ -871,10 +871,10 @@ exports['requireJSON: settings.json case'] = function(test) {
 
 exports['requireJSON: statics.json case'] = function(test) {
     var res = {
-      "html": "{templatesPath}/html",
-      "sass": "{templatesPath}/sass",
-      "handlers": "{handlersPath}",
-      "js/vendor/gina": "{gina}/framework/v{version}/core//vendor/gina/js"
+      "html": "${templatesPath}/html",
+      "sass": "${templatesPath}/sass",
+      "handlers": "${handlersPath}",
+      "js/vendor/gina": "${gina}/framework/v${version}/core/asset/plugin/dist/vendor/gina/js"
     };
 
     test.equal( typeof(staticsCase), 'object' );
@@ -886,13 +886,13 @@ exports['requireJSON: statics.json case'] = function(test) {
 exports['requireJSON: templates.json case'] = function(test) {
     var res = {
         "_common": {
-          "layout": "{templatesPath}/html/layout.html",
+          "layout": "${templatesPath}/html/layout.html",
           "noLayout": "{gina}/framework/v{version}/core/asset/html/nolayout.html",
-          "templates": "{templatesPath}",
-          "html": "{templatesPath}/html",
+          "templates": "${templatesPath}",
+          "html": "${templatesPath}/html",
           "theme": "default_theme",
-          "forms": "{templatesPath}/forms",
-          "handlers": "{templatesPath}/handlers",
+          "forms": "${templatesPath}/forms",
+          "handlers": "${templatesPath}/handlers",
           "routeNameAsFilenameEnabled": true,
           "ginaEnabled": true,
           "http-metas": {
@@ -915,7 +915,8 @@ exports['requireJSON: templates.json case'] = function(test) {
               "url"     : "/js/vendor/gina/gina.min.js"
             }
           ],
-          "pluginLoader": "{src:{gina}/framework/v{version}/core/asset/plugin/dist/vendor/gina/js/gina.onload.min.js}"
+          "_pluginLoader": "{src:${gina}/framework/v${version}/core/asset/plugin/src/vendor/gina/utils/loader.js}",
+          "pluginLoader": "{src:${gina}/framework/v${version}/core/asset/plugin/dist/vendor/gina/js/gina.onload.min.js}"
         }
       };
 

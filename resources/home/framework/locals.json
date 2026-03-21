@@ -1,8 +1,8 @@
 {
     "project": "framework",
     "paths": {
-        "gina": "{gina.core}",
-        "utils": "{gina.utils}",
+        "gina": "${gina.core}",
+        "utils": "${gina.utils}",
         "root": "${gina}",
         "env": "${homedir}/${release}/framework/env.json",
         "tmp": "${tmpdir}"

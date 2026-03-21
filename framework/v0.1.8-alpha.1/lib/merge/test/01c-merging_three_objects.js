@@ -13,7 +13,7 @@ var setVariable = function () {
         "proxy": {
             "coreapi": {
                 "_comment": "this is the targeted host to send API queries: pointing to coreapi env",
-                "ca": "{projectPath}/ssl/server/myproject.local.pem",
+                "ca": "${projectPath}/ssl/server/myproject.local.pem",
                 "hostname" : "coreapi@myproject",
                 //"protocol": "https",
                 "port": "coreapi@myproject",
@@ -21,7 +21,7 @@ var setVariable = function () {
             },
             "dashboard": {
               "_comment": "this is the targeted host to send Dashboard queries: pointing to Dashboard env",
-              "ca": "{projectPath}/ssl/server/myproject.local.pem",
+              "ca": "${projectPath}/ssl/server/myproject.local.pem",
               "hostname" : "dashboard@myproject",
               "port": "dashboard@myproject",
               "path": "/"
@@ -40,11 +40,11 @@ var setVariable = function () {
         "proxy": {
           "coreapi": {
             "rejectUnauthorized": false, // will be disabled on production
-            "ca": "{projectPath}/ssl/server/myproject.local.pem"
+            "ca": "${projectPath}/ssl/server/myproject.local.pem"
           },
           "dashboard": {
             "rejectUnauthorized": false, // will be disabled on production
-            "ca": "{projectPath}/ssl/server/myproject.local.pem"
+            "ca": "${projectPath}/ssl/server/myproject.local.pem"
           }
         }
     };
@@ -54,11 +54,11 @@ var setVariable = function () {
         "proxy": {
             "dashboard": {
                 "rejectUnauthorized": false, // will be disabled on production
-                "ca": "{projectPath}/ssl/server/myproject.local.pem",
+                "ca": "${projectPath}/ssl/server/myproject.local.pem",
             },
             "coreapi": {
                 "rejectUnauthorized": false, // will be disabled on production
-                "ca": "{projectPath}/ssl/server/myproject.local.pem",
+                "ca": "${projectPath}/ssl/server/myproject.local.pem",
           }
         }
     };
@@ -91,7 +91,7 @@ var CtoBUnorderedtoAwithoutOverride = merge(a.proxy.dashboard, bUnordered.proxy.
 exports['Merge : A<-B<-C without override'] = function(test) {
     var res = {
         "_comment": "this is the targeted host to send Dashboard queries: pointing to Dashboard env",
-        "ca": "{projectPath}/ssl/server/myproject.local.pem",
+        "ca": "${projectPath}/ssl/server/myproject.local.pem",
         "hostname": "dashboard@myproject",
         "port": "dashboard@myproject",
         "path": "/",

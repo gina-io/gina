@@ -59,6 +59,21 @@ if (fs.existsSync(settingsPath)) {
     settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
 }
 
+// Guard: settings.json may contain unresolved ${} template placeholders
+// if it was written by a broken W2 migration. Null out any such values
+// so env helpers fall back to safe OS defaults.
+var _hasUnresolved = function(v) { return typeof(v) === 'string' && v.indexOf('${') >= 0; };// jshint ignore:line
+if (_hasUnresolved(settings['log_level'])) { settings['log_level'] = 'info'; }
+if (_hasUnresolved(settings['rundir']))    { settings['rundir']    = undefined; }
+if (_hasUnresolved(settings['logdir']))    { settings['logdir']    = undefined; }
+if (_hasUnresolved(settings['tmpdir']))    { settings['tmpdir']    = undefined; }
+if (_hasUnresolved(settings['env']))       { settings['env']       = undefined; }
+if (_hasUnresolved(settings['scope']))     { settings['scope']     = undefined; }
+if (_hasUnresolved(settings['mq_port']))   { settings['mq_port']   = 8125; }
+if (_hasUnresolved(settings['port']))      { settings['port']      = 8124; }
+if (_hasUnresolved(settings['host_v4']))   { settings['host_v4']   = '127.0.0.1'; }
+if (_hasUnresolved(settings['hostname']))  { settings['hostname']  = undefined; }
+
 // ── 3. Set all GINA_* env vars (mirrors bin/cli bootstrap) ───────────────────
 var arch = process.arch;
 switch (process.arch) {

@@ -5,9 +5,9 @@
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
  */
-var {Entity}Entity;
+var ${Entity}Entity;
 /**
- * @class Model.{Model}.{Entity}Entity class
+ * @class Model.{Model}.${Entity}Entity class
  *
  *
  * @package     Gina
@@ -16,14 +16,14 @@ var {Entity}Entity;
  * @api         Public
  */
 
-{Entity}Entity = function(configuration){
+${Entity}Entity = function(configuration){
 
     var _this = this;
 
     this.getConfig = function(){
-        console.log("{Entity}Entity super ON !", configuration);
+        console.log("${Entity}Entity super ON !", configuration);
         return configuration
     }
 };
 
-module.exports = {Entity}Entity
+module.exports = ${Entity}Entity

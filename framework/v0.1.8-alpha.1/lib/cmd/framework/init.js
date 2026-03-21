@@ -360,7 +360,7 @@ function Initialize(opt) {
         var arch        = getEnvVar('GINA_ARCH') || mainConfig['def_arch'][self.release] || null; // arch by default
         if ( typeof(mainConfig.archs) == 'undefined' ) {
             mainConfig.archs = {};
-            mainConfig.archs[self.release] = defaultMainConfig.archs['{release}'];
+            mainConfig.archs[self.release] = defaultMainConfig.archs['${release}'];
             mainConfig['def_arch'] = {}
             mainConfig['def_arch'][self.release] = currentArch;
             isUpdateNeeded = true;
@@ -372,7 +372,7 @@ function Initialize(opt) {
         var platform    = getEnvVar('GINA_PLATFORM') || mainConfig['def_platform'][self.release] || null; // arch by default
         if ( typeof(mainConfig.platforms) == 'undefined' ) {
             mainConfig.platforms = {};
-            mainConfig.platforms[self.release] = defaultMainConfig.platforms['{release}'];
+            mainConfig.platforms[self.release] = defaultMainConfig.platforms['${release}'];
             mainConfig['def_platform'] = {}
             mainConfig['def_platform'][self.release] = currentPlatform;
             isUpdateNeeded = true;

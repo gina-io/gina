@@ -762,7 +762,7 @@ function Config(opt, contextResetNeeded) {
 
                 appsPath    = (typeof(content[app][env]['bundlesPath']) != 'undefined')
                         ? content[app][env].bundlesPath
-                        : template["{bundle}"]["{env}"].bundlesPath
+                        : template["${bundle}"]["${env}"].bundlesPath
                 ;
                 // Preprocessing settings
                 for (let c = 0, cLen = configFiles.length; c < cLen; ++c) {
@@ -889,26 +889,26 @@ function Config(opt, contextResetNeeded) {
                     pkg[app] != 'undefined' && pkg[app]['src'] != 'undefined' && self.isCacheless()
                 ) {
                     p = _(pkg[app].src);
-                    content[app][env]['bundlesPath'] = "{executionPath}/"+ p.replace('/' + app, '');
+                    content[app][env]['bundlesPath'] = "${executionPath}/"+ p.replace('/' + app, '');
                 } else {
                     p = ( typeof(pkg[app].link) != 'undefined' ) ? _(pkg[app].link) : _(pkg[app].releases[scope][env].target);
-                    content[app][env]['bundlesPath'] = "{executionPath}/"+ p.replace('/' + app, '');
+                    content[app][env]['bundlesPath'] = "${executionPath}/"+ p.replace('/' + app, '');
                 }
                 p = null;
 
                 appsPath = (typeof(content[app][env]['bundlesPath']) != 'undefined')
                     ? content[app][env].bundlesPath
-                    : template["{bundle}"]["{env}"].bundlesPath;
+                    : template["${bundle}"]["${env}"].bundlesPath;
 
 
 
                 modelsPath = (typeof(content[app][env]['modelsPath']) != 'undefined')
                     ?  content[app][env].modelsPath
-                    :  template["{bundle}"]["{env}"].modelsPath;
+                    :  template["${bundle}"]["${env}"].modelsPath;
 
                 projectPath = (typeof(content[app][env]['projectPath']) != 'undefined')
                     ?  content[app][env].projectPath
-                    :  template["{bundle}"]["{env}"].projectPath;
+                    :  template["${bundle}"]["${env}"].projectPath;
 
 
 
@@ -987,7 +987,7 @@ function Config(opt, contextResetNeeded) {
                 //Mergin user's & template.
                 newContent[app][env] = merge(
                     newContent[app][env],
-                    JSON.parse( JSON.stringify(template["{bundle}"]["{env}"]))//only copy of it.
+                    JSON.parse( JSON.stringify(template["${bundle}"]["${env}"]))//only copy of it.
                 );
 
 

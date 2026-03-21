@@ -406,7 +406,7 @@ function Add(opt, cmd) {
                 content[local.bundle] = {}
             }
             content[local.bundle][ self.envs[e] ] = {
-                "host_if_dns_resolution" : "{rootDomain}",
+                "host_if_dns_resolution" : "${rootDomain}",
                 "host" : "localhost"
             };
 
