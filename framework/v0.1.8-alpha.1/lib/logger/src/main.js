@@ -322,6 +322,16 @@ function Logger() {
             process.env.LOG_LEVEL = 'info';
         }
 
+        // #K8s3 — stdout-only mode for containers.
+        // When GINA_LOG_STDOUT=true the MQ transport is skipped: there is no MQ listener
+        // in a containerised deployment and the TCP connection attempt would produce noise.
+        // The default container already writes to process.stdout; it switches to JSON lines
+        // in this mode so that log collectors (kubectl logs, Fluentd, Datadog, etc.) can parse output.
+        if (/^true$/i.test(process.env.GINA_LOG_STDOUT)) {
+            let mqIdx = opt.flows.indexOf('mq');
+            if (mqIdx > -1) opt.flows.splice(mqIdx, 1);
+        }
+
         // if ( new _(optionsPath).existsSync() ) {
         //     if (userOptions.flows.indexOf('mq') < 0) {
         //         userOptions.flows.splice(0, 0, 'mq')

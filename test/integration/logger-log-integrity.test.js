@@ -23,11 +23,17 @@ var fs               = require('fs');
 var path             = require('path');
 var { spawnSync }    = require('child_process');
 
-var FIXTURES    = path.resolve(__dirname, 'fixtures/logs');
-var FRAMEWORK   = path.resolve(__dirname, '../../framework/v0.1.6-alpha.177');
-var LIB_PATH    = path.join(FRAMEWORK, 'lib');
-var PROC_SRC    = path.join(FRAMEWORK, 'lib/proc.js');
-var LOGGER_SRC  = path.join(FRAMEWORK, 'lib/logger/src/main.js');
+var FIXTURES        = path.resolve(__dirname, 'fixtures/logs');
+var FRAMEWORK       = path.resolve(__dirname, '../../framework/v0.1.6-alpha.177');
+var LIB_PATH        = path.join(FRAMEWORK, 'lib');
+var PROC_SRC        = path.join(FRAMEWORK, 'lib/proc.js');
+var LOGGER_SRC      = path.join(FRAMEWORK, 'lib/logger/src/main.js');
+
+// 0.1.8 framework — for #K8s3 stdout container mode tests
+var FRAMEWORK_18    = path.resolve(__dirname, '../../framework/v0.1.8-alpha.1');
+var LIB_PATH_18     = path.join(FRAMEWORK_18, 'lib');
+var LOGGER_SRC_18   = path.join(FRAMEWORK_18, 'lib/logger/src/main.js');
+var DEFAULT_SRC_18  = path.join(FRAMEWORK_18, 'lib/logger/src/containers/default/index.js');
 
 // Standard gina log line: [YYYY Mon DD HH:MM:SS] [level  ][group] message
 var LOG_LINE_RE  = /^\[\d{4} \w{3} \d{2} \d{2}:\d{2}:\d{2}\] \[(\w+)\s*\]\[[\w@.:/-]+\] .+/;
@@ -370,21 +376,13 @@ describe('17.06 - console.emerg() format', function() {
         var stdout = (result.stdout || '').trim();
 
         if (stdout === 'TIMEOUT') {
-            // Logger requires full gina environment to wire up containers —
-            // the emitted event was not captured. Source-level checks above
-            // still validate the format contract. Skip gracefully.
             return;
         }
 
         if (stdout.startsWith('LOAD_ERR:') || result.status === 2) {
-            // Logger could not be loaded in isolation (missing env/config).
-            // Source-level checks cover the format contract. Skip gracefully.
             return;
         }
 
-        // The subprocess loads the gina logger which prints its own debug lines to
-        // stdout before writing the captured JSON payload. Scan backwards through
-        // the lines to find the JSON line — it is always the last non-empty line.
         var stdoutLines = stdout.split('\n');
         var jsonLine = null;
         for (var li = stdoutLines.length - 1; li >= 0; li--) {
@@ -407,6 +405,99 @@ describe('17.06 - console.emerg() format', function() {
             data.content && data.content.indexOf('ETEST') > -1,
             'emerg event content does not contain the error code ETEST: ' + data.content
         );
+    });
+
+});
+
+
+// ─── 07  #K8s3 — stdout container mode (GINA_LOG_STDOUT=true) ────────────────
+
+describe('17.07 - stdout container mode (GINA_LOG_STDOUT=true)', function() {
+
+    it('main.js strips mq from opt.flows when GINA_LOG_STDOUT=true (source)', function() {
+        var src = fs.readFileSync(LOGGER_SRC_18, 'utf8');
+        assert.match(src, /GINA_LOG_STDOUT/,
+            'GINA_LOG_STDOUT env var guard not found in logger/src/main.js');
+        assert.match(src, /flows.*indexOf.*mq|mq.*flows/,
+            'mq flow removal logic not found in main.js GINA_LOG_STDOUT block');
+    });
+
+    it('DefaultContainer switches to JSON output when GINA_LOG_STDOUT=true (source)', function() {
+        var src = fs.readFileSync(DEFAULT_SRC_18, 'utf8');
+        assert.match(src, /GINA_LOG_STDOUT/,
+            'GINA_LOG_STDOUT env var check not found in DefaultContainer');
+        assert.match(src, /JSON\.stringify.*ts.*level.*group.*msg|ts.*level.*group.*msg.*JSON\.stringify/s,
+            'JSON line output with ts/level/group/msg not found in DefaultContainer');
+    });
+
+    it('DefaultContainer emits JSON line with ts, level, group, msg when GINA_LOG_STDOUT=true (subprocess)', function() {
+        var script = [
+            'process.env.GINA_LOG_STDOUT = "true";',
+            'process.env.LOG_LEVEL = "debug";',
+            'process.env.LOG_GROUP = "gina";',
+            'var captured = [];',
+            'var _write = process.stdout.write.bind(process.stdout);',
+            'process.stdout.write = function(chunk) {',
+            '    try {',
+            '        var obj = JSON.parse(chunk);',
+            '        if (obj && obj.ts && obj.level) { captured.push(obj); }',
+            '    } catch(e) {}',
+            '    return _write(chunk);',
+            '};',
+            'try {',
+            '    var lib  = require(' + JSON.stringify(LIB_PATH_18) + ');',
+            '    var cons = lib.logger;',
+            '    cons.info("container mode test message");',
+            '    setTimeout(function() {',
+            '        process.stdout.write(JSON.stringify({ _result: captured }));',
+            '        process.exit(0);',
+            '    }, 500);',
+            '} catch(e) {',
+            '    process.stdout.write("LOAD_ERR:" + e.message);',
+            '    process.exit(2);',
+            '}'
+        ].join('\n');
+
+        var result = spawnSync(process.execPath, ['-e', script], {
+            timeout : 4000,
+            encoding: 'utf8',
+            env     : Object.assign({}, process.env, {
+                GINA_LOG_STDOUT: 'true',
+                LOG_LEVEL: 'debug',
+                LOG_GROUP: 'gina'
+            })
+        });
+
+        var stdout = (result.stdout || '').trim();
+
+        if (stdout.startsWith('LOAD_ERR:') || result.status === 2) {
+            // Logger could not be loaded in isolation — source checks above cover the contract.
+            return;
+        }
+
+        // Find the _result envelope — last JSON object in stdout
+        var lines = stdout.split('\n');
+        var resultLine = null;
+        for (var li = lines.length - 1; li >= 0; li--) {
+            var c = lines[li].trim();
+            if (c.startsWith('{') && c.indexOf('"_result"') > -1) { resultLine = c; break; }
+        }
+
+        if (!resultLine) return; // environment limitation — source checks stand
+
+        var envelope = JSON.parse(resultLine);
+        var entries  = envelope._result;
+        assert.ok(Array.isArray(entries) && entries.length > 0,
+            'no JSON log entries captured — expected at least one JSON line on stdout');
+
+        var entry = entries[0];
+        assert.ok(typeof entry.ts    === 'string', 'JSON log entry missing "ts" field');
+        assert.ok(typeof entry.level === 'string', 'JSON log entry missing "level" field');
+        assert.ok(typeof entry.group === 'string', 'JSON log entry missing "group" field');
+        assert.ok(typeof entry.msg   === 'string', 'JSON log entry missing "msg" field');
+        // ts must be a valid ISO 8601 date
+        assert.ok(!isNaN(Date.parse(entry.ts)),
+            '"ts" field is not a valid ISO 8601 date: ' + entry.ts);
     });
 
 });
