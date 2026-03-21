@@ -216,15 +216,20 @@ function PostPublish() {
         var initialDir = process.cwd();
         process.chdir(docsRepoPath);
         try {
+            execSync('$(which git) checkout develop');
             execSync('$(which git) add docusaurus.config.js');
             execSync("$(which git) commit -m'Updated gina version to " + self.publishedVersion + "'");
+            execSync('$(which git) push origin develop');
 
             if (!self.isAlpha) {
-                // Stable / beta — push; GitHub Actions deploys automatically on push to main.
+                // Stable / beta — merge develop into main and push; GitHub Actions deploys automatically.
+                execSync('$(which git) checkout main');
+                execSync('$(which git) merge develop');
                 execSync('$(which git) push origin main');
-                console.info('[syncDocs] Pushed docs update for v' + self.publishedVersion + ' — deployment triggered');
+                execSync('$(which git) checkout develop');
+                console.info('[syncDocs] Merged develop → main and pushed — deployment triggered');
             } else {
-                console.info('[syncDocs] Alpha release — docs committed locally, push skipped');
+                console.info('[syncDocs] Alpha release — docs committed and pushed to develop');
             }
         } catch (err) {
             var errOut = err.output ? err.output.toString() : (err.message || '');
