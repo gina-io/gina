@@ -7,11 +7,11 @@
  */
 var ${Entity}Entity;
 /**
- * @class Model.{Model}.${Entity}Entity class
+ * @class Model.${Model}.${Entity}Entity class
  *
  *
  * @package     Gina
- * @namespace   Gina.Model.{Model}
+ * @namespace   Gina.Model.${Model}
  * @author      Rhinostone <contact@gina.io>
  * @api         Public
  */

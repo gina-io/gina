@@ -1,8 +1,8 @@
 var { describe, it, beforeEach } = require('node:test');
 var assert = require('node:assert/strict');
 
-var merge = require('../../framework/v0.1.6-alpha.177/lib/merge/src/main');
-var helpers = require('../../framework/v0.1.6-alpha.177/helpers');
+var merge = require('../../framework/v0.1.8-alpha.1/lib/merge/src/main');
+var helpers = require('../../framework/v0.1.8-alpha.1/helpers');
 
 
 // 01 — Merging two objects
@@ -197,14 +197,14 @@ describe('01c - Merging three objects', function () {
             "proxy": {
                 "coreapi": {
                     "_comment": "this is the targeted host to send API queries: pointing to coreapi env",
-                    "ca": "{projectPath}/ssl/server/myproject.local.pem",
+                    "ca": "${projectPath}/ssl/server/myproject.local.pem",
                     "hostname": "coreapi@myproject",
                     "port": "coreapi@myproject",
                     "path": "/api"
                 },
                 "dashboard": {
                     "_comment": "this is the targeted host to send Dashboard queries: pointing to Dashboard env",
-                    "ca": "{projectPath}/ssl/server/myproject.local.pem",
+                    "ca": "${projectPath}/ssl/server/myproject.local.pem",
                     "hostname": "dashboard@myproject",
                     "port": "dashboard@myproject",
                     "path": "/"
@@ -214,14 +214,14 @@ describe('01c - Merging three objects', function () {
         };
         var b = {
             "proxy": {
-                "coreapi": { "rejectUnauthorized": false, "ca": "{projectPath}/ssl/server/myproject.local.pem" },
-                "dashboard": { "rejectUnauthorized": false, "ca": "{projectPath}/ssl/server/myproject.local.pem" }
+                "coreapi": { "rejectUnauthorized": false, "ca": "${projectPath}/ssl/server/myproject.local.pem" },
+                "dashboard": { "rejectUnauthorized": false, "ca": "${projectPath}/ssl/server/myproject.local.pem" }
             }
         };
         var bUnordered = {
             "proxy": {
-                "dashboard": { "rejectUnauthorized": false, "ca": "{projectPath}/ssl/server/myproject.local.pem" },
-                "coreapi": { "rejectUnauthorized": false, "ca": "{projectPath}/ssl/server/myproject.local.pem" }
+                "dashboard": { "rejectUnauthorized": false, "ca": "${projectPath}/ssl/server/myproject.local.pem" },
+                "coreapi": { "rejectUnauthorized": false, "ca": "${projectPath}/ssl/server/myproject.local.pem" }
             }
         };
         var c = {
@@ -237,7 +237,7 @@ describe('01c - Merging three objects', function () {
 
         var res = {
             "_comment": "this is the targeted host to send Dashboard queries: pointing to Dashboard env",
-            "ca": "{projectPath}/ssl/server/myproject.local.pem",
+            "ca": "${projectPath}/ssl/server/myproject.local.pem",
             "hostname": "dashboard@myproject",
             "port": "dashboard@myproject",
             "path": "/",

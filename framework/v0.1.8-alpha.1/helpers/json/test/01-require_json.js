@@ -887,7 +887,7 @@ exports['requireJSON: templates.json case'] = function(test) {
     var res = {
         "_common": {
           "layout": "${templatesPath}/html/layout.html",
-          "noLayout": "{gina}/framework/v{version}/core/asset/html/nolayout.html",
+          "noLayout": "${gina}/framework/v${version}/core/asset/html/nolayout.html",
           "templates": "${templatesPath}",
           "html": "${templatesPath}/html",
           "theme": "default_theme",
