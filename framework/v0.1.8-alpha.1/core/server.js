@@ -416,6 +416,7 @@ function Server(options) {
      * @returns {*} Return value of `onRequest()`
      */
     this.start = function(instance) {
+        _debugLog('checkpoint S1: server.start() called; has instance=' + (!!instance));
         if (instance) {
             self.instance       = instance;
             //Router configuration.
@@ -426,6 +427,7 @@ function Server(options) {
             instance.completeHeaders    = completeHeaders;
 
             // If you change here, you will also have to refrect changes in the form-validator
+            _debugLog('checkpoint S2: setting up cached; cache=' + JSON.stringify(self.conf[self.appName][self.env].server && self.conf[self.appName][self.env].server.cache));
             if ( typeof(instance._cached) == 'undefined' ) {
                 instance._cached = new Map();
                 // Tag with LRU cap so all Cache instances pointing at this Map share the same limit.
@@ -440,9 +442,11 @@ function Server(options) {
                 instance._cacheIsEnabled = self.conf[self.appName][self.env].server.cache.enable;
             }
 
+            _debugLog('checkpoint S3: calling router.setServerInstance');
             router.setServerInstance(instance);
         }
 
+        _debugLog('checkpoint S4: calling onRequest()');
         return onRequest()
     }
 
@@ -2158,8 +2162,10 @@ function Server(options) {
      */
     var onRequest = function() {
 
+        _debugLog('checkpoint R1: onRequest(); webroot=' + (self.conf[self.appName][self.env].server && self.conf[self.appName][self.env].server.webroot));
         var apps = self.bundles;
         var webrootLen = self.conf[self.appName][self.env].server.webroot.length;
+        _debugLog('checkpoint R2: webrootLen=' + webrootLen + '; calling instance.all()');
 
         // catch all (request urls)
         self.instance.all('*', function onInstance(request, response, next) {
@@ -2662,9 +2668,12 @@ function Server(options) {
         // self.instance IS the raw server and listen() returns it unchanged. For
         // the express engine, app.listen() creates the underlying http/http2 server
         // internally and returns it — without capturing here it is unreachable.
+        _debugLog('checkpoint R3: calling instance.listen(); port=' + self.conf[self.appName][self.env].server.port);
         var _rawServer = self.instance.listen(self.conf[self.appName][self.env].server.port);
+        _debugLog('checkpoint R4: instance.listen() returned; _rawServer=' + (!!_rawServer));
         process.server = (_rawServer && typeof _rawServer.close === 'function') ? _rawServer : self.instance;
 
+        _debugLog('checkpoint R5: emitting started');
         self.emit('started', self.conf[self.appName][self.env], true);
     }
 
