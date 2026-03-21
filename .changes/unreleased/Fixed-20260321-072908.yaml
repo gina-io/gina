@@ -1,0 +1,3 @@
+kind: Fixed
+body: Fixed entity loader in Couchbase connector crashing with TypeError when an entities directory contains helper modules that export plain objects instead of constructor functions.
+time: 2026-03-21T07:29:08.387773+01:00
