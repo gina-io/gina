@@ -1,0 +1,3 @@
+kind: Fixed
+body: Fixed rootDomain placeholder detection in config.js to match both `{rootDomain}` (old format) and `${rootDomain}` (new format) after the W2 interpolation migration.
+time: 2026-03-21T05:19:56.430725+01:00
