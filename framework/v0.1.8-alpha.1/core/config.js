@@ -2115,6 +2115,10 @@ function Config(opt, contextResetNeeded) {
                 files['settings'] = merge(JSON.clone(files['settings']), defaultSettings)
                 // files['settings'] = merge(files['settings'], defaultSettings)
             }
+            // Expose files['settings'] directly on conf so that getConfig() (no-arg) callers
+            // can access it as conf.settings — mirrors how conf.security is set via merge(files, conf)
+            // at the top of loadBundleConfig. Previously implicit through an older conf merge path.
+            conf[bundle][env].settings = files['settings'];
 
             if ( staticsPathObj.existsSync() ) {
                 delete require.cache[require.resolve(staticsPath)];
