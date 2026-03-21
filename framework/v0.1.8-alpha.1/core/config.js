@@ -889,10 +889,10 @@ function Config(opt, contextResetNeeded) {
                     pkg[app] != 'undefined' && pkg[app]['src'] != 'undefined' && self.isCacheless()
                 ) {
                     p = _(pkg[app].src);
-                    content[app][env]['bundlesPath'] = "${executionPath}/"+ p.replace('/' + app, '');
+                    content[app][env]['bundlesPath'] = "{executionPath}/"+ p.replace('/' + app, '');
                 } else {
                     p = ( typeof(pkg[app].link) != 'undefined' ) ? _(pkg[app].link) : _(pkg[app].releases[scope][env].target);
-                    content[app][env]['bundlesPath'] = "${executionPath}/"+ p.replace('/' + app, '');
+                    content[app][env]['bundlesPath'] = "{executionPath}/"+ p.replace('/' + app, '');
                 }
                 p = null;
 
