@@ -1030,7 +1030,8 @@ function Config(opt, contextResetNeeded) {
                     rootDomain = newContent[app][env].rootDomain;
                 }
                 // custom override: user entry in the project/env/bundle `env.json` or `bundle/config/settings.server.json`
-                if (!/\{rootDomain\}/.test(newContent[app][env].host) ) {
+                // replaced: /\{rootDomain\}/ — also handle ${rootDomain} format after W2 migration (#W2)
+                if (!/\$?\{rootDomain\}/.test(newContent[app][env].host) ) {
                     rootDomain = domainLib.getRootDomain(newContent[app][env].host).value;
                 }
                 newContent[app][env].rootDomain = rootDomain;
