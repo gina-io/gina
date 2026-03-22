@@ -1,0 +1,3 @@
+kind: Added
+body: 'gina-init: stateless ~/.gina/ bootstrap for Docker/K8s containers — generates projects.json, ports.json, ports.reverse.json, and settings.json from env vars or a mounted JSON config file, with no gina CLI ceremony required'
+time: 2026-03-22T02:36:27.264989+01:00
