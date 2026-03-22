@@ -171,7 +171,7 @@ __NB.:__ If you are launching the command from the project directory, you don't 
 We have just created a frontend application that will host our homepage.
 You will find all bundle sources under `myproject/src`.
 
-__Important:__ Since you are not running a local DNS Server, you have to change the host informations. Go to `myproject/env.json` & replace `dev` hostname from `frontend-{env}-{scope}-v{projectVersionMajor}.{rootDomain}` to `localhost`.
+__Important:__ Since you are not running a local DNS Server, you have to change the host informations. Go to `myproject/env.json` & replace `dev` hostname from `frontend-${env}-${scope}-v${projectVersionMajor}.${rootDomain}` to `localhost`.
 This is a temporary hack and gina will soon be provided with its own local DNS Server.
 
 You can start the bundle with the following command:
