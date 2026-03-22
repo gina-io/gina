@@ -25,8 +25,14 @@ All built-in framework templates shipped with gina have already been updated.
 User-managed config files under your bundle's `config/` directory must be
 updated manually.
 
-Variables with dots (`{gina.core}`, `{gina.utils}`) and the `{src:...}` wrapper
-syntax in `templates.json` are not processed by whisper and are unaffected.
+Dot-notation path references (`{gina.core}`, `{gina.utils}`) are unaffected:
+whisper only matches `${identifier}` where the identifier is word characters
+(`\w+`), so dots fall outside that set and are never replaced.
+
+The `{src:...}` wrapper in `templates.json` is a file-include directive, not a
+whisper variable — the outer `{src:` prefix is left untouched. Variables inside
+the wrapper still use `${variable}` and are replaced normally, e.g.:
+`{src:${gina}/framework/v${version}/core/asset/plugin/dist/.../gina.onload.min.js}`
 
 ---
 
