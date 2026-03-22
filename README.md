@@ -539,7 +539,7 @@ We just need to override Gina default certificate paths
 
 ```json
 {
-    "ca": "{GINA_HOMEDIR}/certificates/scopes/{scope}/{host}/certificate.combined.pem"
+    "ca": "${GINA_HOMEDIR}/certificates/scopes/${scope}/${host}/certificate.combined.pem"
 }
 ```
 

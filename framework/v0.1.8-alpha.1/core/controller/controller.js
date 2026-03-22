@@ -3157,7 +3157,7 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
         req.setTimeout(_streamTimeout, function onStreamTimeout() {
             if (isFinished) return;
             isFinished = true;
-            console.warn('[HTTP2] Stream timeout ('+ _streamTimeout +'ms) on '+ options[':method'] +' '+ options[':path'] +' — evicting dead session');
+            console.warn('[HTTP2] Stream timeout ('+ (_streamTimeout > 1000 ? (_streamTimeout / 1000) + 's' : _streamTimeout + 'ms') +') on '+ options[':method'] +' '+ options[':path'] +' — evicting dead session');
             // Synchronous eviction ensures the retry below creates a fresh session.
             cache.delete(sessKey);
             var _tIdx = self.serverInstance._http2Sessions.indexOf(sessKey);
@@ -3168,7 +3168,7 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
                 return handleHTTP2ClientRequest(browser, options, callback, true);
             }
             // Retry also timed out — surface the error
-            var _timeoutErr = new Error('[HTTP2] No response from '+ options[':authority'] +' after '+ _streamTimeout +'ms');
+            var _timeoutErr = new Error('[HTTP2] No response from '+ options[':authority'] +' after '+ (_streamTimeout > 1000 ? (_streamTimeout / 1000) + 's' : _streamTimeout + 'ms'));
             if (typeof callback === 'function') {
                 callback(_timeoutErr);
             } else {
