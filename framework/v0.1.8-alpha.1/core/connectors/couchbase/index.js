@@ -86,6 +86,7 @@ function Couchbase(conn, infos) {
                     Entity.prototype.bundle         = infos.bundle;
                     Entity.prototype.database       = infos.database;
                     Entity.prototype._collection    = entityName;
+                    Entity.prototype._scope         = infos.scope || process.env.NODE_SCOPE;
                     Entity.prototype._filename      = _(path + '/' +files[f], true);
 
                     // extra CRUD methods
@@ -304,6 +305,7 @@ function Couchbase(conn, infos) {
                     entities[entityName].prototype.model          = infos.model;
                     entities[entityName].prototype.bundle         = infos.bundle;
                     entities[entityName].prototype._collection    = entityName;
+                    entities[entityName].prototype._scope         = infos.scope || process.env.NODE_SCOPE;
                     entities[entityName].prototype._filename      = _( __dirname + '/lib/n1ql.js', true );
                 }
 
@@ -521,6 +523,12 @@ function Couchbase(conn, infos) {
                         execQuery = inherits(conn, conn._cluster.query);
 
                         query = queryStatement;
+                        // Replace $scope placeholder with the connector's resolved scope value.
+                        // Uses a string literal (not a positional param) so existing $1, $2…
+                        // numbering is preserved and no call-site changes are needed.
+                        if ( query.indexOf('$scope') > -1 ) {
+                            query = query.replace(/\$scope/g, "'" + (infos.scope || process.env.NODE_SCOPE) + "'");
+                        }
                         queryOptions.parameters = queryParams;
 
                     } else { // version 2
@@ -959,7 +967,7 @@ function Couchbase(conn, infos) {
             var name = 'bulkInsert';
 
             if ( typeof(rec) == 'undefined' || !rec) {
-                throw new Error('[ '+ this._collection +'::'+name+'(rec) ] : `rec` argument cannot be left empty !')
+                throw new Error('[ '+ this._scope +'.'+ this._collection +'::'+name+'(rec) ] : `rec` argument cannot be left empty !')
             }
 
 
@@ -973,6 +981,7 @@ function Couchbase(conn, infos) {
                     rec[id].values.id = id;
 
                 rec[id].values._collection  = this._collection;
+                rec[id].values._scope       = this._scope;
 
                 queryString += '\t\nVALUES ("'+ id +'", '+ JSON.stringify(rec[id].values) +'),';
                 recCount++;
