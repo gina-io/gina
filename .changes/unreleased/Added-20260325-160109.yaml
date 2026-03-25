@@ -1,0 +1,3 @@
+kind: Added
+body: SuperController.createTestInstance(deps) — static factory for controller unit testing (#R4). Creates a fresh instance with isolated local closure, wires mock req/res/next/options via setOptions(), marks it with _isTestInstance=true. Production singleton is never modified. Normalises missing conf structure so setOptions doesn't crash on minimal test deps.
+time: 2026-03-25T16:01:09.266535+01:00
