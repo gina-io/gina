@@ -685,7 +685,10 @@ isBundleMounted(projects, bundlesPath, getContext('bundle'), function onBundleMo
     // get configuration
     gna.getProjectConfiguration( async function onGettingProjectConfig(err, project) {
 
-        if (err) console.error(err.stack);
+        if (err) {
+            fs.writeSync(2, '[DEBUG][gna] getProjectConfiguration error: ' + (err.stack||err) + '\n');
+            console.error(err.stack);
+        }
 
         /**
          * Registers a callback to run when the framework middleware is initialised.
@@ -1139,6 +1142,110 @@ isBundleMounted(projects, bundlesPath, getContext('bundle'), function onBundleMo
                                     '\npid: ' + process.pid,
                                     '\nThis way please -> '+ conf.hostname + conf.server.webroot
                                     );
+
+                                    // H5: HTTP/2 upstream warmup — pre-establish sessions for declared upstreams
+                                    // so the very first request doesn't hit a cold connection.
+                                    // Triggered when `server.warmup` is a non-empty array of authority URLs
+                                    // in the bundle's server config (e.g. ["https://api.internal:3100"]).
+                                    // The warmup is fire-and-forget: it does not delay "Bundle started!".
+                                    var _warmupTargets = conf.server.warmup;
+                                    if (Array.isArray(_warmupTargets) && _warmupTargets.length > 0 && /http\/2/i.test(conf.server.protocol)) {
+                                        // Defer by one tick so "Bundle started!" is logged first
+                                        setImmediate(function warmupHTTP2Sessions() {
+                                            var http2         = require('http2');
+                                            var Cache         = lib.Cache;
+                                            var warmupCache   = new Cache();
+                                            warmupCache.from(instance._cached);
+
+                                            _warmupTargets.forEach(function(authority) {
+                                                var _wSessKey = 'http2session:' + authority;
+                                                // Skip if a session already exists (e.g. multiple start events)
+                                                if (warmupCache.get(_wSessKey)) return;
+
+                                                var _wOpts = {
+                                                    rejectUnauthorized: /^true$/i.test(process.env.NODE_SCOPE_IS_PRODUCTION),
+                                                    settings: {
+                                                        maxHeaderListSize: 65535,
+                                                        maxConcurrentStreams: 100,
+                                                        enablePush: false
+                                                    }
+                                                };
+
+                                                // Load CA if available (required for TLS upstream)
+                                                if (conf.server.credentials && conf.server.credentials.ca) {
+                                                    try {
+                                                        var _wCa = conf.server.credentials.ca;
+                                                        if (!/-----BEGIN/.test(_wCa)) {
+                                                            _wCa = require('fs').readFileSync(_wCa);
+                                                        }
+                                                        _wOpts.ca = _wCa;
+                                                    } catch(caErr) {
+                                                        console.warn('[warmup] Could not load CA for '+ authority +': '+ caErr.message);
+                                                    }
+                                                }
+
+                                                try {
+                                                    var _wClient = http2.connect(authority, _wOpts);
+                                                    var _wPingInterval = null;
+
+                                                    _wClient.setTimeout(0); // keep session alive
+
+                                                    var _wCleanup = function() {
+                                                        if (_wPingInterval) { clearInterval(_wPingInterval); _wPingInterval = null; }
+                                                        warmupCache.delete(_wSessKey);
+                                                        if (!instance._http2Sessions) return;
+                                                        var _wi = instance._http2Sessions.indexOf(_wSessKey);
+                                                        if (_wi !== -1) instance._http2Sessions.splice(_wi, 1);
+                                                    };
+
+                                                    _wClient.on('error', function(wErr) {
+                                                        _wCleanup();
+                                                        console.warn('[warmup] Session error for '+ authority +': '+ (wErr.message || wErr));
+                                                    });
+                                                    _wClient.on('close',  _wCleanup);
+                                                    _wClient.on('goaway', _wCleanup);
+
+                                                    // Cache the session BEFORE the PING completes so the first
+                                                    // request can reuse it immediately (even if PING is in flight)
+                                                    warmupCache.set(_wSessKey, _wClient);
+                                                    if (!instance._http2Sessions) instance._http2Sessions = [];
+                                                    instance._http2Sessions.push(_wSessKey);
+
+                                                    // Send initial PING to verify the connection is alive
+                                                    _wClient.ping(function(wPingErr, wDuration) {
+                                                        if (wPingErr) {
+                                                            console.warn('[warmup] Initial PING failed for '+ authority +': '+ wPingErr.message);
+                                                            _wCleanup();
+                                                            if (!_wClient.destroyed) _wClient.destroy();
+                                                            return;
+                                                        }
+                                                        console.info('[warmup] HTTP/2 session ready for '+ authority +' (PING RTT: '+ ~~wDuration +'ms)');
+
+                                                        // Start the 5s keepalive PING cycle (mirrors handleHTTP2ClientRequest)
+                                                        _wPingInterval = setInterval(function() {
+                                                            if (_wClient.destroyed || _wClient.closed) {
+                                                                _wCleanup();
+                                                                return;
+                                                            }
+                                                            var _wDeadline = setTimeout(function() {
+                                                                console.warn('[warmup] PING deadline exceeded for '+ authority +' — evicting session');
+                                                                _wCleanup();
+                                                                if (!_wClient.destroyed) _wClient.destroy();
+                                                            }, 3000);
+                                                            _wClient.ping(function(keepAliveErr) {
+                                                                clearTimeout(_wDeadline);
+                                                                if (keepAliveErr) { _wCleanup(); }
+                                                            });
+                                                        }, 5000);
+                                                    });
+
+                                                } catch(wConnErr) {
+                                                    console.warn('[warmup] Could not connect to '+ authority +': '+ wConnErr.message);
+                                                }
+                                            }); // end forEach
+                                        }); // end setImmediate
+                                    }
+
                                     // placing end:flag to allow the CLI to retrieve bundl info from here
                                     console.notice('[ FRAMEWORK ] Bundle started !');
                                 }, 700); // 1000 - Wait to make sure that the bundle is mounted on the file system
@@ -1230,6 +1337,7 @@ isBundleMounted(projects, bundlesPath, getContext('bundle'), function onBundleMo
 
 
 
+        fs.writeSync(2, '[DEBUG][gna] checkpoint E2: project.bundles=' + JSON.stringify(Object.keys(project && project.bundles || {})) + ' isLoadedThroughCLI=' + isLoadedThroughCLI + '\n');
         var appName = null
             , path  = null
             , packs = project.bundles
@@ -1302,6 +1410,7 @@ isBundleMounted(projects, bundlesPath, getContext('bundle'), function onBundleMo
                             break
                         }
                     } else {
+                        fs.writeSync(2, '[DEBUG][gna] path mismatch: bundle=' + bundle + ' path=' + path + ' isDev=' + isDev + '\n');
                         abort('Path mismatched with env: ' + path);
                     }
                     // else, not a bundle
@@ -1333,6 +1442,7 @@ isBundleMounted(projects, bundlesPath, getContext('bundle'), function onBundleMo
                 bundleProcess.register(appName + '@' + projectName, process.pid)
             }
         } catch (err) {
+            fs.writeSync(2, '[DEBUG][gna] try/catch abort: ' + (err.stack||err) + '\n');
             abort(err)
         }
 

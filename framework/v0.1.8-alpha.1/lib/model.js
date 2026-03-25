@@ -267,7 +267,7 @@ function ModelUtil() {
                                 entitiesPath    = _(modelPath + '/entities');
                                 //Getting Entities Manager thru connector.
                                 //entitiesManager = new require( _(modelPath + '/index.js', true) )(conn)[name](conn, { model: name, bundle: bundle, database: conf.content['connectors'][name].database });
-                                entitiesManager = new require( _(connectorPath + '/index.js', true) )(conn, { model: name, bundle: bundle, database: conf.content['connectors'][name].database });
+                                entitiesManager = new require( _(connectorPath + '/index.js', true) )(conn, { model: name, bundle: bundle, database: conf.content['connectors'][name].database, scope: conf.content['connectors'][name].scope });
 
                                 self.setConnection(bundle, name, conn);
 

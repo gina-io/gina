@@ -331,10 +331,17 @@ function EntitySuper(conn, caller) {
                         // _resolver already guards against double-resolution: its first call
                         // deletes _callbacks[shortName], so any subsequent call (from
                         // FIRING #4 or the once-listener) hits the !_callbacks guard and exits.
+                        //
+                        // Additional guard: _resolver is only defined when shortName is in
+                        // entity._triggers (lines 268+). If the method returns a Promise
+                        // but its shortName is NOT in _triggers, _resolver is undefined
+                        // (var hoisted but not assigned). Without this check, the .then()
+                        // callback fires later and throws "TypeError: _resolver is not a function"
+                        // as an uncaughtException that corrupts the event loop.
                         if (_innerResult && typeof(_innerResult.then) === 'function') {
                             _innerResult.then(
-                                function(data) { _resolver(null, data); },
-                                function(err)  { _resolver(err); }
+                                function(data) { if (typeof _resolver === 'function') _resolver(null, data); },
+                                function(err)  { if (typeof _resolver === 'function') _resolver(err); }
                             );
                         }
 

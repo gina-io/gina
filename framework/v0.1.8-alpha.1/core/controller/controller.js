@@ -2259,6 +2259,13 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
         // by default
         self.isProcessingError = false;
 
+        // H3: critical flag — extract before merge() so it is never forwarded as an HTTP header.
+        // When critical: false, HTTP/2 errors are swallowed (log-only) rather than propagating
+        // to the caller or triggering throwError. Use for fire-and-forget calls like
+        // updateLastLoginDate() where a background failure must not kill the user-facing response.
+        var isCritical = typeof options.critical === 'boolean' ? options.critical : true;
+        delete options.critical; // not an HTTP option — remove before merge/clean
+
         var queryData           = {}
             , defaultOptions    = local.query.options
             , path              = options.path
@@ -2465,7 +2472,7 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
             }
             browser = require(''+ httpLib);
             if ( /http2/.test(httpLib) ) {
-                return handleHTTP2ClientRequest(browser, options, callback);
+                return handleHTTP2ClientRequest(browser, options, callback, false, isCritical);
             } else {
                 return handleHTTP1ClientRequest(browser, options, callback);
             }
@@ -2855,9 +2862,59 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
         }
     }
 
-    var handleHTTP2ClientRequest = function(browser, options, callback, isRetry = false) {
+    /**
+     * Typed HTTP/2 client error — H4.
+     * All HTTP/2 failure modes (GOAWAY, timeout, stream error, premature close, 502)
+     * now surface as GinaHttp2Error instances instead of plain Error objects, giving
+     * callers machine-readable `code`, `retryable`, `status`, and `retriedOnce` fields
+     * without having to inspect message strings or embedded status objects.
+     *
+     * @constructor
+     * @param {string}  message            - Human-readable error description
+     * @param {object}  opts
+     * @param {string}  opts.code          - PREMATURE_CLOSE | TIMEOUT | STREAM_ERROR | ECONNRESET | ECONNREFUSED | BAD_GATEWAY
+     * @param {boolean} opts.retryable     - true when a transparent retry was or could be attempted
+     * @param {number}  opts.status        - HTTP status to surface to the caller (502, 503, 500…)
+     * @param {boolean} opts.retriedOnce   - true when this error was raised on the retry attempt
+     */
+    function GinaHttp2Error(message, opts) {
+        Error.call(this);
+        this.name    = 'GinaHttp2Error';
+        this.message = message;
+        if (Error.captureStackTrace) {
+            Error.captureStackTrace(this, GinaHttp2Error);
+        } else {
+            this.stack = (new Error(message)).stack;
+        }
+        opts             = opts || {};
+        this.code        = opts.code        || 'UNKNOWN';
+        this.retryable   = typeof opts.retryable  === 'boolean' ? opts.retryable  : false;
+        this.status      = opts.status      || 500;
+        this.retriedOnce = typeof opts.retriedOnce === 'boolean' ? opts.retriedOnce : false;
+    }
+    GinaHttp2Error.prototype             = Object.create(Error.prototype);
+    GinaHttp2Error.prototype.constructor = GinaHttp2Error;
+
+    // Maps native Node.js error codes to GinaHttp2Error.code values.
+    var _http2ErrCodeMap = {
+        'ERR_HTTP2_STREAM_ERROR'  : 'STREAM_ERROR',
+        'ERR_HTTP2_SESSION_ERROR' : 'STREAM_ERROR',
+        'ECONNRESET'              : 'ECONNRESET',
+        'ECONNREFUSED'            : 'ECONNREFUSED'
+    };
+
+    var handleHTTP2ClientRequest = function(browser, options, callback, isRetry = false, isCritical = true) {
 
         var HTTP2_SESSION_MAX = 50; // max concurrent HTTP/2 sessions in cache
+
+        // H3: non-critical error helper. When isCritical is false, errors are swallowed
+        // (log-only) instead of propagating to the caller. Returns true when swallowed
+        // so call sites can `return _swallowIfNonCritical(err)` and stop processing.
+        var _swallowIfNonCritical = function(err) {
+            if (isCritical) return false;
+            console.warn('[HTTP2][non-critical] swallowed error on '+ (options[':method'] || '') +' '+ (options[':path'] || '') +': '+ (err && err.message || err));
+            return true;
+        };
 
         //cleanup
         options[':authority'] = options.hostname;
@@ -3173,10 +3230,13 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
             if (!client.destroyed) client.destroy(); // no error arg — suppresses session 'error' event
             if (!isRetry) {
                 options.queryData = options._body;
-                return handleHTTP2ClientRequest(browser, options, callback, true);
+                return handleHTTP2ClientRequest(browser, options, callback, true, isCritical);
             }
-            // Retry also timed out — surface the error
-            var _timeoutErr = new Error('[HTTP2] No response from '+ options[':authority'] +' after '+ (_streamTimeout > 1000 ? (_streamTimeout / 1000) + 's' : _streamTimeout + 'ms'));
+            // Retry also timed out — surface the error (H4: typed GinaHttp2Error)
+            var _timeoutMsg = '[HTTP2] No response from '+ options[':authority'] +' after '+ (_streamTimeout > 1000 ? (_streamTimeout / 1000) + 's' : _streamTimeout + 'ms');
+            var _timeoutErr = new GinaHttp2Error(_timeoutMsg, { code: 'TIMEOUT', retryable: true, status: 503, retriedOnce: true });
+            // H3: if non-critical, swallow and return
+            if (_swallowIfNonCritical(_timeoutErr)) return;
             if (typeof callback === 'function') {
                 callback(_timeoutErr);
             } else {
@@ -3206,7 +3266,7 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
                 if (!client.destroyed) client.destroy();
                 // Recursive call with isRetry = true to prevent infinite loops
                 options.queryData = options._body; // restore body for retry
-                return handleHTTP2ClientRequest(browser, options, callback, true);
+                return handleHTTP2ClientRequest(browser, options, callback, true, isCritical);
             }
 
             isFinished = true;
@@ -3238,20 +3298,28 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
             console.error(`[HTTP2] Stream Error on ${options[':method']} ${options[':path']}:`);
             console.error(error.stack || error.message);
 
-            // 4. Response handling
+            // 4. Response handling (H4: wrap native error in GinaHttp2Error for typed callers)
             // you can get here if :
             //  - you are trying to query using: `enctype="multipart/form-data"`
             //  - server responded with an error
+            var _nativeCode  = errorCode;
+            var _ginaErrCode = _http2ErrCodeMap[_nativeCode] || (isConnError ? 'ECONNREFUSED' : 'STREAM_ERROR');
+            var _ginaStatus  = isConnError ? 503 : 500;
+            var _ginaErr = new GinaHttp2Error(error.message, {
+                code       : _ginaErrCode,
+                retryable  : !isRetry,
+                status     : _ginaStatus,
+                retriedOnce: isRetry
+            });
+            _ginaErr.cause = error; // preserve original Node error (stack, syscall, etc.)
+            if (isConnError && error.accessPoint) { _ginaErr.accessPoint = error.accessPoint; }
+
+            // H3: if non-critical, swallow and return
+            if (_swallowIfNonCritical(_ginaErr)) return;
             if (typeof callback !== 'undefined') {
-                // Return the error object to the controller
-                callback(error);
+                callback(_ginaErr);
             } else {
-                // Fallback to Event Emitter for Gina Framework
-                const errorData = {
-                    status: 500,
-                    error: error.stack || error.message
-                };
-                self.emit('query#complete', errorData);
+                self.emit('query#complete', { status: _ginaStatus, error: _ginaErr });
             }
 
             // Note: The 'client' session remains in the Map so other parallel requests
@@ -3276,9 +3344,17 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
                 if (_cIdx !== -1) self.serverInstance._http2Sessions.splice(_cIdx, 1);
                 if (!client.destroyed) client.destroy();
                 options.queryData = options._body;
-                return handleHTTP2ClientRequest(browser, options, callback, true);
+                return handleHTTP2ClientRequest(browser, options, callback, true, isCritical);
             }
-            var prematureCloseErr = new Error('[HTTP2] Stream closed before response was complete (GOAWAY / session timeout / network reset)');
+            // H4: typed GinaHttp2Error — callers can check err.code === 'PREMATURE_CLOSE'
+            var prematureCloseErr = new GinaHttp2Error('[HTTP2] Stream closed before response was complete (GOAWAY / session timeout / network reset)', {
+                code       : 'PREMATURE_CLOSE',
+                retryable  : true,
+                status     : 503,
+                retriedOnce: true
+            });
+            // H3: if non-critical, swallow and return
+            if (_swallowIfNonCritical(prematureCloseErr)) return;
             if (typeof callback !== 'undefined') {
                 callback(prematureCloseErr);
             } else {
@@ -3318,7 +3394,7 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
                     if (_rIdx !== -1) self.serverInstance._http2Sessions.splice(_rIdx, 1);
                     if (!client.destroyed) client.destroy();
                     options.queryData = options._body;
-                    handleHTTP2ClientRequest(browser, options, callback, true);
+                    handleHTTP2ClientRequest(browser, options, callback, true, isCritical);
                 }, 2000);
                 return;
             }
