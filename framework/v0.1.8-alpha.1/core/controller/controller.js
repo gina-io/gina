@@ -4808,4 +4808,82 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
 };
 
 SuperController = inherits(SuperController, EventEmitter);
+
+
+/**
+ * Factory for isolated test instances — **test use only** (#R4).
+ *
+ * Creates a fresh `SuperController` instance with its own `local` closure,
+ * wires it with mock `req`/`res`/`next`/`options` via `setOptions()`, and
+ * marks it with `_isTestInstance = true` so it can never be confused with the
+ * production singleton.
+ *
+ * Each call returns an **independent** instance — internal state (req, res, …)
+ * is never shared with the production singleton or other test instances.
+ *
+ * ### Minimal deps shape (for tests that don't render HTML)
+ *
+ * ```javascript
+ * var inst = SuperController.createTestInstance({
+ *     req: { method: 'GET', params: {}, get: {}, post: {} },
+ *     res: { setHeader: function(){}, end: function(){} },
+ *     next: function() {},
+ *     options: {
+ *         conf: { bundle: 'myBundle', content: { routing: { 'my-rule': {} } } },
+ *         rule: 'my-rule',
+ *         control: 'myAction'
+ *         // template: omit to skip the template/environment setup block
+ *     }
+ * });
+ * inst.myAction(inst._req, inst._res, inst._next);
+ * ```
+ *
+ * @static
+ * @param {object}   [deps]          - Dependency overrides. All keys are optional.
+ * @param {object}   [deps.req]      - Mock request object
+ * @param {object}   [deps.res]      - Mock response object
+ * @param {function} [deps.next]     - Mock next-middleware callback
+ * @param {object}   [deps.options]  - Controller options (conf, rule, control, …).
+ *   Must have at least `conf.content.routing[deps.options.rule]` to avoid a crash
+ *   inside `setOptions()`. Omit `template` to skip the full page/environment setup.
+ * @returns {SuperController} Fresh controller instance; never the production singleton.
+ */
+SuperController.createTestInstance = function(deps) {
+    deps = deps || {};
+
+    var _req  = deps.req  || {};
+    var _res  = deps.res  || {};
+    var _next = deps.next || function() {};
+
+    // Normalise options so setOptions() doesn't crash on missing conf structure.
+    // We merge over a safe skeleton; user values take priority.
+    var _opts = deps.options || {};
+    if (!_opts.conf) {
+        _opts.conf = {};
+    }
+    if (!_opts.conf.content) {
+        _opts.conf.content = {};
+    }
+    if (!_opts.conf.content.routing) {
+        _opts.conf.content.routing = {};
+    }
+    var _rule = _opts.rule || '_test';
+    if (!_opts.conf.content.routing[_rule]) {
+        _opts.conf.content.routing[_rule] = {};
+    }
+    if (!_opts.rule) {
+        _opts.rule = _rule;
+    }
+
+    // Each new SuperController() builds its own isolated local closure — no
+    // singleton manipulation is required.  Production singleton is untouched.
+    var inst = new SuperController(_opts);
+    inst._isTestInstance = true;
+
+    inst.setOptions(_req, _res, _next, _opts);
+
+    return inst;
+};
+
+
 module.exports = SuperController
