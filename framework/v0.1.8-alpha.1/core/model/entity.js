@@ -178,6 +178,15 @@ function EntitySuper(conn, caller, injected) {
                     // TODO - retrieve argument while the method is being rewritten
                     return function () {
 
+                        // #entity-dev-nocache: in dev mode, clear any buffered result for
+                        // this trigger so each call gets a fresh listener.  Prevents stale
+                        // null results from a concurrent-call race (FIRING #5) from
+                        // poisoning subsequent requests for the entity lifetime.
+                        // Mirrors the controller cacheless-require pattern for dev mode.
+                        if (isCacheless && entity._arguments && typeof(entity._arguments[e]) !== 'undefined') {
+                            delete entity._arguments[e];
+                        }
+
                         // retrieving local arguments, & binding it to the event callback
 
                         /**
@@ -317,8 +326,14 @@ function EntitySuper(conn, caller, injected) {
 
                             } else {
                                 // Event already fired — args were buffered in _arguments.
-                                // Resolve/reject immediately from the cached result.
+                                // Resolve/reject immediately from the cached result, then
+                                // delete the buffer so the next call gets a fresh listener
+                                // instead of resolving again with the same stale result.
+                                // Without this delete, any concurrent call that fires before
+                                // the listener is registered (e.g. an alert cron) poisons
+                                // ALL subsequent requests for the entity's lifetime.
                                 var _args = entity._arguments[events[i].shortName];
+                                delete entity._arguments[events[i].shortName];
                                 if (_args[0]) _reject(_args[0]);
                                 else          _resolve(_args[1]);
                             }

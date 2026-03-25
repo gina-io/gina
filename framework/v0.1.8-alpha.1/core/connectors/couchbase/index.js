@@ -332,6 +332,18 @@ function Couchbase(conn, infos) {
 
                     var sdkVersion = conn.sdk.version || 2;
                     var queryParams = [];
+                    // #sql-dev-nocache: in dev mode re-read the .sql file from disk on
+                    // every call so edits are picked up without restarting the server.
+                    // Mirrors the controller cacheless-require pattern.
+                    // @include directives and param metadata stay as parsed at startup;
+                    // only the query body (after the JSDoc comment) is refreshed.
+                    if (envIsDev) {
+                        try {
+                            var _devSrc  = fs.readFileSync(source).toString().replace(/\n/g, ' ');
+                            var _devCmts = _devSrc.match(/(\/\*([^*]|[\r\n]|(\*+([^*\/]|[\r\n])))*\*+\/)|(\/\/.*)/g);
+                            queryString  = (_devCmts ? _devSrc.replace(_devCmts[0], '') : _devSrc).trim();
+                        } catch (_e) { /* keep cached queryString on read error */ }
+                    }
                     queryStatement = queryString.slice(0);
                     if (params) {
                         // BO - patch prepared statement case when placeholder is used as a cursor
