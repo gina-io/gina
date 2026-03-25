@@ -3144,9 +3144,17 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
 
         const req = client.request(headers);
 
-        let isFinished = false;
-        let data = '';
-        const chunks = []; // collect Buffer chunks — avoids peak-memory doubling from string concat
+        let isFinished  = false;
+        let data        = '';
+        let httpStatus  = null; // captured from the HTTP/2 HEADERS frame (:status pseudo-header)
+        const chunks    = []; // collect Buffer chunks — avoids peak-memory doubling from string concat
+
+        // Capture the HTTP/2 response status code from the HEADERS frame.
+        // Without this, the :status pseudo-header is never read and nginx-level errors
+        // (e.g. 502 Bad Gateway) are indistinguishable from JSON parse failures.
+        req.on('response', function onResponseHeaders(respHeaders) {
+            httpStatus = +respHeaders[':status'] || null;
+        });
 
         // Stream-level timeout — mirrors the HTTP/1 path (handleHTTP1ClientRequest line ~2744).
         // Without this, a stream that receives no events hangs indefinitely (OrbStack ARM64
@@ -3254,14 +3262,23 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
         // req.on('close', function onQueryClosed() {
         //     console.warn('Request stream closed.');
         // });
-        // Fixed: stream closing before 'end' left requests hanging indefinitely
-        // (no callback, no query#complete). Now emits an error when the stream
-        // closes prematurely — covers GOAWAY race, server timeout, and network reset.
+        // H1 fix: stream closing before 'end' left requests hanging indefinitely
+        // (no callback, no query#complete). Now retries once with a fresh session on
+        // premature close — covers GOAWAY race, server timeout, and network reset.
+        // If the retry also closes prematurely, the 503 is surfaced to the caller.
         req.on('close', function onQueryClosed() {
             if (isFinished) return;
             isFinished = true;
+            console.warn('[HTTP2] Premature stream close on '+ options[':method'] +' '+ options[':path'] +' — GOAWAY / session reset');
+            if (!isRetry) {
+                cache.delete(sessKey);
+                var _cIdx = self.serverInstance._http2Sessions.indexOf(sessKey);
+                if (_cIdx !== -1) self.serverInstance._http2Sessions.splice(_cIdx, 1);
+                if (!client.destroyed) client.destroy();
+                options.queryData = options._body;
+                return handleHTTP2ClientRequest(browser, options, callback, true);
+            }
             var prematureCloseErr = new Error('[HTTP2] Stream closed before response was complete (GOAWAY / session timeout / network reset)');
-            console.warn('[HTTP2] Premature stream close on '+ options[':method'] +' '+ options[':path']);
             if (typeof callback !== 'undefined') {
                 callback(prematureCloseErr);
             } else {
@@ -3288,6 +3305,24 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
                     data = { status: 200, empty: true };
                 }
             }
+
+            // H2 fix: 502 from nginx means the upstream bundle was unreachable (idle TCP
+            // drop between nginx and the bundle — transient on OrbStack ARM64 and in
+            // production after a keepalive expiry). Retry once after a short delay to give
+            // nginx time to reconnect to the bundle before surfacing the error to the caller.
+            if (httpStatus === 502 && !isRetry) {
+                console.warn('[HTTP2][RETRYING] 502 from '+ options[':authority'] + options[':path'] +' — retrying in 2s');
+                setTimeout(function onHttp2RetryAfter502() {
+                    cache.delete(sessKey);
+                    var _rIdx = self.serverInstance._http2Sessions.indexOf(sessKey);
+                    if (_rIdx !== -1) self.serverInstance._http2Sessions.splice(_rIdx, 1);
+                    if (!client.destroyed) client.destroy();
+                    options.queryData = options._body;
+                    handleHTTP2ClientRequest(browser, options, callback, true);
+                }, 2000);
+                return;
+            }
+
             // 3. Exception filter for ALPN or protocol mismatches
             if (typeof data === 'string' && /^Unknown ALPN Protocol/.test(data)) {
                 const err = { status: 500, error: new Error(data) };

@@ -1,0 +1,3 @@
+kind: Fixed
+body: HTTP/2 client now retries on GOAWAY mid-stream premature close and on 502 upstream responses. Previously both failures surfaced immediately to callers with no retry, requiring application-level degraded-mode fallbacks. The 502 retry also adds a req.on('response') handler that captures the :status pseudo-header — previously unread, making nginx-level errors indistinguishable from JSON parse failures.
+time: 2026-03-25T14:14:00.774289+01:00

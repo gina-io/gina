@@ -278,6 +278,14 @@ module.exports = function renderJSON(jsonObj, deps) {
         }
 
         if (  stream ) {
+            // Guard: client may have disconnected (nginx timeout, browser navigation)
+            // before the async callback (Couchbase, HTTP/2 upstream) completed.
+            // stream.destroyed is true in that case — respond() would throw ERR_HTTP2_INVALID_STREAM.
+            if (stream.destroyed || stream.closed) {
+                console.warn('[render-json] Stream already destroyed — client disconnected before response was sent ('+ (request ? request.url : 'unknown') +')');
+                freeMemory([jsonObj, data, request, response, next], true);
+                return;
+            }
             if (!stream.headersSent) {
                 var _streamHeaders = {
                     'content-type': local.options.conf.server.coreConfiguration.mime['json'] + '; charset='+ local.options.conf.encoding,
