@@ -333,6 +333,13 @@ function ContextHelper(contexts) {
      *
      * */
     getConfig = function(bundle, confName) {
+        // R2: test mock override — set via setContext('__mock__', { config: fn })
+        // Checked directly on self.contexts to avoid any recursion through getContext.
+        var _mock = self.contexts['__mock__'];
+        if (_mock && typeof _mock.config === 'function') {
+            return _mock.config(bundle, confName);
+        }
+
         var merge = require('./../lib/merge');
         var ctx             = null
             , ctxFilename   = getContext('argvFilename') // for workers ctx
