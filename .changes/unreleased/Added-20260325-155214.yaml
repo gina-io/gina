@@ -1,0 +1,3 @@
+kind: Added
+body: EntitySuper now accepts optional `injected` 3rd constructor param — `{connector, config}` — for unit testing entities without a running database or framework server (#R3). getConnection() returns injected.connector when set. New this.getConfig() instance method routes through injected.config, falling back to the global getConfig()/__mock__ chain (#R2).
+time: 2026-03-25T15:52:14.577999+01:00
