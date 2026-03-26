@@ -1,0 +1,12 @@
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    ignore:
+      # Vendored dependencies under framework/v*/ are managed manually.
+      # They are not installed via npm — do not auto-update them.
+      - dependency-name: "*"
+        update-types: ["version-update:semver-patch"]
+    open-pull-requests-limit: 5
