@@ -619,6 +619,10 @@ More documentation and tutorials are coming soon !
 
 For the full documentation, visit [https://gina.io/docs/](https://gina.io/docs/)
 
+## Governance
+
+Gina is led by Martin Luther (Rhinostone). Final decisions on direction, API design, and releases rest with the maintainer. Community contributions and RFCs are welcome and taken seriously. See [GOVERNANCE.md](./GOVERNANCE.md) for details.
+
 ## License (MIT)
 
 Copyright © 2009-2026 [Rhinostone](http://www.rhinostone.com/)
