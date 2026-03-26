@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'Popin overlay stuck active after form submit: data-gina-popin-loading attribute was set on XHR readyState 1/3 but never removed on readyState 4 (response complete), leaving the overlay blocking subsequent interactions. Cleared in xhr.onreadystatechange readyState==4, popinClose, and popinReset.'
+time: 2026-03-26T14:46:51.307034+01:00
