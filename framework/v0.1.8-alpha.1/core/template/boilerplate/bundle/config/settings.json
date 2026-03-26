@@ -1,7 +1,7 @@
 // bundle needs to be restarted on changes !!
 {
     "region": {
-        // <language>_<COUNTRY_ISO_SHORT_CODE> — e.g. en_US, en_CM, fr_FR, de_DE
+        // <language>_<COUNTRY_ISO_SHORT_CODE> — e.g. en_CM, en_US, fr_FR, de_DE
         "culture": "${culture}",
         // <language_iso_short_code> — e.g. en, fr, de
         "isoShort": "${isoShort}",
