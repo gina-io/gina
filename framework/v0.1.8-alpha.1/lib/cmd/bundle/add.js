@@ -561,10 +561,12 @@ function Add(opt, cmd) {
                 var _intlTz = (typeof Intl !== 'undefined')
                     ? Intl.DateTimeFormat().resolvedOptions().timeZone
                     : '';
+                var _culture = _lang || _intlLocale || 'en_CM';
                 var dic = {
                     "Bundle"   : local.bundle.substring(0, 1).toUpperCase() + local.bundle.substring(1),
                     "bundle"   : local.bundle,
-                    "culture"  : _lang || _intlLocale || 'en_CM',
+                    "culture"  : _culture,
+                    "isoShort" : _culture.split('_')[0],
                     "timeZone" : _intlTz || 'UTC'
                 };
 

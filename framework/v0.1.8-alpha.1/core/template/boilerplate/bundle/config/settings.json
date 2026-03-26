@@ -4,7 +4,7 @@
         // <language>_<COUNTRY_ISO_SHORT_CODE> — e.g. en_US, fr_FR, de_DE
         "culture": "${culture}",
         // <language_iso_short_code>
-        "isoShort": "en",
+        "isoShort": "${isoShort}",
         "date": "yyyy/mm/dd",
         // https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
         "timeZone": "${timeZone}"
