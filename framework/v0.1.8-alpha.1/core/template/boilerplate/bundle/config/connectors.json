@@ -1,0 +1,18 @@
+// bundle needs to be restarted on changes !!
+// Declare database connections available to this bundle's models.
+// See: https://gina.io/docs/reference/connectors
+//
+// {
+//   "couchbase": {
+//     "protocol" : "couchbase://",
+//     "host"     : "127.0.0.1",
+//     "database" : "${bundle}",
+//     "username" : "appuser",
+//     "password" : "secret",
+//     "ping"     : "2m"
+//   }
+// }
+//
+// For local overrides without touching this file:
+//   create connectors.dev.json alongside this file
+//   and declare only the keys you want to override.

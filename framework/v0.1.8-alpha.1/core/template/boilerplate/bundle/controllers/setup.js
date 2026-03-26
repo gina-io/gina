@@ -20,7 +20,7 @@ function SetupClass(req, res, next){
     // var conf = this.getConfig('app')
 
     // defining filters
-    var swig = this.engine;
+    var engine = this.engine;
 
     /**
      * Inherited filters from Gina are:
@@ -30,7 +30,7 @@ function SetupClass(req, res, next){
      *      {{ '' | getWebroot() }}
      *
      * [ getUrl ]
-     * Will tranlate a route name to an url
+     * Will translate a route name to a url
      *  e.g.:
      *      <a href="{{ '/homepage' | getUrl() }}">Homepage</a>
      *      <a href="{{ 'users-add' | getUrl({ id: user.id }) }}">Add User</a>
@@ -41,9 +41,9 @@ function SetupClass(req, res, next){
      *      <a href="{{ 'home@admin' | getUrl() }}">Go to admin bundle's dashboard page</a>
      *
      * [ length ]
-     *  Extends default Swig `length` filter
+     *  Extends default template engine `length` filter
      *
-     * [ nl2br ]
+     * [ nl2br ]
      * Will replace all `\n` by `<br/>`
      *  e.g.:
      *      {{ contact.address | nl2br }}
@@ -51,7 +51,7 @@ function SetupClass(req, res, next){
 
 
     /**
-     * Sample of a swig filter to render markdown content
+     * Sample of a template filter to render markdown content
      * To activate this code, you will need :
      * 1) to install `marked` dependency : npm install marked@4.0.10 --save
      * 2) uncomment imports on the top of this script
@@ -59,33 +59,30 @@ function SetupClass(req, res, next){
      */
     // // default markdown options
     // var markdownOpt = { // visit: https://github.com/jmcmanus/pagedown-extra
-    //     //renderer    : mdRenderer,
     //     gfm         : true, // Enable GitHub flavored markdown.
     //     tables      : false,
     //     breaks      : true, // Enable GFM line breaks. This option requires the gfm option to be true.
-    //     pedantic    : false, // Conform to obscure parts of markdown.pl as much as possible. Don't fix any of the original markdown bugs or poor behavior.
-    //     // deprecated since version 0.7.0 - "sanitize-html": "^2.7.0" or DOMPurify
-    //     // sanitize    : false, // Sanitize the output. Ignore any HTML that has been input.
-    //     smartLists  : true, // Use smarter list behavior than the original markdown. May eventually be default with the old behavior moved into pedantic.
-    //     smartypants : false // Use "smart" typograhic punctuation for things like quotes and dashes.
+    //     pedantic    : false,
+    //     smartLists  : true,
+    //     smartypants : false
     // };
 
     // md.setOptions(markdownOpt);
 
-    // var setupSwigFilters = function(swig) {
+    // var setupFilters = function(engine) {
 
-    //     if ( typeof(swig) == 'undefined' ) return;
+    //     if ( typeof(engine) == 'undefined' ) return;
 
     //     /*
     //     * markdown filter
     //     * Usage:
-    //     *      <p>{{ 'once **apuon** a time\nthere was a princess' | markdown('strong','em') }}"</p>
+    //     *      <p>{{ 'once **upon** a time\nthere was a princess' | markdown('strong','em') }}"</p>
     //     *
     //     * @param {string} text - markdown text string
     //     *
     //     * @returns {string} html
     //     */
-    //    swig.setFilter('markdownToHtml', function (text, options) {
+    //    engine.setFilter('markdownToHtml', function (text, options) {
 
     //         if ( typeof(text) != 'undefined' ) { // found
 
@@ -102,8 +99,8 @@ function SetupClass(req, res, next){
     //     });
     // }
 
-    if (swig && typeof(setupSwigFilters) != 'undefined') { // not always available: redirect, xhr requests
-        setupSwigFilters(swig)
+    if (engine && typeof(setupFilters) != 'undefined') { // not always available: redirect, xhr requests
+        setupFilters(engine)
     }
 
 };

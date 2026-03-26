@@ -2,8 +2,6 @@
  * ${Bundle} bundle
  *
  * */
-//import sample
-//var session = require('express-session');
 var ${bundle} = require('gina');
 
 // gina lib samples
@@ -12,7 +10,7 @@ var ${bundle} = require('gina');
 // var console         = lib.logger;
 // var operate         = lib.math.operate;
 // var Collection      = lib.Collection;
-// var SessionStore    = lib.SessionStore(session);
+// var SessionStore    = lib.SessionStore; // see: https://gina.io/docs/guides/sessions
 // var Domain          = lib.Domain;
 
 
