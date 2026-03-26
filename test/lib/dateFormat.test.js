@@ -1,7 +1,8 @@
+var path = require('path');
 var { describe, it } = require('node:test');
 var assert = require('node:assert/strict');
 
-var DateFormatHelper = require('../../framework/v0.1.6-alpha.177/helpers/dateFormat');
+var DateFormatHelper = require(path.join(require('../fw'), 'helpers/dateFormat'));
 var df = DateFormatHelper();
 
 // Fixed reference date: 2024-07-15 14:30:45.123 (Monday)

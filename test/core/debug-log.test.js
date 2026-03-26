@@ -3,7 +3,7 @@ var assert = require('node:assert/strict');
 var fs = require('fs');
 var path = require('path');
 
-var CORE = path.resolve(__dirname, '../../framework/v0.1.6-alpha.177/core');
+var CORE = path.join(require('../fw'), 'core');
 
 // Replica of the _isDebugLog function used in gna.js, server.js, and server.isaac.js.
 // Tests below verify both the logic (via this replica) and that the three source files

@@ -1,3 +1,4 @@
+var path = require('path');
 /**
  * #R2 — Mockable service locator
  *
@@ -14,12 +15,12 @@ var { describe, it, beforeEach, afterEach } = require('node:test');
 var assert = require('node:assert/strict');
 
 // Bootstrap globals (_, getContext, setContext, getConfig, getPath, …)
-require('../../framework/v0.1.8-alpha.1/helpers');
+require(path.join(require('../fw'), 'helpers'));
 
 // Instantiate ModelUtil to inject getModel into the global scope.
 // new ModelUtil() is lightweight — no DB connections, just initialises
 // the entity registry and calls setContext('modelUtil', …).
-var ModelUtil = require('../../framework/v0.1.8-alpha.1/lib/model');
+var ModelUtil = require(path.join(require('../fw'), 'lib/model'));
 new ModelUtil();
 
 

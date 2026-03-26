@@ -1,8 +1,9 @@
+var path = require('path');
 var { describe, it, beforeEach } = require('node:test');
 var assert = require('node:assert/strict');
 
-var merge = require('../../framework/v0.1.8-alpha.1/lib/merge/src/main');
-var helpers = require('../../framework/v0.1.8-alpha.1/helpers');
+var merge = require(path.join(require('../fw'), 'lib/merge/src/main'));
+var helpers = require(path.join(require('../fw'), 'helpers'));
 
 
 // 01 — Merging two objects

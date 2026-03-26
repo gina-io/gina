@@ -3,7 +3,7 @@ var assert = require('node:assert/strict');
 var fs = require('fs');
 var path = require('path');
 
-var SOURCE = path.resolve(__dirname, '../../framework/v0.1.6-alpha.177/core/controller/controller.js');
+var SOURCE = path.join(require('../fw'), 'core/controller/controller.js');
 
 
 // 01 — strParts path building (Array.push + join replaces str += key + '.' in setOptions loop)

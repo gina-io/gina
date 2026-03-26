@@ -24,7 +24,7 @@ var assert  = require('node:assert/strict');
 
 // ─── bootstrap ──────────────────────────────────────────────────────────────
 
-var GINA_FW = path.resolve(__dirname, '../../framework/v0.1.8-alpha.1');
+var GINA_FW = path.resolve(require('../fw'));
 
 // 1. Set up global helpers (_, getContext, setContext, getConfig, etc.)
 require(GINA_FW + '/helpers');

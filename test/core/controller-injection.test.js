@@ -22,10 +22,7 @@ var path = require('path');
 var { describe, it } = require('node:test');
 var assert = require('node:assert/strict');
 
-var SOURCE_PATH = path.resolve(
-    __dirname,
-    '../../framework/v0.1.8-alpha.1/core/controller/controller.js'
-);
+var SOURCE_PATH = path.join(require('../fw'), 'core/controller/controller.js');
 var src = fs.readFileSync(SOURCE_PATH, 'utf8');
 
 

@@ -3,7 +3,7 @@ var assert = require('node:assert/strict');
 var fs = require('fs');
 var path = require('path');
 
-var SOURCE = path.resolve(__dirname, '../../framework/v0.1.6-alpha.177/core/router.js');
+var SOURCE = path.join(require('../fw'), 'core/router.js');
 
 
 // Replica of resolveRouteConfig from router.js for isolated logic testing (#P25).

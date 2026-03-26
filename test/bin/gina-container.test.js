@@ -84,7 +84,11 @@ describe('01 - gina-container: file exists and is executable', function() {
             typeof pkg.bin['gina-container'] === 'string',
             'expected gina-container entry in package.json bin'
         );
-        assert.equal(pkg.bin['gina-container'], './bin/gina-container');
+        assert.ok(
+            pkg.bin['gina-container'] === './bin/gina-container' ||
+            pkg.bin['gina-container'] === 'bin/gina-container',
+            'expected gina-container bin path to be bin/gina-container or ./bin/gina-container'
+        );
     });
 
 });

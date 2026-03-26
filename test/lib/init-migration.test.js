@@ -19,10 +19,7 @@ var path = require('path');
 var { describe, it, beforeEach } = require('node:test');
 var assert = require('node:assert/strict');
 
-var SOURCE_PATH = path.resolve(
-    __dirname,
-    '../../framework/v0.1.8-alpha.1/lib/cmd/framework/init.js'
-);
+var SOURCE_PATH = path.join(require('../fw'), 'lib/cmd/framework/init.js');
 var src = fs.readFileSync(SOURCE_PATH, 'utf8');
 
 

@@ -4,7 +4,7 @@ var fs = require('fs');
 var vm = require('node:vm');
 var path = require('path');
 
-var SOURCE = path.resolve(__dirname, '../../framework/v0.1.6-alpha.177/core/server.isaac.js');
+var SOURCE = path.join(require('../fw'), 'core/server.isaac.js');
 
 
 // 01 — V8 arm64 regression: const not var for object rest destructuring

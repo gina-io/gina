@@ -3,7 +3,7 @@ var assert = require('node:assert/strict');
 var fs = require('fs');
 var path = require('path');
 
-var CORE = path.resolve(__dirname, '../../framework/v0.1.6-alpha.177/core/controller');
+var CORE = path.join(require('../fw'), 'core/controller');
 var SWIG_SRC = path.join(CORE, 'controller.render-swig.js');
 var V1_SRC   = path.join(CORE, 'controller.render-v1.js');
 

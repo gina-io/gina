@@ -404,13 +404,8 @@ describe('13 - whisper', function () {
 
 
 // 14 — integration: test project fixture
-describe('14 - test project fixture', function () {
-
-    before(function () {
-        if (!fs.existsSync(testProjectPath)) {
-            this.skip();
-        }
-    });
+var _testProjectExists = fs.existsSync(testProjectPath);
+describe('14 - test project fixture', { skip: !_testProjectExists }, function () {
 
     it('test project exists at /tmp/fw-test-project', function () {
         assert.ok(fs.existsSync(testProjectPath));
