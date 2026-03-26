@@ -5,7 +5,7 @@
         "culture": "${culture}",
         // <language_iso_short_code>
         "isoShort": "${isoShort}",
-        "date": "yyyy/mm/dd",
+        "date": "${dateFormat}",
         // https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
         "timeZone": "${timeZone}"
     }
