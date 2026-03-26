@@ -335,11 +335,31 @@ function Couchbase(conn, infos) {
                     // #sql-dev-nocache: in dev mode re-read the .sql file from disk on
                     // every call so edits are picked up without restarting the server.
                     // Mirrors the controller cacheless-require pattern.
-                    // @include directives and param metadata stay as parsed at startup;
-                    // only the query body (after the JSDoc comment) is refreshed.
+                    // Fixed: also re-expand @include directives — the original code re-read the
+                    // raw source without expanding includes, sending @include tokens to Couchbase.
                     if (envIsDev) {
                         try {
-                            var _devSrc  = fs.readFileSync(source).toString().replace(/\n/g, ' ');
+                            var _devSrc      = fs.readFileSync(source).toString();
+                            var _devIncludes = _devSrc.match(/\@include(.*)\;/g) || null;
+                            if (_devIncludes && _devIncludes.length > 0) {
+                                for (var _di = 0, _dLen = _devIncludes.length; _di < _dLen; _di++) {
+                                    var _devFilename = _devIncludes[_di].replace(/\"|\'|\;|(\@include\s+|\@include)/g, '');
+                                    if (
+                                        /^\./.test(_devFilename)
+                                        ||
+                                        /^[a-z]:(\\|\/\/)/i.test(_devFilename)
+                                        ||
+                                        !/^\//.test(_devFilename)
+                                        && !/^[a-z]:(\\|\/\/)/i.test(_devFilename)
+                                    ) {
+                                        var _devDir = new _(source).toUnixStyle();
+                                        _devDir = _devDir.substring(0, _devDir.lastIndexOf('/')) + '/';
+                                        _devFilename = _(_devDir + _devFilename.replace(/^\.\//, ''), true);
+                                    }
+                                    _devSrc = _devSrc.replace(_devIncludes[_di], fs.readFileSync(_devFilename).toString());
+                                }
+                            }
+                            _devSrc = _devSrc.replace(/\n/g, ' ');
                             var _devCmts = _devSrc.match(/(\/\*([^*]|[\r\n]|(\*+([^*\/]|[\r\n])))*\*+\/)|(\/\/.*)/g);
                             queryString  = (_devCmts ? _devSrc.replace(_devCmts[0], '') : _devSrc).trim();
                         } catch (_e) { /* keep cached queryString on read error */ }
