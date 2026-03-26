@@ -597,8 +597,16 @@ function Initialize(opt) {
                 'scope_is_production' : (main['production_scope'][self.release] == scope) ? true : false,
                 'production_scope': main['production_scope'][self.release],
                 'culture' : getEnvVar('GINA_CULTURE'),
-                'iso_short': defIsoShort,
-                'date' : defDate,
+                'iso_short': (getEnvVar('GINA_CULTURE') || 'en_CM').split('_')[0],
+                'date' : (function() {
+                    var _c = getEnvVar('GINA_CULTURE') || 'en_CM';
+                    var _d = main['def_date'] ? main['def_date'][self.release] : 'yyyy/mm/dd';
+                    if (typeof Intl !== 'undefined' && typeof Intl.DateTimeFormat.prototype.formatToParts === 'function') {
+                        var _p = Intl.DateTimeFormat(_c.replace('_', '-'), { year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date(2013, 3, 5));
+                        _d = _p.map(function(x) { if (x.type==='year') return 'yyyy'; if (x.type==='month') return 'mm'; if (x.type==='day') return 'dd'; return x.value.replace(/[^\x20-\x7E]/g,''); }).join('');
+                    }
+                    return _d;
+                }()),
                 'timezone' : getEnvVar('GINA_TIMEZONE'),
                 'node_version': process.version,
                 'port' : getEnvVar('GINA_PORT') || 8124, // TODO - scan for the next available port
