@@ -565,7 +565,7 @@ function Add(opt, cmd) {
                     "Bundle"   : local.bundle.substring(0, 1).toUpperCase() + local.bundle.substring(1),
                     "bundle"   : local.bundle,
                     "culture"  : _lang || _intlLocale || 'en_CM',
-                    "timeZone" : _intlTz || 'Africa/Douala'
+                    "timeZone" : _intlTz || 'UTC'
                 };
 
                 contentFile = whisper(dic, contentFile);
