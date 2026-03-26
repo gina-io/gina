@@ -1,8 +1,9 @@
+var path = require('path');
 var { describe, it } = require('node:test');
 var assert = require('node:assert/strict');
 
 // Loading helpers triggers PrototypesHelper which adds all prototype extensions
-var helpers = require('../../framework/v0.1.6-alpha.177/helpers');
+var helpers = require(path.join(require('../fw'), 'helpers'));
 
 
 // 01 — JSON.clone (heavily used in real projects)

@@ -24,13 +24,13 @@ var path             = require('path');
 var { spawnSync }    = require('child_process');
 
 var FIXTURES        = path.resolve(__dirname, 'fixtures/logs');
-var FRAMEWORK       = path.resolve(__dirname, '../../framework/v0.1.6-alpha.177');
+var FRAMEWORK       = path.resolve(require('../fw'));
 var LIB_PATH        = path.join(FRAMEWORK, 'lib');
 var PROC_SRC        = path.join(FRAMEWORK, 'lib/proc.js');
 var LOGGER_SRC      = path.join(FRAMEWORK, 'lib/logger/src/main.js');
 
 // 0.1.8 framework — for #K8s3 stdout container mode tests
-var FRAMEWORK_18    = path.resolve(__dirname, '../../framework/v0.1.8-alpha.1');
+var FRAMEWORK_18    = path.resolve(require('../fw'));
 var LIB_PATH_18     = path.join(FRAMEWORK_18, 'lib');
 var LOGGER_SRC_18   = path.join(FRAMEWORK_18, 'lib/logger/src/main.js');
 var DEFAULT_SRC_18  = path.join(FRAMEWORK_18, 'lib/logger/src/containers/default/index.js');

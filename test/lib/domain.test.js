@@ -3,9 +3,9 @@ var assert = require('node:assert/strict');
 var fs = require('fs');
 var path = require('path');
 
-var Domain = require('../../framework/v0.1.6-alpha.177/lib/domain/src/main');
+var Domain = require(path.join(require('../fw'), 'lib/domain/src/main'));
 
-var dataDir = path.resolve(__dirname, '../../framework/v0.1.6-alpha.177/lib/domain/test/data');
+var dataDir = path.join(require('../fw'), 'lib/domain/test/data');
 var testCases = JSON.parse(fs.readFileSync(path.join(dataDir, 'urls-or-hostnames.json')));
 
 

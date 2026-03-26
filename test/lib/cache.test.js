@@ -1,8 +1,9 @@
+var path = require('path');
 var { describe, it, beforeEach } = require('node:test');
 var assert = require('node:assert/strict');
 
-var helpers = require('../../framework/v0.1.6-alpha.177/helpers');
-var Cache = require('../../framework/v0.1.6-alpha.177/lib/cache/src/main');
+var helpers = require(path.join(require('../fw'), 'helpers'));
+var Cache = require(path.join(require('../fw'), 'lib/cache/src/main'));
 
 
 // 01 — basic operations

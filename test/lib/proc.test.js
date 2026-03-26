@@ -3,8 +3,8 @@ var assert = require('node:assert/strict');
 var fs = require('fs');
 var path = require('path');
 
-var PROC_SOURCE   = path.resolve(__dirname, '../../framework/v0.1.6-alpha.177/lib/proc.js');
-var SERVER_SOURCE = path.resolve(__dirname, '../../framework/v0.1.6-alpha.177/core/server.js');
+var PROC_SOURCE   = path.join(require('../fw'), 'lib/proc.js');
+var SERVER_SOURCE = path.join(require('../fw'), 'core/server.js');
 
 
 // ---------------------------------------------------------------------------

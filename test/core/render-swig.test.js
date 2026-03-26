@@ -3,7 +3,7 @@ var assert = require('node:assert/strict');
 var fs = require('fs');
 var path = require('path');
 
-var SOURCE = path.resolve(__dirname, '../../framework/v0.1.6-alpha.177/core/controller/controller.render-swig.js');
+var SOURCE = path.join(require('../fw'), 'core/controller/controller.render-swig.js');
 
 
 // 01 — Async conversion: exported render function and writeCache must be async (#P28-#P31)

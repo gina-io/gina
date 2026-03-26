@@ -3,10 +3,10 @@ var assert = require('node:assert/strict');
 var fs = require('fs');
 var path = require('path');
 
-var helpers = require('../../framework/v0.1.6-alpha.177/helpers');
-var Collection = require('../../framework/v0.1.6-alpha.177/lib/collection/src/main');
+var helpers = require(path.join(require('../fw'), 'helpers'));
+var Collection = require(path.join(require('../fw'), 'lib/collection/src/main'));
 
-var dataDir = path.resolve(__dirname, '../../framework/v0.1.6-alpha.177/lib/collection/test/data');
+var dataDir = path.join(require('../fw'), 'lib/collection/test/data');
 var resultDir = path.join(dataDir, 'result/hotel');
 
 var deepEqual = function (obj, obj2) {
