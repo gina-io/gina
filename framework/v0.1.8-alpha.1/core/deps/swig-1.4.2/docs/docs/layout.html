@@ -1,0 +1,43 @@
+{% extends "../layouts/master.html" %}
+
+{% block title %}{% parent %} » Documentation{% endblock %}
+
+{% block section_nav %}
+<nav>
+  <ol class="sidenav">
+    <li>
+      <a href="{{ baseurl }}/docs/">Getting Started</a>
+      {% block indexsubnav %}{% endblock %}
+    </li>
+    <li>
+      <a href="{{ baseurl }}/docs/api/">Swig API</a>
+      {% block apisubnav %}{% endblock %}
+    </li>
+    <li>
+      <a href="{{ baseurl }}/docs/filters/">Filters</a>
+      {% block filtersubnav %}{% endblock %}
+    </li>
+    <li>
+      <a href="{{ baseurl }}/docs/tags/">Tags</a>
+      {% block tagsubnav %}{% endblock %}
+    </li>
+    <li>
+      <a href="{{ baseurl }}/docs/loaders/">Template Loaders</a>
+      {% block loaderssubnav %}{% endblock %}
+    </li>
+    <li>
+      <a href="{{ baseurl }}/docs/cli/">Command-Line</a>
+      {% block clisubnav %}{% endblock %}
+    </li>
+    <li>
+      <a href="{{ baseurl }}/docs/browser/">Browser Usage</a>
+      {% block browsersubnav %}{% endblock %}
+    </li>
+    <li>
+      <a href="{{ baseurl }}/docs/extending/">Extending Swig</a>
+      {% block extendingsubnav %}{% endblock %}
+    </li>
+    <li><a href="{{ baseurl }}/docs/previous/">Older Versions</a></li>
+  </ol>
+</nav>
+{% endblock %}

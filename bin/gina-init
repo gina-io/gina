@@ -1,0 +1,433 @@
+#!/usr/bin/env node
+'use strict';
+
+/**
+ * gina-init — stateless ~/.gina/ bootstrap for Docker/K8s containers.
+ *
+ * Generates the 4 files the framework boot sequence hard-requires, without
+ * running the full gina CLI ceremony (no project:add, no port:reset, no
+ * framework socket on port 8124).
+ *
+ * Designed to run as an init container or as the first step of an entrypoint
+ * script, immediately before `gina-container <bundle> @<project>`.
+ *
+ * Output files:
+ *   $GINA_HOMEDIR/projects.json
+ *   $GINA_HOMEDIR/ports.json
+ *   $GINA_HOMEDIR/ports.reverse.json
+ *   $GINA_HOMEDIR/{shortVersion}/settings.json
+ *
+ * Parent directories (rundir, logdir, tmpdir, project homedir) are created
+ * as needed. All output files are overwritten on each run (idempotent).
+ *
+ * Input — env vars (individual fields):
+ *
+ *   GINA_PROJECT_NAME   project name                          (required)
+ *   GINA_BUNDLES        comma-separated bundle names          (required)
+ *   GINA_PROJECT_PATH   project source root                   (default: /app)
+ *   GINA_PROJECT_HOME   project homedir                       (default: HOME/.<project>)
+ *   GINA_ENVS           comma-sep supported envs              (default: dev,prod)
+ *   GINA_DEF_ENV        default env                           (default: dev)
+ *   GINA_DEV_ENV        alias for the dev env                 (default: same as GINA_DEF_ENV)
+ *   GINA_SCOPES         comma-sep supported scopes            (default: local,production)
+ *   GINA_DEF_SCOPE      default scope                         (default: local)
+ *   GINA_PROTOCOLS      comma-sep supported protocols         (default: http/1.1,http/2.0)
+ *   GINA_DEF_PROTOCOL   default protocol                      (default: http/2.0)
+ *   GINA_SCHEMES        comma-sep supported schemes           (default: http,https)
+ *   GINA_DEF_SCHEME     default scheme                        (default: https)
+ *   GINA_PORT_START     first port to allocate                (default: 3100)
+ *   GINA_RUNDIR         run/lock dir                          (default: GINA_HOMEDIR/run)
+ *   GINA_LOGDIR         log dir                               (default: GINA_HOMEDIR/log)
+ *   GINA_TMPDIR         tmp dir                               (default: os.tmpdir())
+ *   GINA_LOG_LEVEL      log level                             (default: info)
+ *   GINA_TIMEZONE       timezone                              (default: TZ env or UTC)
+ *   GINA_CULTURE        culture code                          (default: en_US)
+ *   GINA_ISO_SHORT      ISO 3166-1 alpha-2 country code       (default: us)
+ *
+ * Input — JSON config file (alternative or supplement to env vars):
+ *
+ *   GINA_INIT_CONFIG    path to a JSON config file
+ *   --config=<path>     same, as a CLI flag
+ *
+ *   JSON file keys mirror the env var names without the GINA_ prefix and in
+ *   lower_snake_case: project_name, bundles (array or comma-string), envs, etc.
+ *   Env vars always take priority over JSON file values.
+ *
+ * Exits 0 on success, 1 on validation or write error.
+ *
+ * Usage:
+ *   gina-init                                 # reads env vars
+ *   gina-init --config=/etc/gina/init.json    # reads JSON config (env vars override)
+ *   GINA_INIT_CONFIG=/etc/gina/init.json gina-init
+ */
+
+var fs   = require('fs');
+var os   = require('os');
+
+var binPath   = __dirname;
+var ginaPath  = binPath.replace(/\/bin$/, '');
+
+// Bootstrap utils/helper — injects globals: _, setEnvVar, getEnvVar, getUserHome, etc.
+require(ginaPath + '/utils/helper'); // jshint ignore:line
+
+var packObj       = require(ginaPath + '/package.json');
+var version       = getEnvVar('GINA_VERSION') || packObj.version; // jshint ignore:line
+var shortVersion  = version.split('.').slice(0, 2).join('.');
+var frameworkPath = ginaPath + '/framework/v' + version;
+
+// ── Arch normalisation (mirrors bin/cli and bin/gina-container) ────────────────
+var arch = process.arch;
+switch (process.arch) {
+    case 'x64':    arch = 'amd64'; break;
+    case 'armv7l': arch = 'armhf'; break;
+    case 'x86':    arch = 'i386';  break;
+}
+
+// ── ~/.gina home ──────────────────────────────────────────────────────────────
+// Note: getEnvVar/setEnvVar use process.gina, not process.env. GINA_HOMEDIR
+// passed from the OS environment lives in process.env, so we read it directly.
+var userHome = getUserHome(); // jshint ignore:line
+var ginaHome = process.env.GINA_HOMEDIR || (userHome + '/.gina');
+
+// ── Parse CLI args ─────────────────────────────────────────────────────────────
+var rawArgs    = process.argv.slice(2);
+var configPath = null;
+var showHelp   = false;
+
+for (var i = 0; i < rawArgs.length; i++) {
+    var m = rawArgs[i].match(/^--config=(.+)$/);
+    if (m) { configPath = m[1]; continue; }
+    if (rawArgs[i] === '--help' || rawArgs[i] === '-h') { showHelp = true; }
+}
+
+if (showHelp) {
+    process.stdout.write([
+        'Usage: gina-init [--config=<path>]',
+        '',
+        'Generates the ~/.gina/ state files required by gina-container without',
+        'running the full gina CLI ceremony.',
+        '',
+        'Required (env var or JSON config):',
+        '  GINA_PROJECT_NAME   project name',
+        '  GINA_BUNDLES        comma-separated bundle names',
+        '',
+        'Optional:',
+        '  GINA_PROJECT_PATH   project source root         (default: /app)',
+        '  GINA_ENVS           supported envs              (default: dev,prod)',
+        '  GINA_DEF_ENV        default env                 (default: dev)',
+        '  GINA_SCOPES         supported scopes            (default: local,production)',
+        '  GINA_DEF_SCOPE      default scope               (default: local)',
+        '  GINA_PROTOCOLS      supported protocols         (default: http/1.1,http/2.0)',
+        '  GINA_DEF_PROTOCOL   default protocol            (default: http/2.0)',
+        '  GINA_SCHEMES        supported schemes           (default: http,https)',
+        '  GINA_DEF_SCHEME     default scheme              (default: https)',
+        '  GINA_PORT_START     first port to allocate      (default: 3100)',
+        '  GINA_RUNDIR         run dir                     (default: ~/.gina/run)',
+        '  GINA_LOGDIR         log dir                     (default: ~/.gina/log)',
+        '  GINA_TMPDIR         tmp dir                     (default: os.tmpdir())',
+        '  GINA_LOG_LEVEL      log level                   (default: info)',
+        '  GINA_TIMEZONE       timezone                    (default: TZ or UTC)',
+        '  GINA_INIT_CONFIG    path to JSON config file',
+        '  --config=<path>     same as GINA_INIT_CONFIG',
+        ''
+    ].join('\n'));
+    process.exit(0);
+}
+
+// ── Load JSON config file ──────────────────────────────────────────────────────
+var fileCfg       = {};
+var envConfigPath = process.env.GINA_INIT_CONFIG || configPath;
+
+if (envConfigPath) {
+    if (!fs.existsSync(envConfigPath)) {
+        process.stdout.write('[gina-init] config file not found: ' + envConfigPath + '\n');
+        process.exit(1);
+    }
+    try {
+        fileCfg = JSON.parse(fs.readFileSync(envConfigPath, 'utf8'));
+    } catch (parseErr) {
+        process.stdout.write('[gina-init] failed to parse config file: ' + parseErr.message + '\n');
+        process.exit(1);
+    }
+}
+
+// ── Config resolution helpers ──────────────────────────────────────────────────
+// Env vars win over JSON file values. JSON file values win over defaults.
+
+/**
+ * Resolve a scalar value: env var → JSON file key → default.
+ * @param {string} envKey
+ * @param {string} fileKey
+ * @param {*}      def
+ * @returns {*}
+ */
+function cfg(envKey, fileKey, def) {
+    var e = process.env[envKey];
+    if (e !== undefined && e !== '') return e;
+    var f = fileCfg[fileKey];
+    if (f !== undefined) return f;
+    return def;
+}
+
+/**
+ * Resolve a list value: env var (comma-string) → JSON file key (array|comma-string) → default.
+ * @param {string}   envKey
+ * @param {string}   fileKey
+ * @param {string[]} def
+ * @returns {string[]}
+ */
+function cfgList(envKey, fileKey, def) {
+    var e = process.env[envKey];
+    if (e !== undefined && e !== '') {
+        return e.split(',').map(function(s) { return s.trim(); }).filter(Boolean);
+    }
+    var f = fileCfg[fileKey];
+    if (f !== undefined) {
+        if (Array.isArray(f)) return f;
+        return f.split(',').map(function(s) { return s.trim(); }).filter(Boolean);
+    }
+    return def;
+}
+
+// ── Resolve all config values ──────────────────────────────────────────────────
+var projectName = cfg('GINA_PROJECT_NAME', 'project_name', null)
+               || cfg('GINA_PROJECT_NAME', 'project',      null);
+
+var bundles     = cfgList('GINA_BUNDLES', 'bundles', null);
+
+if (!projectName) {
+    process.stdout.write('[gina-init] GINA_PROJECT_NAME is required\n');
+    process.exit(1);
+}
+if (!bundles || bundles.length === 0) {
+    process.stdout.write('[gina-init] GINA_BUNDLES is required (comma-separated bundle names)\n');
+    process.exit(1);
+}
+
+var projectPath = cfg('GINA_PROJECT_PATH', 'project_path', '/app');
+var projectHome = cfg('GINA_PROJECT_HOME', 'project_home', userHome + '/.' + projectName);
+
+var envs        = cfgList('GINA_ENVS',      'envs',      ['dev', 'prod']);
+var defEnv      = cfg('GINA_DEF_ENV',   'def_env',   envs[0]);
+var devEnv      = cfg('GINA_DEV_ENV',   'dev_env',   defEnv);
+
+var scopes          = cfgList('GINA_SCOPES',    'scopes',    ['local', 'production']);
+var defScope        = cfg('GINA_DEF_SCOPE', 'def_scope', scopes[0]);
+var localScope      = scopes[0];
+var productionScope = scopes.length > 1 ? scopes[scopes.length - 1] : scopes[0];
+
+var protocols   = cfgList('GINA_PROTOCOLS',   'protocols',   ['http/1.1', 'http/2.0']);
+var defProtocol = cfg('GINA_DEF_PROTOCOL', 'def_protocol', 'http/2.0');
+
+var schemes     = cfgList('GINA_SCHEMES',   'schemes',   ['http', 'https']);
+var defScheme   = cfg('GINA_DEF_SCHEME', 'def_scheme', 'https');
+
+var portStart   = parseInt(cfg('GINA_PORT_START', 'port_start', '3100'), 10);
+
+var rundir      = cfg('GINA_RUNDIR',    'rundir',    ginaHome + '/run');
+var logdir      = cfg('GINA_LOGDIR',    'logdir',    ginaHome + '/log');
+var tmpdir      = cfg('GINA_TMPDIR',    'tmpdir',    os.tmpdir());
+var logLevel    = cfg('GINA_LOG_LEVEL', 'log_level', 'info');
+var timezone    = cfg('GINA_TIMEZONE',  'timezone',  process.env.TZ || 'UTC');
+var culture     = cfg('GINA_CULTURE',   'culture',   'en_US');
+var isoShort    = cfg('GINA_ISO_SHORT', 'iso_short', 'us');
+
+// ── Validate cross-field constraints ──────────────────────────────────────────
+if (protocols.indexOf(defProtocol) === -1) {
+    process.stdout.write('[gina-init] GINA_DEF_PROTOCOL "' + defProtocol + '" is not in GINA_PROTOCOLS: ' + protocols.join(', ') + '\n');
+    process.exit(1);
+}
+if (schemes.indexOf(defScheme) === -1) {
+    process.stdout.write('[gina-init] GINA_DEF_SCHEME "' + defScheme + '" is not in GINA_SCHEMES: ' + schemes.join(', ') + '\n');
+    process.exit(1);
+}
+if (envs.indexOf(defEnv) === -1) {
+    process.stdout.write('[gina-init] GINA_DEF_ENV "' + defEnv + '" is not in GINA_ENVS: ' + envs.join(', ') + '\n');
+    process.exit(1);
+}
+if (scopes.indexOf(defScope) === -1) {
+    process.stdout.write('[gina-init] GINA_DEF_SCOPE "' + defScope + '" is not in GINA_SCOPES: ' + scopes.join(', ') + '\n');
+    process.exit(1);
+}
+if (isNaN(portStart) || portStart < 1 || portStart > 65534) {
+    process.stdout.write('[gina-init] GINA_PORT_START must be a number between 1 and 65534\n');
+    process.exit(1);
+}
+
+// ── Generate ports.json and ports.reverse.json ────────────────────────────────
+//
+// Port groups are allocated in declaration order (protocol × scheme).
+// HTTP/2 cleartext (http/2.0 + http) is skipped — h2c is not used in practice
+// and the real port tables always have an empty object for that combination.
+// Within each group, ports are allocated per bundle then per env.
+//
+// ports.json structure:
+//   { "protocol": { "scheme": { "port": "bundle@project/env" } } }
+//
+// ports.reverse.json structure:
+//   { "bundle@project": { "env": { "protocol": { "scheme": port } } } }
+//
+var portsOut        = {};
+var portsReverseOut = {};
+var nextPort        = portStart;
+
+// Initialise ports.json skeleton (all protocol/scheme combos, even h2c)
+protocols.forEach(function(protocol) {
+    portsOut[protocol] = {};
+    schemes.forEach(function(scheme) {
+        portsOut[protocol][scheme] = {};
+    });
+});
+
+protocols.forEach(function(protocol) {
+    schemes.forEach(function(scheme) {
+        // HTTP/2 cleartext — skip port allocation, leave the empty {} in place
+        if (protocol === 'http/2.0' && scheme === 'http') return;
+
+        bundles.forEach(function(bundle) {
+            envs.forEach(function(env) {
+                var port  = nextPort++;
+                var label = bundle + '@' + projectName + '/' + env;
+
+                // ports.json
+                portsOut[protocol][scheme][String(port)] = label;
+
+                // ports.reverse.json — deep assign without nulling any missing level
+                var key = bundle + '@' + projectName;
+                if (!portsReverseOut[key])                    portsReverseOut[key] = {};
+                if (!portsReverseOut[key][env])               portsReverseOut[key][env] = {};
+                if (!portsReverseOut[key][env][protocol])     portsReverseOut[key][env][protocol] = {};
+                portsReverseOut[key][env][protocol][scheme]   = port;
+            });
+        });
+    });
+});
+
+// ── Build projects.json entry ──────────────────────────────────────────────────
+var defPrefix = (packObj.config && packObj.config.prefix) ? packObj.config.prefix : '/usr/local';
+var defGlobalMode = (packObj.config && typeof(packObj.config.globalMode) !== 'undefined')
+    ? packObj.config.globalMode
+    : true;
+
+var projectEntry = {
+    path             : projectPath,
+    homedir          : projectHome,
+    bundles_path     : projectHome + '/bundles',
+    releases_path    : projectHome + '/releases',
+    logs_path        : projectHome + '/var/logs',
+    tmp_path         : projectHome + '/tmp',
+    def_prefix       : defPrefix,
+    framework        : 'v' + version,
+    envs             : envs,
+    def_env          : defEnv,
+    dev_env          : devEnv,
+    scopes           : scopes,
+    def_scope        : defScope,
+    local_scope      : localScope,
+    production_scope : productionScope,
+    protocols        : protocols,
+    def_protocol     : defProtocol,
+    schemes          : schemes,
+    def_scheme       : defScheme,
+    frameworks       : [version],
+    def_framework    : version,
+    def_global_mode  : defGlobalMode,
+    archs            : ['arm', 'arm64', 'x64', 'amd64'],
+    def_arch         : arch,
+    platforms        : ['darwin', 'linux', 'win32', 'freebsd', 'openbsd', 'sunos', 'aix'],
+    def_platform     : process.platform,
+    cultures         : [culture],
+    def_culture      : culture,
+    def_iso_short    : isoShort,
+    def_timezone     : timezone,
+    def_date         : 'yyyy/mm/dd',
+    log_levels       : ['trace', 'debug', 'info', 'warn', 'error', 'fatal'],
+    def_log_level    : logLevel,
+    exists           : true
+};
+
+var projectsOut = {};
+projectsOut[projectName] = projectEntry;
+
+// ── Build settings.json ────────────────────────────────────────────────────────
+var userInfo = { username: 'node', uid: -1, gid: -1 };
+try { userInfo = os.userInfo(); } catch(e) { /* running as unresolvable uid (e.g. scratch image) */ }
+
+var settingsOut = {
+    version             : version,
+    def_framework       : version,
+    arch                : arch,
+    platform            : process.platform,
+    env                 : defEnv,
+    env_is_dev          : (defEnv === devEnv),
+    scope               : defScope,
+    scope_is_local      : (defScope === localScope),
+    scope_is_production : (defScope === productionScope),
+    node_version        : process.version,
+    port                : '8124',
+    debug_port          : '9229',
+    mq_port             : '8125',
+    host_v4             : '127.0.0.1',
+    hostname            : os.hostname(),
+    user                : userInfo.username,
+    uid                 : String(userInfo.uid),
+    gid                 : String(userInfo.gid),
+    dir                 : ginaPath,
+    homedir             : userHome,
+    rundir              : rundir,
+    tmpdir              : tmpdir,
+    logdir              : logdir,
+    culture             : culture,
+    iso_short           : isoShort,
+    timezone            : timezone,
+    date                : 'yyyy/mm/dd',
+    log_level           : logLevel
+};
+
+// ── Create required directories ────────────────────────────────────────────────
+var dirsToCreate = [
+    ginaHome,
+    ginaHome + '/' + shortVersion,
+    rundir,
+    logdir,
+    tmpdir,
+    projectHome,
+    projectHome + '/bundles',
+    projectHome + '/releases',
+    projectHome + '/var/logs',
+    projectHome + '/tmp'
+];
+
+dirsToCreate.forEach(function(dir) {
+    try {
+        fs.mkdirSync(dir, { recursive: true });
+    } catch (mkErr) {
+        if (mkErr.code !== 'EEXIST') {
+            process.stdout.write('[gina-init] failed to create dir ' + dir + ': ' + mkErr.message + '\n');
+            process.exit(1);
+        }
+    }
+});
+
+// ── Write output files ─────────────────────────────────────────────────────────
+function writeJSON(filePath, data) {
+    try {
+        fs.writeFileSync(filePath, JSON.stringify(data, null, 4) + '\n', 'utf8');
+    } catch (writeErr) {
+        process.stdout.write('[gina-init] failed to write ' + filePath + ': ' + writeErr.message + '\n');
+        process.exit(1);
+    }
+}
+
+writeJSON(ginaHome + '/projects.json',                        projectsOut);
+writeJSON(ginaHome + '/ports.json',                           portsOut);
+writeJSON(ginaHome + '/ports.reverse.json',                   portsReverseOut);
+writeJSON(ginaHome + '/' + shortVersion + '/settings.json',   settingsOut);
+
+// ── Report ─────────────────────────────────────────────────────────────────────
+var totalPorts = nextPort - portStart;
+process.stdout.write('[gina-init] Bootstrap complete for @' + projectName + ' (' + bundles.length + ' bundle(s), ' + totalPorts + ' port(s) allocated from ' + portStart + ')\n');
+process.stdout.write('[gina-init]   ' + ginaHome + '/projects.json\n');
+process.stdout.write('[gina-init]   ' + ginaHome + '/ports.json\n');
+process.stdout.write('[gina-init]   ' + ginaHome + '/ports.reverse.json\n');
+process.stdout.write('[gina-init]   ' + ginaHome + '/' + shortVersion + '/settings.json\n');

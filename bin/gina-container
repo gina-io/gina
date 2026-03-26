@@ -1,0 +1,250 @@
+#!/usr/bin/env node
+'use strict';
+
+/**
+ * gina-container — foreground bundle launcher for Docker/K8s containers.
+ *
+ * Unlike `gina bundle:start` (which spawns the bundle detached and keeps the
+ * container alive with a separate `gina tail` process), this launcher starts
+ * exactly one bundle as a non-detached foreground child process.
+ *
+ * The launcher is meant to be the container's foreground process (PID 1 or a
+ * direct child of the init process).  SIGTERM from K8s is forwarded to the
+ * bundle, which drains in-flight requests via the graceful shutdown handler in
+ * proc.js, then exits 143 (128 + SIGTERM).  The launcher waits for the child
+ * and exits with the same code, satisfying K8s terminationGracePeriodSeconds.
+ *
+ * No framework socket server (port 8124) is required — project config is read
+ * directly from ~/.gina/{shortVersion}/settings.json and projects.json.
+ *
+ * Usage (Dockerfile CMD or entrypoint script):
+ *   node /path/to/gina/bin/gina-container <bundle> @<project>
+ *   gina-container <bundle> @<project>          # if installed globally
+ *
+ * Environment variables passed through from the container spec:
+ *   GINA_SHUTDOWN_TIMEOUT — graceful drain window in ms (default: 10000)
+ *   NODE_ENV              — override project def_env
+ *   NODE_SCOPE            — override project def_scope
+ */
+
+var fs    = require('fs');
+var os    = require('os');
+var spawn = require('child_process').spawn;
+
+var binPath  = __dirname;
+var ginaPath = binPath.replace(/\/bin$/, '');
+
+// ── 1. Bootstrap utils/helper ─────────────────────────────────────────────────
+// Injects globals: _, setEnvVar, getEnvVar, getUserHome, getTmpDir, etc.
+require(ginaPath + '/utils/helper'); // jshint ignore:line
+
+var packObj      = require(ginaPath + '/package.json');
+var version      = getEnvVar('GINA_VERSION') || packObj.version; // jshint ignore:line
+var frameworkPath = ginaPath + '/framework/v' + version;
+
+var shortVersion = version.split('.');
+shortVersion.splice(2);
+shortVersion = shortVersion.join('.');
+
+// ── 2. Read ~/.gina/<shortVersion>/settings.json ──────────────────────────────
+var home = getUserHome(); // jshint ignore:line
+if (typeof(getEnvVar('GINA_HOMEDIR')) == 'undefined') { // jshint ignore:line
+    setEnvVar('GINA_HOMEDIR', home + '/.gina'); // jshint ignore:line
+}
+home = getEnvVar('GINA_HOMEDIR'); // jshint ignore:line
+
+var settingsPath = home + '/' + shortVersion + '/settings.json';
+var settings     = { log_level: 'info' };
+if (fs.existsSync(settingsPath)) {
+    settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+}
+
+// Guard: settings.json may contain unresolved ${} template placeholders
+// if it was written by a broken W2 migration. Null out any such values
+// so env helpers fall back to safe OS defaults.
+var _hasUnresolved = function(v) { return typeof(v) === 'string' && v.indexOf('${') >= 0; };// jshint ignore:line
+if (_hasUnresolved(settings['log_level'])) { settings['log_level'] = 'info'; }
+if (_hasUnresolved(settings['rundir']))    { settings['rundir']    = undefined; }
+if (_hasUnresolved(settings['logdir']))    { settings['logdir']    = undefined; }
+if (_hasUnresolved(settings['tmpdir']))    { settings['tmpdir']    = undefined; }
+if (_hasUnresolved(settings['env']))       { settings['env']       = undefined; }
+if (_hasUnresolved(settings['scope']))     { settings['scope']     = undefined; }
+if (_hasUnresolved(settings['mq_port']))   { settings['mq_port']   = 8125; }
+if (_hasUnresolved(settings['port']))      { settings['port']      = 8124; }
+if (_hasUnresolved(settings['host_v4']))   { settings['host_v4']   = '127.0.0.1'; }
+if (_hasUnresolved(settings['hostname']))  { settings['hostname']  = undefined; }
+
+// ── 3. Set all GINA_* env vars (mirrors bin/cli bootstrap) ───────────────────
+var arch = process.arch;
+switch (process.arch) {
+    case 'x64':    arch = 'amd64'; break;
+    case 'armv7l': arch = 'armhf'; break;
+    case 'x86':    arch = 'i386';  break;
+}
+
+setEnvVar('GINA_SHORT_VERSION', shortVersion); // jshint ignore:line
+setEnvVar('GINA_VERSION',       version); // jshint ignore:line
+setEnvVar('GINA_LOG_LEVEL',     settings['log_level'] || 'info'); // jshint ignore:line
+setEnvVar('GINA_RUNDIR',        settings['rundir']); // jshint ignore:line
+setEnvVar('GINA_LOGDIR',        settings['logdir']); // jshint ignore:line
+setEnvVar('GINA_TMPDIR',        settings['tmpdir']); // jshint ignore:line
+setEnvVar('GINA_ENV',           settings['env']); // jshint ignore:line
+setEnvVar('GINA_SCOPE',         settings['scope']); // jshint ignore:line
+setEnvVar('GINA_ARCH',          arch); // jshint ignore:line
+setEnvVar('GINA_PLATFORM',      process.platform); // jshint ignore:line
+setEnvVar('GINA_HOSTNAME',      settings['hostname'] || os.hostname()); // jshint ignore:line
+setEnvVar('GINA_HOST_V4',       settings['host_v4'] || '127.0.0.1'); // jshint ignore:line
+setEnvVar('GINA_MQ_PORT',       settings['mq_port'] || 8125); // jshint ignore:line
+if (typeof(packObj.config) != 'undefined') {
+    if (typeof(packObj.config.prefix) != 'undefined') {
+        setEnvVar('GINA_PREFIX', packObj.config.prefix); // jshint ignore:line
+    }
+    if (typeof(packObj.config.globalMode) != 'undefined') {
+        setEnvVar('GINA_GLOBAL_MODE', packObj.config.globalMode); // jshint ignore:line
+    }
+}
+setEnvVar('GINA_DIR',           ginaPath); // jshint ignore:line
+setEnvVar('GINA_FRAMEWORK_DIR', frameworkPath); // jshint ignore:line
+setEnvVar('GINA_CORE',          frameworkPath + '/core'); // jshint ignore:line
+setEnvVar('GINA_IS_WIN32',      false, true); // jshint ignore:line
+
+// ── 4. Parse argv: <bundle> @<project> ───────────────────────────────────────
+var rawArgs     = process.argv.slice(2);
+var bundleName  = null;
+var projectName = null;
+
+for (var a = 0; a < rawArgs.length; a++) {
+    var arg = rawArgs[a];
+    if (/^@/.test(arg)) {
+        projectName = arg.replace(/^@/, '');
+    } else if (!/^--/.test(arg) && !bundleName) {
+        bundleName = arg;
+    }
+}
+
+if (!bundleName || !projectName) {
+    process.stdout.write('Usage: gina-container <bundle> @<project>\n');
+    process.exit(1);
+}
+
+// ── 5. Load project config from ~/.gina/ ─────────────────────────────────────
+var projectsPath     = home + '/projects.json';
+var portsReversePath = home + '/ports.reverse.json';
+
+if (!fs.existsSync(projectsPath)) {
+    process.stdout.write(
+        '[ gina-container ] ' + projectsPath + ' not found.\n' +
+        '  Run: gina project:import @' + projectName + '\n'
+    );
+    process.exit(1);
+}
+
+var projects     = JSON.parse(fs.readFileSync(projectsPath, 'utf8'));
+var portsReverse = fs.existsSync(portsReversePath)
+    ? JSON.parse(fs.readFileSync(portsReversePath, 'utf8'))
+    : {};
+
+var projectEntry = projects[projectName];
+if (!projectEntry) {
+    process.stdout.write(
+        '[ gina-container ] project @' + projectName + ' not registered in projects.json\n' +
+        '  Run: gina project:import @' + projectName + '\n'
+    );
+    process.exit(1);
+}
+
+var projectRoot = projectEntry.path;
+var env   = process.env.NODE_ENV   || projectEntry['def_env'];
+var scope = process.env.NODE_SCOPE || projectEntry['def_scope'];
+
+// ── 6. Resolve bundle entry point (mirrors isRealApp() in lib/cmd/bundle/start.js) ──
+var appPath = null;
+var isDev   = (projectEntry['dev_env'] === env);
+try {
+    var manifest  = JSON.parse(fs.readFileSync(projectRoot + '/manifest.json', 'utf8'));
+    var bundlePkg = manifest.bundles[bundleName];
+    if (!bundlePkg) {
+        throw new Error('bundle `' + bundleName + '` not found in manifest.json');
+    }
+    if (typeof(bundlePkg.version) == 'undefined' && typeof(bundlePkg.tag) != 'undefined') {
+        bundlePkg.version = bundlePkg.tag;
+    }
+    if (bundlePkg.src && isDev) {
+        appPath = projectRoot + '/' + bundlePkg.src + '/index.js';
+    } else {
+        appPath = projectRoot + '/releases/' + bundleName + '/' + scope + '/' + env + '/' + bundlePkg.version + '/index.js';
+    }
+} catch (err) {
+    // fallback: bundles/<bundle>/index.js (mirrors start.js catch block)
+    process.stdout.write('[ gina-container ] manifest.json warning: ' + (err.message || err) + '\n');
+    appPath = projectRoot + '/bundles/' + bundleName + '/index.js';
+}
+
+if (!fs.existsSync(appPath)) {
+    process.stdout.write('[ gina-container ] bundle entry point not found: ' + appPath + '\n');
+    process.exit(1);
+}
+
+// ── 7. Build context JSON ─────────────────────────────────────────────────────
+// gna.js reads process.argv[2] as a serialised context object.  It requires:
+//   paths.gina.root — to locate utils/helper in the bundle process
+//   envVars         — GINA_* vars; made into global constants via defineDefault()
+//   processList, ginaProcess, debugPort — used by gna.js context setup
+//
+// process.gina holds all GINA_* vars set by the setEnvVar() calls above.
+var ctxJSON = JSON.stringify({
+    paths: {
+        gina: {
+            root:    ginaPath,
+            core:    frameworkPath + '/core',
+            lib:     frameworkPath + '/lib',
+            helpers: frameworkPath + '/helpers'
+        },
+        framework: frameworkPath,
+        node:      process.argv[0]
+    },
+    envVars:     process.gina,   // all GINA_* vars
+    processList: [],
+    ginaProcess: process.pid,
+    debugPort:   null
+});
+
+// ── 8. Spawn bundle as non-detached foreground child ─────────────────────────
+// process.argv[3] = projectName  \  read by gna.js as tmp[3] / tmp[4]
+// process.argv[4] = bundleName   /
+//
+// stdio: 'inherit' — bundle stdout/stderr go directly to the container's
+// stdout/stderr, which is what K8s log collectors (kubectl logs, Fluentd,
+// Datadog, etc.) expect.  No MQ logger intermediary is needed here.
+process.stdout.write('[ gina-container ] Starting ' + bundleName + '@' + projectName + '\n');
+process.stdout.write('[ gina-container ] App:   ' + appPath + '\n');
+process.stdout.write('[ gina-container ] Env:   ' + env + '  Scope: ' + scope + '\n');
+
+var child = spawn(process.argv[0], [appPath, ctxJSON, projectName, bundleName], {
+    detached: false,
+    stdio: 'inherit'
+});
+
+// ── 9. Forward SIGTERM / SIGINT to child ──────────────────────────────────────
+// proc.js handles SIGTERM inside the bundle: drains in-flight requests, then
+// calls proc.exit(143).  We wait for that exit rather than killing immediately.
+var forwarded = false;
+function forwardSignal(sig) {
+    if (!forwarded && child && child.pid) {
+        forwarded = true;
+        child.kill(sig);
+    }
+}
+
+process.on('SIGTERM', function() { forwardSignal('SIGTERM'); });
+process.on('SIGINT',  function() { forwardSignal('SIGINT');  });
+
+// ── 10. Exit when child exits ─────────────────────────────────────────────────
+child.on('error', function(err) {
+    process.stdout.write('[ gina-container ] failed to spawn bundle: ' + (err.message || err) + '\n');
+    process.exit(1);
+});
+
+child.on('exit', function(code, signal) {
+    process.exit(code !== null ? code : 143);
+});

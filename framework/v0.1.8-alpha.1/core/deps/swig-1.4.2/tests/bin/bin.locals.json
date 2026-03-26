@@ -1,0 +1,7 @@
+{
+  "alpha": "Nachos",
+  "first": "Tacos",
+  "second": "Burritos",
+  "includefile": "./includes.html",
+  "bar": ["a", "b", "c"]
+}

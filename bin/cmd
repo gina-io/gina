@@ -10,9 +10,9 @@ function Cmd(opt, runOffine) {
 
     var local = {};
     var lib = {};
-    
+
     var init = function(opt, runOffine) {
-        
+
         local.port              = opt.port;
         local.debugPort         = opt.debugPort;
         local.debugBrkEnabled   = opt.debugBrkEnabled;
@@ -21,7 +21,11 @@ function Cmd(opt, runOffine) {
         local.ginaPath          = opt.ginaPath;
         local.homedir           = opt.homedir;
         local.frameworkPath     = opt.frameworkPath;
-        
+        local.hostname          = opt.hostname;
+        local.hostV4            = opt.hostV4;
+        local.mqPort            = opt.mqPort;
+        local.port              = opt.port;
+
         lib = require(local.frameworkPath + "/lib");
 
         checkIfSettings();
@@ -32,7 +36,7 @@ function Cmd(opt, runOffine) {
             launchFramework()
         }
     };
-    
+
 
     var launchFramework = function(){
 
@@ -62,14 +66,18 @@ function Cmd(opt, runOffine) {
                 //Launch.
                 lib.cmd.load({
                     isOnlineCommand : true,
-                    ginaPath : local.ginaPath,
-                    frameworkPath : local.frameworkPath,
-                    pack : local.pack,
-                    argv : argv,
-                    client : conn,
-                    homedir : local.homedir,
-                    debugPort : local.debugPort,
-                    debugBrkEnabled : local.debugBrkEnabled
+                    ginaPath        : local.ginaPath,
+                    frameworkPath   : local.frameworkPath,
+                    pack            : local.pack,
+                    argv            : argv,
+                    client          : conn,
+                    homedir         : local.homedir,
+                    port            : local.port,
+                    debugPort       : local.debugPort,
+                    debugBrkEnabled : local.debugBrkEnabled,
+                    hostname        : local.hostname,
+                    hostV4          : local.hostV4,
+                    mqPort          : local.mqPort
                 })
             })
         });
@@ -80,16 +88,22 @@ function Cmd(opt, runOffine) {
                 if (process.argv[2] == 'framework:start') {
                     var pid = null;
                     var port  = err.port || getEnvVar('GINA_PORT');// jshint ignore:line
-                    var runningProcs = requireJSON( _(getEnvVar('GINA_HOMEDIR') +'/procs.json', true) );// jshint ignore:line
-                    for (let i in runningProcs) {
-                        if (runningProcs[i].port == port) {
-                            pid = runningProcs[i].pid;
-                            break;
+                    var procsFile = _(getEnvVar('GINA_HOMEDIR') +'/procs.json', true);// jshint ignore:line
+                    if ( new _(procsFile).existsSync() ) {
+                        var runningProcs = requireJSON(procsFile);// jshint ignore:line
+                        for (let i in runningProcs) {
+                            if (runningProcs[i].port == port) {
+                                pid = runningProcs[i].pid;
+                                break;
+                            }
                         }
                     }
-                    
-                    
-                    console.warn('Framework already running: [ '+ pid+' ]');
+                    if (!pid) {
+                        console.warn('Framework already running on port`'+ opt.port +'`. Use `gina status` to get the PID to kill.');
+                        return;
+                    }
+
+                    console.warn('Framework already running on port `'+ opt.port +'`: [ '+ pid+' ]');
                 } else {
 
                 }
@@ -102,16 +116,20 @@ function Cmd(opt, runOffine) {
 
             //First time launch.
             lib.cmd.load({
-                ginaPath : local.ginaPath,
-                frameworkPath : local.frameworkPath,
-                pack : local.pack,
-                argv : process.argv,
-                client : process.stdout,
+                ginaPath        : local.ginaPath,
+                frameworkPath   : local.frameworkPath,
+                pack            : local.pack,
+                argv            : process.argv,
+                client          : process.stdout,
                 isFromFramework : true,
-                homedir : local.homedir,
-                debugPort : local.debugPort,
+                homedir         : local.homedir,
+                port            : local.port,
+                debugPort       : local.debugPort,
                 debugBrkEnabled : local.debugBrkEnabled,
-                task : {
+                hostname        : local.hostname,
+                hostV4          : local.hostV4,
+                mqPort          : local.mqPort,
+                task            : {
                     topic : "framework",
                     action : "start"
                 }
@@ -120,35 +138,39 @@ function Cmd(opt, runOffine) {
     };
 
     var launchCmd = function() {
-        
+
         var cmd         = process.argv[2].split(':')
             , topic     = cmd[0]
             , action    = cmd[1]
         ;
-                        
-        
+
+
         lib.cmd.load({
-            ginaPath : local.ginaPath,
-            frameworkPath : local.frameworkPath,
-            pack : local.pack,
-            argv : process.argv,
-            client : process.stdout,
+            ginaPath        : local.ginaPath,
+            frameworkPath   : local.frameworkPath,
+            pack            : local.pack,
+            argv            : process.argv,
+            client          : process.stdout,
             isFromFramework : true,
-            homedir : local.homedir,
-            debugPort : local.debugPort,
+            homedir         : local.homedir,
+            port            : local.port,
+            debugPort       : local.debugPort,
             debugBrkEnabled : local.debugBrkEnabled,
-            task : {
+            hostname        : local.hostname,
+            hostV4          : local.hostV4,
+            mqPort          : local.mqPort,
+            task            : {
                 topic : topic,
                 action : action
             }
-        })
+        });
     };
 
     var checkIfSettings = function() {
 
         var home        = getEnvVar('GINA_HOMEDIR');// jshint ignore:line
         var mainFile    = home + '/main.json';
-        
+
         if ( !fs.existsSync(mainFile) ) {
 
             var mainSrc = getEnvVar('GINA_DIR') + '/resources/home/main.json';// jshint ignore:line

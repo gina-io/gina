@@ -1,63 +1,66 @@
 {
-    "name": "gina",
-    "version": "0.1.6-alpha.174",
-    "description": "MVC Framework for Node.",
-    "keywords": [
-        "framework",
-        "micro framework",
-        "mvc",
-        "mvc framework",
-        "gina",
-        "gina project",
-        "gina js",
-        "gina",
-        "gina I/O",
-        "gina.io",
-        "ginajs"
-    ],
-    "homepage": "https://gina.io",
-    "repository": {
-        "type": "git",
-        "url": "https://github.com/rhinostone/gina.git"
+  "name": "gina",
+  "version": "0.1.8-alpha.1",
+  "description": "MVC Framework for Node.",
+  "keywords": [
+    "framework",
+    "micro framework",
+    "mvc",
+    "mvc framework",
+    "gina",
+    "gina project",
+    "gina js",
+    "gina",
+    "gina I/O",
+    "gina.io",
+    "ginajs"
+  ],
+  "homepage": "https://gina.io",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rhinostone/gina.git"
+  },
+  "bugs": {
+    "url": "https://github.com/rhinostone/gina/issues",
+    "email": "bugs@gina.io"
+  },
+  "author": {
+    "name": "Martin-Luther ETOUMAN",
+    "email": "martin-luther.etouman@gina.io"
+  },
+  "contributors": [
+    {
+      "name": "Martin-Luther ETOUMAN",
+      "email": "martin-luther.etouman@gina.io"
     },
-    "bugs": {
-        "url": "https://github.com/rhinostone/gina/issues",
-        "email": "bugs@gina.io"
-    },
-    "author": {
-        "name": "Martin-Luther ETOUMAN",
-        "email": "martin-luther.etouman@gina.io"
-    },
-    "contributors": [
-        {
-            "name": "Martin-Luther ETOUMAN",
-            "email": "martin-luther.etouman@gina.io"
-        },
-        {
-            "name": "Fabrice DELANEAU",
-            "email": "fabrice.delaneau@gina.io",
-            "url": "https://fdelaneau.com"
-        }
-    ],
-    "copyright": "Copyright (c) 2009-2026 Rhinostone <contact@gina.io>",
-    "engine": {
-        "node": ">= 0.10.0 <25"
-    },
-    "config": {
-        "optionalPrefix": "~/.npm-global",
-        "prefix": "/usr/local",
-        "globalMode": true
-    },
-    "bin": {
-        "gina": "./bin/gina"
-    },
-    "main": "./framework/v0.1.6-alpha.174/core/gna",
-    "scripts": {
-        "prepare": "node script/prepare_version.js",
-        "postpublish": "node script/post_publish.js",
-        "preinstall": "node script/pre_install.js",
-        "postinstall": "node script/post_install.js"
-    },
-    "license": "MIT",
-    "readmeFilename": "README.md"
+    {
+      "name": "Fabrice DELANEAU",
+      "email": "fabrice.delaneau@gina.io",
+      "url": "https://fdelaneau.com"
+    }
+  ],
+  "copyright": "Copyright (c) 2009-2026 Rhinostone <contact@gina.io>",
+  "engine": {
+    "node": ">= 22 <26"
+  },
+  "config": {
+    "optionalPrefix": "~/.npm-global",
+    "prefix": "/usr/local",
+    "globalMode": true
+  },
+  "bin": {
+    "gina": "bin/gina",
+    "gina-container": "bin/gina-container",
+    "gina-init": "bin/gina-init"
+  },
+  "main": "./framework/v0.1.8-alpha.1/core/gna",
+  "scripts": {
+    "test": "node --test test*.test.js",
+    "prepare": "node script/prepare_version.js",
+    "postpublish": "node script/post_publish.js",
+    "preinstall": "node script/pre_install.js",
+    "postinstall": "node script/post_install.js"
+  },
+  "license": "MIT",
+  "readmeFilename": "README.md"
 }

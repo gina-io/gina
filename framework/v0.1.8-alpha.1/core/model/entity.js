@@ -1,0 +1,779 @@
+/*
+ * This file is part of the gina package.
+ * Copyright (c) 2009-2026 Rhinostone <contact@gina.io>
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+var fs              = require('fs');
+var EventEmitter    = require('events').EventEmitter;
+var lib             = require('gina').lib;
+var console         = lib.logger;
+var helpers         = lib.helpers;
+var inherits        = lib.inherits;
+var merge           = lib.merge;
+var modelUtil       = new lib.Model();
+
+/**
+ * @class EntitySuper
+ * @constructor
+ * @this {EntitySuper}
+ * @extends EventEmitter
+ *
+ * Base class for all Gina model entities. Automatically discovers entity methods
+ * that emit named events (`shortName#methodName`) and wraps them with
+ * `.onComplete(cb)` listener support and optional Promise-style usage.
+ *
+ * Entity method event naming convention: `entityShortName#methodName`
+ * E.g. a `UserEntity` method `findById` → event `user#findById`
+ *
+ * @param {object} conn     - Database connection object from the connector
+ * @param {string} [caller] - Name of the calling context (used for debugging)
+ * @param {object} [injected] - Optional dependency overrides for unit testing (#R3).
+ *   When present, the injected values replace the live connector and config lookup
+ *   so entities can be exercised without a running database or framework server.
+ * @param {function} [injected.config] - Replacement for `getConfig(bundle, confName)`.
+ *   Called with the same `(bundle, confName)` signature; return value is used as-is.
+ * @param {object} [injected.connector] - Replacement connection object returned by
+ *   `this.getConnection()`. Use a mock/spy to simulate database operations.
+ *
+ * @package     Gina
+ * @namespace   Gina.Model
+ * @author      Rhinostone <contact@gina.io>
+ * @api         Public
+ */
+function EntitySuper(conn, caller, injected) {
+
+    this.initialized    = false;
+    this._maxListeners  = 50;
+    this._methods       = [];
+    this._relations     = {};
+    this._injected      = injected || null;
+
+    var local           = {}
+    var self            = this;
+    var caller          = caller || undefined;
+    var isCacheless     = (process.env.NODE_ENV_IS_DEV == 'false') ? false : true;
+
+    var init = function(conn, caller) {
+
+        local.conn = conn;
+
+        if (!EntitySuper[self.name]) {
+            EntitySuper[self.name] = {}
+        }
+
+        if ( !EntitySuper[self.name]._conn ) {
+            EntitySuper[self.name]._conn = conn;
+        }
+
+        if ( !EntitySuper[self.name].instance ) {
+            return setListeners(caller)
+        } else {
+            return EntitySuper[self.name].instance
+        }
+    }
+
+
+    /**
+     * Scan the entity for event-emitting methods and wire up `once` + `.onComplete(cb)` listeners.
+     * Skips entities that set `hasOwnEvents = true`.
+     *
+     * @inner
+     * @param {string} [caller] - Calling context name (debug only)
+     * @returns {EntitySuper|false} self, or `false` when `hasOwnEvents` is set
+     */
+    var setListeners = function(caller) {
+
+        var entityName  = self.name.substring(0, 1).toLowerCase() + self.name.substring(1);
+        var shortName   = self.name.replace(/Entity/, '');
+        shortName       = shortName.substring(0, 1).toLowerCase() + shortName.substring(1);
+
+        var entity      = null;
+
+        if ( EntitySuper[self.name].initialized ) {
+
+            self.initialized = EntitySuper[self.name].initialized;
+            entity = self
+
+        } else {
+            EntitySuper[self.name].initialized = true;
+            entity = self.getEntity(self.name)
+        }
+
+
+
+        var eventName = '';
+        for (var prop in entity) {
+            eventName = shortName +'#'+ prop;
+            if (self._methods.indexOf(prop) < 0 && typeof(entity[prop]) == 'function' && new RegExp('(' + eventName + '\'|' + eventName + '\"|' + eventName + '$)').test(entity[prop].toString()) ) {
+                self._methods.push(prop)
+            }
+        }
+
+        // use this property inside your entity to disable listeners
+        if ( typeof(entity.hasOwnEvents) != 'undefined' && entity.hasOwnEvents ) return false;
+
+        var events = []
+            , triggers = []
+            , i = 0
+            , cb = {}
+            , methods = self._methods;
+
+
+        for (var m = 0, mLen = methods.length; m < mLen; ++m) {
+            if (
+                typeof(entity[methods[m]]) == 'function'
+                && m != 'onComplete'
+            ) {
+
+                if ( triggers.indexOf(shortName + '#' + methods[m]) < 0 ) {
+                    events[i] = {
+                        index: i,
+                        shortName: shortName + '#' + methods[m],
+                        method: methods[m],
+                        entityName: entityName
+                    };
+
+
+                    triggers.push(shortName + '#' + methods[m]);
+
+                    ++i;
+                }
+            }
+        }
+
+        entity._listeners = events;
+        entity._triggers = triggers;
+        entity._callbacks = {};
+        entity._maxListeners += i; // default max listeners is 10
+        entity.setMaxListeners(entity._maxListeners || 50);
+        //console.debug('['+self.name+'] setting max listeners to: ' + (entity.maxListeners || eCount) );
+
+        var f           = null
+            , fSource   = '';
+
+        for (var i = 0; i < events.length; ++i) {
+
+            entity.removeAllListeners(events[i].shortName); // added to prevent adding new listners on each new querie
+            //console.debug('placing event: '+ events[i].shortName +'\n');
+            f       = events[i].method;
+            fSource = entity[f].toString();
+
+            // only if method content is about the event
+            if (methods.indexOf(f) > -1 && new RegExp('(' + events[i].shortName + '\'|' + events[i].shortName + '\"|' + events[i].shortName + '$)').test(fSource)) {
+
+                // CRUD | model's methods, for the n1ql, look into connector/<connectorName>/index.js
+                entity[f] = (function onEntityEvent(e, m, i, source) {
+
+                    var cached      = entity[m];
+
+                    var variables   = source.match(/\((.*)\)/g)[0];
+                    var args        = [];
+
+                    if (variables.length) {
+                        variables = variables.replace(/\(|\)/g, '').replace(/\s*/g, '');
+                        if (variables) args = variables.split(/\,/g);
+                    }
+                    // TODO - retrieve argument while the method is being rewritten
+                    return function () {
+
+                        // #entity-dev-nocache: in dev mode, clear any buffered result for
+                        // this trigger so each call gets a fresh listener.  Prevents stale
+                        // null results from a concurrent-call race (FIRING #5) from
+                        // poisoning subsequent requests for the entity lifetime.
+                        // Mirrors the controller cacheless-require pattern for dev mode.
+                        if (isCacheless && entity._arguments && typeof(entity._arguments[e]) !== 'undefined') {
+                            delete entity._arguments[e];
+                        }
+
+                        // retrieving local arguments, & binding it to the event callback
+
+                        /**
+                         * handle promises with async/await
+                         *
+                         * NB.: Always use the prefix `db` inside an entity file
+                         *      instead of using `this.getRelation(entityName)`
+                         *
+                         * e.g.:
+                         *  var recordJob   = promisify(db.jobEntity.insert);
+                         *  await recordJob(jobObj)
+                         *      .then( function onJob(_jobObj) {
+                         *          jobObj = _jobObj;
+                         *      })
+                         *      .catch( function onJobErr(_err) {
+                         *          jobErr = _err;
+                         *      });
+                         *
+                         */
+                        if ( typeof(this[m]) == 'undefined' && typeof(arguments[arguments.length-1]) == 'function' ) {
+
+                            var promise = function() {
+                                var cb = arguments[arguments.length-1];
+
+                                if (entity._triggers.indexOf(events[i].shortName) > -1) {
+                                    console.debug('[ MODEL ][ ENTITY ] Setting promise listener for: [ ' + self.model + '/' + events[i].entityName + '::' + events[i].shortName + ' ]');
+
+                                    if (typeof(entity._arguments) == 'undefined' || typeof(entity._arguments) != 'undefined' && typeof(entity._arguments[events[i].shortName]) == 'undefined') {
+
+                                        if (entity.listenerCount(events[i].shortName) > 0) {
+                                            entity.removeAllListeners([events[i].shortName])
+                                        }
+
+                                        entity.once(events[i].shortName, function () { // cannot be `entity.on` for prod/stage
+                                            // check if not already fired
+                                            if (entity._callbacks[events[i].shortName]) {
+
+                                                entity.removeAllListeners([events[i].shortName]);
+                                                console.log('\nFIRING #1 - promise ' + events[i].shortName +'('+ events[i].index  +')');
+                                                cb.apply(this, arguments);
+                                            }
+                                        });
+
+
+                                        // backing up callback
+                                        entity._callbacks[events[i].shortName] = cb;
+                                    } else { // in case the event is not ready yet
+                                        console.log('\nFIRING #2 - promise' + events[i].shortName);
+                                        cb.apply(entity[m], entity._arguments[events[i].shortName])
+                                    }
+                                }
+                            }
+
+                            promise.apply(null, arguments);
+                            cached.apply(promise, arguments);
+                            return promise;
+                        } //else is normal case
+
+                        // ─────────────────────────────────────────────────────────
+                        // Option B — native Promise return (2026-03-20)
+                        //
+                        // Why: JS entity methods previously returned `this[m]`
+                        //   (the entity function, with .onComplete attached as a
+                        //   property). This was not directly awaitable without first
+                        //   wrapping in util.promisify — which itself only worked
+                        //   because of the separate fast-path above (lines 192-229)
+                        //   that detects a trailing-function argument and a missing
+                        //   `this[m]` context. Easy to miss, fragile under refactors.
+                        //
+                        // What changed: we now return a native Promise. The once-
+                        //   listener is registered BEFORE calling cached() so there
+                        //   is no race where a synchronous emit fires before we
+                        //   are ready to receive it.
+                        //
+                        //   `.onComplete(cb)` is attached to the Promise so ALL
+                        //   existing callers keep working unchanged:
+                        //     entity.method(args).onComplete(function(err, data) {...})
+                        //
+                        //   entity._callbacks[shortName] is now used as a boolean
+                        //   guard only (truthy = listener active, null = consumed).
+                        //   The same check as before, just no longer stores the cb.
+                        //
+                        // The util.promisify fast-path above (lines 192-229) is
+                        //   untouched — it fires when this[m] is undefined (called
+                        //   without entity context). This Promise path fires in the
+                        //   normal entity-context case.
+                        // ─────────────────────────────────────────────────────────
+
+                        var _resolve, _reject;
+
+                        var _promise = new Promise(function(resolve, reject) {
+                            _resolve = resolve;
+                            _reject  = reject;
+                        });
+
+                        if (entity._triggers.indexOf(events[i].shortName) > -1) {
+
+                            if (typeof(entity._arguments) == 'undefined' || typeof(entity._arguments) != 'undefined' && typeof(entity._arguments[events[i].shortName]) == 'undefined') {
+
+                                if (entity.listenerCount(events[i].shortName) > 0) {
+                                    entity.removeAllListeners([events[i].shortName]);
+                                }
+
+                                // Shared resolver — whichever fires first (FIRING #4 or the
+                                // once-listener) resolves/rejects the Promise. The second call
+                                // is a no-op (guard: _callbacks[shortName] is null after first).
+                                //
+                                // Why store a function in _callbacks (not `true`):
+                                //   The entity's custom emit (entity.js:~494) has three conditions
+                                //   that call setListener(). Condition 3 fires when
+                                //   `typeof(_callbacks[type]) != 'undefined'` — which includes
+                                //   boolean `true`. setListener's FIRING #4 then calls
+                                //   `_callbacks[trigger].apply(this, args)` — `true.apply` throws.
+                                //   Storing a function makes FIRING #4 the primary resolution
+                                //   path (same as old code where _callbacks stored the cb).
+                                var _resolver = function(err, data) {
+                                    // Guard: delete after first call to prevent double-resolution.
+                                    // Using delete (not null) so that FIRING #4's
+                                    // typeof(_callbacks[trigger]) != 'undefined' check correctly
+                                    // sees 'undefined' and skips the null.apply() call.
+                                    if (!entity._callbacks[events[i].shortName]) return;
+                                    delete entity._callbacks[events[i].shortName];
+                                    entity.removeAllListeners([events[i].shortName]);
+                                    if (err) _reject(err);
+                                    else     _resolve(data);
+                                };
+
+                                // once-listener as fallback in case FIRING #4 doesn't run
+                                // (e.g. custom emit conditions not met). cannot be `entity.on`
+                                // for prod/stage — must stay `once`.
+                                entity.once(events[i].shortName, function () {
+                                    _resolver.apply(null, arguments);
+                                });
+
+                                // Store resolver: satisfies condition 3, enables FIRING #4
+                                entity._callbacks[events[i].shortName] = _resolver;
+
+                            } else {
+                                // Event already fired — args were buffered in _arguments.
+                                // Resolve/reject immediately from the cached result, then
+                                // delete the buffer so the next call gets a fresh listener
+                                // instead of resolving again with the same stale result.
+                                // Without this delete, any concurrent call that fires before
+                                // the listener is registered (e.g. an alert cron) poisons
+                                // ALL subsequent requests for the entity's lifetime.
+                                var _args = entity._arguments[events[i].shortName];
+                                delete entity._arguments[events[i].shortName];
+                                if (_args[0]) _reject(_args[0]);
+                                else          _resolve(_args[1]);
+                            }
+                        }
+
+                        var _innerResult = cached.apply(this[m], arguments);
+
+                        // If the underlying method returns a Promise (connector Option B
+                        // with _mainCallback=null, or async custom entity methods), chain
+                        // on it so that _promise resolves/rejects when the inner operation
+                        // completes.
+                        //
+                        // Without this, _promise only resolves when
+                        // entity.emit('entity#method') fires. Connector N1QL methods resolve
+                        // via 'N1QL:entity#method' (different event), so entity.emit() is
+                        // never called for them — _promise would hang forever.
+                        //
+                        // _resolver already guards against double-resolution: its first call
+                        // deletes _callbacks[shortName], so any subsequent call (from
+                        // FIRING #4 or the once-listener) hits the !_callbacks guard and exits.
+                        //
+                        // Additional guard: _resolver is only defined when shortName is in
+                        // entity._triggers (lines 268+). If the method returns a Promise
+                        // but its shortName is NOT in _triggers, _resolver is undefined
+                        // (var hoisted but not assigned). Without this check, the .then()
+                        // callback fires later and throws "TypeError: _resolver is not a function"
+                        // as an uncaughtException that corrupts the event loop.
+                        if (_innerResult && typeof(_innerResult.then) === 'function') {
+                            _innerResult.then(
+                                function(data) { if (typeof _resolver === 'function') _resolver(null, data); },
+                                function(err)  { if (typeof _resolver === 'function') _resolver(err); }
+                            );
+                        }
+
+                        // Backward-compatible .onComplete(cb):
+                        //   chains on the Promise resolution so the callback
+                        //   receives (err, data) exactly as before.
+                        _promise.onComplete = function(cb) {
+                            _promise.then(
+                                function(data) { cb(null, data); },
+                                function(err)  { cb(err); }
+                            );
+                            return _promise; // preserve chaining
+                        };
+
+                        return _promise; // was: return this[m]
+                    };
+
+                }(events[i].shortName, f, i, fSource));
+
+                // just for display purpose: will be overriden by the previous code
+                entity[f].onComplete = function (cb) {}
+
+            }
+        }
+
+
+        if (!/Entity$/.test(entityName)) {
+            entityName = entityName + 'Entity'
+        }
+
+        if (caller) {
+            if ( !EntitySuper[caller].instance ) {
+                EntitySuper[caller].instance = {
+                    _relations: {}
+                }
+            }
+
+        } else {
+            if ( !EntitySuper[self.name].instance ) {
+                EntitySuper[self.name].instance = {
+                    _relations: {}
+                }
+            }
+        }
+
+        if (caller) {
+            EntitySuper[caller].instance._relations[entity.name] = merge(EntitySuper[caller].instance._relations[entity.name], entity);
+            modelUtil.updateModel(self.bundle, self.model, entityName, EntitySuper[caller].instance._relations[entity.name] );
+
+            self._relations[entity.name] = EntitySuper[caller].instance._relations[entity.name];
+
+            return EntitySuper[caller].instance._relations[entity.name]
+        } else {
+            modelUtil.updateModel(self.bundle, self.model, entityName, entity);
+            EntitySuper[self.name].instance = entity;
+
+            return EntitySuper[self.name].instance
+        }
+    }
+
+    var setListener = function() {
+        arguments = arguments[0];
+
+        var args = Array.prototype.slice.call(arguments);
+        var trigger = args.splice(0, 1)[0];
+
+        if ( !/\#/.test(trigger) ) {
+            throw new Error('trigger name not properly set: use `#` between the entity name and the method reference');
+            process.exit(1)
+        } else {
+            if ( self._triggers.indexOf(trigger) < 0 ) {
+                self._triggers.push(trigger);
+
+                // Cap to prevent unbounded growth if numbered variants accumulate (e.g. in loop/recursive emit patterns).
+                var ENTITY_MAX_LISTENERS = 100;
+                self._maxListeners = Math.min(self._maxListeners + 1, ENTITY_MAX_LISTENERS);
+                self.setMaxListeners(self._maxListeners);
+
+                var alias       = trigger.split(/\#/)[1]
+                    , method    = alias.replace(/[0-9]/g, '')
+                    , events    = null
+                    , i         = 0
+                    ;
+
+                self._listeners.push({
+                    shortName   : trigger,
+                    method      : method,
+                    entityName  : self.name
+                });
+
+                events  = self._listeners;
+                i       = events.length-1;
+
+                if ( self._triggers.indexOf(events[i].shortName) > -1 ) {
+                    // reusable event
+                    self
+                        //.off(events[i].shortName, function(){ delete self._callbacks[trigger]; })
+                        .on(events[i].shortName, function () {
+                            console.log('\nFIRING #3 ' + trigger);
+                            this._callbacks[trigger.replace(/[0-9]/g, '')].apply(this[method], arguments);
+                            delete self._callbacks[trigger];
+                        })
+                }
+
+            } else {
+                if ( typeof(self._callbacks[trigger]) != 'undefined' ) {
+                    console.log('\nFIRING #4 ' + trigger);
+                    self._callbacks[trigger].apply(this, args);
+                    delete self._callbacks[trigger];
+                } else {
+                    self
+                        // .off(trigger, function(){
+                        //     if (!this._arguments) {
+                        //         this._arguments = {}
+                        //     }
+
+                        //     if ( typeof(this._arguments[trigger]) != 'undefined' ) {
+                        //         delete this._arguments[trigger];
+                        //     }
+                        // })
+                        .once(trigger, function () {// patched for Air Liquide: case when emit occurs before listener is ready
+                            if (!this._arguments) {
+                                this._arguments = {}
+                            }
+
+                            // retrieving local arguments, & binding it to the event callback
+                            if ( typeof(this._arguments[trigger]) == 'undefined' ) {
+                                console.log('\nFIRING #5 ' + trigger);
+
+                                this._arguments[trigger] = arguments;
+                            }
+
+                        })
+                }
+            }
+        }
+    }
+
+
+    var arrayClone = function(arr, i) {
+        var copy = new Array(i);
+        while (i--)
+            copy[i] = arr[i];
+        return copy;
+    }
+
+    var emitOne = function(handler, isFn, self, arg1) {
+        if (isFn)
+            handler.call(self, arg1);
+        else {
+            var len = handler.length;
+            var listeners = arrayClone(handler, len);
+            for (var i = 0; i < len; ++i)
+                listeners[i].call(self, arg1);
+        }
+    }
+    var emitTwo = function(handler, isFn, self, arg1, arg2) {
+        if (isFn)
+            handler.call(self, arg1, arg2);
+        else {
+            var len = handler.length;
+            var listeners = arrayClone(handler, len);
+            for (var i = 0; i < len; ++i)
+                listeners[i].call(self, arg1, arg2);
+        }
+    }
+    var emitThree = function(handler, isFn, self, arg1, arg2, arg3) {
+        if (isFn)
+            handler.call(self, arg1, arg2, arg3);
+        else {
+            var len = handler.length;
+            var listeners = arrayClone(handler, len);
+            for (var i = 0; i < len; ++i)
+                listeners[i].call(self, arg1, arg2, arg3);
+        }
+    }
+
+    var emitMany = function(handler, isFn, self, args) {
+        if (isFn)
+            handler.apply(self, args);
+        else {
+            var len = handler.length;
+            var listeners = arrayClone(handler, len);
+            for (var i = 0; i < len; ++i)
+                listeners[i].apply(self, args);
+        }
+    }
+
+    /**
+     * custom emit based on node.js emit source
+     * Added on 2016-02-09
+     * */
+    this.emit = function emit(type) {
+        // BO Added to handle trigger with increment when `emit occurs whithin a loop or recursive function
+        if (
+            self._triggers && self._triggers.indexOf(type) == -1 && self._triggers.indexOf(type.replace(/[0-9]/g, '')) > -1
+            || self._triggers && self._triggers.indexOf(type) > -1 && typeof(self._callbacks[type]) == 'undefined' && typeof(self._events[type]) == 'undefined'
+            || self._triggers && self._triggers.indexOf(type) > -1 && typeof(self._callbacks[type]) != 'undefined'
+        ) {
+            setListener(arguments)
+        }
+        // EO Added to handle trigger with increment
+
+        var er, handler, len, args, i, events, domain;
+        var needDomainExit = false;
+        var doError = (type === 'error');
+
+        events = this._events;
+        if (events)
+            doError = (doError && events.error == null);
+        else if (!doError)
+            return false;
+
+        domain = this.domain;
+
+        // If there is no 'error' event listener then throw.
+        if (doError) {
+            er = arguments[1];
+            if (domain) {
+                if (!er)
+                    er = new Error('Uncaught, unspecified "error" event');
+                er.domainEmitter = this;
+                er.domain = domain;
+                er.domainThrown = false;
+                domain.emit('error', er);
+            } else if (er instanceof Error) {
+                throw er; // Unhandled 'error' event
+            } else {
+                // At least give some kind of context to the user
+                var err = new Error('Uncaught, unspecified "error" event. (' + er + ')');
+                err.context = er;
+                throw err;
+            }
+            return false;
+        }
+
+        handler = events[type];
+
+        if (!handler)
+            return false;
+
+        if (domain && this !== process) {
+            domain.enter();
+            needDomainExit = true;
+        }
+
+        var isFn = typeof handler === 'function';
+        len = arguments.length;
+        switch (len) {
+            // fast cases
+            case 1:
+                emitNone(handler, isFn, this);
+                break;
+            case 2:
+                emitOne(handler, isFn, this, arguments[1]);
+                break;
+            case 3:
+                emitTwo(handler, isFn, this, arguments[1], arguments[2]);
+                break;
+            case 4:
+                emitThree(handler, isFn, this, arguments[1], arguments[2], arguments[3]);
+                break;
+            // slower
+            default:
+                args = new Array(len - 1);
+                for (i = 1; i < len; i++)
+                    args[i - 1] = arguments[i];
+                emitMany(handler, isFn, this, args);
+        }
+
+        if (needDomainExit)
+            domain.exit();
+
+        return true;
+    }
+
+
+    /**
+     * Get connection from entity.
+     *
+     * When `injected.connector` is set (e.g. in unit tests), that object is
+     * returned immediately, bypassing the live Couchbase connection entirely.
+     *
+     * @param {string} [scope]      - Couchbase scope name (v3+ SDK only)
+     * @param {string} [collection] - Couchbase collection name (v3+ SDK only)
+     * @returns {object|null} Active connection or mock connector, or null when none
+     *
+     * @memberof EntitySuper
+     */
+    this.getConnection = function(scope, collection) {
+        // #R3 — injected connector takes priority over the live connection
+        if (self._injected && self._injected.connector) {
+            return self._injected.connector;
+        }
+
+        var conn =  local.conn || self._conn || null;
+
+        if ( typeof(conn) == 'undefined' || !conn) {
+            return null;
+        }
+
+        if ( typeof(scope) == 'undefined' ) {
+            scope = '_default';
+        }
+        var currentCollection = '_default';
+        if ( typeof(collection) != 'undefined' ) {
+            currentCollection = collection;
+        }
+
+
+        // retrieve & return the collection
+        if ( typeof(conn.scope) != 'undefined' && typeof(conn._scope) == 'undefined' && typeof(conn.scope) != 'undefined' ) {
+            var newConn = conn.scope(scope).collection(currentCollection);
+            newConn.sdk = conn.sdk;
+            return newConn;
+        }
+
+        // return the cached collection
+        return conn;
+    }
+
+    /**
+     * Get bundle configuration, routing through `injected.config` when present
+     * (#R3). Falls back to the global `getConfig()` helper (which itself checks
+     * the R2 `__mock__` override before hitting the real framework config).
+     *
+     * Entity method body (preferred style going forward):
+     * ```javascript
+     * var cfg = this.getConfig(this.bundle, 'app');
+     * ```
+     *
+     * Legacy global call still works unchanged:
+     * ```javascript
+     * var cfg = getConfig(this.bundle, 'app');
+     * ```
+     *
+     * @param {string} [bundle]   - Bundle name; defaults to `this.bundle`
+     * @param {string} [confName] - Config key (e.g. `'app'`, `'settings'`)
+     * @returns {object|undefined} Configuration object
+     *
+     * @memberof EntitySuper
+     */
+    this.getConfig = function(bundle, confName) {
+        // #R3 — injected config function takes priority
+        if (self._injected && typeof self._injected.config === 'function') {
+            return self._injected.config(bundle, confName);
+        }
+        return getConfig(bundle, confName);
+    }
+
+    this.getEntity = function(entity) {
+
+        var ntt = entity;
+        entity = entity.substring(0,1).toUpperCase() + entity.substring(1);
+        var nttName = entity;
+
+        if ( !/Entity$/.test(entity) ) {
+            entity = entity + 'Entity'
+        }
+
+        try {
+            var callerName = self.name;
+            var entityName = entity.replace('Entity', '');
+
+            if (!callerName) {
+                throw new Error('no name defined for this Entity !!');
+            } else { // imported
+                if ( callerName == entity.replace('Entity', '')) {
+                    if ( !EntitySuper[self.name].instance ) {
+                        return getModelEntity(self.bundle, self.model, entity, self.getConnection())
+                    } else {
+                        return EntitySuper[self.name].instance
+                    }
+
+                } else if ( typeof(EntitySuper[callerName].instance) != 'undefined' && EntitySuper[callerName].instance._relations[entityName] ) {
+                    return EntitySuper[callerName].instance._relations[entityName]
+                } else {
+                    if ( typeof(modelUtil.entities[self.bundle][self.model][entity]) != 'function' ) {
+                        throw new Error('Model entity not found: `'+ entity + '` while trying to call '+ callerName +'Entity.getEntity('+ entity +')');
+                    }
+
+                    // fixed on May 2019, 21st : need for `this.getEntity(...)` inside the model
+                    if (  typeof(EntitySuper[callerName].instance._relations[entityName]) == 'undefined' ) {
+
+                        if ( typeof(EntitySuper[entityName]) != 'undefined' && typeof(EntitySuper[entityName].instance) != 'undefined' ) {
+
+                            EntitySuper[callerName].instance._relations[entityName] = new modelUtil.entities[self.bundle][self.model][entity](self.getConnection(), callerName)
+                        } else { // regular case
+                            new modelUtil.entities[self.bundle][self.model][entity](self.getConnection(), callerName);
+                        }
+                    }
+
+
+                    return EntitySuper[callerName].instance._relations[entityName]
+                }
+            }
+
+        } catch (err) {
+            throw err;
+        }
+    }
+
+    this.setInstance = function(instance) {
+        EntitySuper[self.name].instance = instance
+    }
+
+
+    return init(conn, caller)
+};
+
+EntitySuper = inherits(EntitySuper, EventEmitter);
+module.exports = EntitySuper

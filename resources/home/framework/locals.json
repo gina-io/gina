@@ -1,11 +1,11 @@
 {
     "project": "framework",
     "paths": {
-        "gina": "{gina.core}",
-        "utils": "{gina.utils}",
-        "root": "{gina}",
-        "env": "{homedir}/{release}/framework/env.json",
-        "tmp": "{tmpdir}"
+        "gina": "${gina.core}",
+        "utils": "${gina.utils}",
+        "root": "${gina}",
+        "env": "${homedir}/${release}/framework/env.json",
+        "tmp": "${tmpdir}"
     },
     "bundles": [
         "shutdown",

@@ -1,0 +1,28 @@
+[2026 Mar 06 02:04:25] [debug  ][gina:gna] checkpoint A: loading lib
+[2026 Mar 06 02:04:25] [debug  ][gina:gna] checkpoint B: lib loaded, setting up logger
+[2026 Mar 06 02:04:25] [debug  ][gina:gna] checkpoint C: logger ready
+[2026 Mar 06 02:04:25] [debug  ][gina:gna] checkpoint D0: loading Router
+[2026 Mar 06 02:04:25] [debug  ][gina:gna] checkpoint D1: loading Server
+[2026 Mar 06 02:04:25] [debug  ][gina:gna] checkpoint D2: Server loaded
+[2026 Mar 06 02:04:25] [debug  ][gina:gna] checkpoint D: calling isBundleMounted
+[2026 Mar 06 02:04:25] [debug  ][gina:gna] checkpoint E: isBundleMounted OK, calling getProjectConfiguration
+[2026 Mar 06 02:04:27] [debug  ][gina:gna] checkpoint F: calling config.onReady
+[2026 Mar 06 02:04:27] [debug  ][gina:gna] checkpoint G: config.onReady fired err=none
+[2026 Mar 06 02:04:27] [debug  ][gina:gna] checkpoint H: creating Server
+[2026 Mar 06 02:04:27] [debug  ][gina:gna] checkpoint H2: server.onConfigured call
+[2026 Mar 06 02:04:27] [debug  ][gina:server] checkpoint I1: requiring engine isaac
+[2026 Mar 06 02:04:27] [debug  ][gina:isaac] isaac-req-1: fs ok
+[2026 Mar 06 02:04:27] [debug  ][gina:isaac] isaac-req-2: child_process ok
+[2026 Mar 06 02:04:27] [debug  ][gina:isaac] isaac-req-3: events ok
+[2026 Mar 06 02:04:27] [debug  ][gina:isaac] isaac-req-4: requiring engine.io...
+[2026 Mar 06 02:04:27] [debug  ][gina:isaac] isaac-req-5: engine.io ok, requiring lib
+[2026 Mar 06 02:04:27] [debug  ][gina:isaac] isaac-req-6: cache
+[2026 Mar 06 02:04:27] [debug  ][gina:isaac] isaac-req-7: module-level done
+[2026 Mar 06 02:04:27] [debug  ][gina:server] checkpoint I2: engine required, instantiating
+[2026 Mar 06 02:04:27] [debug  ][gina:server] checkpoint I3: engine instantiated
+[2026 Mar 06 02:04:27] [debug  ][gina:server] checkpoint I4: initSwigEngine
+[2026 Mar 06 02:04:27] [debug  ][gina:server] checkpoint I5: emitting configured
+[2026 Mar 06 02:04:27] [debug  ][gina:gna] checkpoint I: initialize called err=none
+[2026 Mar 06 02:04:27] [debug  ][gina:gna] checkpoint K: emitting init
+[2026 Mar 06 02:04:28] [debug  ][gina:gna] checkpoint J: complete event fired
+  [ auth@freelancer ] started V(-.o)V

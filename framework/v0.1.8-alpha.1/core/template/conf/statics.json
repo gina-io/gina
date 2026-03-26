@@ -1,0 +1,12 @@
+{
+  //"favicon.ico": "${templatesPath}/favicon.ico",
+  //"favicons": "${templatesPath}/favicons",
+  "html": "${templatesPath}/html",  // used for templating
+  "sass": "${templatesPath}/sass",  // used for templating
+  "handlers": "${handlersPath}",  // used for templating
+// TODO - what if the user add "js/vendor" ? Do we override of merge ?
+  "css/vendor/gina": "${gina}/framework/v${version}/core/asset/plugin/dist/vendor/gina/css",
+  "js/vendor/gina": "${gina}/framework/v${version}/core/asset/plugin/dist/vendor/gina/js",
+  // for plain html or public access
+  "": "${publicPath}"
+}

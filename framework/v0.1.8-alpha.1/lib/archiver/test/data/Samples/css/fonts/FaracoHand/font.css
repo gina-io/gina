@@ -1,0 +1,11 @@
+@font-face {
+	font-family: 'FaracoHand';
+	src: url('./FaracoHand.eot');
+	src: local('FaracoHand'), url('./FaracoHand.woff') format('woff'), url('./FaracoHand.ttf') format('truetype');
+}
+/* use this class to attach this font to any element i.e. <p class="fontsforweb_fontid_8641">Text with this font applied</p> */
+.fontsforweb_fontid_8641 {
+	font-family: 'FaracoHand' !important;
+}
+
+/* Font downloaded from FontsForWeb.com */

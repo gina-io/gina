@@ -1,0 +1,23 @@
+{% macro burritos() %}
+I like burritos!<p>
+{% endmacro %}
+
+asfdasdf
+
+{% macro tacos(meat, salsa) %}
+Taco
+Meat: {{ meat }}
+Salsa: {{ salsa }}
+{% endmacro %}
+
+{% autoescape false %}
+Hahahahahah!
+{% endautoescape %}
+
+{% macro nested(salsa) %}
+{{ tacos('Pork', salsa) }}
+{% endmacro %}
+
+{% macro global_ctx() %}
+{{ first }}
+{% endmacro %}
