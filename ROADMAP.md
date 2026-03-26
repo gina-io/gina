@@ -63,7 +63,7 @@ This roadmap covers planned features, architectural improvements, new connectors
 | Status | Feature | Version | Target |
 | --- | --- | --- | --- |
 | 📋 | **ESM compatibility layer** — Dual CJS/ESM entry points via `"exports"` in `package.json`. Framework internals stay CJS; public API gets ESM re-exports. | `0.5.0` | Q1 2027 |
-| 📋 | **Template engine migration** — Replace the abandoned Swig 1.4.2 with a maintained engine. Leading candidate: Nunjucks (identical Jinja2-style syntax — existing templates require no changes). | `0.5.0` | Q1 2027 |
+| 📋 | **Pluggable template engine** — Swig 1.4.2 stays fully integrated and remains the default. Nunjucks added as a supported alternative (opt-in per project via config). The render layer is abstracted behind a common interface so both engines co-exist. Switching to Nunjucks requires a per-project migration guide (breaking differences: `{% parent %}` → `{{ super() }}`, filter renames, autoescape default, `date` format strings, no `{% spaceless %}` — see docs). | `0.5.0` | Q1 2027 |
 | 📋 | **Structured logging** — JSON log output (`{ level, message, bundle, requestId, durationMs }`). Additive — existing consumers are unaffected. Enables log aggregation (Loki, Datadog, CloudWatch). | `0.5.0` | Q1 2027 |
 
 ---
