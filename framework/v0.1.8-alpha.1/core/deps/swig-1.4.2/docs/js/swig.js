@@ -1,1 +1,0 @@
-/Users/martinlutheretouman/.npm-global/lib/node_modules/gina/framework/v0.1.7/core/asset/plugin/../../deps/swig-1.4.2/bin/swig.js
