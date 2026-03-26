@@ -1,0 +1,3 @@
+kind: Added
+body: 'Mockable service locator (#R2): getConfig() and getModel() now check for a __mock__ context override before hitting the real implementation. Test setup calls setContext(''__mock__'', { config: fn, model: fn }) — zero breaking changes, zero business logic changes. Lifts testability from E2E-only to unit-testable models and helpers'
+time: 2026-03-25T15:18:28.102714+01:00

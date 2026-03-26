@@ -27,20 +27,28 @@ var modelUtil       = new lib.Model();
  * Entity method event naming convention: `entityShortName#methodName`
  * E.g. a `UserEntity` method `findById` → event `user#findById`
  *
- * @param {object} conn   - Database connection object from the connector
+ * @param {object} conn     - Database connection object from the connector
  * @param {string} [caller] - Name of the calling context (used for debugging)
+ * @param {object} [injected] - Optional dependency overrides for unit testing (#R3).
+ *   When present, the injected values replace the live connector and config lookup
+ *   so entities can be exercised without a running database or framework server.
+ * @param {function} [injected.config] - Replacement for `getConfig(bundle, confName)`.
+ *   Called with the same `(bundle, confName)` signature; return value is used as-is.
+ * @param {object} [injected.connector] - Replacement connection object returned by
+ *   `this.getConnection()`. Use a mock/spy to simulate database operations.
  *
  * @package     Gina
  * @namespace   Gina.Model
  * @author      Rhinostone <contact@gina.io>
  * @api         Public
  */
-function EntitySuper(conn, caller) {
+function EntitySuper(conn, caller, injected) {
 
     this.initialized    = false;
     this._maxListeners  = 50;
     this._methods       = [];
     this._relations     = {};
+    this._injected      = injected || null;
 
     var local           = {}
     var self            = this;
@@ -169,6 +177,15 @@ function EntitySuper(conn, caller) {
                     }
                     // TODO - retrieve argument while the method is being rewritten
                     return function () {
+
+                        // #entity-dev-nocache: in dev mode, clear any buffered result for
+                        // this trigger so each call gets a fresh listener.  Prevents stale
+                        // null results from a concurrent-call race (FIRING #5) from
+                        // poisoning subsequent requests for the entity lifetime.
+                        // Mirrors the controller cacheless-require pattern for dev mode.
+                        if (isCacheless && entity._arguments && typeof(entity._arguments[e]) !== 'undefined') {
+                            delete entity._arguments[e];
+                        }
 
                         // retrieving local arguments, & binding it to the event callback
 
@@ -309,8 +326,14 @@ function EntitySuper(conn, caller) {
 
                             } else {
                                 // Event already fired — args were buffered in _arguments.
-                                // Resolve/reject immediately from the cached result.
+                                // Resolve/reject immediately from the cached result, then
+                                // delete the buffer so the next call gets a fresh listener
+                                // instead of resolving again with the same stale result.
+                                // Without this delete, any concurrent call that fires before
+                                // the listener is registered (e.g. an alert cron) poisons
+                                // ALL subsequent requests for the entity's lifetime.
                                 var _args = entity._arguments[events[i].shortName];
+                                delete entity._arguments[events[i].shortName];
                                 if (_args[0]) _reject(_args[0]);
                                 else          _resolve(_args[1]);
                             }
@@ -620,9 +643,23 @@ function EntitySuper(conn, caller) {
 
 
     /**
-     * Get connection from entity
-     * */
+     * Get connection from entity.
+     *
+     * When `injected.connector` is set (e.g. in unit tests), that object is
+     * returned immediately, bypassing the live Couchbase connection entirely.
+     *
+     * @param {string} [scope]      - Couchbase scope name (v3+ SDK only)
+     * @param {string} [collection] - Couchbase collection name (v3+ SDK only)
+     * @returns {object|null} Active connection or mock connector, or null when none
+     *
+     * @memberof EntitySuper
+     */
     this.getConnection = function(scope, collection) {
+        // #R3 — injected connector takes priority over the live connection
+        if (self._injected && self._injected.connector) {
+            return self._injected.connector;
+        }
+
         var conn =  local.conn || self._conn || null;
 
         if ( typeof(conn) == 'undefined' || !conn) {
@@ -647,6 +684,35 @@ function EntitySuper(conn, caller) {
 
         // return the cached collection
         return conn;
+    }
+
+    /**
+     * Get bundle configuration, routing through `injected.config` when present
+     * (#R3). Falls back to the global `getConfig()` helper (which itself checks
+     * the R2 `__mock__` override before hitting the real framework config).
+     *
+     * Entity method body (preferred style going forward):
+     * ```javascript
+     * var cfg = this.getConfig(this.bundle, 'app');
+     * ```
+     *
+     * Legacy global call still works unchanged:
+     * ```javascript
+     * var cfg = getConfig(this.bundle, 'app');
+     * ```
+     *
+     * @param {string} [bundle]   - Bundle name; defaults to `this.bundle`
+     * @param {string} [confName] - Config key (e.g. `'app'`, `'settings'`)
+     * @returns {object|undefined} Configuration object
+     *
+     * @memberof EntitySuper
+     */
+    this.getConfig = function(bundle, confName) {
+        // #R3 — injected config function takes priority
+        if (self._injected && typeof self._injected.config === 'function') {
+            return self._injected.config(bundle, confName);
+        }
+        return getConfig(bundle, confName);
     }
 
     this.getEntity = function(entity) {

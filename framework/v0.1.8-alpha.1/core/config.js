@@ -876,7 +876,61 @@ function Config(opt, contextResetNeeded) {
                 bundleSettings.tmpSettingFileContent = JSON.clone(bundleSettings);
                 newContent[app][env] = merge(bundleSettings, newContent[app][env]);
                 // completing with missing props
-                var defaultSettings = requireJSON( getEnvVar('GINA_FRAMEWORK_DIR') +'/core/template/conf/settings.json');
+                var defaultSettings = JSON.clone(requireJSON( getEnvVar('GINA_FRAMEWORK_DIR') +'/core/template/conf/settings.json'));
+                // Patch locale section with system-detected values set by framework init
+                var _defCulture = getEnvVar('GINA_CULTURE') || 'en_CM';
+                var _defLang    = _defCulture.split('_')[0];              // 'en'
+                var _defCountry = (_defCulture.split('_')[1] || '').toUpperCase(); // 'CM'
+                if (defaultSettings.locale) {
+                    // Look up country data from the built-in locale database
+                    var _countryData = null;
+                    try {
+                        var _regionDb = require(getEnvVar('GINA_FRAMEWORK_DIR') + '/core/locales/dist/region/' + _defLang + '.json');
+                        _countryData = _regionDb.filter(function(r) { return r.isoShort === _defCountry; })[0] || null;
+                    } catch(e) {
+                        try {
+                            var _regionDb = require(getEnvVar('GINA_FRAMEWORK_DIR') + '/core/locales/dist/region/en.json');
+                            _countryData = _regionDb.filter(function(r) { return r.isoShort === _defCountry; })[0] || null;
+                        } catch(e2) {}
+                    }
+                    // preferedLanguages: use the country's actual language list when available
+                    defaultSettings.locale.preferedLanguages = (_countryData && _countryData.languages && _countryData.languages.length)
+                        ? _countryData.languages
+                        : [ _defCulture.replace('_', '-') ];
+                    defaultSettings.locale.region = _defCountry || _defCulture;
+                    // currency: from locale database
+                    if (_countryData && _countryData.currency && _countryData.currency.alphacode) {
+                        defaultSettings.locale.currency.code = _countryData.currency.alphacode.toLowerCase();
+                    }
+                    // measurementUnits + temperature: exception lists (only 3 countries use imperial)
+                    var _imperialCountries   = ['US', 'LR', 'MM'];
+                    var _fahrenheitCountries = ['US', 'BS', 'KY', 'PW'];
+                    defaultSettings.locale.measurementUnits = _imperialCountries.indexOf(_defCountry) > -1 ? 'imperial' : 'metric';
+                    defaultSettings.locale.temperature      = _fahrenheitCountries.indexOf(_defCountry) > -1 ? 'fahrenheit' : 'celsius';
+                    // dateFormat.short, 24HourTimeFormat, firstDayOfWeek: from Intl
+                    if (typeof Intl !== 'undefined' && typeof Intl.DateTimeFormat.prototype.formatToParts === 'function') {
+                        var _refDate = new Date(2013, 3, 5);
+                        var _dateParts = Intl.DateTimeFormat(_defCulture.replace('_', '-'), {
+                            year: 'numeric', month: '2-digit', day: '2-digit'
+                        }).formatToParts(_refDate);
+                        defaultSettings.locale.dateFormat.short = _dateParts.map(function(p) {
+                            if (p.type === 'year')  return 'yyyy';
+                            if (p.type === 'month') return 'mm';
+                            if (p.type === 'day')   return 'dd';
+                            return p.value.replace(/[^\x20-\x7E]/g, '');
+                        }).join('');
+                        defaultSettings.locale['24HourTimeFormat'] = !Intl.DateTimeFormat(
+                            _defCulture.replace('_', '-'), { hour: 'numeric' }
+                        ).resolvedOptions().hour12;
+                        // firstDayOfWeek: from Intl.Locale.getWeekInfo() — 1=Mon … 7=Sun
+                        try {
+                            var _weekInfo = new Intl.Locale(_defCulture.replace('_', '-')).getWeekInfo();
+                            if (_weekInfo && typeof _weekInfo.firstDay !== 'undefined') {
+                                defaultSettings.locale.firstDayOfWeek = _weekInfo.firstDay;
+                            }
+                        } catch(e) {}
+                    }
+                }
                 newContent[app][env] = merge(newContent[app][env], defaultSettings);
 
 

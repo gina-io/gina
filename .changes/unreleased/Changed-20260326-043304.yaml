@@ -1,0 +1,3 @@
+kind: Changed
+body: conf/settings.json locale fallback now auto-detected from GINA_CULTURE at bundle config load (preferedLanguages, region, dateFormat.short, 24HourTimeFormat)
+time: 2026-03-26T04:33:04.698072+01:00

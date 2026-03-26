@@ -1,0 +1,3 @@
+kind: Changed
+body: bundle:add now auto-detects system locale and timezone when scaffolding settings.json (LANG/LC_ALL → Intl → en_CM / UTC fallbacks)
+time: 2026-03-26T04:11:32.194635+01:00

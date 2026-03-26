@@ -81,7 +81,7 @@
         "${release}": "en_CM"
     },
     "def_iso_short": {
-        "${release}": "cm"
+        "${release}": "en"
     },
     "def_timezone": {
         "${release}": "Africa/Douala"

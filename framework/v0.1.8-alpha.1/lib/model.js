@@ -460,6 +460,11 @@ function ModelUtil() {
      * @returns {object} model - Model entities
      * */
     getModel = function(bundle, model) {
+        // R2: test mock override — set via setContext('__mock__', { model: fn })
+        var _mock = getContext('__mock__');
+        if (_mock && typeof _mock.model === 'function') {
+            return _mock.model(bundle, model);
+        }
 
         var ctx       = getContext();
 

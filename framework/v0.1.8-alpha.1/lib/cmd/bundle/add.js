@@ -554,9 +554,37 @@ function Add(opt, cmd) {
 
             if ( isJS || isJSON /*&& /config\/app\.json/.test(file)*/ ) {
                 var contentFile = fs.readFileSync(file, 'utf8').toString();
+                var _lang = (process.env.LANG || process.env.LC_ALL || '').split('.')[0].replace('-', '_');
+                var _intlLocale = (typeof Intl !== 'undefined')
+                    ? Intl.DateTimeFormat().resolvedOptions().locale.replace('-', '_')
+                    : '';
+                var _intlTz = (typeof Intl !== 'undefined')
+                    ? Intl.DateTimeFormat().resolvedOptions().timeZone
+                    : '';
+                var _culture = _lang || _intlLocale || 'en_CM';
+                // Derive date format from locale using a reference date with unambiguous parts:
+                // year=2013, month=04, day=05 — each value appears only once and is easily identified
+                var _dateFormat = 'yyyy/mm/dd';
+                if (typeof Intl !== 'undefined' && typeof Intl.DateTimeFormat.prototype.formatToParts === 'function') {
+                    var _refDate = new Date(2013, 3, 5);
+                    var _parts = Intl.DateTimeFormat(_culture.replace('_', '-'), {
+                        year: 'numeric', month: '2-digit', day: '2-digit'
+                    }).formatToParts(_refDate);
+                    _dateFormat = _parts.map(function(p) {
+                        if (p.type === 'year')  return 'yyyy';
+                        if (p.type === 'month') return 'mm';
+                        if (p.type === 'day')   return 'dd';
+                        // strip Unicode directional/control chars (e.g. U+200F in ar_SA)
+                        return p.value.replace(/[^\x20-\x7E]/g, '');
+                    }).join('');
+                }
                 var dic = {
-                    "Bundle" : local.bundle.substring(0, 1).toUpperCase() + local.bundle.substring(1),
-                    "bundle" : local.bundle
+                    "Bundle"   : local.bundle.substring(0, 1).toUpperCase() + local.bundle.substring(1),
+                    "bundle"   : local.bundle,
+                    "culture"  : _culture,
+                    "isoShort"   : _culture.split('_')[0],
+                    "dateFormat" : _dateFormat,
+                    "timeZone"   : _intlTz || 'UTC'
                 };
 
                 contentFile = whisper(dic, contentFile);
