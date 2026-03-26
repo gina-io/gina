@@ -280,6 +280,22 @@ function Initialize(opt) {
         var defScheme       = (mainConfig['def_scheme']) ? mainConfig['def_scheme'][self.release] : data.def_scheme[self.release];
         var defCulture      = (mainConfig['def_culture']) ? mainConfig['def_culture'][self.release] : data.def_culture[self.release];
         var defTimezone     = (mainConfig['def_timezone']) ? mainConfig['def_timezone'][self.release] : data.def_timezone[self.release];
+        // Derive iso_short from the language prefix of the resolved culture (e.g. en_CM → en)
+        var defIsoShort     = defCulture.split('_')[0];
+        // Derive date format from the resolved culture via Intl — fallback to yyyy/mm/dd
+        var defDate         = (mainConfig['def_date']) ? mainConfig['def_date'][self.release] : data.def_date[self.release];
+        if (typeof Intl !== 'undefined' && typeof Intl.DateTimeFormat.prototype.formatToParts === 'function') {
+            var _refDate = new Date(2013, 3, 5);
+            var _parts = Intl.DateTimeFormat(defCulture.replace('_', '-'), {
+                year: 'numeric', month: '2-digit', day: '2-digit'
+            }).formatToParts(_refDate);
+            defDate = _parts.map(function(p) {
+                if (p.type === 'year')  return 'yyyy';
+                if (p.type === 'month') return 'mm';
+                if (p.type === 'day')   return 'dd';
+                return p.value.replace(/[^\x20-\x7E]/g, '');
+            }).join('');
+        }
         var defLogLevel     = (mainConfig['def_log_level']) ? mainConfig['def_log_level'][self.release] : data.def_log_level[self.release];
         var defPrefix       = (mainConfig['def_prefix']) ? mainConfig['def_prefix'][self.release] : data.def_prefix[self.release];
         var defGlobalMode   = (mainConfig['def_global_mode']) ? mainConfig['def_global_mode'][self.release] : data.def_global_mode[self.release];
@@ -581,8 +597,8 @@ function Initialize(opt) {
                 'scope_is_production' : (main['production_scope'][self.release] == scope) ? true : false,
                 'production_scope': main['production_scope'][self.release],
                 'culture' : getEnvVar('GINA_CULTURE'),
-                'iso_short': main['def_iso_short'][self.release],
-                'date' : main['def_date'][self.release],
+                'iso_short': defIsoShort,
+                'date' : defDate,
                 'timezone' : getEnvVar('GINA_TIMEZONE'),
                 'node_version': process.version,
                 'port' : getEnvVar('GINA_PORT') || 8124, // TODO - scan for the next available port
