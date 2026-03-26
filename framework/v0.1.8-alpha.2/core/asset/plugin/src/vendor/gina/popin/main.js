@@ -1066,6 +1066,16 @@ define('gina/popin', [ 'require', 'vendor/uuid', 'jquery', 'lib/domain', 'lib/me
                         }
                     }
                     if (xhr.readyState == 4) {
+                        // Fixed: clear loading state on response complete — data-gina-popin-loading
+                        // was set on readyState 1|3 but never removed, leaving the overlay blocked.
+                        $popin.target.removeAttribute('data-gina-popin-loading');
+                        if ($popinTrigger) {
+                            if ( /^A$/i.test($popinTrigger.tagName) ) {
+                                $popinTrigger.removeAttribute('aria-disabled');
+                            } else {
+                                $popinTrigger.removeAttribute('disabled');
+                            }
+                        }
                         // 200, 201, 201' etc ...
                         var result = null;
 
@@ -1555,6 +1565,9 @@ define('gina/popin', [ 'require', 'vendor/uuid', 'jquery', 'lib/domain', 'lib/me
                         $el.className                           = $el.className.replace(/\sgina-popin-is-active|gina-popin-is-active|gina-popin-is-active\s/, '');
                         $el.innerHTML                           = '';
                     }
+                    // Fixed: clear loading state on reset — defensive cleanup for navigation
+                    // within a popin that was in loading state when reset was called.
+                    $el.removeAttribute('data-gina-popin-loading');
 
                     // removing from FormValidator instance
                     if ($validatorInstance) {
@@ -1664,6 +1677,9 @@ define('gina/popin', [ 'require', 'vendor/uuid', 'jquery', 'lib/domain', 'lib/me
                             $popinTrigger.removeAttribute('disabled', true);
                         }
                     }
+                    // Fixed: clear loading state on explicit close — defensive cleanup in case
+                    // the popin is closed before the XHR completes or after a non-XHR flow.
+                    $el.removeAttribute('data-gina-popin-loading');
                     triggerEvent(gina, $popin.target, 'close.'+ $popin.id, $popin);
                 }
             }
