@@ -79,6 +79,7 @@ New database connectors follow the same interface as the existing Couchbase conn
 | 📋 | **MySQL / MariaDB** | `0.3.0` | Q3 2026 | ORM connector. Client: `mysql2`. |
 | 📋 | **PostgreSQL** | `0.3.0` | Q3 2026 | ORM connector. Client: `pg` (node-postgres). |
 | 📋 | **ScyllaDB** | `0.4.0` | Q4 2026 | Cassandra-compatible wide-column store. Client: `@scylladb/scylla-driver`. |
+| 📋 | **MongoDB** | `0.4.0` | Q4 2026 | Document store connector. Client: `mongodb` (official driver). Interface approach TBD — MongoDB's document model differs from the N1QL/SQL pattern used by existing connectors. |
 
 ---
 
