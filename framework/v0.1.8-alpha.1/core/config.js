@@ -876,7 +876,28 @@ function Config(opt, contextResetNeeded) {
                 bundleSettings.tmpSettingFileContent = JSON.clone(bundleSettings);
                 newContent[app][env] = merge(bundleSettings, newContent[app][env]);
                 // completing with missing props
-                var defaultSettings = requireJSON( getEnvVar('GINA_FRAMEWORK_DIR') +'/core/template/conf/settings.json');
+                var defaultSettings = JSON.clone(requireJSON( getEnvVar('GINA_FRAMEWORK_DIR') +'/core/template/conf/settings.json'));
+                // Patch locale section with system-detected values set by framework init
+                var _defCulture = getEnvVar('GINA_CULTURE') || 'en_CM';
+                if (defaultSettings.locale) {
+                    defaultSettings.locale.preferedLanguages = [ _defCulture.replace('_', '-') ];
+                    defaultSettings.locale.region = (_defCulture.split('_')[1] || _defCulture).toUpperCase();
+                    if (typeof Intl !== 'undefined' && typeof Intl.DateTimeFormat.prototype.formatToParts === 'function') {
+                        var _refDate = new Date(2013, 3, 5);
+                        var _dateParts = Intl.DateTimeFormat(_defCulture.replace('_', '-'), {
+                            year: 'numeric', month: '2-digit', day: '2-digit'
+                        }).formatToParts(_refDate);
+                        defaultSettings.locale.dateFormat.short = _dateParts.map(function(p) {
+                            if (p.type === 'year')  return 'yyyy';
+                            if (p.type === 'month') return 'mm';
+                            if (p.type === 'day')   return 'dd';
+                            return p.value.replace(/[^\x20-\x7E]/g, '');
+                        }).join('');
+                        defaultSettings.locale['24HourTimeFormat'] = !Intl.DateTimeFormat(
+                            _defCulture.replace('_', '-'), { hour: 'numeric' }
+                        ).resolvedOptions().hour12;
+                    }
+                }
                 newContent[app][env] = merge(newContent[app][env], defaultSettings);
 
 
