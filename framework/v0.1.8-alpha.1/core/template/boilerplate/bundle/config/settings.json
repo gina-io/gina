@@ -1,12 +1,13 @@
 // bundle needs to be restarted on changes !!
 {
     "region": {
-        // <language>_<COUNTRY_ISO_SHORT_CODE> — e.g. en_US, fr_FR, de_DE
+        // <language>_<COUNTRY_ISO_SHORT_CODE> — e.g. en_US, en_CM, fr_FR, de_DE
         "culture": "${culture}",
-        // <language_iso_short_code>
+        // <language_iso_short_code> — e.g. en, fr, de
         "isoShort": "${isoShort}",
+        // <date_format> — e.g. mm/dd/yyyy, dd/mm/yyyy, yyyy/mm/dd
         "date": "${dateFormat}",
-        // https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
+        // https://en.wikipedia.org/wiki/List_of_tz_database_time_zones — e.g. America/New_York, Europe/Paris, Africa/Douala
         "timeZone": "${timeZone}"
     }
 }
