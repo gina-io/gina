@@ -70,7 +70,7 @@ This roadmap covers planned features, architectural improvements, new connectors
 
 ## Connectors
 
-New database connectors follow the same interface as the existing Couchbase/MongoDB connectors: declared in `connectors.json`, acquired via `getConnection()`.
+New database connectors follow the same interface as the existing Couchbase connector: declared in `connectors.json`, acquired via `getConnection()`.
 
 | Status | Connector | Version | Target | Notes |
 | --- | --- | --- | --- | --- |
