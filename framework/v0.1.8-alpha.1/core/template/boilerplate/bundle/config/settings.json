@@ -7,7 +7,7 @@
         "isoShort": "${isoShort}",
         // <date_format> — e.g. mm/dd/yyyy, dd/mm/yyyy, yyyy/mm/dd
         "date": "${dateFormat}",
-        // https://en.wikipedia.org/wiki/List_of_tz_database_time_zones — e.g. America/New_York, Europe/Paris, Africa/Douala
+        // https://en.wikipedia.org/wiki/List_of_tz_database_time_zones — e.g. Africa/Douala, America/New_York, Europe/Paris
         "timeZone": "${timeZone}"
     }
 }
