@@ -2,11 +2,11 @@
 {
     "region": {
         // <language>_<COUNTRY_ISO_SHORT_CODE> — e.g. en_US, fr_FR, de_DE
-        "culture": "en_US",
+        "culture": "en_CM",
         // <language_iso_short_code>
         "isoShort": "en",
         "date": "yyyy/mm/dd",
         // https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
-        "timeZone": "UTC"
+        "timeZone": "Africa/Douala"
     }
 }
