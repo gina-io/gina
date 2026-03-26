@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'Couchbase connector: @include directives sent raw to Couchbase in dev mode — the dev-mode SQL re-read refreshed the query body without re-expanding @include tokens, causing N1QL syntax errors. Dev-mode re-read now applies the same @include expansion as the startup parser.'
+time: 2026-03-26T14:56:53.574335+01:00
