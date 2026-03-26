@@ -879,9 +879,30 @@ function Config(opt, contextResetNeeded) {
                 var defaultSettings = JSON.clone(requireJSON( getEnvVar('GINA_FRAMEWORK_DIR') +'/core/template/conf/settings.json'));
                 // Patch locale section with system-detected values set by framework init
                 var _defCulture = getEnvVar('GINA_CULTURE') || 'en_CM';
+                var _defLang    = _defCulture.split('_')[0];              // 'en'
+                var _defCountry = (_defCulture.split('_')[1] || '').toUpperCase(); // 'CM'
                 if (defaultSettings.locale) {
-                    defaultSettings.locale.preferedLanguages = [ _defCulture.replace('_', '-') ];
-                    defaultSettings.locale.region = (_defCulture.split('_')[1] || _defCulture).toUpperCase();
+                    // Look up country data from the built-in locale database
+                    var _countryData = null;
+                    try {
+                        var _regionDb = require(getEnvVar('GINA_FRAMEWORK_DIR') + '/core/locales/dist/region/' + _defLang + '.json');
+                        _countryData = _regionDb.filter(function(r) { return r.isoShort === _defCountry; })[0] || null;
+                    } catch(e) {
+                        try {
+                            var _regionDb = require(getEnvVar('GINA_FRAMEWORK_DIR') + '/core/locales/dist/region/en.json');
+                            _countryData = _regionDb.filter(function(r) { return r.isoShort === _defCountry; })[0] || null;
+                        } catch(e2) {}
+                    }
+                    // preferedLanguages: use the country's actual language list when available
+                    defaultSettings.locale.preferedLanguages = (_countryData && _countryData.languages && _countryData.languages.length)
+                        ? _countryData.languages
+                        : [ _defCulture.replace('_', '-') ];
+                    defaultSettings.locale.region = _defCountry || _defCulture;
+                    // currency: from locale database
+                    if (_countryData && _countryData.currency && _countryData.currency.alphacode) {
+                        defaultSettings.locale.currency.code = _countryData.currency.alphacode.toLowerCase();
+                    }
+                    // dateFormat.short and 24HourTimeFormat: from Intl
                     if (typeof Intl !== 'undefined' && typeof Intl.DateTimeFormat.prototype.formatToParts === 'function') {
                         var _refDate = new Date(2013, 3, 5);
                         var _dateParts = Intl.DateTimeFormat(_defCulture.replace('_', '-'), {
