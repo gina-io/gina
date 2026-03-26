@@ -229,7 +229,7 @@ Gina is shipped with [Swig](https://node-swig.github.io/swig-templates/) as the 
 
 Please, note that you have 2 types of environments : one for the framework, and one for your project & your bundles.
 
-> By default, Gina (the framework) comes with 2 environments : `dev` and `prod`. The default is `prod`. If you are [contributing](./README-4Contributors.md) to the framework or prototyping your application or service, we advise using the `dev` environment.
+> By default, Gina (the framework) comes with 2 environments : `dev` and `prod`. The default is `prod`. If you are [contributing](./CONTRIBUTING.md) to the framework or prototyping your application or service, we advise using the `dev` environment.
 >
 > ```tty
 > gina framework:set --env=dev

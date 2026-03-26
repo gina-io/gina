@@ -6,8 +6,11 @@ Gina follows a BDFL governance model — see [GOVERNANCE.md](./GOVERNANCE.md) fo
 
 ## Table of contents
 
+- [Requirements](#requirements)
 - [Getting started locally](#getting-started-locally)
 - [Running the tests](#running-the-tests)
+- [Development environment](#development-environment)
+- [Debugging](#debugging)
 - [Branch model](#branch-model)
 - [Commit style](#commit-style)
 - [Changelog](#changelog)
@@ -17,23 +20,55 @@ Gina follows a BDFL governance model — see [GOVERNANCE.md](./GOVERNANCE.md) fo
 
 ---
 
+## Requirements
+
+| Requirement | Version |
+| --- | --- |
+| OS | macOS or Linux (Windows: Docker only) |
+| Node.js | >= 18 |
+| npm | >= 8 |
+| Changie | >= 1.24 |
+
+---
+
 ## Getting started locally
 
-**Requirements:** Node.js >= 18, npm >= 8.
+Gina must be installed globally — the CLI and framework bootstrapper expect to run from the npm global prefix. Contributors clone directly into that location instead of using `npm install -g .`.
+
+#### 1. Find your global prefix
 
 ```bash
-git clone https://github.com/Rhinostone/gina.git
-cd gina
-npm install -g .
+npm config get prefix --quiet
 ```
 
-Installing with `-g` is required — Gina is a global CLI tool and framework. The install scripts (`preinstall` / `postinstall`) set up `~/.gina/` on first run.
+The default is `/usr/local` (system) or `~/.npm-global` (user). The target directory is `${prefix}/lib/node_modules/gina`.
+
+#### 2. Clone into the prefix
+
+```bash
+cd $(npm config get prefix)/lib/node_modules
+git clone https://github.com/Rhinostone/gina.git gina
+cd gina && git checkout develop
+```
+
+#### 3. Run the install scripts
+
+```bash
+node ./script/pre_install.js
+node ./script/post_install.js
+```
+
+#### 4. Verify
+
+```bash
+gina version
+```
 
 ---
 
 ## Running the tests
 
-The test suite uses Node's built-in `node:test` runner — no additional test dependencies.
+The test suite uses Node's built-in `node:test` runner — no additional test dependencies needed.
 
 ```bash
 # Run all tests
@@ -43,7 +78,49 @@ node --test test/**/*.test.js
 node --test test/core/controller.test.js
 ```
 
-Tests require Node >= 18. The suite currently covers core modules, lib utilities, and integration helpers. See `.claude/todo/unit-tests.md` for the full test inventory and roadmap.
+---
+
+## Development environment
+
+When contributing to the framework, use the `dev` environment. It enables hot-reload, the debug toolbar, and verbose logging that makes it easier to follow what the framework is doing internally.
+
+```bash
+gina framework:set --env=dev
+```
+
+This sets the default environment so you can omit `--env=dev` from subsequent commands. To start the framework:
+
+```bash
+gina start
+```
+
+To follow logs in real time:
+
+```bash
+gina tail --follow
+```
+
+To revert to production defaults:
+
+```bash
+gina framework:set --env=prod
+```
+
+---
+
+## Debugging
+
+#### Framework
+
+```bash
+gina start --inspect-gina
+```
+
+#### Bundle
+
+```bash
+gina bundle:restart <bundle_name> @<project_name> --inspect=<port_number>
+```
 
 ---
 
@@ -62,7 +139,7 @@ Always branch from `develop` and open your PR against `develop`.
 
 Use imperative or gerund sentences, matching the existing log:
 
-```
+```text
 Fixed GlobalContext::whisper() memory leak
 Added _debugLog to server.isaac.js
 Allowing bundle:build to build for dev env
