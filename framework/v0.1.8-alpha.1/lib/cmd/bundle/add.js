@@ -554,9 +554,18 @@ function Add(opt, cmd) {
 
             if ( isJS || isJSON /*&& /config\/app\.json/.test(file)*/ ) {
                 var contentFile = fs.readFileSync(file, 'utf8').toString();
+                var _lang = (process.env.LANG || process.env.LC_ALL || '').split('.')[0].replace('-', '_');
+                var _intlLocale = (typeof Intl !== 'undefined')
+                    ? Intl.DateTimeFormat().resolvedOptions().locale.replace('-', '_')
+                    : '';
+                var _intlTz = (typeof Intl !== 'undefined')
+                    ? Intl.DateTimeFormat().resolvedOptions().timeZone
+                    : '';
                 var dic = {
-                    "Bundle" : local.bundle.substring(0, 1).toUpperCase() + local.bundle.substring(1),
-                    "bundle" : local.bundle
+                    "Bundle"   : local.bundle.substring(0, 1).toUpperCase() + local.bundle.substring(1),
+                    "bundle"   : local.bundle,
+                    "culture"  : _lang || _intlLocale || 'en_CM',
+                    "timeZone" : _intlTz || 'Africa/Douala'
                 };
 
                 contentFile = whisper(dic, contentFile);
