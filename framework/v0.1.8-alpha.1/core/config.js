@@ -902,7 +902,12 @@ function Config(opt, contextResetNeeded) {
                     if (_countryData && _countryData.currency && _countryData.currency.alphacode) {
                         defaultSettings.locale.currency.code = _countryData.currency.alphacode.toLowerCase();
                     }
-                    // dateFormat.short and 24HourTimeFormat: from Intl
+                    // measurementUnits + temperature: exception lists (only 3 countries use imperial)
+                    var _imperialCountries   = ['US', 'LR', 'MM'];
+                    var _fahrenheitCountries = ['US', 'BS', 'KY', 'PW'];
+                    defaultSettings.locale.measurementUnits = _imperialCountries.indexOf(_defCountry) > -1 ? 'imperial' : 'metric';
+                    defaultSettings.locale.temperature      = _fahrenheitCountries.indexOf(_defCountry) > -1 ? 'fahrenheit' : 'celsius';
+                    // dateFormat.short, 24HourTimeFormat, firstDayOfWeek: from Intl
                     if (typeof Intl !== 'undefined' && typeof Intl.DateTimeFormat.prototype.formatToParts === 'function') {
                         var _refDate = new Date(2013, 3, 5);
                         var _dateParts = Intl.DateTimeFormat(_defCulture.replace('_', '-'), {
@@ -917,6 +922,13 @@ function Config(opt, contextResetNeeded) {
                         defaultSettings.locale['24HourTimeFormat'] = !Intl.DateTimeFormat(
                             _defCulture.replace('_', '-'), { hour: 'numeric' }
                         ).resolvedOptions().hour12;
+                        // firstDayOfWeek: from Intl.Locale.getWeekInfo() — 1=Mon … 7=Sun
+                        try {
+                            var _weekInfo = new Intl.Locale(_defCulture.replace('_', '-')).getWeekInfo();
+                            if (_weekInfo && typeof _weekInfo.firstDay !== 'undefined') {
+                                defaultSettings.locale.firstDayOfWeek = _weekInfo.firstDay;
+                            }
+                        } catch(e) {}
                     }
                 }
                 newContent[app][env] = merge(newContent[app][env], defaultSettings);
