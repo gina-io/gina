@@ -110,13 +110,13 @@ gina framework:set --env=prod
 
 ## Debugging
 
-#### Framework
+### Framework
 
 ```bash
 gina start --inspect-gina
 ```
 
-#### Bundle
+### Bundle
 
 ```bash
 gina bundle:restart <bundle_name> @<project_name> --inspect=<port_number>
