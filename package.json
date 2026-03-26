@@ -1,7 +1,7 @@
 {
   "name": "gina",
   "version": "0.1.8-alpha.2",
-  "description": "MVC Framework for Node.",
+  "description": "Node.js MVC framework with built-in HTTP/2, multi-bundle architecture, and scope-based data isolation — no Express dependency",
   "keywords": [
     "framework",
     "micro framework",

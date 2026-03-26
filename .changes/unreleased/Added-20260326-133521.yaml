@@ -1,0 +1,3 @@
+kind: Added
+body: Added .github/dependabot.yml — weekly npm dependency updates for root package.json; vendored framework deps excluded
+time: 2026-03-26T13:35:21.954841+01:00
