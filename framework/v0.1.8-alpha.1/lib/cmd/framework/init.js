@@ -254,6 +254,31 @@ function Initialize(opt) {
         var mainConfig  = require(target);
         mainConfig      = whisper(dic, mainConfig);
 
+        // MIGRATION — first run on a new short version (e.g. 0.1 → 0.2, 0.5 → 1.0).
+        // If the new release key is absent, copy all namespaced keys from the most recent
+        // previous short version. Downgrade is free: old keys are never removed from main.json,
+        // so switching back just re-reads the already-present keys.
+        if (typeof(mainConfig['frameworks'][self.release]) === 'undefined') {
+            var _prevShort = null;
+            for (var _fk in mainConfig['frameworks']) {
+                if (_fk === '_comment') continue;
+                if (!_prevShort || parseFloat(_fk) > parseFloat(_prevShort)) _prevShort = _fk;
+            }
+            if (_prevShort) {
+                console.info('Migrating main.json: ' + _prevShort + ' → ' + self.release);
+                for (var _mk in mainConfig) {
+                    if (_mk === '_comment' || _mk === 'def_framework') continue;
+                    var _mv = mainConfig[_mk];
+                    if (_mv !== null && typeof _mv === 'object' && !Array.isArray(_mv) && typeof(_mv[_prevShort]) !== 'undefined') {
+                        mainConfig[_mk][self.release] = JSON.clone(_mv[_prevShort]);
+                    }
+                }
+                // Seed the frameworks array for the new release from the template (current version only)
+                mainConfig['frameworks'][self.release] = JSON.clone(data['frameworks'][self.release] || []);
+            }
+        }
+        // END MIGRATION
+
         // check if new definitions after update
         for (let k in data) {
             if ( typeof(mainConfig[k]) == 'undefined' ) {
@@ -528,6 +553,35 @@ function Initialize(opt) {
         if ( targetObj.existsSync() ) {
             localUserSettings = requireJSON(target);
         } else {
+            // MIGRATION: seed networking values from the previous release's settings.json
+            // so port, hostname, etc. survive a short-version bump. All assignments are
+            // env-var-gated so CLI flags or a prior checkIfSettings run take precedence.
+            var _prevShortForSettings = null;
+            for (var _sfk in main['frameworks']) {
+                if (_sfk === '_comment' || _sfk === self.release) continue;
+                if (!_prevShortForSettings || parseFloat(_sfk) > parseFloat(_prevShortForSettings)) {
+                    _prevShortForSettings = _sfk;
+                }
+            }
+            if (_prevShortForSettings) {
+                var _prevSettingsPath = _(self.opt.homedir + '/' + _prevShortForSettings + '/settings.json', true);
+                if (fs.existsSync(_prevSettingsPath)) {
+                    var _prevSettings = requireJSON(_prevSettingsPath);
+                    var _settingsMigrationMap = {
+                        'port'       : 'GINA_PORT',
+                        'debug_port' : 'GINA_DEBUG_PORT',
+                        'mq_port'    : 'GINA_MQ_PORT',
+                        'host_v4'    : 'GINA_HOST_V4',
+                        'hostname'   : 'GINA_HOSTNAME'
+                    };
+                    for (var _smk in _settingsMigrationMap) {
+                        if (!getEnvVar(_settingsMigrationMap[_smk]) && typeof(_prevSettings[_smk]) !== 'undefined') {
+                            setEnvVar(_settingsMigrationMap[_smk], _prevSettings[_smk]);
+                        }
+                    }
+                }
+            }
+            // END MIGRATION
             localUserSettings = JSON.clone(settings);
         }
 
