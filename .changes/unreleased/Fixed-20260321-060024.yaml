@@ -1,3 +1,0 @@
-kind: Fixed
-body: getConfig() no-arg now exposes conf.settings — settings.json content is accessible as conf.settings on the bundle conf object, consistent with conf.security
-time: 2026-03-21T06:00:24.764337+01:00

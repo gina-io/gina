@@ -1,3 +1,0 @@
-kind: Changed
-body: 'conf/settings.json locale defaults now resolved from built-in locale database: currency.code (ISO 4217) and preferedLanguages pulled from core/locales/dist/region/ by country code'
-time: 2026-03-26T04:36:57.803796+01:00

@@ -1,3 +1,0 @@
-kind: Added
-body: 'critical: false option on this.query(): fire-and-forget HTTP/2 calls can now pass { critical: false } to swallow errors silently (log-only) instead of propagating to throwError and terminating the user-facing response (#H3)'
-time: 2026-03-25T14:28:52.313189+01:00

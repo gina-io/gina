@@ -1,3 +1,0 @@
-kind: Added
-body: Config variable interpolation now accepts \${variable} syntax in addition to {variable}. Both forms work in all config files (routing.json, app.json, settings.json, etc.). The {variable} syntax continues to work unchanged — migration to \${variable} is optional and will be documented in a future release.
-time: 2026-03-20T20:44:02.99261+01:00

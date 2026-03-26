@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'entity.js: guard _resolver before .then() callbacks — prevents uncaught TypeError when a Promise-returning method has no registered trigger in _triggers, which corrupted the event loop'
-time: 2026-03-25T15:06:21.003761+01:00

@@ -1,3 +1,0 @@
-kind: Added
-body: 'Auto-migrate main.json and settings.json on first startup of a new short version (e.g. 0.1 → 0.2, 0.5 → 1.0): copies all namespaced keys from the previous release, seeds port/hostname from the previous settings.json. Downgrade is free — old keys are never removed.'
-time: 2026-03-26T12:05:40.999322+01:00

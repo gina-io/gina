@@ -1,3 +1,0 @@
-kind: Added
-body: 'Couchbase connector: _scope property on entities (mirrors _collection), $scope placeholder substitution in N1QL queries, _scope stored in bulkInsert records. scope read from connectors.json config, falls back to NODE_SCOPE env var'
-time: 2026-03-25T15:06:20.997236+01:00

@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'Fixed W2 migration regression: {variable} → ${variable} in bin/cli, bin/gina-container, core/config.js, entityFactory.js, framework/init.js, bundle/add.js, and resources/locals.json (#B4)'
-time: 2026-03-21T03:53:59.534954+01:00

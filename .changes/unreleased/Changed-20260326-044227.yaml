@@ -1,3 +1,0 @@
-kind: Changed
-body: 'conf/settings.json locale defaults fully auto-detected: measurementUnits (imperial for US/LR/MM), temperature (fahrenheit for US/BS/KY/PW), firstDayOfWeek from Intl.Locale.getWeekInfo()'
-time: 2026-03-26T04:42:27.990084+01:00

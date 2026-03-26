@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'Fixed remaining W2 regression: {gina}/{version} in templates test, {Model} in entityFactory boilerplate, {projectPath} in merge test; updated stale framework version import in merge.test.js (#B4)'
-time: 2026-03-21T04:10:50.707768+01:00

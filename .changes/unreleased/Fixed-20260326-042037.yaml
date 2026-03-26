@@ -1,3 +1,0 @@
-kind: Fixed
-body: Fixed iso_short derivation in framework init — was using country code (cm) instead of language code (en) from culture en_CM
-time: 2026-03-26T04:20:37.904288+01:00
