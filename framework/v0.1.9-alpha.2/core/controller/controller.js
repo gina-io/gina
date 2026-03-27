@@ -55,9 +55,10 @@ var _isProdScope    = process.env.NODE_SCOPE_IS_PRODUCTION && process.env.NODE_S
  * @this {SuperController}
  * @extends EventEmitter
  *
- * Base controller class. Instantiated once per bundle (singleton via static
- * `SuperController.instance`), then reused across requests with `setOptions()`
- * injecting per-request state into the shared `local` closure.
+ * Base controller class. Instantiated fresh on every request via `inherits`
+ * (`b.apply(this, arguments)` in `lib/inherits/src/main.js:78`), giving each
+ * request its own isolated `local` closure. No singleton static properties are
+ * maintained. (#M1)
  *
  * @param {object} options - Per-request options injected by the router
  *
@@ -87,42 +88,18 @@ function SuperController(options) {
     };
 
     /**
-     * SuperController constructor — runs once; subsequent calls delegate to {@link getInstance}.
+     * Per-request init — wires `self._options` from the constructor argument.
+     * Called on every `new SuperController()` (each request creates a fresh
+     * instance via `inherits`: `b.apply(this, arguments)` runs the parent
+     * constructor on a brand-new `this` with a brand-new `local` closure).
+     * No singleton static properties are used or set. (#M1)
      *
      * @inner
-     * @constructor
-     * @returns {SuperController}
      */
     var init = function() {
-
-        if ( typeof(SuperController.initialized) != 'undefined' ) {
-            return getInstance();
-        }
-
-        SuperController.instance = self;
         if (local.options) {
-            SuperController.instance._options = local.options;
+            self._options = local.options;
         }
-
-        SuperController.initialized = true;
-    }
-
-    /**
-     * Returns the singleton instance, updating the per-request `local.options`.
-     *
-     * @inner
-     * @returns {SuperController}
-     */
-    var getInstance = function() {
-        // Removed SuperController.instance._options = options (was: local.options = SuperController.instance._options = options).
-        // SuperController.instance._options is never read — all reads go through local.options (per-request closure)
-        // or self._options (per-request property). Writing to it silently corrupts the first controller's _options
-        // on every subsequent request, creating a potential trap for any future code that reads it.
-        local.options = options;
-        // Fixed on 2022-03-07 for none-developpement environnements (without cache)
-        self._options = local.options;
-
-        return SuperController.instance;
     }
 
 
@@ -280,8 +257,7 @@ function SuperController(options) {
      * @returns {void}
      */
     this.setOptions = function(req, res, next, options) {
-        // Removed SuperController.instance._options = options (was: local.options = SuperController.instance._options = options).
-        // Same reason as getInstance(): write-only corruption of the first controller's _options.
+        // #M1 — each request has its own `local` closure; overwrite directly.
         local.options = options;
         local.options.renderingStack = (local.options.renderingStack) ? local.options.renderingStack : [];
         local.options.isRenderingCustomError = (local.options.isRenderingCustomError) ? local.options.isRenderingCustomError : false;
@@ -342,7 +318,7 @@ function SuperController(options) {
                 }
             }
 
-            freeMemory([strParts, p], false);
+            // removed: freeMemory([strParts, p], false) — no-op: array-slot nulling on a throw-away array. (#M1)
         }
 
         local.req = req;
@@ -715,7 +691,7 @@ function SuperController(options) {
 
         }
 
-        freeMemory([action, rule, ext, isWithoutLayout, namespace, ctx, version, routing, reverseRouting, forms, parameters, acceptLanguage, userCulture, userCultureCode, userLangCode, userCountryCode, locales, userLocales], false);
+        // removed: freeMemory([action, rule, ...], false) — no-op: array-slot nulling, isGlobalModeNeeded=false skips local.* reset. (#M1)
     }
 
     // replaced: for...in — use Object.keys() (#P22)
@@ -769,11 +745,11 @@ function SuperController(options) {
             newObj = parseDataObject(JSON.parse(str), value, override);
             local.userData = merge(local.userData, newObj);
 
-            freeMemory([name, value, keys, newObj, str, _count], false);
+            // removed: freeMemory([name, value, keys, ...], false) — no-op. (#M1)
 
         } else if ( typeof(local.userData[name]) == 'undefined' ) {
             local.userData[name] = value.replace(/\\/g, '');
-            freeMemory([name, value], false)
+            // removed: freeMemory([name, value], false) — no-op. (#M1)
         }
     }
 
@@ -4745,6 +4721,10 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
                 //if ( isHtmlContent && !hasCustomErrorFile ) {
                     res.end(msgString);
                 //}
+                // Release per-request refs — HTML error path (no custom error file). (#M1)
+                local.req  = null;
+                local.res  = null;
+                local.next = null;
 
                 return;
             }
@@ -4846,7 +4826,8 @@ SuperController = inherits(SuperController, EventEmitter);
  * @param {object}   [deps.options]  - Controller options (conf, rule, control, …).
  *   Must have at least `conf.content.routing[deps.options.rule]` to avoid a crash
  *   inside `setOptions()`. Omit `template` to skip the full page/environment setup.
- * @returns {SuperController} Fresh controller instance; never the production singleton.
+ * @returns {SuperController} Fresh isolated instance with its own `local` closure;
+ *   no production state is read or written. Each call is fully independent. (#M1)
  */
 SuperController.createTestInstance = function(deps) {
     deps = deps || {};
@@ -4875,8 +4856,9 @@ SuperController.createTestInstance = function(deps) {
         _opts.rule = _rule;
     }
 
-    // Each new SuperController() builds its own isolated local closure — no
-    // singleton manipulation is required.  Production singleton is untouched.
+    // Each new SuperController() builds its own isolated local closure via
+    // `inherits` (b.apply + cache.apply on a fresh `this`). No static properties
+    // are written or read. (#M1)
     var inst = new SuperController(_opts);
     inst._isTestInstance = true;
 
