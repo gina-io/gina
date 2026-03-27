@@ -15,6 +15,7 @@ This roadmap covers planned features, architectural improvements, new connectors
 | **Q3 2026** | `0.3.0` | Async/await · Dev hot-reload · MySQL & PostgreSQL connectors · AI Phase 2 · Tutorials · Mobile backend guide |
 | **Q4 2026** | `0.4.0` | TypeScript declarations · AI agents (OpenAPI, MCP) · ScyllaDB connector · PWA scaffold · Advanced tutorial · Website redesign |
 | **Q1 2027** | `0.5.0` | ESM support · Template engine migration · Structured logging |
+| **Q3 2027** | `1.0.0` | First stable release — Windows alpha compatibility is a hard gate |
 
 ---
 
@@ -119,6 +120,16 @@ New database connectors follow the same interface as the existing Couchbase conn
 | --- | --- | --- | --- |
 | 📋 | **OpenAPI spec generation** — `gina bundle:openapi @myproject` emits `openapi.json` from `routing.json`. Zero manual spec writing — route annotations become `description` fields. Makes any Gina app consumable by AI agents, API gateways, and testing tools. | `0.4.0` | Q4 2026 |
 | 📋 | **MCP server wrapper** — `gina bundle:mcp @myproject` exposes `routing.json` routes as MCP (Model Context Protocol) tools. Makes any Gina app a native MCP server discoverable by AI agents. | `0.4.0` | Q4 2026 |
+
+---
+
+## Windows
+
+Windows compatibility is a hard requirement for `1.0.0`. The alpha scope covers all core features: install, scaffold, bundle start/stop, routing, rendering, and basic CLI. Full production-grade parity is post-1.0.0.
+
+| Status | Feature | Version | Target |
+| --- | --- | --- | --- |
+| 📋 | **Windows alpha compatibility** — Install scripts, path handling, symlinks, and bundle lifecycle (start/stop/restart) work correctly on Windows. `bin/gina.bat` kept in sync with `bin/gina`. CI Windows runner required before this can be marked done. Out of scope for alpha: full build system (bash-based), Windows service integration, production-grade process management. | `1.0.0` | Q3 2027 |
 
 ---
 
