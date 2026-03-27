@@ -1,0 +1,33 @@
+name: Tests
+
+on:
+  push:
+    branches: [develop, master]
+  pull_request:
+    branches: [develop, master]
+
+jobs:
+  test:
+    name: Node.js ${{ matrix.node-version }}
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [18, 20, 22]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Run tests
+        run: |
+          node --test \
+            'test/core/*.test.js' \
+            'test/lib/*.test.js' \
+            'test/bin/*.test.js' \
+            'test/integration/helper.test.js'
