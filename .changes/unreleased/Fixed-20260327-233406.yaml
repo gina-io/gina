@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'Fixed session-store.v3 set() silently discarding writes (CB-BUG-3): converted to async/await so upsert is awaited before calling fn() — writes appeared to succeed but were never confirmed'
+time: 2026-03-27T23:34:06.823605+01:00

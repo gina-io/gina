@@ -117,8 +117,8 @@ function Connector(dbString) {
                     console.debug('[ CONNECTOR ][ ' + local.bundle +' ][ '+ env +' ] connected to couchbase !!');
 
 
-                    modelUtil.setConnection(bundle, name, self.instance);
-
+                    // CB-PERF-3 fix: first setConnection call was redundant (identical args, outside the existsSync guard)
+                    // modelUtil.setConnection(bundle, name, self.instance);
                     if ( fs.existsSync(modelsPath) ) {
                         modelUtil.setConnection(bundle, name, self.instance);
                         modelUtil.reloadModels(
@@ -136,7 +136,12 @@ function Connector(dbString) {
                 }
             });
             // intercepting conn event thru gina
-            gina.onError(function(err, req, res, next){
+            // CB-BUG-1 fix: guard against handler accumulation on reconnect
+            // — onConnect() fires on every reconnection; without this guard each reconnect stacks a new gina.onError handler,
+            //   and N handlers all race to call res.end() on the same error, causing "Cannot set headers after sent"
+            if (!self._errorHandlerRegistered) {
+                self._errorHandlerRegistered = true;
+                gina.onError(function(err, req, res, next){
                 // (code)   message
                 // (16)     Generic network failure. Enable detailed error codes (via LCB_CNTL_DETAILED_ERRCODES, or via `detailed_errcodes` in the connection string) and/or enable logging to get more information
                 // (23)     Client-Side timeout exceeded for operation. Inspect network conditions or increase the timeout
@@ -181,10 +186,10 @@ function Connector(dbString) {
                         console.error('[ CONNECTOR ][ ' + local.bundle +' ][ ' + dbString.database +' ] gina fatal error ('+ err.code +'): ' + (err.message||err) + '\nstack: '+ err.stack);
 
                         if ( typeof(err) == 'object' ) {
+                            // CB-QUAL-1 fix: stack trace removed — logged server-side only, never sent to client
                             res.end(JSON.stringify({
                                 status: 500,
-                                error: err.message,
-                                stack: err.stack
+                                error: err.message
                             }))
                         } else {
                             res.end(err)
@@ -201,7 +206,8 @@ function Connector(dbString) {
                         }
                     }
                 }
-            });
+                });
+            }
 
 
             self.emit('ready', false, self.instance);
@@ -423,8 +429,10 @@ function Connector(dbString) {
             }, interval);
             ncb(cb);
         } else {
-            console.debug('[ CONNECTOR ][ ' + local.bundle +' ] sent ping to couchbase ...');
-            self.ping(interval, cb, ncb);
+            // CB-BUG-4 fix: keepAlive is false — ping is a no-op; do not recurse
+            // old: console.debug('[ CONNECTOR ][ ' + local.bundle +' ] sent ping to couchbase ...');
+            // old: self.ping(interval, cb, ncb);  ← unconditional recursion → stack overflow
+            return;
         }
     };
 

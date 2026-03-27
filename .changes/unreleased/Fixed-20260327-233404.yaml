@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'Fixed gina.onError() handler accumulation on Couchbase reconnect (CB-BUG-1): guarded registration with _errorHandlerRegistered flag so only one handler is registered per connector instance across reconnections (v2/v3/v4)'
+time: 2026-03-27T23:34:04.782579+01:00
