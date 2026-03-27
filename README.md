@@ -640,7 +640,7 @@ For the full documentation, visit [https://gina.io/docs/](https://gina.io/docs/)
 
 ## Governance
 
-Gina is led by Martin Luther (Rhinostone). Final decisions on direction, API design, and releases rest with the maintainer. Community contributions and RFCs are welcome and taken seriously. See [GOVERNANCE.md](./GOVERNANCE.md) for details.
+Gina is co-authored by **Martin Luther** ([Rhinostone](https://rhinostone.com)) and **Fabrice Delaneau** ([fdelaneau.com](https://fdelaneau.com)). Final decisions on direction, API design, and releases rest with Martin Luther. Community contributions and RFCs are welcome and taken seriously. See [GOVERNANCE.md](./GOVERNANCE.md) for details.
 
 ## License (MIT)
 
