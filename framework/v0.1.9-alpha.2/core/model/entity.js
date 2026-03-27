@@ -235,7 +235,12 @@ function EntitySuper(conn, caller, injected) {
                                         entity._callbacks[events[i].shortName] = cb;
                                     } else { // in case the event is not ready yet
                                         console.log('\nFIRING #2 - promise' + events[i].shortName);
-                                        cb.apply(entity[m], entity._arguments[events[i].shortName])
+                                        // #M2 — consume and delete the buffer so the next caller
+                                        // gets a fresh listener instead of this stale result.
+                                        // Mirrors the delete in the Promise path (Option B, below).
+                                        var _firing2Args = entity._arguments[events[i].shortName];
+                                        delete entity._arguments[events[i].shortName];
+                                        cb.apply(entity[m], _firing2Args);
                                     }
                                 }
                             }
