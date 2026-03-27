@@ -1,0 +1,50 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://gina.io/schema/app.crons.json",
+  "title": "Gina app.crons.json",
+  "description": "Scheduled task (cron) definitions for a Gina bundle. Each key is a cron name; the value defines the schedule, controller action, and task-specific options.",
+  "type": "object",
+  "additionalProperties": {
+    "oneOf": [
+      { "$ref": "#/definitions/cronEntry" },
+      { "type": "string", "description": "Internal comment key (e.g. \"_comment\")." }
+    ]
+  },
+  "properties": {
+    "_comment": {
+      "type": "string",
+      "description": "Top-level documentation comment. Ignored at runtime."
+    }
+  },
+  "definitions": {
+    "cronEntry": {
+      "type": "object",
+      "required": ["active", "interval", "task"],
+      "additionalProperties": true,
+      "properties": {
+        "active": {
+          "type": "boolean",
+          "description": "Whether this cron job is enabled. Set to false to disable without removing the entry."
+        },
+        "interval": {
+          "type": "string",
+          "description": "Schedule: either a shorthand duration (\"5s\", \"2m\", \"24h\") or a standard 5-field cron expression (\"55 4 * * *\").",
+          "examples": ["5s", "30s", "2m", "24h", "0 * * * *", "55 4 * * *", "0 0 * * 0"]
+        },
+        "task": {
+          "type": "string",
+          "description": "Controller action name to invoke on each tick."
+        },
+        "processingCores": {
+          "type": "number",
+          "minimum": 1,
+          "description": "Number of CPU cores to dedicate to this task. Useful for CPU-bound jobs (PDF generation, archiving). Defaults to 1."
+        },
+        "_comment": {
+          "type": "string",
+          "description": "Internal documentation comment. Ignored at runtime."
+        }
+      }
+    }
+  }
+}
