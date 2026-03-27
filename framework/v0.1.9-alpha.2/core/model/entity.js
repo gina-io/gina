@@ -180,7 +180,7 @@ function EntitySuper(conn, caller, injected) {
 
                         // #entity-dev-nocache: in dev mode, clear any buffered result for
                         // this trigger so each call gets a fresh listener.  Prevents stale
-                        // null results from a concurrent-call race (FIRING #5) from
+                        // null results from a concurrent-call race (DISPATCH:PREEMPTIVE_BUFFER) from
                         // poisoning subsequent requests for the entity lifetime.
                         // Mirrors the controller cacheless-require pattern for dev mode.
                         if (isCacheless && entity._arguments && typeof(entity._arguments[e]) !== 'undefined') {
@@ -225,7 +225,7 @@ function EntitySuper(conn, caller, injected) {
                                             if (entity._callbacks[events[i].shortName]) {
 
                                                 entity.removeAllListeners([events[i].shortName]);
-                                                console.log('\nFIRING #1 - promise ' + events[i].shortName +'('+ events[i].index  +')');
+                                                console.log('\nDISPATCH:ONCE_LISTENER ' + events[i].shortName +'('+ events[i].index  +')');
                                                 cb.apply(this, arguments);
                                             }
                                         });
@@ -234,7 +234,7 @@ function EntitySuper(conn, caller, injected) {
                                         // backing up callback
                                         entity._callbacks[events[i].shortName] = cb;
                                     } else { // in case the event is not ready yet
-                                        console.log('\nFIRING #2 - promise' + events[i].shortName);
+                                        console.log('\nDISPATCH:BUFFER_CALLBACK ' + events[i].shortName);
                                         // #M2 — consume and delete the buffer so the next caller
                                         // gets a fresh listener instead of this stale result.
                                         // Mirrors the delete in the Promise path (Option B, below).
@@ -295,7 +295,7 @@ function EntitySuper(conn, caller, injected) {
                                     entity.removeAllListeners([events[i].shortName]);
                                 }
 
-                                // Shared resolver — whichever fires first (FIRING #4 or the
+                                // Shared resolver — whichever fires first (DISPATCH:CALLBACK_FLUSH or the
                                 // once-listener) resolves/rejects the Promise. The second call
                                 // is a no-op (guard: _callbacks[shortName] is null after first).
                                 //
@@ -303,13 +303,13 @@ function EntitySuper(conn, caller, injected) {
                                 //   The entity's custom emit (entity.js:~494) has three conditions
                                 //   that call setListener(). Condition 3 fires when
                                 //   `typeof(_callbacks[type]) != 'undefined'` — which includes
-                                //   boolean `true`. setListener's FIRING #4 then calls
+                                //   boolean `true`. setListener's DISPATCH:CALLBACK_FLUSH then calls
                                 //   `_callbacks[trigger].apply(this, args)` — `true.apply` throws.
-                                //   Storing a function makes FIRING #4 the primary resolution
+                                //   Storing a function makes DISPATCH:CALLBACK_FLUSH the primary resolution
                                 //   path (same as old code where _callbacks stored the cb).
                                 var _resolver = function(err, data) {
                                     // Guard: delete after first call to prevent double-resolution.
-                                    // Using delete (not null) so that FIRING #4's
+                                    // Using delete (not null) so that DISPATCH:CALLBACK_FLUSH's
                                     // typeof(_callbacks[trigger]) != 'undefined' check correctly
                                     // sees 'undefined' and skips the null.apply() call.
                                     if (!entity._callbacks[events[i].shortName]) return;
@@ -319,14 +319,14 @@ function EntitySuper(conn, caller, injected) {
                                     else     _resolve(data);
                                 };
 
-                                // once-listener as fallback in case FIRING #4 doesn't run
+                                // once-listener as fallback in case DISPATCH:CALLBACK_FLUSH doesn't run
                                 // (e.g. custom emit conditions not met). cannot be `entity.on`
                                 // for prod/stage — must stay `once`.
                                 entity.once(events[i].shortName, function () {
                                     _resolver.apply(null, arguments);
                                 });
 
-                                // Store resolver: satisfies condition 3, enables FIRING #4
+                                // Store resolver: satisfies condition 3, enables DISPATCH:CALLBACK_FLUSH
                                 entity._callbacks[events[i].shortName] = _resolver;
 
                             } else {
@@ -358,7 +358,7 @@ function EntitySuper(conn, caller, injected) {
                         //
                         // _resolver already guards against double-resolution: its first call
                         // deletes _callbacks[shortName], so any subsequent call (from
-                        // FIRING #4 or the once-listener) hits the !_callbacks guard and exits.
+                        // DISPATCH:CALLBACK_FLUSH or the once-listener) hits the !_callbacks guard and exits.
                         //
                         // Additional guard: _resolver is only defined when shortName is in
                         // entity._triggers (lines 268+). If the method returns a Promise
@@ -468,7 +468,7 @@ function EntitySuper(conn, caller, injected) {
                     self
                         //.off(events[i].shortName, function(){ delete self._callbacks[trigger]; })
                         .on(events[i].shortName, function () {
-                            console.log('\nFIRING #3 ' + trigger);
+                            console.log('\nDISPATCH:ALIAS_TRIGGER ' + trigger);
                             this._callbacks[trigger.replace(/[0-9]/g, '')].apply(this[method], arguments);
                             delete self._callbacks[trigger];
                         })
@@ -476,7 +476,7 @@ function EntitySuper(conn, caller, injected) {
 
             } else {
                 if ( typeof(self._callbacks[trigger]) != 'undefined' ) {
-                    console.log('\nFIRING #4 ' + trigger);
+                    console.log('\nDISPATCH:CALLBACK_FLUSH ' + trigger);
                     self._callbacks[trigger].apply(this, args);
                     delete self._callbacks[trigger];
                 } else {
@@ -497,7 +497,7 @@ function EntitySuper(conn, caller, injected) {
 
                             // retrieving local arguments, & binding it to the event callback
                             if ( typeof(this._arguments[trigger]) == 'undefined' ) {
-                                console.log('\nFIRING #5 ' + trigger);
+                                console.log('\nDISPATCH:PREEMPTIVE_BUFFER ' + trigger);
 
                                 this._arguments[trigger] = arguments;
                             }
