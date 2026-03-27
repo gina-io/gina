@@ -39,6 +39,12 @@ var _debugLog = function(msg) {
 };
 const os            = require('os');
 process.env.UV_THREADPOOL_SIZE = (os.cpus().length);
+// #P1 — V8 bytecode cache. Node.js >= 22.8 caches compiled modules to disk so
+// subsequent starts skip parsing and recompilation (30–60% faster cold start).
+// No-op on older Node versions — safe to set unconditionally.
+if (!process.env.NODE_COMPILE_CACHE) {
+    process.env.NODE_COMPILE_CACHE = os.homedir() + '/.gina/cache/v8';
+}
 
 const { promisify } = require('util');
 var EventEmitter    = require('events').EventEmitter;
