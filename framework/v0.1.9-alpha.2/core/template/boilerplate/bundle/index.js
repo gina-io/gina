@@ -23,19 +23,24 @@ var ${bundle} = require('gina');
 //    // or self.getConfig().app
 //    var conf = self.getConfig();
 //
-//    // --- Session with Redis store ---
-//    // Requires: npm install express-session ioredis
-//    // Configure: config/connectors.json — add a "redis" connector entry (see docs)
-//    //
+//    // --- Session store (pick one backend) ---
 //    // var session      = require('express-session');
 //    // var SessionStore = lib.SessionStore;
-//    // session.name = 'myRedis';                    // key in connectors.json
-//    // var RedisStore = new SessionStore(session);   // returns the RedisStore class
+//    //
+//    // Redis — multi-pod / K8s (requires: npm install ioredis)
+//    // Configure connectors.json: { "myRedis": { "connector": "redis", "host": "...", "port": 6379, "ttl": 86400 } }
+//    // session.name = 'myRedis';
+//    //
+//    // SQLite — dev / staging / single-pod (requires: Node >= 22.5.0, zero npm deps)
+//    // Configure connectors.json: { "myDb": { "connector": "sqlite", "database": ":memory:", "ttl": 86400 } }
+//    // session.name = 'myDb';
+//    //
+//    // var StoreClass = new SessionStore(session);  // returns connector-specific Store class
 //    // app.use(session({
 //    //     secret           : process.env.SESSION_SECRET || 'changeme',
 //    //     resave           : false,
 //    //     saveUninitialized: false,
-//    //     store            : new RedisStore(),
+//    //     store            : new StoreClass(),
 //    //     cookie           : { secure: false, maxAge: 86400000 }
 //    // }));
 //
