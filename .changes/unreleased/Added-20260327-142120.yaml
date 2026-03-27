@@ -1,0 +1,3 @@
+kind: Added
+body: 'NODE_COMPILE_CACHE (#P1): set at startup in gna.js to ~/.gina/cache/v8 — Node.js >= 22.8 caches V8 bytecode to disk, reducing cold-start time by 30–60% on subsequent runs. No-op on older Node versions.'
+time: 2026-03-27T14:21:20.249256+01:00
