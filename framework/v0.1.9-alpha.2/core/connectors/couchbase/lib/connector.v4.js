@@ -234,9 +234,15 @@ function Connector(dbString) {
                 });
             }
 
-            setTimeout(() => {
-                self.emit('ready', false, self.instance);
-            }, 300);
+            // CB-PERF-1 fix: replaced 300ms arbitrary timer with direct synchronous emit.
+            // The timer was added because "something was not working yet on Mac OS X" —
+            // root cause was never identified. It adds 300ms to every bundle startup and
+            // is unreliable: if downstream setup takes >300ms, ready fires before setup
+            // completes. Original broken implementation:
+            // setTimeout(() => {
+            //     self.emit('ready', false, self.instance);
+            // }, 300);
+            self.emit('ready', false, self.instance);
 
         };
 

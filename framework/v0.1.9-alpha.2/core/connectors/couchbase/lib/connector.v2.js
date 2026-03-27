@@ -416,7 +416,11 @@ function Connector(dbString) {
 
                     self.instance.reconnected = false;
                     self.instance.reconnecting = true;
-                    if ( typeof(next) != 'undefined' ) {
+                    // CB-PERF-2 fix: `next` was not in scope inside ping() — typeof(next)
+                    // always evaluated to 'undefined', so reconnect from ping never passed
+                    // the callback and errors were silently dropped. Fixed to use `ncb`
+                    // (the no-connection callback param of ping(interval, cb, ncb)).
+                    if ( typeof(ncb) != 'undefined' ) {
                         self.connect(dbString, ncb);
                     } else {
                         self.connect(dbString);

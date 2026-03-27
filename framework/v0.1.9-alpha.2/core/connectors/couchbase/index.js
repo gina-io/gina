@@ -239,7 +239,18 @@ function Couchbase(conn, infos) {
 
             optionsArr = queryString.match(/\@options \{(.*)\}/gm);
             if (optionsArr) {
-                eval('options='+optionsArr[0].replace(/\@options\ /, ''));
+                // CB-QUAL-2 fix: replaced eval() with JSON.parse() for @options parsing.
+                // The .sql @options directive takes a JSON-compatible object literal —
+                // JSON.parse() is sufficient and avoids arbitrary code execution risk.
+                // A typo in a .sql file with eval() could silently corrupt the `options`
+                // variable in scope. Now the parse error is surfaced explicitly.
+                // Original broken implementation:
+                // eval('options='+optionsArr[0].replace(/\@options\ /, ''));
+                try {
+                    options = JSON.parse(optionsArr[0].replace(/\@options\s+/, ''));
+                } catch (parseErr) {
+                    console.warn('[CONNECTOR] @options parse error in .sql file: ' + parseErr.message);
+                }
             }
             optionsArr = null;
 
@@ -1116,17 +1127,49 @@ function Couchbase(conn, infos) {
             }
 
 
-            return {
-                onComplete : function(cb) {
-                    self.once(trigger, function(err, data, meta){
-                        if (envIsDev) {
-                            console.debug('[ bulkInsert triggerd ] '+ trigger + ' - Rec count: '+ recCount);
-                        }
+            // CB-QUAL-3 fix: bulkInsert previously returned a plain {onComplete} _proto object.
+            // `await entity.bulkInsert(...)` resolved to the object, not the data — silently
+            // wrong for any async controller using bulkInsert. Fixed with the same Option B
+            // Promise + .onComplete() pattern used by all other N1QL entity methods.
+            // Original broken implementation:
+            // return {
+            //     onComplete : function(cb) {
+            //         self.once(trigger, function(err, data, meta){
+            //             if (envIsDev) {
+            //                 console.debug('[ bulkInsert triggerd ] '+ trigger + ' - Rec count: '+ recCount);
+            //             }
+            //             cb(err, data, meta)
+            //         })
+            //     }
+            // }
+            var _resolve, _reject, _internalData, _internalMeta;
+            var _promise = new Promise(function(resolve, reject) {
+                _resolve = resolve;
+                _reject  = reject;
+            });
 
-                        cb(err, data, meta)
-                    })
+            _promise.onComplete = function(cb) {
+                _promise.then(
+                    function()    { cb(null, _internalData, _internalMeta); },
+                    function(err) { cb(err); }
+                );
+                return _promise;
+            };
+
+            self.once(trigger, function(err, data, meta){
+                if (envIsDev) {
+                    console.debug('[ bulkInsert triggered ] '+ trigger + ' - Rec count: '+ recCount);
                 }
-            }
+                if (err) {
+                    _reject(err);
+                } else {
+                    _internalData = data;
+                    _internalMeta = meta;
+                    _resolve(data);
+                }
+            });
+
+            return _promise;
 
         } catch (err) {
             console.error(err.stack);

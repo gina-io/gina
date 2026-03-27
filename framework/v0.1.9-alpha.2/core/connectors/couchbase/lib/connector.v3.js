@@ -218,10 +218,15 @@ function Connector(dbString) {
                 });
             }
 
-            setTimeout(() => {
-                self.emit('ready', false, self.instance);
-            }, 300);
-            // self.emit('ready', false, self.instance);
+            // CB-PERF-1 fix: replaced 300ms arbitrary timer with direct synchronous emit.
+            // The timer was added because "something was not working yet on Mac OS X" —
+            // root cause was never identified. It adds 300ms to every bundle startup and
+            // is unreliable: if downstream setup takes >300ms, ready fires before setup
+            // completes. Original broken implementation:
+            // setTimeout(() => {
+            //     self.emit('ready', false, self.instance);
+            // }, 300);
+            self.emit('ready', false, self.instance);
         }
 
         dbString.bucketName = dbString.database;
@@ -471,8 +476,13 @@ function Connector(dbString) {
 
                     self.instance.reconnected = false;
                     self.instance.reconnecting = true;
-                    if ( typeof(next) != 'undefined' ) {
-                        self.connect(dbString, next)
+                    // CB-PERF-2 fix: `next` was not in scope inside ping() — typeof(next)
+                    // always evaluated to 'undefined', so reconnect from ping never passed
+                    // the callback and errors were silently dropped. Fixed to use `ncb`
+                    // (the no-connection callback param of ping(interval, cb, ncb)).
+                    // v4 already used cb correctly; this aligns v3 with v4.
+                    if ( typeof(ncb) != 'undefined' ) {
+                        self.connect(dbString, ncb)
                     } else {
                         self.connect(dbString)
                     }
