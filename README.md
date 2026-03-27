@@ -1,21 +1,40 @@
 # Gina <img src="https://gina.io/favicon-16x16.png" alt="Gina icon" style="position: absolute; top:10px; margin-right: 10px;" />
 
-[![GitHub version](https://badge.fury.io/gh/Rhinostone%2Fgina.svg)](https://badge.fury.io/gh/Rhinostone%2Fgina) [![npm version](https://badge.fury.io/js/gina.svg)](https://badge.fury.io/js/gina)
+[![npm version](https://badge.fury.io/js/gina.svg)](https://badge.fury.io/js/gina) [![GitHub version](https://badge.fury.io/gh/Rhinostone%2Fgina.svg)](https://badge.fury.io/gh/Rhinostone%2Fgina) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![Node.js >= 18](https://img.shields.io/badge/node-%3E%3D%2018-brightgreen)](https://nodejs.org)
 
-> **Documentation:** [https://gina.io/docs/](https://gina.io/docs/)
+> **Documentation:** [https://gina.io/docs/](https://gina.io/docs/) · **Issues:** [GitHub](https://github.com/Rhinostone/gina/issues)
 
-<strong>Gina I/O</strong> - Node.js MVC and Event Driven framework
+Node.js MVC framework with built-in HTTP/2, multi-bundle architecture, and scope-based data isolation — no Express dependency.
 
-> We are looking for people to help us test and improve `Windows` support.
-> Meanwhile, __Windows users__ can use Docker or an alternative to run Gina and their projects.
+- **HTTP/2 first.** Built-in HTTP/2 server (`isaac`) with TLS, connection warmup, graceful shutdown, and GOAWAY retry — no Express or Connect required.
+- **Multi-bundle.** One project hosts multiple independent bundles (API, web, admin, …). Each bundle has its own routing, controllers, models, and config. Share code via the project layer.
+- **Scope isolation.** Run `local`, `beta`, and `production` from the same codebase. Scopes propagate through routing, config interpolation, and data (every DB record is stamped with `_scope`).
 
-## Philosophy behind
+## Features
 
-Gina was designed to be accessible, flexible, scalable and maintainable. Our main purpose was to allow developers to create easier and faster web applications.
+| Feature | Detail |
+| --- | --- |
+| HTTP/2 server | Built-in `isaac` engine — TLS, h2c, ALPN, HTTP/1.1 fallback |
+| Multi-bundle | One project, N independent bundles with shared config layer |
+| Scope isolation | `local` / `beta` / `production` — per-request and per-record |
+| MVC routing | `routing.json` — no code needed to declare a route |
+| ORM / entities | EventEmitter-based entity system, Couchbase connector included |
+| Template engine | Swig 1.4.2 (built-in, patched) — Nunjucks coming in 0.5.0 |
+| Hot reload | Dev-mode module cache eviction on every request |
+| K8s ready | `gina-container`, `gina-init`, SIGTERM drain, JSON stdout logging |
+| Dependency injection | Mockable connectors and config for unit testing |
 
-Gina comes with essential features at this moment, but most of the things we don't have yet can be replaced by some alternatives written in other languages like: Ruby, PHP, .net, Python or C++. You are free to use such alternatives until we implement similar features.
+## Quick start
 
-Note that Gina does not rely on Connect or ExpressJS, still, you can use all plugins or middlewares designed for those frameworks ;-)
+```bash
+npm install -g gina@latest --prefix=~/.npm-global   # install
+gina new myproject                                   # scaffold project
+gina bundle:add api @myproject                       # add a bundle
+gina bundle:start api @myproject                     # start
+open https://localhost:3100                          # browse
+```
+
+---
 
 ## Getting started with Gina I/O
 
