@@ -2,12 +2,12 @@
  * #M2 — entity._arguments buffer management
  *
  * Verifies that entity._arguments[trigger] is cleared after consumption
- * in both the Promise path (Option B) and the FIRING #2 path (util.promisify
+ * in both the Promise path (Option B) and the DISPATCH:BUFFER_CALLBACK path (util.promisify
  * fast-path), so a buffered result from one call does not leak to the next.
  *
  * NODE_ENV_IS_DEV is set to 'false' before entity.js is loaded so that the
  * dev-mode per-call clear at the top of each method wrapper (which would mask
- * the FIRING #2 path) does not run during these tests.
+ * the DISPATCH:BUFFER_CALLBACK path) does not run during these tests.
  *
  * Bootstrap note — EntitySuper[name] = { initialized: true }
  * ─────────────────────────────────────────────────────────────
@@ -32,7 +32,7 @@
 // Must be set BEFORE requiring entity.js — isCacheless is captured at module
 // load time (entity.js:56).  Without this, isCacheless=true and the dev-mode
 // delete at lines 186–188 fires on every call, preventing the buffer from
-// being consumed via the FIRING #2 path.
+// being consumed via the DISPATCH:BUFFER_CALLBACK path.
 process.env.NODE_ENV_IS_DEV = 'false';
 
 var path    = require('path');
@@ -114,7 +114,7 @@ EntitySuper['M2Promise'] = { initialized: true };
 var instA = new M2PromiseEntity(null, null);
 
 
-// ── Entity B — FIRING #2: buffer consumed and deleted ────────────────────────
+// ── Entity B — DISPATCH:BUFFER_CALLBACK: buffer consumed and deleted ────────────────────────
 // shortName: 'm2Firing2A', trigger: 'm2Firing2A#findOne'
 
 function M2Firing2AEntity() {}
@@ -135,7 +135,7 @@ EntitySuper['M2Firing2A'] = { initialized: true };
 var instB = new M2Firing2AEntity(null, null);
 
 
-// ── Entity C — FIRING #2: subsequent call not poisoned ───────────────────────
+// ── Entity C — DISPATCH:BUFFER_CALLBACK: subsequent call not poisoned ───────────────────────
 // shortName: 'm2Firing2B', trigger: 'm2Firing2B#findOne'
 
 function M2Firing2BEntity() {}
@@ -158,12 +158,12 @@ var instC = new M2Firing2BEntity(null, null);
 
 // ─── tests ───────────────────────────────────────────────────────────────────
 
-describe('entity._arguments buffer — FIRING #2 (#M2)', function() {
+describe('entity._arguments buffer — DISPATCH:BUFFER_CALLBACK (#M2)', function() {
 
     it('Promise path: _arguments[trigger] deleted after consuming buffered result', function(_, done) {
         var trigger = 'm2Promise#findOne';
 
-        // Simulate FIRING #5: pre-populate the buffer as if a concurrent call's
+        // Simulate DISPATCH:PREEMPTIVE_BUFFER: pre-populate the buffer as if a concurrent call's
         // emit fired before any once-listener was registered.
         instA._arguments          = instA._arguments || {};
         instA._arguments[trigger] = [null, {id: 'promise-path-result'}];
@@ -184,25 +184,25 @@ describe('entity._arguments buffer — FIRING #2 (#M2)', function() {
     });
 
 
-    it('FIRING #2: _arguments[trigger] deleted after consuming buffered result', function(_, done) {
+    it('DISPATCH:BUFFER_CALLBACK: _arguments[trigger] deleted after consuming buffered result', function(_, done) {
         var trigger = 'm2Firing2A#findOne';
 
         instB._arguments          = instB._arguments || {};
         instB._arguments[trigger] = [null, {id: 'firing2-result'}];
 
         // Call the wrapper detached from entity context (this = global/undefined
-        // in non-strict mode → this[m] is undefined → FIRING #2 path).
+        // in non-strict mode → this[m] is undefined → DISPATCH:BUFFER_CALLBACK path).
         var wrapper  = instB.findOne;
         var received = null;
         wrapper('x', function(err, data) {
             received = {err: err, data: data};
         });
 
-        // FIRING #2 must have consumed and deleted the buffer synchronously.
+        // DISPATCH:BUFFER_CALLBACK must have consumed and deleted the buffer synchronously.
         assert.equal(
             typeof instB._arguments[trigger],
             'undefined',
-            'FIRING #2 must delete _arguments[trigger] after consuming it'
+            'DISPATCH:BUFFER_CALLBACK must delete _arguments[trigger] after consuming it'
         );
         assert.deepEqual(received, {err: null, data: {id: 'firing2-result'}});
 
@@ -210,15 +210,15 @@ describe('entity._arguments buffer — FIRING #2 (#M2)', function() {
     });
 
 
-    it('FIRING #2: subsequent call is not poisoned after buffer is cleared', function(_, done) {
+    it('DISPATCH:BUFFER_CALLBACK: subsequent call is not poisoned after buffer is cleared', function(_, done) {
         var trigger = 'm2Firing2B#findOne';
         var wrapper = instC.findOne;
 
-        // Simulate FIRING #5 buffering a result for a first concurrent call
+        // Simulate DISPATCH:PREEMPTIVE_BUFFER buffering a result for a first concurrent call
         instC._arguments          = instC._arguments || {};
         instC._arguments[trigger] = [null, {id: 'first'}];
 
-        // First call — consumes buffer via FIRING #2
+        // First call — consumes buffer via DISPATCH:BUFFER_CALLBACK
         wrapper('a', function() {});
 
         // Buffer must be gone so the next call gets a fresh listener
