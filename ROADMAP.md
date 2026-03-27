@@ -125,9 +125,9 @@ New database connectors follow the same interface as the existing Couchbase conn
 
 | Status | Tutorial | Duration | Version | Target |
 | --- | --- | --- | --- | --- |
-| 📋 | **Beginner** — Your first Gina app: install, scaffold, one route, one controller, browser response. | 5 min | `0.3.0` | Q3 2026 |
-| 📋 | **Intermediate** — Multi-bundle setup, routing with URL params, entity + connector wiring, template rendering, form handling. | ~30 min | `0.3.0` | Q3 2026 |
-| 📋 | **Advanced** — Full production project: authentication, scoped data isolation, async/await, HTTP/2, structured logging, Docker/K8s deployment. | ~60 min | `0.4.0` | Q4 2026 |
+| 📋 | **Beginner** — Your first Gina app: install, scaffold, one route, one controller, browser response. Starts from `gina new` — no prior project needed. | 5 min | `0.3.0` | Q3 2026 |
+| 📋 | **Intermediate** — Multi-bundle setup, routing with URL params, entity + connector wiring, template rendering, form handling. Starts from scratch. | ~30 min | `0.3.0` | Q3 2026 |
+| 📋 | **Advanced** — Full production project: authentication, scoped data isolation, async/await, HTTP/2, structured logging, Docker/K8s deployment. Starts from the intermediate tutorial's finished state. | ~60 min | `0.4.0` | Q4 2026 |
 
 ---
 
