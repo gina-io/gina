@@ -11,9 +11,9 @@ This roadmap covers planned features, architectural improvements, new connectors
 | Period | Version | Focus |
 | --- | --- | --- |
 | **Apr 2026** | `0.1.8` ✅ | Scaffold correctness · K8s support · Dependency injection · Automatic version migration |
-| **Q2 2026** | `0.2.0` | Stability · WatcherService · Redis & SQLite connectors · K8s session storage |
-| **Q3 2026** | `0.3.0` | Async/await · Dev hot-reload · MySQL & PostgreSQL connectors · AI Phase 2 · Tutorials · Mobile backend guide |
-| **Q4 2026** | `0.4.0` | TypeScript declarations · AI agents (OpenAPI, MCP) · ScyllaDB connector · PWA scaffold · Advanced tutorial · Website redesign |
+| **Q2 2026** | `0.2.0` | Stability · WatcherService · Redis & SQLite connectors · K8s session storage · Startup cache |
+| **Q3 2026** | `0.3.0` | Async/await · Dev hot-reload · MySQL & PostgreSQL connectors · AI Phase 2 · Tutorials · Mobile backend guide · Route radix tree |
+| **Q4 2026** | `0.4.0` | TypeScript declarations · AI agents (OpenAPI, MCP) · ScyllaDB connector · PWA scaffold · Advanced tutorial · Website redesign · Bun investigation |
 | **Q1 2027** | `0.5.0` | ESM support · Template engine migration · Structured logging |
 | **Q3 2027** | `1.0.0` | First stable release — Windows alpha compatibility is a hard gate |
 
@@ -120,6 +120,16 @@ New database connectors follow the same interface as the existing Couchbase conn
 | --- | --- | --- | --- |
 | 📋 | **OpenAPI spec generation** — `gina bundle:openapi @myproject` emits `openapi.json` from `routing.json`. Zero manual spec writing — route annotations become `description` fields. Makes any Gina app consumable by AI agents, API gateways, and testing tools. | `0.4.0` | Q4 2026 |
 | 📋 | **MCP server wrapper** — `gina bundle:mcp @myproject` exposes `routing.json` routes as MCP (Model Context Protocol) tools. Makes any Gina app a native MCP server discoverable by AI agents. | `0.4.0` | Q4 2026 |
+
+---
+
+## Performance
+
+| Status | Feature | Version | Target | Notes |
+| --- | --- | --- | --- | --- |
+| 📋 | **`NODE_COMPILE_CACHE` — V8 bytecode startup cache** | `0.2.0` | Q2 2026 | Node.js 22.8+ caches compiled V8 bytecode to disk. Set once at startup — 30–60% faster cold start on subsequent runs with zero code changes to user bundles. No-op on Node < 22.8, so safe to ship unconditionally. |
+| 📋 | **Route radix tree — compile `routing.json` at startup** | `0.3.0` | Q3 2026 | Current router does linear matching against `routing.json` on every request. Pre-compile routes into a radix tree at bundle startup for O(log n) matching. 2–3x faster routing layer. Internal change — no user-facing API change. |
+| 📋 | **Bun runtime compatibility investigation** | `0.4.0` | Q4 2026 | Prototype Gina under Bun. Two blockers to verify: `require.cache` deletion (dev hot-reload) and `node:http2` completeness. If both pass, Bun gives 3–10x faster startup and meaningful throughput gains. Deliverable: a compatibility report. |
 
 ---
 
