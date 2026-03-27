@@ -4,16 +4,19 @@
   "description": "Node.js MVC framework with built-in HTTP/2, multi-bundle architecture, and scope-based data isolation — no Express dependency",
   "keywords": [
     "framework",
-    "micro framework",
     "mvc",
     "mvc framework",
+    "http2",
+    "http/2",
+    "node.js framework",
+    "multi-bundle",
+    "event-driven",
+    "couchbase",
+    "rest",
+    "api",
     "gina",
-    "gina project",
-    "gina js",
-    "gina",
-    "gina I/O",
-    "gina.io",
-    "ginajs"
+    "ginajs",
+    "gina.io"
   ],
   "homepage": "https://gina.io",
   "repository": {

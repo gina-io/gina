@@ -1,0 +1,3 @@
+kind: Changed
+body: 'README: added 3-bullet why-Gina summary, feature highlights table, and Quick start section at the top; added MIT license and Node.js >= 18 badges; updated npm keywords to be search-relevant (http2, multi-bundle, event-driven, rest, api, couchbase) (#A9, #V3)'
+time: 2026-03-27T14:28:08.030302+01:00
