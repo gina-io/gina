@@ -188,3 +188,12 @@ Open a [GitHub issue](https://github.com/Rhinostone/gina/issues) and include:
 ## Proposing features
 
 Open a GitHub issue describing the use case **before** writing code. Features that align with the [roadmap](./ROADMAP.md) and architecture are most likely to be accepted. Significant API changes go through a public discussion period before being finalised.
+
+---
+
+## Maintainers
+
+| Name | Role | Profile |
+| --- | --- | --- |
+| Martin Luther | Lead maintainer | [rhinostone.com](https://rhinostone.com) |
+| Fabrice Delaneau | Co-author | [fdelaneau.com](https://fdelaneau.com) |
