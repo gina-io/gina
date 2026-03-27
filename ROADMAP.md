@@ -12,8 +12,8 @@ This roadmap covers planned features, architectural improvements, new connectors
 | --- | --- | --- |
 | **Apr 2026** | `0.1.8` ✅ | Scaffold correctness · K8s support · Dependency injection · Automatic version migration |
 | **Q2 2026** | `0.2.0` | Stability · WatcherService · Redis & SQLite connectors · K8s session storage |
-| **Q3 2026** | `0.3.0` | Async/await · Dev hot-reload · MySQL & PostgreSQL connectors · AI Phase 2 |
-| **Q4 2026** | `0.4.0` | TypeScript declarations · AI agents (OpenAPI, MCP) · ScyllaDB connector |
+| **Q3 2026** | `0.3.0` | Async/await · Dev hot-reload · MySQL & PostgreSQL connectors · AI Phase 2 · Beginner & intermediate tutorials |
+| **Q4 2026** | `0.4.0` | TypeScript declarations · AI agents (OpenAPI, MCP) · ScyllaDB connector · Advanced tutorial · Website redesign |
 | **Q1 2027** | `0.5.0` | ESM support · Template engine migration · Structured logging |
 
 ---
@@ -121,4 +121,22 @@ New database connectors follow the same interface as the existing Couchbase conn
 
 ---
 
-*Last updated: 2026-03-26 · To suggest a feature, [open an issue](https://github.com/Rhinostone/gina/issues).*
+## Tutorials
+
+| Status | Tutorial | Duration | Version | Target |
+| --- | --- | --- | --- | --- |
+| 📋 | **Beginner** — Your first Gina app: install, scaffold, one route, one controller, browser response. | 5 min | `0.3.0` | Q3 2026 |
+| 📋 | **Intermediate** — Multi-bundle setup, routing with URL params, entity + connector wiring, template rendering, form handling. | ~30 min | `0.3.0` | Q3 2026 |
+| 📋 | **Advanced** — Full production project: authentication, scoped data isolation, async/await, HTTP/2, structured logging, Docker/K8s deployment. | ~60 min | `0.4.0` | Q4 2026 |
+
+---
+
+## Website
+
+| Status | Feature | Version | Target |
+| --- | --- | --- | --- |
+| 📋 | **Official website redesign + docs integration** — Refactor gina.io as a proper project homepage (landing page, feature highlights, showcase) with the documentation fully integrated. Single coherent web presence. Prerequisite: tutorials complete. | `0.4.0` | Q4 2026 |
+
+---
+
+*Last updated: 2026-03-27 · To suggest a feature, [open an issue](https://github.com/Rhinostone/gina/issues).*
