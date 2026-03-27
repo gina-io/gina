@@ -11,8 +11,8 @@ This roadmap covers planned features, architectural improvements, new connectors
 | Period | Version | Focus |
 | --- | --- | --- |
 | **Apr 2026** | `0.1.8` ✅ | Scaffold correctness · K8s support · Dependency injection · Automatic version migration |
-| **Q2 2026** | `0.2.0` | Stability · WatcherService · Redis & SQLite connectors · K8s session storage · Startup cache · Pointer compression · Couchbase v2 deprecation · HTTP/2 security hardening |
-| **Q3 2026** | `0.3.0` | Async/await · Dev hot-reload · MySQL & PostgreSQL connectors · AI Phase 2 · Tutorials · Mobile backend guide · Route radix tree · Connector peerDependencies · 103 Early Hints · HTTP/2 observability |
+| **Q2 2026** | `0.2.0` | Stability · WatcherService · Redis & SQLite connectors · K8s session storage · Startup cache · Pointer compression · Couchbase v2 deprecation · Couchbase security & critical bug fixes · HTTP/2 security hardening |
+| **Q3 2026** | `0.3.0` | Async/await · Dev hot-reload · MySQL & PostgreSQL connectors · AI Phase 2 · Tutorials · Mobile backend guide · Route radix tree · Connector peerDependencies · 103 Early Hints · HTTP/2 observability · Security & CVE page · Couchbase connector hardening |
 | **Q4 2026** | `0.4.0` | TypeScript declarations · AI agents (OpenAPI, MCP) · ScyllaDB connector · PWA scaffold · Advanced tutorial · Website redesign · Docs offline ZIP · Bun investigation · Couchbase v2 removal · HTTP/2 hardening · Trailer support |
 | **Q1 2027** | `0.5.0` | ESM support · Template engine migration · Structured logging · Alt-Svc · HTTP/2 priorities · WebSocket over HTTP/2 |
 | **Q3 2027** | `1.0.0` | First stable release — Windows alpha compatibility is a hard gate |
@@ -86,6 +86,38 @@ New database connectors follow the same interface as the existing Couchbase conn
 | 📋 | **Couchbase SDK v2 deprecation** | `0.2.0` | Q2 2026 | Couchbase Server SDK v2 reached end-of-life in 2021. `connector.v2.js` now logs a deprecation warning at connection time, and a fatal error when V8 pointer compression is active (NAN bindings are incompatible). Upgrade path: set `sdk.version` to `3` or `4` in your bundle's `connectors.json`. |
 | 📋 | **Couchbase SDK v2 removal** | `0.4.0` | Q4 2026 | `connector.v2.js` and all `sdk.version <= 2` branches removed. Default falls back to v3 when `sdk.version` is unset. Full migration guide in `CHANGELOG.md`. |
 | 📋 | **`peerDependencies` for connector clients** | `0.3.0` | Q3 2026 | Connector client libraries (`ioredis`, `mysql2`, `pg`, `mongodb`, `@scylladb/scylla-driver`, `couchbase`) are loaded from the user's project — gina has zero runtime npm dependencies. `peerDependencies` (all optional) will signal the tested version range and surface an `npm install` compatibility warning when a user pins an untested version. |
+
+---
+
+## Couchbase Connector Hardening
+
+A cold audit of the Couchbase connector identified two critical security vulnerabilities and four high-severity bugs. All items are contained to specific code paths and do not affect the common case (v4 SDK, Promise API, no `useRestApi`), but they should be resolved before the next stable release.
+
+### Critical — Security
+
+| Status | Feature | Version | Target |
+| --- | --- | --- | --- |
+| 📋 | **Credential exposure in process list (`restQuery`)** — The `useRestApi: true` path builds a shell command containing `-u username:password` and passes it to `exec()`. The full command including plaintext credentials is visible in `ps aux` for the duration of the call. **Fix:** replace `exec()` with `execFile()` and pass credentials as positional arguments or via `--netrc-file`. | `0.2.0` | Q2 2026 |
+| 📋 | **Shell command injection in `restQuery`** — The same `exec()` path joins the N1QL statement and query parameters into a single shell string. Metacharacters (`$`, `;`, `&`, `|`, backtick) in parameters are not neutralised — an attacker who can influence query parameters can execute arbitrary shell commands. **Fix:** same — `execFile()` eliminates the shell entirely. | `0.2.0` | Q2 2026 |
+
+### High — Bugs
+
+| Status | Feature | Version | Target |
+| --- | --- | --- | --- |
+| 📋 | **`gina.onError()` handler accumulates on every reconnect** — The error handler is registered inside `onConnect()`, which fires on every reconnection. After N reconnects there are N handlers all racing on the same error, each trying to send a response. **Fix:** register the handler once at init time. | `0.2.0` | Q2 2026 |
+| 📋 | **`session-store.v3 get()` always returns "session not found"** — `.then()/.catch()` callbacks are microtasks; the `if (!data)` guard that follows runs synchronously before they resolve. `data` is always `null` at that point, so every session read returns empty. Sessions work correctly with SDK v4. | `0.2.0` | Q2 2026 |
+| 📋 | **`session-store.v3 set()` silently discards writes** — Same async/sync confusion. `fn(false, null)` is called before the upsert Promise resolves — writes appear to succeed but are never confirmed. | `0.2.0` | Q2 2026 |
+| 📋 | **Infinite recursion when `keepAlive: false`** — The `else` branch in `ping()` calls itself unconditionally. Stack overflow on first connection with `keepAlive: false`. The default is `true` so this only fires when explicitly opted out. | `0.2.0` | Q2 2026 |
+
+### Medium
+
+| Status | Feature | Version | Target |
+| --- | --- | --- | --- |
+| 📋 | **300ms arbitrary startup delay** — A `setTimeout(300)` fires `ready` instead of a condition. Adds 300ms to every bundle startup and is unreliable under load. | `0.3.0` | Q3 2026 |
+| 📋 | **`ping()` drops reconnection callback in v2/v3** — `typeof(next)` is checked but `next` is not in scope, so reconnect-from-ping always calls `connect()` without a callback, silently swallowing errors. | `0.3.0` | Q3 2026 |
+| 📋 | **Stack traces in HTTP 500 responses** — `err.stack` is included in the JSON sent to the HTTP client. Absolute filesystem paths and internal module names exposed to any caller. | `0.3.0` | Q3 2026 |
+| 📋 | **`eval()` for `@options` parsing** — `@options` directives in `.sql` files are evaluated with `eval()`. `JSON.parse()` is sufficient and eliminates the risk of a typo corrupting the options variable in scope. | `0.3.0` | Q3 2026 |
+| 📋 | **`bulkInsert` does not return a Promise** — Unlike all other N1QL entity methods after the Option B refactor, `bulkInsert` still returns a plain `{onComplete: fn}` object. `await entity.bulkInsert(...)` resolves to the object, not the data. | `0.3.0` | Q3 2026 |
 
 ---
 
@@ -172,6 +204,7 @@ Windows compatibility is a hard requirement for `1.0.0`. The alpha scope covers 
 | --- | --- | --- | --- | --- |
 | 📋 | **Using Gina as a mobile backend** — REST API patterns, JSON-only bundles, token auth, CORS, HTTP/2, and the path to OpenAPI/MCP for SDK generation. Docs only — no code changes. | — | `0.3.0` | Q3 2026 |
 | 📋 | **Beginner** — Your first Gina app: install, scaffold, one route, one controller, browser response. Starts from `gina new` — no prior project needed. | 5 min | `0.3.0` | Q3 2026 |
+| 📋 | **Tutorial locale detection** — Detect the reader's locale and timezone via `navigator.language` + `Intl` and pre-fill the `settings.json` scaffold example with their actual `region`, `preferedLanguages`, and `24HourTimeFormat` values. Falls back to `en_CM`. Implemented as a client-side Docusaurus component. | — | `0.3.0` | Q3 2026 |
 | 📋 | **Intermediate** — Multi-bundle setup, routing with URL params, entity + connector wiring, template rendering, form handling. Starts from scratch. | ~30 min | `0.3.0` | Q3 2026 |
 | 📋 | **Advanced** — Full production project: authentication, scoped data isolation, async/await, HTTP/2, structured logging, Docker/K8s deployment. Starts from the intermediate tutorial's finished state. | ~60 min | `0.4.0` | Q4 2026 |
 
@@ -183,6 +216,7 @@ Windows compatibility is a hard requirement for `1.0.0`. The alpha scope covers 
 | --- | --- | --- | --- |
 | 📋 | **Official website redesign + docs integration** — Refactor gina.io as a proper project homepage (landing page, feature highlights, showcase) with the documentation fully integrated. Single coherent web presence. Prerequisite: tutorials complete. | `0.4.0` | Q4 2026 |
 | 📋 | **Docs offline ZIP** — One-click download of the complete gina.io documentation as a static HTML ZIP archive. Generated at deploy time by the Docusaurus build pipeline — no server-side logic required. Targeted at users in regions with limited or expensive internet access (offline-first for the African market). | `0.4.0` | Q4 2026 |
+| 📋 | **Security & CVE compliance page** — Dedicated docs page listing the HTTP/2 CVEs addressed by Gina and the Node.js version required for each mitigation. Covers CVE-2023-44487 (Rapid Reset), CVE-2024-27316 / CVE-2024-27983 (CONTINUATION flood), CVE-2019-9514 (RST flood), and the nghttp2-mitigated ping/settings floods. Docs only — no code changes. | `0.3.0` | Q3 2026 |
 
 ---
 

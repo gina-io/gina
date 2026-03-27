@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'Fixed session-store.v3 get() always returning session-not-found (CB-BUG-2): converted to async/await so Promise resolves before checks run — every session lookup was failing silently, forcing re-authentication on every request'
+time: 2026-03-27T23:34:05.806447+01:00

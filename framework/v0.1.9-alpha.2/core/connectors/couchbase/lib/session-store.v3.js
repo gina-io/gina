@@ -156,38 +156,30 @@ module.exports = function(session, bundle){
      * @api public
      */
 
-    CouchbaseStore.prototype.get = function(sid, fn){
+    CouchbaseStore.prototype.get = async function(sid, fn){
         if ('function' !== typeof fn) { fn = noop; }
         sid = this.prefix + sid;
         console.debug('[SessionStore v3] GET "' + sid + '"');
 
 
-        var err = false, result = null, data = null;
-        // this.client.get(sid, function(err, data){
-        //     //Handle Key Not Found error
-        //     if (err && err.code == 13) {
-        //         return fn();
-        //     }
-        //     if (err) return fn(err);
-        //     if (!data || !data.value) return fn();
-        //     var result;
-        //     data = data.value.toString();
-        //     debug('GOT %s', data);
-        //     try {
-        //         result = JSON.parse(data);
-        //     } catch (err) {
-        //         return fn(err);
-        //     }
-        //     return fn(null, result);
-        // });
-        this.client
-            .get(sid)
-            .then(function onData(_data) {
-                data = _data;
-            })
-            .catch(function onErr(_err){
-                err = _err;
-            });
+        // CB-BUG-2 fix: .then()/.catch() callbacks are async microtasks; the original synchronous
+        // checks (if err / if !data) always ran before the Promise resolved, so data was always null
+        // and every get() call returned fn() with no session. Fixed with async/await (same as v4).
+        // Original broken implementation (commented out — CB-BUG-2):
+        // var err = false, result = null, data = null;
+        // this.client
+        //     .get(sid)
+        //     .then(function onData(_data) { data = _data; })
+        //     .catch(function onErr(_err){ err = _err; });
+        // if (err && err.code == 13) { return fn(); }
+        // if (err) return fn(err);
+        // if (!data || !data.value) return fn();  // ← always true: Promise not yet resolved
+        var err = null, data = null, result = null;
+        try {
+            data = await this.client.get(sid);
+        } catch (_err) {
+            err = _err;
+        }
 
         //Handle Key Not Found error
         if (err && err.code == 13) {
@@ -224,7 +216,7 @@ module.exports = function(session, bundle){
      * @api public
      */
 
-    CouchbaseStore.prototype.set = function(sid, sess, fn){
+    CouchbaseStore.prototype.set = async function(sid, sess, fn){
         if ('function' !== typeof fn) { fn = noop; }
         sid = this.prefix + sid;
         try {
@@ -242,28 +234,18 @@ module.exports = function(session, bundle){
             sess = JSON.stringify(sess);
 
             console.debug('[SessionStore v3] SETEX "' + sid + '" ttl:' + ttl + ' ' + sess);
-            // this.client.upsert(sid, sess, {expiry:ttl}, function(err){
-            //     err || debug('Session Set complete');
-            //     fn && fn.apply(this, arguments);
-            // });
-            var err = false, result = null;
-            this.client
-                .upsert(sid, sess, {expiry:ttl})
-                    .then(function onResult(_result){
-                        result = _result;
-                        //fn && fn.apply(this, arguments);
-                    })
-                    .catch(function onError(_err) {
-                        err = _err
-                        // if(err)
-                        //     debug('Session Set complete', err.stack || err.message || err);
-
-                       //fn && fn.apply(this, arguments);
-                    })
-            if (err) {
-                 fn && fn(err);
-            }
-            fn && fn(err, result);
+            // CB-BUG-3 fix: fn() was called immediately before upsert Promise resolved,
+            // so writes appeared successful but were unconfirmed. Fixed with async/await.
+            // Original broken implementation (commented out — CB-BUG-3):
+            // var err = false, result = null;
+            // this.client
+            //     .upsert(sid, sess, {expiry:ttl})
+            //         .then(function onResult(_result){ result = _result; })
+            //         .catch(function onError(_err) { err = _err; })
+            // if (err) { fn && fn(err); }
+            // fn && fn(err, result);  // ← always called before upsert Promise resolves
+            await this.client.upsert(sid, sess, {expiry: ttl});
+            fn && fn(null);
 
         } catch (err) {
             fn && fn(err);
