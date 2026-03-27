@@ -22,7 +22,24 @@ var ${bundle} = require('gina');
 //    // getting config/app.json would be: self.getConfig('app')
 //    // or self.getConfig().app
 //    var conf = self.getConfig();
-//    // you can use express middleware components
+//
+//    // --- Session with Redis store ---
+//    // Requires: npm install express-session ioredis
+//    // Configure: config/connectors.json — add a "redis" connector entry (see docs)
+//    //
+//    // var session      = require('express-session');
+//    // var SessionStore = lib.SessionStore;
+//    // session.name = 'myRedis';                    // key in connectors.json
+//    // var RedisStore = new SessionStore(session);   // returns the RedisStore class
+//    // app.use(session({
+//    //     secret           : process.env.SESSION_SECRET || 'changeme',
+//    //     resave           : false,
+//    //     saveUninitialized: false,
+//    //     store            : new RedisStore(),
+//    //     cookie           : { secure: false, maxAge: 86400000 }
+//    // }));
+//
+//    // you can also use express middleware components directly
 //    // eg.: app.use( session({secret: '1234567890QWERTY'}) );
 //
 //    //then notify the server that startup sequence can be resumed

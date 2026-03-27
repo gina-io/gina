@@ -28,10 +28,14 @@ var console = require('./logger');
  * @class SessionStore
  * @constructor
  *
- * @param {object} session        - Session configuration object (`session.name` must match a connector key)
- * @param {string} session.name   - Connector name (e.g. `'couchbase'`)
- * @returns {object} Connector session-store instance (express-session compatible)
- * @throws {Error} When the connector or its session-store file cannot be found
+ * @param {object} session        - The `express-session` module. The caller must set
+ *                                  `session.name` to the key in `connectors.json` that
+ *                                  identifies the session backend (e.g. `'myRedis'`).
+ *                                  The module's `.Store` property is used as the base class.
+ * @param {string} session.name   - Key in `connectors.json` whose `.connector` field
+ *                                  selects the implementation (e.g. `'couchbase'`, `'redis'`).
+ * @returns {function}            - Connector-specific Store constructor (express-session compatible).
+ * @throws {Error}                - When the connector config or its session-store file cannot be found.
  */
 function SessionStore(session) {
 
@@ -48,7 +52,6 @@ function SessionStore(session) {
         throw new Error('[SessionStore] Could not be loaded: Connector issue. Please check your bundle configuration @config/connectors.json\n'+ err.stack);
     }
 
-    var connectorName = 'couchbase';
     var filename = _(connectorsPath + '/'+ connector +'/lib/session-store.js', true);
 
     if ( !fs.existsSync(filename) ) {
