@@ -1,0 +1,75 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://gina.io/schema/routing.json",
+  "title": "Gina routing.json",
+  "description": "Route definitions for a Gina bundle. Each key is a route name; the value defines the URL pattern, HTTP method, controller action, and optional middleware chain.",
+  "type": "object",
+  "additionalProperties": {
+    "$ref": "#/definitions/route"
+  },
+  "definitions": {
+    "route": {
+      "type": "object",
+      "required": ["url", "method", "param"],
+      "additionalProperties": true,
+      "properties": {
+        "namespace": {
+          "type": "string",
+          "description": "Groups routes under a shared URL prefix and controller namespace (e.g. \"account\" maps to AccountController)."
+        },
+        "url": {
+          "type": "string",
+          "description": "URL pattern. Use :param for named segments. Multiple patterns can be comma-separated (e.g. \"/item/:id, /item/:id/:slug\")."
+        },
+        "method": {
+          "type": "string",
+          "description": "Accepted HTTP method(s), comma-separated. Case-insensitive.",
+          "examples": ["GET", "POST", "PUT", "DELETE", "GET, POST", "GET, POST, PUT"]
+        },
+        "requirements": {
+          "type": "object",
+          "description": "Regex validation patterns for URL parameters. Keys match :param names. Values are regex strings (e.g. \"/^[0-9a-f]{8}-/i\").",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "param": {
+          "type": "object",
+          "description": "Controller action mapping and static/dynamic params passed to the action.",
+          "required": ["control"],
+          "additionalProperties": true,
+          "properties": {
+            "control": {
+              "type": "string",
+              "description": "Controller action name (camelCase method on the bundle controller)."
+            },
+            "file": {
+              "type": "string",
+              "description": "Template file path relative to the bundle views directory (without extension)."
+            },
+            "isPopinContext": {
+              "type": "boolean",
+              "description": "Set to true for routes rendered inside a popin overlay."
+            }
+          }
+        },
+        "middleware": {
+          "type": "array",
+          "description": "Ordered list of middleware to run before the controller action. Format: \"middlewares.<namespace>.<name>\".",
+          "items": {
+            "type": "string",
+            "examples": ["middlewares.passport.jwtLogin", "middlewares.global.requirePasswordCheck"]
+          }
+        },
+        "_comment": {
+          "type": "string",
+          "description": "Internal documentation comment. Ignored at runtime."
+        },
+        "_sample": {
+          "type": "string",
+          "description": "Example URL for this route. Ignored at runtime."
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://gina.io/schema/app.json",
+  "title": "Gina app.json",
+  "description": "Bundle application configuration. Defines the bundle identity, HTTP/2 upstream proxies, and external API credentials.",
+  "type": "object",
+  "required": ["name", "version"],
+  "additionalProperties": true,
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Bundle name. Must match the directory name under src/."
+    },
+    "version": {
+      "type": "string",
+      "description": "Bundle version in semver format.",
+      "examples": ["0.0.1", "1.2.3"]
+    },
+    "greeting": {
+      "type": "string",
+      "description": "Optional greeting message exposed on the default route."
+    },
+    "proxy": {
+      "type": "object",
+      "description": "HTTP/2 upstream proxy definitions. Each key is a logical upstream name; the value describes how to reach it.",
+      "additionalProperties": {
+        "$ref": "#/definitions/proxyTarget"
+      }
+    },
+    "apis": {
+      "type": "object",
+      "description": "External API credentials and config, keyed by service name.",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    }
+  },
+  "definitions": {
+    "proxyTarget": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "_comment": {
+          "type": "string",
+          "description": "Internal documentation comment. Ignored at runtime."
+        },
+        "ca": {
+          "type": "string",
+          "description": "Path to the CA certificate file for TLS verification. Supports ${variable} interpolation."
+        },
+        "hostname": {
+          "type": "string",
+          "description": "Upstream host. Use \"bundle@project\" notation to reference another Gina bundle (e.g. \"coreapi@myproject\")."
+        },
+        "port": {
+          "type": ["string", "number"],
+          "description": "Upstream port. Use \"bundle@project\" notation to inherit the bundle's configured port."
+        },
+        "path": {
+          "type": "string",
+          "description": "Base path prefix for all requests forwarded to this upstream.",
+          "examples": ["/", "/api", "/auth"]
+        },
+        "requestTimeout": {
+          "type": "string",
+          "description": "Request timeout as a duration string (e.g. \"30s\", \"2m\"). Defaults to the framework default if omitted."
+        }
+      }
+    }
+  }
+}

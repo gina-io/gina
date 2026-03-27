@@ -1,5 +1,6 @@
 // bundle needs to be restarted on changes !!
-{  
+{
+  "$schema": "https://gina.io/schema/routing.json",
   "homepage": {
     "namespace": "content",
     "url": "/",

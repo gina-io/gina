@@ -1,0 +1,132 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://gina.io/schema/settings.json",
+  "title": "Gina settings.json",
+  "description": "Bundle runtime settings: locale, server engine, CORS response headers, file upload limits, and Socket.io config.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "region": {
+      "type": "object",
+      "description": "Locale and timezone settings for this bundle.",
+      "additionalProperties": false,
+      "properties": {
+        "culture": {
+          "type": "string",
+          "description": "IETF locale code in <language>_<COUNTRY> format.",
+          "examples": ["en_US", "en_CM", "fr_FR", "de_DE", "es_ES"]
+        },
+        "isoShort": {
+          "type": "string",
+          "description": "ISO 639-1 language code (2 letters).",
+          "examples": ["en", "fr", "de", "es"]
+        },
+        "date": {
+          "type": "string",
+          "description": "Date display format.",
+          "examples": ["mm/dd/yyyy", "dd/mm/yyyy", "yyyy/mm/dd", "yyyy-mm-dd"]
+        },
+        "timeZone": {
+          "type": "string",
+          "description": "IANA timezone identifier. See https://en.wikipedia.org/wiki/List_of_tz_database_time_zones",
+          "examples": ["America/New_York", "Europe/Paris", "Africa/Douala", "Asia/Tokyo"]
+        }
+      }
+    },
+    "server": {
+      "type": "object",
+      "description": "HTTP server engine and protocol configuration.",
+      "additionalProperties": true,
+      "properties": {
+        "engine": {
+          "type": "string",
+          "description": "HTTP server engine. Defaults to \"isaac\" (built-in HTTP/2 server).",
+          "enum": ["isaac", "express"]
+        },
+        "protocol": {
+          "type": "string",
+          "description": "HTTP protocol version.",
+          "enum": ["http/2.0", "http/1.1"]
+        },
+        "scheme": {
+          "type": "string",
+          "description": "URL scheme. Use \"https\" for HTTP/2 (required) or \"http\" for HTTP/1.1 only.",
+          "enum": ["https", "http"]
+        },
+        "allowHTTP1": {
+          "type": "boolean",
+          "description": "When true, the HTTP/2 server also accepts HTTP/1.1 connections (ALPN negotiation). Defaults to true."
+        },
+        "warmup": {
+          "type": "array",
+          "description": "List of upstream URLs to pre-establish HTTP/2 sessions at bundle startup. Reduces latency on the first real request.",
+          "items": {
+            "type": "string",
+            "examples": ["https://api.example.com:443"]
+          }
+        }
+      }
+    },
+    "ioServer": {
+      "type": "object",
+      "description": "Socket.io server configuration.",
+      "additionalProperties": true,
+      "properties": {
+        "integrationMode": {
+          "type": "string",
+          "description": "How Socket.io attaches to the HTTP server.",
+          "enum": ["attach", "standalone"]
+        },
+        "transports": {
+          "type": "array",
+          "description": "Allowed Socket.io transports.",
+          "items": {
+            "type": "string",
+            "enum": ["websocket", "polling"]
+          }
+        },
+        "pingInterval": {
+          "type": "string",
+          "description": "Interval between Socket.io pings (e.g. \"5s\", \"25s\")."
+        },
+        "pingTimeout": {
+          "type": "string",
+          "description": "Time to wait for a pong before considering the connection dropped (e.g. \"10s\", \"20s\")."
+        }
+      }
+    },
+    "upload": {
+      "type": "object",
+      "description": "File upload configuration.",
+      "additionalProperties": true,
+      "properties": {
+        "maxFieldsSize": {
+          "type": "string",
+          "description": "Maximum total size of multipart form fields (e.g. \"8MB\", \"50MB\")."
+        }
+      }
+    },
+    "response": {
+      "type": "object",
+      "description": "HTTP response header overrides, typically used for CORS.",
+      "additionalProperties": true,
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Static response headers added to every response from this bundle.",
+          "additionalProperties": {
+            "type": ["string", "boolean", "number"]
+          },
+          "examples": [
+            {
+              "access-control-allow-origin": "https://app.example.com",
+              "access-control-allow-headers": "X-Requested-With",
+              "access-control-allow-methods": "POST, GET, OPTIONS",
+              "access-control-allow-credentials": true
+            }
+          ]
+        }
+      }
+    }
+  }
+}

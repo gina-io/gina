@@ -1,5 +1,6 @@
 // bundle needs to be restarted on changes !!
 {
+  "$schema": "https://gina.io/schema/app.json",
   "name": "${bundle}",
   "version": "0.0.1",
   "greeting": "Hello World !"

@@ -1,0 +1,63 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://gina.io/schema/connectors.json",
+  "title": "Gina connectors.json",
+  "description": "Database connector declarations for a Gina bundle. Each key is a logical connector name (e.g. \"couchbase\", \"session\"); the value describes the connection parameters. Acquired at runtime via getConnection().",
+  "type": "object",
+  "additionalProperties": {
+    "$ref": "#/definitions/connector"
+  },
+  "definitions": {
+    "connector": {
+      "type": "object",
+      "required": ["protocol", "host", "database"],
+      "additionalProperties": true,
+      "properties": {
+        "connector": {
+          "type": "string",
+          "description": "Connector type override. Required when the key does not match a built-in connector name.",
+          "examples": ["couchbase"]
+        },
+        "protocol": {
+          "type": "string",
+          "description": "Connection protocol URI scheme.",
+          "examples": ["couchbase://", "redis://", "sqlite://", "mysql://", "postgres://"]
+        },
+        "host": {
+          "type": "string",
+          "description": "Hostname or IP address of the database server. Supports comma-separated values for clusters and ${variable} interpolation.",
+          "examples": ["127.0.0.1", "db1.example.com,db2.example.com"]
+        },
+        "database": {
+          "type": "string",
+          "description": "Database or bucket name."
+        },
+        "username": {
+          "type": "string",
+          "description": "Authentication username."
+        },
+        "password": {
+          "type": "string",
+          "description": "Authentication password. Supports ${variable} interpolation for secrets."
+        },
+        "scope": {
+          "type": "string",
+          "description": "Data isolation scope stamped on every document at insert time and used to filter queries. Falls back to NODE_SCOPE env var when omitted.",
+          "enum": ["local", "beta", "production", "testing"]
+        },
+        "ping": {
+          "type": "string",
+          "description": "Interval to ping the cluster and verify connectivity (e.g. \"2m\", \"30s\")."
+        },
+        "pingInterval": {
+          "type": "string",
+          "description": "Alias for ping. Interval to keep the connection alive (e.g. \"2m\", \"30s\")."
+        },
+        "detailed_errcodes": {
+          "type": "boolean",
+          "description": "When true, exposes detailed Couchbase error codes in error objects instead of generic messages."
+        }
+      }
+    }
+  }
+}
