@@ -170,7 +170,7 @@ Before opening a PR against `develop`:
 - [ ] New behaviour is covered by a test (or an explanation is provided for why it cannot be)
 - [ ] A `changie new` entry exists for any user-facing change
 - [ ] Commit messages follow the style above
-- [ ] Docs updated if public API, CLI, or config schema changed
+- [ ] Docs updated if public API, CLI, or config schema changed (see [gina-io/docs/CONTRIBUTING.md](https://github.com/gina-io/docs/blob/main/CONTRIBUTING.md))
 
 ---
 
