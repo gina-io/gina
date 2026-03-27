@@ -11,9 +11,9 @@ This roadmap covers planned features, architectural improvements, new connectors
 | Period | Version | Focus |
 | --- | --- | --- |
 | **Apr 2026** | `0.1.8` ✅ | Scaffold correctness · K8s support · Dependency injection · Automatic version migration |
-| **Q2 2026** | `0.2.0` | Stability · WatcherService · Redis & SQLite connectors · K8s session storage · Startup cache · Pointer compression |
-| **Q3 2026** | `0.3.0` | Async/await · Dev hot-reload · MySQL & PostgreSQL connectors · AI Phase 2 · Tutorials · Mobile backend guide · Route radix tree |
-| **Q4 2026** | `0.4.0` | TypeScript declarations · AI agents (OpenAPI, MCP) · ScyllaDB connector · PWA scaffold · Advanced tutorial · Website redesign · Bun investigation |
+| **Q2 2026** | `0.2.0` | Stability · WatcherService · Redis & SQLite connectors · K8s session storage · Startup cache · Pointer compression · Couchbase v2 deprecation |
+| **Q3 2026** | `0.3.0` | Async/await · Dev hot-reload · MySQL & PostgreSQL connectors · AI Phase 2 · Tutorials · Mobile backend guide · Route radix tree · Connector peerDependencies |
+| **Q4 2026** | `0.4.0` | TypeScript declarations · AI agents (OpenAPI, MCP) · ScyllaDB connector · PWA scaffold · Advanced tutorial · Website redesign · Bun investigation · Couchbase v2 removal |
 | **Q1 2027** | `0.5.0` | ESM support · Template engine migration · Structured logging |
 | **Q3 2027** | `1.0.0` | First stable release — Windows alpha compatibility is a hard gate |
 
@@ -83,6 +83,9 @@ New database connectors follow the same interface as the existing Couchbase conn
 | 📋 | **PostgreSQL** | `0.3.0` | Q3 2026 | ORM connector. Client: `pg` (node-postgres). |
 | 📋 | **ScyllaDB** | `0.4.0` | Q4 2026 | Cassandra-compatible wide-column store. Client: `@scylladb/scylla-driver`. |
 | 📋 | **MongoDB** | `0.4.0` | Q4 2026 | Document store connector. Client: `mongodb` (official driver). Interface approach TBD — MongoDB's document model differs from the N1QL/SQL pattern used by existing connectors. |
+| 📋 | **Couchbase SDK v2 deprecation** | `0.2.0` | Q2 2026 | Couchbase Server SDK v2 reached end-of-life in 2021. `connector.v2.js` now logs a deprecation warning at connection time, and a fatal error when V8 pointer compression is active (NAN bindings are incompatible). Upgrade path: set `sdk.version` to `3` or `4` in your bundle's `connectors.json`. |
+| 📋 | **Couchbase SDK v2 removal** | `0.4.0` | Q4 2026 | `connector.v2.js` and all `sdk.version <= 2` branches removed. Default falls back to v3 when `sdk.version` is unset. Full migration guide in `CHANGELOG.md`. |
+| 📋 | **`peerDependencies` for connector clients** | `0.3.0` | Q3 2026 | Connector client libraries (`ioredis`, `mysql2`, `pg`, `mongodb`, `@scylladb/scylla-driver`, `couchbase`) are loaded from the user's project — gina has zero runtime npm dependencies. `peerDependencies` (all optional) will signal the tested version range and surface an `npm install` compatibility warning when a user pins an untested version. |
 
 ---
 

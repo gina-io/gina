@@ -83,6 +83,18 @@ function Connector(dbString) {
             console.debug('[ CONNECTOR ][ ' + local.bundle +' ] couchbase is alive !!');
             console.debug('[ CONNECTOR ][ ' + local.bundle +' ][ ' + dbString.connector +' ] now connected...');
 
+            // #CB-V2-DEPRECATED — Couchbase SDK v2 reached end-of-life in 2021.
+            // Formal deprecation in gina 0.2.0 (Q2 2026). Removal planned for gina 0.4.0 (Q4 2026).
+            // To upgrade: set sdk.version to 3 or 4 in your bundle's connectors.json.
+            console.warn('[ CONNECTOR ][ couchbase ] SDK v2 is deprecated and will be removed in gina 0.4.0. '
+                + 'Couchbase Server SDK v2 reached end-of-life in 2021. '
+                + 'Update your bundle\'s connectors.json: set sdk.version to 3 or 4.');
+            if (/^true$/i.test(process.env.GINA_V8_POINTER_COMPRESSED)) {
+                console.error('[ CONNECTOR ][ couchbase ] FATAL: SDK v2 uses NAN bindings which are incompatible '
+                    + 'with V8 pointer compression. The process may segfault. '
+                    + 'Switch to sdk.version 3 or 4 in connectors.json immediately.');
+            }
+
             self.instance.reconnected  = self.instance.connected   = true;
             var options = local.options;
 
