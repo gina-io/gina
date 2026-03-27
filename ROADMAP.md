@@ -12,8 +12,8 @@ This roadmap covers planned features, architectural improvements, new connectors
 | --- | --- | --- |
 | **Apr 2026** | `0.1.8` ✅ | Scaffold correctness · K8s support · Dependency injection · Automatic version migration |
 | **Q2 2026** | `0.2.0` | Stability · WatcherService · Redis & SQLite connectors · K8s session storage |
-| **Q3 2026** | `0.3.0` | Async/await · Dev hot-reload · MySQL & PostgreSQL connectors · AI Phase 2 · Beginner & intermediate tutorials |
-| **Q4 2026** | `0.4.0` | TypeScript declarations · AI agents (OpenAPI, MCP) · ScyllaDB connector · Advanced tutorial · Website redesign |
+| **Q3 2026** | `0.3.0` | Async/await · Dev hot-reload · MySQL & PostgreSQL connectors · AI Phase 2 · Tutorials · Mobile backend guide |
+| **Q4 2026** | `0.4.0` | TypeScript declarations · AI agents (OpenAPI, MCP) · ScyllaDB connector · PWA scaffold · Advanced tutorial · Website redesign |
 | **Q1 2027** | `0.5.0` | ESM support · Template engine migration · Structured logging |
 
 ---
@@ -24,6 +24,7 @@ This roadmap covers planned features, architectural improvements, new connectors
 | --- | --- | --- | --- |
 | ✅ | **Automatic version migration** — Upgrading or downgrading gina (e.g. `0.1.x → 0.2.0`, `0.5.x → 1.0.0`) automatically migrates `~/.gina/` config to the new version on first startup. Downgrade is free — old version data is never removed. | `0.1.8` | 2026-03-26 |
 | 📋 | **`watchers.json`** — First-class bundle config for file watchers. Declare watchers on config files with event-based notification (no polling). Foundation for the dev-mode hot-reload system. | `0.2.0` | Q2 2026 |
+| 📋 | **PWA scaffold** — `gina bundle:add` drops `manifest.json`, a service worker stub (`sw.js`), and the required `<meta>` / `<link>` tags into the bundle boilerplate. Zero runtime dependency. Enables Gina apps to be installed on mobile as PWAs without additional tooling. | `0.4.0` | Q4 2026 |
 
 ---
 
@@ -125,6 +126,7 @@ New database connectors follow the same interface as the existing Couchbase conn
 
 | Status | Tutorial | Duration | Version | Target |
 | --- | --- | --- | --- | --- |
+| 📋 | **Using Gina as a mobile backend** — REST API patterns, JSON-only bundles, token auth, CORS, HTTP/2, and the path to OpenAPI/MCP for SDK generation. Docs only — no code changes. | — | `0.3.0` | Q3 2026 |
 | 📋 | **Beginner** — Your first Gina app: install, scaffold, one route, one controller, browser response. Starts from `gina new` — no prior project needed. | 5 min | `0.3.0` | Q3 2026 |
 | 📋 | **Intermediate** — Multi-bundle setup, routing with URL params, entity + connector wiring, template rendering, form handling. Starts from scratch. | ~30 min | `0.3.0` | Q3 2026 |
 | 📋 | **Advanced** — Full production project: authentication, scoped data isolation, async/await, HTTP/2, structured logging, Docker/K8s deployment. Starts from the intermediate tutorial's finished state. | ~60 min | `0.4.0` | Q4 2026 |
