@@ -168,37 +168,6 @@ function SuperController(options) {
     }
 
     /**
-     * freeMemory
-     *
-     * @param {array} variables
-     * @param {boolean} isGlobalModeNeeded
-     */
-    var freeMemory = function(variables, isGlobalModeNeeded) {
-        if ( !Array.isArray(variables) || !variables.length ) {
-            return;
-        }
-        if ( typeof(isGlobalModeNeeded) == 'undefined' ) {
-            isGlobalModeNeeded = true;
-        }
-        var i = 0, len = variables.length;
-        while (i<len) {
-            if ( typeof(variables[i]) != 'undefined' ) {
-                variables[i] = null;
-            }
-            ++i;
-        }
-
-        if (String(isGlobalModeNeeded).toLowerCase() === 'true') {
-            // all but local.options becasue of `self.requireController('namespace', self._options)` calls
-            // local = null;
-            // Release per-request refs — controller is a singleton; local.req/res persist until overwritten otherwise.
-            local.req = null;
-            local.res = null;
-            local.next = null;
-        }
-    }
-
-    /**
      * Returns the current request object.
      *
      * @returns {object} req
@@ -318,7 +287,6 @@ function SuperController(options) {
                 }
             }
 
-            // removed: freeMemory([strParts, p], false) — no-op: array-slot nulling on a throw-away array. (#M1)
         }
 
         local.req = req;
@@ -691,7 +659,6 @@ function SuperController(options) {
 
         }
 
-        // removed: freeMemory([action, rule, ...], false) — no-op: array-slot nulling, isGlobalModeNeeded=false skips local.* reset. (#M1)
     }
 
     // replaced: for...in — use Object.keys() (#P22)
@@ -745,11 +712,8 @@ function SuperController(options) {
             newObj = parseDataObject(JSON.parse(str), value, override);
             local.userData = merge(local.userData, newObj);
 
-            // removed: freeMemory([name, value, keys, ...], false) — no-op. (#M1)
-
         } else if ( typeof(local.userData[name]) == 'undefined' ) {
             local.userData[name] = value.replace(/\\/g, '');
-            // removed: freeMemory([name, value], false) — no-op. (#M1)
         }
     }
 
@@ -1076,8 +1040,7 @@ function SuperController(options) {
         return require( _(__dirname + '/controller.render-json', true) )(jsonObj, {
             self        : self,
             local       : local,
-            headersSent : headersSent,
-            freeMemory  : freeMemory
+            headersSent : headersSent
         });
     }
 
@@ -1110,7 +1073,9 @@ function SuperController(options) {
 
         // Added on 2023-06-12
         if ( headersSent(response) ) {
-            freeMemory([content, request, response, next]);
+            local.req = null;
+            local.res = null;
+            local.next = null;
             return;
         }
 
@@ -1135,7 +1100,9 @@ function SuperController(options) {
                 //console.warn(err);
             }
 
-            freeMemory([content, request, response, next]);
+            local.req = null;
+            local.res = null;
+            local.next = null;
         }
     }
 
