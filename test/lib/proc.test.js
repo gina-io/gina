@@ -28,7 +28,6 @@ function runShutdown(proc, shutdownMs, done) {
             proc.exit(143);
             done('timeout');
         }, shutdownMs);
-        if (typeof _shutdownTimer.unref === 'function') _shutdownTimer.unref();
         if (typeof _httpServer.closeIdleConnections === 'function') {
             _httpServer.closeIdleConnections();
         }
