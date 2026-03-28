@@ -12,9 +12,9 @@ This roadmap covers planned features, architectural improvements, new connectors
 | --- | --- | --- |
 | **Apr 2026** | `0.1.8` ✅ | Scaffold correctness · K8s support · Dependency injection · Automatic version migration |
 | **Q2 2026** | `0.2.0` | Stability · WatcherService · Redis & SQLite connectors · K8s session storage · Startup cache · Pointer compression · Couchbase v2 deprecation · Couchbase security & critical bug fixes · HTTP/2 security hardening |
-| **Q3 2026** | `0.3.0` | Async/await · Dev hot-reload · MySQL & PostgreSQL connectors · AI Phase 2 · Tutorials · Mobile backend guide · Route radix tree · Connector peerDependencies · 103 Early Hints · HTTP/2 observability · Security & CVE page · Couchbase connector hardening |
-| **Q4 2026** | `0.4.0` | TypeScript declarations · AI agents (OpenAPI, MCP) · ScyllaDB connector · PWA scaffold · Advanced tutorial · Website redesign · Docs offline ZIP · Bun investigation · Couchbase v2 removal · HTTP/2 hardening · Trailer support |
-| **Q1 2027** | `0.5.0` | ESM support · Template engine migration · Structured logging · Alt-Svc · HTTP/2 priorities · WebSocket over HTTP/2 |
+| **Q3 2026** | `0.3.0` | Async/await · Dev hot-reload · MySQL & PostgreSQL connectors · AI Phase 2 · Tutorials · Mobile backend guide · Route radix tree · Connector peerDependencies · 103 Early Hints · HTTP/2 observability · Security & CVE page · Couchbase connector hardening · Beemaster Phase 1 |
+| **Q4 2026** | `0.4.0` | TypeScript declarations · AI agents (OpenAPI, MCP) · ScyllaDB connector · PWA scaffold · Advanced tutorial · Website redesign · Docs offline ZIP · Bun investigation · Couchbase v2 removal · HTTP/2 hardening · Trailer support · Beemaster core |
+| **Q1 2027** | `0.5.0` | ESM support · Template engine migration · Structured logging · Alt-Svc · HTTP/2 priorities · WebSocket over HTTP/2 · Beemaster admin |
 | **Q3 2027** | `1.0.0` | First stable release — Windows alpha compatibility is a hard gate |
 
 ---
@@ -198,6 +198,47 @@ Windows compatibility is a hard requirement for `1.0.0`. The alpha scope covers 
 
 ---
 
+## Beemaster
+
+Standalone gina dev and admin tool. A dedicated browser-tab app (`services/src/beemaster/`) served on port 4101 alongside the gina dev server. Replaces the in-page toolbar with a thin status bar and brings all tooling and management into an isolated, full-size UI.
+
+**Why a standalone app:** The in-page toolbar pollutes the app DOM, causes CSS/JS conflicts, and cannot scale to admin-level operations. Beemaster runs outside the app page — no DOM conflicts, full UI real estate, and works for both local and remote/K8s gina instances. An optional browser extension companion can be built on top later (Phase 4).
+
+### Phase 1 — Decouple in-page toolbar
+
+| Status | Feature | Version | Target |
+| --- | --- | --- | --- |
+| 📋 | **Thin in-page status bar** — Remove the in-page toolbar bundle entirely. Replace with a lightweight `<div>` injected only in dev mode: bundle name, environment, a status dot (green/yellow/red), and an "Open Beemaster" link to port 4101. No RequireJS, no jQuery, no SASS. Zero DOM impact on the app. | `0.3.0` | Q3 2026 |
+| 📋 | **`window.__ginaData`** — Replace the current `<pre>` tag data embedding with a single `<script>window.__ginaData={...}</script>` tag (dev mode only). Smaller page weight, no DOM nodes to scrape. Beemaster reads it on connect via `window.opener` or a `postMessage` handshake. | `0.3.0` | Q3 2026 |
+
+### Phase 2 — Beemaster core
+
+| Status | Feature | Version | Target |
+| --- | --- | --- | --- |
+| 📋 | **Bundle scaffold** — `services/src/beemaster/` gina bundle on port 4101. Single-page app with tab navigation. Auto-starts with the gina dev server when `NODE_ENV_IS_DEV=true`. Replaces the empty `services/src/toolbar/` skeleton. | `0.4.0` | Q4 2026 |
+| 📋 | **Toolbar tab** — Full toolbar UI (Data, View, Forms, Configuration, Routing sub-tabs) migrated from in-page injection to Beemaster. Copy-to-clipboard and value inspector features carry over. | `0.4.0` | Q4 2026 |
+| 📋 | **Real-time data via engine.io** — Wire the already-bundled `engine.io-client` to port 8125. Data, log events, and XHR activity stream in real time over a persistent socket. Replaces the current page-snapshot model. | `0.4.0` | Q4 2026 |
+| 📋 | **Logs tab** — Real-time log tail with level filter (debug/info/warn/error), bundle filter, text search, and pause/resume. Replaces the current stub Logs tab (no implementation). | `0.4.0` | Q4 2026 |
+
+### Phase 3 — Admin
+
+| Status | Feature | Version | Target |
+| --- | --- | --- | --- |
+| 📋 | **Auth layer** — Token-based auth gate for all write operations. Read-only tabs (Toolbar, Logs, Routing) are unauthenticated in local dev. Write operations always require the token. Required before admin tabs are safe to use. | `0.5.0` | Q1 2027 |
+| 📋 | **Bundles tab** — List running and stopped bundles. Actions: start, stop, restart, build — dispatches the equivalent `gina bundle:*` command. Real-time status updates via engine.io. | `0.5.0` | Q1 2027 |
+| 📋 | **Projects tab** — List registered gina projects. Actions: add, remove, view config (`app.json`, `routing.json`, `connectors.json`) with syntax highlighting. | `0.5.0` | Q1 2027 |
+| 📋 | **DB connectors tab** — View all connectors across registered bundles (Couchbase, SQLite, Redis, MySQL, PostgreSQL, ScyllaDB). Connection status, latency, test connection button. Credentials always masked. | `0.5.0` | Q1 2027 |
+| 📋 | **Query inspector** — Live entity query log: connector type, query text, parameters, duration (ms), row count. Delivered via engine.io. Filters: connector, bundle, slow query threshold. | `0.5.0` | Q1 2027 |
+
+### Phase 4 — Advanced
+
+| Status | Feature | Version | Target |
+| --- | --- | --- | --- |
+| 📋 | **Multi-instance support** — Connect Beemaster to remote gina instances (staging, K8s) by entering a host:port. Each instance appears as a named environment tab. | post-1.0.0 | — |
+| 📋 | **Browser extension companion** — Chrome/Firefox DevTools panel that embeds a Beemaster view in F12, connecting to the local instance via WebSocket. Optional enhancement on top of the standalone app — not a replacement. | post-1.0.0 | — |
+
+---
+
 ## Tutorials
 
 | Status | Tutorial | Duration | Version | Target |
@@ -220,4 +261,4 @@ Windows compatibility is a hard requirement for `1.0.0`. The alpha scope covers 
 
 ---
 
-*Last updated: 2026-03-28 · To suggest a feature, [open an issue](https://github.com/Rhinostone/gina/issues).*
+*Last updated: 2026-03-28 (Beemaster added) · To suggest a feature, [open an issue](https://github.com/Rhinostone/gina/issues).*
