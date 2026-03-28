@@ -2,7 +2,7 @@
   "baseUrl": "./../../../src",
   "paths": {
     "requireLib"            : "../../../../node_modules/requirejs/require",
-    "jquery"              : "../src/vendor/jquery/1.12.4.min",
+    // removed: jquery dependency (no AMD module requires it anymore)
 
     "vendor/uuid"           : "../../../../node_modules/uuid/dist/umd/uuid.min",
     "vendor/engine.io"      : "../../../../node_modules/engine.io-client/dist/engine.io.min",

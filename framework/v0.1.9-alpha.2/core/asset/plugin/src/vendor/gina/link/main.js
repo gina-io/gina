@@ -1,7 +1,6 @@
-define('gina/link', [ 'require', 'jquery', 'vendor/uuid', 'lib/domain', 'lib/merge', 'utils/events' ], function (require) {
+define('gina/link', [ 'require', 'vendor/uuid', 'lib/domain', 'lib/merge', 'utils/events' ], function (require) {
 
-    var $               = require('jquery');
-    $.noConflict();
+    // removed: jquery dependency
     var uuid            = require('vendor/uuid');
     var Domain          = require('lib/domain');
     var domainInstance  = null;
