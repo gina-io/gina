@@ -27,7 +27,7 @@ jobs:
       - name: Run tests
         run: |
           node --test \
-            'test/core/*.test.js' \
-            'test/lib/*.test.js' \
-            'test/bin/*.test.js' \
-            'test/integration/helper.test.js'
+            test/core/*.test.js \
+            test/lib/*.test.js \
+            test/bin/*.test.js \
+            test/integration/helper.test.js
