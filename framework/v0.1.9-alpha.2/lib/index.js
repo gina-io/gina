@@ -69,6 +69,11 @@ function Lib() {
         SessionStore    : _require('./session-store'),
         SwigFilters     : _require('./swig-filters'),
         Cache           : _require('./cache'),
+        // replaced: _require('./state') — StateStore is a singleton backed by node:sqlite
+        // (DatabaseSync). Hot-reloading it in dev mode would close and re-open the DB
+        // connection on every HTTP request, racing with in-flight writes. Use plain
+        // require() so the singleton survives refreshCore() evictions. (#CN2v3)
+        State           : require('./state'),
     };
 
     /**
