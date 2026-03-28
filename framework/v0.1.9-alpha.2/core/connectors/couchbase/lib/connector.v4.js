@@ -2,22 +2,15 @@
 var fs              = require('fs');
 var util            = require('util');
 var EventEmitter    = require('events').EventEmitter;
-const exec          = require('child_process').exec;
-uuid                = require('uuid');
+// const exec       = require('child_process').exec;  // CB-SEC-1/2: removed — restQuery now uses http.request()
+// CB-LOW-1 fix: uuid was assigned without `var`, leaking into global.uuid.
+var uuid            = require('uuid');
 var couchbase       = require(getPath('project') +'/node_modules/couchbase');// jshint ignore:line
 var gina            = require('../../../../core/gna');
 var lib             = gina.lib;
 var console         = lib.logger;
 var merge           = lib.merge;
 var modelUtil       = new lib.Model();
-
-//globalized
-// N1qlQuery           = couchbase.N1qlQuery || null;// jshint ignore:line
-// N1qlStringQuery     = couchbase.N1qlStringQuery || null;// jshint ignore:line
-// ViewQuery           = couchbase.ViewQuery || null;// jshint ignore:line
-// uuid                = require('uuid');// jshint ignore:line
-
-// uuid                = require('../../../../node_modules/uuid');
 
 
 
@@ -101,8 +94,15 @@ function Connector(dbString) {
             console.debug('[CONNECTOR][' + local.bundle +'] Env is: '+ process.env.NODE_ENV );
             console.error('[CONNECTOR][' + local.bundle +'] Couchbase could not be reached !!\n'+ ( err.stack || err.message || err ) );
 
-            // reconnecting
-            console.debug('[CONNECTOR][' + local.bundle +'][' + dbString.database +'] Trying to reconnect in a few secs...');
+            // CB-LOW-5 fix: exponential backoff replaces hardcoded 5s retry.
+            // Delay sequence: 5s → 10s → 20s → 40s → 60s (cap). Counter reset in onConnect().
+            self._reconnectAttempts = (self._reconnectAttempts || 0) + 1;
+            var _backoffDelay = Math.min(5000 * Math.pow(2, self._reconnectAttempts - 1), 60000);
+            if (self._reconnectAttempts >= 10) {
+                console.error('[CONNECTOR][' + local.bundle +'][' + dbString.database +'] Reconnect attempt ' + self._reconnectAttempts + ' — max backoff reached (' + (_backoffDelay/1000) + 's). Couchbase may be unavailable.');
+            } else {
+                console.debug('[CONNECTOR][' + local.bundle +'][' + dbString.database +'] Reconnect attempt ' + self._reconnectAttempts + ' — retrying in ' + (_backoffDelay/1000) + 's...');
+            }
             self.instance.reconnecting = true;
 
             setTimeout( function onRetry(){
@@ -111,7 +111,7 @@ function Connector(dbString) {
                 } else {
                     self.connect(dbString)
                 }
-            }, 5000)
+            }, _backoffDelay)
 
         };
 
@@ -120,6 +120,8 @@ function Connector(dbString) {
             console.debug('[CONNECTOR][' + local.bundle +'] Couchbase is alive !!');
             console.debug('[CONNECTOR][' + local.bundle +'][' + dbString.connector +'] Now connected...');
 
+            // CB-LOW-5 fix: reset backoff counter on successful (re)connect.
+            self._reconnectAttempts = 0;
             self.instance.reconnected  = self.instance.connected   = true;
             var options = local.options;
 
@@ -142,8 +144,8 @@ function Connector(dbString) {
                     console.debug('[CONNECTOR][' + local.bundle +']['+ env +'] Connected to couchbase !!');
 
 
-                    modelUtil.setConnection(bundle, name, self.instance);
-
+                    // CB-PERF-3 fix: first setConnection call was redundant (identical args, outside the existsSync guard)
+                    // modelUtil.setConnection(bundle, name, self.instance);
                     if ( fs.existsSync(modelsPath) ) {
                         modelUtil.setConnection(bundle, name, self.instance);
                         modelUtil.reloadModels(
@@ -161,7 +163,12 @@ function Connector(dbString) {
                 }
             });
             // intercepting conn event thru gina
-            gina.onError(function(err, req, res, next){
+            // CB-BUG-1 fix: guard against handler accumulation on reconnect
+            // — onConnect() fires on every reconnection; without this guard each reconnect stacks a new gina.onError handler,
+            //   and N handlers all race to call res.end() on the same error, causing "Cannot set headers after sent"
+            if (!self._errorHandlerRegistered) {
+                self._errorHandlerRegistered = true;
+                gina.onError(function(err, req, res, next){
                 // (code)   message
                 // (16)     Generic network failure. Enable detailed error codes (via LCB_CNTL_DETAILED_ERRCODES, or via `detailed_errcodes` in the connection string) and/or enable logging to get more information
                 // (23)     Client-Side timeout exceeded for operation. Inspect network conditions or increase the timeout
@@ -178,8 +185,14 @@ function Connector(dbString) {
                     //|| err instanceof couchbase.Error && err.code == 23 && !self.reconnecting
                     || /cannot perform operations on a shutdown bucket/.test(err.message ) && !self.reconnecting && !self.reconnected
                 ) {
-                    // reconnecting
-                    console.debug('[CONNECTOR][' + local.bundle +'][' + dbString.database +'] Trying to reconnect in 5 secs...');
+                    // CB-LOW-5 fix: exponential backoff (shared counter with connect onError).
+                    self._reconnectAttempts = (self._reconnectAttempts || 0) + 1;
+                    var _backoffDelay = Math.min(5000 * Math.pow(2, self._reconnectAttempts - 1), 60000);
+                    if (self._reconnectAttempts >= 10) {
+                        console.error('[CONNECTOR][' + local.bundle +'][' + dbString.database +'] Reconnect attempt ' + self._reconnectAttempts + ' — max backoff reached (' + (_backoffDelay/1000) + 's). Couchbase may be unavailable.');
+                    } else {
+                        console.debug('[CONNECTOR][' + local.bundle +'][' + dbString.database +'] Reconnect attempt ' + self._reconnectAttempts + ' — retrying in ' + (_backoffDelay/1000) + 's...');
+                    }
                     self.reconnecting = true;
 
                     setTimeout( function onRetry(){
@@ -188,7 +201,7 @@ function Connector(dbString) {
                         } else {
                             self.connect(dbString)
                         }
-                    }, 5000)
+                    }, _backoffDelay)
 
                 } else if (err instanceof couchbase.Error && err.code == 23 && !self.reconnecting) {
                     self.instance.disconnect();
@@ -206,10 +219,10 @@ function Connector(dbString) {
                         console.error('[CONNECTOR][' + local.bundle +'][' + dbString.database +'] gina fatal error ('+ err.code +'): ' + (err.message||err) + '\nstack: '+ err.stack);
 
                         if ( typeof(err) == 'object' ) {
+                            // CB-QUAL-1 fix: stack trace removed — logged server-side only, never sent to client
                             res.end(JSON.stringify({
                                 status: 500,
-                                error: err.message,
-                                stack: err.stack
+                                error: err.message
                             }))
                         } else {
                             res.end(err)
@@ -226,11 +239,18 @@ function Connector(dbString) {
                         }
                     }
                 }
-            });
+                });
+            }
 
-            setTimeout(() => {
-                self.emit('ready', false, self.instance);
-            }, 300);
+            // CB-PERF-1 fix: replaced 300ms arbitrary timer with direct synchronous emit.
+            // The timer was added because "something was not working yet on Mac OS X" —
+            // root cause was never identified. It adds 300ms to every bundle startup and
+            // is unreliable: if downstream setup takes >300ms, ready fires before setup
+            // completes. Original broken implementation:
+            // setTimeout(() => {
+            //     self.emit('ready', false, self.instance);
+            // }, 300);
+            self.emit('ready', false, self.instance);
 
         };
 
@@ -254,71 +274,92 @@ function Connector(dbString) {
                 conn.sdk        = sdk;
                 conn.useRestApi = local.options.useRestApi;
 
-                // Default maxBuffer is 200KB (=> 1024 * 200)
-                // Setting it to 10MB - preventing: stdout maxBuffer length exceeded
-                var maxQueryBuffer = (1024 * 1024 * 10);
-                var body = null;
+                // CB-SEC-1 / CB-SEC-2 fix: replaced exec(curl...) with http.request()
+                // — credentials sent via Authorization header, never in process list (ps aux)
+                // — no shell involved; metacharacters in statement/parameters cannot execute commands
+                // Original exec-based implementation (commented out — CB-SEC-1/CB-SEC-2):
+                // var maxQueryBuffer = (1024 * 1024 * 10);
+                // var body = null;
+                // conn.restQuery = function(trigger, statement, queryParams, onQueryCallback) {
+                //     statement = statement.replace(/\'/g, '"');
+                //     body = statement;
+                //     body += '&args='+ arrayToValues(queryParams.parameters);
+                //     if ( typeof(queryParams.scanConsistency) != 'undefined' ) {
+                //         body += '&scan_consistency='+ queryParams.scanConsistency
+                //     }
+                //     body += '\'';
+                //     var cmd = [
+                //         '$(which curl)',
+                //         '-v http://'+ dbString.host.split(/\,/g)[0].trim() +':8093/query/service',
+                //         '-d \'statement='+ body,
+                //         '-u '+ dbString.username +':'+ dbString.password  // ← credentials in process list
+                //     ];
+                //     exec(cmd.join(' '), { maxBuffer: maxQueryBuffer }, function onResult(resErr, resTxt, infos) { ... });
+                // };
                 // When conn.useRestApi == true
+                // https://docs.couchbase.com/server/current/n1ql-rest-query/index.html#Request
                 conn.restQuery = function(trigger, statement, queryParams, onQueryCallback) {
+                    var http = require('http');
                     statement = statement.replace(/\'/g, '"');
-                    body = statement;
-                    body += '&args='+ arrayToValues(queryParams.parameters);
-                    // body += '&auto_execute=true'
-                    if ( typeof(queryParams.scanConsistency) != 'undefined' ) {
-                        body += '&scan_consistency='+ queryParams.scanConsistency
+                    var postParts = ['statement=' + encodeURIComponent(statement)];
+                    if (queryParams.parameters && queryParams.parameters.length > 0) {
+                        postParts.push('args=' + encodeURIComponent(arrayToValues(queryParams.parameters)));
                     }
-                    body += '\'';
-                    // https://docs.couchbase.com/server/current/n1ql-rest-query/index.html#Request
-                    var cmd = [
-                        '$(which curl)',
-                        '-v http://'+ dbString.host.split(/\,/g)[0].trim() +':8093/query/service',
-                        // '-d \'statement='+ statement +'&args='+ arrayToValues(queryParams.parameters) +'&auto_execute=true\'',
-                        '-d \'statement='+ body,
-                        '-u '+ dbString.username +':'+ dbString.password
-                    ];
-                    exec(cmd.join(' '), { maxBuffer: maxQueryBuffer }, function onResult(resErr, resTxt, infos) {
-                        var error = null;
-                        if (resErr) {
+                    if (typeof(queryParams.scanConsistency) !== 'undefined') {
+                        postParts.push('scan_consistency=' + encodeURIComponent(queryParams.scanConsistency));
+                    }
+                    var postBody   = postParts.join('&');
+                    var hostParts  = dbString.host.split(/\,/g)[0].trim().split(':');
+                    var reqOptions = {
+                        hostname: hostParts[0],
+                        port    : parseInt(hostParts[1], 10) || 8093,
+                        path    : '/query/service',
+                        method  : 'POST',
+                        headers : {
+                            'Content-Type'  : 'application/x-www-form-urlencoded',
+                            'Content-Length': Buffer.byteLength(postBody),
+                            'Authorization' : 'Basic ' + Buffer.from(dbString.username + ':' + dbString.password).toString('base64')
+                        }
+                    };
+                    var req = http.request(reqOptions, function onResult(res) {
+                        var chunks = [];
+                        res.on('data', function(chunk) { chunks.push(chunk); });
+                        res.on('end', function() {
+                            var error = null;
                             try {
-                                error = new Error('[CONNECTOR][' + local.bundle +'] query '+ trigger +' aborted\n'+ resErr.stack);
-                                console.error(error.stack);
-                                onQueryCallback(error);
-                            } catch (_err) {
-                                console.error(_err.stack);
-                            }
-                            return;
-                        }
-                        let res = JSON.parse(resTxt);
-                        let err = res.errors;
-                        let data = {
-                            rows: res.results,
-                            meta: {
-                                resquestId: res.requestID,
-                                status: res.status,
-                                metrics: res.metrics
-                            }
-                        };
-
-                        if (err) {
-                            try {
-                                error = new Error(err.msg);
-                                error.stack = trigger;
-                                onQueryCallback(error);
-                            } catch (_err) {
-                                console.error(_err.stack);
-                            }
-                            return;
-                        }
-                        try {
-                            if ( typeof(data) == 'undefined' ) {
-                                data = { rows: []}
-                            }
-                            onQueryCallback(false, data.rows, data.meta);
-                        } catch (_err) {
-                            _err.stack = '[ ' + trigger + '] onQueryCallbackError: \n\t- Did you leave any bad comments ?\n\t- Did you try to run your query ?\r\n'+ query +'\r\n'+ _err.stack;
-                            console.error(_err.stack);
-                        }
+                                var result = JSON.parse(Buffer.concat(chunks).toString());
+                                var resErr = result.errors;
+                                var data   = {
+                                    rows: result.results,
+                                    meta: { requestId: result.requestID, status: result.status, metrics: result.metrics }
+                                };
+                                if (resErr) {
+                                    try {
+                                        error = new Error(resErr[0] ? resErr[0].msg : JSON.stringify(resErr));
+                                        error.stack = trigger;
+                                        onQueryCallback(error);
+                                    } catch (_err) { console.error(_err.stack); }
+                                    return;
+                                }
+                                try {
+                                    if (typeof(data) === 'undefined') { data = { rows: [] }; }
+                                    onQueryCallback(false, data.rows, data.meta);
+                                } catch (_err) {
+                                    _err.stack = '[ ' + trigger + '] onQueryCallbackError: \n\t- Did you leave any bad comments ?\n\t- Did you try to run your query ?\r\n'+ _err.stack;
+                                    console.error(_err.stack);
+                                }
+                            } catch (_err) { console.error(_err.stack); onQueryCallback(_err); }
+                        });
                     });
+                    req.on('error', function(resErr) {
+                        try {
+                            var error = new Error('[CONNECTOR][' + local.bundle +'] query '+ trigger +' aborted\n'+ resErr.stack);
+                            console.error(error.stack);
+                            onQueryCallback(error);
+                        } catch (_err) { console.error(_err.stack); }
+                    });
+                    req.write(postBody);
+                    req.end();
                 };
 
                 // open bucket
@@ -451,8 +492,10 @@ function Connector(dbString) {
 
             ncb(cb)
         } else {
-            console.debug('[CONNECTOR][' + local.bundle +'] Sent ping to couchbase ...');
-            self.ping(interval, cb, ncb);
+            // CB-BUG-4 fix: keepAlive is false — ping is a no-op; do not recurse
+            // old: console.debug('[CONNECTOR][' + local.bundle +'] Sent ping to couchbase ...');
+            // old: self.ping(interval, cb, ncb);  ← unconditional recursion → stack overflow
+            return;
         }
     }
 

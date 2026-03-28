@@ -2,7 +2,7 @@
 
 Gina follows the **BDFL** (Benevolent Dictator For Life) model with a commitment to transparency.
 
-Gina is developed and maintained by **Martin Luther** ([Rhinostone](https://www.rhinostone.com/)). Final decisions on direction, API design, and releases rest with the maintainer. Community contributions and RFCs are welcome and taken seriously.
+Gina is co-authored by **Martin Luther** ([Rhinostone](https://rhinostone.com)) and **Fabrice Delaneau** ([fdelaneau.com](https://fdelaneau.com)). Final decisions on direction, API design, and releases rest with Martin Luther. Community contributions and RFCs are welcome and taken seriously.
 
 ## How decisions are made
 

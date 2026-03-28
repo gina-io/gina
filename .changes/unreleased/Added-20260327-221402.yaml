@@ -1,0 +1,3 @@
+kind: Added
+body: Added GitHub Actions CI pipeline — runs the full test suite (494+ tests) on Node.js 18, 20, and 22 on every push and PR to `develop` and `master` (#A1)
+time: 2026-03-27T22:14:02.21479+01:00

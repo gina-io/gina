@@ -1,6 +1,6 @@
 # Gina <img src="https://gina.io/favicon-16x16.png" alt="Gina icon" style="position: absolute; top:10px; margin-right: 10px;" />
 
-[![npm version](https://badge.fury.io/js/gina.svg)](https://badge.fury.io/js/gina) [![GitHub version](https://badge.fury.io/gh/Rhinostone%2Fgina.svg)](https://badge.fury.io/gh/Rhinostone%2Fgina) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![Node.js >= 18](https://img.shields.io/badge/node-%3E%3D%2018-brightgreen)](https://nodejs.org)
+[![npm version](https://badge.fury.io/js/gina.svg)](https://badge.fury.io/js/gina) [![GitHub version](https://badge.fury.io/gh/Rhinostone%2Fgina.svg)](https://badge.fury.io/gh/Rhinostone%2Fgina) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![Node.js >= 18](https://img.shields.io/badge/node-%3E%3D%2018-brightgreen)](https://nodejs.org) [![Tests](https://github.com/Rhinostone/gina/actions/workflows/test.yml/badge.svg)](https://github.com/Rhinostone/gina/actions/workflows/test.yml)
 
 > **Documentation:** [https://gina.io/docs/](https://gina.io/docs/) · **Issues:** [GitHub](https://github.com/Rhinostone/gina/issues)
 
@@ -640,7 +640,7 @@ For the full documentation, visit [https://gina.io/docs/](https://gina.io/docs/)
 
 ## Governance
 
-Gina is led by Martin Luther (Rhinostone). Final decisions on direction, API design, and releases rest with the maintainer. Community contributions and RFCs are welcome and taken seriously. See [GOVERNANCE.md](./GOVERNANCE.md) for details.
+Gina is co-authored by **Martin Luther** ([Rhinostone](https://rhinostone.com)) and **Fabrice Delaneau** ([fdelaneau.com](https://fdelaneau.com)). Final decisions on direction, API design, and releases rest with Martin Luther. Community contributions and RFCs are welcome and taken seriously. See [GOVERNANCE.md](./GOVERNANCE.md) for details.
 
 ## License (MIT)
 

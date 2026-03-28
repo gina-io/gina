@@ -11,10 +11,10 @@ This roadmap covers planned features, architectural improvements, new connectors
 | Period | Version | Focus |
 | --- | --- | --- |
 | **Apr 2026** | `0.1.8` ✅ | Scaffold correctness · K8s support · Dependency injection · Automatic version migration |
-| **Q2 2026** | `0.2.0` | Stability · WatcherService · Redis & SQLite connectors · K8s session storage · Startup cache |
-| **Q3 2026** | `0.3.0` | Async/await · Dev hot-reload · MySQL & PostgreSQL connectors · AI Phase 2 · Tutorials · Mobile backend guide · Route radix tree |
-| **Q4 2026** | `0.4.0` | TypeScript declarations · AI agents (OpenAPI, MCP) · ScyllaDB connector · PWA scaffold · Advanced tutorial · Website redesign · Bun investigation |
-| **Q1 2027** | `0.5.0` | ESM support · Template engine migration · Structured logging |
+| **Q2 2026** | `0.2.0` | Stability · WatcherService · Redis & SQLite connectors · K8s session storage · Startup cache · Pointer compression · Couchbase v2 deprecation · Couchbase security & critical bug fixes · HTTP/2 security hardening |
+| **Q3 2026** | `0.3.0` | Async/await · Dev hot-reload · MySQL & PostgreSQL connectors · AI Phase 2 · Tutorials · Mobile backend guide · Route radix tree · Connector peerDependencies · 103 Early Hints · HTTP/2 observability · Security & CVE page · Couchbase connector hardening |
+| **Q4 2026** | `0.4.0` | TypeScript declarations · AI agents (OpenAPI, MCP) · ScyllaDB connector · PWA scaffold · Advanced tutorial · Website redesign · Docs offline ZIP · Bun investigation · Couchbase v2 removal · HTTP/2 hardening · Trailer support |
+| **Q1 2027** | `0.5.0` | ESM support · Template engine migration · Structured logging · Alt-Svc · HTTP/2 priorities · WebSocket over HTTP/2 |
 | **Q3 2027** | `1.0.0` | First stable release — Windows alpha compatibility is a hard gate |
 
 ---
@@ -35,9 +35,9 @@ This roadmap covers planned features, architectural improvements, new connectors
 
 | Status | Feature | Version | Target |
 | --- | --- | --- | --- |
-| 📋 | **Per-request controller instances** — Each request gets its own controller instance, eliminating shared mutable state under concurrency. | `0.2.0` | Q2 2026 |
+| 📋 | **Per-request controller instances** — Each HTTP request gets its own isolated controller instance with its own request state. Removes dead singleton infrastructure and fixes edge-case memory retention in error paths. | `0.2.0` | Q2 2026 |
 | 📋 | **Entity `_arguments` buffer scoped to call** — Move the event result buffer from the entity to the individual call, preventing concurrent callers from sharing state. | `0.2.0` | Q2 2026 |
-| 📋 | **Retire `freeMemory`** — Once per-request instances land (#M1), there is no shared `local` closure to null. Replace `freeMemory` call sites with explicit `local.req = null; local.res = null; local.next = null` at response exit points. | `0.2.0` | Q2 2026 |
+| ✅ | **Retire `freeMemory`** — Once per-request instances land (#M1), there is no shared `local` closure to null. Replace `freeMemory` call sites with explicit `local.req = null; local.res = null; local.next = null` at response exit points. | `0.2.0` | Q2 2026 |
 
 ### Phase 2 — Async
 
@@ -67,6 +67,7 @@ This roadmap covers planned features, architectural improvements, new connectors
 | 📋 | **ESM compatibility layer** — Dual CJS/ESM entry points via `"exports"` in `package.json`. Framework internals stay CJS; public API gets ESM re-exports. | `0.5.0` | Q1 2027 |
 | 📋 | **Pluggable template engine** — Swig 1.4.2 stays fully integrated and remains the default. Nunjucks added as a supported alternative (opt-in per project via config). The render layer is abstracted behind a common interface so both engines co-exist. Switching to Nunjucks requires a per-project migration guide (breaking differences: `{% parent %}` → `{{ super() }}`, filter renames, autoescape default, `date` format strings, no `{% spaceless %}` — see docs). | `0.5.0` | Q1 2027 |
 | 📋 | **Structured logging** — JSON log output (`{ level, message, bundle, requestId, durationMs }`). Additive — existing consumers are unaffected. Enables log aggregation (Loki, Datadog, CloudWatch). | `0.5.0` | Q1 2027 |
+| 📋 | **Research `AsyncLocalStorage` for request context** — Evaluate `node:async_hooks` `AsyncLocalStorage` as a replacement for the `local` closure pattern, giving true async isolation across `setTimeout`, Promises, and `async/await` chains without any closure threading. Output: decision doc + proof-of-concept branch. | `0.5.0` | Q1 2027 |
 
 ---
 
@@ -76,12 +77,47 @@ New database connectors follow the same interface as the existing Couchbase conn
 
 | Status | Connector | Version | Target | Notes |
 | --- | --- | --- | --- | --- |
-| 📋 | **Redis** | `0.2.0` | Q2 2026 | Session store and general-purpose cache. Client: `ioredis`. Required for K8s horizontal scaling. |
-| 📋 | **SQLite** | `0.2.0` | Q2 2026 | Three use cases: framework state storage (replaces JSON files under `~/.gina/`), session store for single-pod/dev deployments, and embedded ORM connector. Uses `node:sqlite` (Node.js built-in since v22.5.0 — zero npm deps). |
+| ✅ | **Redis** | `0.2.0` | Q2 2026 | Session store and general-purpose cache. Client: `ioredis`. Required for K8s horizontal scaling. |
+| 🔶 | **SQLite** | `0.2.0` | Q2 2026 | Three use cases: framework state storage (replaces JSON files under `~/.gina/`), session store for single-pod/dev deployments, and embedded ORM connector. Uses `node:sqlite` (Node.js built-in since v22.5.0 — zero npm deps). Session store done (v1); ORM and state storage deferred. |
 | 📋 | **MySQL / MariaDB** | `0.3.0` | Q3 2026 | ORM connector. Client: `mysql2`. |
 | 📋 | **PostgreSQL** | `0.3.0` | Q3 2026 | ORM connector. Client: `pg` (node-postgres). |
 | 📋 | **ScyllaDB** | `0.4.0` | Q4 2026 | Cassandra-compatible wide-column store. Client: `@scylladb/scylla-driver`. |
 | 📋 | **MongoDB** | `0.4.0` | Q4 2026 | Document store connector. Client: `mongodb` (official driver). Interface approach TBD — MongoDB's document model differs from the N1QL/SQL pattern used by existing connectors. |
+| ✅ | **Couchbase SDK v2 deprecation** | `0.2.0` | 2026-03-27 | Couchbase Server SDK v2 reached end-of-life in 2021. `connector.v2.js` now logs a deprecation warning at connection time, and a fatal error when V8 pointer compression is active (NAN bindings are incompatible). Upgrade path: set `sdk.version` to `3` or `4` in your bundle's `connectors.json`. |
+| 📋 | **Couchbase SDK v2 removal** | `0.4.0` | Q4 2026 | `connector.v2.js` and all `sdk.version <= 2` branches removed. Default falls back to v3 when `sdk.version` is unset. Full migration guide in `CHANGELOG.md`. |
+| 📋 | **`peerDependencies` for connector clients** | `0.3.0` | Q3 2026 | Connector client libraries (`ioredis`, `mysql2`, `pg`, `mongodb`, `@scylladb/scylla-driver`, `couchbase`) are loaded from the user's project — gina has zero runtime npm dependencies. `peerDependencies` (all optional) will signal the tested version range and surface an `npm install` compatibility warning when a user pins an untested version. |
+
+---
+
+## Couchbase Connector Hardening
+
+A cold audit of the Couchbase connector identified two critical security vulnerabilities and four high-severity bugs. All items are contained to specific code paths and do not affect the common case (v4 SDK, Promise API, no `useRestApi`), but they should be resolved before the next stable release.
+
+### Critical — Security
+
+| Status | Feature | Version | Target |
+| --- | --- | --- | --- |
+| ✅ | **Credential exposure in process list (`restQuery`)** — The `useRestApi: true` path built a shell command containing `-u username:password` passed to `exec()`. Plaintext credentials were visible in `ps aux` for the duration of the call. Fixed: replaced `exec()` with `execFile()` — credentials passed as positional arguments, never in the shell string. | `0.2.0` | 2026-03-27 |
+| ✅ | **Shell command injection in `restQuery`** — The same `exec()` path joined the N1QL statement and query parameters into a single shell string. Metacharacters (`$`, `;`, `&`, `|`, backtick) in parameters were not neutralised. Fixed: same change as above — `execFile()` eliminates the shell entirely. | `0.2.0` | 2026-03-27 |
+
+### High — Bugs
+
+| Status | Feature | Version | Target |
+| --- | --- | --- | --- |
+| ✅ | **`gina.onError()` handler accumulates on every reconnect** — The error handler was registered inside `onConnect()`, which fired on every reconnection. After N reconnects, N stacked handlers raced on the same error. Fixed: `_errorHandlerRegistered` guard ensures the handler is registered only once per connector instance. | `0.2.0` | 2026-03-27 |
+| ✅ | **`session-store.v3 get()` always returns "session not found"** — `.then()/.catch()` callbacks are microtasks; the `if (!data)` guard ran synchronously before they resolved. Every session read returned empty. Fixed: rewrote `get()` with `async/await`, matching the v4 store. | `0.2.0` | 2026-03-27 |
+| ✅ | **`session-store.v3 set()` silently discards writes** — Same async/sync confusion. `fn(false, null)` was called before the upsert Promise resolved. Fixed: rewrote `set()` with `async/await`. | `0.2.0` | 2026-03-27 |
+| ✅ | **Infinite recursion when `keepAlive: false`** — The `else` branch in `ping()` called itself unconditionally. Stack overflow on first connection with `keepAlive: false`. Fixed: replaced the unconditional self-call with `return`. | `0.2.0` | 2026-03-27 |
+
+### Medium
+
+| Status | Feature | Version | Target |
+| --- | --- | --- | --- |
+| ✅ | **300ms arbitrary startup delay** — A `setTimeout(300)` was firing `ready` instead of a condition. Added 300ms to every Couchbase-connected bundle startup and was unreliable under load. Fixed: `self.emit('ready')` now fires directly. | `0.3.0` | 2026-03-28 |
+| ✅ | **`ping()` drops reconnection callback in v2/v3** — `typeof(next)` was checked but `next` was not in scope, so reconnect-from-ping always called `connect()` without a callback, silently swallowing errors. Fixed: changed to `typeof(ncb)` and pass `ncb` on reconnect. | `0.3.0` | 2026-03-28 |
+| ✅ | **Stack traces in HTTP 500 responses** — `err.stack` was included in the JSON sent to the HTTP client, exposing absolute filesystem paths and internal module names. Fixed: stack logged server-side; client receives only the error message. | `0.3.0` | 2026-03-27 |
+| ✅ | **`eval()` for `@options` parsing** — `@options` directives in `.sql` files were evaluated with `eval()`. Fixed: replaced with a regex key-normalisation pass then `JSON.parse()` — handles all production value shapes correctly. | `0.3.0` | 2026-03-28 |
+| ✅ | **`bulkInsert` does not return a Promise** — Unlike all other N1QL entity methods, `bulkInsert` returned a plain `{onComplete: fn}` object. Fixed: converted to the Option B Promise pattern with `.onComplete(cb)` chaining. | `0.3.0` | 2026-03-28 |
 
 ---
 
@@ -93,7 +129,25 @@ New database connectors follow the same interface as the existing Couchbase conn
 | ✅ | **`gina-container` foreground launcher** — Drop-in entrypoint for Docker/K8s. Spawns the bundle non-detached, forwards SIGTERM, exits with the child's code. No framework socket server required. | `0.1.8` | 2026-03-06 |
 | ✅ | **Stdout/stderr structured logging** — `GINA_LOG_STDOUT=true` emits JSON lines compatible with `kubectl logs`, Fluentd, and Datadog. | `0.1.8` | 2026-03-21 |
 | ✅ | **`gina-init` — stateless container bootstrap** — Generates all required `~/.gina/` config from env vars or a mounted JSON file. Idempotent. Makes the framework init-container friendly. | `0.1.8` | 2026-03-22 |
-| 📋 | **Session storage for horizontal scaling** — Plug-in session store backed by Redis (#CN1) for multi-pod deployments. Default in-memory store remains available for single-pod and development. | `0.2.0` | Q2 2026 |
+| ✅ | **Session storage for horizontal scaling** — Redis session store (multi-pod) + SQLite session store (single-pod/dev) + full sessions guide. | `0.2.0` | Q2 2026 |
+
+---
+
+## HTTP/2
+
+| Status | Feature | Version | Target | Notes |
+| --- | --- | --- | --- | --- |
+| ✅ | **Fix `/_gina/info` HTTP/2 endpoint** — `stream.end(infoStatus)` not `stream.end(infoHeaders)` | `0.2.0` | Q2 2026 | The HTTP/2 branch of the info endpoint passes the headers object instead of the JSON string. Returns `[object Object]` instead of JSON. One-line fix. |
+| ✅ | **Add stream-closed guard to HTML error response** — `stream.destroyed \|\| stream.closed` check in `throwError()` | `0.2.0` | Q2 2026 | JSON error path has this guard; HTML path does not. If the stream closes during error handling, Node.js emits an unhandled error. |
+| ✅ | **HTTP/2 server security settings** — `maxHeaderListSize: 65536`, `enablePush: false`, `maxSessionInvalidFrames`, `maxSessionRejectedStreams` | `0.2.0` | Q2 2026 | Four missing settings on the server. `maxHeaderListSize` prevents HPACK bomb attacks (only set on the client today). `enablePush: false` — server push is deprecated in Chrome 106+ and removed in Firefox 132+. `maxSessionInvalidFrames` and `maxSessionRejectedStreams` defend against CONTINUATION flood (CVE-2024-27316) and RST flood / rapid reset (CVE-2023-44487). |
+| 📋 | **103 Early Hints** — send `Link` preload headers as informational response before the final response | `0.3.0` | Q3 2026 | `Link: <url>; rel=preload` headers are correctly built but sent with the final response. Calling `stream.additionalHeaders({ ':status': 103, 'link': links })` before `stream.respond()` allows the browser to start preloading CSS/JS while the template is still rendering. Modern replacement for server push. |
+| 📋 | **HTTP/2 session metrics** — expose active session count, stream count, GOAWAY and RST_STREAM totals via `/_gina/info` | `0.3.0` | Q3 2026 | No counters exist for the session pool state. Adds observability for ops teams without requiring an external APM. |
+| 📋 | **Configurable `maxConcurrentStreams` and `initialWindowSize`** — move from hardcoded to `settings.server.json` | `0.3.0` | Q3 2026 | Currently `maxConcurrentStreams: 1000` (very permissive) and `initialWindowSize: 655,350` (10× default) are hardcoded. Move to bundle config with sensible defaults (256 / 65,535). Existing deployments unaffected until they opt in. |
+| 📋 | **Application-level rapid reset rate limiter** (CVE-2023-44487) — per-session stream creation counter | `0.4.0` | Q4 2026 | Node.js ≥ 20.12.1 has the OS-level fix. Add an application-level counter: if a session creates more than N streams per second, close with GOAWAY. Important for public-facing deployments. |
+| 📋 | **Trailer support** — `stream.sendTrailers()` + `waitForTrailers: true` | `0.4.0` | Q4 2026 | No trailer support today. Required for gRPC-style streaming (grpc-status trailer) and content integrity use cases. Opt-in: activated only when a controller calls `self.sendTrailers(fields)`. |
+| 📋 | **Alt-Svc header** — advertise HTTP/3 availability | `0.5.0` | Q1 2027 | Set `Alt-Svc: h3=":443"; ma=86400` response header to advertise HTTP/3 (QUIC) availability via a QUIC-capable reverse proxy (nginx, Caddy, Cloudflare). Gina does not need to implement QUIC — just announce it. Opt-in via `settings.server.json`. Native HTTP/3 is out of scope: Node.js has no stable QUIC API, and the standard deployment topology (Gina → proxy → client) already delivers HTTP/3 at the edge. |
+| 📋 | **RFC 9218 Extensible Priorities** — read `Priority: u=N, i` request header | `0.5.0` | Q1 2027 | Use the RFC 9218 priority header to order response writes for multiplexed API clients. Low value for typical HTML page loads; high value for parallel API requests with declared urgency. |
+| 📋 | **WebSocket over HTTP/2** (RFC 8441 — CONNECT method extension) | `0.5.0` | Q1 2027 | Tunnel WebSocket over an HTTP/2 stream without a separate HTTP/1.1 connection. Node.js supports this since v10.19. Enables WebSocket in HTTP/2-only deployments. |
 
 ---
 
@@ -127,9 +181,10 @@ New database connectors follow the same interface as the existing Couchbase conn
 
 | Status | Feature | Version | Target | Notes |
 | --- | --- | --- | --- | --- |
-| 📋 | **`NODE_COMPILE_CACHE` — V8 bytecode startup cache** | `0.2.0` | Q2 2026 | Node.js 22.8+ caches compiled V8 bytecode to disk. Set once at startup — 30–60% faster cold start on subsequent runs with zero code changes to user bundles. No-op on Node < 22.8, so safe to ship unconditionally. |
+| ✅ | **`NODE_COMPILE_CACHE` — V8 bytecode startup cache** | `0.2.0` | Q2 2026 | Node.js 22.8+ caches compiled V8 bytecode to disk. Set once at startup — 30–60% faster cold start on subsequent runs with zero code changes to user bundles. No-op on Node < 22.8, so safe to ship unconditionally. |
 | 📋 | **Route radix tree — compile `routing.json` at startup** | `0.3.0` | Q3 2026 | Current router does linear matching against `routing.json` on every request. Pre-compile routes into a radix tree at bundle startup for O(log n) matching. 2–3x faster routing layer. Internal change — no user-facing API change. |
 | 📋 | **Bun runtime compatibility investigation** | `0.4.0` | Q4 2026 | Prototype Gina under Bun. Two blockers to verify: `require.cache` deletion (dev hot-reload) and `node:http2` completeness. If both pass, Bun gives 3–10x faster startup and meaningful throughput gains. Deliverable: a compatibility report. |
+| ✅ | **V8 pointer compression support** | `0.2.0` | Q2 2026 | Node.js built with `--experimental-enable-pointer-compression` (e.g. [node-caged](https://github.com/platformatic/node-caged) or a custom build) delivers ~50% heap memory reduction across all pointer-heavy structures. Gina is pure JS — compatible out of the box. Adds: startup detection + `GINA_V8_POINTER_COMPRESSED` env var, Dockerfile guide with custom build recipe (full-icu + pointer compression), 4 GB ceiling documentation, N-API-only connector policy. |
 
 ---
 
@@ -149,6 +204,7 @@ Windows compatibility is a hard requirement for `1.0.0`. The alpha scope covers 
 | --- | --- | --- | --- | --- |
 | 📋 | **Using Gina as a mobile backend** — REST API patterns, JSON-only bundles, token auth, CORS, HTTP/2, and the path to OpenAPI/MCP for SDK generation. Docs only — no code changes. | — | `0.3.0` | Q3 2026 |
 | 📋 | **Beginner** — Your first Gina app: install, scaffold, one route, one controller, browser response. Starts from `gina new` — no prior project needed. | 5 min | `0.3.0` | Q3 2026 |
+| 📋 | **Tutorial locale detection** — Detect the reader's locale and timezone via `navigator.language` + `Intl` and pre-fill the `settings.json` scaffold example with their actual `region`, `preferedLanguages`, and `24HourTimeFormat` values. Falls back to `en_CM`. Implemented as a client-side Docusaurus component. | — | `0.3.0` | Q3 2026 |
 | 📋 | **Intermediate** — Multi-bundle setup, routing with URL params, entity + connector wiring, template rendering, form handling. Starts from scratch. | ~30 min | `0.3.0` | Q3 2026 |
 | 📋 | **Advanced** — Full production project: authentication, scoped data isolation, async/await, HTTP/2, structured logging, Docker/K8s deployment. Starts from the intermediate tutorial's finished state. | ~60 min | `0.4.0` | Q4 2026 |
 
@@ -159,7 +215,9 @@ Windows compatibility is a hard requirement for `1.0.0`. The alpha scope covers 
 | Status | Feature | Version | Target |
 | --- | --- | --- | --- |
 | 📋 | **Official website redesign + docs integration** — Refactor gina.io as a proper project homepage (landing page, feature highlights, showcase) with the documentation fully integrated. Single coherent web presence. Prerequisite: tutorials complete. | `0.4.0` | Q4 2026 |
+| 📋 | **Docs offline ZIP** — One-click download of the complete gina.io documentation as a static HTML ZIP archive. Generated at deploy time by the Docusaurus build pipeline — no server-side logic required. Targeted at users in regions with limited or expensive internet access (offline-first for the African market). | `0.4.0` | Q4 2026 |
+| 📋 | **Security & CVE compliance page** — Dedicated docs page listing the HTTP/2 CVEs addressed by Gina and the Node.js version required for each mitigation. Covers CVE-2023-44487 (Rapid Reset), CVE-2024-27316 / CVE-2024-27983 (CONTINUATION flood), CVE-2019-9514 (RST flood), and the nghttp2-mitigated ping/settings floods. Docs only — no code changes. | `0.3.0` | Q3 2026 |
 
 ---
 
-*Last updated: 2026-03-27 · To suggest a feature, [open an issue](https://github.com/Rhinostone/gina/issues).*
+*Last updated: 2026-03-28 · To suggest a feature, [open an issue](https://github.com/Rhinostone/gina/issues).*

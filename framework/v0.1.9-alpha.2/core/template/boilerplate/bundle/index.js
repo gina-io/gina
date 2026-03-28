@@ -22,7 +22,29 @@ var ${bundle} = require('gina');
 //    // getting config/app.json would be: self.getConfig('app')
 //    // or self.getConfig().app
 //    var conf = self.getConfig();
-//    // you can use express middleware components
+//
+//    // --- Session store (pick one backend) ---
+//    // var session      = require('express-session');
+//    // var SessionStore = lib.SessionStore;
+//    //
+//    // Redis — multi-pod / K8s (requires: npm install ioredis)
+//    // Configure connectors.json: { "myRedis": { "connector": "redis", "host": "...", "port": 6379, "ttl": 86400 } }
+//    // session.name = 'myRedis';
+//    //
+//    // SQLite — dev / staging / single-pod (requires: Node >= 22.5.0, zero npm deps)
+//    // Configure connectors.json: { "myDb": { "connector": "sqlite", "database": ":memory:", "ttl": 86400 } }
+//    // session.name = 'myDb';
+//    //
+//    // var StoreClass = new SessionStore(session);  // returns connector-specific Store class
+//    // app.use(session({
+//    //     secret           : process.env.SESSION_SECRET || 'changeme',
+//    //     resave           : false,
+//    //     saveUninitialized: false,
+//    //     store            : new StoreClass(),
+//    //     cookie           : { secure: false, maxAge: 86400000 }
+//    // }));
+//
+//    // you can also use express middleware components directly
 //    // eg.: app.use( session({secret: '1234567890QWERTY'}) );
 //
 //    //then notify the server that startup sequence can be resumed

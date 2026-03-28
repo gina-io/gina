@@ -1,9 +1,7 @@
-//"use strict";
+"use strict";
 // Imports.
 var fs              = require('fs');
-const { version }   = require('os');
-//var util            = require('util');
-//var promisify       = require('util').promisify;
+// CB-LOW-3 fix: removed dead `const { version } = require('os')` — `version` was never referenced.
 // Use couchbase module from the user's project dependencies if not found
 var couchbasePath   = _(getPath('project') +'/node_modules/couchbase');
 var couchbase       = require(couchbasePath);
@@ -239,7 +237,22 @@ function Couchbase(conn, infos) {
 
             optionsArr = queryString.match(/\@options \{(.*)\}/gm);
             if (optionsArr) {
-                eval('options='+optionsArr[0].replace(/\@options\ /, ''));
+                // CB-QUAL-2 fix: replaced eval() with JSON.parse() for @options parsing.
+                // @options uses JavaScript object literal syntax with unquoted keys
+                // (e.g. { consistency: "request_plus" }) — not strict JSON.
+                // We normalise unquoted property names to quoted form before parsing so
+                // JSON.parse() can handle them. Parse errors now surface explicitly
+                // instead of silently corrupting the `options` variable in scope.
+                // Original broken implementation:
+                // eval('options='+optionsArr[0].replace(/\@options\ /, ''));
+                try {
+                    var _rawOpts = optionsArr[0].replace(/\@options\s+/, '');
+                    // Quote any bare identifier keys: { foo: → { "foo":
+                    var _jsonOpts = _rawOpts.replace(/([{,]\s*)([a-zA-Z_$][a-zA-Z0-9_$]*)(\s*:)/g, '$1"$2"$3');
+                    options = JSON.parse(_jsonOpts);
+                } catch (parseErr) {
+                    console.warn('[CONNECTOR] @options parse error in .sql file: ' + parseErr.message);
+                }
             }
             optionsArr = null;
 
@@ -1015,7 +1028,9 @@ function Couchbase(conn, infos) {
                 rec[id].values._collection  = this._collection;
                 rec[id].values._scope       = this._scope;
 
-                queryString += '\t\nVALUES ("'+ id +'", '+ JSON.stringify(rec[id].values) +'),';
+                // CB-QUAL-4 fix: id was interpolated bare — a key containing `"` broke the N1QL string.
+                // JSON.stringify() escapes any special characters and wraps in double quotes.
+                queryString += '\t\nVALUES ('+ JSON.stringify(String(id)) +', '+ JSON.stringify(rec[id].values) +'),';
                 recCount++;
             }
 
@@ -1116,17 +1131,49 @@ function Couchbase(conn, infos) {
             }
 
 
-            return {
-                onComplete : function(cb) {
-                    self.once(trigger, function(err, data, meta){
-                        if (envIsDev) {
-                            console.debug('[ bulkInsert triggerd ] '+ trigger + ' - Rec count: '+ recCount);
-                        }
+            // CB-QUAL-3 fix: bulkInsert previously returned a plain {onComplete} _proto object.
+            // `await entity.bulkInsert(...)` resolved to the object, not the data — silently
+            // wrong for any async controller using bulkInsert. Fixed with the same Option B
+            // Promise + .onComplete() pattern used by all other N1QL entity methods.
+            // Original broken implementation:
+            // return {
+            //     onComplete : function(cb) {
+            //         self.once(trigger, function(err, data, meta){
+            //             if (envIsDev) {
+            //                 console.debug('[ bulkInsert triggerd ] '+ trigger + ' - Rec count: '+ recCount);
+            //             }
+            //             cb(err, data, meta)
+            //         })
+            //     }
+            // }
+            var _resolve, _reject, _internalData, _internalMeta;
+            var _promise = new Promise(function(resolve, reject) {
+                _resolve = resolve;
+                _reject  = reject;
+            });
 
-                        cb(err, data, meta)
-                    })
+            _promise.onComplete = function(cb) {
+                _promise.then(
+                    function()    { cb(null, _internalData, _internalMeta); },
+                    function(err) { cb(err); }
+                );
+                return _promise;
+            };
+
+            self.once(trigger, function(err, data, meta){
+                if (envIsDev) {
+                    console.debug('[ bulkInsert triggered ] '+ trigger + ' - Rec count: '+ recCount);
                 }
-            }
+                if (err) {
+                    _reject(err);
+                } else {
+                    _internalData = data;
+                    _internalMeta = meta;
+                    _resolve(data);
+                }
+            });
+
+            return _promise;
 
         } catch (err) {
             console.error(err.stack);
