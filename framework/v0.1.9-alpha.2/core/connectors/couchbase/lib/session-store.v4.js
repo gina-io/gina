@@ -18,7 +18,7 @@ var dateFormat      = helpers.dateFormat;
  * https://github.com/visionmedia/connect-redis
  */
 
-'use strict'
+// CB-LOW-4 fix: duplicate 'use strict' removed — file already has "use strict" at line 1.
 
 /**
  * Module dependencies.
