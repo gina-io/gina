@@ -80,7 +80,7 @@ describe('01 - basic operations', function () {
 describe('02 - TTL auto-expiry', function () {
 
     it('entry expires after TTL', function (t) {
-        t.mock.timers.enable({ apis: ['setTimeout'] });
+        t.mock.timers.enable(['setTimeout']);
         var cache = new Cache();
         cache.from(new Map());
 
@@ -93,7 +93,7 @@ describe('02 - TTL auto-expiry', function () {
     });
 
     it('entry persists before TTL expires', function (t) {
-        t.mock.timers.enable({ apis: ['setTimeout'] });
+        t.mock.timers.enable(['setTimeout']);
         var cache = new Cache();
         cache.from(new Map());
 
@@ -105,7 +105,7 @@ describe('02 - TTL auto-expiry', function () {
     });
 
     it('TTL converts seconds to milliseconds (boundary)', function (t) {
-        t.mock.timers.enable({ apis: ['setTimeout'] });
+        t.mock.timers.enable(['setTimeout']);
         var cache = new Cache();
         cache.from(new Map());
 
@@ -119,7 +119,7 @@ describe('02 - TTL auto-expiry', function () {
     });
 
     it('delete clears TTL timeout', function (t) {
-        t.mock.timers.enable({ apis: ['setTimeout'] });
+        t.mock.timers.enable(['setTimeout']);
         var cache = new Cache();
         cache.from(new Map());
 
@@ -173,7 +173,7 @@ describe('03 - cleanup functions', function () {
     });
 
     it('TTL expiry bypasses cleanup (uses Map.delete internally)', function (t) {
-        t.mock.timers.enable({ apis: ['setTimeout'] });
+        t.mock.timers.enable(['setTimeout']);
         var called = false;
         cache.set('temp', { data: 'x', ttl: 1 }, function () { called = true; });
 
