@@ -14,11 +14,13 @@ describe('01 - getRootDomain', function () {
 
     var domainInstance;
 
-    before(function (t, done) {
-        new Domain(function onReady(err, instance) {
-            if (err) throw err;
-            domainInstance = instance;
-            done();
+    before(function () {
+        return new Promise(function (resolve, reject) {
+            new Domain(function onReady(err, instance) {
+                if (err) return reject(err);
+                domainInstance = instance;
+                resolve();
+            });
         });
     });
 
@@ -65,11 +67,13 @@ describe('03 - getFQDN', function () {
 
     var domainInstance;
 
-    before(function (t, done) {
-        new Domain(function onReady(err, instance) {
-            if (err) throw err;
-            domainInstance = instance;
-            done();
+    before(function () {
+        return new Promise(function (resolve, reject) {
+            new Domain(function onReady(err, instance) {
+                if (err) return reject(err);
+                domainInstance = instance;
+                resolve();
+            });
         });
     });
 
