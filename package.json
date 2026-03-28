@@ -3,20 +3,20 @@
   "version": "0.1.9-alpha.2",
   "description": "Node.js MVC framework with built-in HTTP/2, multi-bundle architecture, and scope-based data isolation — no Express dependency",
   "keywords": [
+    "nodejs",
     "framework",
     "mvc",
-    "mvc framework",
     "http2",
-    "http/2",
-    "node.js framework",
-    "multi-bundle",
+    "rest-api",
+    "full-stack",
+    "server-side-rendering",
     "event-driven",
+    "multi-bundle",
     "couchbase",
-    "rest",
-    "api",
+    "mongodb",
+    "typescript",
     "gina",
-    "ginajs",
-    "gina.io"
+    "ginajs"
   ],
   "homepage": "https://gina.io",
   "repository": {
@@ -69,5 +69,21 @@
   "devDependencies": {
     "colors": "1.4.0",
     "uuid": "^9.0.0"
+  },
+  "peerDependencies": {
+    "couchbase": ">=3.0.0",
+    "ioredis": ">=5.0.0",
+    "mysql2": ">=2.0.0",
+    "pg": ">=8.0.0",
+    "mongodb": ">=5.0.0",
+    "@scylladb/scylla-driver": ">=1.0.0"
+  },
+  "peerDependenciesMeta": {
+    "couchbase": { "optional": true },
+    "ioredis": { "optional": true },
+    "mysql2": { "optional": true },
+    "pg": { "optional": true },
+    "mongodb": { "optional": true },
+    "@scylladb/scylla-driver": { "optional": true }
   }
 }
