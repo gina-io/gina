@@ -65,5 +65,8 @@
     "postinstall": "node script/post_install.js"
   },
   "license": "MIT",
-  "readmeFilename": "README.md"
+  "readmeFilename": "README.md",
+  "devDependencies": {
+    "colors": "1.4.0"
+  }
 }
