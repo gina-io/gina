@@ -15,7 +15,8 @@
  * Module dependencies.
  */
 
-var debug = require('debug')('connect:couchbase');
+// #B10 fix: require debug from project node_modules — same pattern as couchbase/index.js.
+var debug = require(_(getPath('project') + '/node_modules/debug'))('connect:couchbase');
 
 /**
  * One day in seconds.

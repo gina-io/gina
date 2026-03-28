@@ -425,6 +425,8 @@ function Proc(bundle, proc, usePidFile){
                     fileStream.end();
                     e.emit('proc#complete-'+self.PID, false, PID)
                 });
+                fileStream.once('error', function(err) {
+                });
             } catch (err) {
                 e.emit('proc#complete-'+self.PID, err)
             }
@@ -550,7 +552,6 @@ function Proc(bundle, proc, usePidFile){
 
             var processRegistration = function () {
 
-
                 if (!/^gina\-/.test(bundle) && !existingProcess) {
                     self.bundles.push(bundle);
                 }
@@ -586,7 +587,6 @@ function Proc(bundle, proc, usePidFile){
                 if (!isReplacementNeeded) {
                     self.PID    = self.proc.pid;
                     self.path   = path + pathObj.sep;
-
                     //Add PID file.
                     setPID(bundle, self.PID, self.proc);
                     save(bundle, self.PID, self.proc);
