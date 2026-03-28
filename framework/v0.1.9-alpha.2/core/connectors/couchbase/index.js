@@ -240,14 +240,18 @@ function Couchbase(conn, infos) {
             optionsArr = queryString.match(/\@options \{(.*)\}/gm);
             if (optionsArr) {
                 // CB-QUAL-2 fix: replaced eval() with JSON.parse() for @options parsing.
-                // The .sql @options directive takes a JSON-compatible object literal —
-                // JSON.parse() is sufficient and avoids arbitrary code execution risk.
-                // A typo in a .sql file with eval() could silently corrupt the `options`
-                // variable in scope. Now the parse error is surfaced explicitly.
+                // @options uses JavaScript object literal syntax with unquoted keys
+                // (e.g. { consistency: "request_plus" }) — not strict JSON.
+                // We normalise unquoted property names to quoted form before parsing so
+                // JSON.parse() can handle them. Parse errors now surface explicitly
+                // instead of silently corrupting the `options` variable in scope.
                 // Original broken implementation:
                 // eval('options='+optionsArr[0].replace(/\@options\ /, ''));
                 try {
-                    options = JSON.parse(optionsArr[0].replace(/\@options\s+/, ''));
+                    var _rawOpts = optionsArr[0].replace(/\@options\s+/, '');
+                    // Quote any bare identifier keys: { foo: → { "foo":
+                    var _jsonOpts = _rawOpts.replace(/([{,]\s*)([a-zA-Z_$][a-zA-Z0-9_$]*)(\s*:)/g, '$1"$2"$3');
+                    options = JSON.parse(_jsonOpts);
                 } catch (parseErr) {
                     console.warn('[CONNECTOR] @options parse error in .sql file: ' + parseErr.message);
                 }
