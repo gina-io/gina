@@ -1,9 +1,7 @@
-//"use strict";
+"use strict";
 // Imports.
 var fs              = require('fs');
-const { version }   = require('os');
-//var util            = require('util');
-//var promisify       = require('util').promisify;
+// CB-LOW-3 fix: removed dead `const { version } = require('os')` — `version` was never referenced.
 // Use couchbase module from the user's project dependencies if not found
 var couchbasePath   = _(getPath('project') +'/node_modules/couchbase');
 var couchbase       = require(couchbasePath);
@@ -1030,7 +1028,9 @@ function Couchbase(conn, infos) {
                 rec[id].values._collection  = this._collection;
                 rec[id].values._scope       = this._scope;
 
-                queryString += '\t\nVALUES ("'+ id +'", '+ JSON.stringify(rec[id].values) +'),';
+                // CB-QUAL-4 fix: id was interpolated bare — a key containing `"` broke the N1QL string.
+                // JSON.stringify() escapes any special characters and wraps in double quotes.
+                queryString += '\t\nVALUES ('+ JSON.stringify(String(id)) +', '+ JSON.stringify(rec[id].values) +'),';
                 recCount++;
             }
 

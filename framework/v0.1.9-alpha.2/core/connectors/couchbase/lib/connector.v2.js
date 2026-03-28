@@ -13,7 +13,8 @@ var merge           = lib.merge;
 var modelUtil       = new lib.Model();
 
 //globalized
-uuid                = require('uuid');
+// CB-LOW-1 fix: uuid was assigned without `var`, leaking into global.uuid.
+var uuid            = require('uuid');
 N1qlQuery           = couchbase.N1qlQuery || null;
 N1qlStringQuery     = couchbase.N1qlStringQuery || null;
 ViewQuery           = couchbase.ViewQuery || null;
@@ -64,8 +65,15 @@ function Connector(dbString) {
             self.instance.reconnected = self.instance.connected = false;
             console.error('[ CONNECTOR ][ ' + local.bundle +' ] couchbase could not be reached !!\n'+ ( err.stack || err.message || err ) );
 
-            // reconnecting
-            console.debug('[ CONNECTOR ][ ' + local.bundle +' ][ ' + dbString.database +' ] trying to reconnect in a few secs...');
+            // CB-LOW-5 fix: exponential backoff replaces hardcoded 5s retry.
+            // Delay sequence: 5s → 10s → 20s → 40s → 60s (cap). Counter reset in onConnect().
+            self._reconnectAttempts = (self._reconnectAttempts || 0) + 1;
+            var _backoffDelay = Math.min(5000 * Math.pow(2, self._reconnectAttempts - 1), 60000);
+            if (self._reconnectAttempts >= 10) {
+                console.error('[ CONNECTOR ][ ' + local.bundle +' ][ ' + dbString.database +' ] reconnect attempt ' + self._reconnectAttempts + ' — max backoff reached (' + (_backoffDelay/1000) + 's). Couchbase may be unavailable.');
+            } else {
+                console.debug('[ CONNECTOR ][ ' + local.bundle +' ][ ' + dbString.database +' ] reconnect attempt ' + self._reconnectAttempts + ' — retrying in ' + (_backoffDelay/1000) + 's...');
+            }
             self.instance.reconnecting = true;
 
             setTimeout( function onRetry(){
@@ -74,7 +82,7 @@ function Connector(dbString) {
                 } else {
                     self.connect(dbString);
                 }
-            }, 5000);
+            }, _backoffDelay);
 
         };
 
@@ -95,6 +103,8 @@ function Connector(dbString) {
                     + 'Switch to sdk.version 3 or 4 in connectors.json immediately.');
             }
 
+            // CB-LOW-5 fix: reset backoff counter on successful (re)connect.
+            self._reconnectAttempts = 0;
             self.instance.reconnected  = self.instance.connected   = true;
             var options = local.options;
 
@@ -158,8 +168,14 @@ function Connector(dbString) {
                     //|| err instanceof couchbase.Error && err.code == 23 && !self.reconnecting
                     || /cannot perform operations on a shutdown bucket/.test(err.message ) && !self.reconnecting && !self.reconnected
                 ) {
-                    // reconnecting
-                    console.debug('[ CONNECTOR ][ ' + local.bundle +' ][ ' + dbString.database +' ] trying to reconnect in 5 secs...');
+                    // CB-LOW-5 fix: exponential backoff (shared counter with connect onError).
+                    self._reconnectAttempts = (self._reconnectAttempts || 0) + 1;
+                    var _backoffDelay = Math.min(5000 * Math.pow(2, self._reconnectAttempts - 1), 60000);
+                    if (self._reconnectAttempts >= 10) {
+                        console.error('[ CONNECTOR ][ ' + local.bundle +' ][ ' + dbString.database +' ] reconnect attempt ' + self._reconnectAttempts + ' — max backoff reached (' + (_backoffDelay/1000) + 's). Couchbase may be unavailable.');
+                    } else {
+                        console.debug('[ CONNECTOR ][ ' + local.bundle +' ][ ' + dbString.database +' ] reconnect attempt ' + self._reconnectAttempts + ' — retrying in ' + (_backoffDelay/1000) + 's...');
+                    }
                     self.reconnecting = true;
 
                     setTimeout( function onRetry(){
@@ -168,7 +184,7 @@ function Connector(dbString) {
                         } else {
                             self.connect(dbString)
                         }
-                    }, 5000)
+                    }, _backoffDelay)
 
                 } else if (err instanceof couchbase.Error && err.code == 23 && !self.reconnecting) {
                     self.instance.disconnect();
