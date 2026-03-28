@@ -78,7 +78,7 @@ New database connectors follow the same interface as the existing Couchbase conn
 | Status | Connector | Version | Target | Notes |
 | --- | --- | --- | --- | --- |
 | ✅ | **Redis** | `0.2.0` | Q2 2026 | Session store and general-purpose cache. Client: `ioredis`. Required for K8s horizontal scaling. |
-| 🔶 | **SQLite** | `0.2.0` | Q2 2026 | Three use cases: framework state storage (replaces JSON files under `~/.gina/`), session store for single-pod/dev deployments, and embedded ORM connector. Uses `node:sqlite` (Node.js built-in since v22.5.0 — zero npm deps). Session store done (v1 — 2026-03-27 · `96c5808a`); ORM connector done (v2 — 2026-03-28 · `08ead296`); state storage deferred (v3). |
+| ✅ | **SQLite** | `0.2.0` | Q2 2026 | Three use cases: framework state storage (replaces JSON files under `~/.gina/`), session store for single-pod/dev deployments, and embedded ORM connector. Uses `node:sqlite` (Node.js built-in since v22.5.0 — zero npm deps). Session store done (v1 — 2026-03-27 · `96c5808a`); ORM connector done (v2 — 2026-03-28 · `08ead296`); state storage done (v3 — 2026-03-28 · `da5c55ba`). |
 | 📋 | **MySQL / MariaDB** | `0.3.0` | Q3 2026 | ORM connector. Client: `mysql2`. |
 | 📋 | **PostgreSQL** | `0.3.0` | Q3 2026 | ORM connector. Client: `pg` (node-postgres). |
 | 📋 | **ScyllaDB** | `0.4.0` | Q4 2026 | Cassandra-compatible wide-column store. Client: `@scylladb/scylla-driver`. |
