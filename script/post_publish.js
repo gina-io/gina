@@ -284,6 +284,19 @@ function PostPublish() {
             return done();
         }
 
+        // prepare_version.js checks out the release branch (e.g. 019-alpha2) and
+        // never switches back. Switch to develop now so the version bump commit
+        // and rename land on develop, not on the release branch.
+        var initialBumpDir = process.cwd();
+        process.chdir(self.gina);
+        try {
+            execSync('$(which git) checkout develop');
+        } catch (checkoutErr) {
+            // already on develop or checkout failed — proceed anyway
+            console.warn('[bumpVersion] git checkout develop: ' + (checkoutErr.message || checkoutErr));
+        }
+        process.chdir(initialBumpDir);
+
         var packObj = requireJSON(_(pack, true));
         var currentVersion = packObj.version;
 
