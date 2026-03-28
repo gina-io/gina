@@ -1036,7 +1036,12 @@ isBundleMounted(projects, bundlesPath, getContext('bundle'), function onBundleMo
 
 
             //Inherits parent (gina) context.
-            if ( typeof(process.argv[3]) != 'undefined' ) {
+            // Fixed (#B9): in CLI mode (gina bundle:start) process.argv[3] is the project
+            // name (plain string), not a JSON blob. JSON.parse("projectName") always threw
+            // SyntaxError, triggering uncaughtException → process.exit(143), which the
+            // start.js child watcher did not handle, causing every bundle:start to time out.
+            // Guard: only parse when the value looks like a JSON object.
+            if ( typeof(process.argv[3]) != 'undefined' && /^\{/.test(process.argv[3]) ) {
                 setContext( JSON.parse(process.argv[3]) )
             }
 

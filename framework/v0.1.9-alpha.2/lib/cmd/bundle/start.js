@@ -541,6 +541,17 @@ function Start(opt, cmd) {
                             return;
                         }
 
+                        // Fixed (#B9): child crashed during startup (non-zero exit, no signal)
+                        // before stdout emitted the expected readiness flags. Previously this
+                        // fell through silently and the setInterval timer ran the full 60-second
+                        // wait before reporting "Sorry my friend...". Now we clean up immediately.
+                        if (!isStarting && code !== 0) {
+                            clearInterval(timerId);
+                            opt.notStarted.push(bundle + '@' + self.projectName);
+                            opt.client.write('  [ ' + bundle + '@' + self.projectName + ' ] crashed during startup (exit code ' + code + '). Check your logs.');
+                            end(opt, cmd, isBulkStart, bundleIndex);
+                        }
+
                     });
 
                 } // EO proceedToStart
