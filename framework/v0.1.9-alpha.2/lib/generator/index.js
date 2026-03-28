@@ -73,6 +73,21 @@ var Generator = {
         }
     },
     createFileFromDataSync : function(data, target){
+        // #CN2v3 — route known ~/.gina/ state files through StateStore for
+        // atomic SQLite write + JSON sidecar. Falls through to legacy path
+        // when the store is unavailable (Node < 22.5.0, GINA_HOMEDIR unset).
+        try {
+            var _store = require('../state').getInstance();
+            if (_store.isStatePath(target)) {
+                var _data = (typeof data === 'object') ? data : JSON.parse(data);
+                if (_store.write(target, _data)) return;
+                // write() returned false → SQLite unavailable, fall through
+            }
+        } catch(stateErr) {
+            // state.js not available (e.g. old framework version) — fall through
+        }
+
+        // Legacy JSON write (non-state files, or SQLite unavailable)
         data = (typeof(data) == "object") ? JSON.stringify(data, null, 4) : data;
         fs.writeFileSync(target, data);
         fs.chmodSync(target, 0755)
