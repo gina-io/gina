@@ -25,7 +25,9 @@ jobs:
           node-version: ${{ matrix.node-version }}
 
       - name: Install dev dependencies
-        run: npm install --ignore-scripts
+        run: |
+          npm install --ignore-scripts
+          ln -sf $(pwd) node_modules/gina
 
       - name: Run tests
         run: |
