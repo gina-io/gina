@@ -1,0 +1,3 @@
+kind: Fixed
+body: Made ssl-checker a lazy require in server.js — loaded only inside verifyCertificate(), so bundles not using HTTPS cert verification no longer crash at startup if ssl-checker is absent
+time: 2026-03-28T23:01:21.294087+01:00

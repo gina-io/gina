@@ -47,7 +47,9 @@ const Busboy        = require('./deps/busboy-1.6.0');
 const Stream        = require('stream');
 const util          = require('util');
 var https           = require('https');
-const sslChecker    = require('ssl-checker');
+// #B10 fix: ssl-checker is only used in verifyCertificate() for HTTPS cert checks.
+// Require it lazily so bundles without HTTPS certs don't crash at startup.
+// const sslChecker = require('ssl-checker');
 
 
 var Config          = require('./config');
@@ -311,6 +313,8 @@ function Server(options) {
      * @returns {Promise<void>} Resolves when valid; throws if DNS/cert check fails
      */
     this.verifyCertificate = async function(endpoint, port) {
+        // #B10 fix: lazy-require ssl-checker — only needed for HTTPS cert verification
+        const sslChecker = require('ssl-checker');
         let sslDetails = null;
         console.debug('Checking certificate validity...');
         try {

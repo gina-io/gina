@@ -5,7 +5,10 @@
 const fs                    = require('fs');
 const { execSync, exec }    = require('child_process');
 const {EventEmitter}        = require('events');
-const Eio                   = require('engine.io');
+// #B10 fix: engine.io is only needed when options.ioServer is configured (WebSocket support).
+// Require it lazily so bundles without WebSocket support don't crash if engine.io is absent.
+// const Eio = require('engine.io');
+let Eio = null;
 // const zlib                  = require('zlib'); // gzip / deflate
 
 const lib               = require('./../lib');
@@ -1001,6 +1004,10 @@ function ServerEngineClass(options) {
             if (typeof options.ioServer[_ioTimeoutKeys[_k]] !== 'undefined') {
                 options.ioServer[_ioTimeoutKeys[_k]] = parseTimeout(options.ioServer[_ioTimeoutKeys[_k]]);
             }
+        }
+        // #B10 fix: lazy-require engine.io — only loaded when ioServer is configured
+        if (Eio === null) {
+            Eio = require('engine.io');
         }
         // test done in case we would like to switch to socket.io-server
         ioServer = ( typeof(Eio.attach) != 'undefined' ) ? new Eio.attach(server, options.ioServer) : new Eio(server, options.ioServer);

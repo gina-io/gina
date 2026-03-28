@@ -699,6 +699,10 @@ gna.mount = process.mount = function(bundlesPath, source, target, type, callback
 
 
 // mounting bundle if needed
+process.on('unhandledRejection', function(reason) {
+});
+process.on('exit', function(code) {
+});
 _debugLog('checkpoint D: calling isBundleMounted');
 isBundleMounted(projects, bundlesPath, getContext('bundle'), function onBundleMounted(err) {
     if (err) {
@@ -709,7 +713,6 @@ isBundleMounted(projects, bundlesPath, getContext('bundle'), function onBundleMo
     gna.getProjectConfiguration( async function onGettingProjectConfig(err, project) {
 
         if (err) {
-            fs.writeSync(2, '[DEBUG][gna] getProjectConfiguration error: ' + (err.stack||err) + '\n');
             console.error(err.stack);
         }
 
@@ -724,7 +727,6 @@ isBundleMounted(projects, bundlesPath, getContext('bundle'), function onBundleMo
          * @param {function} callback - Called with `(instance, middleware, conf)` after models load
          */
         gna.onInitialize = process.onInitialize = function(callback) {
-
             console.debug('[ FRAMEWORK ] Bootstrap Initialization... ');
             gna.initialized = true;
 
@@ -1364,8 +1366,6 @@ isBundleMounted(projects, bundlesPath, getContext('bundle'), function onBundleMo
         }
 
 
-
-        fs.writeSync(2, '[DEBUG][gna] checkpoint E2: project.bundles=' + JSON.stringify(Object.keys(project && project.bundles || {})) + ' isLoadedThroughCLI=' + isLoadedThroughCLI + '\n');
         var appName = null
             , path  = null
             , packs = project.bundles
@@ -1438,7 +1438,6 @@ isBundleMounted(projects, bundlesPath, getContext('bundle'), function onBundleMo
                             break
                         }
                     } else {
-                        fs.writeSync(2, '[DEBUG][gna] path mismatch: bundle=' + bundle + ' path=' + path + ' isDev=' + isDev + '\n');
                         abort('Path mismatched with env: ' + path);
                     }
                     // else, not a bundle
@@ -1458,7 +1457,6 @@ isBundleMounted(projects, bundlesPath, getContext('bundle'), function onBundleMo
                     processList = getContext('processList');
                     process.list = processList;
                     bundleProcess = new Proc(appName + '@' + projectName, process);
-                    bundleProcess.register(appName + '@' + projectName, process.pid);
                 }
 
             } else {
@@ -1467,10 +1465,8 @@ isBundleMounted(projects, bundlesPath, getContext('bundle'), function onBundleMo
                 processList = getContext('processList');
                 process.list = processList;
                 bundleProcess = new Proc(appName + '@' + projectName, process);
-                bundleProcess.register(appName + '@' + projectName, process.pid)
             }
         } catch (err) {
-            fs.writeSync(2, '[DEBUG][gna] try/catch abort: ' + (err.stack||err) + '\n');
             abort(err)
         }
 

@@ -332,6 +332,19 @@ function Couchbase(conn, infos) {
                         , args  = Array.prototype.slice.call(arguments)
                         , _mainCallback = null;
 
+                    // #B11 fix: guard against context loss when entity methods are called via
+                    // util.promisify without .bind(). In strict mode 'this' is undefined when
+                    // a method is detached from its object. Give a clear error instead of the
+                    // cryptic "Cannot set properties of undefined (setting '_isRegisteredFromProto')".
+                    // Correct usage: util.promisify(entity.method.bind(entity))
+                    if (!self) {
+                        var _ctxErr = new TypeError('[entity] ' + entityName + '#' + name + '() called without context (`this` is undefined). ' +
+                            'When using util.promisify, bind the entity first: util.promisify(entity.' + name + '.bind(entity))');
+                        var _cbArg = (args.length > 0 && typeof args[args.length - 1] === 'function') ? args[args.length - 1] : null;
+                        if (_cbArg) { return _cbArg(_ctxErr); }
+                        throw _ctxErr;
+                    }
+
                     if ( params && params.length != args.length && !/function/.test(typeof(args[args.length-1])) ) {
                         throw new Error('[N1QL][ ' + entityName+'#'+name+'() ] arguments must match parameters length. Please refer to [ '+ source +' ]\nFound in param list: ('+ params.join(', ') +') !')
                     } else if ( /function/.test( typeof(args[args.length-1]) ) ) {
