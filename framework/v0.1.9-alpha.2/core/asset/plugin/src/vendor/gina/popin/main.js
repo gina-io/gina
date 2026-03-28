@@ -1,8 +1,7 @@
-define('gina/popin', [ 'require', 'vendor/uuid', 'jquery', 'lib/domain', 'lib/merge', 'utils/events' ], function (require) {
+define('gina/popin', [ 'require', 'vendor/uuid', 'lib/domain', 'lib/merge', 'utils/events' ], function (require) {
 
     // TODO - Integrate dialog-polyfill : https://github.com/GoogleChrome/dialog-polyfill/blob/master/dist/dialog-polyfill.js
-    var $               = require('jquery');
-    $.noConflict();
+    // removed: jquery dependency
     var uuid            = require('vendor/uuid');
     var Domain          = require('lib/domain');
     var domainInstance  = null;

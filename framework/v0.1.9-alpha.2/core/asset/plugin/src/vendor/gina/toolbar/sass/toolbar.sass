@@ -516,6 +516,11 @@ $code-hightlight: #323e41
     padding: 0
     border-top: none
 
+ul.gina-toolbar-section-content
+  max-height: 0
+  overflow: hidden
+  transition: max-height 0.25s ease
+
 
 .gina-toolbar-object, .gina-toolbar-collection
   > a:first-child
@@ -545,7 +550,9 @@ $code-hightlight: #323e41
 
   > ul
     margin-left: 20px
-    display: none
+    max-height: 0
+    overflow: hidden
+    transition: max-height 0.25s ease
 
 .gina-toolbar-unfolded
   &::before

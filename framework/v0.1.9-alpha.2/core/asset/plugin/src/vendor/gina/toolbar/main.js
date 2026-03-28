@@ -1,13 +1,38 @@
-define('gina/toolbar', ['require', 'jquery', 'vendor/uuid'/**, 'lib/merge'*/, 'lib/collection', 'lib/routing', 'gina/storage', 'gina/validator' ], function (require) {
+define('gina/toolbar', ['require', 'vendor/uuid'/**, 'lib/merge'*/, 'lib/collection', 'lib/routing', 'gina/storage', 'gina/validator' ], function (require) {
 
-    var $           = require('jquery');
-
-    $.noConflict();
+    // removed: jquery dependency
     //var merge       = require('lib/merge');
     var routing     = require('lib/routing');
     var Collection  = require('lib/collection');
     var Storage     = require('gina/storage');
     //var Validator   = require('gina/validator');
+
+    // Vanilla DOM helpers — replace jQuery API
+    var qs  = function(sel, ctx) { return (ctx || document).querySelector(sel); };
+    var qsa = function(sel, ctx) { return Array.from((ctx || document).querySelectorAll(sel)); };
+    var slideToggle = function(el) {
+        if (!el) return;
+        if (getComputedStyle(el).maxHeight === '0px') {
+            el.style.maxHeight = el.scrollHeight + 'px';
+        } else {
+            el.style.maxHeight = '0px';
+        }
+    };
+    var isVisible = function(el) {
+        return !!(el && getComputedStyle(el).maxHeight !== '0px');
+    };
+    var htmlToEl = function(html) {
+        var t = document.createElement('div');
+        t.innerHTML = html.trim();
+        return t.firstChild;
+    };
+    var addDelegated = function(el, ev, sel, fn) {
+        if (!el) return;
+        el.addEventListener(ev, function(e) {
+            var t = e.target.closest(sel);
+            if (t && el.contains(t)) fn.call(t, e);
+        });
+    };
 
     /**
      * Toolbar plugin
@@ -15,8 +40,6 @@ define('gina/toolbar', ['require', 'jquery', 'vendor/uuid'/**, 'lib/merge'*/, 'l
      * TODO - search using `datatables` plugin (https://stackoverflow.com/questions/10400033/is-there-a-jquery-plugin-like-datatables-for-a-ul)
      */
     function Toolbar() {
-
-        //console.debug('Toolbar jquery is ', $.fn.jquery);
 
         var self = {
             version         : '1.0.3',
@@ -47,7 +70,6 @@ define('gina/toolbar', ['require', 'jquery', 'vendor/uuid'/**, 'lib/merge'*/, 'l
             , $toolbarPos        = null
             , position           = ''
             , $toolbarWidth      = null
-            , width              = 0
             , $toolbarHeight     = null
             , toolbarHeight      = 0
             , contentHeight      = 0
@@ -76,31 +98,31 @@ define('gina/toolbar', ['require', 'jquery', 'vendor/uuid'/**, 'lib/merge'*/, 'l
 
         var init = function () {
             // Get elements
-            $toolbar           = $('#gina-toolbar');
-            if (!$toolbar.length) return false;
+            $toolbar           = qs('#gina-toolbar');
+            if (!$toolbar) return false;
 
-            $tabs              = $toolbar.find('.gina-toolbar-tab > a');
-            $logo              = $('#gina-toolbar-toggle');
-            $panelsContainer   = $('#gina-toolbar-panels');
-            $panels            = $panelsContainer.find('.gina-toolbar-panel');
-            $verticalPos       = $('#gina-toolbar-vposition');
-            $horizontalPos     = $('#gina-toolbar-hposition');
-            $toolbarPos        = $verticalPos.add($horizontalPos);
-            $toolbarWidth      = $('#gina-toolbar-width');
-            $toolbarHeight     = $toolbar.find('.gina-toolbar-main');
-            $json              = $('#gina-toolbar-json');
-            $ginaJson          = $('#gina-toolbar-gina-json');
-            $jsonRAW           = $('#gina-toolbar-toggle-code-raw');
-            $forms             = $('form:not('+ formsIgnored +')');
-            $htmlData          = $('#gina-toolbar-data-html');
-            $htmlView          = $('#gina-toolbar-view-html');
-            $htmlForms         = $('#gina-toolbar-forms-html');
-            $htmlConfigurationEnvironment = $('#gina-toolbar-configuration-environment-html')
-            $codeFoldingToggle = $('#gina-toolbar-code-toggle');
+            $tabs              = qsa('.gina-toolbar-tab > a', $toolbar);
+            $logo              = qs('#gina-toolbar-toggle');
+            $panelsContainer   = qs('#gina-toolbar-panels');
+            $panels            = qsa('.gina-toolbar-panel', $panelsContainer);
+            $verticalPos       = qs('#gina-toolbar-vposition');
+            $horizontalPos     = qs('#gina-toolbar-hposition');
+            $toolbarPos        = [$verticalPos, $horizontalPos];
+            $toolbarWidth      = qs('#gina-toolbar-width');
+            $toolbarHeight     = qs('.gina-toolbar-main', $toolbar);
+            $json              = qs('#gina-toolbar-json');
+            $ginaJson          = qs('#gina-toolbar-gina-json');
+            $jsonRAW           = qs('#gina-toolbar-toggle-code-raw');
+            $forms             = qsa('form:not('+ formsIgnored +')');
+            $htmlData          = qs('#gina-toolbar-data-html');
+            $htmlView          = qs('#gina-toolbar-view-html');
+            $htmlForms         = qs('#gina-toolbar-forms-html');
+            $htmlConfigurationEnvironment = qs('#gina-toolbar-configuration-environment-html');
+            $codeFoldingToggle = qs('#gina-toolbar-code-toggle');
 
             // Append textarea for copy/paste then select it
-            $toolbar.prepend('<textarea class="gina-toolbar-copy"></textarea>');
-            $copyCache         = $toolbar.find('.gina-toolbar-copy');
+            $toolbar.insertAdjacentHTML('afterbegin', '<textarea class="gina-toolbar-copy"></textarea>');
+            $copyCache         = qs('.gina-toolbar-copy', $toolbar);
 
             // Get toolbar settings
             settings = plugins.findOne({_name: 'toolbar'});
@@ -144,7 +166,7 @@ define('gina/toolbar', ['require', 'jquery', 'vendor/uuid'/**, 'lib/merge'*/, 'l
             panelId     = settings.panelId;
             isCollapsed = settings.isCollapsed;
 
-            $toolbar.removeClass('gina-toolbar-hidden');
+            $toolbar.classList.remove('gina-toolbar-hidden');
             handle() // Bind behaviors
         };
 
@@ -185,20 +207,15 @@ define('gina/toolbar', ['require', 'jquery', 'vendor/uuid'/**, 'lib/merge'*/, 'l
             var $currentForms = null, txt = null;
             try {
 
-                txt = ($json) ? $json.text() : '';
-                // txt = txt
-                //         .replace(/:null/gi, ':\"null\"')
-                //         .replace(/:true/gi, ':\"true\"')
-                //         .replace(/:false/gi, ':\"false\"');
+                txt = ($json) ? $json.textContent : '';
 
                 if (txt == '' || txt == 'null' ) {
-                    // $json.text('Empty')
-                    $json.text('{}')
+                    $json.textContent = '{}';
                 } else {
                     jsonObject = JSON.parse( txt );
-                    ginaJsonObject = JSON.parse($ginaJson.text());
+                    ginaJsonObject = JSON.parse($ginaJson.textContent);
 
-                    $json.text('');
+                    $json.textContent = '';
 
                     // backing up document data for restore action
                     if (!originalData) {
@@ -213,15 +230,9 @@ define('gina/toolbar', ['require', 'jquery', 'vendor/uuid'/**, 'lib/merge'*/, 'l
             } catch (err) {
 
                 var sectionStr = ( section ) ? ' [ '+ section + ' ] ' : ' ';
-                // var _err = 'Could not load'+ sectionStr +'json\n' + (err.stack||err.message||err);
                 var _err = 'Could not load ['+ sectionStr +'] json\n' + err.message +'\n'+ err.stack;
                 console.error(_err);
                 return;
-                // if ($json) {
-                //     $json.text(_err);
-                // } else {
-                //     throw _err;
-                // }
             }
 
             if (jsonObject) {
@@ -258,12 +269,7 @@ define('gina/toolbar', ['require', 'jquery', 'vendor/uuid'/**, 'lib/merge'*/, 'l
                     delete jsonObject.environment.reverseRouting;
                     delete jsonObject.environment.forms;
                 }
-                // if (
-                //     typeof(ginaJsonObject.environment) != 'undefined'
-                //     && typeof(jsonObject.environment) != 'undefined'
-                // ) {
-                    $htmlConfigurationEnvironment.html(parseObject(jsonObject.environment, ginaJsonObject.environment));
-                // }
+                $htmlConfigurationEnvironment.innerHTML = parseObject(jsonObject.environment, ginaJsonObject.environment);
 
 
                 var userObject   = { data: jsonObject.data, view: jsonObject.view, forms: jsonObject.forms }
@@ -292,7 +298,7 @@ define('gina/toolbar', ['require', 'jquery', 'vendor/uuid'/**, 'lib/merge'*/, 'l
 
 
                     // -> Data
-                    $htmlData.html('<ul class="gina-toolbar-code">' + parseObject(userObject.data, ginaObject.data, null, isXHR) +'</ul>');
+                    $htmlData.innerHTML = '<ul class="gina-toolbar-code">' + parseObject(userObject.data, ginaObject.data, null, isXHR) +'</ul>';
 
                     // -> View
                     // init view
@@ -301,25 +307,15 @@ define('gina/toolbar', ['require', 'jquery', 'vendor/uuid'/**, 'lib/merge'*/, 'l
                                     '    <ul class="gina-toolbar-properties"></ul>\n' +
                                     '</div>';
 
-                    $htmlView.html(htmlProp);
+                    $htmlView.innerHTML = htmlProp;
 
-                    $htmlView.html( parseView(userObject.view, ginaObject.view, null, isXHR, $htmlView) );
+                    $htmlView.innerHTML = parseView(userObject.view, ginaObject.view, null, isXHR, $htmlView);
 
                     // -> Forms
                     $currentForms = $forms;
-                    $htmlForms.html('');
-                    $htmlForms.html( parseForms(userObject.forms, ginaObject.forms, $htmlForms, 0, $currentForms, $currentForms.length, isXHR) );
-                    // Form binding
-                    $htmlForms.find('div.gina-toolbar-section > h2').off('click').on('click', function(event) {
-                        event.preventDefault();
+                    $htmlForms.innerHTML = '';
+                    parseForms(userObject.forms, ginaObject.forms, $htmlForms, 0, $currentForms, $currentForms.length, isXHR);
 
-                        $(this)
-                            .parent()
-                            .find('ul').first()
-                            .slideToggle();
-                    });
-
-                    //$htmlForms.html( parseView(jsonObject.forms, ginaJsonObject.forms, null, $htmlForms) );
                 } //else
                 if ( /^(data-xhr|view-xhr)$/.test(section) ) {
 
@@ -348,9 +344,8 @@ define('gina/toolbar', ['require', 'jquery', 'vendor/uuid'/**, 'lib/merge'*/, 'l
                     }
 
                     if ( /^(data-xhr)$/.test(section) ) {
-                        $htmlData.html('<ul class="gina-toolbar-code">' + parseObject(jsonObject[section], ginaJsonObject[section], null, isXHR) +'</ul>');
+                        $htmlData.innerHTML = '<ul class="gina-toolbar-code">' + parseObject(jsonObject[section], ginaJsonObject[section], null, isXHR) +'</ul>';
                     } else if ( /^(view-xhr)$/.test(section) ) {
-                        //$htmlView.html( parseView(userObject.view, ginaObject.view, null, isXHR, $htmlView) );
                         // -> View
                         // init view
                         var htmlProp =  '<div id="gina-toolbar-view-html-properties" class="gina-toolbar-section">\n' +
@@ -358,47 +353,29 @@ define('gina/toolbar', ['require', 'jquery', 'vendor/uuid'/**, 'lib/merge'*/, 'l
                                         '    <ul class="gina-toolbar-properties"></ul>\n' +
                                         '</div>';
 
-                        $htmlView.html(htmlProp);
-                        $htmlView.html( parseView(jsonObject[section], ginaJsonObject[section], null, isXHR, $htmlView) );
+                        $htmlView.innerHTML = htmlProp;
+                        $htmlView.innerHTML = parseView(jsonObject[section], ginaJsonObject[section], null, isXHR, $htmlView);
                     }
 
                 } //else
                 if ( /^(el-xhr)$/.test(section) ) {
                     // -> XHR Forms
                     isXHR = true;
-                    $currentForms = $('#' + data).find('form:not(' + formsIgnored + ')');
-                    $htmlForms.html('');
-                    $htmlForms.html( parseForms(userObject.forms, ginaObject.forms, $htmlForms, 0, $currentForms, $currentForms.length, isXHR ) );
-                    // Form binding
-                    $htmlForms.find('div.gina-toolbar-section > h2').off('click').on('click', function(event) {
-                        event.preventDefault();
-
-                        $(this)
-                            .parent()
-                            .find('ul').first()
-                            .slideToggle();
-                    });
+                    $currentForms = qsa('form:not(' + formsIgnored + ')', qs('#' + data));
+                    $htmlForms.innerHTML = '';
+                    parseForms(userObject.forms, ginaObject.forms, $htmlForms, 0, $currentForms, $currentForms.length, isXHR);
                 } //else
                 if ( /^(forms)$/.test(section) ) {
                     isXHR = true;
                     self.isValidator = true;
 
-                    var $form = $('#gina-toolbar-form-' + data.id);
+                    var $form = qs('#gina-toolbar-form-' + data.id);
                     // for live changes (eg.: on `Validator::getFormById()` call)
-                    if ( !$form.length ) {
+                    if ( !$form ) {
                         // crearte toolbar entry for the new form
                         $currentForms = $forms;
-                        $htmlForms.html('');
-                        $htmlForms.html( parseForms(userObject.forms, ginaObject.forms, $htmlForms, 0, $currentForms, $currentForms.length, isXHR) );
-                        // Form binding
-                        $htmlForms.find('div.gina-toolbar-section > h2').off('click').on('click', function(event) {
-                            event.preventDefault();
-
-                            $(this)
-                                .parent()
-                                .find('ul').first()
-                                .slideToggle();
-                        });
+                        $htmlForms.innerHTML = '';
+                        parseForms(userObject.forms, ginaObject.forms, $htmlForms, 0, $currentForms, $currentForms.length, isXHR);
                     }
 
                     // form data sent
@@ -426,8 +403,9 @@ define('gina/toolbar', ['require', 'jquery', 'vendor/uuid'/**, 'lib/merge'*/, 'l
                 }
 
                 if (jsonObject.file == settings.currentFile) {
-                    // If current page is the same as the previous page, unfold code as neede
-                    $(document).ready(function () {
+                    // If current page is the same as the previous page, unfold code as needed
+                    // DOM is ready at this point — invoke directly
+                    (function () {
 
                         if (self.isValidator ) {
                             self.isXHR = true;
@@ -453,7 +431,7 @@ define('gina/toolbar', ['require', 'jquery', 'vendor/uuid'/**, 'lib/merge'*/, 'l
                                 }
                             }
                         }
-                    })
+                    })();
                 }
             }
 
@@ -473,9 +451,9 @@ define('gina/toolbar', ['require', 'jquery', 'vendor/uuid'/**, 'lib/merge'*/, 'l
 
             if ( self.isXHR && /^xhr-/.test(key) ) {
                 key = key.replace(/^xhr-/, '');
-                $kel = $('.gina-toolbar-xhr-folding-state-'+ key);
+                $kel = qs('.gina-toolbar-xhr-folding-state-'+ key);
             } else {
-                $kel = $('.gina-toolbar-folding-state-' + key);
+                $kel = qs('.gina-toolbar-folding-state-' + key);
             }
 
             toggleCodeFolding( $kel, function onCodeToggled() {
@@ -487,116 +465,110 @@ define('gina/toolbar', ['require', 'jquery', 'vendor/uuid'/**, 'lib/merge'*/, 'l
         var handle = function () {
 
 
-            // Add folding behavior
-            $htmlData
-                .add($htmlView).off('click', 'a').on('click', 'a', function(event) {
+            // Add folding behavior on all content panels
+            [$htmlData, $htmlView, $htmlForms, $htmlConfigurationEnvironment].forEach(function(el) {
+                addDelegated(el, 'click', 'a', function(event) {
                     event.preventDefault();
-
-                    toggleCodeFolding( $(this), null, true )
-                })
-                .add($htmlForms).off('click', 'a').on('click', 'a', function(event) {
-                    event.preventDefault();
-
-                    toggleCodeFolding( $(this), null, true )
+                    toggleCodeFolding(this, null, true);
                 });
+            });
 
-            $htmlConfigurationEnvironment
-                .add($htmlView).off('click', 'a').on('click', 'a', function(event) {
-                    event.preventDefault();
-
-                    toggleCodeFolding( $(this), null, true )
-                })
-                .add($htmlForms).off('click', 'a').on('click', 'a', function(event) {
-                    event.preventDefault();
-
-                    toggleCodeFolding( $(this), null, true )
-                });
+            // Form section expand/collapse — delegated once on $htmlForms
+            addDelegated($htmlForms, 'click', 'div.gina-toolbar-section > h2', function(event) {
+                event.preventDefault();
+                var ul = qs('ul', this.parentElement);
+                slideToggle(ul);
+            });
 
             // Expand/collapse all code
-            $codeFoldingToggle.off('click').on('click', function(event) {
+            $codeFoldingToggle.addEventListener('click', function(event) {
                 event.preventDefault();
 
                 toggleCodeFolding('all', null, true)
             });
 
             // Add value to the clipboard
-            $htmlData.add($htmlView, $htmlForms).off('click', '.gina-toolbar-value').on('click', '.gina-toolbar-value', function(event) {
-                event.preventDefault();
-                try {
-                    copyValue = $(this).text();
-                    $copyCache.text(copyValue);
-                    $copyCache.select();
-                    document.execCommand('copy', false, null);
-                    $copyCache.blur();
-                } catch(err) {
-                    alert('Please press Ctrl/Cmd+C to copy the value');
-                    // throw err;
-                }
-
+            [$htmlData, $htmlView, $htmlForms].forEach(function(el) {
+                addDelegated(el, 'click', '.gina-toolbar-value', function(event) {
+                    event.preventDefault();
+                    try {
+                        copyValue = this.textContent;
+                        $copyCache.value = copyValue;
+                        $copyCache.select();
+                        document.execCommand('copy', false, null);
+                        $copyCache.blur();
+                    } catch(err) {
+                        alert('Please press Ctrl/Cmd+C to copy the value');
+                    }
+                });
             });
 
             // display RAW
-            $jsonRAW.off('click').on('click', function(event){
+            $jsonRAW.addEventListener('click', function(event){
                 if (jsonObject) {
                     var jsonOut = window.open("", "JSON RAW", "width=400,height=100");
-                    //jsonOut.document.write( '<pre>' + JSON.stringify(jsonObject, null, 2) + '</pre>' );
                     jsonOut.document.write( JSON.stringify(jsonObject.data) );
                 }
             });
 
             // Tabs
-            $tabs.off('click').on('click', function(event) {
-                event.preventDefault();
+            $tabs.forEach(function(tab) {
+                tab.addEventListener('click', function(event) {
+                    event.preventDefault();
 
-                // Hide all panels
-                $tabs.removeClass('gina-toolbar-active');
-                $panels.removeClass('gina-toolbar-active');
+                    // Hide all panels
+                    $tabs.forEach(function(t) { t.classList.remove('gina-toolbar-active'); });
+                    $panels.forEach(function(p) { p.classList.remove('gina-toolbar-active'); });
 
-                // Show selected tab
-                $(this).addClass('gina-toolbar-active');
+                    // Show selected tab
+                    this.classList.add('gina-toolbar-active');
 
-                // Show selected panel
-                panelId = $(this).attr('href');
-                $currentPanel = $(panelId).addClass('gina-toolbar-active');
+                    // Show selected panel
+                    panelId = this.getAttribute('href');
+                    $currentPanel = qs(panelId);
+                    if ($currentPanel) $currentPanel.classList.add('gina-toolbar-active');
 
-                // Save current active tab to coockie
-                settings.panelId = panelId;
-                settings.save()
+                    // Save current active tab to coockie
+                    settings.panelId = panelId;
+                    settings.save()
+                });
             });
 
             // Show/hide Toolbar
-            $logo.off('click').on('click', function(event) {
+            $logo.addEventListener('click', function(event) {
                 event.preventDefault();
 
-                $toolbar.toggleClass('gina-toolbar-collapsed');
+                $toolbar.classList.toggle('gina-toolbar-collapsed');
 
                 // Save current visibility state to coockie
-                isCollapsed = $toolbar.hasClass('gina-toolbar-collapsed')
+                isCollapsed = $toolbar.classList.contains('gina-toolbar-collapsed');
                 settings.isCollapsed = isCollapsed;
                 settings.save()
             });
 
             // Toolbar position
-            $toolbarPos.off('change').on('change', function(event) {
-                event.preventDefault();
+            $toolbarPos.forEach(function(el) {
+                el.addEventListener('change', function(event) {
+                    event.preventDefault();
 
-                // Get selected option value
-                var vposition = $verticalPos.val();
-                var hposition = $horizontalPos.val();
-                position = vposition + '-' + hposition
-                changeToolbarPosition(position);
+                    // Get selected option value
+                    var vposition = $verticalPos.value;
+                    var hposition = $horizontalPos.value;
+                    position = vposition + '-' + hposition
+                    changeToolbarPosition(position);
 
-                // Save new position to coockie
-                settings.position = position;
-                settings.save()
+                    // Save new position to coockie
+                    settings.position = position;
+                    settings.save()
+                });
             });
 
             // Toolbar width
-            $toolbarWidth.off('change').on('change', function(event) {
+            $toolbarWidth.addEventListener('change', function(event) {
                 event.preventDefault();
 
                 // Get selected option value
-                width = $toolbarWidth.val();
+                width = $toolbarWidth.value;
                 changeToolbarWidth(width);
 
                 // Save new width to coockie
@@ -605,12 +577,12 @@ define('gina/toolbar', ['require', 'jquery', 'vendor/uuid'/**, 'lib/merge'*/, 'l
             });
 
             // Toolbar height
-            $(window).off('resize').on('resize', function() {
+            window.addEventListener('resize', function() {
                 changeToolbarHeight();
             });
 
             // Show/hide toolbar using gg shorcut
-            $('body').off('keypress').on('keypress', function onKeypressed(event){
+            document.body.addEventListener('keypress', function onKeypressed(event){
 
                 if (!/INPUT|TEXTAREA/.test(event.target.tagName )) {
                     if (event.keyCode) {
@@ -632,8 +604,7 @@ define('gina/toolbar', ['require', 'jquery', 'vendor/uuid'/**, 'lib/merge'*/, 'l
                     ) {
                         switch (keynum) {
                             case 103: //This is the "g" key
-                                $toolbar.toggle();
-                                // variousTools.setCookie("gina-toolbar[hub]", params.display.hub, 365);
+                                $toolbar.style.display = ($toolbar.style.display === 'none') ? '' : 'none';
                                 break;
                         }
                     }
@@ -647,35 +618,35 @@ define('gina/toolbar', ['require', 'jquery', 'vendor/uuid'/**, 'lib/merge'*/, 'l
             // Updates Toolbar with current values
 
             // Select the current tab
-            $tabs.filter('[href="' + panelId +'"]').trigger('click');
+            $tabs.forEach(function(t) {
+                if (t.getAttribute('href') === panelId) t.click();
+            });
 
             // Open toolbar if needed
             if (!isCollapsed) {
-                $('#gina-toolbar-toggle').trigger('click');
+                qs('#gina-toolbar-toggle').click();
             }
 
             // Change Toolbar Position and init selects
             changeToolbarPosition(position);
 
             var positions = position.split('-');
-            $verticalPos.val(positions[0]);
-            $horizontalPos.val(positions[1]);
+            $verticalPos.value = positions[0];
+            $horizontalPos.value = positions[1];
 
             // Change Toolbar Width and init select
             changeToolbarWidth(width);
 
-            $toolbarWidth.val(width);
+            $toolbarWidth.value = width;
 
             // Change Toolbar max-Height;
             changeToolbarHeight();
 
             // Parse JSON
-            var txt = ($json) ? $json.text() : '';
+            var txt = ($json) ? $json.textContent : '';
             // dev only - allows HTML 5 mock
             if ( /^\{\{ (.*) \}\}/.test(txt) ) {
                 // loading mock
-                //var url = document.location.protocol + '//' + document.location.pathname.replace('index.html', '');
-                //url + 'mock.json';
                 loadJSON(txt, loadData); //parse
 
             } else {
@@ -685,36 +656,34 @@ define('gina/toolbar', ['require', 'jquery', 'vendor/uuid'/**, 'lib/merge'*/, 'l
 
 
         var changeToolbarPosition = function (position) {
-            $toolbar
-                .removeClass('gina-toolbar-top-left gina-toolbar-top-right gina-toolbar-bottom-left gina-toolbar-bottom-right')
-                .addClass('gina-toolbar-'+ position);
+            $toolbar.classList.remove('gina-toolbar-top-left', 'gina-toolbar-top-right', 'gina-toolbar-bottom-left', 'gina-toolbar-bottom-right');
+            $toolbar.classList.add('gina-toolbar-'+ position);
         }
 
         var changeToolbarWidth = function (width) {
-            $toolbar
-                .removeClass('gina-toolbar-auto gina-toolbar-100 gina-toolbar-80 gina-toolbar-60 gina-toolbar-50 gina-toolbar-40 gina-toolbar-30')
-                .addClass('gina-toolbar-'+ width);
+            $toolbar.classList.remove('gina-toolbar-auto', 'gina-toolbar-100', 'gina-toolbar-80', 'gina-toolbar-60', 'gina-toolbar-50', 'gina-toolbar-40', 'gina-toolbar-30');
+            $toolbar.classList.add('gina-toolbar-'+ width);
         }
 
         var changeToolbarHeight = function () {
             // Use window height - 32px for the header
             toolbarHeight = window.innerHeight - 32;
-            $toolbar
-                .find('.gina-toolbar-main')
-                .css('max-height', toolbarHeight +'px');
+            qs('.gina-toolbar-main', $toolbar).style.maxHeight = toolbarHeight +'px';
 
             checkContentHeight()
         }
 
         var checkContentHeight = function () {
             // check toolbar content against window height
-            var $currentMain = $currentPanel.find('.gina-toolbar-main');
-            var $currentContent = $currentMain.find('.gina-toolbar-content');
-            contentHeight = $currentMain.height();
+            if (!$currentPanel) return;
+            var $currentMain = qs('.gina-toolbar-main', $currentPanel);
+            if (!$currentMain) return;
+            var $currentContent = qs('.gina-toolbar-content', $currentMain);
+            contentHeight = $currentMain.offsetHeight;
             if (contentHeight == toolbarHeight) {
-                $currentContent.addClass('gina-toolbar-content-end')
+                if ($currentContent) $currentContent.classList.add('gina-toolbar-content-end');
             } else {
-                $currentContent.removeClass('gina-toolbar-content-end')
+                if ($currentContent) $currentContent.classList.remove('gina-toolbar-content-end');
             }
         }
 
@@ -724,10 +693,11 @@ define('gina/toolbar', ['require', 'jquery', 'vendor/uuid'/**, 'lib/merge'*/, 'l
                 var toggledByClick = false
             }
 
-            if ($el != undefined && $el.length && $el != 'all') {
+            // $el is a DOM element, null, or the string 'all'
+            if ($el != undefined && $el !== 'all') {
 
                 // Save element folding state
-                self.foldingClass = $el.attr('class');
+                self.foldingClass = $el.className;
                 var hasXhrFlag = false;
 
                 if ( /(gina-toolbar-folding-state-[a-z 0-9_-]+|gina-toolbar-xhr-folding-state-[a-z 0-9_-]+)/i.test(self.foldingClass) ) {
@@ -745,14 +715,14 @@ define('gina/toolbar', ['require', 'jquery', 'vendor/uuid'/**, 'lib/merge'*/, 'l
                         settings.isUnfolded.push(self.foldingClass);
                         settings.save();
 
-                        if (!$el.hasClass('gina-toolbar-unfolded')) {
-                            $el.addClass('gina-toolbar-unfolded');
-                            $el.next('ul').slideToggle('fast');
+                        if (!$el.classList.contains('gina-toolbar-unfolded')) {
+                            $el.classList.add('gina-toolbar-unfolded');
+                            slideToggle($el.nextElementSibling);
                         }
 
                     } else {
 
-                        if ( settings.isUnfolded.indexOf(self.foldingClass) > -1 && $el.hasClass('gina-toolbar-unfolded') ) {
+                        if ( settings.isUnfolded.indexOf(self.foldingClass) > -1 && $el.classList.contains('gina-toolbar-unfolded') ) {
 
                             // remove reference & sub-references
                             var re = new RegExp('^('+ self.foldingClass +')');
@@ -768,14 +738,14 @@ define('gina/toolbar', ['require', 'jquery', 'vendor/uuid'/**, 'lib/merge'*/, 'l
                             settings.save(true);
 
                             if ( settings.isUnfolded.indexOf(self.foldingClass) < 0 ) {
-                                $el.removeClass('gina-toolbar-unfolded');
-                                $el.next('ul').slideToggle('fast');
+                                $el.classList.remove('gina-toolbar-unfolded');
+                                slideToggle($el.nextElementSibling);
                             }
 
 
                         } else {
-                            $el.addClass('gina-toolbar-unfolded');
-                            $el.next('ul').slideToggle('fast');
+                            $el.classList.add('gina-toolbar-unfolded');
+                            slideToggle($el.nextElementSibling);
                         }
                     }
                 }
@@ -849,7 +819,7 @@ define('gina/toolbar', ['require', 'jquery', 'vendor/uuid'/**, 'lib/merge'*/, 'l
 
         var parseObject = function(obj, ginaObj, elId, elIsXHR, elSection) {
 
-            var html            = '';
+            var html            = '';
             var id              = ( typeof(elId) != 'undefined' && elId != null ) ? elId.replace(/[^A-Za-z0-9_-]/g, '_') : '';
             var section         = ( typeof(elSection) != 'undefined' && elSection != null ) ? elSection : '';
             var isXHR           = ( typeof(elIsXHR) != 'undefined' && elIsXHR != null ) ? '-xhr' : '';
@@ -865,11 +835,8 @@ define('gina/toolbar', ['require', 'jquery', 'vendor/uuid'/**, 'lib/merge'*/, 'l
             ginaObj = orderKeys(ginaObj);
 
             for (var i in obj) {
-                //console.log('i', i);
-                //if ( /^(_uuid)$/.test(i) ) continue;
 
                 if ( typeof(obj[i]) == 'object' && !Array.isArray(obj[i]) && obj[i] !== null ) { // parse
-                    //id += i + '-';
                     id += '-' + i.replace(/[^A-Za-z0-9_-]/g, '_');
                     isEmptyClass = (obj[i].count() > 0 || typeof(ginaObj[i]) != 'undefined' && ginaObj[i].count() > 0) ? '' : ' is-empty';
 
@@ -877,11 +844,8 @@ define('gina/toolbar', ['require', 'jquery', 'vendor/uuid'/**, 'lib/merge'*/, 'l
                     html +=  '<a href="#" class="gina-toolbar-key gina-toolbar'+ isXHR +'-folding-state-'+ normalizeFoldingStateName( section, i.replace(/[^A-Za-z0-9_-]/g, '_') ) + isEmptyClass +'">'+ i +' <span>{ }</span></a>';
                     html += '<ul class="gina-toolbar-object">' + parseObject(obj[i], ginaObj[i], id, elIsXHR, elSection) +'</ul>';
                     html += '</li>';
-                    // clear one level
-                    //id = id.substring(0, id.length - i.length - 1);
                     id = id.substring(0, id.length - i.length);
                 } else if ( Array.isArray(obj[i]) ) {
-                    //id += i + '-';
                     id += '-' + i.replace(/[^A-Za-z0-9_-]/g, '_');
                     isEmptyClass = (obj[i].length > 0 || typeof(ginaObj[i]) != 'undefined' && ginaObj[i].length > 0) ? '' : ' is-empty';
 
@@ -889,8 +853,6 @@ define('gina/toolbar', ['require', 'jquery', 'vendor/uuid'/**, 'lib/merge'*/, 'l
                     html +=  '<a href="#" class="gina-toolbar-key gina-toolbar'+ isXHR +'-folding-state-'+ normalizeFoldingStateName( section, i.replace(/[^A-Za-z0-9_-]/g, '_') ) + isEmptyClass +'">'+ i +' <span>['+ obj[i].length +']</span></a>';
                     html += '<ul class="gina-toolbar-collection">' + parseCollection(obj[i], ginaObj[i], id, elIsXHR, elSection)  +'</ul>';
                     html += '</li>';
-                    // clear one level
-                    //id = id.substring(0, id.length - i.length - 1);
                     id = id.substring(0, id.length - i.length);
                 } else {
                     objType = (ginaObj[i] === null) ? 'null' : typeof(ginaObj[i]);
@@ -899,8 +861,6 @@ define('gina/toolbar', ['require', 'jquery', 'vendor/uuid'/**, 'lib/merge'*/, 'l
                         html +=     '<span class="gina-toolbar-key gina-toolbar-key-added">'+ i +':</span> <span class="gina-toolbar-value gina-toolbar-value-type-is-'+ objType +'">'+ obj[i] +'</span>';
                         html += '</li>';
                     } else {
-
-                        //if (/^_comment/.test(i) ) continue;
 
                         if (obj[i] !== ginaObj[i] ) {
                             html += '<li class="gina-toolbar-key-value gina-toolbar-is-overridden">';
@@ -922,7 +882,7 @@ define('gina/toolbar', ['require', 'jquery', 'vendor/uuid'/**, 'lib/merge'*/, 'l
         }
 
         var parseCollection = function (arr, ginaArr, elId, elIsXHR, elSection) {
-            var html            = '';
+            var html            = '';
             var id              = ( typeof(elId) != 'undefined' && elId != null ) ? elId : '';
             var section         = ( typeof(elSection) != 'undefined' && elSection != null ) ? elSection : '';
             var isXHR           = ( typeof(elIsXHR) != 'undefined' && elIsXHR != null ) ? '-xhr' : '';
@@ -933,7 +893,6 @@ define('gina/toolbar', ['require', 'jquery', 'vendor/uuid'/**, 'lib/merge'*/, 'l
             }
             for (var i = 0, len = arr.length; i<len; ++i) {
                 if ( typeof(arr[i]) == 'object' && !Array.isArray(arr[i]) ) {
-                    //id   += i + '-';
                     // patch
                     if (!ginaArr[i]) {
                         ginaArr[i] = arr[i]
@@ -951,7 +910,6 @@ define('gina/toolbar', ['require', 'jquery', 'vendor/uuid'/**, 'lib/merge'*/, 'l
                     id = id.substring(0, id.length - i.toString().length - 1);
 
                 } else if ( Array.isArray(arr[i]) ) {
-                    //id   += i + '-';
                     id   += '-'+ i;
                     if (section == '') {
                         section = id;
@@ -960,8 +918,6 @@ define('gina/toolbar', ['require', 'jquery', 'vendor/uuid'/**, 'lib/merge'*/, 'l
                     html +=   '<a href="#" class="gina-toolbar-key gina-toolbar'+ isXHR +'-folding-state-'+ normalizeFoldingStateName( section, i ) +'">'+ i +'<span>[ ]</span></a>';
                     html += '<ul class="gina-toolbar-collection">' + parseCollection(arr[i], ginaArr[i], id, elIsXHR, elSection)  +'</ul>';
                     html += '</li>';
-                    // clear one level
-                    //id = id.substring(0, id.length - i.toString().length - 1);
                     id = id.substring(0, id.length - i.toString().length);
                 } else {
                     html += '<li class="gina-toolbar-key-value"><span class="gina-toolbar-key">'+ i +':</span> <span class="gina-toolbar-value">'+ arr[i] +'</span></li>';
@@ -991,8 +947,8 @@ define('gina/toolbar', ['require', 'jquery', 'vendor/uuid'/**, 'lib/merge'*/, 'l
                 section = i;
                 if ( typeof(obj[i]) == 'object' && !Array.isArray(obj[i]) && obj[i] !== null ) { // parse
 
-                    $parent = $('#gina-toolbar-view-' + id.substring(0, id.length - 1));
-                    hasParent = ( $parent.length ) ? true : false;
+                    $parent = qs('#gina-toolbar-view-' + id.substring(0, id.length - 1));
+                    hasParent = !!$parent;
 
                     if (!hasParent ) {
                         id += i.replace(/[^A-Za-z0-9_-]/g, '_') + '-';
@@ -1003,8 +959,8 @@ define('gina/toolbar', ['require', 'jquery', 'vendor/uuid'/**, 'lib/merge'*/, 'l
                                                     '<ul class="'+ id.substring(0, id.length - 1) +'"></ul>' +
                                                 '</div>';
 
-                            $('#gina-toolbar-view-html-properties')
-                                .before(htmlParams);
+                            var htmlPropsEl = qs('#gina-toolbar-view-html-properties');
+                            if (htmlPropsEl) htmlPropsEl.insertAdjacentHTML('beforebegin', htmlParams);
                         } else {
 
                             if ( !/^html/.test(id) ) {
@@ -1014,27 +970,29 @@ define('gina/toolbar', ['require', 'jquery', 'vendor/uuid'/**, 'lib/merge'*/, 'l
                                                 '<ul class="'+ id.substring(0, id.length - 1) +'"></ul>' +
                                             '</div>';
 
-                                $html
-                                    .append(htmlOther);
-                            }/** else { // add to properties section
-                                $root
-                                    .find('.gina-toolbar-properties')
-                                    .append('ul.' + id.substring(0, id.length - 1))
-                            }*/
+                                $html.insertAdjacentHTML('beforeend', htmlOther);
+                            }
 
                         }
 
-                        parseView(obj[i], ginaObj[i], id, elIsXHR, $html.find('ul.'+ id.substring(0, id.length - 1)), $root );
+                        var subHtml = qs('ul.'+ id.substring(0, id.length - 1), $html);
+                        if (subHtml) {
+                            parseView(obj[i], ginaObj[i], id, elIsXHR, subHtml, $root );
+                        }
 
                     } else {
 
                         parentId = id + i.replace(/[^A-Za-z0-9_-]/g, '_') + '-';
 
-                        $parent
-                            .find('ul.'+ id.substring(0, id.length - 1))
-                            .append('<li class="gina-toolbar-object"><a href="#" class="gina-toolbar-key gina-toolbar'+ isXHR +'-folding-state-'+ normalizeFoldingStateName( i.replace(/[^A-Za-z0-9_-]/g, '_'), parentId.substring(0, parentId.length - 1) ) +'">'+ i +' <span>{ }</span></a><ul class="gina-toolbar-object '+ parentId.substring(0, parentId.length - 1) +'"></ul></li>');
+                        var parentUl = qs('ul.'+ id.substring(0, id.length - 1), $parent);
+                        if (parentUl) {
+                            parentUl.insertAdjacentHTML('beforeend', '<li class="gina-toolbar-object"><a href="#" class="gina-toolbar-key gina-toolbar'+ isXHR +'-folding-state-'+ normalizeFoldingStateName( i.replace(/[^A-Za-z0-9_-]/g, '_'), parentId.substring(0, parentId.length - 1) ) +'">'+ i +' <span>{ }</span></a><ul class="gina-toolbar-object '+ parentId.substring(0, parentId.length - 1) +'"></ul></li>');
+                        }
 
-                        parseView(obj[i], ginaObj[i], parentId, elIsXHR, $parent.find('ul.'+ id.substring(0, id.length - 1)), $root );
+                        var parentSubHtml = qs('ul.'+ id.substring(0, id.length - 1), $parent);
+                        if (parentSubHtml) {
+                            parseView(obj[i], ginaObj[i], parentId, elIsXHR, parentSubHtml, $root );
+                        }
 
                         id += i.replace(/[^A-Za-z0-9_-]/g, '_') + '-';
                     }
@@ -1048,59 +1006,33 @@ define('gina/toolbar', ['require', 'jquery', 'vendor/uuid'/**, 'lib/merge'*/, 'l
 
 
 
-                    $parent = $('#gina-toolbar-view-' + id.substring(0, id.length - 1));
+                    $parent = qs('#gina-toolbar-view-' + id.substring(0, id.length - 1));
 
-                    hasParent = ( $parent.length ) ? true : false;
+                    hasParent = !!$parent;
 
                     if ( !hasParent || /^html/.test(id) ) {
 
-                        $parent = $('.' + id);
+                        $parent = qs('.' + id);
                         parentId = id + i.replace(/[^A-Za-z0-9_-]/g, '_') + '-';
 
-                        $parent
-                            //.find('ul.'+ id.substring(0, id.length - 1))
-                            .append('<li class="gina-toolbar-collection"><a href="#" class="gina-toolbar-key gina-toolbar'+ isXHR +'-folding-state-'+ normalizeFoldingStateName( i.replace(/[^A-Za-z0-9_-]/g, '_'), parentId.substring(0, parentId.length - 1) ) +'">'+ i +' <span>['+ obj[i].length +']</span></a><ul> '+ parseCollection(obj[i], ginaObj[i], parentId, $parent.find('li ul.'+ id.substring(0, id.length - 1)), section )+'</ul></li>');
+                        if ($parent) {
+                            $parent.insertAdjacentHTML('beforeend', '<li class="gina-toolbar-collection"><a href="#" class="gina-toolbar-key gina-toolbar'+ isXHR +'-folding-state-'+ normalizeFoldingStateName( i.replace(/[^A-Za-z0-9_-]/g, '_'), parentId.substring(0, parentId.length - 1) ) +'">'+ i +' <span>['+ obj[i].length +']</span></a><ul> '+ parseCollection(obj[i], ginaObj[i], parentId, qs('li ul.'+ id.substring(0, id.length - 1), $parent), section )+'</ul></li>');
+                        }
 
-
-                        //parentId = parentId.substring(0, parentId.length - 1)+ '-';
-                        //parentId = id.substring(0, id.length - i.length - 1);
-                        //parseView(obj[i], ginaObj[i], parentId, elIsXHR, $parent.find('ul.'+ parentId.substring(0, parentId.length - 1)), $root );
-
-                        //id += i.replace(/[^A-Za-z0-9_-]/g, '_') + '-';
-                        //$parent = $('#gina-toolbar-view-' + id.substring(0, id.length - 1));
                         id += i.replace(/[^A-Za-z0-9_-]/g, '_') + '-';
                     } else {
 
 
                         parentId = id + i.replace(/[^A-Za-z0-9_-]/g, '_') + '-';
 
-                        $parent
-                            .find('li.'+ id.substring(0, id.length - 1) +' ul')
-                            .append('<li class="gina-toolbar-collection"><a class="gina-toolbar-key gina-toolbar'+ isXHR +'-folding-state-'+ normalizeFoldingStateName( i.replace(/[^A-Za-z0-9_-]/g, '_'), parentId.substring(0, parentId.length - 1) ) +'">'+ i +' <span>['+ obj[i].length +']</span></a><ul>'+ parseCollection(obj[i], ginaObj[i], parentId, $parent.find('li ul.'+ id.substring(0, id.length - 1)), section ) +'</ul></li>');
+                        var liUl = qs('li.'+ id.substring(0, id.length - 1) +' ul', $parent);
+                        if (liUl) {
+                            liUl.insertAdjacentHTML('beforeend', '<li class="gina-toolbar-collection"><a class="gina-toolbar-key gina-toolbar'+ isXHR +'-folding-state-'+ normalizeFoldingStateName( i.replace(/[^A-Za-z0-9_-]/g, '_'), parentId.substring(0, parentId.length - 1) ) +'">'+ i +' <span>['+ obj[i].length +']</span></a><ul>'+ parseCollection(obj[i], ginaObj[i], parentId, qs('li ul.'+ id.substring(0, id.length - 1), $parent), section ) +'</ul></li>');
+                        }
 
                         id += i.replace(/[^A-Za-z0-9_-]/g, '_') + '-';
 
                     }
-
-
-                    // if ( !hasParent || /^html/.test(id) ) {
-                    //     id = id + i.replace(/[^A-Za-z0-9_-]/g, '_') + '-';
-                    //     $root
-                    //         .find('.gina-toolbar-properties')
-                    //         .append('<li class="gina-toolbar-collection"><a class="gina-toolbar-key gina-toolbar'+ isXHR +'-folding-state-'+ normalizeFoldingStateName( i.replace(/[^A-Za-z0-9_-]/g, '_'), id.substring(0, id.length - 1) ) +'">'+ i +' <span>['+ obj[i].length +']</span></a><ul>'+ parseCollection(obj[i], ginaObj[i], parentId, $root.find('.gina-toolbar-properties'), section) +'</ul></li>');
-
-
-                    // } else {
-
-
-                    //     parentId = id + i.replace(/[^A-Za-z0-9_-]/g, '_') + '-';
-
-                    //     $parent
-                    //         .find('li.'+ id.substring(0, id.length - 1) +' ul')
-                    //         .append('<li class="gina-toolbar-collection"><a class="gina-toolbar-key gina-toolbar'+ isXHR +'-folding-state-'+ normalizeFoldingStateName( i.replace(/[^A-Za-z0-9_-]/g, '_'), parentId.substring(0, parentId.length - 1) ) +'">'+ i +' <span>['+ obj[i].length +']</span></a><ul>'+ parseCollection(obj[i], ginaObj[i], parentId, $parent.find('li ul.'+ id.substring(0, id.length - 1)), section ) +'</ul></li>');
-
-                    //     id += i.replace(/[^A-Za-z0-9_-]/g, '_') + '-';
-                    // }
 
                     // clear one level
                     id = id.substring(0, id.length - i.length - 1);
@@ -1116,13 +1048,12 @@ define('gina/toolbar', ['require', 'jquery', 'vendor/uuid'/**, 'lib/merge'*/, 'l
 
                         if (!id) continue;
 
-                        $html
-                            .find('ul.' + id)
-                            .append('<li class="gina-toolbar-key-value"><span class="gina-toolbar-key gina-toolbar-key-added">'+ i +':</span> <span class="gina-toolbar-value gina-toolbar-value-type-is-'+ objType +'">'+ obj[i]+'</span></li>');
+                        var ulId = qs('ul.' + id, $html);
+                        if (ulId) {
+                            ulId.insertAdjacentHTML('beforeend', '<li class="gina-toolbar-key-value"><span class="gina-toolbar-key gina-toolbar-key-added">'+ i +':</span> <span class="gina-toolbar-value gina-toolbar-value-type-is-'+ objType +'">'+ obj[i]+'</span></li>');
+                        }
 
                     } else {
-
-                        //if (/^_comment/.test(i) ) continue;
 
                         if (obj[i] !== ginaObj[i] ) {
                             if (!id) {
@@ -1130,13 +1061,11 @@ define('gina/toolbar', ['require', 'jquery', 'vendor/uuid'/**, 'lib/merge'*/, 'l
                             }
 
                             try {
-                                $html
-                                    .find('ul.' + id)
-                                    .append('<li class="gina-toolbar-key-value gina-toolbar-is-overridden"><span class="gina-toolbar-key">'+ i +':</span> <span class="gina-toolbar-value">'+ ginaObj[i] +'</span></li>');
-
-                                $html
-                                    .find('ul.' + id)
-                                    .append('<li class="gina-toolbar-key-value"><span class="gina-toolbar-key">'+ i +':</span> <span class="gina-toolbar-value gina-toolbar-value-type-is-'+ objType +'">'+ obj[i] +'</span></li>')
+                                var ulIdOver = qs('ul.' + id, $html);
+                                if (ulIdOver) {
+                                    ulIdOver.insertAdjacentHTML('beforeend', '<li class="gina-toolbar-key-value gina-toolbar-is-overridden"><span class="gina-toolbar-key">'+ i +':</span> <span class="gina-toolbar-value">'+ ginaObj[i] +'</span></li>');
+                                    ulIdOver.insertAdjacentHTML('beforeend', '<li class="gina-toolbar-key-value"><span class="gina-toolbar-key">'+ i +':</span> <span class="gina-toolbar-value gina-toolbar-value-type-is-'+ objType +'">'+ obj[i] +'</span></li>');
+                                }
 
                             } catch (err) {
                                 throw new Error('GinaToolbarError: `ul.'+ id +'` not found');
@@ -1145,28 +1074,24 @@ define('gina/toolbar', ['require', 'jquery', 'vendor/uuid'/**, 'lib/merge'*/, 'l
                         } else {
 
                             if ( !id || /^html\-properties/.test(id) ) { // properties case
-                                // if (id) {
-                                //     $html
-                                //         .find('ul.' + id)
-                                //         .append('<li class="gina-toolbar-key-value"><span class="gina-toolbar-key">'+ i +':</span> <span class="gina-toolbar-value gina-toolbar-value-type-is-'+ objType +'">'+ obj[i] +'</span></li>')
-                                // } else {
-                                    $root
-                                        .find('.gina-toolbar-properties')
-                                        .append('<li class="gina-toolbar-key-value"><span class="gina-toolbar-key">'+ i +':</span> <span class="gina-toolbar-value gina-toolbar-value-type-is-'+ objType +'">'+ obj[i] +'</span></li>')
-                                //}
+                                var props = qs('.gina-toolbar-properties', $root);
+                                if (props) {
+                                    props.insertAdjacentHTML('beforeend', '<li class="gina-toolbar-key-value"><span class="gina-toolbar-key">'+ i +':</span> <span class="gina-toolbar-value gina-toolbar-value-type-is-'+ objType +'">'+ obj[i] +'</span></li>');
+                                }
 
                             } else {
 
-                                $root
-                                    .find('ul.' + id.substring(0, id.length - 1))
-                                    .append('<li class="gina-toolbar-key-value"><span class="gina-toolbar-key">'+ i +':</span> <span class="gina-toolbar-value gina-toolbar-value-type-is-'+ objType +'">'+ obj[i] +'</span></li>')
+                                var ulSub = qs('ul.' + id.substring(0, id.length - 1), $root);
+                                if (ulSub) {
+                                    ulSub.insertAdjacentHTML('beforeend', '<li class="gina-toolbar-key-value"><span class="gina-toolbar-key">'+ i +':</span> <span class="gina-toolbar-value gina-toolbar-value-type-is-'+ objType +'">'+ obj[i] +'</span></li>');
+                                }
                             }
                         }
                     }
                 }
             }
 
-            return $root.html()
+            return $root ? $root.innerHTML : ''
         }
 
         var parseSection = function (rules, id, elIsXHR, section) {
@@ -1180,9 +1105,9 @@ define('gina/toolbar', ['require', 'jquery', 'vendor/uuid'/**, 'lib/merge'*/, 'l
             var $currentPopin = (gina.hasPopinHandler) ? gina.popin.getActivePopin() : null;
             var isPopinContext = ( gina.hasPopinHandler ) ? true : false;
             if ( isPopinContext && $currentPopin ) {
-                $el = $('#' + $currentPopin.id );
+                $el = qs('#' + $currentPopin.id);
             } else {
-                $el = $('body');
+                $el = document.body;
             }
 
             // look for `404: `
@@ -1192,11 +1117,12 @@ define('gina/toolbar', ['require', 'jquery', 'vendor/uuid'/**, 'lib/merge'*/, 'l
                 , f = 0
                 , fLen = 0
             ;
-            var matched = $el.html().match(/404\:\[(.+)\](.+)@(.+)\"/gm);
+            var matched = $el.innerHTML.match(/404\:\[(.+)\](.+)@(.+)\"/gm);
             if (matched) {
                 f = 0; fLen = matched.length;
                 for (; f < fLen; ++f) {
                     foundStr = matched[f].replace(/\"(.*)|\"/g, '');
+
                     formMethod = foundStr.match(/\[(.*)\]/g, '')[0].replace(/\[|\]/g,'');
 
                     routing.getRouteByUrl(foundStr, formMethod)
@@ -1205,7 +1131,6 @@ define('gina/toolbar', ['require', 'jquery', 'vendor/uuid'/**, 'lib/merge'*/, 'l
 
             printLogs();
 
-            //console.debug('popinIsActive: '+ isPopinContext +'isXHR: ', self.isXHR, ' -> ' + section, routing.notFound);
         }
 
         var printLogs = function() {
@@ -1227,15 +1152,11 @@ define('gina/toolbar', ['require', 'jquery', 'vendor/uuid'/**, 'lib/merge'*/, 'l
             var id = $forms[i].getAttribute('id') || $forms[i].id;
             var section     = attrClass; // by default
             var isXHR       = ( typeof(elIsXHR) != 'undefined' && elIsXHR != null ) ? '-xhr' : '';
-            // form fields set
-            // var fields      = validator
-            //                     .getFormById(id)
-            //                     .fieldsSet;
 
-            var $form = $(
+            var $form = htmlToEl(
                         '<div id="gina-toolbar-form-'+ id +'" class="gina-toolbar-section">' +
                             '<h2 class="gina-toolbar-section-title">'+ id +'</h2>' +
-                            '<ul class="gina-toolbar-section-content gina-toolbar-code" style="display: none;">' +
+                            '<ul class="gina-toolbar-section-content gina-toolbar-code">' +
                                 '<li class="'+ attrClass +'">' +
                                     '<h3 class="gina-toolbar-sub-section-title">'+ attrClass.replace(/gina-toolbar-form-/, '') +'</h3>' +
                                     '<ul class="gina-toolbar-code"></ul>' +
@@ -1249,9 +1170,6 @@ define('gina/toolbar', ['require', 'jquery', 'vendor/uuid'/**, 'lib/merge'*/, 'l
                 , hasEvents = false
                 , routeObj  = null
             ;
-
-            // testing for action attr to add action route
-
 
             // adding form attributes
             for ( var a = 0, aLen = attributes.length; a < aLen; ++a ) {
@@ -1316,26 +1234,24 @@ define('gina/toolbar', ['require', 'jquery', 'vendor/uuid'/**, 'lib/merge'*/, 'l
                                 '</li>';
                 }
 
-                //content = val;
-
 
                 // events
                 if ( /^data-gina-form-event/.test(key) ) {
                     section     = 'events';
-                    hasEvents   = ( $form
-                                    .find('.'+ attrClass)
-                                    .find('.gina-toolbar-key-events').length ) ? true : false;
+                    hasEvents   = !!qs('.'+ attrClass +' .gina-toolbar-key-events', $form);
 
                     key = key.replace(/^data-gina-form-event-/, '');
 
                     if (!hasEvents) {
                         // adding event sub section
-                        $form
-                            .find('ul.gina-toolbar-section-content')
-                            .append('<li class="gina-toolbar-form-'+ section +'">' +
-                                        '<h3 class="gina-toolbar-sub-section-title">'+ section +'</h3>' +
-                                        '<ul class="gina-toolbar-code"></ul>' +
-                                    '</li>');
+                        var sectionContent = qs('ul.gina-toolbar-section-content', $form);
+                        if (sectionContent) {
+                            sectionContent.insertAdjacentHTML('beforeend',
+                                '<li class="gina-toolbar-form-'+ section +'">' +
+                                    '<h3 class="gina-toolbar-sub-section-title">'+ section +'</h3>' +
+                                    '<ul class="gina-toolbar-code"></ul>' +
+                                '</li>');
+                        }
 
                     }
 
@@ -1346,10 +1262,8 @@ define('gina/toolbar', ['require', 'jquery', 'vendor/uuid'/**, 'lib/merge'*/, 'l
                                 '</li>';
 
 
-                    $form
-                        .find('ul.gina-toolbar-section-content')
-                        .find('li.gina-toolbar-form-'+ section +' > ul')
-                        .append(content)
+                    var evUl = qs('ul.gina-toolbar-section-content li.gina-toolbar-form-'+ section +' > ul', $form);
+                    if (evUl) evUl.insertAdjacentHTML('beforeend', content);
 
 
                 } else { // normal case
@@ -1361,10 +1275,8 @@ define('gina/toolbar', ['require', 'jquery', 'vendor/uuid'/**, 'lib/merge'*/, 'l
                                 '</li>';
                     }
 
-                    $form
-                        .find('ul.gina-toolbar-section-content')
-                        .find('li.'+ attrClass +' > ul')
-                        .append(content)
+                    var attrUl = qs('ul.gina-toolbar-section-content li.'+ attrClass +' > ul', $form);
+                    if (attrUl) attrUl.insertAdjacentHTML('beforeend', content);
                 }
 
 
@@ -1387,18 +1299,20 @@ define('gina/toolbar', ['require', 'jquery', 'vendor/uuid'/**, 'lib/merge'*/, 'l
 
             if ( rules ) {
                 section = 'rules';
-                $form
-                    .find('ul.gina-toolbar-section-content')
-                    .append('<li class="gina-toolbar-form-'+ section +'">' +
-                                '<h3 class="gina-toolbar-sub-section-title">'+ section +'</h3>' +
-                                '<ul class="gina-toolbar-properties">'+ parseSection( rules, id, elIsXHR, section ) +'</ul>' +
-                            '</li>');
+                var ruleSectionContent = qs('ul.gina-toolbar-section-content', $form);
+                if (ruleSectionContent) {
+                    ruleSectionContent.insertAdjacentHTML('beforeend',
+                        '<li class="gina-toolbar-form-'+ section +'">' +
+                            '<h3 class="gina-toolbar-sub-section-title">'+ section +'</h3>' +
+                            '<ul class="gina-toolbar-properties">'+ parseSection( rules, id, elIsXHR, section ) +'</ul>' +
+                        '</li>');
+                }
 
             }
 
 
 
-            $html.append($form);
+            $html.appendChild($form);
 
             ++i;
 
@@ -1409,40 +1323,37 @@ define('gina/toolbar', ['require', 'jquery', 'vendor/uuid'/**, 'lib/merge'*/, 'l
 
         var updateForm = function(id, section, obj, elIsXHR) {
 
-            var $form = $('#gina-toolbar-form-' + id);
+            var $form = qs('#gina-toolbar-form-' + id);
 
             // reset
-            $section = $form
-                .find('ul.gina-toolbar-section-content')
-                .find('li.gina-toolbar-form-'+ section + '> ul');
+            var $section = qs('ul.gina-toolbar-section-content li.gina-toolbar-form-'+ section + ' > ul', $form);
 
-            if ($section.length > 0) { // update
+            if ($section) { // update
 
                 if ( obj.count() == 0 ) { // no errors remove section
-                    $form
-                        .find('ul.gina-toolbar-section-content')
-                        .find('li.gina-toolbar-form-' + section)
-                        .remove();
+                    var $li = qs('ul.gina-toolbar-section-content li.gina-toolbar-form-' + section, $form);
+                    if ($li) $li.parentNode.removeChild($li);
                     return false
                 }
 
-                $section
-                    .html( parseSection( obj, id, elIsXHR, section ) );
+                $section.innerHTML = parseSection( obj, id, elIsXHR, section );
 
             } else { // init
 
-                $form
-                    .find('ul.gina-toolbar-section-content')
-                    .append('<li class="gina-toolbar-form-'+ section +'">' +
-                                '<h3 class="gina-toolbar-sub-section-title">'+ section +'</h3>' +
-                                '<ul class="gina-toolbar-properties">'+ parseSection( obj, id, elIsXHR, section ) +'</ul>' +
-                            '</li>');
+                var $sc = qs('ul.gina-toolbar-section-content', $form);
+                if ($sc) {
+                    $sc.insertAdjacentHTML('beforeend',
+                        '<li class="gina-toolbar-form-'+ section +'">' +
+                            '<h3 class="gina-toolbar-sub-section-title">'+ section +'</h3>' +
+                            '<ul class="gina-toolbar-properties">'+ parseSection( obj, id, elIsXHR, section ) +'</ul>' +
+                        '</li>');
+                }
             }
 
             // Form binding
-            var $sectionContent = $form.find('ul.gina-toolbar-section-content');
-            if ( !$sectionContent.is(':visible') ) {
-                $sectionContent.slideToggle()
+            var $sectionContent = qs('ul.gina-toolbar-section-content', $form);
+            if ( !isVisible($sectionContent) ) {
+                slideToggle($sectionContent)
             }
 
         }
@@ -1463,75 +1374,77 @@ define('gina/toolbar', ['require', 'jquery', 'vendor/uuid'/**, 'lib/merge'*/, 'l
 
             var html = createInputFile('mock', 'Select your JSON file');
 
-            $htmlData.html(html);
-            $json.text('');
+            $htmlData.innerHTML = html;
+            $json.textContent = '';
 
-            $htmlData.find('input').off('change').on('change', function(e) {
+            var inp = qs('input', $htmlData);
+            if (inp) {
+                inp.addEventListener('change', function(e) {
 
-                var files   = $(this)[0].files;
-                var file    = null;
-                var reader  = null;
+                    var files   = this.files;
+                    var file    = null;
+                    var reader  = null;
 
 
-                if (files.length == 1) {
-                    file        = $(this)[0].files[0]; // jQuery way
-                    reader      = new FileReader();
-                    reader.addEventListener('load', function(){
-                        // user
-                        $json.text(reader.result);
-                        // gina <- being duplicated to prevent bugs
-                        $ginaJson.text(reader.result);
-                        cb();
-                    }, false);
+                    if (files.length == 1) {
+                        file        = this.files[0];
+                        reader      = new FileReader();
+                        reader.addEventListener('load', function(){
+                            // user
+                            $json.textContent = reader.result;
+                            // gina <- being duplicated to prevent bugs
+                            $ginaJson.textContent = reader.result;
+                            cb();
+                        }, false);
 
-                    reader.readAsBinaryString(file)
-                } else {
-                    var done = 0;
-                    var complete = function (done) {
+                        reader.readAsBinaryString(file)
+                    } else {
+                        var done = 0;
+                        var complete = function (done) {
 
-                        if (done == files.length) {
-                            cb()
-                        }
-                    };
+                            if (done == files.length) {
+                                cb()
+                            }
+                        };
 
-                    reader  = [];
+                        reader  = [];
 
-                    for (var i = 0, len = files.length; i < len; ++i) {
-                        file = files[i];
-                        switch (true) {
-                            case /user/.test(file.name):
+                        for (var i = 0, len = files.length; i < len; ++i) {
+                            file = files[i];
+                            switch (true) {
+                                case /user/.test(file.name):
 
-                                reader[i]  = new FileReader();
-                                reader[i].addEventListener('load', function onEventListenerAdded(e){
+                                    reader[i]  = new FileReader();
+                                    reader[i].addEventListener('load', function onEventListenerAdded(e){
 
-                                    // user
-                                    $json.text(e.currentTarget.result);
-                                    ++done;
-                                    complete(done)
-                                }, false);
+                                        // user
+                                        $json.textContent = e.currentTarget.result;
+                                        ++done;
+                                        complete(done)
+                                    }, false);
 
-                                reader[i].readAsBinaryString(file);
+                                    reader[i].readAsBinaryString(file);
 
-                                break;
+                                    break;
 
-                            case /gina/.test(file.name):
-                                //console.log(file);
-                                reader[i]  = new FileReader();
-                                reader[i].addEventListener('load', function onEventListenerAdded(e){
-                                    // gina
-                                    $ginaJson.text(e.currentTarget.result);
-                                    ++done;
-                                    complete(done)
-                                }, false);
+                                case /gina/.test(file.name):
+                                    reader[i]  = new FileReader();
+                                    reader[i].addEventListener('load', function onEventListenerAdded(e){
+                                        // gina
+                                        $ginaJson.textContent = e.currentTarget.result;
+                                        ++done;
+                                        complete(done)
+                                    }, false);
 
-                                reader[i].readAsBinaryString(file);
+                                    reader[i].readAsBinaryString(file);
 
-                                break;
+                                    break;
+                            }
                         }
                     }
-                }
 
-            });
+                });
+            }
 
             return false;
         }
@@ -1573,4 +1486,5 @@ define('gina/toolbar', ['require', 'jquery', 'vendor/uuid'/**, 'lib/merge'*/, 'l
     }
 
     return Toolbar
-})
+
+});
