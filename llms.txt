@@ -1,0 +1,240 @@
+# Gina — LLM Reference
+
+Node.js MVC framework. No Express dependency. Built-in HTTP/2. Multi-bundle architecture. Scope-based data isolation. CommonJS throughout (no ESM).
+
+---
+
+## Key concepts
+
+**Bundle** — Gina's unit of deployment. A project contains one or more bundles. Each bundle has its own controllers, models, config, templates, and port. Bundles start independently (`gina bundle:start <bundle> @<project>`).
+
+**Scope** — Runtime environment label: `local`, `beta`, `production`, `testing`. Set per-process via `NODE_SCOPE`. Stored on every entity instance as `_scope`. Used to isolate data in shared databases (Couchbase N1QL `AND t._scope = $scope`).
+
+**Short version** — The `major.minor` portion of the Gina semver (e.g. `0.1` from `0.1.9-alpha.2`). Per-version config lives at `~/.gina/{shortVersion}/settings.json`.
+
+---
+
+## Directory layout
+
+```
+framework/v{version}/
+  core/
+    config.js           Config singleton — synchronous, must complete before returning
+    gna.js              Bootstrap — injects globals (_/getContext/setContext/requireJSON/getPath)
+    server.js           HTTP server lifecycle
+    server.isaac.js     Isaac built-in HTTP/HTTP2 engine
+    router.js           URL routing (matches routing.json rules)
+    controller/
+      controller.js     SuperController base class (per-request instances via inherits)
+      controller.render-swig.js   HTML rendering (delegate file, hot-reloaded in dev)
+      controller.render-json.js   JSON rendering (delegate file)
+    model/entity.js     EntitySuper — EventEmitter base for all ORM entities
+    connectors/         Couchbase, Redis, SQLite connectors
+  lib/
+    index.js            Exports all framework libraries
+    merge/              Deep object merge
+    inherits/           Prototype-based inheritance
+    cache/              Memory cache with TTL
+    logger/             Multi-stream logging
+```
+
+---
+
+## Global helpers (injected by gna.js — no require needed)
+
+```javascript
+_(path, isAbsolute)          // PathObject — resolves paths, normalises separators
+requireJSON(path)            // JSON require with caching
+getPath(name)                // Get named path ('gina', 'bundle', 'project', ...)
+setPath(name, pathObj)       // Register named path
+getContext(key)              // Global key-value store (survives require.cache eviction)
+setContext(key, value)       // Write to global store
+define(key, value)           // Property definition helper
+getEnvVar(key)               // Read env variable
+setEnvVar(key, val, protect) // Write env variable
+```
+
+---
+
+## Controller pattern
+
+```javascript
+// controllers/controller.content.js
+var SuperController = require('../../../core/controller/controller');
+
+function Controller() {}
+Controller = inherits(Controller, SuperController);
+
+Controller.prototype.home = function(req, res, next) {
+    var self = this;
+    self.render({ title: 'Home' });           // HTML via Swig
+    // self.renderJSON({ ok: true });          // JSON
+};
+
+module.exports = Controller;
+```
+
+**Rules:**
+- `inherits(Child, Parent)` creates per-request instances — each request gets its own `local` closure, no shared state.
+- Auth is at `req.session.user` (NOT `req.user`).
+- Routes declared in `routing.json`, not in code.
+- Always null `local.req/res/next` at response exit (done automatically in render path).
+- `createTestInstance(deps)` creates an isolated instance for unit tests without touching production state.
+
+---
+
+## Entity (ORM) pattern
+
+```javascript
+// models/<database>/entities/UserEntity.js
+function UserEntity() {}
+
+UserEntity.prototype.getById = function(id) {
+    // body injected by connector from sql/User/getById.sql
+};
+
+module.exports = UserEntity;
+```
+
+**Rules:**
+- Entities extend EventEmitter (via EntitySuper).
+- Entity methods return a native Promise with `.onComplete(cb)` shim for backward compat.
+- `_scope` is set on every entity prototype by the connector from `connectors.json`.
+- `_arguments[trigger]` buffers results for late-binding listeners — cleared in dev mode per call.
+- Dependency injection: `new MyEntity(conn, caller, { connector: mockConn })` for tests.
+
+---
+
+## SQL file format (Couchbase N1QL / SQLite)
+
+```sql
+/*
+ * @param {string}  $id
+ * @return {object}
+ */
+SELECT * FROM `bucket` t WHERE t.id = $1 AND t._scope = $scope
+```
+
+- `@return {object}` → single row (`stmt.get()` / Couchbase single result)
+- `@return {Array}` → all rows (default for SELECT)
+- `@return {boolean}` → `changes > 0` or `rows.length > 0`
+- `@return {number}` → first key of first row (COUNT queries)
+- `$scope` is substituted as a string literal, not a positional parameter
+- SQLite uses `?` placeholders; Couchbase uses `$1`, `$2`, ...
+
+---
+
+## Connector config (connectors.json)
+
+```json
+{
+  "mydb": {
+    "connector": "sqlite",
+    "database": "mydb",
+    "file": ":memory:"
+  },
+  "cache": {
+    "connector": "redis",
+    "host": "localhost",
+    "port": 6379
+  }
+}
+```
+
+Connectors supported: `couchbase` (v3/v4), `redis`, `sqlite` (v2 ORM + session store).
+
+---
+
+## Routing (routing.json)
+
+```json
+{
+  "home": {
+    "method": "GET",
+    "url": "/",
+    "param": { "control": "home" }
+  },
+  "user-get": {
+    "method": "GET",
+    "url": "/users/:id",
+    "param": { "control": "getUser" }
+  }
+}
+```
+
+---
+
+## Bundle config files
+
+| File | Purpose |
+| --- | --- |
+| `app.json` | Bundle settings (port, region, encoding, session, middleware) |
+| `routing.json` | URL route definitions |
+| `settings.json` | Framework settings (locale, timezone) |
+| `connectors.json` | Database connector declarations |
+| `app.crons.json` | Scheduled tasks |
+| `templates.json` / `statics.json` | Template and static file mappings |
+
+All config files support `$schema` references for editor validation.
+
+---
+
+## CLI entry points
+
+```bash
+gina bundle:start <bundle> @<project>   # Start a bundle
+gina bundle:stop <bundle> @<project>    # Stop a bundle
+gina tail --follow                       # Follow logs
+gina framework:set --env=dev            # Set environment
+gina-container                          # Foreground launcher for Docker/K8s
+gina-init                               # Bootstrap ~/.gina/ from env vars (containers)
+```
+
+---
+
+## Dev mode behaviour
+
+- `NODE_ENV_IS_DEV=true` enables hot-reload.
+- `controller.js` is re-required on every request via `delete require.cache`.
+- SQL files are re-read from disk on every entity call (Couchbase/SQLite connectors).
+- Do NOT rely on module-level state in files that are hot-reloaded.
+
+---
+
+## Ports
+
+| Port | Role |
+| --- | --- |
+| 8124 | Framework socket server (online commands) |
+| 8125 | MQ listener (log tail) |
+
+Bundle ports are allocated per-project in `~/.gina/ports.json`.
+
+---
+
+## Home directory (~/.gina/)
+
+```
+~/.gina/
+  {shortVersion}/
+    settings.json       Per-version framework settings (port, env, scope, locale)
+  projects.json         Registered projects
+  main.json             Framework install metadata
+  ports.json            Port allocations by protocol/scheme/bundle
+  ports.reverse.json    Reverse map port → bundle
+  run/                  PID files for running bundles
+  log/                  Framework log files
+```
+
+---
+
+## Common gotchas
+
+1. **`CLAUDE.md` is gitignored** — project instructions are local only.
+2. **`services/` is gitignored** — built-in bundles not published to npm.
+3. **Commit messages**: no AI references, no co-author footers. Imperative or gerund style.
+4. **"services" = bundles** — when asked to start/stop/restart services, interpret as Gina bundles.
+5. **`inherits(Child, Parent)`** calls both constructors on a fresh `this` — not the same as `Object.create`.
+6. **`getConnection()` in tests**: pass `{ connector: mockConn }` as the third arg to EntitySuper.
+7. **`super()` does not exist** — use `Parent.call(this, ...)` for constructor chaining.
+8. **Roadmap sync**: any roadmap change must be applied to all three locations: `.claude/roadmap.md`, `ROADMAP.md`, `~/Sites/gina/docs/repo/docs/roadmap.md`.
