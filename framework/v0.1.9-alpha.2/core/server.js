@@ -3641,8 +3641,8 @@ function Server(options) {
 
                 header = completeHeaders(header, local.request, res);
                 if ( /http\/2/.test(protocol) && stream ) {
-                    // TODO - Check if the stream has not been closed before sending response
-                    // if (stream && !stream.destroyed) {
+                    // #H2 — guard against writing to a stream that was already closed/destroyed
+                    if (stream.destroyed || stream.closed) { return; }
                     stream.respond(header);
                     if ( isHtmlContent && !hasCustomErrorFile ) {
                         stream.end('<html><body><pre><h1>Error '+ code +'.</h1><pre>'+ msg + '</pre></body></html>');
@@ -3652,8 +3652,6 @@ function Server(options) {
                             error   : msg
                         }));
                     }
-
-                    // }
                 } else {
                     if ( isHtmlContent && !hasCustomErrorFile ) {
                         res.end('<html><body><pre><h1>Error '+ code +'.</h1><pre>'+ msg + '</pre></body><html>');

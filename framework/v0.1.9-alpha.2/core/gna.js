@@ -46,6 +46,23 @@ if (!process.env.NODE_COMPILE_CACHE) {
     process.env.NODE_COMPILE_CACHE = os.homedir() + '/.gina/cache/v8';
 }
 
+// #P4 — V8 pointer compression detection.
+// Node.js built with --experimental-enable-pointer-compression (e.g. node-caged,
+// or a custom build like the freelancer image) caps each V8 isolate at a 4 GB heap
+// in exchange for ~50% memory reduction across all pointer-heavy structures
+// (objects, arrays, linked lists). Detection: heap_size_limit ≤ 4 GB is the hard
+// ceiling imposed by 32-bit pointer offsets within a 4 GB memory cage.
+// Sets GINA_V8_POINTER_COMPRESSED=true so connectors and bundle code can react.
+// Note: --max-old-space-size above 4096 has no effect on pointer-compressed builds.
+(function() {
+    var _heapLimit = require('v8').getHeapStatistics().heap_size_limit;
+    if (_heapLimit <= 4 * 1024 * 1024 * 1024) {
+        process.env.GINA_V8_POINTER_COMPRESSED = 'true';
+        process.stdout.write('[gina] V8 pointer compression active — heap limit: '
+            + Math.round(_heapLimit / (1024 * 1024)) + ' MB per isolate\n');
+    }
+}());
+
 const { promisify } = require('util');
 var EventEmitter    = require('events').EventEmitter;
 var e               = new EventEmitter();

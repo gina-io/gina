@@ -170,7 +170,7 @@ Before opening a PR against `develop`:
 - [ ] New behaviour is covered by a test (or an explanation is provided for why it cannot be)
 - [ ] A `changie new` entry exists for any user-facing change
 - [ ] Commit messages follow the style above
-- [ ] Docs updated if public API, CLI, or config schema changed
+- [ ] Docs updated if public API, CLI, or config schema changed (see [gina-io/docs/CONTRIBUTING.md](https://github.com/gina-io/docs/blob/main/CONTRIBUTING.md))
 
 ---
 
@@ -188,3 +188,12 @@ Open a [GitHub issue](https://github.com/Rhinostone/gina/issues) and include:
 ## Proposing features
 
 Open a GitHub issue describing the use case **before** writing code. Features that align with the [roadmap](./ROADMAP.md) and architecture are most likely to be accepted. Significant API changes go through a public discussion period before being finalised.
+
+---
+
+## Maintainers
+
+| Name | Role | Profile |
+| --- | --- | --- |
+| Martin Luther | Lead maintainer | [rhinostone.com](https://rhinostone.com) |
+| Fabrice Delaneau | Co-author | [fdelaneau.com](https://fdelaneau.com) |

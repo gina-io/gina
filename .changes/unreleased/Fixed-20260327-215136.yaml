@@ -1,0 +1,3 @@
+kind: Fixed
+body: Fixed `/_gina/info` HTTP/2 endpoint returning `[object Object]` — `stream.end(infoHeaders)` was passing the headers object instead of the JSON string `infoStatus` (#H1)
+time: 2026-03-27T21:51:36.433548+01:00

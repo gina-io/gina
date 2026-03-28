@@ -13,7 +13,8 @@ var merge           = lib.merge;
 var modelUtil       = new lib.Model();
 
 //globalized
-uuid                = require('uuid');
+// CB-LOW-1 fix: uuid was assigned without `var`, leaking into global.uuid.
+var uuid            = require('uuid');
 N1qlQuery           = couchbase.N1qlQuery || null;
 N1qlStringQuery     = couchbase.N1qlStringQuery || null;
 ViewQuery           = couchbase.ViewQuery || null;
@@ -64,8 +65,15 @@ function Connector(dbString) {
             self.instance.reconnected = self.instance.connected = false;
             console.error('[ CONNECTOR ][ ' + local.bundle +' ] couchbase could not be reached !!\n'+ ( err.stack || err.message || err ) );
 
-            // reconnecting
-            console.debug('[ CONNECTOR ][ ' + local.bundle +' ][ ' + dbString.database +' ] trying to reconnect in a few secs...');
+            // CB-LOW-5 fix: exponential backoff replaces hardcoded 5s retry.
+            // Delay sequence: 5s → 10s → 20s → 40s → 60s (cap). Counter reset in onConnect().
+            self._reconnectAttempts = (self._reconnectAttempts || 0) + 1;
+            var _backoffDelay = Math.min(5000 * Math.pow(2, self._reconnectAttempts - 1), 60000);
+            if (self._reconnectAttempts >= 10) {
+                console.error('[ CONNECTOR ][ ' + local.bundle +' ][ ' + dbString.database +' ] reconnect attempt ' + self._reconnectAttempts + ' — max backoff reached (' + (_backoffDelay/1000) + 's). Couchbase may be unavailable.');
+            } else {
+                console.debug('[ CONNECTOR ][ ' + local.bundle +' ][ ' + dbString.database +' ] reconnect attempt ' + self._reconnectAttempts + ' — retrying in ' + (_backoffDelay/1000) + 's...');
+            }
             self.instance.reconnecting = true;
 
             setTimeout( function onRetry(){
@@ -74,7 +82,7 @@ function Connector(dbString) {
                 } else {
                     self.connect(dbString);
                 }
-            }, 5000);
+            }, _backoffDelay);
 
         };
 
@@ -83,6 +91,20 @@ function Connector(dbString) {
             console.debug('[ CONNECTOR ][ ' + local.bundle +' ] couchbase is alive !!');
             console.debug('[ CONNECTOR ][ ' + local.bundle +' ][ ' + dbString.connector +' ] now connected...');
 
+            // #CB-V2-DEPRECATED — Couchbase SDK v2 reached end-of-life in 2021.
+            // Formal deprecation in gina 0.2.0 (Q2 2026). Removal planned for gina 0.4.0 (Q4 2026).
+            // To upgrade: set sdk.version to 3 or 4 in your bundle's connectors.json.
+            console.warn('[ CONNECTOR ][ couchbase ] SDK v2 is deprecated and will be removed in gina 0.4.0. '
+                + 'Couchbase Server SDK v2 reached end-of-life in 2021. '
+                + 'Update your bundle\'s connectors.json: set sdk.version to 3 or 4.');
+            if (/^true$/i.test(process.env.GINA_V8_POINTER_COMPRESSED)) {
+                console.error('[ CONNECTOR ][ couchbase ] FATAL: SDK v2 uses NAN bindings which are incompatible '
+                    + 'with V8 pointer compression. The process may segfault. '
+                    + 'Switch to sdk.version 3 or 4 in connectors.json immediately.');
+            }
+
+            // CB-LOW-5 fix: reset backoff counter on successful (re)connect.
+            self._reconnectAttempts = 0;
             self.instance.reconnected  = self.instance.connected   = true;
             var options = local.options;
 
@@ -105,8 +127,8 @@ function Connector(dbString) {
                     console.debug('[ CONNECTOR ][ ' + local.bundle +' ][ '+ env +' ] connected to couchbase !!');
 
 
-                    modelUtil.setConnection(bundle, name, self.instance);
-
+                    // CB-PERF-3 fix: first setConnection call was redundant (identical args, outside the existsSync guard)
+                    // modelUtil.setConnection(bundle, name, self.instance);
                     if ( fs.existsSync(modelsPath) ) {
                         modelUtil.setConnection(bundle, name, self.instance);
                         modelUtil.reloadModels(
@@ -124,7 +146,12 @@ function Connector(dbString) {
                 }
             });
             // intercepting conn event thru gina
-            gina.onError(function(err, req, res, next){
+            // CB-BUG-1 fix: guard against handler accumulation on reconnect
+            // — onConnect() fires on every reconnection; without this guard each reconnect stacks a new gina.onError handler,
+            //   and N handlers all race to call res.end() on the same error, causing "Cannot set headers after sent"
+            if (!self._errorHandlerRegistered) {
+                self._errorHandlerRegistered = true;
+                gina.onError(function(err, req, res, next){
                 // (code)   message
                 // (16)     Generic network failure. Enable detailed error codes (via LCB_CNTL_DETAILED_ERRCODES, or via `detailed_errcodes` in the connection string) and/or enable logging to get more information
                 // (23)     Client-Side timeout exceeded for operation. Inspect network conditions or increase the timeout
@@ -141,8 +168,14 @@ function Connector(dbString) {
                     //|| err instanceof couchbase.Error && err.code == 23 && !self.reconnecting
                     || /cannot perform operations on a shutdown bucket/.test(err.message ) && !self.reconnecting && !self.reconnected
                 ) {
-                    // reconnecting
-                    console.debug('[ CONNECTOR ][ ' + local.bundle +' ][ ' + dbString.database +' ] trying to reconnect in 5 secs...');
+                    // CB-LOW-5 fix: exponential backoff (shared counter with connect onError).
+                    self._reconnectAttempts = (self._reconnectAttempts || 0) + 1;
+                    var _backoffDelay = Math.min(5000 * Math.pow(2, self._reconnectAttempts - 1), 60000);
+                    if (self._reconnectAttempts >= 10) {
+                        console.error('[ CONNECTOR ][ ' + local.bundle +' ][ ' + dbString.database +' ] reconnect attempt ' + self._reconnectAttempts + ' — max backoff reached (' + (_backoffDelay/1000) + 's). Couchbase may be unavailable.');
+                    } else {
+                        console.debug('[ CONNECTOR ][ ' + local.bundle +' ][ ' + dbString.database +' ] reconnect attempt ' + self._reconnectAttempts + ' — retrying in ' + (_backoffDelay/1000) + 's...');
+                    }
                     self.reconnecting = true;
 
                     setTimeout( function onRetry(){
@@ -151,7 +184,7 @@ function Connector(dbString) {
                         } else {
                             self.connect(dbString)
                         }
-                    }, 5000)
+                    }, _backoffDelay)
 
                 } else if (err instanceof couchbase.Error && err.code == 23 && !self.reconnecting) {
                     self.instance.disconnect();
@@ -169,10 +202,10 @@ function Connector(dbString) {
                         console.error('[ CONNECTOR ][ ' + local.bundle +' ][ ' + dbString.database +' ] gina fatal error ('+ err.code +'): ' + (err.message||err) + '\nstack: '+ err.stack);
 
                         if ( typeof(err) == 'object' ) {
+                            // CB-QUAL-1 fix: stack trace removed — logged server-side only, never sent to client
                             res.end(JSON.stringify({
                                 status: 500,
-                                error: err.message,
-                                stack: err.stack
+                                error: err.message
                             }))
                         } else {
                             res.end(err)
@@ -189,7 +222,8 @@ function Connector(dbString) {
                         }
                     }
                 }
-            });
+                });
+            }
 
 
             self.emit('ready', false, self.instance);
@@ -398,7 +432,11 @@ function Connector(dbString) {
 
                     self.instance.reconnected = false;
                     self.instance.reconnecting = true;
-                    if ( typeof(next) != 'undefined' ) {
+                    // CB-PERF-2 fix: `next` was not in scope inside ping() — typeof(next)
+                    // always evaluated to 'undefined', so reconnect from ping never passed
+                    // the callback and errors were silently dropped. Fixed to use `ncb`
+                    // (the no-connection callback param of ping(interval, cb, ncb)).
+                    if ( typeof(ncb) != 'undefined' ) {
                         self.connect(dbString, ncb);
                     } else {
                         self.connect(dbString);
@@ -411,8 +449,10 @@ function Connector(dbString) {
             }, interval);
             ncb(cb);
         } else {
-            console.debug('[ CONNECTOR ][ ' + local.bundle +' ] sent ping to couchbase ...');
-            self.ping(interval, cb, ncb);
+            // CB-BUG-4 fix: keepAlive is false — ping is a no-op; do not recurse
+            // old: console.debug('[ CONNECTOR ][ ' + local.bundle +' ] sent ping to couchbase ...');
+            // old: self.ping(interval, cb, ncb);  ← unconditional recursion → stack overflow
+            return;
         }
     };
 

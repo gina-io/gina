@@ -310,8 +310,16 @@ function ServerEngineClass(options) {
             // Nombre max de requêtes parallèles sur UNE seule connexion TCP
             maxConcurrentStreams: 1000,
             // Taille de la fenêtre de réception (évite les blocages sur gros transferts)
-            initialWindowSize: 65535 * 10
+            initialWindowSize: 65535 * 10,
+            // #H3 — HPACK bomb defense: cap compressed header list size (SETTINGS_MAX_HEADER_LIST_SIZE)
+            maxHeaderListSize: 65536,
+            // #H3 — Server push is deprecated in Chrome/Firefox and removed in HTTP/2 RFC 9113; disable it
+            enablePush: false
         };
+        // #H3 — RST flood defense (CVE-2019-9514, CVE-2023-44487 rapid reset)
+        http2Options.maxSessionRejectedStreams = 100;
+        // #H3 — CONTINUATION flood defense (CVE-2024-27316, CVE-2024-27983)
+        http2Options.maxSessionInvalidFrames = 1000;
         var http2   = require('http2');
         switch (options.scheme) {
             case 'http':
@@ -525,7 +533,8 @@ function ServerEngineClass(options) {
                         ':status': 200,
                         ...infoHeaders
                     });
-                    return response.stream.end(infoHeaders);
+                    // fixed: #H1 — was passing infoHeaders (object) instead of infoStatus (JSON string)
+                    return response.stream.end(infoStatus);
                 }
 
                 // Fallback HTTP/1.1

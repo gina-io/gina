@@ -9,7 +9,6 @@ var statusCodes         = requireJSON( _( getPath('gina').core + '/status.codes'
 var self                = null
     , local             = null
     , headersSent       = null
-    , freeMemory        = null
     , cachePath         = null
 ;
 
@@ -128,7 +127,6 @@ async function writeCache(bundle, opt, jsonContent) {
  * @param {object}        deps.self   - The SuperController instance
  * @param {object}        deps.local  - Per-request closure (`req`, `res`, `next`, `options`)
  * @param {function}      deps.headersSent  - Returns `true` when response headers are already sent
- * @param {function}      deps.freeMemory   - Nulls per-request variables after response
  * @returns {void}
  */
 module.exports = function renderJSON(jsonObj, deps) {
@@ -136,7 +134,6 @@ module.exports = function renderJSON(jsonObj, deps) {
     self            = deps.self;
     local           = deps.local;
     headersSent     = deps.headersSent;
-    freeMemory      = deps.freeMemory;
 
     // preventing multiple call of self.renderJSON() when controller is rendering from another required controller
     if (local.options.renderingStack.length > 1) {
@@ -238,7 +235,6 @@ module.exports = function renderJSON(jsonObj, deps) {
             //             next()
             //         }
 
-            //         freeMemory([jsonObj, data, request, response, next]);
             //     // }
             // }, 200);
 
@@ -283,7 +279,9 @@ module.exports = function renderJSON(jsonObj, deps) {
             // stream.destroyed is true in that case — respond() would throw ERR_HTTP2_INVALID_STREAM.
             if (stream.destroyed || stream.closed) {
                 console.warn('[render-json] Stream already destroyed — client disconnected before response was sent ('+ (request ? request.url : 'unknown') +')');
-                freeMemory([jsonObj, data, request, response, next], true);
+                local.req = null;
+                local.res = null;
+                local.next = null;
                 return;
             }
             if (!stream.headersSent) {
@@ -306,7 +304,9 @@ module.exports = function renderJSON(jsonObj, deps) {
 
             stream.end(data);
             response.headersSent = true;
-            freeMemory([jsonObj, data, request, response, next]);
+            local.req = null;
+            local.res = null;
+            local.next = null;
             return;
         }
 
@@ -340,8 +340,6 @@ module.exports = function renderJSON(jsonObj, deps) {
         if ( next ) {
             return next()
         }
-
-        freeMemory([jsonObj, data, request, response, next]);
 
         return;
 

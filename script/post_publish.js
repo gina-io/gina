@@ -243,6 +243,40 @@ function PostPublish() {
         done();
     }
 
+    self.tagAndMerge = function(done) {
+
+        // Skip on dry-run
+        if (typeof(process.env.npm_config_dry_run) != 'undefined') {
+            return done();
+        }
+
+        // Alpha releases don't tag or touch master
+        if (self.isAlpha) {
+            return done();
+        }
+
+        var tag = 'v' + self.publishedVersion;
+        console.info('[tagAndMerge] Creating tag ' + tag + ' and merging into master');
+
+        var initialDir = process.cwd();
+        process.chdir(self.gina);
+        try {
+            execSync('$(which git) tag ' + tag);
+            execSync('$(which git) push origin ' + tag);
+            execSync('$(which git) checkout master');
+            execSync('$(which git) merge ' + tag);
+            execSync('$(which git) push origin master');
+            execSync('$(which git) checkout develop');
+            console.info('[tagAndMerge] master updated to ' + tag + ' and pushed');
+        } catch (err) {
+            process.chdir(initialDir);
+            return done(err);
+        }
+        process.chdir(initialDir);
+
+        done();
+    }
+
     self.bumpVersion = function(done) {
 
         // Skip on dry-run
@@ -325,6 +359,36 @@ function PostPublish() {
                 process.chdir(initialDir);
                 return done(err);
             }
+        }
+        process.chdir(initialDir);
+
+        done();
+    }
+
+    self.publishAlpha = function(done) {
+
+        // Skip on dry-run
+        if (typeof(process.env.npm_config_dry_run) != 'undefined') {
+            return done();
+        }
+
+        // Alpha releases don't re-publish — they already are the alpha
+        if (self.isAlpha) {
+            return done();
+        }
+
+        var packObj = requireJSON(_(pack, true));
+        var alphaVersion = packObj.version;
+        console.info('[publishAlpha] Publishing ' + alphaVersion + ' with tag alpha');
+
+        var initialDir = process.cwd();
+        process.chdir(self.gina);
+        try {
+            execSync('npm publish --tag alpha', { stdio: 'inherit' });
+            console.info('[publishAlpha] Published ' + alphaVersion + ' to npm with tag alpha');
+        } catch (err) {
+            process.chdir(initialDir);
+            return done(err);
         }
         process.chdir(initialDir);
 
