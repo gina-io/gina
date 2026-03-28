@@ -426,6 +426,12 @@
   border-top: none;
 }
 
+ul.gina-toolbar-section-content {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.25s ease;
+}
+
 .gina-toolbar-object > a:first-child, .gina-toolbar-collection > a:first-child {
   display: block;
   text-decoration: none;
@@ -451,7 +457,9 @@
 }
 .gina-toolbar-object > ul, .gina-toolbar-collection > ul {
   margin-left: 20px;
-  display: none;
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.25s ease;
 }
 
 .gina-toolbar-unfolded::before {
