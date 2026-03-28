@@ -191,7 +191,7 @@ function PostPublish() {
         }
 
         var os = require('os');
-        var docsConfigPath = _(os.homedir() + '/Sites/gina-docs/repo/docusaurus.config.js', true);
+        var docsConfigPath = _(os.homedir() + '/Sites/gina/docs/repo/docusaurus.config.js', true);
 
         // Skip gracefully if the docs repo is not present on this machine.
         if (!fs.existsSync(docsConfigPath)) {
@@ -212,7 +212,7 @@ function PostPublish() {
 
         fs.writeFileSync(docsConfigPath, updated, 'utf8');
 
-        var docsRepoPath = _(os.homedir() + '/Sites/gina-docs/repo', true);
+        var docsRepoPath = _(os.homedir() + '/Sites/gina/docs/repo', true);
         var initialDir = process.cwd();
         process.chdir(docsRepoPath);
         try {
