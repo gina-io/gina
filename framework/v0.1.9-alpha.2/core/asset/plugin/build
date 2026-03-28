@@ -309,7 +309,7 @@ find $SCRIPT_PATH/dist/vendor/gina/css -type f \( -name '*.css.br' \) -exec rm {
 find $SCRIPT_PATH/dist/vendor/gina/css -type f \( -name '*.css.gz' \) -exec rm {} \;
 # Adding new
 find $SCRIPT_PATH/dist/vendor/gina/css -type f \( -name '*.css' \) -exec brotli --best {} \;
-find $SCRIPT_PATH/dist/vendor/gina/css -type f \( -name '*.css' \) -exec gzip -9 -k {} \;
+find $SCRIPT_PATH/dist/vendor/gina/css -type f \( -name '*.css' \) -exec gzip -9 -n -k {} \;
 
 ######
 # JS #
@@ -319,7 +319,7 @@ find $SCRIPT_PATH/dist/vendor/gina/js -type f \( -name '*.min.js.br' \) -exec rm
 find $SCRIPT_PATH/dist/vendor/gina/js -type f \( -name '*.min.js.gz' \) -exec rm {} \;
 # Adding new
 find $SCRIPT_PATH/dist/vendor/gina/js -type f \( -name '*.min.js' \) -exec brotli --best {} \;
-find $SCRIPT_PATH/dist/vendor/gina/js -type f \( -name '*.min.js' \) -exec gzip -9 -k {} \;
+find $SCRIPT_PATH/dist/vendor/gina/js -type f \( -name '*.min.js' \) -exec gzip -9 -n -k {} \;
 
 ########
 # HTML #
@@ -329,7 +329,7 @@ find $SCRIPT_PATH/dist/vendor/gina/html -type f \( -name '*.html.br' \) -exec rm
 find $SCRIPT_PATH/dist/vendor/gina/html -type f \( -name '*.html.gz' \) -exec rm {} \;
 # Adding new
 find $SCRIPT_PATH/dist/vendor/gina/html -type f \( -name '*.html' \) -exec brotli --best {} \;
-find $SCRIPT_PATH/dist/vendor/gina/html -type f \( -name '*.html' \) -exec gzip -9 -k {} \;
+find $SCRIPT_PATH/dist/vendor/gina/html -type f \( -name '*.html' \) -exec gzip -9 -n -k {} \;
 
 ##############################
 # DAT - Domain suffixes list #
@@ -339,7 +339,7 @@ find $SCRIPT_PATH/../../../lib/domain/dist -type f \( -name '*_list.dat.br' \) -
 find $SCRIPT_PATH/../../../lib/domain/dist -type f \( -name '*_list.dat.gz' \) -exec rm {} \;
 # Adding new
 find $SCRIPT_PATH/../../../lib/domain/dist -type f \( -name '*_list.dat' \) -exec brotli --best {} \;
-find $SCRIPT_PATH/../../../lib/domain/dist -type f \( -name '*_list.dat' \) -exec gzip -9 -k {} \;
+find $SCRIPT_PATH/../../../lib/domain/dist -type f \( -name '*_list.dat' \) -exec gzip -9 -n -k {} \;
 
 ##############################
 # Removing map files         #
