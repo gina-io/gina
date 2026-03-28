@@ -1,0 +1,3 @@
+kind: Fixed
+body: Made engine.io a lazy require in server.isaac.js — loaded only when options.ioServer is configured, so bundles without WebSocket support no longer crash at startup if engine.io is absent
+time: 2026-03-28T23:01:08.294513+01:00
