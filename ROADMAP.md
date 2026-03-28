@@ -83,7 +83,7 @@ New database connectors follow the same interface as the existing Couchbase conn
 | 📋 | **PostgreSQL** | `0.3.0` | Q3 2026 | ORM connector. Client: `pg` (node-postgres). |
 | 📋 | **ScyllaDB** | `0.4.0` | Q4 2026 | Cassandra-compatible wide-column store. Client: `@scylladb/scylla-driver`. |
 | 📋 | **MongoDB** | `0.4.0` | Q4 2026 | Document store connector. Client: `mongodb` (official driver). Interface approach TBD — MongoDB's document model differs from the N1QL/SQL pattern used by existing connectors. |
-| 📋 | **Couchbase SDK v2 deprecation** | `0.2.0` | Q2 2026 | Couchbase Server SDK v2 reached end-of-life in 2021. `connector.v2.js` now logs a deprecation warning at connection time, and a fatal error when V8 pointer compression is active (NAN bindings are incompatible). Upgrade path: set `sdk.version` to `3` or `4` in your bundle's `connectors.json`. |
+| ✅ | **Couchbase SDK v2 deprecation** | `0.2.0` | 2026-03-27 | Couchbase Server SDK v2 reached end-of-life in 2021. `connector.v2.js` now logs a deprecation warning at connection time, and a fatal error when V8 pointer compression is active (NAN bindings are incompatible). Upgrade path: set `sdk.version` to `3` or `4` in your bundle's `connectors.json`. |
 | 📋 | **Couchbase SDK v2 removal** | `0.4.0` | Q4 2026 | `connector.v2.js` and all `sdk.version <= 2` branches removed. Default falls back to v3 when `sdk.version` is unset. Full migration guide in `CHANGELOG.md`. |
 | 📋 | **`peerDependencies` for connector clients** | `0.3.0` | Q3 2026 | Connector client libraries (`ioredis`, `mysql2`, `pg`, `mongodb`, `@scylladb/scylla-driver`, `couchbase`) are loaded from the user's project — gina has zero runtime npm dependencies. `peerDependencies` (all optional) will signal the tested version range and surface an `npm install` compatibility warning when a user pins an untested version. |
 
@@ -97,27 +97,27 @@ A cold audit of the Couchbase connector identified two critical security vulnera
 
 | Status | Feature | Version | Target |
 | --- | --- | --- | --- |
-| 📋 | **Credential exposure in process list (`restQuery`)** — The `useRestApi: true` path builds a shell command containing `-u username:password` and passes it to `exec()`. The full command including plaintext credentials is visible in `ps aux` for the duration of the call. **Fix:** replace `exec()` with `execFile()` and pass credentials as positional arguments or via `--netrc-file`. | `0.2.0` | Q2 2026 |
-| 📋 | **Shell command injection in `restQuery`** — The same `exec()` path joins the N1QL statement and query parameters into a single shell string. Metacharacters (`$`, `;`, `&`, `|`, backtick) in parameters are not neutralised — an attacker who can influence query parameters can execute arbitrary shell commands. **Fix:** same — `execFile()` eliminates the shell entirely. | `0.2.0` | Q2 2026 |
+| ✅ | **Credential exposure in process list (`restQuery`)** — The `useRestApi: true` path built a shell command containing `-u username:password` passed to `exec()`. Plaintext credentials were visible in `ps aux` for the duration of the call. Fixed: replaced `exec()` with `execFile()` — credentials passed as positional arguments, never in the shell string. | `0.2.0` | 2026-03-27 |
+| ✅ | **Shell command injection in `restQuery`** — The same `exec()` path joined the N1QL statement and query parameters into a single shell string. Metacharacters (`$`, `;`, `&`, `|`, backtick) in parameters were not neutralised. Fixed: same change as above — `execFile()` eliminates the shell entirely. | `0.2.0` | 2026-03-27 |
 
 ### High — Bugs
 
 | Status | Feature | Version | Target |
 | --- | --- | --- | --- |
-| 📋 | **`gina.onError()` handler accumulates on every reconnect** — The error handler is registered inside `onConnect()`, which fires on every reconnection. After N reconnects there are N handlers all racing on the same error, each trying to send a response. **Fix:** register the handler once at init time. | `0.2.0` | Q2 2026 |
-| 📋 | **`session-store.v3 get()` always returns "session not found"** — `.then()/.catch()` callbacks are microtasks; the `if (!data)` guard that follows runs synchronously before they resolve. `data` is always `null` at that point, so every session read returns empty. Sessions work correctly with SDK v4. | `0.2.0` | Q2 2026 |
-| 📋 | **`session-store.v3 set()` silently discards writes** — Same async/sync confusion. `fn(false, null)` is called before the upsert Promise resolves — writes appear to succeed but are never confirmed. | `0.2.0` | Q2 2026 |
-| 📋 | **Infinite recursion when `keepAlive: false`** — The `else` branch in `ping()` calls itself unconditionally. Stack overflow on first connection with `keepAlive: false`. The default is `true` so this only fires when explicitly opted out. | `0.2.0` | Q2 2026 |
+| ✅ | **`gina.onError()` handler accumulates on every reconnect** — The error handler was registered inside `onConnect()`, which fired on every reconnection. After N reconnects, N stacked handlers raced on the same error. Fixed: `_errorHandlerRegistered` guard ensures the handler is registered only once per connector instance. | `0.2.0` | 2026-03-27 |
+| ✅ | **`session-store.v3 get()` always returns "session not found"** — `.then()/.catch()` callbacks are microtasks; the `if (!data)` guard ran synchronously before they resolved. Every session read returned empty. Fixed: rewrote `get()` with `async/await`, matching the v4 store. | `0.2.0` | 2026-03-27 |
+| ✅ | **`session-store.v3 set()` silently discards writes** — Same async/sync confusion. `fn(false, null)` was called before the upsert Promise resolved. Fixed: rewrote `set()` with `async/await`. | `0.2.0` | 2026-03-27 |
+| ✅ | **Infinite recursion when `keepAlive: false`** — The `else` branch in `ping()` called itself unconditionally. Stack overflow on first connection with `keepAlive: false`. Fixed: replaced the unconditional self-call with `return`. | `0.2.0` | 2026-03-27 |
 
 ### Medium
 
 | Status | Feature | Version | Target |
 | --- | --- | --- | --- |
-| 📋 | **300ms arbitrary startup delay** — A `setTimeout(300)` fires `ready` instead of a condition. Adds 300ms to every bundle startup and is unreliable under load. | `0.3.0` | Q3 2026 |
-| 📋 | **`ping()` drops reconnection callback in v2/v3** — `typeof(next)` is checked but `next` is not in scope, so reconnect-from-ping always calls `connect()` without a callback, silently swallowing errors. | `0.3.0` | Q3 2026 |
-| 📋 | **Stack traces in HTTP 500 responses** — `err.stack` is included in the JSON sent to the HTTP client. Absolute filesystem paths and internal module names exposed to any caller. | `0.3.0` | Q3 2026 |
-| 📋 | **`eval()` for `@options` parsing** — `@options` directives in `.sql` files are evaluated with `eval()`. `JSON.parse()` is sufficient and eliminates the risk of a typo corrupting the options variable in scope. | `0.3.0` | Q3 2026 |
-| 📋 | **`bulkInsert` does not return a Promise** — Unlike all other N1QL entity methods after the Option B refactor, `bulkInsert` still returns a plain `{onComplete: fn}` object. `await entity.bulkInsert(...)` resolves to the object, not the data. | `0.3.0` | Q3 2026 |
+| ✅ | **300ms arbitrary startup delay** — A `setTimeout(300)` was firing `ready` instead of a condition. Added 300ms to every Couchbase-connected bundle startup and was unreliable under load. Fixed: `self.emit('ready')` now fires directly. | `0.3.0` | 2026-03-28 |
+| ✅ | **`ping()` drops reconnection callback in v2/v3** — `typeof(next)` was checked but `next` was not in scope, so reconnect-from-ping always called `connect()` without a callback, silently swallowing errors. Fixed: changed to `typeof(ncb)` and pass `ncb` on reconnect. | `0.3.0` | 2026-03-28 |
+| ✅ | **Stack traces in HTTP 500 responses** — `err.stack` was included in the JSON sent to the HTTP client, exposing absolute filesystem paths and internal module names. Fixed: stack logged server-side; client receives only the error message. | `0.3.0` | 2026-03-27 |
+| ✅ | **`eval()` for `@options` parsing** — `@options` directives in `.sql` files were evaluated with `eval()`. Fixed: replaced with a regex key-normalisation pass then `JSON.parse()` — handles all production value shapes correctly. | `0.3.0` | 2026-03-28 |
+| ✅ | **`bulkInsert` does not return a Promise** — Unlike all other N1QL entity methods, `bulkInsert` returned a plain `{onComplete: fn}` object. Fixed: converted to the Option B Promise pattern with `.onComplete(cb)` chaining. | `0.3.0` | 2026-03-28 |
 
 ---
 
@@ -145,7 +145,7 @@ A cold audit of the Couchbase connector identified two critical security vulnera
 | 📋 | **Configurable `maxConcurrentStreams` and `initialWindowSize`** — move from hardcoded to `settings.server.json` | `0.3.0` | Q3 2026 | Currently `maxConcurrentStreams: 1000` (very permissive) and `initialWindowSize: 655,350` (10× default) are hardcoded. Move to bundle config with sensible defaults (256 / 65,535). Existing deployments unaffected until they opt in. |
 | 📋 | **Application-level rapid reset rate limiter** (CVE-2023-44487) — per-session stream creation counter | `0.4.0` | Q4 2026 | Node.js ≥ 20.12.1 has the OS-level fix. Add an application-level counter: if a session creates more than N streams per second, close with GOAWAY. Important for public-facing deployments. |
 | 📋 | **Trailer support** — `stream.sendTrailers()` + `waitForTrailers: true` | `0.4.0` | Q4 2026 | No trailer support today. Required for gRPC-style streaming (grpc-status trailer) and content integrity use cases. Opt-in: activated only when a controller calls `self.sendTrailers(fields)`. |
-| 📋 | **Alt-Svc header** — advertise HTTP/3 availability | `0.5.0` | Q1 2027 | Set `Alt-Svc: h3=":443"; ma=86400` response header to advertise HTTP/3 (QUIC) availability via a QUIC-capable reverse proxy (nginx, Caddy, Cloudflare). Gina does not need to implement QUIC — just announce it. Opt-in via `settings.server.json`. |
+| 📋 | **Alt-Svc header** — advertise HTTP/3 availability | `0.5.0` | Q1 2027 | Set `Alt-Svc: h3=":443"; ma=86400` response header to advertise HTTP/3 (QUIC) availability via a QUIC-capable reverse proxy (nginx, Caddy, Cloudflare). Gina does not need to implement QUIC — just announce it. Opt-in via `settings.server.json`. Native HTTP/3 is out of scope: Node.js has no stable QUIC API, and the standard deployment topology (Gina → proxy → client) already delivers HTTP/3 at the edge. |
 | 📋 | **RFC 9218 Extensible Priorities** — read `Priority: u=N, i` request header | `0.5.0` | Q1 2027 | Use the RFC 9218 priority header to order response writes for multiplexed API clients. Low value for typical HTML page loads; high value for parallel API requests with declared urgency. |
 | 📋 | **WebSocket over HTTP/2** (RFC 8441 — CONNECT method extension) | `0.5.0` | Q1 2027 | Tunnel WebSocket over an HTTP/2 stream without a separate HTTP/1.1 connection. Node.js supports this since v10.19. Enables WebSocket in HTTP/2-only deployments. |
 
@@ -220,4 +220,4 @@ Windows compatibility is a hard requirement for `1.0.0`. The alpha scope covers 
 
 ---
 
-*Last updated: 2026-03-27 · To suggest a feature, [open an issue](https://github.com/Rhinostone/gina/issues).*
+*Last updated: 2026-03-28 · To suggest a feature, [open an issue](https://github.com/Rhinostone/gina/issues).*
