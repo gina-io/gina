@@ -28,12 +28,14 @@ var console = require('./logger');
  * @class SessionStore
  * @constructor
  *
- * @param {object} session        - The `express-session` module. The caller must set
- *                                  `session.name` to the key in `connectors.json` that
- *                                  identifies the session backend (e.g. `'myRedis'`).
+ * @param {object} session        - The `express-session` module. Its `.name` property
+ *                                  (i.e. `'session'`) is used as the key in `connectors.json`
+ *                                  that identifies the session backend.
  *                                  The module's `.Store` property is used as the base class.
- * @param {string} session.name   - Key in `connectors.json` whose `.connector` field
- *                                  selects the implementation (e.g. `'couchbase'`, `'redis'`).
+ * @param {string} session.name   - Resolved from `express-session`'s function name (`'session'`).
+ *                                  The bundle must declare a `"session"` entry in
+ *                                  `config/connectors.json` whose `.connector` field selects
+ *                                  the implementation (e.g. `'couchbase'`, `'redis'`).
  * @returns {function}            - Connector-specific Store constructor (express-session compatible).
  * @throws {Error}                - When the connector config or its session-store file cannot be found.
  */
@@ -43,7 +45,9 @@ function SessionStore(session) {
         , bundle            = ctx.bundle
         , env               = ctx.env
         , conf              = getConfig()[bundle][env]
-        , connectorsPath    = conf.connectorsPath
+        // #B10 fix: conf.connectorsPath is never populated by config.js.
+        // Use GINA_FRAMEWORK_DIR directly, mirroring the pattern used in lib/model.js and core/model/index.js.
+        , connectorsPath    = GINA_FRAMEWORK_DIR + '/core/connectors'
         , connector         = null
     ;
     try {
@@ -58,7 +62,9 @@ function SessionStore(session) {
         throw new Error('[SessionStore] Could not be loaded: `'+ filename+'` is missing');
     }
 
-    return require(filename)(session, bundle)
+    var result = require(filename)(session, bundle);
+    console.debug('[session-store] loaded connector=' + connector + ' bundle=' + bundle);
+    return result;
 };
 
 module.exports = SessionStore;

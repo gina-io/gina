@@ -24,7 +24,9 @@ var dateFormat      = helpers.dateFormat;
  * Module dependencies.
  */
 
-var debug = require('debug')('connect:couchbase');
+// #B10 fix: require debug from project node_modules — same pattern as couchbase/index.js for the couchbase module itself.
+// Plain require('debug') fails when loaded from within gina's framework path.
+var debug = require(_(getPath('project') + '/node_modules/debug'))('connect:couchbase');
 
 /**
  * One day in seconds.

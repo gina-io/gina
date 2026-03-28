@@ -217,7 +217,6 @@ function Config(opt, contextResetNeeded) {
 
                     if (err) {
                         console.error(err.stack||err.message);
-
                         setTimeout(() => {
                             process.exit(1);
                         }, 0);
@@ -685,9 +684,11 @@ function Config(opt, contextResetNeeded) {
         var version = null, middleware = null;
         try {
             self.version    = version = require(_(getPath('gina').root +'/package.json' )).version;
-            self.middleware = middleware = fs.readFileSync(_( getEnvVar('GINA_FRAMEWORK_DIR') + '/MIDDLEWARE')).toString() || 'none';
-
+            // #B10 fix: moved before MIDDLEWARE read so ${version} substitution always works
+            // even in environments where the MIDDLEWARE file is absent (e.g. containers).
             setContext('gina.version', version);
+
+            self.middleware = middleware = fs.readFileSync(_( getEnvVar('GINA_FRAMEWORK_DIR') + '/MIDDLEWARE')).toString() || 'none';
             setContext('gina.middleware', middleware);
 
         } catch (err) {
@@ -3013,9 +3014,20 @@ function Config(opt, contextResetNeeded) {
          * });
          */
         this.onReady = function(callback) {
-            self.once('config#complete', function(err, config) {
-                callback(err, config)
-            })
+            // #B10-fix: if config#complete was already emitted (e.g. because
+            // lib.SessionStore(session) triggered Config loading at module-eval time
+            // before gna.start() ran), call the callback immediately so the
+            // startup sequence is not silently stuck waiting for an event that
+            // will never fire again.
+            if (Config.initialized && self.bundlesConfiguration) {
+                setImmediate(function() {
+                    callback(null, self.bundlesConfiguration);
+                });
+            } else {
+                self.once('config#complete', function(err, config) {
+                    callback(err, config)
+                });
+            }
             return self
         };
 

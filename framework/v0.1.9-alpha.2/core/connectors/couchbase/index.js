@@ -779,7 +779,13 @@ function Couchbase(conn, infos) {
                         // ftsClause = null;
 
 
-                        if ( typeof(self.once) != 'undefined' && typeof(cb) != 'undefined' ) {
+                        // #B11-listener-fix: use typeof(cb) === 'function' so that passing null
+                        // as cb (direct-callback/promisify path) skips .once() registration.
+                        // The direct-callback path calls _mainCallback from onQueryCallback
+                        // closure without emitting the trigger, so the .once() listener would
+                        // never fire and would leak on the singleton. Query runs via the
+                        // !self._isRegisteredFromProto fallback block below instead.
+                        if ( typeof(self.once) === 'function' && typeof(cb) === 'function' ) {
                             self._isRegisteredFromProto = true;
                             //console.debug('registered trigger: ', trigger, self._isRegisteredFromProto);
                             self.once(trigger, function onComplete(err, data, meta){
@@ -967,12 +973,15 @@ function Couchbase(conn, infos) {
                         return _promise;
 
                     } else {
-                        // Direct callback path (util.promisify or explicit _mainCallback)
-                        // — unchanged, register() called synchronously.
+                        // Direct callback path (util.promisify or explicit _mainCallback).
+                        // Pass null as cb so register() skips .once() registration —
+                        // _mainCallback is already in onQueryCallback's closure and will
+                        // be called there directly. register() runs the query via the
+                        // !self._isRegisteredFromProto fallback block.
                         if ( sdkVersion > 2 ) {
-                            register(trigger, queryOptions, onQueryCallback, _mainCallback)
+                            register(trigger, queryOptions, onQueryCallback, null)
                         } else {
-                            register(trigger, queryParams, onQueryCallback, _mainCallback)
+                            register(trigger, queryParams, onQueryCallback, null)
                         }
                     }
                 }

@@ -406,7 +406,8 @@ function ModelUtil() {
                     }
 
                     conn            = getContext('modelConnectors')[bundle][name].conn;
-                    connectorPath   = _(conf.connectorsPath +'/'+ conf.content['connectors'][name].connector);
+                    // #B10 fix: conf.connectorsPath is never populated by config.js — use GINA_FRAMEWORK_DIR directly.
+                    connectorPath   = _(GINA_FRAMEWORK_DIR + '/core/connectors/' + conf.content['connectors'][name].connector);
                     modelPath       = _(conf.modelsPath + '/' + name);
                     entitiesPath    = _(modelPath + '/entities');
 
