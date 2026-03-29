@@ -47,7 +47,7 @@ The default is `/usr/local` (system) or `~/.npm-global` (user). The target direc
 
 ```bash
 cd $(npm config get prefix)/lib/node_modules
-git clone https://github.com/Rhinostone/gina.git gina
+git clone https://github.com/gina-io/gina.git gina
 cd gina && git checkout develop
 ```
 
@@ -176,7 +176,7 @@ Before opening a PR against `develop`:
 
 ## Reporting bugs
 
-Open a [GitHub issue](https://github.com/Rhinostone/gina/issues) and include:
+Open a [GitHub issue](https://github.com/gina-io/gina/issues) and include:
 
 - Node.js version (`node --version`)
 - Gina version (`gina --version`)

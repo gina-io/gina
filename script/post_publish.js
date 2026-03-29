@@ -281,7 +281,7 @@ function PostPublish() {
                 var notes = fs.readFileSync(changelogPath, 'utf8');
                 execSync(
                     '$(which gh) release create ' + tag +
-                    ' --repo Rhinostone/gina' +
+                    ' --repo gina-io/gina' +
                     ' --title ' + tag +
                     ' --latest' +
                     ' --notes ' + JSON.stringify(notes)
