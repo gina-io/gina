@@ -156,6 +156,33 @@ EntitySuper['M2Firing2B'] = { initialized: true };
 var instC = new M2Firing2BEntity(null, null);
 
 
+// ── Entity D — concurrent calls: each caller gets its own result ─────────────
+// shortName: 'm2Concurrent', trigger: 'm2Concurrent#findOne'
+//
+// The method emits asynchronously after a setImmediate so we can interleave
+// two calls before either emit fires — exposing the #M2 concurrency bug.
+
+function M2ConcurrentEntity() {}
+M2ConcurrentEntity = _inherits(M2ConcurrentEntity, EntitySuper);
+M2ConcurrentEntity.prototype.name     = 'M2Concurrent';
+M2ConcurrentEntity.prototype.model    = 'model_m2_concurrent';
+M2ConcurrentEntity.prototype.bundle   = 'bundle_m2_concurrent';
+M2ConcurrentEntity.prototype.database = 'testdb';
+
+// No-op body — emit is driven externally in the test so both callers can
+// register their queue listeners before any emit fires.
+// The trigger literal is required for setListeners' source-regex detection.
+M2ConcurrentEntity.prototype.findOne = function findOne(id) {
+    var _t = 'm2Concurrent#findOne'; // trigger reference
+};
+
+mu.setConnection('bundle_m2_concurrent', 'model_m2_concurrent', null);
+mu.setModelEntity('bundle_m2_concurrent', 'model_m2_concurrent', 'M2ConcurrentEntity', M2ConcurrentEntity);
+
+EntitySuper['M2Concurrent'] = { initialized: true };
+var instD = new M2ConcurrentEntity(null, null);
+
+
 // ─── tests ───────────────────────────────────────────────────────────────────
 
 describe('entity._arguments buffer — DISPATCH:BUFFER_CALLBACK (#M2)', function() {
@@ -165,8 +192,9 @@ describe('entity._arguments buffer — DISPATCH:BUFFER_CALLBACK (#M2)', function
 
         // Simulate DISPATCH:PREEMPTIVE_BUFFER: pre-populate the buffer as if a concurrent call's
         // emit fired before any once-listener was registered.
+        // #M2 — queue format: outer array is the queue; inner array is [err, data] arguments.
         instA._arguments          = instA._arguments || {};
-        instA._arguments[trigger] = [null, {id: 'promise-path-result'}];
+        instA._arguments[trigger] = [[null, {id: 'promise-path-result'}]];
 
         // Call via the Promise path (entity context preserved: this[m] is defined).
         var p = instA.findOne('x');
@@ -187,8 +215,9 @@ describe('entity._arguments buffer — DISPATCH:BUFFER_CALLBACK (#M2)', function
     it('DISPATCH:BUFFER_CALLBACK: _arguments[trigger] deleted after consuming buffered result', function(_, done) {
         var trigger = 'm2Firing2A#findOne';
 
+        // #M2 — queue format: outer array is the queue; inner array is [err, data] arguments.
         instB._arguments          = instB._arguments || {};
-        instB._arguments[trigger] = [null, {id: 'firing2-result'}];
+        instB._arguments[trigger] = [[null, {id: 'firing2-result'}]];
 
         // Call the wrapper detached from entity context (this = global/undefined
         // in non-strict mode → this[m] is undefined → DISPATCH:BUFFER_CALLBACK path).
@@ -215,8 +244,9 @@ describe('entity._arguments buffer — DISPATCH:BUFFER_CALLBACK (#M2)', function
         var wrapper = instC.findOne;
 
         // Simulate DISPATCH:PREEMPTIVE_BUFFER buffering a result for a first concurrent call
+        // #M2 — queue format: outer array is the queue; inner array is [err, data] arguments.
         instC._arguments          = instC._arguments || {};
-        instC._arguments[trigger] = [null, {id: 'first'}];
+        instC._arguments[trigger] = [[null, {id: 'first'}]];
 
         // First call — consumes buffer via DISPATCH:BUFFER_CALLBACK
         wrapper('a', function() {});
@@ -229,6 +259,36 @@ describe('entity._arguments buffer — DISPATCH:BUFFER_CALLBACK (#M2)', function
         );
 
         done();
+    });
+
+
+    it('concurrent calls: each caller receives its own result, not the other caller\'s', function(_, done) {
+        // Both calls register before any emit fires — exposing the #M2 concurrency bug.
+        // Without #M2: call B's listener registration (removeAllListeners) killed call A's
+        //   listener; A hung forever and B received A's result.
+        // With #M2 (FIFO queue): the persistent .on dispatch listener dequeues the oldest
+        //   resolver on each emit, so callA→resultA and callB→resultB.
+        //
+        // Emits are driven externally (setImmediate) because the entity method body is
+        // a no-op — production entity methods delegate emit to the connector.
+
+        var pA = instD.findOne('result-A');
+        var pB = instD.findOne('result-B');
+
+        // Schedule A's emit first, then B's in a nested setImmediate so both
+        // listeners are registered before the first emit fires.
+        setImmediate(function() {
+            instD.emit('m2Concurrent#findOne', null, {id: 'result-A'});
+            setImmediate(function() {
+                instD.emit('m2Concurrent#findOne', null, {id: 'result-B'});
+            });
+        });
+
+        Promise.all([pA, pB]).then(function(results) {
+            assert.deepEqual(results[0], {id: 'result-A'}, 'call A must receive result-A');
+            assert.deepEqual(results[1], {id: 'result-B'}, 'call B must receive result-B');
+            done();
+        }).catch(done);
     });
 
 });

@@ -214,32 +214,31 @@ function EntitySuper(conn, caller, injected) {
                                 if (entity._triggers.indexOf(events[i].shortName) > -1) {
                                     console.debug('[ MODEL ][ ENTITY ] Setting promise listener for: [ ' + self.model + '/' + events[i].entityName + '::' + events[i].shortName + ' ]');
 
-                                    if (typeof(entity._arguments) == 'undefined' || typeof(entity._arguments) != 'undefined' && typeof(entity._arguments[events[i].shortName]) == 'undefined') {
+                                    // #M2 — queue check: buffer is now an array; treat missing/empty as "no buffer".
+                                    if (!entity._arguments || !entity._arguments[events[i].shortName] || entity._arguments[events[i].shortName].length === 0) {
 
-                                        if (entity.listenerCount(events[i].shortName) > 0) {
-                                            entity.removeAllListeners([events[i].shortName])
-                                        }
-
+                                        // #M2 — removeAllListeners removed: it was killing the queue
+                                        // dispatch listener registered by concurrent in-flight callers.
                                         entity.once(events[i].shortName, function () { // cannot be `entity.on` for prod/stage
                                             // check if not already fired
                                             if (entity._callbacks[events[i].shortName]) {
 
-                                                entity.removeAllListeners([events[i].shortName]);
                                                 console.log('\nDISPATCH:ONCE_LISTENER ' + events[i].shortName +'('+ events[i].index  +')');
                                                 cb.apply(this, arguments);
                                             }
                                         });
 
 
-                                        // backing up callback
+                                        // backing up callback (scalar — promisify fast-path bypasses queue)
                                         entity._callbacks[events[i].shortName] = cb;
                                     } else { // in case the event is not ready yet
                                         console.log('\nDISPATCH:BUFFER_CALLBACK ' + events[i].shortName);
-                                        // #M2 — consume and delete the buffer so the next caller
-                                        // gets a fresh listener instead of this stale result.
-                                        // Mirrors the delete in the Promise path (Option B, below).
-                                        var _firing2Args = entity._arguments[events[i].shortName];
-                                        delete entity._arguments[events[i].shortName];
+                                        // #M2 — queue consume: shift oldest buffered result so concurrent
+                                        // callers each receive their own result, not a shared stale one.
+                                        var _firing2Args = entity._arguments[events[i].shortName].shift();
+                                        if (entity._arguments[events[i].shortName].length === 0) {
+                                            delete entity._arguments[events[i].shortName];
+                                        }
                                         cb.apply(entity[m], _firing2Args);
                                     }
                                 }
@@ -270,9 +269,9 @@ function EntitySuper(conn, caller, injected) {
                         //   existing callers keep working unchanged:
                         //     entity.method(args).onComplete(function(err, data) {...})
                         //
-                        //   entity._callbacks[shortName] is now used as a boolean
-                        //   guard only (truthy = listener active, null = consumed).
-                        //   The same check as before, just no longer stores the cb.
+                        //   entity._callbacks[shortName] is a FIFO queue (array) of
+                        //   per-invocation resolvers (#M2).  A single persistent .on
+                        //   listener dequeues the oldest resolver on each emit.
                         //
                         // The util.promisify fast-path above (lines 192-229) is
                         //   untouched — it fires when this[m] is undefined (called
@@ -289,56 +288,57 @@ function EntitySuper(conn, caller, injected) {
 
                         if (entity._triggers.indexOf(events[i].shortName) > -1) {
 
-                            if (typeof(entity._arguments) == 'undefined' || typeof(entity._arguments) != 'undefined' && typeof(entity._arguments[events[i].shortName]) == 'undefined') {
+                            // #M2 — queue check: buffer is now an array; treat missing/empty as "no buffer".
+                            if (!entity._arguments || !entity._arguments[events[i].shortName] || entity._arguments[events[i].shortName].length === 0) {
 
-                                if (entity.listenerCount(events[i].shortName) > 0) {
-                                    entity.removeAllListeners([events[i].shortName]);
-                                }
-
-                                // Shared resolver — whichever fires first (DISPATCH:CALLBACK_FLUSH or the
-                                // once-listener) resolves/rejects the Promise. The second call
-                                // is a no-op (guard: _callbacks[shortName] is null after first).
+                                // #M2 — resolver: double-resolution guard replaces the old _callbacks
+                                // delete guard. The queue dispatch listener manages _callbacks —
+                                // _resolver no longer needs to touch it.
                                 //
-                                // Why store a function in _callbacks (not `true`):
-                                //   The entity's custom emit (entity.js:~494) has three conditions
-                                //   that call setListener(). Condition 3 fires when
-                                //   `typeof(_callbacks[type]) != 'undefined'` — which includes
-                                //   boolean `true`. setListener's DISPATCH:CALLBACK_FLUSH then calls
-                                //   `_callbacks[trigger].apply(this, args)` — `true.apply` throws.
-                                //   Storing a function makes DISPATCH:CALLBACK_FLUSH the primary resolution
-                                //   path (same as old code where _callbacks stored the cb).
+                                // _innerResult.then() (connector Promise path) and the queue dispatch
+                                // listener may both call _resolver; the _resolved flag ensures only
+                                // the first call wins.
+                                var _resolved = false;
                                 var _resolver = function(err, data) {
-                                    // Guard: delete after first call to prevent double-resolution.
-                                    // Using delete (not null) so that DISPATCH:CALLBACK_FLUSH's
-                                    // typeof(_callbacks[trigger]) != 'undefined' check correctly
-                                    // sees 'undefined' and skips the null.apply() call.
-                                    if (!entity._callbacks[events[i].shortName]) return;
-                                    delete entity._callbacks[events[i].shortName];
-                                    entity.removeAllListeners([events[i].shortName]);
+                                    if (_resolved) return;
+                                    _resolved = true;
                                     if (err) _reject(err);
                                     else     _resolve(data);
                                 };
 
-                                // once-listener as fallback in case DISPATCH:CALLBACK_FLUSH doesn't run
-                                // (e.g. custom emit conditions not met). cannot be `entity.on`
-                                // for prod/stage — must stay `once`.
-                                entity.once(events[i].shortName, function () {
-                                    _resolver.apply(null, arguments);
-                                });
+                                // #M2 — FIFO queue: push this invocation's resolver instead of
+                                // overwriting the single _callbacks slot.  removeAllListeners is
+                                // removed — it was killing in-flight callers' queue dispatch listener.
+                                if (!entity._callbacks[e]) {
+                                    entity._callbacks[e] = [];
+                                }
+                                entity._callbacks[e].push(_resolver);
 
-                                // Store resolver: satisfies condition 3, enables DISPATCH:CALLBACK_FLUSH
-                                entity._callbacks[events[i].shortName] = _resolver;
+                                // Register a single persistent dispatch listener only when none is
+                                // active.  It dequeues the oldest resolver on each emit so concurrent
+                                // callers each receive their own result in arrival order.
+                                if (entity.listenerCount(e) === 0) {
+                                    var _onQueueEmit = function onQueueEmit() {
+                                        var _q = entity._callbacks[e];
+                                        if (!_q || _q.length === 0) return;
+                                        var _fn = _q.shift();
+                                        _fn.apply(null, arguments);
+                                        if (!_q || _q.length === 0) {
+                                            delete entity._callbacks[e];
+                                            entity.removeListener(e, _onQueueEmit);
+                                        }
+                                    };
+                                    entity.on(e, _onQueueEmit);
+                                }
 
                             } else {
-                                // Event already fired — args were buffered in _arguments.
-                                // Resolve/reject immediately from the cached result, then
-                                // delete the buffer so the next call gets a fresh listener
-                                // instead of resolving again with the same stale result.
-                                // Without this delete, any concurrent call that fires before
-                                // the listener is registered (e.g. an alert cron) poisons
-                                // ALL subsequent requests for the entity's lifetime.
-                                var _args = entity._arguments[events[i].shortName];
-                                delete entity._arguments[events[i].shortName];
+                                // Event already fired — args were buffered in _arguments queue.
+                                // #M2 — shift oldest buffered result: concurrent callers each
+                                // consume their own result, not a shared stale scalar.
+                                var _args = entity._arguments[events[i].shortName].shift();
+                                if (entity._arguments[events[i].shortName].length === 0) {
+                                    delete entity._arguments[events[i].shortName];
+                                }
                                 if (_args[0]) _reject(_args[0]);
                                 else          _resolve(_args[1]);
                             }
@@ -356,9 +356,9 @@ function EntitySuper(conn, caller, injected) {
                         // via 'N1QL:entity#method' (different event), so entity.emit() is
                         // never called for them — _promise would hang forever.
                         //
-                        // _resolver already guards against double-resolution: its first call
-                        // deletes _callbacks[shortName], so any subsequent call (from
-                        // DISPATCH:CALLBACK_FLUSH or the once-listener) hits the !_callbacks guard and exits.
+                        // _resolver guards against double-resolution via the _resolved flag (#M2).
+                        // The queue dispatch listener and _innerResult.then() may both call it;
+                        // the flag ensures only the first call wins.
                         //
                         // Additional guard: _resolver is only defined when shortName is in
                         // entity._triggers (lines 268+). If the method returns a Promise
@@ -495,12 +495,14 @@ function EntitySuper(conn, caller, injected) {
                                 this._arguments = {}
                             }
 
-                            // retrieving local arguments, & binding it to the event callback
-                            if ( typeof(this._arguments[trigger]) == 'undefined' ) {
-                                console.log('\nDISPATCH:PREEMPTIVE_BUFFER ' + trigger);
-
-                                this._arguments[trigger] = arguments;
+                            // #M2 — queue mode: push to array so each concurrent caller consumes
+                            // its own buffered result instead of sharing a single scalar slot.
+                            // Before: scalar assignment silently dropped every emit after the first.
+                            if (!this._arguments[trigger]) {
+                                this._arguments[trigger] = [];
                             }
+                            console.log('\nDISPATCH:PREEMPTIVE_BUFFER ' + trigger);
+                            this._arguments[trigger].push(arguments);
 
                         })
                 }
@@ -567,7 +569,9 @@ function EntitySuper(conn, caller, injected) {
         if (
             self._triggers && self._triggers.indexOf(type) == -1 && self._triggers.indexOf(type.replace(/[0-9]/g, '')) > -1
             || self._triggers && self._triggers.indexOf(type) > -1 && typeof(self._callbacks[type]) == 'undefined' && typeof(self._events[type]) == 'undefined'
-            || self._triggers && self._triggers.indexOf(type) > -1 && typeof(self._callbacks[type]) != 'undefined'
+            // #M2 — skip DISPATCH:CALLBACK_FLUSH for queue mode (_callbacks is an array);
+            // the persistent .on dispatch listener handles routing in that case.
+            || self._triggers && self._triggers.indexOf(type) > -1 && typeof(self._callbacks[type]) != 'undefined' && !Array.isArray(self._callbacks[type])
         ) {
             setListener(arguments)
         }
