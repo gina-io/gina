@@ -1912,6 +1912,9 @@ function Config(opt, contextResetNeeded) {
 
         for (let rule in routing) {
 
+            // skip non-object entries (e.g. $schema annotations in routing.json)
+            if (typeof(routing[rule]) != 'object' || routing[rule] === null) continue;
+
             // checking requirements syntax
             if ( typeof(routing[rule].requirements) != 'undefined' && routing[rule].requirements.count() > 0 ) {
                 for ( let r in routing[rule].requirements) {
@@ -2924,6 +2927,12 @@ function Config(opt, contextResetNeeded) {
 
         if (!self.envConf[bundle][env].content)
             self.envConf[bundle][env].content = {};
+
+        // strip non-object entries (e.g. $schema annotations) before storing —
+        // all routing consumers iterate this object and expect only route rule objects
+        for (var _k in routing) {
+            if (typeof(routing[_k]) != 'object' || routing[_k] === null) delete routing[_k];
+        }
 
         self.envConf[bundle][env].content.routing = routing;
         self.envConf.routing = merge(self.envConf.routing, routing);

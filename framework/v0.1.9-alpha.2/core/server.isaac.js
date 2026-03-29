@@ -295,15 +295,18 @@ function ServerEngineClass(options) {
     http2Options.allowHTTP1 = allowHTTP1;
 
 
-    if (typeof (options.credentials.ca) != 'undefined' && options.credentials.ca != '' )
-        // replaced: http2Options.ca = options.credentials.ca — credentials.ca is a path string; readSync() expands ~/ via _() before fs.readFileSync
-        http2Options.ca = readSync(options.credentials.ca);
+    // Only read optional CA/PFX credentials for HTTPS — they are not needed for plain HTTP
+    if ( /https/.test(options.scheme) ) {
+        if (typeof (options.credentials.ca) != 'undefined' && options.credentials.ca != '' )
+            // replaced: http2Options.ca = options.credentials.ca — credentials.ca is a path string; readSync() expands ~/ via _() before fs.readFileSync
+            http2Options.ca = readSync(options.credentials.ca);
 
-    if (typeof (options.credentials.pfx) != 'undefined' && options.credentials.pfx != '' )
-        http2Options.pfx = readSync(options.credentials.pfx);
+        if (typeof (options.credentials.pfx) != 'undefined' && options.credentials.pfx != '' )
+            http2Options.pfx = readSync(options.credentials.pfx);
 
-    if (typeof (options.credentials.passphrase) != 'undefined' && options.credentials.passphrase != '' )
-        http2Options.passphrase = options.credentials.passphrase;
+        if (typeof (options.credentials.passphrase) != 'undefined' && options.credentials.passphrase != '' )
+            http2Options.passphrase = options.credentials.passphrase;
+    }
 
     var server = null, http = null, ioServer = null;
 
