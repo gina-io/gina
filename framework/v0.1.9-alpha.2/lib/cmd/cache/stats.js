@@ -71,18 +71,16 @@ function Stats(opt, cmd) {
             return end(opt, cmd, true);
         }
 
-        // Find the first available protocol/scheme/port for this bundle+env
-        var port   = null;
-        var scheme = 'http';
-        outer: for (var protocol in portsRev[env]) {
+        // Collect all port/scheme combos for this bundle+env so we can try
+        // each in turn — a bundle may only listen on a subset (e.g. http/2 only)
+        var candidates = [];
+        for (var protocol in portsRev[env]) {
             for (var s in portsRev[env][protocol]) {
-                port   = portsRev[env][protocol][s];
-                scheme = s;
-                break outer;
+                candidates.push({ port: portsRev[env][protocol][s], scheme: s });
             }
         }
 
-        if (!port) {
+        if (!candidates.length) {
             opt.client.write(
                 '  [ ' + bundle + '@' + self.projectName + ' ] ' +
                 'could not determine port\n\r'
@@ -91,59 +89,78 @@ function Stats(opt, cmd) {
             return end(opt, cmd, true);
         }
 
-        var transport = (scheme === 'https') ? https : http;
-        var reqOptions = {
-            hostname : '127.0.0.1',
-            port     : port,
-            path     : '/_gina/cache/stats',
-            method   : 'GET',
-            timeout  : 5000
+        // Try each candidate in order; advance on ECONNREFUSED, stop on first success
+        var tryNext = function(index) {
+            if (index >= candidates.length) {
+                opt.client.write(
+                    '  [ ' + bundle + '@' + self.projectName + ' ] ' +
+                    'connection refused on all assigned ports — bundle not running?\n\r'
+                );
+                if (isBulk && next) return next();
+                return end(opt, cmd, true);
+            }
+
+            var candidate  = candidates[index];
+            var port       = candidate.port;
+            var scheme     = candidate.scheme;
+            var transport  = (scheme === 'https') ? https : http;
+            var reqOptions = {
+                hostname           : '127.0.0.1',
+                port               : port,
+                path               : '/_gina/cache/stats',
+                method             : 'GET',
+                timeout            : 5000,
+                rejectUnauthorized : false  // allow self-signed certs on internal endpoints
+            };
+
+            var req = transport.request(reqOptions, function(res) {
+                var raw = '';
+                res.on('data', function(chunk) { raw += chunk; });
+                res.on('end', function() {
+                    var stats;
+                    try {
+                        stats = JSON.parse(raw);
+                    } catch(e) {
+                        opt.client.write(
+                            '  [ ' + bundle + '@' + self.projectName + ' ] ' +
+                            'invalid response from /_gina/cache/stats\n\r'
+                        );
+                        if (isBulk && next) return next();
+                        return end(opt, cmd, true);
+                    }
+                    opt.client.write(formatStats(bundle, stats));
+                    if (isBulk && next) return next();
+                    end(opt, cmd);
+                });
+            });
+
+            req.on('timeout', function() {
+                req.destroy();
+                opt.client.write(
+                    '  [ ' + bundle + '@' + self.projectName + ' ] ' +
+                    'request timed out — is the bundle running?\n\r'
+                );
+                if (isBulk && next) return next();
+                end(opt, cmd, true);
+            });
+
+            req.on('error', function(err) {
+                if (err.code === 'ECONNREFUSED') {
+                    // This port is not listening — try the next candidate
+                    return tryNext(index + 1);
+                }
+                opt.client.write(
+                    '  [ ' + bundle + '@' + self.projectName + ' ] ' +
+                    err.message + '\n\r'
+                );
+                if (isBulk && next) return next();
+                end(opt, cmd, true);
+            });
+
+            req.end();
         };
 
-        var req = transport.request(reqOptions, function(res) {
-            var raw = '';
-            res.on('data', function(chunk) { raw += chunk; });
-            res.on('end', function() {
-                var stats;
-                try {
-                    stats = JSON.parse(raw);
-                } catch(e) {
-                    opt.client.write(
-                        '  [ ' + bundle + '@' + self.projectName + ' ] ' +
-                        'invalid response from /_gina/cache/stats\n\r'
-                    );
-                    if (isBulk && next) return next();
-                    return end(opt, cmd, true);
-                }
-                opt.client.write(formatStats(bundle, stats));
-                if (isBulk && next) return next();
-                end(opt, cmd);
-            });
-        });
-
-        req.on('timeout', function() {
-            req.destroy();
-            opt.client.write(
-                '  [ ' + bundle + '@' + self.projectName + ' ] ' +
-                'request timed out — is the bundle running?\n\r'
-            );
-            if (isBulk && next) return next();
-            end(opt, cmd, true);
-        });
-
-        req.on('error', function(err) {
-            opt.client.write(
-                '  [ ' + bundle + '@' + self.projectName + ' ] ' +
-                (err.code === 'ECONNREFUSED'
-                    ? 'connection refused on port ' + port + ' — bundle not running?'
-                    : err.message
-                ) + '\n\r'
-            );
-            if (isBulk && next) return next();
-            end(opt, cmd, true);
-        });
-
-        req.end();
+        tryNext(0);
     }
 
     /**
