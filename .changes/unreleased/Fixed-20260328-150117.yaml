@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'Fixed bundle:start hang: JSON.parse(process.argv[3]) in gna.start() threw SyntaxError in CLI mode where argv[3] is the project name (plain string), causing every bundle to crash silently and wait the full 60-second timeout. Added JSON format guard. Also added immediate crash detection in the start.js child watcher for non-zero exits during startup (#B9).'
-time: 2026-03-28T15:01:17.35714+01:00

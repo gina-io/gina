@@ -1,3 +1,0 @@
-kind: Fixed
-body: Removed dead singleton infrastructure from SuperController (SuperController.instance, SuperController.initialized, init()/getInstance() singleton path); removed 4 no-op freeMemory([], false) calls; fixed throwError() HTML error path missing local.req/res/next = null after res.end() (#M1)
-time: 2026-03-27T16:46:37.423064+01:00

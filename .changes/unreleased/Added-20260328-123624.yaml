@@ -1,3 +1,0 @@
-kind: Added
-body: 'SQLite state storage for ~/.gina/ config files (CN2 v3): lib/state.js StateStore routes all state-file writes through node:sqlite (DatabaseSync) for atomic writes and concurrent access safety; JSON sidecars kept for backwards-compat read paths'
-time: 2026-03-28T12:36:24.511853+01:00

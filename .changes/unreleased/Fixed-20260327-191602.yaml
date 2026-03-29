@@ -1,3 +1,0 @@
-kind: Fixed
-body: Retired freeMemory() helper in controller pipeline — replaced all call sites with explicit local.req/res/next nulling so intent is visible at each response exit point (#M3)
-time: 2026-03-27T19:16:02.428395+01:00
