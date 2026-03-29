@@ -805,7 +805,25 @@ isBundleMounted(projects, bundlesPath, getContext('bundle'), function onBundleMo
                 //     }
                 // }
 
-                // will start watchers from here
+                // #R1 — start user-defined watchers declared in watchers.json via WatcherService.
+                // conf.watchers is the parsed content of the bundle's watchers.json (auto-loaded
+                // by config.js). conf.bundlePath is the absolute bundle source directory.
+                // Framework internal watchers (#M6) will register against gna.watcher using
+                // WatcherService.register() before calling start().
+                var _watchersConf = (conf && conf.watchers && typeof conf.watchers === 'object')
+                    ? conf.watchers
+                    : null;
+                var _hasUserWatchers = _watchersConf && Object.keys(_watchersConf).some(function(k) {
+                    return k.charAt(0) !== '$';
+                });
+                if (_hasUserWatchers && lib.Watcher) {
+                    var _watcher    = new lib.Watcher();
+                    var _configDir  = conf.bundlePath + '/config';
+                    _watcher.load(_configDir, _watchersConf);
+                    _watcher.start();
+                    // expose so #M6 and user bundle code can register against the same service
+                    gna.watcher = _watcher;
+                }
                 callback()
             })
         }
