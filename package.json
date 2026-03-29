@@ -21,10 +21,10 @@
   "homepage": "https://gina.io",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/rhinostone/gina.git"
+    "url": "git+https://github.com/gina-io/gina.git"
   },
   "bugs": {
-    "url": "https://github.com/rhinostone/gina/issues",
+    "url": "https://github.com/gina-io/gina/issues",
     "email": "bugs@gina.io"
   },
   "author": {
