@@ -572,7 +572,11 @@ function Initialize(opt) {
                         'debug_port' : 'GINA_DEBUG_PORT',
                         'mq_port'    : 'GINA_MQ_PORT',
                         'host_v4'    : 'GINA_HOST_V4',
-                        'hostname'   : 'GINA_HOSTNAME'
+                        'hostname'   : 'GINA_HOSTNAME',
+                        'logdir'     : 'GINA_LOGDIR',
+                        'tmpdir'     : 'GINA_TMPDIR',
+                        'rundir'     : 'GINA_RUNDIR',
+                        'log_level'  : 'GINA_LOG_LEVEL'
                     };
                     for (var _smk in _settingsMigrationMap) {
                         if (!getEnvVar(_settingsMigrationMap[_smk]) && typeof(_prevSettings[_smk]) !== 'undefined') {
