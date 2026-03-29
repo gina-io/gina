@@ -277,6 +277,7 @@ async function onExec() {
     var allowedOffline = [
         'build:',
         'bundle:',
+        'cache:',
         'dev:',
         'env:',
         'scope:',
