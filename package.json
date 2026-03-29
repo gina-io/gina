@@ -68,7 +68,7 @@
   "readmeFilename": "README.md",
   "dependencies": {
     "engine.io": "^6.0.0",
-    "ssl-checker": "^3.0.0"
+    "ssl-checker": "^2.0.0"
   },
   "devDependencies": {
     "colors": "1.4.0",
