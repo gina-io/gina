@@ -35,7 +35,7 @@
             "src" : "src/shutdown",
             "repo" : {
                 "ssh" : "git@github.com:Rhinostone/gina.bundle.shutdown.git",
-                "https" : "https://github.com/Rhinostone/gina.bundle.shutdown.git"
+                "https" : "https://github.com/gina-io/gina.bundle.shutdown.git"
             },
             "release" : {
                 "version" : "0.0.1",
