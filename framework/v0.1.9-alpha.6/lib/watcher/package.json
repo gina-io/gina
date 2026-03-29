@@ -1,0 +1,20 @@
+{
+  "name": "gina-lib-watcher",
+  "version": "1.0.0",
+  "description": "WatcherService — shared fs.watch registry for user-defined and framework watchers",
+
+  "author": {
+    "name": "Maritn-Luther ETOUMAN",
+    "email": "contact@gina.io"
+  },
+  "copyright": "Copyright (c) 2009-2026 Rhinostone <contact@gina.io>",
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "main": "src/main",
+  "scripts": {
+    "test": "node --test test"
+  },
+  "license": "MIT",
+  "readmeFilename": "README.md"
+}

@@ -69,6 +69,9 @@ function Lib() {
         SessionStore    : _require('./session-store'),
         SwigFilters     : _require('./swig-filters'),
         Cache           : _require('./cache'),
+        // #R1 — WatcherService: fs.watch-based file-change registry. Class is hot-reloadable;
+        // instantiated once per bundle in gna.js:onStarted and stored as gna.watcher.
+        Watcher         : _require('./watcher'),
         // replaced: _require('./state') — StateStore is a singleton backed by node:sqlite
         // (DatabaseSync). Hot-reloading it in dev mode would close and re-open the DB
         // connection on every HTTP request, racing with in-flight writes. Use plain
