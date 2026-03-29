@@ -21,17 +21,49 @@ var nodePath = require('path');
  * Uses `fs.watch` for native, event-driven file change detection.
  * No polling — no drift.
  *
- * Lifecycle:
- *   var w = new WatcherService();
- *   w.load(configDir, watchersConf);   // populate from watchers.json
- *   w.register('custom', '/abs/path'); // optional programmatic registration
- *   w.on('app.json', function(event, filePath) { ... });
- *   w.start();                         // open fs.watch handles
- *   // …
- *   w.stop();                          // close all handles
+ * The framework starts WatcherService automatically on bundle startup (after
+ * `server#started`) when `watchers.json` is present and non-empty. The running
+ * instance is exposed as `gna.watcher` so user bundle code can attach listeners
+ * or register additional entries in `onStarted`.
  *
  * @class WatcherService
  * @constructor
+ *
+ * @example <caption>Driven by watchers.json (framework-managed)</caption>
+ * // src/<bundle>/config/watchers.json
+ * // {
+ * //   "app.json": { "event": "change" }
+ * // }
+ * //
+ * // src/<bundle>/index.js
+ * var myBundle = require('gina');
+ *
+ * myBundle.onStarted(function() {
+ *     // gna.watcher is set by the framework once watchers.json has entries.
+ *     if (gna.watcher) {
+ *         gna.watcher.on('app.json', function(event, filePath) {
+ *             console.info('[watcher] ' + filePath + ' changed');
+ *         });
+ *     }
+ * });
+ *
+ * myBundle.start();
+ *
+ * @example <caption>Programmatic registration (no watchers.json required)</caption>
+ * var myBundle = require('gina');
+ *
+ * myBundle.onStarted(function() {
+ *     var WatcherService = lib.Watcher;
+ *     var w = new WatcherService();
+ *
+ *     w.register('myconfig', '/abs/path/to/myconfig.json', { event: 'change' });
+ *     w.on('myconfig', function(event, filePath) {
+ *         console.info('myconfig.json changed — reload or act here');
+ *     });
+ *     w.start();
+ * });
+ *
+ * myBundle.start();
  */
 function WatcherService() {
 
@@ -44,11 +76,15 @@ function WatcherService() {
      * Register a file watcher entry.
      * Silently ignored if a watcher with the same name is already registered.
      *
-     * @param {string}  name                   - Unique entry name (e.g. 'app.json')
-     * @param {string}  filePath               - Absolute path of the file to watch
+     * @param {string}  name                     - Unique entry name (e.g. 'app.json')
+     * @param {string}  filePath                 - Absolute path of the file to watch
      * @param {object}  [options]
-     * @param {string}  [options.event='change'] - fs.watch event to filter: 'change' or 'rename'
-     * @param {boolean} [options.persistent=false] - Whether to keep the process alive while watching
+     * @param {string}  [options.event='change']     - fs.watch event to filter: 'change' or 'rename'
+     * @param {boolean} [options.persistent=false]   - Whether to keep the process alive while watching
+     *
+     * @example
+     * w.register('myconfig', '/abs/path/to/myconfig.json');
+     * w.register('schema',   '/abs/path/to/schema.json', { event: 'rename' });
      */
     self.register = function(name, filePath, options) {
 
@@ -73,6 +109,11 @@ function WatcherService() {
      *
      * @param {string}   name     - Entry name (must have been registered first)
      * @param {function} listener - `function(event, filePath)`
+     *
+     * @example
+     * w.on('app.json', function(event, filePath) {
+     *     console.info('app.json changed — reloading config');
+     * });
      */
     self.on = function(name, listener) {
 
@@ -91,6 +132,11 @@ function WatcherService() {
      * @param {string} basePath     - Base directory for resolving relative file paths
      * @param {object} watchersConf - Parsed `watchers.json` content:
      *                                `{ 'filename': { event?, persistent? } }`
+     *
+     * @example
+     * // equivalent to what gna.js does automatically on startup
+     * var conf = requireJSON('/path/to/bundle/config/watchers.json');
+     * w.load('/path/to/bundle/config', conf);
      */
     self.load = function(basePath, watchersConf) {
 
