@@ -274,6 +274,27 @@ function PostPublish() {
         }
         process.chdir(initialDir);
 
+        // Create GitHub release with changelog notes
+        try {
+            var changelogPath = self.gina + '/.changes/' + self.publishedVersion + '.md';
+            if (fs.existsSync(changelogPath)) {
+                var notes = fs.readFileSync(changelogPath, 'utf8');
+                execSync(
+                    '$(which gh) release create ' + tag +
+                    ' --repo Rhinostone/gina' +
+                    ' --title ' + tag +
+                    ' --latest' +
+                    ' --notes ' + JSON.stringify(notes)
+                );
+                console.info('[tagAndMerge] GitHub release ' + tag + ' created');
+            } else {
+                console.warn('[tagAndMerge] No changelog found at ' + changelogPath + ' — skipping GitHub release');
+            }
+        } catch (ghErr) {
+            // Non-fatal: tag and master are already pushed; log and continue
+            console.warn('[tagAndMerge] GitHub release creation failed (non-fatal): ' + ghErr.message);
+        }
+
         done();
     }
 
