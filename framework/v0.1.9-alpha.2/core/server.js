@@ -3288,6 +3288,9 @@ function Server(options) {
 
         out:
             for (let name in routing) {
+                // skip non-object entries (e.g. $schema annotations in routing.json)
+                if ( typeof(routing[name]) != 'object' || routing[name] === null ) continue;
+
                 // Ignore cached route
                 if ( hasCachedRoute ) {
                     matched = true;
@@ -3300,7 +3303,7 @@ function Server(options) {
                 }
 
                 if ( typeof(routing[name]['param']) == 'undefined' ) {
-                    break;
+                    continue; // replaced: break — skip entries without param rather than aborting route matching
                 }
 
                 // Updating hostname

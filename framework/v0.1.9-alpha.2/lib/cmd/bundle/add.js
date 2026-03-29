@@ -554,7 +554,9 @@ function Add(opt, cmd) {
 
             if ( isJS || isJSON /*&& /config\/app\.json/.test(file)*/ ) {
                 var contentFile = fs.readFileSync(file, 'utf8').toString();
-                var _lang = (process.env.LANG || process.env.LC_ALL || '').split('.')[0].replace('-', '_');
+                // POSIX pseudo-locales (C, POSIX) are not valid BCP-47 tags — discard them
+                var _rawLang = (process.env.LANG || process.env.LC_ALL || '').split('.')[0].replace('-', '_');
+                var _lang = /^(C|POSIX)$/i.test(_rawLang) ? '' : _rawLang;
                 var _intlLocale = (typeof Intl !== 'undefined')
                     ? Intl.DateTimeFormat().resolvedOptions().locale.replace('-', '_')
                     : '';
@@ -567,6 +569,8 @@ function Add(opt, cmd) {
                 var _dateFormat = 'yyyy/mm/dd';
                 if (typeof Intl !== 'undefined' && typeof Intl.DateTimeFormat.prototype.formatToParts === 'function') {
                     var _refDate = new Date(2013, 3, 5);
+                    // Guard: Intl.DateTimeFormat throws RangeError on invalid BCP-47 tags
+                    try { Intl.DateTimeFormat(_culture.replace('_', '-')); } catch (e) { _culture = 'en_CM'; }
                     var _parts = Intl.DateTimeFormat(_culture.replace('_', '-'), {
                         year: 'numeric', month: '2-digit', day: '2-digit'
                     }).formatToParts(_refDate);
