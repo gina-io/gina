@@ -312,6 +312,8 @@ function Add(opt, cmd) {
                         if (rewrite) {
                             delete content.bundles[local.bundle]
                         }
+                        // #A6 — pass rewrite flag so createBundle can detect pre-existing source
+                        local.rewrite = rewrite;
                         createBundle()
                     })
                 })
@@ -443,6 +445,15 @@ function Add(opt, cmd) {
             , target    = _( self.projects[self.projectName].path +'/'+ projectData.bundles[local.bundle].src, true )
             , sample    = new _( getPath('gina').core + '/template/boilerplate/bundle/' );
 
+        // #A6 — if source already exists and rewrite is false (new bundle, not replace),
+        // preserve the existing files (e.g. cloned starter repos) and skip the boilerplate copy.
+        if (!local.rewrite && fs.existsSync(target)) {
+            console.log('Bundle [ '+ local.bundle +' ] has been added to your project with success ;)');
+            rl.clearLine();
+            ++local.b;
+            addBundles(local.b);
+            return;
+        }
 
         sample.cp(target, function done(err, destination) {
 
