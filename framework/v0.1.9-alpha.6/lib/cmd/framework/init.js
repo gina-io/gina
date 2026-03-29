@@ -552,10 +552,20 @@ function Initialize(opt) {
         var localUserSettings = null;
         if ( targetObj.existsSync() ) {
             localUserSettings = requireJSON(target);
-        } else {
-            // MIGRATION: seed networking values from the previous release's settings.json
-            // so port, hostname, etc. survive a short-version bump. All assignments are
-            // env-var-gated so CLI flags or a prior checkIfSettings run take precedence.
+            // post_install.js copies resources/home/settings.json (which has ${...} placeholders)
+            // into ~/.gina/<shortVersion>/settings.json before init.js runs. On a shortVersion
+            // bump the file therefore exists but is an unresolved template — detect this by
+            // checking whether the port field is still a placeholder string, and treat it the
+            // same as "file absent" so the migration block below runs.
+            if (typeof(localUserSettings['port']) === 'string' && localUserSettings['port'].indexOf('${') === 0) {
+                localUserSettings = null;
+            }
+        }
+        if (!localUserSettings) {
+            // MIGRATION: seed user-customisable values from the previous release's settings.json
+            // so port, hostname, logdir, tmpdir, rundir, and log_level survive a short-version
+            // bump. All assignments are env-var-gated so CLI flags or a prior checkIfSettings
+            // run take precedence. On a fresh install no previous version exists — defaults apply.
             var _prevShortForSettings = null;
             for (var _sfk in main['frameworks']) {
                 if (_sfk === '_comment' || _sfk === self.release) continue;
