@@ -1,6 +1,6 @@
 {
   "name": "gina",
-  "version": "0.2.1-alpha.1",
+  "version": "0.2.1-alpha.2",
   "description": "Node.js MVC framework with built-in HTTP/2, multi-bundle architecture, and scope-based data isolation — no Express dependency",
   "keywords": [
     "nodejs",
@@ -56,7 +56,7 @@
     "gina-container": "bin/gina-container",
     "gina-init": "bin/gina-init"
   },
-  "main": "./framework/v0.2.1-alpha.1/core/gna",
+  "main": "./framework/v0.2.1-alpha.2/core/gna",
   "scripts": {
     "test": "node --test test*.test.js",
     "prepare": "node script/prepare_version.js",
