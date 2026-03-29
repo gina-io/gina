@@ -1,3 +1,0 @@
-kind: Fixed
-body: Added stream-closed guard (`stream.destroyed || stream.closed`) to `throwError()` HTML error response path — prevents unhandled error on HTTP/2 when a stream closes between error trigger and response write (#H2)
-time: 2026-03-27T21:51:41.299112+01:00

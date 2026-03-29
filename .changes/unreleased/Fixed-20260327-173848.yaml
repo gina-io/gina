@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'Added deprecation warning to Couchbase SDK v2 connector: logs on every connection when sdk.version is 2 (EOL since 2021, removal planned for 0.4.0). Adds a separate fatal error when GINA_V8_POINTER_COMPRESSED=true, as v2 NAN bindings are incompatible with pointer-compressed Node.js builds.'
-time: 2026-03-27T17:38:48.352282+01:00

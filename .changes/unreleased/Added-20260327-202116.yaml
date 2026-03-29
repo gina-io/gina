@@ -1,3 +1,0 @@
-kind: Added
-body: 'SQLite session store connector (CN2 v1): node:sqlite-backed store (built-in since Node 22.5.0, zero npm deps) with WAL mode, prepared-statement caching, and background expiry cleanup; supports file-based and '':memory:'' databases'
-time: 2026-03-27T20:21:16.520624+01:00

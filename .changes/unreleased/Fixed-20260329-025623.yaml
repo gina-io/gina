@@ -1,3 +1,0 @@
-kind: Fixed
-body: cache:stats now falls back through all assigned port/scheme combinations instead of trying only the first — fixes ECONNREFUSED on bundles that run HTTP/2 only
-time: 2026-03-29T02:56:23.702721+01:00

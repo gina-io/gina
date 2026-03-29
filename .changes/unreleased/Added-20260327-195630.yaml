@@ -1,3 +1,0 @@
-kind: Added
-body: 'Redis session store connector (CN1): ioredis-backed store with standalone, Cluster, and TLS support; configured via connectors.json — no credentials in application code'
-time: 2026-03-27T19:56:30.615772+01:00

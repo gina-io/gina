@@ -1,3 +1,0 @@
-kind: Security
-body: 'Removed err.stack from HTTP 500 JSON response body in Couchbase connector (CB-QUAL-1): stack traces with filesystem paths now logged server-side only, never sent to clients'
-time: 2026-03-27T23:32:36.521083+01:00

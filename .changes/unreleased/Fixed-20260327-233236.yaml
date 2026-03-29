@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'Removed redundant modelUtil.setConnection() call in connector v2/v3/v4 onConnect() (CB-PERF-3): first unconditional call before the existsSync guard was a no-op duplicate'
-time: 2026-03-27T23:32:36.530828+01:00

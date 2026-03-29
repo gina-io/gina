@@ -1,3 +1,0 @@
-kind: Security
-body: 'Added four missing HTTP/2 server security settings in `isaac.js`: `maxHeaderListSize: 65536` (HPACK bomb defense), `enablePush: false` (deprecated in browsers), `maxSessionRejectedStreams: 100` (RST/rapid reset flood defense — CVE-2019-9514, CVE-2023-44487), `maxSessionInvalidFrames: 1000` (CONTINUATION flood defense — CVE-2024-27316, CVE-2024-27983) (#H3)'
-time: 2026-03-27T21:51:46.42014+01:00

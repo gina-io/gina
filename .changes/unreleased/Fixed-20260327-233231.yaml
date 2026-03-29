@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'Fixed infinite recursion in connector ping() when keepAlive is false (CB-BUG-4): replaced unconditional self.ping() recursive call with return in v2/v3/v4'
-time: 2026-03-27T23:32:31.17248+01:00

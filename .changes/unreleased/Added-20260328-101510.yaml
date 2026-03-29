@@ -1,3 +1,0 @@
-kind: Added
-body: 'SQLite ORM connector v2: entity wiring + SQL method generation from .sql files, Option-B Promise/.onComplete() pattern, connector.js (WAL, FK, synchronous open), 56 unit tests'
-time: 2026-03-28T10:15:10.760302+01:00
