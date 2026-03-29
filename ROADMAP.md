@@ -2,7 +2,7 @@
 
 This roadmap covers planned features, architectural improvements, new connectors, and AI integration. Items marked ✅ are shipped. All planned items are open to community contribution — see [CONTRIBUTING.md](./CONTRIBUTING.md) for how to get involved.
 
-> **Docs:** [gina.io/docs](https://gina.io/docs/) · **Issues:** [github.com/Rhinostone/gina/issues](https://github.com/Rhinostone/gina/issues)
+> **Docs:** [gina.io/docs](https://gina.io/docs/) · **Issues:** [github.com/gina-io/gina/issues](https://github.com/gina-io/gina/issues)
 
 ---
 
@@ -262,4 +262,4 @@ Standalone gina dev and admin tool. A dedicated browser-tab app (`services/src/b
 
 ---
 
-*Last updated: 2026-03-29 (Per-bundle framework version added) · To suggest a feature, [open an issue](https://github.com/Rhinostone/gina/issues).*
+*Last updated: 2026-03-29 (Per-bundle framework version added) · To suggest a feature, [open an issue](https://github.com/gina-io/gina/issues).*
