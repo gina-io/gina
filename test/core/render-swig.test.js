@@ -107,3 +107,106 @@ describe('03 - async fs.promises calls are present', function() {
     });
 
 });
+
+
+// 04 — Error field priority: actual upstream error over generic statusCodes label (#Q1)
+describe('04 - error field priority: data.page.data.error wins over statusCodes[status] (#Q1)', function() {
+
+    it('errorObject.error is built with data.page.data.error first', function() {
+        var src = fs.readFileSync(SOURCE, 'utf8');
+        assert.ok(
+            /error\s*:\s*data\.page\.data\.error\s*\|\|/.test(src),
+            'expected `error: data.page.data.error ||` — actual upstream error must take priority (#Q1)'
+        );
+    });
+
+    it('statusCodes[...] is used as fallback only (after ||)', function() {
+        var src = fs.readFileSync(SOURCE, 'utf8');
+        // The replaced pattern had statusCodes first — verify it now comes after ||
+        assert.ok(
+            /data\.page\.data\.error\s*\|\|.*statusCodes\[/.test(src),
+            'expected statusCodes[...] after data.page.data.error || in the error field (#Q1)'
+        );
+    });
+
+    it('#Q1 marker is present in source', function() {
+        var src = fs.readFileSync(SOURCE, 'utf8');
+        assert.ok(
+            src.indexOf('#Q1') > -1,
+            'expected #Q1 marker — comment convention not applied'
+        );
+    });
+
+    it('replaced comment documents old statusCodes-first pattern', function() {
+        var src = fs.readFileSync(SOURCE, 'utf8');
+        assert.ok(
+            /replaced:.*statusCodes\[data\.page\.data\.status\]\s+first/.test(src),
+            'expected "replaced: statusCodes[data.page.data.status] first" comment (#Q1)'
+        );
+    });
+
+    it('pure logic: actual error takes priority over generic label', function() {
+        // Replicate the errorObject.error assignment logic from render-swig.js
+        var statusCodes = { '502': 'Bad Gateway' };
+        var data = { status: 502, error: 'upstream timeout', message: 'connection reset' };
+        var error = data.error || data.message || statusCodes[data.status] || '';
+        assert.equal(error, 'upstream timeout');
+    });
+
+    it('pure logic: message used when error is absent', function() {
+        var statusCodes = { '502': 'Bad Gateway' };
+        var data = { status: 502, message: 'connection reset' };
+        var error = data.error || data.message || statusCodes[data.status] || '';
+        assert.equal(error, 'connection reset');
+    });
+
+    it('pure logic: statusCodes label used when both error and message are absent', function() {
+        var statusCodes = { '502': 'Bad Gateway' };
+        var data = { status: 502 };
+        var error = data.error || data.message || statusCodes[data.status] || '';
+        assert.equal(error, 'Bad Gateway');
+    });
+
+});
+
+
+// 05 — console.error fires before throwError on non-2xx interception (#Q1)
+describe('05 - console.error fires before throwError in error interception block (#Q1)', function() {
+
+    it('console.error call is present in the error interception block', function() {
+        var src = fs.readFileSync(SOURCE, 'utf8');
+        assert.ok(
+            /console\.error\(/.test(src),
+            'expected console.error() call in error interception block (#Q1)'
+        );
+    });
+
+    it('[render] prefix is used in console.error log line', function() {
+        var src = fs.readFileSync(SOURCE, 'utf8');
+        assert.ok(
+            /\[render\].*from upstream/.test(src),
+            'expected `[render] ... from upstream` in console.error call (#Q1)'
+        );
+    });
+
+    it('_errDetail is used in the log to include the actual error reason', function() {
+        var src = fs.readFileSync(SOURCE, 'utf8');
+        assert.ok(
+            /_errDetail/.test(src),
+            'expected `_errDetail` variable used for log detail in error interception (#Q1)'
+        );
+    });
+
+    it('console.error appears before return self.throwError(errorObject) in source', function() {
+        var src = fs.readFileSync(SOURCE, 'utf8');
+        var errLogIdx    = src.indexOf("'[render] '");
+        var throwErrIdx  = src.indexOf('return self.throwError(errorObject)');
+        assert.ok(errLogIdx > -1,   'console.error with [render] prefix not found');
+        assert.ok(throwErrIdx > -1, 'return self.throwError(errorObject) not found');
+        assert.ok(
+            errLogIdx < throwErrIdx,
+            'console.error must appear before return self.throwError(errorObject) (#Q1)'
+        );
+    });
+
+});

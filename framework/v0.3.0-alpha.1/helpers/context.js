@@ -740,7 +740,7 @@ function ContextHelper(contexts) {
                     const stack = new Error().stack;
 
                     console.error(
-                        `[Whisper Error]: The key {${key}} was not found in the dictionary.\n` +
+                        `[Whisper Error]: The key \${${key}} was not found in the dictionary.\n` +
                         `Skipping replacement to prevent infinite loop.\n` +
                         `Stack Trace:\n${stack}`
                     );

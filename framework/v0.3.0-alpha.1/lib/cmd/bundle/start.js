@@ -335,6 +335,9 @@ function Start(opt, cmd) {
                     // the GINA_VERSION/GINA_FRAMEWORK_DIR/GINA_CORE overrides are
                     // isolated to this spawn and do not affect concurrent bundle starts.
                     var _ctx = getContext();
+                    // Populate envVars so gna.js defineDefault() can create GINA_* globals.
+                    // gina-container does this explicitly; the socket-server path must too.
+                    if ( !_ctx.envVars ) _ctx.envVars = process.gina;
                     if ( self.bundleGinaVersion ) {
                         _ctx = JSON.clone(_ctx);
                         var _ginaDir = getEnvVar('GINA_DIR');

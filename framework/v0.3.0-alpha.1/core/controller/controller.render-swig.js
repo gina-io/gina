@@ -528,13 +528,28 @@ module.exports = async function render(userData, displayToolbar, errOptions, dep
 
             var errorObject = {
                 status  : data.page.data.status,
-                error   : statusCodes[data.page.data.status] || msg.error || msg,
+                // replaced: statusCodes[data.page.data.status] first — always truthy for known
+                // codes, so actual coreapi error reason was always buried. Prioritize the actual
+                // error/message from the upstream response; fall back to generic status label. (#Q1)
+                error   : data.page.data.error || data.page.data.message || statusCodes[data.page.data.status] || msg,
                 message : data.page.data.message || data.page.data.error,
                 stack   : data.page.data.stack
             };
             if ( typeof(data.page.data.session) != 'undefined' ) {
                 errorObject.session = data.page.data.session;
             }
+
+            // Log the actual error here so it appears in the bundle log before throwError
+            // absorbs it — throwError may only show the generic status label otherwise. (#Q1)
+            var _errDetail = data.page.data.error || data.page.data.message;
+            if ( _errDetail && typeof(_errDetail) === 'object' ) {
+                _errDetail = _errDetail.message || _errDetail.error || JSON.stringify(_errDetail);
+            }
+            console.error(
+                '[render] '+ data.page.data.status +' from upstream'
+                + ( _errDetail ? ' — ' + _errDetail : '' )
+                + ( data.page.data.stack ? '\n' + data.page.data.stack : '' )
+            );
 
             return self.throwError(errorObject);
         }
