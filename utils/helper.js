@@ -89,7 +89,7 @@ function MainHelper(opt) {
         for (let a in process.argv) {
             if ( /\-\-/.test(process.argv[a]) && process.argv[a].indexOf('=') > -1 ) {
                 // special cases
-                if (/\-\-(prefix|env|scope)/.test(process.argv[a])) {
+                if (/\-\-(prefix|env|scope|gina-version)/.test(process.argv[a])) {
                     continue;
                 }
 

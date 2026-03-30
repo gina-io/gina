@@ -1,4 +1,5 @@
 {
+  "$schema": "https://gina.io/schema/manifest.json",
   "name": "${project}",
   "version": "${version}",
   "scope": "${scope}",

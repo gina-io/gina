@@ -19,7 +19,9 @@ var helpers     = require( getPath('gina').helpers);
  *  new CmdHelper(self, opt.client, { port: opt.debugPort, brkEnabled: opt.debugBrkEnabled });
  *
  * After construction, the following globals are available in the handler:
- *  - isCmdConfigured() — validates and loads all config assets
+ *  - isCmdConfigured() — validates and loads all config assets; for bundle:start,
+ *    also resolves self.bundleGinaVersion from --gina-version flag or
+ *    manifest.json bundles[name].gina_version and validates it against main.json
  *  - isDefined(type, name) — checks project / bundle / env / scope existence
  *  - isValidName(name) — validates a project or bundle name
  *  - getHelp() — prints the command group's help.txt
@@ -115,7 +117,9 @@ function CmdHelper(cmd, client, debug) {
         portsList : [], // conxtual ports list (bundle or project)  for the scanner ?
         portsGlobalList : [], // global ports list  for the scanner ?
         portsReversePath : null, // defined by filterArgs()
-        portsReverseData : {} // defined by loadAssets()
+        portsReverseData : {}, // defined by loadAssets()
+        // per-bundle gina version override (from --gina-version flag or manifest.json bundles[name].gina_version)
+        bundleGinaVersion : null // defined by loadAssets()
     };
 
 
@@ -917,6 +921,30 @@ function CmdHelper(cmd, client, debug) {
                 delete process.env.NODE_ENV
             }
             cmd.envs.sort();
+
+            // per-bundle gina version override through: --gina-version=<version> or manifest.json bundles[name].gina_version
+            if ( /\:start$/i.test(cmd.task) && cmd.name ) {
+                var bundleGinaVersion = cmd.params['gina-version'] || null;
+                // fall back to manifest.json per-bundle declaration
+                if (
+                    !bundleGinaVersion
+                    && typeof(cmd.projectData.bundles) != 'undefined'
+                    && typeof(cmd.projectData.bundles[cmd.name]) != 'undefined'
+                ) {
+                    bundleGinaVersion = cmd.projectData.bundles[cmd.name]['gina_version'] || null;
+                }
+                if ( bundleGinaVersion ) {
+                    var bvShort = bundleGinaVersion.split('.').splice(0,2).join('.');
+                    var knownVersions = ( cmd.mainConfig.frameworks && cmd.mainConfig.frameworks[bvShort] ) ? cmd.mainConfig.frameworks[bvShort] : null;
+                    if ( !Array.isArray(knownVersions) || knownVersions.indexOf(bundleGinaVersion) < 0 ) {
+                        errMsg = 'gina_version `'+ bundleGinaVersion +'` is not an installed version. Known versions: '+ JSON.stringify(cmd.mainConfig.frameworks);
+                        console.emerg(errMsg);
+                        return false;
+                    }
+                    cmd.bundleGinaVersion = bundleGinaVersion;
+                    console.debug('Bundle ['+ cmd.name +'] gina version override: '+ bundleGinaVersion);
+                }
+            }
 
             // // project or bundle scope override through : --scope=<some scope>
             // if ( typeof(cmd.params.scope) != 'undefined' && /\:(start|stop|restart|build|deploy)/i.test(cmd.task) ) {

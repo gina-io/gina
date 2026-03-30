@@ -4,5 +4,6 @@
   "--force",
   "--import",
   "--replace",
-  "--start-port-from"
+  "--start-port-from",
+  "--gina-version"
 ]
