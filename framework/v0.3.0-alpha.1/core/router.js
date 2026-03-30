@@ -691,7 +691,12 @@ function Router(env, scope) {
                         }
 
                         try {
-                            controller[action](request, response, next)
+                            var _result = controller[action](request, response, next);
+                            if (_result && typeof _result.then === 'function') {
+                                _result.catch(function(err) {
+                                    serverInstance.throwError(response, 500, err.stack || err.message || String(err));
+                                });
+                            }
                         } catch (err) {
                             var superController = new SuperController(options);
                             // Required before setting options
@@ -714,7 +719,12 @@ function Router(env, scope) {
                     }
                 }
                 try {
-                    controller[action](request, response, next);
+                    var _result = controller[action](request, response, next);
+                    if (_result && typeof _result.then === 'function') {
+                        _result.catch(function(err) {
+                            serverInstance.throwError(response, 500, err.stack || err.message || String(err));
+                        });
+                    }
                 } catch (err) {
                     if ( typeof(controller) != 'undefined' && typeof (controller[action]) == 'undefined') {
                         serverInstance.throwError(response, 500, (new Error('control not found: `' + action + '`. Please, check your routing.json or the related control in your `' + controllerFile + '`.')).stack);

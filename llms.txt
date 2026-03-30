@@ -54,6 +54,7 @@ setContext(key, value)       // Write to global store
 define(key, value)           // Property definition helper
 getEnvVar(key)               // Read env variable
 setEnvVar(key, val, protect) // Write env variable
+entityCall(emitter)          // Wraps an EventEmitter .onComplete(cb) into a native Promise — use to await PathObject ops (mkdir/cp/mv/rm) and Shell commands from async controller actions
 ```
 
 ---
@@ -82,6 +83,18 @@ module.exports = Controller;
 - Routes declared in `routing.json`, not in code.
 - Always null `local.req/res/next` at response exit (done automatically in render path).
 - `createTestInstance(deps)` creates an isolated instance for unit tests without touching production state.
+- `async` controller actions are fully supported — the router attaches `.catch()` to any thenable returned by an action and routes rejections to `throwError(response, 500, ...)`. Use `await entity.method()` directly. For PathObject ops and Shell use `await entityCall(_(path).mkdir())`.
+
+```javascript
+// async action example
+Controller.prototype.upload = async function(req, res, next) {
+    var self = this;
+    var user = await self.UserEntity.getById(req.params.id);
+    await entityCall( _(self.uploadDir).mkdir() );
+    self.renderJSON({ ok: true, user: user });
+};
+```
+
 ---
 
 ## Entity (ORM) pattern

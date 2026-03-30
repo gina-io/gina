@@ -700,6 +700,7 @@ gna.mount = process.mount = function(bundlesPath, source, target, type, callback
 
 // mounting bundle if needed
 process.on('unhandledRejection', function(reason) {
+    console.error('[ FRAMEWORK ] Unhandled promise rejection:', (reason && reason.stack) ? reason.stack : String(reason));
 });
 process.on('exit', function(code) {
 });
