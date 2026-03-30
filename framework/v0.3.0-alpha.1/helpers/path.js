@@ -1734,7 +1734,7 @@ function PathHelper() {
      * `.onComplete(err, result)` rather than returning a Promise.
      *
      * @global
-     * @function entityCall
+     * @function onCompleteCall
      *
      * @param {EventEmitter} emitter - Object with an `.onComplete(cb)` method
      * @returns {Promise<*>} Resolves with the operation result, rejects on error
@@ -1743,11 +1743,11 @@ function PathHelper() {
      * // In an async controller action:
      * Controller.prototype.upload = async function(req, res, next) {
      *     var self = this;
-     *     await entityCall( _(self.uploadDir).mkdir() );
+     *     await onCompleteCall( _(self.uploadDir).mkdir() );
      *     self.renderJSON({ ok: true });
      * };
      */
-    entityCall = function(emitter) {
+    onCompleteCall = function(emitter) {
         return new Promise(function(resolve, reject) {
             emitter.onComplete(function(err, result) {
                 if (err) return reject(err);
