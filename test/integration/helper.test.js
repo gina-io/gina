@@ -171,6 +171,20 @@ describe('05 - filterArgs', function () {
         filterArgs();
         assert.equal(process.gina['GINA_PREFIX'], undefined);
     });
+
+    it('skips --gina-version and does not promote it to process.gina', function () {
+        process.argv = ['node', 'cli', 'bundle:start', 'api', '@myproject', '--gina-version=0.1.8'];
+        filterArgs();
+        assert.equal(process.gina['GINA_GINA_VERSION'], undefined);
+        assert.equal(process.gina['GINA_GINA-VERSION'], undefined);
+    });
+
+    it('--gina-version does not prevent other flags from being processed', function () {
+        process.argv = ['node', 'cli', '--gina_test_skip_check=ok', '--gina-version=0.1.8'];
+        filterArgs();
+        assert.equal(process.gina['GINA_TEST_SKIP_CHECK'], 'ok');
+        assert.equal(process.gina['GINA_GINA_VERSION'], undefined);
+    });
 });
 
 

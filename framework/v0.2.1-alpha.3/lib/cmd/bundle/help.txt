@@ -48,6 +48,24 @@
 
     $ gina bundle:start <bundle_name> @<project_name> --debug-brk=5656 --max-old-space-size=2048
 
+    [ Starting a bundle pinned to a specific installed gina version ]
+
+    $ gina bundle:start <bundle_name> @<project_name> --gina-version=0.1.8
+
+    The declared version is validated against the tracked versions in ~/.gina/main.json.
+    You can also pin a version statically in your project's manifest.json:
+
+        "bundles": {
+            "<bundle_name>": {
+                "gina_version": "0.1.8",
+                ...
+            }
+        }
+
+    The CLI flag takes priority over the manifest.json declaration.
+    The socket server keeps running its own version; only the spawned bundle process
+    uses the declared version.
+
 
 [ Stopping a bundle ]
 

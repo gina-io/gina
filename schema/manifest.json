@@ -1,0 +1,103 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://gina.io/schema/manifest.json",
+  "title": "Gina manifest.json",
+  "description": "Project manifest — the root registry of all bundles in a Gina project. Lives at the project root alongside env.json and package.json.",
+  "type": "object",
+  "required": ["name", "version", "scope", "rootDomain", "bundles"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "JSON Schema reference for editor validation."
+    },
+    "name": {
+      "type": "string",
+      "description": "Project name. Must match the @<project> identifier used in CLI commands.",
+      "examples": ["myproject", "api-platform"]
+    },
+    "version": {
+      "type": "string",
+      "description": "Project version in semver format.",
+      "examples": ["1.0.0", "0.0.1"]
+    },
+    "scope": {
+      "type": "string",
+      "description": "Default runtime scope for this project.",
+      "examples": ["local", "beta", "production", "testing"]
+    },
+    "rootDomain": {
+      "type": "string",
+      "description": "Root domain or hostname used as the base for bundle URLs.",
+      "examples": ["localhost", "myproject.example.com"]
+    },
+    "bundles": {
+      "type": "object",
+      "description": "Registry of all bundles in this project. Each key is the bundle name.",
+      "additionalProperties": {
+        "$ref": "#/definitions/bundleEntry"
+      }
+    }
+  },
+  "definitions": {
+    "bundleEntry": {
+      "type": "object",
+      "required": ["version", "src"],
+      "additionalProperties": true,
+      "properties": {
+        "_comment": {
+          "type": "string",
+          "description": "Optional documentation comment. Ignored at runtime."
+        },
+        "version": {
+          "type": "string",
+          "description": "Bundle release version in semver format.",
+          "examples": ["0.0.1", "1.2.3"]
+        },
+        "tag": {
+          "type": "string",
+          "description": "Compact version tag derived from the version string (dots removed).",
+          "examples": ["001", "123"]
+        },
+        "gina_version": {
+          "type": "string",
+          "description": "Pin this bundle to a specific installed gina framework version. When set, the spawned bundle process uses this version instead of the socket server's version. Validated against ~/.gina/main.json before start. Can be overridden at start time with the --gina-version CLI flag.",
+          "examples": ["0.1.8", "0.2.0", "0.2.1-alpha.3"],
+          "pattern": "^\\d+\\.\\d+(\\.\\d+)?(-[a-zA-Z0-9\\.]+)?$"
+        },
+        "src": {
+          "type": "string",
+          "description": "Path to the bundle source directory, relative to the project root.",
+          "examples": ["src/api", "src/frontend"]
+        },
+        "link": {
+          "type": "string",
+          "description": "Path to the bundle symlink under the project bundles directory, relative to the project root.",
+          "examples": ["bundles/api", "bundles/frontend"]
+        },
+        "releases": {
+          "type": "object",
+          "description": "Release build paths, keyed by scope then environment.",
+          "additionalProperties": {
+            "type": "object",
+            "description": "Scope-level release map. Each key is an environment name.",
+            "additionalProperties": {
+              "$ref": "#/definitions/releaseTarget"
+            }
+          }
+        }
+      }
+    },
+    "releaseTarget": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "target": {
+          "type": "string",
+          "description": "Path to the compiled release directory, relative to the project root.",
+          "examples": ["releases/api/local/production/0.0.1"]
+        }
+      }
+    }
+  }
+}

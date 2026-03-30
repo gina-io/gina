@@ -22,6 +22,14 @@ var console     = null;
  *  gina bundle:start @<project_name>
  *  gina bundle:start @<project_name> --max-old-space-size=4096 --inspect=5858
  *
+ * Per-bundle framework version override:
+ *  Pin a bundle to a specific installed gina version via CLI flag:
+ *    gina bundle:start <bundle_name> @<project_name> --gina-version=0.1.8
+ *  Or declare it statically in manifest.json under bundles[<name>].gina_version.
+ *  The declared version is validated against the tracked versions in ~/.gina/main.json
+ *  before the bundle process is spawned. The socket server continues running its
+ *  own version; only the spawned bundle process uses the declared version.
+ *
  * To inspect the command handler itself, first restart gina with `--inspect-gina`.
  *
  * @class Start
@@ -322,11 +330,25 @@ function Start(opt, cmd) {
 
                     // setPath('node_modules', _(self.projectLocation + '/node_modules', true));
 
+                    // Build the context for the child process.
+                    // When a per-bundle gina version is declared, clone the context so
+                    // the GINA_VERSION/GINA_FRAMEWORK_DIR/GINA_CORE overrides are
+                    // isolated to this spawn and do not affect concurrent bundle starts.
+                    var _ctx = getContext();
+                    if ( self.bundleGinaVersion ) {
+                        _ctx = JSON.clone(_ctx);
+                        var _ginaDir = getEnvVar('GINA_DIR');
+                        _ctx.envVars['GINA_VERSION']       = self.bundleGinaVersion;
+                        _ctx.envVars['GINA_FRAMEWORK_DIR'] = _ginaDir + '/framework/v' + self.bundleGinaVersion;
+                        _ctx.envVars['GINA_CORE']          = _ginaDir + '/framework/v' + self.bundleGinaVersion + '/core';
+                        terminal.info('Bundle ['+ bundle +'@'+ self.projectName +'] using framework v'+ self.bundleGinaVersion);
+                    }
+
                     params = [
                         // node arguments will be passed by gina
                         appPath,
                         //Passing context to child.
-                        JSON.stringify(getContext()),
+                        JSON.stringify(_ctx),
                         // project name
                         self.projectName,
                         // bundle name

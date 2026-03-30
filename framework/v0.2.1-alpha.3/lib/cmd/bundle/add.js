@@ -342,12 +342,13 @@ function Add(opt, cmd) {
         var scopes  = self.projects[self.projectName].scopes;
 
         data.bundles[local.bundle] = {
-            "_comment" : "Your comment goes here.",
-            "version"   : version,
-            "tag" : ( version.split('.') ).join(''),
-            "src" : "src/" + local.bundle,
-            "link"      : "bundles/"+ local.bundle,
-            "releases" : {}
+            "_comment"    : "Your comment goes here.",
+            "version"     : version,
+            "tag"         : ( version.split('.') ).join(''),
+            "gina_version": getEnvVar('GINA_VERSION'),
+            "src"         : "src/" + local.bundle,
+            "link"        : "bundles/"+ local.bundle,
+            "releases"    : {}
         };
         //"release/"+ local.bundle +"/local/" +"/prod/" + version
         for (let s = 0, sLen = scopes.length; s < sLen; ++s) {

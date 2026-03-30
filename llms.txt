@@ -8,6 +8,8 @@ Node.js MVC framework. No Express dependency. Built-in HTTP/2. Multi-bundle arch
 
 **Bundle** — Gina's unit of deployment. A project contains one or more bundles. Each bundle has its own controllers, models, config, templates, and port. Bundles start independently (`gina bundle:start <bundle> @<project>`).
 
+**Per-bundle framework version** — Each bundle can run under a specific installed gina version, independent of the socket server. Declared as `"gina_version": "0.1.8"` in the bundle's `manifest.json` entry, or overridden at start time with `--gina-version=0.1.8`. The declared version is validated against `~/.gina/main.json` before the bundle process is spawned.
+
 **Scope** — Runtime environment label: `local`, `beta`, `production`, `testing`. Set per-process via `NODE_SCOPE`. Stored on every entity instance as `_scope`. Used to isolate data in shared databases (Couchbase N1QL `AND t._scope = $scope`).
 
 **Short version** — The `major.minor` portion of the Gina semver (e.g. `0.1` from `0.1.9-alpha.2`). Per-version config lives at `~/.gina/{shortVersion}/settings.json`.
@@ -80,7 +82,6 @@ module.exports = Controller;
 - Routes declared in `routing.json`, not in code.
 - Always null `local.req/res/next` at response exit (done automatically in render path).
 - `createTestInstance(deps)` creates an isolated instance for unit tests without touching production state.
-
 ---
 
 ## Entity (ORM) pattern
@@ -164,6 +165,34 @@ Connectors supported: `couchbase` (v3/v4), `redis`, `sqlite` (v2 ORM + session s
 
 ---
 
+## Project config files
+
+| File | Location | Purpose |
+| --- | --- | --- |
+| `manifest.json` | project root | Bundle registry — lists all bundles, their versions, src paths, and optional `gina_version` pins |
+
+```json
+{
+  "name": "myproject",
+  "version": "1.0.0",
+  "scope": "local",
+  "rootDomain": "localhost",
+  "bundles": {
+    "api": {
+      "version": "0.0.1",
+      "gina_version": "0.2.1-alpha.3",
+      "src": "src/api",
+      "link": "bundles/api",
+      "releases": {}
+    }
+  }
+}
+```
+
+`gina_version` is optional. When absent the bundle uses whatever version the socket server is running. `bundle:add` writes the current version automatically.
+
+---
+
 ## Bundle config files
 
 | File | Purpose |
@@ -182,7 +211,8 @@ All config files support `$schema` references for editor validation.
 ## CLI entry points
 
 ```bash
-gina bundle:start <bundle> @<project>   # Start a bundle
+gina bundle:start <bundle> @<project>               # Start a bundle
+gina bundle:start <bundle> @<project> --gina-version=0.1.8  # Start with a pinned framework version
 gina bundle:stop <bundle> @<project>    # Stop a bundle
 gina tail --follow                       # Follow logs
 gina framework:set --env=dev            # Set environment
@@ -237,4 +267,5 @@ Bundle ports are allocated per-project in `~/.gina/ports.json`.
 5. **`inherits(Child, Parent)`** calls both constructors on a fresh `this` — not the same as `Object.create`.
 6. **`getConnection()` in tests**: pass `{ connector: mockConn }` as the third arg to EntitySuper.
 7. **`super()` does not exist** — use `Parent.call(this, ...)` for constructor chaining.
-8. **Roadmap sync**: any roadmap change must be applied to all three locations: `.claude/roadmap.md`, `ROADMAP.md`, `~/Sites/gina/docs/repo/docs/roadmap.md`.
+8. **Roadmap sync**: any roadmap change must be applied to both `ROADMAP.md` and `~/Sites/gina/docs/repo/docs/roadmap.md`.
+9. **`gina_version` in `manifest.json`** — optional per-bundle pin. When set, that bundle's spawned process gets `GINA_VERSION`, `GINA_FRAMEWORK_DIR`, and `GINA_CORE` overridden in its context. The socket server is unaffected. CLI flag `--gina-version` takes priority over the manifest declaration.

@@ -34,6 +34,14 @@ view
 **--env** | **GINA_ENV**
     	Will override the runtime environment.
 
+**--gina-version** (`bundle:start` only)
+        Pin a specific bundle to a particular installed framework version.
+        The socket server continues running its own version; only the spawned
+        bundle process uses the declared version. The version is validated
+        against the tracked versions in **~/.gina/main.json** before start.
+        Can also be declared statically per bundle in **manifest.json** as
+        `"gina_version": "<version>"` — the CLI flag takes priority.
+
 **--node-version** | **GINA_NODE_VERSION**
     	Will override the **Node.js** version, the binary used by Gina.
         More than one version at the time can be used.
