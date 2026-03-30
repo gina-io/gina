@@ -550,15 +550,46 @@ function CmdHelper(cmd, client, debug) {
         var coreEnvPath = _(GINA_CORE + '/template/conf/env.json', true);
         var coreEnv     = requireJSON(coreEnvPath);
 
+        var projectObj  = cmd.projects[cmd.projectName];
+        var projectPath = _(projectObj.path, true);
+
+        // whisper() does a single-pass substitution — env.json uses self-referential
+        // placeholders (e.g. ${bundlesPath} references ${homedir} which references
+        // ${projectName}). All derived values must be pre-computed here before building
+        // reps; whisper will NOT resolve a placeholder whose value was itself a placeholder
+        // in a sibling key. Migration note: placeholders use ${variable} syntax (not {variable}).
+        var homedir     = projectObj.homedir
+            ? _(projectObj.homedir, true)
+            : _(os.homedir() + '/.' + cmd.projectName, true);
+        var bundlesPath = projectObj.bundles_path
+            ? _(projectObj.bundles_path, true)
+            : homedir + '/bundles';
+        var cachePath   = homedir + '/cache';
+
+        var projectVersion      = '';
+        var projectVersionMajor = '';
+        try {
+            var _manifest = requireJSON(_(projectPath + '/manifest.json', true));
+            if ( _manifest.version ) {
+                projectVersion      = _manifest.version;
+                projectVersionMajor = String(_manifest.version).split(/\./g)[0];
+            }
+        } catch(e) { /* manifest may not exist during project:add */ }
+
         var reps = {
-            "frameworkDir"  : GINA_FRAMEWORK_DIR,
-            "executionPath" : _(cmd.projects[cmd.projectName].path, true),
-            "projectPath"   : _(cmd.projects[cmd.projectName].path, true),
-            // "bundlesPath" : appsPath,
-            // "modelsPath" : modelsPath,
-            "env" : env || cmd.projects[cmd.projectName].def_env,
+            "frameworkDir"        : GINA_FRAMEWORK_DIR,
+            "executionPath"       : projectPath,
+            "projectPath"         : projectPath,
+            "projectName"         : cmd.projectName,
+            "homedir"             : homedir,
+            "bundlesPath"         : bundlesPath,
+            "cachePath"           : cachePath,
+            "projectVersion"      : projectVersion,
+            "projectVersionMajor" : projectVersionMajor,
+            // "modelsPath" is bundle-specific; resolved downstream from bundlesPath after whisper
+            "env"    : env || projectObj.def_env,
             "bundle" : bundle,
-            "version" : GINA_VERSION
+            "version": GINA_VERSION
         };
 
 

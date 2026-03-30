@@ -2680,7 +2680,11 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
 
                     try {
                         if ( data.status && !/^2/.test(data.status) && typeof(local.options.conf.server.coreConfiguration.statusCodes[data.status]) != 'undefined' ) {
-                            return self.throwError(data);
+                            // replaced: self.throwError(data) — throwError() bypasses the callback,
+                            // preventing controllers from implementing graceful degradation (e.g. degraded
+                            // mode when a non-critical upstream service fails). Pass the error to the
+                            // callback so the caller decides whether to degrade or surface it. (#Q1)
+                            return callback(data);
                         }
 
                         return callback( false, data );
@@ -4527,7 +4531,20 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
             } else {
 
                 if ( errorObject && errorObject != 'null' && /object/i.test(typeof(errorObject)) ) {
-                    console.error(req.method +' [ '+ errorObject.status +' ] '+ req.url + '\n'+ (errorObject.stack||errorObject.message) );
+                    // replaced: (errorObject.stack||errorObject.message) — both may be undefined for plain
+                    // object errors forwarded from query() (e.g. coreapi non-2xx). Fall back to serializing
+                    // errorObject.error so the log always contains the failure reason. (#Q1)
+                    // When no stack is present on the error object, capture the throwError callsite so the
+                    // log always shows which controller method caused the error. (#Q1)
+                    if ( !errorObject.stack ) {
+                        try { throw new Error('[throwError] callsite'); } catch(_cs) {
+                            errorObject.stack = _cs.stack;
+                        }
+                    }
+                    var _logMsg = errorObject.stack || errorObject.message
+                        || (typeof(errorObject.error) === 'object' ? JSON.stringify(errorObject.error) : errorObject.error)
+                        || JSON.stringify(errorObject);
+                    console.error(req.method +' [ '+ errorObject.status +' ] '+ req.url + '\n'+ _logMsg);
                 }
 
                  // intercept none HTML mime types
@@ -4662,7 +4679,12 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
                     // Generic error
                     var title = null, message = null, stack = null;;
                     if ( errorObject && typeof(errorObject) != 'undefined' && errorObject && typeof(errorObject.error) != 'undefined' ) {
-                        title = errorObject.error
+                        title = errorObject.error;
+                        // replaced: direct use — errorObject.error may be a plain object forwarded
+                        // from a failed query() call, causing '[object Object]' in the HTML output. (#Q1)
+                        if ( title !== null && typeof(title) === 'object' ) {
+                            title = title.message || title.error || JSON.stringify(title);
+                        }
                     }
                     if (errorObject && typeof(errorObject) != 'undefined' && errorObject  && typeof(errorObject.message) != 'undefined' ) {
                         message = errorObject.message
