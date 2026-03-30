@@ -240,6 +240,18 @@ describe('04 - resolveRouteConfig: outer catch — configErr', function() {
 });
 
 
+// Replica of the async dispatch guard introduced in Stream A (0.3.0).
+// controller[action]() return value is inspected; if thenable, .catch() is attached.
+function dispatchAction(serverInstance, controller, action, request, response, next) {
+    var _result = controller[action](request, response, next);
+    if (_result && typeof _result.then === 'function') {
+        return _result.catch(function(err) {
+            serverInstance.throwError(response, 500, err.stack || err.message || String(err));
+        });
+    }
+}
+
+
 // 05 — source structure: resolveRouteConfig extracted to module level (#P25)
 describe('05 - source structure: resolveRouteConfig extracted to module level (#P25)', function() {
 
@@ -277,6 +289,152 @@ describe('05 - source structure: resolveRouteConfig extracted to module level (#
             src.indexOf('#P25') > -1,
             'expected #P25 marker in replaced comment — comment convention not applied'
         );
+    });
+
+});
+
+
+// 06 — source structure: async dispatch guard (Stream A, 0.3.0)
+describe('06 - source structure: async dispatch guard', function() {
+
+    it('source captures return value of controller[action]()', function() {
+        var src = fs.readFileSync(SOURCE, 'utf8');
+        assert.ok(
+            src.indexOf('var _result = controller[action](') > -1,
+            'expected `var _result = controller[action](` — async capture not applied'
+        );
+    });
+
+    it('source checks _result is thenable before attaching catch', function() {
+        var src = fs.readFileSync(SOURCE, 'utf8');
+        assert.ok(
+            src.indexOf("typeof _result.then === 'function'") > -1,
+            "expected `typeof _result.then === 'function'` — thenable guard missing"
+        );
+    });
+
+    it('source attaches _result.catch to route rejected promises to throwError', function() {
+        var src = fs.readFileSync(SOURCE, 'utf8');
+        assert.ok(
+            src.indexOf('_result.catch(function(err)') > -1,
+            'expected `_result.catch(function(err)` — rejection handler missing'
+        );
+    });
+
+    it('source passes err.stack || err.message || String(err) to throwError', function() {
+        var src = fs.readFileSync(SOURCE, 'utf8');
+        assert.ok(
+            src.indexOf('err.stack || err.message || String(err)') > -1,
+            'expected `err.stack || err.message || String(err)` — error serialization missing'
+        );
+    });
+
+    it('async guard is applied at both dispatch sites (with and without middleware)', function() {
+        var src = fs.readFileSync(SOURCE, 'utf8');
+        var first  = src.indexOf('var _result = controller[action](');
+        var second = src.indexOf('var _result = controller[action](', first + 1);
+        assert.ok(first > -1 && second > -1, 'expected two dispatch sites to capture _result — only one found');
+    });
+
+});
+
+
+// 07 — dispatchAction pure logic
+describe('07 - dispatchAction: pure dispatch logic', function() {
+
+    function makeServerInstance() {
+        var calls = [];
+        return {
+            throwError: function(res, status, msg) { calls.push({ status: status, msg: msg }); },
+            calls: calls
+        };
+    }
+
+    it('sync action: no .then check, throwError never called', function() {
+        var si = makeServerInstance();
+        var ctrl = { home: function() { return undefined; } };
+        dispatchAction(si, ctrl, 'home', {}, {}, function(){});
+        assert.equal(si.calls.length, 0);
+    });
+
+    it('sync action returning null: throwError never called', function() {
+        var si = makeServerInstance();
+        var ctrl = { home: function() { return null; } };
+        dispatchAction(si, ctrl, 'home', {}, {}, function(){});
+        assert.equal(si.calls.length, 0);
+    });
+
+    it('sync action returning plain object (no .then): throwError never called', function() {
+        var si = makeServerInstance();
+        var ctrl = { home: function() { return { data: 1 }; } };
+        dispatchAction(si, ctrl, 'home', {}, {}, function(){});
+        assert.equal(si.calls.length, 0);
+    });
+
+    it('async action that resolves: throwError never called', function() {
+        var si = makeServerInstance();
+        var ctrl = { home: async function() { return 'ok'; } };
+        var p = dispatchAction(si, ctrl, 'home', {}, {}, function(){});
+        return p.then(function() {
+            assert.equal(si.calls.length, 0);
+        });
+    });
+
+    it('async action that rejects with stack: throwError called with err.stack', function() {
+        var si = makeServerInstance();
+        var err = new Error('boom');
+        var ctrl = { home: async function() { throw err; } };
+        var p = dispatchAction(si, ctrl, 'home', {}, {}, function(){});
+        return p.then(function() {
+            assert.equal(si.calls.length, 1);
+            assert.equal(si.calls[0].status, 500);
+            assert.equal(si.calls[0].msg, err.stack);
+        });
+    });
+
+    it('async action rejecting with no stack: throwError called with err.message', function() {
+        var si = makeServerInstance();
+        var err = { message: 'no stack here' };
+        var ctrl = { home: function() { return Promise.reject(err); } };
+        var p = dispatchAction(si, ctrl, 'home', {}, {}, function(){});
+        return p.then(function() {
+            assert.equal(si.calls.length, 1);
+            assert.equal(si.calls[0].msg, 'no stack here');
+        });
+    });
+
+    it('async action rejecting with string (no stack, no message): throwError called with String(err)', function() {
+        var si = makeServerInstance();
+        var ctrl = { home: function() { return Promise.reject('plain string error'); } };
+        var p = dispatchAction(si, ctrl, 'home', {}, {}, function(){});
+        return p.then(function() {
+            assert.equal(si.calls.length, 1);
+            assert.equal(si.calls[0].msg, 'plain string error');
+        });
+    });
+
+    it('action with .then that is not a function: treated as sync, no attach', function() {
+        var si = makeServerInstance();
+        var ctrl = { home: function() { return { then: 'not-a-function' }; } };
+        dispatchAction(si, ctrl, 'home', {}, {}, function(){});
+        assert.equal(si.calls.length, 0);
+    });
+
+    it('async action receives req, res, next forwarded from router', function() {
+        var si = makeServerInstance();
+        var received = {};
+        var req = { id: 'req' }, res = { id: 'res' }, next = function(){};
+        var ctrl = {
+            home: async function(r, s, n) {
+                received.req = r; received.res = s; received.next = n;
+            }
+        };
+        var p = dispatchAction(si, ctrl, 'home', req, res, next);
+        return p.then(function() {
+            assert.strictEqual(received.req, req);
+            assert.strictEqual(received.res, res);
+            assert.strictEqual(received.next, next);
+        });
     });
 
 });

@@ -1726,6 +1726,36 @@ function PathHelper() {
         return getContext("paths")
     }
 
+    /**
+     * Wraps an EventEmitter that exposes `.onComplete(cb)` into a native Promise.
+     *
+     * Use this in `async` controller actions to `await` PathObject file operations
+     * (`mkdir`, `cp`, `mv`, `rm`) and `Shell` commands — both of which fire
+     * `.onComplete(err, result)` rather than returning a Promise.
+     *
+     * @global
+     * @function entityCall
+     *
+     * @param {EventEmitter} emitter - Object with an `.onComplete(cb)` method
+     * @returns {Promise<*>} Resolves with the operation result, rejects on error
+     *
+     * @example
+     * // In an async controller action:
+     * Controller.prototype.upload = async function(req, res, next) {
+     *     var self = this;
+     *     await entityCall( _(self.uploadDir).mkdir() );
+     *     self.renderJSON({ ok: true });
+     * };
+     */
+    entityCall = function(emitter) {
+        return new Promise(function(resolve, reject) {
+            emitter.onComplete(function(err, result) {
+                if (err) return reject(err);
+                resolve(result);
+            });
+        });
+    }
+
 }//EO PathHelper.
 
 module.exports = PathHelper
