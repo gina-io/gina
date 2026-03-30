@@ -1,8 +1,13 @@
 var { describe, it, before, beforeEach, afterEach } = require('node:test');
 var assert = require('node:assert/strict');
+var EventEmitter = require('events');
 var fs = require('fs');
 var os = require('os');
 var path = require('path');
+
+var ginaRoot = path.resolve(__dirname, '../..');
+var CONTEXT_SOURCE = path.join(ginaRoot, 'framework', 'v' + require(ginaRoot + '/package.json').version, 'helpers', 'context.js');
+var HELPER_CMD_SOURCE = path.join(ginaRoot, 'framework', 'v' + require(ginaRoot + '/package.json').version, 'lib', 'cmd', 'helper.js');
 
 // Bootstrap exactly as bin/cli does:
 // 1. require utils/helper (sets up getEnvVar, setEnvVar, getUserHome, etc.)
@@ -245,6 +250,52 @@ describe('07 - PathObject constructor _()', function () {
         var obj = new _('/tmp');
         assert.equal(typeof obj.mkdirSync, 'function');
     });
+});
+
+
+// 07b — onCompleteCall global
+describe('07b - onCompleteCall global', function () {
+
+    it('onCompleteCall is a global function', function () {
+        assert.equal(typeof onCompleteCall, 'function');
+    });
+
+    it('returns a Promise', function () {
+        var emitter = new EventEmitter();
+        emitter.onComplete = function(cb) { cb(null, 'ok'); };
+        var result = onCompleteCall(emitter);
+        assert.ok(result instanceof Promise);
+    });
+
+    it('resolves with the result passed to onComplete', async function () {
+        var emitter = new EventEmitter();
+        emitter.onComplete = function(cb) { cb(null, 'resolved-value'); };
+        var val = await onCompleteCall(emitter);
+        assert.equal(val, 'resolved-value');
+    });
+
+    it('rejects with the error passed to onComplete', async function () {
+        var emitter = new EventEmitter();
+        var err = new Error('operation failed');
+        emitter.onComplete = function(cb) { cb(err); };
+        await assert.rejects(onCompleteCall(emitter), err);
+    });
+
+    it('works with any object that has .onComplete — not limited to PathObject', async function () {
+        var customEmitter = {
+            onComplete: function(cb) { cb(null, 42); }
+        };
+        var val = await onCompleteCall(customEmitter);
+        assert.equal(val, 42);
+    });
+
+    it('resolves with undefined when onComplete passes no result', async function () {
+        var emitter = new EventEmitter();
+        emitter.onComplete = function(cb) { cb(null); };
+        var val = await onCompleteCall(emitter);
+        assert.equal(val, undefined);
+    });
+
 });
 
 
@@ -502,4 +553,97 @@ describe('15 - lib global', function () {
     it('lib has routing', function () {
         assert.ok(lib.routing);
     });
+});
+
+
+// 16 — whisper error message format: missing key prints ${key} not {key}
+describe('16 - whisper: error message for missing key uses ${key} syntax', function () {
+
+    it('context.js whisper error uses \\${key} template literal syntax', function () {
+        var src = fs.readFileSync(CONTEXT_SOURCE, 'utf8');
+        // The log line must contain the literal characters \${ so the output
+        // shows "${key}" (not "{key}") in the console.error message.
+        // In a regex: \\\$ = literal \$, so \\\$\{ matches the 3-char sequence \${
+        assert.ok(
+            /\[Whisper Error\].*\\\$\{/.test(src),
+            'expected whisper error message to contain `\\${key}` syntax (not `{key}`)'
+        );
+    });
+
+    it('whisper does not throw on missing key — returns original string', function () {
+        // whisper logs an error but must not throw or crash
+        var result;
+        assert.doesNotThrow(function () {
+            result = whisper({ name: 'Gina' }, 'Hello ${missingKey}');
+        });
+        // Missing key token is left unreplaced
+        assert.ok(result.indexOf('${missingKey}') > -1 || result === 'Hello ${missingKey}');
+    });
+
+    it('present keys are substituted even when other keys are missing', function () {
+        var result = whisper({ name: 'Gina' }, '${name} v${version}');
+        assert.ok(result.indexOf('Gina') > -1, 'expected present key to be substituted');
+    });
+
+});
+
+
+// 17 — getCoreEnv: all required reps keys are present in helper.js
+describe('17 - getCoreEnv: reps dictionary contains all required substitution keys', function () {
+
+    var REQUIRED_KEYS = [
+        'frameworkDir',
+        'executionPath',
+        'projectPath',
+        'projectName',
+        'homedir',
+        'bundlesPath',
+        'cachePath',
+        'projectVersion',
+        'projectVersionMajor',
+        'env',
+        'bundle',
+        'version'
+    ];
+
+    REQUIRED_KEYS.forEach(function (key) {
+        it('"' + key + '" is in the getCoreEnv reps object', function () {
+            var src = fs.readFileSync(HELPER_CMD_SOURCE, 'utf8');
+            // Match the key as an object property in the reps literal (quoted or unquoted)
+            var re = new RegExp('"' + key + '"\\s*:');
+            assert.ok(
+                re.test(src),
+                'expected "' + key + '" key in getCoreEnv reps — missing key causes ${' + key + '} to remain unreplaced in env.json'
+            );
+        });
+    });
+
+    it('bundlesPath is pre-computed as a local var and referenced in reps (not a forward reference)', function () {
+        var src = fs.readFileSync(HELPER_CMD_SOURCE, 'utf8');
+        // var bundlesPath = ... must exist
+        assert.ok(/var bundlesPath\s*=/.test(src), 'expected `var bundlesPath =` pre-computation in getCoreEnv');
+        // "bundlesPath" : bundlesPath  — reps references the local variable
+        assert.ok(/"bundlesPath"\s*:\s*bundlesPath/.test(src), 'expected `"bundlesPath" : bundlesPath` in reps');
+    });
+
+    it('homedir is pre-computed as a local var and referenced in reps', function () {
+        var src = fs.readFileSync(HELPER_CMD_SOURCE, 'utf8');
+        assert.ok(/var homedir\s*=/.test(src), 'expected `var homedir =` pre-computation in getCoreEnv');
+        assert.ok(/"homedir"\s*:\s*homedir/.test(src), 'expected `"homedir" : homedir` in reps');
+    });
+
+    it('cachePath is pre-computed as a local var and referenced in reps', function () {
+        var src = fs.readFileSync(HELPER_CMD_SOURCE, 'utf8');
+        assert.ok(/var cachePath\s*=/.test(src), 'expected `var cachePath =` pre-computation in getCoreEnv');
+        assert.ok(/"cachePath"\s*:\s*cachePath/.test(src), 'expected `"cachePath" : cachePath` in reps');
+    });
+
+    it('documents the whisper single-pass limitation in a comment', function () {
+        var src = fs.readFileSync(HELPER_CMD_SOURCE, 'utf8');
+        assert.ok(
+            /whisper.*single.pass|single.pass.*whisper|pre.comput/i.test(src),
+            'expected a comment explaining whisper single-pass limitation in getCoreEnv'
+        );
+    });
+
 });
