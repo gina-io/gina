@@ -108,6 +108,29 @@ setEnvVar('GINA_FRAMEWORK_DIR', frameworkPath); // jshint ignore:line
 setEnvVar('GINA_CORE',          frameworkPath + '/core'); // jshint ignore:line
 setEnvVar('GINA_IS_WIN32',      false, true); // jshint ignore:line
 
+// ── 3b. Sync main.json def_framework ─────────────────────────────────────────
+// Mirrors the same sync in bin/cli. gina-container bypasses bin/cli entirely,
+// so without this block the def_framework would stay stale after a version bump
+// or branch switch, causing def_framework_short mismatches in cmd metadata lookups.
+var _mainJsonPath = home + '/main.json';
+if (fs.existsSync(_mainJsonPath)) {
+    try {
+        var _mainData = JSON.parse(fs.readFileSync(_mainJsonPath, 'utf8'));
+        if (_mainData.def_framework !== version) {
+            process.stdout.write('[gina-container] def_framework: ' + (_mainData.def_framework || 'unset') + ' → ' + version + '\n');
+            _mainData.def_framework = version;
+            if (!_mainData.frameworks) { _mainData.frameworks = {}; }
+            if (!_mainData.frameworks[shortVersion]) { _mainData.frameworks[shortVersion] = []; }
+            if (_mainData.frameworks[shortVersion].indexOf(version) < 0) {
+                _mainData.frameworks[shortVersion].push(version);
+            }
+            fs.writeFileSync(_mainJsonPath, JSON.stringify(_mainData, null, 4));
+        }
+    } catch(e) {
+        process.stdout.write('[gina-container] warn: could not sync def_framework — ' + (e.message || e) + '\n');
+    }
+}
+
 // ── 4. Parse argv: <bundle> @<project> ───────────────────────────────────────
 var rawArgs     = process.argv.slice(2);
 var bundleName  = null;

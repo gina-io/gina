@@ -151,6 +151,30 @@ async function onExec() {
 
         setEnvVar('GINA_LOG_LEVEL', settings['log_level']);// jshint ignore:line
         setEnvVar('GINA_VERSION', version);// jshint ignore:line
+
+        // Auto-sync main.json def_framework on bundle|project start|restart.
+        // Keeps the active framework version aligned with package.json regardless
+        // of which branch or worktree is currently checked out — no manual edit needed
+        // after a version bump or branch switch.
+        if ( /^(bundle|project):(start|restart)$/.test(process.argv[2]) ) {
+            var _mainJsonPath = home + '/main.json';
+            try {
+                var _mainData = requireJSON(_mainJsonPath);// jshint ignore:line
+                if ( _mainData.def_framework !== version ) {
+                    process.stdout.write('[gina] def_framework: ' + (_mainData.def_framework || 'unset') + ' → ' + version + '\n');
+                    _mainData.def_framework = version;
+                    if ( !_mainData.frameworks ) { _mainData.frameworks = {}; }
+                    if ( !_mainData.frameworks[shortVersion] ) { _mainData.frameworks[shortVersion] = []; }
+                    if ( _mainData.frameworks[shortVersion].indexOf(version) < 0 ) {
+                        _mainData.frameworks[shortVersion].push(version);
+                    }
+                    generator.createFileFromDataSync(_mainData, _mainJsonPath);// jshint ignore:line
+                }
+            } catch(e) {
+                process.stdout.write('[gina] warn: could not sync def_framework — ' + (e.message || e) + '\n');
+            }
+        }
+
         setEnvVar('GINA_RUNDIR', settings['rundir']);// jshint ignore:line
         setEnvVar('GINA_LOGDIR', settings['logdir']);// jshint ignore:line
         setEnvVar('GINA_TMPDIR', settings['tmpdir']);// jshint ignore:line

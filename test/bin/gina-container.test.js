@@ -293,3 +293,104 @@ describe('04 - gina-container: context JSON structure', function() {
     });
 
 });
+
+
+// ---------------------------------------------------------------------------
+// 05 — Source: def_framework sync block is present in gina-container (§3b)
+// ---------------------------------------------------------------------------
+describe('05 - gina-container: def_framework sync block (§3b)', function() {
+
+    it('def_framework sync block is present in source', function() {
+        var src = fs.readFileSync(CONTAINER_SOURCE, 'utf8');
+        assert.ok(
+            /def_framework/.test(src),
+            'expected def_framework sync block in gina-container'
+        );
+    });
+
+    it('compares _mainData.def_framework !== version before updating', function() {
+        var src = fs.readFileSync(CONTAINER_SOURCE, 'utf8');
+        assert.ok(
+            /_mainData\.def_framework\s*!==\s*version/.test(src),
+            'expected `_mainData.def_framework !== version` guard in gina-container §3b'
+        );
+    });
+
+    it('reads main.json from the gina home directory', function() {
+        var src = fs.readFileSync(CONTAINER_SOURCE, 'utf8');
+        assert.ok(
+            /main\.json/.test(src),
+            'expected main.json path in gina-container def_framework sync'
+        );
+    });
+
+    it('updates frameworks[shortVersion] array when syncing', function() {
+        var src = fs.readFileSync(CONTAINER_SOURCE, 'utf8');
+        assert.ok(
+            /frameworks\[shortVersion\]/.test(src),
+            'expected frameworks[shortVersion] update in gina-container §3b'
+        );
+    });
+
+    it('writes the updated main.json via fs.writeFileSync', function() {
+        var src = fs.readFileSync(CONTAINER_SOURCE, 'utf8');
+        assert.ok(
+            /fs\.writeFileSync\(_mainJsonPath/.test(src),
+            'expected fs.writeFileSync(_mainJsonPath...) in gina-container §3b'
+        );
+    });
+
+    it('emits a stdout warning on sync error', function() {
+        var src = fs.readFileSync(CONTAINER_SOURCE, 'utf8');
+        assert.ok(
+            /could not sync def_framework/.test(src),
+            'expected "could not sync def_framework" warning in gina-container §3b'
+        );
+    });
+
+    it('pure logic: sync is skipped when def_framework already matches version', function() {
+        var version = '0.3.0-alpha.1';
+        var mainData = { def_framework: '0.3.0-alpha.1', frameworks: { '0.3': ['0.3.0-alpha.1'] } };
+        var updated = false;
+        if (mainData.def_framework !== version) {
+            mainData.def_framework = version;
+            updated = true;
+        }
+        assert.equal(updated, false);
+        assert.equal(mainData.def_framework, '0.3.0-alpha.1');
+    });
+
+    it('pure logic: def_framework is updated when stale', function() {
+        var version = '0.3.0-alpha.1';
+        var shortVersion = '0.3';
+        var mainData = { def_framework: '0.2.1-alpha.3', frameworks: { '0.2': ['0.2.1-alpha.3'] } };
+        if (mainData.def_framework !== version) {
+            mainData.def_framework = version;
+            if (!mainData.frameworks) { mainData.frameworks = {}; }
+            if (!mainData.frameworks[shortVersion]) { mainData.frameworks[shortVersion] = []; }
+            if (mainData.frameworks[shortVersion].indexOf(version) < 0) {
+                mainData.frameworks[shortVersion].push(version);
+            }
+        }
+        assert.equal(mainData.def_framework, '0.3.0-alpha.1');
+        assert.ok(mainData.frameworks['0.3'].indexOf('0.3.0-alpha.1') > -1);
+    });
+
+    it('pure logic: version is not duplicated when already in frameworks array', function() {
+        var version = '0.3.0-alpha.1';
+        var shortVersion = '0.3';
+        var mainData = {
+            def_framework: '0.2.1-alpha.3',
+            frameworks: { '0.3': ['0.3.0-alpha.1'] }
+        };
+        if (mainData.def_framework !== version) {
+            mainData.def_framework = version;
+            if (!mainData.frameworks[shortVersion]) { mainData.frameworks[shortVersion] = []; }
+            if (mainData.frameworks[shortVersion].indexOf(version) < 0) {
+                mainData.frameworks[shortVersion].push(version);
+            }
+        }
+        assert.equal(mainData.frameworks['0.3'].filter(function(v) { return v === version; }).length, 1);
+    });
+
+});

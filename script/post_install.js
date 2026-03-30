@@ -782,6 +782,30 @@ function PostInstall() {
         }
 
 
+        // Sync main.json def_framework to the installed version.
+        // post_install is the canonical moment when a new version lands on disk — keep
+        // def_framework in sync here so the CLI, cmd handlers, and framework:init all
+        // agree on which version is active without requiring a manual edit or a
+        // bundle:start to trigger the bin/cli safety-net sync.
+        var _mainJsonPath = _(getUserHome() + '/.gina/main.json', true);
+        if ( fs.existsSync(_mainJsonPath) ) {
+            try {
+                var _mainData = JSON.parse( fs.readFileSync(_mainJsonPath, 'utf8') );
+                if ( _mainData.def_framework !== self.version ) {
+                    console.info('Updating def_framework: ' + (_mainData.def_framework || 'unset') + ' → ' + self.version);
+                    _mainData.def_framework = self.version;
+                    if ( !_mainData.frameworks ) { _mainData.frameworks = {}; }
+                    if ( !_mainData.frameworks[self.shortVersion] ) { _mainData.frameworks[self.shortVersion] = []; }
+                    if ( _mainData.frameworks[self.shortVersion].indexOf(self.version) < 0 ) {
+                        _mainData.frameworks[self.shortVersion].push(self.version);
+                    }
+                    fs.writeFileSync(_mainJsonPath, JSON.stringify(_mainData, null, 4));
+                }
+            } catch(e) {
+                console.warn('Could not sync def_framework in main.json: ' + (e.message || e));
+            }
+        }
+
         // Update middleware file
         var filename = _(self.versionPath) + '/MIDDLEWARE';
         var msg = "Gina's command line tool has been installed.";
