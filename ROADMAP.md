@@ -44,7 +44,7 @@ This roadmap covers planned features, architectural improvements, new connectors
 
 | Status | Feature | Version | Target |
 | --- | --- | --- | --- |
-| ✅ | **Promise adapter for entity calls** — `entityCall(emitter)` wraps the EventEmitter `.onComplete(cb)` pattern in a Promise. Controllers can switch to `async/await` immediately without rewriting entities. | `0.3.0` | 2026-03-29 |
+| ✅ | **Promise adapter for onComplete calls** — `onCompleteCall(emitter)` wraps the EventEmitter `.onComplete(cb)` pattern in a Promise. Controllers can switch to `async/await` immediately without rewriting entities. | `0.3.0` | 2026-03-29 |
 | ✅ | **Async controller actions** — Controller actions can be declared `async`. The router attaches `.catch()` to any thenable returned by an action; rejections are routed to `throwError(response, 500, ...)`. | `0.3.0` | 2026-03-29 |
 
 ### Phase 3 — Dev Tooling
@@ -262,4 +262,4 @@ Standalone gina dev and admin tool. A dedicated browser-tab app (`services/src/b
 
 ---
 
-*Last updated: 2026-03-29 (Async controller actions and entityCall shipped in 0.3.0) · To suggest a feature, [open an issue](https://github.com/gina-io/gina/issues).*
+*Last updated: 2026-03-29 (Async controller actions and onCompleteCall shipped in 0.3.0) · To suggest a feature, [open an issue](https://github.com/gina-io/gina/issues).*
