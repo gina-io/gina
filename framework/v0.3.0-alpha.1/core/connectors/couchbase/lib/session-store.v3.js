@@ -267,7 +267,7 @@ module.exports = function(session, bundle){
         this.client
                 .remove(sid)
                 // CB-BUG-4 fix: same as session-store.v4.js — .then(fn) passes
-                // MutationResult as fn's first arg. Call fn(null) explicitly on success.
+                // MutationResult as fn's first arg. Call fn(null) explicitly on success. (#CB-BUG-4)
                 .then(function onResult() { fn(null); })
                 .catch(fn)
     };
@@ -313,7 +313,7 @@ module.exports = function(session, bundle){
         this.client
             .upsert(sid, sess, {expiry:ttl})
             // CB-BUG-4 fix: same as session-store.v4.js — .then(fn.apply(this,arguments))
-            // passed MutationResult as fn's first arg (error). Call fn(null) explicitly.
+            // passed MutationResult as fn's first arg (error). Call fn(null) explicitly. (#CB-BUG-4)
             .then(function onResult() {
                 fn && fn(null);
             })
