@@ -1737,6 +1737,7 @@ function Server(options) {
         // by default
         var filename        = bundleConf.publicPath + pathname;
         var isFilenameDir   = null
+            , stat          = null
             , dirname       = null
             , isBinary      = null
             , isHandler     = null
@@ -1785,7 +1786,8 @@ function Server(options) {
                 return throwError(response, 404, 'Page not found: \n' + pathname, next);
             }
 
-            isFilenameDir = fs.statSync(filename).isDirectory();
+            stat = fs.statSync(filename);
+            isFilenameDir = stat.isDirectory();
             if ( isFilenameDir ) {
                 dirname = request.url;
                 filename += 'index.html';
@@ -1851,6 +1853,29 @@ function Server(options) {
                 }
 
                 if (!response.headersSent) {
+
+                    // ETag + Last-Modified for conditional GET (#Next)
+                    var lastModified = stat.mtime.toUTCString();
+                    var etag = '"' + stat.size + '-' + stat.mtime.getTime() + '"';
+
+                    // 304 Not Modified — only in production (dev always re-serves for live reload)
+                    if (!isCacheless) {
+                        var ifNoneMatch     = request.headers['if-none-match'];
+                        var ifModifiedSince = request.headers['if-modified-since'];
+                        var isNotModified   = (ifNoneMatch && ifNoneMatch === etag)
+                                            || (!ifNoneMatch && ifModifiedSince && new Date(ifModifiedSince) >= stat.mtime);
+                        if (isNotModified) {
+                            if ( /http\/2/.test(protocol) ) {
+                                stream.respond({ ':status': 304 });
+                                stream.end();
+                            } else {
+                                response.writeHead(304);
+                                response.end();
+                            }
+                            console.info(request.method +' [304] '+ pathname);
+                            return;
+                        }
+                    }
 
                     isBinary    = true;
                     isHandler   = false;
@@ -2058,6 +2083,10 @@ function Server(options) {
                                 header['cache-control'] = 'no-cache, no-store, must-revalidate';
                                 header['pragma'] = 'no-cache';
                                 header['expires'] = '0';
+                            } else {
+                                // production: ETag + Last-Modified enable conditional GET (304) (#Next)
+                                header['last-modified'] = lastModified;
+                                header['etag'] = etag;
                             }
 
                             header  = completeHeaders(header, request, response);
@@ -2120,7 +2149,11 @@ function Server(options) {
                                 });
 
                             } else {
-                                response.writeHead(200)
+                                // production: ETag + Last-Modified enable conditional GET (304) (#Next)
+                                response.writeHead(200, {
+                                    'last-modified': lastModified,
+                                    'etag': etag
+                                });
                             }
 
 
