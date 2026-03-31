@@ -526,25 +526,34 @@ module.exports = async function render(userData, displayToolbar, errOptions, dep
             && typeof(data.page.data.error) != 'undefined'
         ) {
 
+            // Normalize error/message to strings — upstream may send objects (e.g. ApiError
+            // instances or plain {message, code} objects). Without normalization the error
+            // page renders "[object Object]" as the title. (#Q2)
+            var _errDetail = data.page.data.error || data.page.data.message;
+            if ( _errDetail && typeof(_errDetail) === 'object' ) {
+                _errDetail = _errDetail.message || _errDetail.error || JSON.stringify(_errDetail);
+            }
+            var _msgDetail = data.page.data.message;
+            if ( _msgDetail && typeof(_msgDetail) === 'object' ) {
+                _msgDetail = _msgDetail.message || _msgDetail.error || JSON.stringify(_msgDetail);
+            }
+
             var errorObject = {
                 status  : data.page.data.status,
                 // replaced: statusCodes[data.page.data.status] first — always truthy for known
                 // codes, so actual coreapi error reason was always buried. Prioritize the actual
                 // error/message from the upstream response; fall back to generic status label. (#Q1)
-                error   : data.page.data.error || data.page.data.message || statusCodes[data.page.data.status] || msg,
-                message : data.page.data.message || data.page.data.error,
+                // Normalized to string before use — upstream objects would otherwise render as
+                // "[object Object]". (#Q2)
+                error   : _errDetail || _msgDetail || statusCodes[data.page.data.status] || msg,
+                message : _msgDetail || _errDetail,
                 stack   : data.page.data.stack
             };
             if ( typeof(data.page.data.session) != 'undefined' ) {
                 errorObject.session = data.page.data.session;
             }
-
-            // Log the actual error here so it appears in the bundle log before throwError
-            // absorbs it — throwError may only show the generic status label otherwise. (#Q1)
-            var _errDetail = data.page.data.error || data.page.data.message;
-            if ( _errDetail && typeof(_errDetail) === 'object' ) {
-                _errDetail = _errDetail.message || _errDetail.error || JSON.stringify(_errDetail);
-            }
+            // Log before throwError so the actual error reason appears in the bundle log
+            // — throwError may only surface the generic status label otherwise. (#Q1)
             console.error(
                 '[render] '+ data.page.data.status +' from upstream'
                 + ( _errDetail ? ' — ' + _errDetail : '' )

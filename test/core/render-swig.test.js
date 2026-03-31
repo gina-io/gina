@@ -109,23 +109,30 @@ describe('03 - async fs.promises calls are present', function() {
 });
 
 
-// 04 — Error field priority: actual upstream error over generic statusCodes label (#Q1)
-describe('04 - error field priority: data.page.data.error wins over statusCodes[status] (#Q1)', function() {
+// 04 — Error field priority: actual upstream error over generic statusCodes label (#Q1 / #Q2)
+describe('04 - error field priority: data.page.data.error wins over statusCodes[status] (#Q1/#Q2)', function() {
 
-    it('errorObject.error is built with data.page.data.error first', function() {
+    it('_errDetail is assigned from data.page.data.error first', function() {
         var src = fs.readFileSync(SOURCE, 'utf8');
         assert.ok(
-            /error\s*:\s*data\.page\.data\.error\s*\|\|/.test(src),
-            'expected `error: data.page.data.error ||` — actual upstream error must take priority (#Q1)'
+            /var _errDetail\s*=\s*data\.page\.data\.error\s*\|\|/.test(src),
+            'expected `var _errDetail = data.page.data.error ||` — normalization must start from the actual error (#Q2)'
         );
     });
 
-    it('statusCodes[...] is used as fallback only (after ||)', function() {
+    it('errorObject.error is built with _errDetail first (normalized string)', function() {
         var src = fs.readFileSync(SOURCE, 'utf8');
-        // The replaced pattern had statusCodes first — verify it now comes after ||
         assert.ok(
-            /data\.page\.data\.error\s*\|\|.*statusCodes\[/.test(src),
-            'expected statusCodes[...] after data.page.data.error || in the error field (#Q1)'
+            /error\s*:\s*_errDetail\s*\|\|/.test(src),
+            'expected `error: _errDetail ||` — normalized string must be used, not raw data.page.data.error (#Q2)'
+        );
+    });
+
+    it('statusCodes[...] is used as fallback only (after || _errDetail || _msgDetail)', function() {
+        var src = fs.readFileSync(SOURCE, 'utf8');
+        assert.ok(
+            /_errDetail\s*\|\|.*statusCodes\[/.test(src),
+            'expected statusCodes[...] after _errDetail || in the error field (#Q1)'
         );
     });
 
@@ -207,6 +214,92 @@ describe('05 - console.error fires before throwError in error interception block
             errLogIdx < throwErrIdx,
             'console.error must appear before return self.throwError(errorObject) (#Q1)'
         );
+    });
+
+});
+
+
+// 06 — Object error normalization: upstream object errors do not render as "[object Object]" (#Q2)
+describe('06 - object error normalization: error/message objects coerced to strings (#Q2)', function() {
+
+    it('#Q2 marker is present in source', function() {
+        var src = fs.readFileSync(SOURCE, 'utf8');
+        assert.ok(
+            src.indexOf('#Q2') > -1,
+            'expected #Q2 marker — comment convention not applied'
+        );
+    });
+
+    it('normalization guard checks typeof _errDetail === object', function() {
+        var src = fs.readFileSync(SOURCE, 'utf8');
+        assert.ok(
+            /typeof\(_errDetail\)\s*===\s*'object'/.test(src),
+            'expected typeof(_errDetail) === \'object\' guard for normalization (#Q2)'
+        );
+    });
+
+    it('normalization guard checks typeof _msgDetail === object', function() {
+        var src = fs.readFileSync(SOURCE, 'utf8');
+        assert.ok(
+            /typeof\(_msgDetail\)\s*===\s*'object'/.test(src),
+            'expected typeof(_msgDetail) === \'object\' guard for normalization (#Q2)'
+        );
+    });
+
+    it('normalization appears before errorObject construction in source', function() {
+        var src = fs.readFileSync(SOURCE, 'utf8');
+        var normIdx = src.indexOf('var _errDetail = data.page.data.error');
+        var objIdx  = src.indexOf('var errorObject = {');
+        assert.ok(normIdx > -1, 'var _errDetail assignment not found');
+        assert.ok(objIdx  > -1, 'var errorObject = { not found');
+        assert.ok(
+            normIdx < objIdx,
+            '_errDetail normalization must appear before errorObject construction (#Q2)'
+        );
+    });
+
+    it('pure logic: object error is coerced via .message', function() {
+        var raw = { message: 'upstream timeout', code: 503 };
+        var errDetail = raw;
+        if (errDetail && typeof errDetail === 'object') {
+            errDetail = errDetail.message || errDetail.error || JSON.stringify(errDetail);
+        }
+        assert.equal(errDetail, 'upstream timeout');
+    });
+
+    it('pure logic: object error falls back to .error when .message absent', function() {
+        var raw = { error: 'service unavailable' };
+        var errDetail = raw;
+        if (errDetail && typeof errDetail === 'object') {
+            errDetail = errDetail.message || errDetail.error || JSON.stringify(errDetail);
+        }
+        assert.equal(errDetail, 'service unavailable');
+    });
+
+    it('pure logic: object error falls back to JSON.stringify when both absent', function() {
+        var raw = { code: 503, reason: 'quota exceeded' };
+        var errDetail = raw;
+        if (errDetail && typeof errDetail === 'object') {
+            errDetail = errDetail.message || errDetail.error || JSON.stringify(errDetail);
+        }
+        assert.equal(errDetail, JSON.stringify(raw));
+    });
+
+    it('pure logic: string error passes through unchanged', function() {
+        var raw = 'plain string error';
+        var errDetail = raw;
+        if (errDetail && typeof errDetail === 'object') {
+            errDetail = errDetail.message || errDetail.error || JSON.stringify(errDetail);
+        }
+        assert.equal(errDetail, 'plain string error');
+    });
+
+    it('pure logic: null/undefined error does not trigger normalization', function() {
+        var errDetail = null;
+        if (errDetail && typeof errDetail === 'object') {
+            errDetail = errDetail.message || errDetail.error || JSON.stringify(errDetail);
+        }
+        assert.equal(errDetail, null);
     });
 
 });
