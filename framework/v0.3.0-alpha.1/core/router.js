@@ -106,6 +106,9 @@ function Router(env, scope) {
      *  - {core}/controller/controller.js
      */
     var refreshCoreDependencies= function() {
+        var _hotReload = getContext('__hotReload');
+        // #M6 — if watcher is running and core files have not changed, skip eviction
+        if (_hotReload && !_hotReload.core) return;
 
         var corePath    = getPath('gina').core;
 
@@ -119,6 +122,7 @@ function Router(env, scope) {
 
         SuperController = require.cache[_(corePath +'/controller/index.js', true)];
 
+        if (_hotReload) _hotReload.core = false; // #M6 — clear flag after eviction
         corePath = null;
     }
 
@@ -520,13 +524,19 @@ function Router(env, scope) {
             setupFileObj = null;
 
             if (isCacheless) {
-                if (hasControllerNamespace) {
-                    delete require.cache[require.resolve(_(mainControllerFile, true))];
-                }
-                delete require.cache[require.resolve(_(controllerFile, true))];
+                var _hotReload = getContext('__hotReload');
+                // #M6 — only evict when watcher not running (fallback) or a controller changed
+                if (!_hotReload || _hotReload.action) {
+                    if (hasControllerNamespace) {
+                        delete require.cache[require.resolve(_(mainControllerFile, true))];
+                    }
+                    delete require.cache[require.resolve(_(controllerFile, true))];
 
-                if ( hasSetup )
-                    delete require.cache[require.resolve(_(setupFile, true))];
+                    if ( hasSetup )
+                        delete require.cache[require.resolve(_(setupFile, true))];
+
+                    if (_hotReload) _hotReload.action = false; // #M6 — clear flag after eviction
+                }
             }
             if (hasControllerNamespace) {
                 MainController = require(_(mainControllerFile, true));
