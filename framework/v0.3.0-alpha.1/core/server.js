@@ -1632,12 +1632,13 @@ function Server(options) {
                     if ( /(.js|.css)$/.test(asset.filename) && fs.existsSync(asset.filename +'.map') ) {
                         //pathname = asset.filename +'.map';
                         pathname = headers[':path'] +'.map';
-                        // serve without cache
                         header['X-SourceMap'] = pathname;
-                        header['cache-control'] = 'no-cache, no-store, must-revalidate';
-                        header['pragma'] = 'no-cache';
-                        header['expires'] = '0';
                     }
+                    // replaced: cache-control was only set for source-mapped .js/.css —
+                    // same bug as the handleStatics HTTP/2 path. Apply to all pushed assets.
+                    header['cache-control'] = 'no-cache, no-store, must-revalidate';
+                    header['pragma'] = 'no-cache';
+                    header['expires'] = '0';
                 }
 
                 if (responseHeaders) {
@@ -2048,12 +2049,15 @@ function Server(options) {
                                 if ( /(.js|.css)$/.test(filename) && fs.existsSync(filename +'.map') && !/sourceMappingURL/.test(file) ) {
                                     //pathname = pathname +'.map';
                                     pathname = webroot + pathname.substring(1) +'.map';
-                                    // serve without cache
                                     header['X-SourceMap'] = pathname;
-                                    header['cache-control'] = 'no-cache, no-store, must-revalidate';
-                                    header['pragma'] = 'no-cache';
-                                    header['expires'] = '0';
                                 }
+                                // replaced: cache-control was only set for source-mapped .js/.css —
+                                // all other static types (HTML, fonts, images) got no cache headers
+                                // in HTTP/2 dev mode, causing heuristic freshness. Now applied to
+                                // all statics, matching the HTTP/1.x dev path behaviour.
+                                header['cache-control'] = 'no-cache, no-store, must-revalidate';
+                                header['pragma'] = 'no-cache';
+                                header['expires'] = '0';
                             }
 
                             header  = completeHeaders(header, request, response);
