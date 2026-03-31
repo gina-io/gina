@@ -1109,6 +1109,63 @@ function SuperController(options) {
 
 
     /**
+     * Send a 103 Early Hints informational response (#EH1).
+     *
+     * Call this at the start of a controller action, before the terminal
+     * method (render, renderJSON, etc.), to hint the client about resources
+     * it will need so the browser can start preloading while the server is
+     * still preparing the final response.
+     *
+     *   HTTP/2  — `stream.additionalHeaders({ ':status': 103, link: '...' })`
+     *   HTTP/1.1 — `res.writeEarlyHints({ link: '...' })` (Node.js 18.11+)
+     *
+     * Silently no-ops when:
+     *   - `links` is falsy or an empty array / string
+     *   - headers have already been sent (guards against double-call)
+     *   - the runtime does not support `writeEarlyHints` (Node < 18.11)
+     *   - any internal error occurs (103 is best-effort, never fatal)
+     *
+     * Returns `self` for optional chaining.
+     *
+     * @param {string|string[]} links
+     *   Link header value(s), e.g.:
+     *     '<https://cdn.example.com/app.css>; rel=preload; as=style'
+     *     or an array of such strings (joined with ', ' into one header).
+     * @returns {object} self
+     */
+    this.setEarlyHints = function(links) {
+        if (!links) return self;
+
+        var _res  = local.res;
+        var _link;
+
+        if (Array.isArray(links)) {
+            _link = links.filter(Boolean).join(', ');
+        } else {
+            _link = String(links).trim();
+        }
+
+        if (!_link) return self;
+        if (headersSent(_res)) return self;
+
+        try {
+            // HTTP/2 — stream.additionalHeaders() sends a HEADERS frame with :status 103
+            if (_res.stream && !_res.stream.headersSent) {
+                _res.stream.additionalHeaders({ ':status': 103, 'link': _link });
+            } else if (typeof _res.writeEarlyHints === 'function') {
+                // HTTP/1.1 — available since Node.js 18.11.0
+                _res.writeEarlyHints({ 'link': _link });
+            }
+            // else: silently no-op on older Node.js
+        } catch(e) {
+            // 103 is best-effort — never let a hint failure affect the main response
+        }
+
+        return self;
+    };
+
+
+    /**
      * Set method - Override current method
      * E.g.: in case of redirect, to force PUT to GET
      *
