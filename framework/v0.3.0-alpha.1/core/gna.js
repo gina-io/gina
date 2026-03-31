@@ -809,20 +809,43 @@ isBundleMounted(projects, bundlesPath, getContext('bundle'), function onBundleMo
                 // #R1 — start user-defined watchers declared in watchers.json via WatcherService.
                 // conf.watchers is the parsed content of the bundle's watchers.json (auto-loaded
                 // by config.js). conf.bundlePath is the absolute bundle source directory.
-                // Framework internal watchers (#M6) will register against gna.watcher using
-                // WatcherService.register() before calling start().
+                // #M6 — in dev mode the WatcherService is always started even without a
+                // watchers.json, so the router can skip require.cache eviction on requests
+                // where no file has changed (file-change-triggered eviction).
                 var _watchersConf = (conf && conf.watchers && typeof conf.watchers === 'object')
                     ? conf.watchers
                     : null;
                 var _hasUserWatchers = _watchersConf && Object.keys(_watchersConf).some(function(k) {
                     return k.charAt(0) !== '$';
                 });
-                if (_hasUserWatchers && lib.Watcher) {
-                    var _watcher    = new lib.Watcher();
-                    var _configDir  = conf.bundlePath + '/config';
-                    _watcher.load(_configDir, _watchersConf);
+                if (lib.Watcher && (isDev || _hasUserWatchers)) {
+                    var _watcher   = new lib.Watcher();
+                    var _configDir = conf.bundlePath + '/config';
+
+                    if (isDev) {
+                        // #M6 — register core controller files and the bundle controllers
+                        // directory. The router checks __hotReload dirty flags instead of
+                        // evicting require.cache on every request.
+                        var _hotDirty = { core: false, action: false };
+                        setContext('__hotReload', _hotDirty);
+
+                        var _corePath = getPath('gina').core;
+                        _watcher.register('__hot_core_controller__', _corePath + '/controller/controller.js');
+                        _watcher.on('__hot_core_controller__', function() { _hotDirty.core = true; });
+
+                        _watcher.register('__hot_core_swig__', _corePath + '/controller/controller.render-swig.js');
+                        _watcher.on('__hot_core_swig__', function() { _hotDirty.core = true; });
+
+                        _watcher.register('__hot_controllers__', conf.bundlePath + '/controllers');
+                        _watcher.on('__hot_controllers__', function() { _hotDirty.action = true; });
+                    }
+
+                    if (_hasUserWatchers) {
+                        _watcher.load(_configDir, _watchersConf);
+                    }
+
                     _watcher.start();
-                    // expose so #M6 and user bundle code can register against the same service
+                    // expose so #M6 and user bundle code can register against the same instance
                     gna.watcher = _watcher;
                 }
                 callback()
