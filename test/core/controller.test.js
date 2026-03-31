@@ -218,6 +218,32 @@ describe('04 - source structure: setEarlyHints (#EH1)', function() {
         assert.ok(block.indexOf('return self') > -1, 'expected `return self` for chaining');
     });
 
+    it('render() auto-sends 103 from h2Links before delegating to render-swig', function() {
+        var src         = fs.readFileSync(SOURCE, 'utf8');
+        var renderStart = src.indexOf('this.render = function (userData');
+        var renderEnd   = src.indexOf('\n    }', renderStart) + 6; // closing brace of render
+        var block       = src.slice(renderStart, renderEnd);
+        assert.ok(
+            block.indexOf('_h2Links') > -1,
+            'expected h2Links auto-hint block inside render()'
+        );
+        assert.ok(
+            block.indexOf('setEarlyHints(_hints)') > -1,
+            'expected self.setEarlyHints(_hints) call inside render()'
+        );
+    });
+
+    it('render() auto-hint trims trailing comma from h2Links', function() {
+        var src         = fs.readFileSync(SOURCE, 'utf8');
+        var renderStart = src.indexOf('this.render = function (userData');
+        var renderEnd   = src.indexOf('\n    }', renderStart) + 6;
+        var block       = src.slice(renderStart, renderEnd);
+        assert.ok(
+            block.indexOf('.slice(0, -1)') > -1,
+            'expected trailing comma trim (.slice(0, -1)) in render() auto-hint'
+        );
+    });
+
 });
 
 
@@ -373,6 +399,71 @@ describe('05 - setEarlyHints: pure logic', function() {
         assert.doesNotThrow(function() {
             env.setEarlyHints('</x>; rel=preload; as=style');
         });
+    });
+
+});
+
+
+// 06 — render() auto-hint from h2Links
+describe('06 - render() auto-hint from h2Links (#EH1)', function() {
+
+    // Minimal replica of the render() auto-hint block for isolated testing
+    function simulateRenderAutoHint(h2Links, hintsSent) {
+        var sent = [];
+
+        function setEarlyHints(hints) { sent.push(hints); return {}; }
+        function headersSent() { return false; }
+
+        // replica of the auto-hint block
+        var _h2Links = h2Links;
+        if (_h2Links) {
+            var _hints = /,$/.test(_h2Links) ? _h2Links.slice(0, -1) : _h2Links;
+            if (_hints) setEarlyHints(_hints);
+        }
+
+        return sent;
+    }
+
+    it('sends 103 with h2Links when populated', function() {
+        var sent = simulateRenderAutoHint('</css/app.css>; as=style; rel=preload,</js/app.js>; as=script; rel=preload,');
+        assert.equal(sent.length, 1);
+    });
+
+    it('trims trailing comma from h2Links before sending', function() {
+        var sent = simulateRenderAutoHint('</css/app.css>; as=style; rel=preload,');
+        assert.equal(sent[0], '</css/app.css>; as=style; rel=preload');
+    });
+
+    it('passes through value without trailing comma unchanged', function() {
+        var sent = simulateRenderAutoHint('</css/app.css>; as=style; rel=preload');
+        assert.equal(sent[0], '</css/app.css>; as=style; rel=preload');
+    });
+
+    it('multiple links are passed through as a single string', function() {
+        var sent = simulateRenderAutoHint('</a.css>; as=style; rel=preload,</b.js>; as=script; rel=preload,');
+        assert.equal(sent[0], '</a.css>; as=style; rel=preload,</b.js>; as=script; rel=preload');
+    });
+
+    it('no-ops when h2Links is empty string', function() {
+        var sent = simulateRenderAutoHint('');
+        assert.equal(sent.length, 0);
+    });
+
+    it('no-ops when h2Links is null', function() {
+        var sent = simulateRenderAutoHint(null);
+        assert.equal(sent.length, 0);
+    });
+
+    it('no-ops when h2Links is undefined', function() {
+        var sent = simulateRenderAutoHint(undefined);
+        assert.equal(sent.length, 0);
+    });
+
+    it('trailing-comma-only string results in empty hint — no send', function() {
+        // edge case: h2Links was set to just ',' (degenerate case)
+        var sent = simulateRenderAutoHint(',');
+        // after slice(0, -1) → '' → falsy → no send
+        assert.equal(sent.length, 0);
     });
 
 });
