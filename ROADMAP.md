@@ -52,7 +52,7 @@ This roadmap covers planned features, architectural improvements, new connectors
 | Status | Feature | Version | Target |
 | --- | --- | --- | --- |
 | ✅ | **File-watcher hot-reload** — Replace `delete require.cache` per-request with a `WatcherService` that evicts modules only on actual file change. Controllers and SQL files reload on save with zero per-request overhead. | `0.3.0-alpha.1` | 2026-03-30 |
-| 📋 | **SQL annotation parser** — Replace the single-pass regex for N1QL file parsing with a state-machine parser. Handles nested block comments and `--` in string literals correctly. | `0.3.0` | Q3 2026 |
+| ✅ | **SQL annotation parser** — Replace the single-pass regex for N1QL file parsing with a state-machine parser. Handles nested block comments and `--` in string literals correctly. | `0.3.0-alpha.1` | 2026-03-31 |
 
 ### Phase 4 — DX
 

@@ -7,10 +7,11 @@
  */
 'use strict';
 
-var fs      = require('fs');
-var lib     = require('./../../../lib') || require.cache[require.resolve('./../../../lib')];
-var inherits = lib.inherits;
-var console  = lib.logger;
+var fs        = require('fs');
+var sqlParser = require('./../sql-parser'); // #SQL1 state-machine comment stripper
+var lib       = require('./../../../lib') || require.cache[require.resolve('./../../../lib')];
+var inherits  = lib.inherits;
+var console   = lib.logger;
 
 /**
  * SQLite ORM connector — v2.
@@ -190,8 +191,9 @@ function Sqlite(conn, infos) {
         }
 
         // Strip comments, collapse whitespace
-        var queryString = rawSource
-            .replace(/(\/\*[\s\S]*?\*\/)|(\/\/[^\n]*)/g, '')
+        // #SQL1 — state-machine stripper handles nested block comments and
+        // -- / // inside string literals correctly (replaces single-pass regex)
+        var queryString = sqlParser.stripComments(rawSource)
             .replace(/\s+/g, ' ')
             .trim();
 
