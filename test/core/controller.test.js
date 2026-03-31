@@ -151,3 +151,319 @@ describe('03 - source structure: string += replaced with Array.push/join in setO
     });
 
 });
+
+
+// 04 — source structure: setEarlyHints (#EH1)
+describe('04 - source structure: setEarlyHints (#EH1)', function() {
+
+    it('setEarlyHints is defined in source', function() {
+        var src = fs.readFileSync(SOURCE, 'utf8');
+        assert.ok(
+            src.indexOf('this.setEarlyHints = function(') > -1,
+            'expected `this.setEarlyHints = function(` — #EH1 not applied'
+        );
+    });
+
+    it('source contains #EH1 marker', function() {
+        var src = fs.readFileSync(SOURCE, 'utf8');
+        assert.ok(src.indexOf('#EH1') > -1, 'expected #EH1 marker in source');
+    });
+
+    it('HTTP/2 path uses stream.additionalHeaders with :status 103', function() {
+        var src = fs.readFileSync(SOURCE, 'utf8');
+        assert.ok(
+            src.indexOf("':status': 103") > -1,
+            "expected `':status': 103` — HTTP/2 early-hints header missing"
+        );
+        assert.ok(
+            src.indexOf('additionalHeaders') > -1,
+            'expected `additionalHeaders` call for HTTP/2 early hints'
+        );
+    });
+
+    it('HTTP/1.1 path uses writeEarlyHints', function() {
+        var src = fs.readFileSync(SOURCE, 'utf8');
+        assert.ok(
+            src.indexOf('writeEarlyHints') > -1,
+            'expected `writeEarlyHints` — HTTP/1.1 early-hints path missing'
+        );
+    });
+
+    it('implementation is guarded by headersSent check', function() {
+        var src = fs.readFileSync(SOURCE, 'utf8');
+        // find setEarlyHints block
+        var start = src.indexOf('this.setEarlyHints = function(');
+        var end   = src.indexOf('\n    };', start) + 7;
+        var block = src.slice(start, end);
+        assert.ok(
+            block.indexOf('headersSent') > -1,
+            'expected headersSent guard inside setEarlyHints'
+        );
+    });
+
+    it('implementation wraps in try/catch so errors are swallowed', function() {
+        var src   = fs.readFileSync(SOURCE, 'utf8');
+        var start = src.indexOf('this.setEarlyHints = function(');
+        var end   = src.indexOf('\n    };', start) + 7;
+        var block = src.slice(start, end);
+        assert.ok(block.indexOf('try {') > -1, 'expected try/catch in setEarlyHints');
+        assert.ok(block.indexOf('catch') > -1,  'expected catch in setEarlyHints');
+    });
+
+    it('implementation returns self for chaining', function() {
+        var src   = fs.readFileSync(SOURCE, 'utf8');
+        var start = src.indexOf('this.setEarlyHints = function(');
+        var end   = src.indexOf('\n    };', start) + 7;
+        var block = src.slice(start, end);
+        assert.ok(block.indexOf('return self') > -1, 'expected `return self` for chaining');
+    });
+
+    it('render() auto-sends 103 from h2Links before delegating to render-swig', function() {
+        var src         = fs.readFileSync(SOURCE, 'utf8');
+        var renderStart = src.indexOf('this.render = function (userData');
+        var renderEnd   = src.indexOf('\n    }', renderStart) + 6; // closing brace of render
+        var block       = src.slice(renderStart, renderEnd);
+        assert.ok(
+            block.indexOf('_h2Links') > -1,
+            'expected h2Links auto-hint block inside render()'
+        );
+        assert.ok(
+            block.indexOf('setEarlyHints(_hints)') > -1,
+            'expected self.setEarlyHints(_hints) call inside render()'
+        );
+    });
+
+    it('render() auto-hint trims trailing comma from h2Links', function() {
+        var src         = fs.readFileSync(SOURCE, 'utf8');
+        var renderStart = src.indexOf('this.render = function (userData');
+        var renderEnd   = src.indexOf('\n    }', renderStart) + 6;
+        var block       = src.slice(renderStart, renderEnd);
+        assert.ok(
+            block.indexOf('.slice(0, -1)') > -1,
+            'expected trailing comma trim (.slice(0, -1)) in render() auto-hint'
+        );
+    });
+
+});
+
+
+// 05 — setEarlyHints: pure logic
+describe('05 - setEarlyHints: pure logic', function() {
+
+    // Minimal replica of the setEarlyHints body for isolated testing
+    function makeEarlyHintsEnv(opts) {
+        opts = opts || {};
+        var calls = { additionalHeaders: [], writeEarlyHints: [] };
+
+        var stream = opts.streamHeadersSent
+            ? { headersSent: true }
+            : (opts.noStream ? null : {
+                headersSent: false,
+                additionalHeaders: function(h) { calls.additionalHeaders.push(h); }
+            });
+
+        var res = {
+            stream: stream || undefined,
+            headersSent: opts.resHeadersSent || false,
+            writeEarlyHints: opts.noWriteEarlyHints ? undefined : function(h) { calls.writeEarlyHints.push(h); }
+        };
+
+        var self = {};
+
+        function headersSent(_res) {
+            _res = _res || res;
+            if (typeof _res.stream !== 'undefined' && _res.stream && _res.stream.headersSent === true) return true;
+            if (typeof _res.headersSent !== 'undefined') return _res.headersSent;
+            return false;
+        }
+
+        function setEarlyHints(links) {
+            if (!links) return self;
+            var _link;
+            if (Array.isArray(links)) { _link = links.filter(Boolean).join(', '); }
+            else { _link = String(links).trim(); }
+            if (!_link) return self;
+            if (headersSent(res)) return self;
+            try {
+                if (res.stream && !res.stream.headersSent) {
+                    res.stream.additionalHeaders({ ':status': 103, 'link': _link });
+                } else if (typeof res.writeEarlyHints === 'function') {
+                    res.writeEarlyHints({ 'link': _link });
+                }
+            } catch(e) {}
+            return self;
+        }
+
+        return { calls: calls, res: res, self: self, setEarlyHints: setEarlyHints };
+    }
+
+    it('HTTP/2: calls stream.additionalHeaders with :status 103 and link', function() {
+        var env = makeEarlyHintsEnv();
+        env.setEarlyHints('</app.css>; rel=preload; as=style');
+        assert.equal(env.calls.additionalHeaders.length, 1);
+        assert.equal(env.calls.additionalHeaders[0][':status'], 103);
+        assert.equal(env.calls.additionalHeaders[0]['link'], '</app.css>; rel=preload; as=style');
+    });
+
+    it('HTTP/2: does not call writeEarlyHints when stream is present', function() {
+        var env = makeEarlyHintsEnv();
+        env.setEarlyHints('</app.css>; rel=preload; as=style');
+        assert.equal(env.calls.writeEarlyHints.length, 0);
+    });
+
+    it('HTTP/1.1: calls writeEarlyHints when no stream', function() {
+        var env = makeEarlyHintsEnv({ noStream: true });
+        env.setEarlyHints('</app.css>; rel=preload; as=style');
+        assert.equal(env.calls.writeEarlyHints.length, 1);
+        assert.equal(env.calls.writeEarlyHints[0]['link'], '</app.css>; rel=preload; as=style');
+    });
+
+    it('HTTP/1.1: no-ops silently when writeEarlyHints is not a function', function() {
+        var env = makeEarlyHintsEnv({ noStream: true, noWriteEarlyHints: true });
+        assert.doesNotThrow(function() {
+            env.setEarlyHints('</app.css>; rel=preload; as=style');
+        });
+        assert.equal(env.calls.writeEarlyHints.length, 0);
+    });
+
+    it('array of links is joined with ", "', function() {
+        var env = makeEarlyHintsEnv();
+        env.setEarlyHints(['</app.css>; rel=preload; as=style', '</app.js>; rel=preload; as=script']);
+        assert.equal(
+            env.calls.additionalHeaders[0]['link'],
+            '</app.css>; rel=preload; as=style, </app.js>; rel=preload; as=script'
+        );
+    });
+
+    it('null input: no-ops and returns self', function() {
+        var env = makeEarlyHintsEnv();
+        var result = env.setEarlyHints(null);
+        assert.strictEqual(result, env.self);
+        assert.equal(env.calls.additionalHeaders.length, 0);
+    });
+
+    it('undefined input: no-ops and returns self', function() {
+        var env = makeEarlyHintsEnv();
+        var result = env.setEarlyHints(undefined);
+        assert.strictEqual(result, env.self);
+        assert.equal(env.calls.additionalHeaders.length, 0);
+    });
+
+    it('empty string: no-ops', function() {
+        var env = makeEarlyHintsEnv();
+        env.setEarlyHints('');
+        assert.equal(env.calls.additionalHeaders.length, 0);
+    });
+
+    it('empty array: no-ops', function() {
+        var env = makeEarlyHintsEnv();
+        env.setEarlyHints([]);
+        assert.equal(env.calls.additionalHeaders.length, 0);
+    });
+
+    it('array with only falsy entries: no-ops', function() {
+        var env = makeEarlyHintsEnv();
+        env.setEarlyHints([null, '', undefined]);
+        assert.equal(env.calls.additionalHeaders.length, 0);
+    });
+
+    it('returns self for optional chaining', function() {
+        var env = makeEarlyHintsEnv();
+        var result = env.setEarlyHints('</x>; rel=preload; as=style');
+        assert.strictEqual(result, env.self);
+    });
+
+    it('no-ops when HTTP/2 stream.headersSent is true', function() {
+        var env = makeEarlyHintsEnv({ streamHeadersSent: true });
+        env.setEarlyHints('</x>; rel=preload; as=style');
+        assert.equal(env.calls.additionalHeaders.length, 0);
+    });
+
+    it('no-ops when HTTP/1.1 res.headersSent is true', function() {
+        var env = makeEarlyHintsEnv({ noStream: true, resHeadersSent: true });
+        env.setEarlyHints('</x>; rel=preload; as=style');
+        assert.equal(env.calls.writeEarlyHints.length, 0);
+    });
+
+    it('swallows errors thrown by additionalHeaders (best-effort)', function() {
+        var env = makeEarlyHintsEnv();
+        env.res.stream.additionalHeaders = function() { throw new Error('stream closed'); };
+        assert.doesNotThrow(function() {
+            env.setEarlyHints('</x>; rel=preload; as=style');
+        });
+    });
+
+    it('swallows errors thrown by writeEarlyHints (best-effort)', function() {
+        var env = makeEarlyHintsEnv({ noStream: true });
+        env.res.writeEarlyHints = function() { throw new Error('socket error'); };
+        assert.doesNotThrow(function() {
+            env.setEarlyHints('</x>; rel=preload; as=style');
+        });
+    });
+
+});
+
+
+// 06 — render() auto-hint from h2Links
+describe('06 - render() auto-hint from h2Links (#EH1)', function() {
+
+    // Minimal replica of the render() auto-hint block for isolated testing
+    function simulateRenderAutoHint(h2Links, hintsSent) {
+        var sent = [];
+
+        function setEarlyHints(hints) { sent.push(hints); return {}; }
+        function headersSent() { return false; }
+
+        // replica of the auto-hint block
+        var _h2Links = h2Links;
+        if (_h2Links) {
+            var _hints = /,$/.test(_h2Links) ? _h2Links.slice(0, -1) : _h2Links;
+            if (_hints) setEarlyHints(_hints);
+        }
+
+        return sent;
+    }
+
+    it('sends 103 with h2Links when populated', function() {
+        var sent = simulateRenderAutoHint('</css/app.css>; as=style; rel=preload,</js/app.js>; as=script; rel=preload,');
+        assert.equal(sent.length, 1);
+    });
+
+    it('trims trailing comma from h2Links before sending', function() {
+        var sent = simulateRenderAutoHint('</css/app.css>; as=style; rel=preload,');
+        assert.equal(sent[0], '</css/app.css>; as=style; rel=preload');
+    });
+
+    it('passes through value without trailing comma unchanged', function() {
+        var sent = simulateRenderAutoHint('</css/app.css>; as=style; rel=preload');
+        assert.equal(sent[0], '</css/app.css>; as=style; rel=preload');
+    });
+
+    it('multiple links are passed through as a single string', function() {
+        var sent = simulateRenderAutoHint('</a.css>; as=style; rel=preload,</b.js>; as=script; rel=preload,');
+        assert.equal(sent[0], '</a.css>; as=style; rel=preload,</b.js>; as=script; rel=preload');
+    });
+
+    it('no-ops when h2Links is empty string', function() {
+        var sent = simulateRenderAutoHint('');
+        assert.equal(sent.length, 0);
+    });
+
+    it('no-ops when h2Links is null', function() {
+        var sent = simulateRenderAutoHint(null);
+        assert.equal(sent.length, 0);
+    });
+
+    it('no-ops when h2Links is undefined', function() {
+        var sent = simulateRenderAutoHint(undefined);
+        assert.equal(sent.length, 0);
+    });
+
+    it('trailing-comma-only string results in empty hint — no send', function() {
+        // edge case: h2Links was set to just ',' (degenerate case)
+        var sent = simulateRenderAutoHint(',');
+        // after slice(0, -1) → '' → falsy → no send
+        assert.equal(sent.length, 0);
+    });
+
+});

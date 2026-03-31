@@ -438,3 +438,203 @@ describe('07 - dispatchAction: pure dispatch logic', function() {
     });
 
 });
+
+
+// 08 — source structure: hot-reload dirty-flag guards (#M6)
+describe('08 - source structure: hot-reload dirty-flag guards (#M6)', function() {
+
+    it('source contains #M6 marker', function() {
+        var src = fs.readFileSync(SOURCE, 'utf8');
+        assert.ok(src.indexOf('#M6') > -1, 'expected #M6 marker — hot-reload not applied');
+    });
+
+    it('refreshCoreDependencies reads __hotReload from context', function() {
+        var src = fs.readFileSync(SOURCE, 'utf8');
+        assert.ok(
+            src.indexOf("getContext('__hotReload')") > -1,
+            "expected getContext('__hotReload') in source"
+        );
+    });
+
+    it('refreshCoreDependencies early-returns when core flag is false', function() {
+        var src = fs.readFileSync(SOURCE, 'utf8');
+        assert.ok(
+            src.indexOf('if (_hotReload && !_hotReload.core) return;') > -1,
+            'expected `if (_hotReload && !_hotReload.core) return;` guard in refreshCoreDependencies'
+        );
+    });
+
+    it('refreshCoreDependencies clears core flag after eviction', function() {
+        var src = fs.readFileSync(SOURCE, 'utf8');
+        assert.ok(
+            src.indexOf('_hotReload.core = false;') > -1,
+            'expected `_hotReload.core = false;` reset after core eviction'
+        );
+    });
+
+    it('per-action block guards eviction behind !_hotReload || _hotReload.action', function() {
+        var src = fs.readFileSync(SOURCE, 'utf8');
+        assert.ok(
+            src.indexOf('if (!_hotReload || _hotReload.action) {') > -1,
+            'expected `if (!_hotReload || _hotReload.action) {` guard in per-action block'
+        );
+    });
+
+    it('per-action block clears action flag after eviction', function() {
+        var src = fs.readFileSync(SOURCE, 'utf8');
+        assert.ok(
+            src.indexOf('_hotReload.action = false;') > -1,
+            'expected `_hotReload.action = false;` reset after action eviction'
+        );
+    });
+
+    it('getContext(__hotReload) appears at both eviction sites', function() {
+        var src = fs.readFileSync(SOURCE, 'utf8');
+        var first  = src.indexOf("getContext('__hotReload')");
+        var second = src.indexOf("getContext('__hotReload')", first + 1);
+        assert.ok(
+            first > -1 && second > -1,
+            'expected getContext(__hotReload) at two eviction sites — only one found'
+        );
+    });
+
+});
+
+
+// Replica of refreshCoreDependencies dirty-flag logic for isolated testing (#M6).
+// cache, evicted, and hotReload are injected to avoid framework dependencies.
+function refreshCoreLogic(hotReload, cache, evictFn) {
+    if (hotReload && !hotReload.core) return false; // skipped
+    evictFn(cache);
+    if (hotReload) hotReload.core = false;
+    return true; // evicted
+}
+
+// Replica of per-action cache-bust dirty-flag logic (#M6).
+function actionCacheLogic(isCacheless, hotReload, evictFn) {
+    if (!isCacheless) return false; // not in dev mode
+    if (!hotReload || hotReload.action) {
+        evictFn();
+        if (hotReload) hotReload.action = false;
+        return true; // evicted
+    }
+    return false; // skipped
+}
+
+
+// 09 — hot-reload dirty-flag pure logic (#M6)
+describe('09 - hot-reload dirty-flag logic (#M6)', function() {
+
+    // refreshCoreLogic tests
+    it('core: skips eviction when watcher running and core flag is false', function() {
+        var hotReload = { core: false, action: false };
+        var evicted = false;
+        var result = refreshCoreLogic(hotReload, {}, function() { evicted = true; });
+        assert.equal(result, false);
+        assert.equal(evicted, false);
+    });
+
+    it('core: evicts when watcher running and core flag is true', function() {
+        var hotReload = { core: true, action: false };
+        var evicted = false;
+        var result = refreshCoreLogic(hotReload, {}, function() { evicted = true; });
+        assert.equal(result, true);
+        assert.equal(evicted, true);
+    });
+
+    it('core: clears core flag to false after eviction', function() {
+        var hotReload = { core: true, action: false };
+        refreshCoreLogic(hotReload, {}, function() {});
+        assert.equal(hotReload.core, false);
+    });
+
+    it('core: falls back to always-evict when __hotReload is null (no watcher)', function() {
+        var evicted = false;
+        var result = refreshCoreLogic(null, {}, function() { evicted = true; });
+        assert.equal(result, true);
+        assert.equal(evicted, true);
+    });
+
+    it('core: falls back to always-evict when __hotReload is undefined', function() {
+        var evicted = false;
+        var result = refreshCoreLogic(undefined, {}, function() { evicted = true; });
+        assert.equal(result, true);
+        assert.equal(evicted, true);
+    });
+
+    it('core: does not attempt to clear flag when hotReload is null', function() {
+        // must not throw
+        assert.doesNotThrow(function() {
+            refreshCoreLogic(null, {}, function() {});
+        });
+    });
+
+    // actionCacheLogic tests
+    it('action: skips eviction when isCacheless is false', function() {
+        var hotReload = { core: false, action: true };
+        var evicted = false;
+        var result = actionCacheLogic(false, hotReload, function() { evicted = true; });
+        assert.equal(result, false);
+        assert.equal(evicted, false);
+    });
+
+    it('action: skips eviction when watcher running and action flag is false', function() {
+        var hotReload = { core: false, action: false };
+        var evicted = false;
+        var result = actionCacheLogic(true, hotReload, function() { evicted = true; });
+        assert.equal(result, false);
+        assert.equal(evicted, false);
+    });
+
+    it('action: evicts when watcher running and action flag is true', function() {
+        var hotReload = { core: false, action: true };
+        var evicted = false;
+        var result = actionCacheLogic(true, hotReload, function() { evicted = true; });
+        assert.equal(result, true);
+        assert.equal(evicted, true);
+    });
+
+    it('action: clears action flag to false after eviction', function() {
+        var hotReload = { core: false, action: true };
+        actionCacheLogic(true, hotReload, function() {});
+        assert.equal(hotReload.action, false);
+    });
+
+    it('action: falls back to always-evict when __hotReload is null (no watcher)', function() {
+        var evicted = false;
+        var result = actionCacheLogic(true, null, function() { evicted = true; });
+        assert.equal(result, true);
+        assert.equal(evicted, true);
+    });
+
+    it('action: falls back to always-evict when __hotReload is undefined', function() {
+        var evicted = false;
+        var result = actionCacheLogic(true, undefined, function() { evicted = true; });
+        assert.equal(result, true);
+        assert.equal(evicted, true);
+    });
+
+    it('action: does not attempt to clear flag when hotReload is null', function() {
+        assert.doesNotThrow(function() {
+            actionCacheLogic(true, null, function() {});
+        });
+    });
+
+    it('action: consecutive calls without file change — only first evicts', function() {
+        var hotReload = { core: false, action: true };
+        var count = 0;
+        actionCacheLogic(true, hotReload, function() { count++; });
+        actionCacheLogic(true, hotReload, function() { count++; }); // action=false now
+        assert.equal(count, 1);
+    });
+
+    it('action: watcher marks dirty → evicts → watcher marks dirty again → evicts again', function() {
+        var hotReload = { core: false, action: true };
+        var count = 0;
+        actionCacheLogic(true, hotReload, function() { count++; }); // evicts, action→false
+        hotReload.action = true; // simulate file change
+        actionCacheLogic(true, hotReload, function() { count++; }); // evicts again
+        assert.equal(count, 2);
+    });
+
+});
