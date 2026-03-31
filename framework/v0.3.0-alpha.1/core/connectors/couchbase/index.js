@@ -1,6 +1,7 @@
 "use strict";
 // Imports.
 var fs              = require('fs');
+var sqlParser       = require('./../sql-parser'); // #SQL1 state-machine comment stripper
 // CB-LOW-3 fix: removed dead `const { version } = require('os')` — `version` was never referenced.
 // Use couchbase module from the user's project dependencies if not found
 var couchbasePath   = _(getPath('project') +'/node_modules/couchbase');
@@ -192,7 +193,6 @@ function Couchbase(conn, infos) {
     var readSource = function (entities, entityName, source, altMethodName) {
         var arr             = source.split(/\//g)
             , name          = altMethodName || arr[arr.length-1].replace(/\.sql/, '') || null
-            , comments      = ''
             , optionsArr    = null
             , options       = null
             , queryString   = null
@@ -262,20 +262,21 @@ function Couchbase(conn, infos) {
                     paramTypes[t] = paramTypes[t].match(/\{(.*)\}/)[1];
                 }
             }
-            queryString = queryString.replace(/\n/g, ' ');
-
-            // extract comments
-            comments    = queryString.match(/(\/\*([^*]|[\r\n]|(\*+([^*\/]|[\r\n])))*\*+\/)|(\/\/.*)/g);
-            // extract return type
-            returnType  = queryString.match(/\@return\s+\{(.*)\}/);
+            // extract return type (before stripping — annotation lives in the comment block)
+            returnType = queryString.match(/\@return\s+\{(.*)\}/);
             if ( Array.isArray(returnType) ) {
-                returnType = returnType[1]
+                returnType = returnType[1];
             }
 
-            if (comments) {
-                params = comments[0].match(/\$\w+/g); // param list from comments
-                queryString = queryString.replace(comments[0], '');
+            // #SQL1 — extract $param names from the first block comment using state-machine
+            // parser (handles nested /* */ and -- / // inside string literals correctly)
+            var _firstComment = sqlParser.extractFirstBlockComment(queryString);
+            if (_firstComment) {
+                params = _firstComment.match(/\$\w+/g); // param list from comment
             }
+
+            // #SQL1 — strip all comments and collapse whitespace
+            queryString = sqlParser.stripComments(queryString).replace(/\s+/g, ' ').trim();
 
             inlineParams    = queryString.match(/\$\w+/g);
 
