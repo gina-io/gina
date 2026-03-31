@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'Couchbase session store v3/v4: touch() and destroy() passed MutationResult as error to express-session callback, causing defer(next, MutationResult) and a 500 response with the Couchbase CAS token as body on every authenticated read-only request (#CB-BUG-4)'
+time: 2026-03-31T02:32:06.475032+01:00
