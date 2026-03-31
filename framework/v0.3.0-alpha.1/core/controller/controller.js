@@ -973,6 +973,18 @@ function SuperController(options) {
      * @returns {void}
      * */
     this.render = function (userData, displayToolbar, errOptions) {
+        // #EH1 — auto-send 103 Early Hints from accumulated h2Links (CSS/JS preloads).
+        // h2Links is populated by getNodeRes() for HTTP/2 non-dev requests only.
+        // Firing here — before getAssets() and Swig compilation — gives the browser
+        // the CSS/JS hints during the largest available latency window.
+        // The Link header on the final 200 is preserved (render-swig sets it separately).
+        var _h2Links = local.options && local.options.template && local.options.template.h2Links;
+        if (_h2Links) {
+            // trim trailing comma inserted by getNodeRes()
+            var _hints = /,$/.test(_h2Links) ? _h2Links.slice(0, -1) : _h2Links;
+            if (_hints) self.setEarlyHints(_hints);
+        }
+
         if  (this.isCacheless() ) {
             delete require.cache[require.resolve( _(__dirname + '/controller.render-v1', true))];
             delete require.cache[require.resolve( _(__dirname + '/controller.render-swig', true))];
