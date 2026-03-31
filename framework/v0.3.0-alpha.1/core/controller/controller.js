@@ -973,6 +973,18 @@ function SuperController(options) {
      * @returns {void}
      * */
     this.render = function (userData, displayToolbar, errOptions) {
+        // #EH1 — auto-send 103 Early Hints from accumulated h2Links (CSS/JS preloads).
+        // h2Links is populated by getNodeRes() for HTTP/2 non-dev requests only.
+        // Firing here — before getAssets() and Swig compilation — gives the browser
+        // the CSS/JS hints during the largest available latency window.
+        // The Link header on the final 200 is preserved (render-swig sets it separately).
+        var _h2Links = local.options && local.options.template && local.options.template.h2Links;
+        if (_h2Links) {
+            // trim trailing comma inserted by getNodeRes()
+            var _hints = /,$/.test(_h2Links) ? _h2Links.slice(0, -1) : _h2Links;
+            if (_hints) self.setEarlyHints(_hints);
+        }
+
         if  (this.isCacheless() ) {
             delete require.cache[require.resolve( _(__dirname + '/controller.render-v1', true))];
             delete require.cache[require.resolve( _(__dirname + '/controller.render-swig', true))];
@@ -1106,6 +1118,63 @@ function SuperController(options) {
         }
     }
 
+
+
+    /**
+     * Send a 103 Early Hints informational response (#EH1).
+     *
+     * Call this at the start of a controller action, before the terminal
+     * method (render, renderJSON, etc.), to hint the client about resources
+     * it will need so the browser can start preloading while the server is
+     * still preparing the final response.
+     *
+     *   HTTP/2  — `stream.additionalHeaders({ ':status': 103, link: '...' })`
+     *   HTTP/1.1 — `res.writeEarlyHints({ link: '...' })` (Node.js 18.11+)
+     *
+     * Silently no-ops when:
+     *   - `links` is falsy or an empty array / string
+     *   - headers have already been sent (guards against double-call)
+     *   - the runtime does not support `writeEarlyHints` (Node < 18.11)
+     *   - any internal error occurs (103 is best-effort, never fatal)
+     *
+     * Returns `self` for optional chaining.
+     *
+     * @param {string|string[]} links
+     *   Link header value(s), e.g.:
+     *     '<https://cdn.example.com/app.css>; rel=preload; as=style'
+     *     or an array of such strings (joined with ', ' into one header).
+     * @returns {object} self
+     */
+    this.setEarlyHints = function(links) {
+        if (!links) return self;
+
+        var _res  = local.res;
+        var _link;
+
+        if (Array.isArray(links)) {
+            _link = links.filter(Boolean).join(', ');
+        } else {
+            _link = String(links).trim();
+        }
+
+        if (!_link) return self;
+        if (headersSent(_res)) return self;
+
+        try {
+            // HTTP/2 — stream.additionalHeaders() sends a HEADERS frame with :status 103
+            if (_res.stream && !_res.stream.headersSent) {
+                _res.stream.additionalHeaders({ ':status': 103, 'link': _link });
+            } else if (typeof _res.writeEarlyHints === 'function') {
+                // HTTP/1.1 — available since Node.js 18.11.0
+                _res.writeEarlyHints({ 'link': _link });
+            }
+            // else: silently no-op on older Node.js
+        } catch(e) {
+            // 103 is best-effort — never let a hint failure affect the main response
+        }
+
+        return self;
+    };
 
 
     /**
