@@ -84,6 +84,7 @@ module.exports = Controller;
 - Always null `local.req/res/next` at response exit (done automatically in render path).
 - `createTestInstance(deps)` creates an isolated instance for unit tests without touching production state.
 - `async` controller actions are fully supported — the router attaches `.catch()` to any thenable returned by an action and routes rejections to `throwError(response, 500, ...)`. Use `await entity.method()` directly. For PathObject ops and Shell use `await onCompleteCall(_(path).mkdir())`.
+- `self.setEarlyHints(links)` — send a 103 Early Hints informational response. Call before the terminal method. `links` is a string or array of `Link` header values. HTTP/2: `stream.additionalHeaders({ ':status': 103 })`; HTTP/1.1: `res.writeEarlyHints()` (Node.js 18.11+). Silent no-op when unsupported. Returns `self`.
 
 ```javascript
 // async action example
@@ -92,6 +93,19 @@ Controller.prototype.upload = async function(req, res, next) {
     var user = await self.UserEntity.getById(req.params.id);
     await onCompleteCall( _(self.uploadDir).mkdir() );
     self.renderJSON({ ok: true, user: user });
+};
+```
+
+```javascript
+// 103 Early Hints example
+Controller.prototype.home = function(req, res, next) {
+    var self = this;
+    self.setEarlyHints([
+        '</css/app.css>; rel=preload; as=style',
+        '</js/app.js>; rel=preload; as=script'
+    ]);
+    // ... fetch data ...
+    self.render({ title: 'Home' });
 };
 ```
 
