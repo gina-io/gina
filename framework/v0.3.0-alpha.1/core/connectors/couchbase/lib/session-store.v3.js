@@ -266,7 +266,9 @@ module.exports = function(session, bundle){
         //this.client.remove(sid, fn);
         this.client
                 .remove(sid)
-                .then(fn)
+                // CB-BUG-4 fix: same as session-store.v4.js — .then(fn) passes
+                // MutationResult as fn's first arg. Call fn(null) explicitly on success.
+                .then(function onResult() { fn(null); })
                 .catch(fn)
     };
 
@@ -310,12 +312,14 @@ module.exports = function(session, bundle){
         // });
         this.client
             .upsert(sid, sess, {expiry:ttl})
+            // CB-BUG-4 fix: same as session-store.v4.js — .then(fn.apply(this,arguments))
+            // passed MutationResult as fn's first arg (error). Call fn(null) explicitly.
             .then(function onResult() {
-                fn && fn.apply(this, arguments);
+                fn && fn(null);
             })
             .catch(function onError(err) {
-                err || debug('Session Touch complete');
-                fn && fn.apply(this, arguments);
+                debug('Session Touch error');
+                fn && fn(err);
             })
 
     };

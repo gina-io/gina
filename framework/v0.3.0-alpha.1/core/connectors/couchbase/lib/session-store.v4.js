@@ -323,7 +323,10 @@ module.exports = function(session, bundle){
         //this.client.remove(sid, fn);
         this.client
                 .remove(sid)
-                .then(fn)
+                // CB-BUG-4 fix: .then(fn) passes the MutationResult as fn's first arg,
+                // which express-session interprets as an error and calls next(MutationResult).
+                // Call fn(null) explicitly on success.
+                .then(function onResult() { fn(null); })
                 .catch(fn)
     };
 
@@ -362,12 +365,19 @@ module.exports = function(session, bundle){
 
         sess = JSON.stringify(sess);
         this.client.upsert(sid, sess, {expiry:ttl})
+            // CB-BUG-4 fix: .then(fn.apply(this,arguments)) passed the MutationResult
+            // (the Promise resolved value) as fn's first argument, which express-session
+            // interpreted as an error and called defer(next, MutationResult). This caused
+            // express-session to propagate the Couchbase MutationResult ({cas, token})
+            // as an error through the middleware chain, ultimately reaching the framework's
+            // error handler and returning a 500 with the MutationResult as the body.
+            // Fix: call fn(null) explicitly on success. (#CB-BUG-4)
             .then(function onResult() {
-                fn && fn.apply(this, arguments);
+                fn && fn(null);
             })
             .catch(function onError(err) {
-                err || debug('Session Touch complete');
-                fn && fn.apply(this, arguments);
+                debug('Session Touch error');
+                fn && fn(err);
             })
 
     };
