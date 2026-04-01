@@ -50,8 +50,8 @@ N.B.: You need to restart your bundle or you whole project if you are not runnin
     ----------
 
     To remove a protocol for an existing bundle, use the following command line.
-    
+
     Set default a protocol for all your bundle's environments :
     - If no <protocol> is mentioned, you will be prompted to enter an existing protocol
 
-    $ gina protocol:remouve <bundle_name> @<project_name>
+    $ gina protocol:remove <bundle_name> @<project_name>

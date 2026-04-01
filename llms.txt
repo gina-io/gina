@@ -113,6 +113,35 @@ Controller.prototype.home = function(req, res, next) {
 
 ---
 
+## Views / Templates
+
+Add HTML template support to a bundle:
+```bash
+gina view:add <bundle> @<project>
+```
+This scaffolds `src/<bundle>/templates/` (Swig layout + example content page) and `src/<bundle>/public/` (CSS/JS). There is **no `views/` directory** in Gina.
+
+**Template file resolution** — `self.render(data)` resolves:
+```
+src/<bundle>/templates/html/content/<namespace>/<route-name>.html
+```
+- `<namespace>` = the `namespace` field in `routing.json`
+- `<route-name>` = the route **key** in `routing.json` (not the action name)
+
+Controlled by `"routeNameAsFilenameEnabled": true` in `templates.json`. Override per-route with `"param": { "file": "custom-name" }` in `routing.json`.
+
+**Template data** — data passed to `self.render({ key: value })` is available as `page.data`:
+```html
+{% extends 'layouts/main.html' %}
+{% set data = page.data %}
+{% block content %}
+  {{ data.key }}
+{% endblock %}
+```
+`{{ key }}` directly does NOT work — always access via `page.data`.
+
+---
+
 ## Entity (ORM) pattern
 
 ```javascript
@@ -363,11 +392,34 @@ All config files support `$schema` references for editor validation.
 gina bundle:start <bundle> @<project>               # Start a bundle
 gina bundle:start <bundle> @<project> --gina-version=0.1.8  # Start with a pinned framework version
 gina bundle:stop <bundle> @<project>    # Stop a bundle
-gina tail --follow                       # Follow logs
-gina framework:set --env=dev            # Set environment
+gina bundle:restart <bundle> @<project> # Restart a bundle
+gina bundle:add <bundle> @<project>     # Scaffold a new bundle
+gina bundle:remove <bundle> @<project>  # Remove a bundle
+gina bundle:list @<project>             # List bundles
+gina view:add <bundle> @<project>       # Add HTML templates to a bundle
+gina tail --follow                      # Follow logs
+gina framework:set --env=dev            # Set framework setting
+gina env:get --<key> @<project>         # Read a bundle/project setting
+gina env:set --<key>=<value> @<project> # Write a bundle/project setting
+gina port:list <bundle> @<project>      # List allocated ports
+gina port:reset @<project> --start-port-from=4200  # Re-scan ports from a new base
 gina-container                          # Foreground launcher for Docker/K8s
 gina-init                               # Bootstrap ~/.gina/ from env vars (containers)
 ```
+
+**CLI stubs — commands that appear in docs or help.txt but are NOT implemented (handler files are empty or missing):**
+
+- `project:start` / `project:stop` / `project:restart` — empty handler files; use `bundle:start/stop/restart` per bundle instead
+- `port:set` — empty handler; use `port:reset --start-port-from=<N>` to re-allocate all ports
+- `framework:get` — empty handler; use `env:get` to read settings
+- `bundle:status` / `bundle:rename` / `bundle:copy` — comments-only handler files
+- `project:status` / `project:move` / `project:backup` / `project:restore` — empty or missing
+- `protocol:remove` — no handler file (also has a typo "remouve" in help.txt)
+- `minion:kill` / `minion:list` — no handler files
+- `framework:update` — empty handler
+- `gina --status` / `gina -t` — not in aliases.json, no handler
+
+All stubs are tracked in `ROADMAP.md § CLI` with target versions. See `.claude/cli-reference.md` for the full source-verified command inventory.
 
 ---
 
@@ -400,6 +452,8 @@ gina-init                               # Bootstrap ~/.gina/ from env vars (cont
 | 4103–4199 | Reserved for future Gina services |
 
 Bundle HTTP ports are allocated per-project in `~/.gina/ports.json`.
+
+**Port scanner window** — the scanner searches `start + max(899, limit + 99)` ports (capped at `maxEnd = 49151`). Default start is `3100`, giving a window of `3100–3999`. If all ports in the window are in use, the scanner fails with "Maximum port number reached". Fix: `gina port:reset @<project> --start-port-from=4200` (not 4100 — that's reserved).
 
 ---
 
@@ -438,3 +492,4 @@ Bundle HTTP ports are allocated per-project in `~/.gina/ports.json`.
 15. **Sidebar icon key = `sidebar_label.toLowerCase()`** — `Root.js` `NAV_ICONS` map in the Docusaurus site uses the **lowercase** value of the page's `sidebar_label` frontmatter as the map key. If an icon doesn't render, verify the key matches exactly (e.g. `sidebar_label: Security` → key `'security'`).
 16. **Post-merge state check required after every `git merge --ff-only`** — `post_install.js` does NOT run on a git pull/merge; it only runs on `npm install`. When the version changes (especially a `shortVersion` bump like `0.2 → 0.3`), three state stores go stale simultaneously: `~/.gina/main.json` (`def_framework`, `frameworks["${shortVersion}"]`, all metadata keys), `~/.gina/${shortVersion}/settings.json` (missing entirely), and `gina.db` `kv_store` (`main` + `settings/${shortVersion}` keys). Running `npm install` from inside the repo also fails (symlink error — `node_modules/.bin/` does not exist in the worktree layout); patch the state files directly instead. See `.claude/git.md § Post-merge state check` for the full checklist.
 17. **Merge frequency** — merge `dev/wip` → `develop` after every feature/fix (frequent is good). Exception: hold at version boundaries (`0.3.x → 0.4.x`, `0.x → 1.x`) until the full release is prepared, because `git mv framework/v*/` during merge is a live deployment of the globally-installed CLI. See `.claude/architecture/git-workflow.md` for the full decision framework.
+18. **CLI stubs** — several CLI commands appear in help.txt or docs but have empty/missing handler files and do NOT work: `project:start/stop/restart`, `port:set`, `framework:get`, `bundle:status/rename/copy`, `project:status/move/backup/restore`, `protocol:remove`, `minion:kill/list`, `framework:update`, `gina --status/-t`. Never suggest these to users. Workarounds: use `bundle:start/stop/restart` per bundle, `port:reset --start-port-from=<N>` for port re-allocation, `env:get` for reading settings. Full inventory in `.claude/cli-reference.md`.
