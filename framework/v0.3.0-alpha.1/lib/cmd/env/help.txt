@@ -31,3 +31,26 @@
     or to list all projects environments
 
     $ gina env:list
+
+
+[ Reading a setting ]
+
+    $ gina env:get --<key> @<project_name>     (one key)
+    $ gina env:get @<project_name>             (all keys)
+
+
+[ Writing / deleting a setting ]
+
+    $ gina env:set --<key>=<value> @<project_name>   (add or update)
+    $ gina env:set --<key> @<project_name>           (delete key — no value = remove)
+    $ gina env:unset --<key> @<project_name>         (explicit delete)
+
+
+[ Setting the default environment ]
+
+    $ gina env:use <env_name> @<project_name>
+
+
+[ Linking an environment to the dev slot ]
+
+    $ gina env:link-dev <env_name> @<project_name>

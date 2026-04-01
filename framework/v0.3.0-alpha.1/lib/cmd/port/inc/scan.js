@@ -54,7 +54,7 @@ module.exports = function Scanner(opt, cb){
             opt.start = opt.startFrom;
         }
     }
-    opt.end = (~~(opt.start)+899) // Shouldn't it be opt.limit+1 ?
+    opt.end = Math.min(~~(opt.start) + Math.max(899, ~~opt.limit + 99), opt.maxEnd)
 
     // Just in case
     opt.end = ~~(opt.end);

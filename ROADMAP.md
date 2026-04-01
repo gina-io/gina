@@ -12,9 +12,9 @@ This roadmap covers planned features, architectural improvements, new connectors
 | --- | --- | --- |
 | **Apr 2026** | `0.1.8` ✅ | Scaffold correctness · K8s support · Dependency injection · Automatic version migration |
 | **Q2 2026** | `0.2.0` ✅ | Stability · WatcherService · Redis & SQLite connectors · K8s session storage · Startup cache · Pointer compression · Couchbase v2 deprecation · Couchbase security & critical bug fixes · HTTP/2 security hardening |
-| **Q3 2026** | `0.3.0` | Async/await · Dev hot-reload · MySQL & PostgreSQL connectors · AI Phase 2 · Tutorials · Mobile backend guide · Route radix tree · Connector peerDependencies · 103 Early Hints · HTTP/2 observability · Security & CVE page · Couchbase connector hardening · Beemaster Phase 1 |
-| **Q4 2026** | `0.4.0` | TypeScript declarations · AI agents (OpenAPI, MCP) · ScyllaDB connector · PWA scaffold · Prometheus metrics · Advanced tutorial · Website redesign · Docs offline ZIP · Bun investigation · Couchbase v2 removal · HTTP/2 hardening · Trailer support · Beemaster core |
-| **Q1 2027** | `0.5.0` | ESM support · Template engine migration · Structured logging · Alt-Svc · HTTP/2 priorities · WebSocket over HTTP/2 · Beemaster admin |
+| **Q3 2026** | `0.3.0` | Async/await · Dev hot-reload · MySQL & PostgreSQL connectors · AI Phase 2 · Tutorials · Mobile backend guide · Route radix tree · Connector peerDependencies · 103 Early Hints · HTTP/2 observability · Security & CVE page · Couchbase connector hardening · Beemaster Phase 1 · CLI Tier 1 (project lifecycle, port:set, framework:get) |
+| **Q4 2026** | `0.4.0` | TypeScript declarations · AI agents (OpenAPI, MCP) · ScyllaDB connector · PWA scaffold · Prometheus metrics · Advanced tutorial · Website redesign · Docs offline ZIP · Bun investigation · Couchbase v2 removal · HTTP/2 hardening · Trailer support · Beemaster core · CLI Tier 2 (bundle/project status, rename, copy, protocol:remove, minions) |
+| **Q1 2027** | `0.5.0` | ESM support · Template engine migration · Structured logging · Alt-Svc · HTTP/2 priorities · WebSocket over HTTP/2 · Beemaster admin · CLI Tier 3 (project:move, framework:update, backup/restore, man pages) |
 | **Q3 2027** | `1.0.0` | First stable release — Windows alpha compatibility is a hard gate |
 
 ---
@@ -29,6 +29,41 @@ This roadmap covers planned features, architectural improvements, new connectors
 | ✅ | **Per-bundle framework version** — Declare `"gina_version": "0.1.8"` on any bundle entry in `manifest.json` to pin that bundle to a specific installed framework version. The socket server continues running its own version; only the spawned bundle process uses the declared version. Validated against the tracked version list in `main.json` before start. `--gina-version=X.Y.Z` flag on `bundle:start` provides the same override without touching config files. | `0.3.0` | 2026-03-31 |
 | ✅ | **PATCH method** — `req.patch` populated with the parsed request body (JSON or form-encoded). `req.body` aliases `req.patch`. URI params merged. `"method": "PATCH"` valid in `routing.json`. Use PATCH for partial updates (only sent fields change) vs PUT which replaces the full resource. | `0.3.0` | 2026-03-31 |
 | ✅ | **HEAD method** — `req.head` populated with query-string and URI params. Full controller action runs so all response headers are set correctly; body is suppressed before writing to the wire. Both `render()` and `renderJSON()` honour HEAD. Routes declared as `GET` automatically accept HEAD — no extra routing rule needed. | `0.3.0` | 2026-03-31 |
+
+---
+
+## CLI
+
+Stub commands confirmed in source — handler files exist but are empty or comments-only. Ordered by user impact.
+
+### Tier 1 — `0.3.0`
+
+| Status | Feature | Version | Target |
+| --- | --- | --- | --- |
+| 📋 | **`project:start` / `project:stop` / `project:restart`** — Start, stop, or restart all bundles in a project with one command. `start` accepts `--env`, `--scope`, `--inspect-brk`. `restart` uses the last known environment. Handler files are empty (0 lines) despite being documented in `project/help.txt` with full flag examples. | `0.3.0` | Q3 2026 |
+| 📋 | **`framework:get`** — Read one or all keys from `~/.gina/settings.json`. Completes the `gina set` / `gina get` pair. Handler is 0 lines; workaround is `env:get`. | `0.3.0` | Q3 2026 |
+| 📋 | **`port:set`** — Set or update a specific port for a bundle/env/protocol/scheme combination without a full `port:reset`. Syntax: `gina port:set <protocol>:<port> <bundle> @<project>/<env>`. Handler is 0 lines despite being documented in `port/help.txt`. | `0.3.0` | Q3 2026 |
+
+### Tier 2 — `0.4.0`
+
+| Status | Feature | Version | Target |
+| --- | --- | --- | --- |
+| 📋 | **`bundle:status`** — Show the running/stopped state, PID, port, and active env for a specific bundle. Handler is comments only (6 lines). | `0.4.0` | Q4 2026 |
+| 📋 | **`bundle:rename`** — Rename a bundle within a project, updating `manifest.json`, routing config, and the `src/` directory name. Handler is comments only (7 lines). | `0.4.0` | Q4 2026 |
+| 📋 | **`protocol:remove`** — Remove a protocol assignment from a bundle. No handler file exists. Also requires fixing the `help.txt` typo ("remouve"). | `0.4.0` | Q4 2026 |
+| 📋 | **`minion:kill` / `minion:list`** — Kill all orphaned Node.js child processes for a project (`kill`), or list active minion PIDs grouped by bundle (`list`). No handler files exist despite both being documented in `minion/help.txt`. | `0.4.0` | Q4 2026 |
+| 📋 | **`gina --status` / `-t`** — Top-level health check: print whether the framework daemon is running, its version, and active bundle count. Requires adding `--status`/`-t` entries to `aliases.json` and implementing `framework/status.js`. | `0.4.0` | Q4 2026 |
+| 📋 | **`bundle:copy` / `bundle:cp`** — Duplicate a bundle (source files + config) under a new name within the same project. Handler is comments only (17 lines). | `0.4.0` | Q4 2026 |
+| 📋 | **`project:status`** — Show the running/stopped state of each bundle in a project with PID and port info. Handler is comments only (3 lines). | `0.4.0` | Q4 2026 |
+
+### Tier 3 — `0.5.0`
+
+| Status | Feature | Version | Target |
+| --- | --- | --- | --- |
+| 📋 | **`project:move`** — Relocate a project's source directory and update all `~/.gina/` registry entries to the new path. Handler is 0 lines. | `0.5.0` | Q1 2027 |
+| 📋 | **`framework:update`** — Self-update the installed Gina framework to the latest (or a specified) version without reinstalling via npm. Handler is 0 lines. | `0.5.0` | Q1 2027 |
+| 📋 | **`project:backup` / `project:restore`** — Archive a project's source, config, and data to a tarball (`backup`), and restore from it (`restore`). Documented in `project/help.txt` as support-only. No handler files exist. | `0.5.0` | Q1 2027 |
+| 📋 | **`framework:man` / `project:man` / `bundle:man`** — Inline CLI manual pages. Mentioned in `framework/help.txt` but no handler files exist for any group. | `0.5.0` | Q1 2027 |
 
 ---
 
@@ -259,7 +294,7 @@ Standalone gina dev and admin tool. A dedicated browser-tab app (`services/src/b
 | 📋 | **Using Gina as a mobile backend** — REST API patterns, JSON-only bundles, token auth, CORS, HTTP/2, and the path to OpenAPI/MCP for SDK generation. Docs only — no code changes. | — | `0.3.0` | Q3 2026 |
 | 📋 | **Beginner** — Your first Gina app: install, scaffold, one route, one controller, browser response. Starts from `gina new` — no prior project needed. | 5 min | `0.3.0` | Q3 2026 |
 | 📋 | **Tutorial locale detection** — Detect the reader's locale and timezone via `navigator.language` + `Intl` and pre-fill the `settings.json` scaffold example with their actual `region`, `preferedLanguages`, and `24HourTimeFormat` values. Falls back to `en_CM`. Implemented as a client-side Docusaurus component. | — | `0.3.0` | Q3 2026 |
-| 📋 | **Intermediate** — Multi-bundle setup, routing with URL params, entity + connector wiring, template rendering, form handling. Starts from scratch. | ~30 min | `0.3.0` | Q3 2026 |
+| ✅ | **Intermediate — Link Shortener** — SQLite ORM connector, async controller actions, `render()` + `renderJSON()` in same bundle, HTTP 302 redirect, route `requirements` guard. Includes downloadable project ZIP. | ~30 min | `0.3.0` | 2026-04-01 |
 | 📋 | **Advanced** — Full production project: authentication, scoped data isolation, async/await, HTTP/2, structured logging, Docker/K8s deployment. Starts from the intermediate tutorial's finished state. | ~60 min | `0.4.0` | Q4 2026 |
 
 ---
@@ -274,4 +309,4 @@ Standalone gina dev and admin tool. A dedicated browser-tab app (`services/src/b
 
 ---
 
-*Last updated: 2026-04-01 (route radix trie, HTTP/2 configurable settings + session metrics, security CVE docs shipped in 0.3.0-alpha.1; Prometheus metrics endpoint added to 0.4.0 Observability) · To suggest a feature, [open an issue](https://github.com/gina-io/gina/issues).*
+*Last updated: 2026-04-01 (route radix trie, HTTP/2 configurable settings + session metrics, security CVE docs shipped in 0.3.0-alpha.1; Intermediate — Link Shortener tutorial shipped; Prometheus metrics endpoint added to 0.4.0 Observability) · To suggest a feature, [open an issue](https://github.com/gina-io/gina/issues).*

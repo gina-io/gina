@@ -17,6 +17,21 @@
     See: https://www.rfc-editor.org/rfc/rfc6335.html
 
 
+[ Scan window ]
+
+    The port scanner searches a window of max(899, limit + 99) ports starting
+    from the configured start port (default: 3100), giving a default range of
+    3100–3999.
+
+    If every port in the window is already in use, the scanner stops with:
+        [SCAN] Maximum port number reached: <end>
+
+    To recover, reset allocations from a higher base:
+        $ gina port:reset @<project_name> --start-port-from=4200
+
+    Use 4200 or higher — ports 4100–4199 are reserved (see above).
+
+
 [ Set a port number ]
 
     Set or update a port number

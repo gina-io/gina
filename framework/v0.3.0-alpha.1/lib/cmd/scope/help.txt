@@ -31,3 +31,14 @@
     or to list all projects scopes
 
     $ gina scope:list
+
+
+[ Setting the default scope ]
+
+    $ gina scope:use <scope_name> @<project_name>
+
+
+[ Linking a scope to the local or production slot ]
+
+    $ gina scope:link-local <scope_name> @<project_name>
+    $ gina scope:link-production <scope_name> @<project_name>
