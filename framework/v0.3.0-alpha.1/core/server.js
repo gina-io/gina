@@ -673,6 +673,9 @@ function Server(options) {
             config.setRouting(apps[i], env, scope, routing);
             config.setReverseRouting(apps[i], env, scope, reverseRouting);
 
+            // Build radix trie for this bundle — enables O(m) candidate lookup in handle()
+            routingLib.buildTrie(routing, apps[i]);
+
             if (apps[i] == self.appName) {
                 self.routing        = routing;
                 self.reverseRouting = reverseRouting
@@ -2408,8 +2411,9 @@ function Server(options) {
                 request.post    = {};
                 request.put     = {};
                 request.delete  = {};
+                request.patch   = {};
+                request.head    = {};
                 request.files   = [];
-                //request.patch = {}; ???
                 //request.cookies = {}; // ???
                 //request.copy ???
 
@@ -2962,6 +2966,122 @@ function Server(options) {
                 request.get     = undefined;
                 break
 
+            case 'patch':
+                // PATCH: partial update — only the fields sent are changed on the server.
+                // Body parsing is identical to POST; the result lands on req.patch (not req.post)
+                // so controllers can assert the method semantics explicitly when needed.
+                var isPatchSet = false, msg = null;
+                if ( typeof(request.body) == 'string' ) {
+                    try {
+                        if ( !/multipart\/form-data;/.test(request.headers['content-type']) ) {
+                            if ( !/application\/x\-www\-form\-urlencoded/.test(request.headers['content-type']) && /\+/.test(request.body) ) {
+                                request.body = request.body.replace(/\+/g, ' ');
+                            }
+                            if ( request.body.substring(0,1) == '?' )
+                                request.body = request.body.substring(1);
+                            try {
+                                bodyStr = decodeURIComponent(request.body);
+                            } catch (err) {
+                                bodyStr = request.body;
+                            }
+                            if ( /(\"false\"|\"true\"|\"on\")/.test(bodyStr) )
+                                bodyStr = bodyStr.replace(/\"false\"/g, false).replace(/\"true\"/g, true).replace(/\"on\"/g, true);
+                            if ( /(\"null\")/i.test(bodyStr) )
+                                bodyStr = bodyStr.replace(/\"null\"/ig, null);
+                            try {
+                                obj = formatDataFromString(bodyStr);
+                                if ( !obj ) {
+                                    exception = new Error('Could not convert PATCH::BODY_STRING to PATCH::OBJECT. Possible JSON error in `bodyStr`');
+                                    throwError(response, 500, exception, next);
+                                    return;
+                                }
+                                request.patch = obj;
+                                isPatchSet = true;
+                            } catch (err) {
+                                msg = '[ Could not properly evaluate PATCH ] '+ request.url +'\n'+ err.stack;
+                                console.warn(msg);
+                            }
+                            if (!isPatchSet) {
+                                try {
+                                    request.patch = ( obj.count() == 0 && bodyStr.length > 1 ) ? obj : JSON.parse(bodyStr);
+                                } catch (err) {
+                                    msg = '[ Exception found for PATCH ] '+ request.url +'\n'+ err.stack;
+                                    console.warn(msg);
+                                }
+                            }
+                        }
+                    } catch (err) {
+                        msg = '[ Could not properly evaluate PATCH ] '+ request.url +'\n'+ err.stack;
+                        console.warn(msg);
+                    }
+                } else {
+                    if ( request.body.count() == 0 && typeof(request.query) != 'string' && request.query.count() > 0 ) {
+                        request.body = request.query;
+                    }
+                    bodyStr = ( typeof(request.body) == 'object') ? JSON.stringify(request.body) : request.body;
+                    if ( /(\"false\"|\"true\"|\"on\")/.test(bodyStr) )
+                        bodyStr = bodyStr.replace(/\"false\"/g, false).replace(/\"true\"/g, true).replace(/\"on\"/g, true);
+                    if ( /(\"null\")/i.test(bodyStr) )
+                        bodyStr = bodyStr.replace(/\"null\"/ig, null);
+                    obj = JSON.parse(bodyStr);
+                }
+                try {
+                    if ( typeof(obj) == 'object' && obj.count() > 0 ) {
+                        request.body = request.patch = obj;
+                    }
+                } catch (err) {
+                    msg = '[ Could not complete PATCH ] '+ request.url +'\n'+ err.stack;
+                    console.error(msg);
+                    throwError(response, 500, err, next);
+                    return;
+                }
+                if ( !response.headersSent ) {
+                    response.setHeader('cache-control', 'no-cache, no-store, must-revalidate');
+                    response.setHeader('pragma', 'no-cache');
+                    response.setHeader('expires', '0');
+                }
+                request.query   = undefined;
+                request.get     = undefined;
+                request.post    = undefined;
+                request.put     = undefined;
+                request.delete  = undefined;
+                request.head    = undefined;
+                break;
+
+            case 'head':
+                // HEAD: same query-string processing as GET; the response body is suppressed
+                // in the render layer. Use HEAD to check whether a resource exists and read
+                // its headers (content-type, content-length, cache headers) without downloading
+                // the full body. Routes declared as GET automatically accept HEAD requests.
+                if ( typeof(request.query) != 'undefined' && request.query.count() > 0 ) {
+                    var headInheritedDataObj = {};
+                    if ( typeof(request.query.inheritedData) != 'undefined' ) {
+                        if ( typeof(request.query.inheritedData) == 'string' ) {
+                            headInheritedDataObj = formatDataFromString(decodeURIComponent(request.query.inheritedData));
+                        } else {
+                            headInheritedDataObj = JSON.clone(request.query.inheritedData);
+                        }
+                        delete request.query.inheritedData;
+                    }
+                    bodyStr = JSON.stringify(request.query).replace(/\"{/g, '{').replace(/}\"/g, '}').replace(/\\/g, '');
+                    if ( /(\"false\"|\"true\"|\"on\")/i.test(bodyStr) )
+                        bodyStr = bodyStr.replace(/\"false\"/ig, false).replace(/\"true\"/ig, true).replace(/\"on\"/ig, true);
+                    if ( /(\"null\")/i.test(bodyStr) )
+                        bodyStr = bodyStr.replace(/\"null\"/ig, null);
+                    obj = formatDataFromString(decodeURIComponent(bodyStr));
+                    request.query = merge(obj, headInheritedDataObj);
+                    obj = null;
+                    headInheritedDataObj = null;
+                    request.head = request.query;
+                }
+                request.query   = undefined;
+                request.get     = undefined;
+                request.post    = undefined;
+                request.put     = undefined;
+                request.delete  = undefined;
+                request.patch   = undefined;
+                break;
+
 
         };
 
@@ -3323,6 +3443,17 @@ function Server(options) {
             isRoute = {}
         }
 
+        // Radix trie fast-path — build a candidate Set for this request so the
+        // linear scan can skip routes that cannot structurally match the URL.
+        // lookupTrie returns null when no trie is available → linear scan runs normally.
+        var _trieCandidateSet = null;
+        if (!hasCachedRoute) {
+            var _trieHits = routingLib.lookupTrie(decodeURI(pathname), bundle);
+            if (_trieHits !== null && _trieHits.length > 0) {
+                _trieCandidateSet = new Set(_trieHits);
+            }
+        }
+
         out:
             for (let name in routing) {
                 // skip non-object entries (e.g. $schema annotations in routing.json)
@@ -3333,6 +3464,9 @@ function Server(options) {
                     matched = true;
                     break;
                 }
+
+                // Radix trie fast-path: skip routes that cannot match this URL structure
+                if ( _trieCandidateSet !== null && !_trieCandidateSet.has(name) ) continue;
 
                 // Ignoring routes out of scope
                 if ( routing[name].scopes.indexOf(process.env.NODE_SCOPE) < 0 ) {
@@ -3402,8 +3536,11 @@ function Server(options) {
                     // Comparing routing method VS request.url method
                     isMethodAllowed = reMethod.test(_routing.method);
                     if (!isMethodAllowed) {
+                        // Exception — HEAD requests match GET routes (HTTP spec: HEAD is GET without a response body)
+                        if ( /^head$/i.test(req.method) && /^get$/i.test(_routing.method) ) {
+                            isMethodAllowed = true;
                         // Exception - Method override
-                        if ( /get/i.test(req.method) && /delete/i.test(_routing.method) ) {
+                        } else if ( /get/i.test(req.method) && /delete/i.test(_routing.method) ) {
                             console.debug('ignoring case request.method[GET] on routing.method[DELETE]');
                             req.method = _routing.method;
                             isMethodAllowed = true;
@@ -3442,6 +3579,30 @@ function Server(options) {
                                     req.params[parameter] = ( /^(true|on)$/.test( req.params[parameter] ) ) ? true : false;
 
                                 req[method][parameter] = req.params[parameter]
+                            }
+                            ++p
+                        }
+                    } else if ( method === 'patch' ) { // merging req.params with req.patch (passed through URI)
+                        p = 0;
+                        for (let parameter in req.params) {
+                            if (p > 0) {
+                                // false & true case
+                                if ( /^(false|true|on)$/.test( req.params[parameter] ) && typeof(req.params[parameter]) == 'string' )
+                                    req.params[parameter] = ( /^(true|on)$/.test( req.params[parameter] ) ) ? true : false;
+
+                                req.patch[parameter] = req.params[parameter]
+                            }
+                            ++p
+                        }
+                    } else if ( method === 'head' ) { // merging req.params with req.head (URI params, same semantics as GET)
+                        p = 0;
+                        for (let parameter in req.params) {
+                            if (p > 0) {
+                                // false & true case
+                                if ( /^(false|true|on)$/.test( req.params[parameter] ) && typeof(req.params[parameter]) == 'string' )
+                                    req.params[parameter] = ( /^(true|on)$/.test( req.params[parameter] ) ) ? true : false;
+
+                                req.head[parameter] = req.params[parameter]
                             }
                             ++p
                         }

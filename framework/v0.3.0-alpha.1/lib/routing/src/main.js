@@ -33,6 +33,7 @@ function Routing() {
         Routing.instance        = self;
         Routing._cached         = [];
         Routing._cachedRoutes   = {};
+        Routing._tries          = {};   // radix tries, keyed by bundle name
     } else {
         self = self.getInstance();
         return self;
@@ -1636,6 +1637,49 @@ function Routing() {
             return route
         }
     }
+
+    // ── Radix trie — O(m) route candidate lookup ─────────────────────────────
+
+    /**
+     * Build a radix trie for fast route lookup for the given bundle.
+     * Called from onRoutesLoaded() once the routing config is ready.
+     * Safe to call multiple times — each call replaces the previous trie.
+     *
+     * @param {object} routing - full routing map (all bundles)
+     * @param {string} bundle  - bundle name to index
+     */
+    self.buildTrie = function(routing, bundle) {
+        if (isGFFCtx) return; // trie is server-side only
+        var radix = require('./radix');
+        var root  = radix.createNode();
+        for (var name in routing) {
+            var r = routing[name];
+            if (!r || typeof r !== 'object') continue;
+            if (r.bundle !== bundle) continue;
+            // url can be a string ("url1, url2") or an array
+            var rawUrls = Array.isArray(r.url) ? r.url : String(r.url).split(',');
+            for (var i = 0; i < rawUrls.length; i++) {
+                var u = rawUrls[i].trim();
+                if (u) radix.insert(root, u, name);
+            }
+        }
+        Routing._tries[bundle] = root;
+    };
+
+    /**
+     * Return candidate route names for a pathname using the pre-built radix trie.
+     * Returns null when no trie is available for the bundle (safe fall-through
+     * to the linear scan in that case).
+     *
+     * @param {string} pathname - decoded request pathname
+     * @param {string} bundle   - bundle name
+     * @returns {string[]|null}
+     */
+    self.lookupTrie = function(pathname, bundle) {
+        if (!Routing._tries || !Routing._tries[bundle]) return null;
+        var radix = require('./radix');
+        return radix.lookup(Routing._tries[bundle], pathname);
+    };
 
     return self
 }
