@@ -209,6 +209,36 @@ module.exports = function renderJSON(jsonObj, deps) {
 
         var data = JSON.stringify(jsonObj);
 
+        // HEAD: send all response headers (including content-length reflecting what the body
+        // would have been) but suppress the body itself. The controller action runs in full
+        // so headers such as content-type, cache-control, and etag are set correctly.
+        if ( /^HEAD$/i.test(request.method) ) {
+            var headLen = Buffer.byteLength(data, 'utf8');
+            if ( stream ) {
+                if ( !stream.headersSent ) {
+                    var _headH = {
+                        'content-type'   : local.options.conf.server.coreConfiguration.mime['json'] + '; charset='+ local.options.conf.encoding,
+                        'content-length' : headLen,
+                        ':status'        : response.statusCode || 200
+                    };
+                    var _pendingH = response.getHeaders ? response.getHeaders() : {};
+                    for (var _hk in _pendingH) {
+                        if (!(_hk in _headH)) _headH[_hk] = _pendingH[_hk];
+                    }
+                    stream.respond(_headH);
+                }
+                stream.end();
+            } else if ( !headersSent(response) ) {
+                response.setHeader('content-type', local.options.conf.server.coreConfiguration.mime['json'] + '; charset='+ local.options.conf.encoding);
+                response.setHeader('content-length', headLen);
+                response.end();
+            }
+            local.req = null;
+            local.res = null;
+            local.next = null;
+            return;
+        }
+
         if ( local.options.isXMLRequest && self.isWithCredentials() )  {
 
 
