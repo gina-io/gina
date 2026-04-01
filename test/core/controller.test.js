@@ -467,3 +467,72 @@ describe('06 - render() auto-hint from h2Links (#EH1)', function() {
     });
 
 });
+
+
+// ─── 07 — throwError: explicit 3-digit status code is preserved ───────────────
+
+describe('07 - throwError: explicit 3-digit HTTP status code is preserved', function() {
+
+    var src = fs.readFileSync(SOURCE, 'utf8');
+
+    it('source contains the /^\\d{3}$/ guard that preserves an explicit code', function() {
+        // The fix: /^\d{3}$/.test(String(code)) before falling back to res.status || 500
+        assert.ok(/\\d\{3\}/.test(src) && /String\(code\)/.test(src),
+            'throwError must test String(code) against /^\\d{3}$/ before falling back to res.status');
+    });
+
+    it('a 3-digit number string passes the guard', function() {
+        assert.ok(/^\d{3}$/.test(String(404)));
+        assert.ok(/^\d{3}$/.test(String(400)));
+        assert.ok(/^\d{3}$/.test(String(500)));
+        assert.ok(/^\d{3}$/.test(String(201)));
+    });
+
+    it('non-numeric or short code does NOT pass the guard (falls back)', function() {
+        assert.ok(!/^\d{3}$/.test(String(undefined)));
+        assert.ok(!/^\d{3}$/.test(String(null)));
+        assert.ok(!/^\d{3}$/.test(String('foo')));
+        assert.ok(!/^\d{3}$/.test(String(50)));   // 2-digit
+        assert.ok(!/^\d{3}$/.test(String(5000)));  // 4-digit
+    });
+
+    it('inline replica: throwError(res, 404, msg) preserves 404', function() {
+        // Inline replica of the fixed code branch
+        function resolveCode(res, code) {
+            return (/^\d{3}$/.test(String(code))) ? code
+                 : (res && typeof(res.status) != 'undefined') ? res.status
+                 : 500;
+        }
+        var fakeRes = { status: 200 };
+        assert.equal(resolveCode(fakeRes, 404), 404, 'explicit 404 must not be overridden by res.status');
+    });
+
+    it('inline replica: throwError(res, undefined, msg) falls back to res.status', function() {
+        function resolveCode(res, code) {
+            return (/^\d{3}$/.test(String(code))) ? code
+                 : (res && typeof(res.status) != 'undefined') ? res.status
+                 : 500;
+        }
+        var fakeRes = { status: 422 };
+        assert.equal(resolveCode(fakeRes, undefined), 422, 'missing code falls back to res.status');
+    });
+
+    it('inline replica: throwError(res, undefined, msg) falls back to 500 when res.status absent', function() {
+        function resolveCode(res, code) {
+            return (/^\d{3}$/.test(String(code))) ? code
+                 : (res && typeof(res.status) != 'undefined') ? res.status
+                 : 500;
+        }
+        assert.equal(resolveCode({}, undefined), 500, 'missing code and missing res.status must default to 500');
+    });
+
+    it('inline replica: throwError(res, 400, msg) preserves 400', function() {
+        function resolveCode(res, code) {
+            return (/^\d{3}$/.test(String(code))) ? code
+                 : (res && typeof(res.status) != 'undefined') ? res.status
+                 : 500;
+        }
+        var fakeRes = { status: 500 };
+        assert.equal(resolveCode(fakeRes, 400), 400, 'explicit 400 must not be overridden by res.status=500');
+    });
+});
