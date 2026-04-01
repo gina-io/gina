@@ -378,6 +378,7 @@ gina-init                               # Bootstrap ~/.gina/ from env vars (cont
 - `require.cache` is evicted only when a watched file has actually changed (file-change-triggered eviction, not per-request).
 - Falls back to per-request eviction when the watcher context is unavailable (production/non-dev env).
 - SQL files are re-read from disk on every entity call (Couchbase/SQLite connectors).
+- Static files are served with `cache-control: no-cache, no-store, must-revalidate` — 304 is never sent; browser always re-fetches.
 - Do NOT rely on module-level state in files that are hot-reloaded.
 
 ---
