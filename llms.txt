@@ -12,14 +12,14 @@ Node.js MVC framework. No Express dependency. Built-in HTTP/2. Multi-bundle arch
 
 **Scope** — Runtime environment label: `local`, `beta`, `production`, `testing`. Set per-process via `NODE_SCOPE`. Stored on every entity instance as `_scope`. Used to isolate data in shared databases (Couchbase N1QL `AND t._scope = $scope`).
 
-**Short version** — The `major.minor` portion of the Gina semver (e.g. `0.1` from `0.1.9-alpha.2`). Per-version config lives at `~/.gina/{shortVersion}/settings.json`.
+**Short version** — The `major.minor` portion of the Gina semver (e.g. `0.1` from `0.1.9-alpha.2`). Per-version config lives at `~/.gina/${shortVersion}/settings.json`.
 
 ---
 
 ## Directory layout
 
 ```
-framework/v{version}/
+framework/v${version}/
   core/
     config.js           Config singleton — synchronous, must complete before returning
     gna.js              Bootstrap — injects globals (_/getContext/setContext/requireJSON/getPath)
@@ -80,11 +80,13 @@ module.exports = Controller;
 **Rules:**
 - `inherits(Child, Parent)` creates per-request instances — each request gets its own `local` closure, no shared state.
 - Auth is at `req.session.user` (NOT `req.user`).
+- Request data: `req.get` (GET query), `req.post` (POST body), `req.put` (PUT body), `req.patch` (PATCH body — partial update), `req.delete` (DELETE query), `req.head` (HEAD query — body suppressed). `req.body` aliases `req.post`/`req.put`/`req.patch`. Routes declared as GET automatically accept HEAD. PATCH vs PUT: PATCH sends only changed fields; PUT replaces the full resource. OPTIONS is CORS-only, never dispatched to a controller.
 - Routes declared in `routing.json`, not in code.
 - Always null `local.req/res/next` at response exit (done automatically in render path).
 - `createTestInstance(deps)` creates an isolated instance for unit tests without touching production state.
 - `async` controller actions are fully supported — the router attaches `.catch()` to any thenable returned by an action and routes rejections to `throwError(response, 500, ...)`. Use `await entity.method()` directly. For PathObject ops and Shell use `await onCompleteCall(_(path).mkdir())`.
 - `self.setEarlyHints(links)` — send a 103 Early Hints informational response. Call before the terminal method. `links` is a string or array of `Link` header values. HTTP/2: `stream.additionalHeaders({ ':status': 103 })`; HTTP/1.1: `res.writeEarlyHints()` (Node.js 18.11+). Silent no-op when unsupported. Returns `self`. **Also automatic**: `render()` auto-sends 103 for the bundle's CSS/JS preloads (from `h2Links`) before Swig compilation in HTTP/2 production mode — zero config required.
+- `self.renderStream(asyncIterable, contentType)` — stream an `AsyncIterable` as a chunked HTTP response without buffering. `contentType` defaults to `text/event-stream` (SSE). Each yielded string/Buffer becomes `data: {chunk}\n\n` for SSE; raw for other content types. HTTP/2: `stream.respond()` + `stream.write()` + `stream.end()`. HTTP/1.1: automatic chunked transfer-encoding. `x-accel-buffering: no` set automatically for SSE. Fire-and-forget — do not `await`. Required for LLM token streaming via `ai.client` with `stream: true`.
 
 ```javascript
 // async action example
@@ -133,22 +135,26 @@ module.exports = UserEntity;
 
 ---
 
-## SQL file format (Couchbase N1QL / SQLite)
+## SQL file format
+
+All relational connectors (SQLite, MySQL, PostgreSQL) share the same `sql/` directory
+layout and annotation format. Couchbase uses `n1ql/`.
 
 ```sql
 /*
- * @param {string}  $id
+ * @param {string}  $1   user id      ← $1/$2/... for Couchbase/PostgreSQL
+ * @param {string}  ?    user id      ← ? for SQLite/MySQL
  * @return {object}
  */
-SELECT * FROM `bucket` t WHERE t.id = $1 AND t._scope = $scope
+SELECT * FROM users WHERE id = $1 AND t._scope = $scope
 ```
 
-- `@return {object}` → single row (`stmt.get()` / Couchbase single result)
+- `@return {object}` → single row (first result or `null`)
 - `@return {Array}` → all rows (default for SELECT)
-- `@return {boolean}` → `changes > 0` or `rows.length > 0`
+- `@return {boolean}` → `changes > 0` / `affectedRows > 0` / `rowCount > 0` (write) or `rows.length > 0` (SELECT)
 - `@return {number}` → first key of first row (COUNT queries)
-- `$scope` is substituted as a string literal, not a positional parameter
-- SQLite uses `?` placeholders; Couchbase uses `$1`, `$2`, ...
+- `$scope` — Couchbase only: substituted as a string literal, not a positional parameter
+- Placeholders: SQLite `?`, MySQL `?`, PostgreSQL `$1 $2 …`, Couchbase `$1 $2 …`
 
 ---
 
@@ -161,6 +167,24 @@ SELECT * FROM `bucket` t WHERE t.id = $1 AND t._scope = $scope
     "database": "mydb",
     "file": ":memory:"
   },
+  "mysqldb": {
+    "connector": "mysql",
+    "host": "127.0.0.1",
+    "port": 3306,
+    "database": "myapp",
+    "username": "root",
+    "password": "secret",
+    "connectionLimit": 10
+  },
+  "pgdb": {
+    "connector": "postgresql",
+    "host": "127.0.0.1",
+    "port": 5432,
+    "database": "myapp",
+    "username": "postgres",
+    "password": "secret",
+    "connectionLimit": 10
+  },
   "cache": {
     "connector": "redis",
     "host": "localhost",
@@ -169,7 +193,105 @@ SELECT * FROM `bucket` t WHERE t.id = $1 AND t._scope = $scope
 }
 ```
 
-Connectors supported: `couchbase` (v3/v4), `redis`, `sqlite` (v2 ORM + session store).
+Connectors supported: `couchbase` (v3/v4), `mysql` (mysql2), `postgresql` (pg), `redis`, `sqlite` (v2 ORM + session store), `ai` (LLM providers).
+MySQL, PostgreSQL, and AI drivers are loaded from the project's `node_modules` — zero framework npm dependency.
+
+## AI connector
+
+Declare any LLM provider in `connectors.json` via `"connector": "ai"`. Named protocol shortcuts resolve the SDK and base URL automatically.
+
+```json
+{
+  "claude":   { "connector": "ai", "protocol": "anthropic://", "apiKey": "${ANTHROPIC_API_KEY}", "model": "claude-opus-4-6" },
+  "deepseek": { "connector": "ai", "protocol": "deepseek://",  "apiKey": "${DEEPSEEK_API_KEY}",  "model": "deepseek-chat" },
+  "local":    { "connector": "ai", "protocol": "ollama://",    "model": "mimo" }
+}
+```
+
+| Protocol | SDK | Notes |
+|---|---|---|
+| `anthropic://` | `@anthropic-ai/sdk` | Claude models |
+| `openai://` | `openai` | GPT / o-series |
+| `deepseek://` | `openai` | DeepSeek-V3, DeepSeek-R1 — OpenAI-compat by design |
+| `qwen://` | `openai` | Alibaba Qwen via DashScope |
+| `groq://` | `openai` | Groq LPU inference |
+| `mistral://` | `openai` | Mistral AI |
+| `gemini://` | `openai` | Google Gemini OpenAI-compat endpoint |
+| `xai://` | `openai` | xAI Grok |
+| `perplexity://` | `openai` | Perplexity |
+| `ollama://` | `openai` | Local models: MiMo, Llama, Phi, Qwen-local, Gemma… |
+| `openai://` + `baseURL` | `openai` | Any OpenAI-compatible endpoint / self-hosted vLLM |
+
+`getModel('connectorName')` returns `{ client, provider, model, infer(messages, options) }`.
+
+```javascript
+var ai     = getModel('deepseek');
+var result = await ai.infer([{ role: 'user', content: 'Hello' }]);
+// result: { content, model, usage: { inputTokens, outputTokens }, raw }
+
+// .onComplete() for backward compat
+ai.infer(messages).onComplete(function(err, result) { ... });
+
+// raw SDK for streaming, embeddings, function calling
+ai.client.chat.completions.create({ stream: true, ... });
+```
+
+- System message: pass `{ role: 'system', content: '...' }` in the array OR use `options.system`
+- For Anthropic: system message is extracted and passed as the `system` parameter automatically
+- No live API ping at startup — zero tokens spent on connector init
+
+---
+
+## Route radix trie
+
+`lib/routing/src/radix.js` — built once at startup from `routing.json`. Never mutated at runtime.
+
+- `createNode()` — `{ static: {}, param: null, names: [] }`
+- `insert(root, url, name)` — splits URL on `/`, static segments go to `node.static[s]`, `:param` segments to `node.param`
+- `lookup(root, pathname)` — O(m) candidate lookup (m = segment count); strips query string before matching; returns `string[]` of route name candidates
+- `_match()` — static child has priority over param (more specific), but param is always tried when present; both may appear in results
+- **Candidate set**: `lookup()` returns structural matches only; semantic validation (HTTP method, `requirements`, param extraction) remains in `compareUrls()` and `parseRouting()`
+- `Routing.buildTrie(routing, bundle)` called in `onRoutesLoaded()` after `config.setRouting()`
+- `Routing.lookupTrie(pathname, bundle)` returns `null` when no trie is available (safe full-scan fallback)
+- In `handle()`: `_trieCandidateSet = new Set(trieHits)` used with `Set.has(name)` to skip non-candidates in the `for…in` loop
+- Falls back silently to the full linear scan when trie is absent or lookup returns no hits
+
+---
+
+## HTTP/2 settings & metrics
+
+**Configurable settings** (via `settings.json` `http2Options`):
+```json
+{
+  "http2Options": {
+    "maxConcurrentStreams": 256,
+    "initialWindowSize": 655350
+  }
+}
+```
+Security-critical settings are hardcoded and not user-overridable: `maxHeaderListSize: 65536` (HPACK bomb), `enablePush: false`, `maxSessionRejectedStreams: 100` (RST/Rapid Reset), `maxSessionInvalidFrames: 1000` (CONTINUATION flood).
+
+**Session metrics** — exposed at `/_gina/info` under `"http2"` key:
+```json
+{
+  "http2": {
+    "activeSessions": 3,
+    "totalStreams": 142,
+    "goawayCount": 0,
+    "rstCount": 5
+  }
+}
+```
+Counters are live — no restart required. `activeSessions` is bounded by ≥ 0. `rstCount` counts only non-zero RST codes (normal stream close = code 0 = not counted).
+
+**CVE coverage** — see `docs/security.md` for the full table. All mitigations are on by default:
+| CVE | Name | Mitigation |
+|---|---|---|
+| CVE-2023-44487 | Rapid Reset | `maxSessionRejectedStreams: 100` + Node ≥ 20.12.1 |
+| CVE-2024-27316 / CVE-2024-27983 | CONTINUATION flood | `maxSessionInvalidFrames: 1000` + Node ≥ 20.12.1 |
+| CVE-2019-9514 | RST flood | `maxSessionRejectedStreams: 100` |
+| — | HPACK bomb | `maxHeaderListSize: 65536` |
+| — | Server push abuse | `enablePush: false` |
 
 ---
 
@@ -275,7 +397,7 @@ Bundle ports are allocated per-project in `~/.gina/ports.json`.
 
 ```
 ~/.gina/
-  {shortVersion}/
+  ${shortVersion}/
     settings.json       Per-version framework settings (port, env, scope, locale)
   projects.json         Registered projects
   main.json             Framework install metadata
@@ -297,6 +419,7 @@ Bundle ports are allocated per-project in `~/.gina/ports.json`.
 6. **`getConnection()` in tests**: pass `{ connector: mockConn }` as the third arg to EntitySuper.
 7. **`super()` does not exist** — use `Parent.call(this, ...)` for constructor chaining.
 8. **Roadmap sync**: any roadmap change must be applied to both `ROADMAP.md` and `~/Sites/gina/docs/repo/docs/roadmap.md`.
-9. **`gina_version` in `manifest.json`** — optional per-bundle pin. When set, that bundle's spawned process gets `GINA_VERSION`, `GINA_FRAMEWORK_DIR`, and `GINA_CORE` overridden in its context. The socket server is unaffected. CLI flag `--gina-version` takes priority over the manifest declaration.
-10. **`self.render(err)` with object errors**: `render-swig.js` normalises `data.page.data.error` and `data.page.data.message` to strings before building the error response — object fields (e.g. `ApiError` instances, `{message, code}` objects) no longer render as `[object Object]` (#Q2). The normalized string is also used in the `console.error` log that fires before `throwError`.
-11. **Couchbase session store `touch()`/`destroy()` MutationResult leak**: In `session-store.v3.js` and `session-store.v4.js`, `.then(fn.apply(this,arguments))` in `touch()` passed the Couchbase `MutationResult` (`{cas, token}`) as the first argument of the express-session callback. express-session v1.18.1 treats a truthy first arg as an error and calls `defer(next, err)`, routing the raw MutationResult through the framework error handler as a 500 response body. Same issue in `destroy()` via `.then(fn)`. Fixed (#CB-BUG-4): both methods now call `fn(null)` explicitly on success.
+9. **`${variable}` convention in all docs** — Every path, filename pattern, and inline variable reference in Gina documentation uses `${variable}` (with the leading `$`), never bare `{variable}`. This matches the `whisper()` interpolation syntax. Breaking this convention makes variables look like plain text. Applies to paths (`~/.gina/${shortVersion}/`), filename patterns (`connectors.${env}.json`), framework paths (`${core}/controller/`), and cache paths (`${cache.path}/${bundle}/`). Always scan existing docs before writing new content to verify consistency.
+10. **`gina_version` in `manifest.json`** — optional per-bundle pin. When set, that bundle's spawned process gets `GINA_VERSION`, `GINA_FRAMEWORK_DIR`, and `GINA_CORE` overridden in its context. The socket server is unaffected. CLI flag `--gina-version` takes priority over the manifest declaration.
+11. **`self.render(err)` with object errors**: `render-swig.js` normalises `data.page.data.error` and `data.page.data.message` to strings before building the error response — object fields (e.g. `ApiError` instances, `{message, code}` objects) no longer render as `[object Object]` (#Q2). The normalized string is also used in the `console.error` log that fires before `throwError`.
+12. **Couchbase session store `touch()`/`destroy()` MutationResult leak**: In `session-store.v3.js` and `session-store.v4.js`, `.then(fn.apply(this,arguments))` in `touch()` passed the Couchbase `MutationResult` (`{cas, token}`) as the first argument of the express-session callback. express-session v1.18.1 treats a truthy first arg as an error and calls `defer(next, err)`, routing the raw MutationResult through the framework error handler as a 500 response body. Same issue in `destroy()` via `.then(fn)`. Fixed (#CB-BUG-4): both methods now call `fn(null)` explicitly on success.
