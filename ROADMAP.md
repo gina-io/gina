@@ -136,6 +136,14 @@ A cold audit of the Couchbase connector identified two critical security vulnera
 
 ---
 
+## Observability
+
+| Status | Feature | Version | Target |
+| --- | --- | --- | --- |
+| 📋 | **Prometheus metrics endpoint** — Built-in `/_gina/metrics` endpoint exposing Prometheus-format metrics. Opt-in via `app.json` (`"metrics": { "enabled": true }`). Collects Node.js process metrics (heap, GC, event loop lag) automatically via `prom-client.collectDefaultMetrics()`, and HTTP request metrics — count, latency histogram, and error count — labelled by route pattern sourced from `routing.json`. Route patterns (e.g. `/users/:id`) are used instead of raw URLs to prevent high-cardinality label explosion from path parameters. `prom-client` is loaded from the user project's `node_modules` (peer dependency, same pattern as `ioredis` and `mysql2`). Endpoint is IP-restricted by default; configurable in `app.json`. Each bundle self-reports on its own port — point Prometheus at `host:port/_gina/metrics` per bundle, no sidecar required. | `0.4.0` | Q4 2026 |
+
+---
+
 ## HTTP/2
 
 | Status | Feature | Version | Target | Notes |
@@ -264,4 +272,4 @@ Standalone gina dev and admin tool. A dedicated browser-tab app (`services/src/b
 
 ---
 
-*Last updated: 2026-04-01 (route radix trie, HTTP/2 configurable settings + session metrics, security CVE docs shipped in 0.3.0-alpha.1) · To suggest a feature, [open an issue](https://github.com/gina-io/gina/issues).*
+*Last updated: 2026-04-01 (route radix trie, HTTP/2 configurable settings + session metrics, security CVE docs shipped in 0.3.0-alpha.1; Prometheus metrics endpoint added to 0.4.0 Observability) · To suggest a feature, [open an issue](https://github.com/gina-io/gina/issues).*
