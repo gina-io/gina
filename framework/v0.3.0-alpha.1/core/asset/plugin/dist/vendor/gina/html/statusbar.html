@@ -1,0 +1,39 @@
+<script>
+(function () {
+    'use strict';
+    var d = window.__ginaData;
+    if (!d || !d.user) return;
+    var env     = d.user.environment || {};
+    var data    = d.user.data        || {};
+    var bundle  = env.bundle  || '?';
+    var envName = env.env     || '?';
+    var dot     = data.error  ? '#e74c3c' : '#2ecc71';
+    var el      = document.createElement('div');
+    el.id       = '__gina-statusbar';
+    var sr      = el.attachShadow({ mode: 'open' });
+    sr.innerHTML = '<style>'
+        + '#b { position: fixed; bottom: 0; right: 0; z-index: 2147483647;'
+        + '  display: flex; align-items: center; gap: 6px;'
+        + '  padding: 3px 8px; font: 11px/1.4 monospace;'
+        + '  background: rgba(0,0,0,.75); color: #eee;'
+        + '  border-radius: 4px 0 0 0; cursor: default; }'
+        + '.d { width: 8px; height: 8px; border-radius: 50%;'
+        + '  flex-shrink: 0; background: ' + dot + '; }'
+        + 'a { color: #adf; text-decoration: none; }'
+        + 'a:hover { text-decoration: underline; }'
+        + '</style>'
+        + '<div id="b">'
+        + '<span class="d"></span>'
+        + '<span>' + bundle + '@' + envName + '</span>'
+        + '<a href="http://localhost:' + (env.beemasterPort || 4101) + '" target="_blank" rel="noopener">Beemaster &#8599;</a>'
+        + '</div>';
+    function inject() {
+        if (document.body) document.body.appendChild(el);
+    }
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', inject);
+    } else {
+        inject();
+    }
+}());
+</script>

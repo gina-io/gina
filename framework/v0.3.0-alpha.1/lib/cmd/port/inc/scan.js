@@ -93,6 +93,13 @@ module.exports = function Scanner(opt, cb){
             return find(port, cb);
         }
 
+        // Skip Gina infrastructure reserved range 4100–4199 (RFC 6335 / Gina port policy)
+        // 4100 = socket server, 4101 = Beemaster, 4102 = engine.io, 4103–4199 = reserved
+        if ( port >= 4100 && port <= 4199 ) {
+            port = 4200;
+            return find(port, cb);
+        }
+
         // Creating socket
         var s = new net.Socket();
 

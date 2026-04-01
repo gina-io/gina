@@ -891,27 +891,27 @@ module.exports = async function render(userData, displayToolbar, errOptions, dep
             ||
             hasViews() && localOptions.debugMode
         ) {
-            if ( !/\{\%\- set ginaDataInspector/.test(layout) ) {
-                layout = ''
-                    // + '{%- set ginaDataInspector                    = JSON.clone(page) -%}'
-                    + '{%- set ginaDataInspector                    = JSON.clone(page) -%}'
-                    // + '{%- set ginaDataInspector                    = { view: {}, environment: { routing: {}}} -%}'
-                    + '{%- set ginaDataInspector.view.assets        = {} -%}'
-                    + '{%- set ginaDataInspector.view.scripts       = "ignored-by-toolbar" -%}'
-                    + '{%- set ginaDataInspector.view.stylesheets   = "ignored-by-toolbar" -%}'
-                    + layout
-                ;
-            }
+            var __gdGina = JSON.parse(JSON.stringify(data.page));
+            __gdGina.view.assets      = {};
+            __gdGina.view.scripts     = 'ignored-by-toolbar';
+            __gdGina.view.stylesheets = 'ignored-by-toolbar';
 
+            var __gdUser = JSON.parse(JSON.stringify(data.page));
+            __gdUser.view.scripts     = 'ignored-by-toolbar';
+            __gdUser.view.stylesheets = 'ignored-by-toolbar';
+            __gdUser.view.assets      = assets;
+
+            var __gdScript = '<script>window.__ginaData = '
+                + JSON.stringify({ gina: __gdGina, user: __gdUser })
+                    .replace(/<\/script>/gi, '<\\/script>')
+                    .replace(/<!--/g, '<\\!--')
+                + ';</script>\n';
 
             plugin = '\t'
                 + '{# Gina Toolbar #}'
-                + '{%- set userDataInspector                    = JSON.clone(page) -%}'
-                + '{%- set userDataInspector.view.scripts       = "ignored-by-toolbar"  -%}'
-                + '{%- set userDataInspector.view.stylesheets   = "ignored-by-toolbar"  -%}'
-                + '{%- set userDataInspector.view.assets        = '+ JSON.stringify(assets) +' -%}'
+                + __gdScript
+                + '{%- include "'+ getPath('gina').core +'/asset/plugin/dist/vendor/gina/html/statusbar.html" -%}'// jshint ignore:line
                 + '{# END Gina Toolbar #}'
-                + '{%- include "'+ getPath('gina').core +'/asset/plugin/dist/vendor/gina/html/toolbar.html" with { gina: ginaDataInspector, user: userDataInspector } -%}'// jshint ignore:line
             ;
 
 

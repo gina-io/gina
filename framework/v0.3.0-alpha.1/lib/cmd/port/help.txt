@@ -3,6 +3,20 @@
 ******************************
 
 
+[ Reserved port range ]
+
+    Ports 4100–4199 are reserved for Gina infrastructure and are never
+    assigned to bundle HTTP servers:
+
+        4100  Socket server (gina daemon)
+        4101  Beemaster dev inspector
+        4102  engine.io internal transport
+        4103–4199  Reserved for future Gina services
+
+    The port scanner skips this range automatically.
+    See: https://www.rfc-editor.org/rfc/rfc6335.html
+
+
 [ Set a port number ]
 
     Set or update a port number

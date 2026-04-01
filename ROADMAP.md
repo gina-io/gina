@@ -62,6 +62,7 @@ This roadmap covers planned features, architectural improvements, new connectors
 | --- | --- | --- | --- |
 | 📋 | **Explicit exports for global helpers** — `getContext`, `setContext`, `_`, `requireJSON` etc. available as explicit `require('gina/gna').getContext` imports alongside the existing global injection. Enables IDE navigation and static analysis. | `0.4.0` | Q4 2026 |
 | 📋 | **TypeScript declaration files** — `.d.ts` declarations for the public surface: `SuperController`, `EntitySuper`, connector config shapes, `routing.json` schema. No TS migration of internals — just declarations for consumer projects. | `0.4.0` | Q4 2026 |
+| 📋 | **`gina connector:audit [@project]`** — reads `connectors.json`, maps each declared connector to its npm peer package (`mysql2`, `pg`, `ioredis`, `couchbase`, `openai`, `@anthropic-ai/sdk`, etc.), and runs `npm audit --json` scoped to those packages in the project's `node_modules`. Reports CVEs with severity and fix availability. If `socket` is installed in the project, delegates to it for supply-chain analysis (malware, typosquatting, protestware) instead of `npm audit`. Exit code 1 on any high/critical finding — CI-friendly. Only audits packages actually declared in `connectors.json`, not the full dependency tree. | `0.4.0` | Q4 2026 |
 
 ### Phase 5 — Future
 
@@ -88,7 +89,7 @@ New database connectors follow the same interface as the existing Couchbase conn
 | 📋 | **MongoDB** | `0.4.0` | Q4 2026 | Document store connector. Client: `mongodb` (official driver). Interface approach TBD — MongoDB's document model differs from the N1QL/SQL pattern used by existing connectors. |
 | ✅ | **Couchbase SDK v2 deprecation** | `0.2.0` | 2026-03-27 | Couchbase Server SDK v2 reached end-of-life in 2021. `connector.v2.js` now logs a deprecation warning at connection time, and a fatal error when V8 pointer compression is active (NAN bindings are incompatible). Upgrade path: set `sdk.version` to `3` or `4` in your bundle's `connectors.json`. |
 | 📋 | **Couchbase SDK v2 removal** | `0.4.0` | Q4 2026 | `connector.v2.js` and all `sdk.version <= 2` branches removed. Default falls back to v3 when `sdk.version` is unset. Full migration guide in `CHANGELOG.md`. |
-| 📋 | **`peerDependencies` for connector clients** | `0.3.0` | Q3 2026 | Connector client libraries (`ioredis`, `mysql2`, `pg`, `mongodb`, `@scylladb/scylla-driver`, `couchbase`) are loaded from the user's project — gina has zero runtime npm dependencies. `peerDependencies` (all optional) will signal the tested version range and surface an `npm install` compatibility warning when a user pins an untested version. |
+| ✅ | **`peerDependencies` for connector clients** | `0.3.0` | 2026-04-01 | All connector client libraries (`ioredis`, `mysql2`, `pg`, `mongodb`, `@scylladb/scylla-driver`, `couchbase`, `openai`, `@anthropic-ai/sdk`) are declared as optional `peerDependencies`. Signals the tested version range to npm/yarn and surfaces a compatibility warning when a user pins an untested version. Zero framework runtime dependency — clients are always loaded from the project's `node_modules`. |
 
 ---
 
@@ -219,8 +220,9 @@ Standalone gina dev and admin tool. A dedicated browser-tab app (`services/src/b
 
 | Status | Feature | Version | Target |
 | --- | --- | --- | --- |
-| 📋 | **Thin in-page status bar** — Remove the in-page toolbar bundle entirely. Replace with a lightweight `<div>` injected only in dev mode: bundle name, environment, a status dot (green/yellow/red), and an "Open Beemaster" link to port 4101. No RequireJS, no jQuery, no SASS. Zero DOM impact on the app. | `0.3.0` | Q3 2026 |
-| 📋 | **`window.__ginaData`** — Replace the current `<pre>` tag data embedding with a single `<script>window.__ginaData={...}</script>` tag (dev mode only). Smaller page weight, no DOM nodes to scrape. Beemaster reads it on connect via `window.opener` or a `postMessage` handshake. | `0.3.0` | Q3 2026 |
+| ✅ | **Thin in-page status bar** — Replaces the in-page toolbar bundle. A `<script>` tag included from `statusbar.html` creates a Shadow DOM host (`#__gina-statusbar`, fixed bottom-right) in dev mode. Shows a status dot (green = ok, red = `data.error` set), `bundle@env`, and an "Open Beemaster" link to port 4101. Pure vanilla JS — no RequireJS, no jQuery, no SASS. Shadow DOM provides full CSS isolation. `gina.js` toolbar still loads but silently deactivates (`#gina-toolbar` absent → `!$toolbar.length` guard). | `0.3.0` | 2026-04-01 |
+| ✅ | **`window.__ginaData`** — Replace the `<pre>` tag data embedding with a single `<script>window.__ginaData={...}</script>` tag (dev mode only). Smaller page weight, no DOM nodes to scrape. Beemaster reads it on connect via `window.opener` or a `postMessage` handshake. `gina` and `user` sub-objects built in Node.js (no Swig serialization); `</script>` and `<!--` sequences escaped. Toolbar JS reads `window.__ginaData` directly; mock file-upload writes back to it. | `0.3.0` | 2026-04-01 |
+| ✅ | **Gina infrastructure port range 4100–4199** — Reserved exclusively for Gina's own services; never assigned to bundle HTTP servers. `gina port:scan` skips this range automatically (RFC 6335 user-assigned space). Layout: `4100` = socket server (future migration from 8124), `4101` = Beemaster dev inspector, `4102` = engine.io internal transport, `4103–4199` = future Gina services. `settings.json` `engine.io.port` moved from `8888` (Jupyter Notebook conflict) to `4102`. `statusbar.html` Beemaster link reads `env.beemasterPort` from `window.__ginaData` with fallback to `4101`. | `0.3.0-alpha.1` | 2026-04-01 |
 
 ### Phase 2 — Beemaster core
 
