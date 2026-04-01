@@ -3431,7 +3431,7 @@ function Server(options) {
             throwError(res, 500, err.stack, next);
             return;
         }
-        var isMethodAllowed = null, hostname = null;
+        var isMethodAllowed = null, hostname = null, _methodMismatch405msg = null;
 
         // Checking cached route
         var hasCachedRoute = await routingLib.getCached(req.method +':'+ pathname, req) || null;
@@ -3545,8 +3545,9 @@ function Server(options) {
                             req.method = _routing.method;
                             isMethodAllowed = true;
                         } else {
-                            throwError(res, 405, 'Method Not Allowed.\n'+ ' `'+req.url+'` is expecting `' + _routing.method.toUpperCase() +'` method but got `'+ req.method.toUpperCase() +'` instead');
-                            break;
+                            // URL matched but method didn't — keep looking for a route that matches both
+                            _methodMismatch405msg = 'Method Not Allowed.\n `'+req.url+'` does not support `' + req.method.toUpperCase() + '`';
+                            continue;
                         }
                     }
 
@@ -3622,6 +3623,10 @@ function Server(options) {
             } // EO for (let name in routing) {
 
 
+
+        if (!matched && _methodMismatch405msg) {
+            return throwError(res, 405, _methodMismatch405msg, next);
+        }
 
         if (matched) {
             if ( /^isaac/.test(self.engine) && self.instance._expressMiddlewares.length > 0) {
