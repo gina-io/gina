@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'Fixed crash in fitsWithRequirements when a URL param route has no requirements block — router now accepts any non-empty segment value and correctly binds it to req.params / req[method] instead of throwing TypeError.'
+time: 2026-04-01T22:01:00.000000+01:00
