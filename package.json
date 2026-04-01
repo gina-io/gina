@@ -72,7 +72,7 @@
   },
   "devDependencies": {
     "colors": "1.4.0",
-    "uuid": "^9.0.0"
+    "uuid": "^13.0.0"
   },
   "peerDependencies": {
     "couchbase": ">=3.0.0",
