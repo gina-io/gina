@@ -15,6 +15,8 @@
  *  07 — render-swig.js: HEAD body suppression guard
  *  08 — inline logic: PATCH body parsing replica
  *  09 — inline logic: HEAD query-string processing replica
+ *  10 — server.js source: method-routing fix (405 continue instead of break)
+ *  11 — inline logic: method-routing 405 after full scan
  */
 var { describe, it, before } = require('node:test');
 var assert = require('node:assert/strict');
@@ -482,5 +484,134 @@ describe('09 - HTTP methods: HEAD query-string processing (inline replica)', fun
         var headResult = processHeadQuery({ page: '2', q: 'gina' });
         // Same params, different storage key
         assert.deepEqual(headResult.head, getResult.get);
+    });
+});
+
+
+// ─── 10 — server.js source: method-routing fix (405 continue instead of break) ─
+
+describe('10 - method-routing fix: server.js source structure', function() {
+
+    var src;
+    before(function() { src = fs.readFileSync(SERVER_SRC, 'utf8'); });
+
+    it('_methodMismatch405msg variable is declared in handle()', function() {
+        assert.ok(/_methodMismatch405msg\s*=\s*null/.test(src),
+            'server.js must declare _methodMismatch405msg = null');
+    });
+
+    it('method mismatch assigns _methodMismatch405msg and uses continue (not break)', function() {
+        // Must assign message then continue scanning — not break
+        // Find the specific mismatch assignment (not the initialisation = null)
+        var assignStr = "_methodMismatch405msg = 'Method Not Allowed";
+        var idx = src.indexOf(assignStr);
+        assert.ok(idx >= 0, 'server.js must set _methodMismatch405msg on method mismatch');
+        // `continue` must appear within ~200 chars after the assignment
+        var context = src.slice(idx, idx + 250);
+        assert.ok(/continue/.test(context),
+            'method mismatch assignment must be followed by continue (not break)');
+    });
+
+    it('does NOT have a bare break immediately after method mismatch assignment', function() {
+        // Old code had: throwError(405) + break; new code: assign message + continue
+        var assignStr = "_methodMismatch405msg = 'Method Not Allowed";
+        var lines = src.split('\n');
+        var mismatchLine = lines.findIndex(function(l) { return l.indexOf(assignStr) >= 0; });
+        assert.ok(mismatchLine >= 0, 'mismatch assignment line not found');
+        // Next non-blank line must be `continue`, not `break` or `throwError`
+        var next = lines.slice(mismatchLine + 1).find(function(l) { return /\S/.test(l); }) || '';
+        assert.ok(/\bcontinue\b/.test(next), 'line after mismatch assignment must be continue, got: ' + next.trim());
+        assert.ok(!/\bbreak\b/.test(next), 'line after mismatch assignment must not be break');
+    });
+
+    it('404 check after loop only fires when no match AND no method mismatch was recorded', function() {
+        // The 405 guard must come BEFORE the generic 404
+        var idx405 = src.indexOf('if (!matched && _methodMismatch405msg)');
+        var idx404 = src.indexOf("throwError(res, 404, 'Page not found");
+        assert.ok(idx405 >= 0, '405 guard not found in server.js');
+        assert.ok(idx404 >= 0, '404 handler not found in server.js');
+        assert.ok(idx405 < idx404, '405 guard must come before generic 404');
+    });
+});
+
+
+// ─── 11 — inline logic: method-routing 405 after full scan ────────────────────
+
+describe('11 - method-routing fix: inline scan logic', function() {
+
+    /**
+     * Minimal replica of the server.js routing loop that implements the fix:
+     * – continue on method mismatch (not break)
+     * – emit 405 only if no route matched AND a method mismatch was recorded
+     */
+    function runScan(routes, reqMethod, reqUrl) {
+        var matched = false;
+        var _methodMismatch405msg = null;
+
+        for (var name in routes) {
+            var route = routes[name];
+            if (route.url !== reqUrl) continue;            // URL doesn't match
+            if (route.method !== reqMethod) {
+                // method mismatch — record but KEEP scanning
+                _methodMismatch405msg = 'Method Not Allowed';
+                continue;
+            }
+            matched = true;
+            break;
+        }
+
+        if (!matched && _methodMismatch405msg) return { status: 405, matched: false };
+        if (!matched)                           return { status: 404, matched: false };
+        return { status: 200, matched: true };
+    }
+
+    it('GET /notes matches list-notes and returns 200', function() {
+        var routes = {
+            'list-notes':   { url: '/notes', method: 'GET' },
+            'create-note':  { url: '/notes', method: 'POST' }
+        };
+        assert.deepEqual(runScan(routes, 'GET',  '/notes'), { status: 200, matched: true });
+    });
+
+    it('POST /notes matches create-note and returns 200 (GET rule does not break the scan)', function() {
+        var routes = {
+            'list-notes':   { url: '/notes', method: 'GET' },
+            'create-note':  { url: '/notes', method: 'POST' }
+        };
+        assert.deepEqual(runScan(routes, 'POST', '/notes'), { status: 200, matched: true });
+    });
+
+    it('PUT /notes returns 405 when only GET and POST are declared', function() {
+        var routes = {
+            'list-notes':   { url: '/notes', method: 'GET' },
+            'create-note':  { url: '/notes', method: 'POST' }
+        };
+        assert.deepEqual(runScan(routes, 'PUT',  '/notes'), { status: 405, matched: false });
+    });
+
+    it('GET /unknown returns 404 (no URL match at all, not 405)', function() {
+        var routes = {
+            'list-notes':   { url: '/notes', method: 'GET' },
+            'create-note':  { url: '/notes', method: 'POST' }
+        };
+        assert.deepEqual(runScan(routes, 'GET',  '/unknown'), { status: 404, matched: false });
+    });
+
+    it('DELETE /notes returns 405 after scanning all three routes', function() {
+        var routes = {
+            'r1': { url: '/notes', method: 'GET' },
+            'r2': { url: '/notes', method: 'POST' },
+            'r3': { url: '/notes', method: 'PUT' }
+        };
+        assert.deepEqual(runScan(routes, 'DELETE', '/notes'), { status: 405, matched: false });
+    });
+
+    it('first route method mismatch does NOT stop the scan — second route with correct method wins', function() {
+        // This is the core regression: old `break` would stop after the GET mismatch
+        var routes = {
+            'wrong-method': { url: '/api', method: 'GET' },
+            'correct':      { url: '/api', method: 'POST' }
+        };
+        assert.deepEqual(runScan(routes, 'POST', '/api'), { status: 200, matched: true });
     });
 });
