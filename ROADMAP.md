@@ -291,8 +291,8 @@ Standalone gina dev and admin tool. A dedicated browser-tab app (`services/src/b
 
 | Status | Tutorial | Duration | Version | Target |
 | --- | --- | --- | --- | --- |
-| 📋 | **Using Gina as a mobile backend** — REST API patterns, JSON-only bundles, token auth, CORS, HTTP/2, and the path to OpenAPI/MCP for SDK generation. Docs only — no code changes. | — | `0.3.0` | Q3 2026 |
-| 📋 | **Beginner** — Your first Gina app: install, scaffold, one route, one controller, browser response. Starts from `gina new` — no prior project needed. | 5 min | `0.3.0` | Q3 2026 |
+| ✅ | **Mobile Backend guide** — REST API patterns, JSON-only bundles, all HTTP methods (GET/POST/PUT/PATCH/DELETE/HEAD), standard response envelope, pagination, CORS middleware, session auth + token auth patterns, HTTP/2 benefits, `renderStream` for AI/SSE. Docs only — no code changes. | — | `0.3.0` | 2026-04-01 |
+| ✅ | **Beginner — Notes API** — Your first REST API: scaffold a project, define 3 routes in `routing.json`, write synchronous controller actions, read `req.post` / `req.params`, return JSON with `renderJSON()`, handle errors with `throwError()`. In-memory store — no database needed. | ~15 min | `0.3.0` | 2026-04-01 |
 | 📋 | **Tutorial locale detection** — Detect the reader's locale and timezone via `navigator.language` + `Intl` and pre-fill the `settings.json` scaffold example with their actual `region`, `preferedLanguages`, and `24HourTimeFormat` values. Falls back to `en_CM`. Implemented as a client-side Docusaurus component. | — | `0.3.0` | Q3 2026 |
 | ✅ | **Intermediate — Link Shortener** — SQLite ORM connector, async controller actions, `render()` + `renderJSON()` in same bundle, HTTP 302 redirect, route `requirements` guard. Includes downloadable project ZIP. | ~30 min | `0.3.0` | 2026-04-01 |
 | 📋 | **Advanced** — Full production project: authentication, scoped data isolation, async/await, HTTP/2, structured logging, Docker/K8s deployment. Starts from the intermediate tutorial's finished state. | ~60 min | `0.4.0` | Q4 2026 |
@@ -309,4 +309,4 @@ Standalone gina dev and admin tool. A dedicated browser-tab app (`services/src/b
 
 ---
 
-*Last updated: 2026-04-01 (route radix trie, HTTP/2 configurable settings + session metrics, security CVE docs shipped in 0.3.0-alpha.1; Intermediate — Link Shortener tutorial shipped; Prometheus metrics endpoint added to 0.4.0 Observability) · To suggest a feature, [open an issue](https://github.com/gina-io/gina/issues).*
+*Last updated: 2026-04-01 (route radix trie, HTTP/2 configurable settings + session metrics, security CVE docs shipped in 0.3.0-alpha.1; Beginner Notes API tutorial, Intermediate Link Shortener tutorial, and Mobile Backend guide shipped; CLI stub roadmap added; Prometheus metrics endpoint added to 0.4.0 Observability) · To suggest a feature, [open an issue](https://github.com/gina-io/gina/issues).*
