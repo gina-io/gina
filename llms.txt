@@ -194,7 +194,7 @@ SELECT * FROM users WHERE id = $1 AND t._scope = $scope
 ```
 
 Connectors supported: `couchbase` (v3/v4), `mysql` (mysql2), `postgresql` (pg), `redis`, `sqlite` (v2 ORM + session store), `ai` (LLM providers).
-MySQL, PostgreSQL, and AI drivers are loaded from the project's `node_modules` — zero framework npm dependency.
+All connector clients (`mysql2`, `pg`, `ioredis`, `couchbase`, `mongodb`, `@scylladb/scylla-driver`, `openai`, `@anthropic-ai/sdk`) are loaded from the project's `node_modules` — zero framework runtime dependency. All are declared as optional `peerDependencies` in `package.json` so npm/yarn surfaces a compatibility warning when an untested version is pinned.
 
 ## AI connector
 
@@ -389,7 +389,16 @@ gina-init                               # Bootstrap ~/.gina/ from env vars (cont
 | 8124 | Framework socket server (online commands) |
 | 8125 | MQ listener (log tail) |
 
-Bundle ports are allocated per-project in `~/.gina/ports.json`.
+**Gina infrastructure reserved range: 4100–4199** — never assigned to bundle HTTP servers; `gina port:scan` skips this range automatically (RFC 6335).
+
+| Port | Role |
+| --- | --- |
+| 4100 | Reserved — future socket server migration (currently 8124) |
+| 4101 | Beemaster dev inspector |
+| 4102 | engine.io internal transport (moved from 8888, Jupyter conflict) |
+| 4103–4199 | Reserved for future Gina services |
+
+Bundle HTTP ports are allocated per-project in `~/.gina/ports.json`.
 
 ---
 

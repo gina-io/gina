@@ -80,7 +80,9 @@
     "mysql2": ">=2.0.0",
     "pg": ">=8.0.0",
     "mongodb": ">=5.0.0",
-    "@scylladb/scylla-driver": ">=1.0.0"
+    "@scylladb/scylla-driver": ">=1.0.0",
+    "openai": ">=4.0.0",
+    "@anthropic-ai/sdk": ">=0.27.0"
   },
   "peerDependenciesMeta": {
     "couchbase": {
@@ -99,6 +101,12 @@
       "optional": true
     },
     "@scylladb/scylla-driver": {
+      "optional": true
+    },
+    "openai": {
+      "optional": true
+    },
+    "@anthropic-ai/sdk": {
       "optional": true
     }
   }

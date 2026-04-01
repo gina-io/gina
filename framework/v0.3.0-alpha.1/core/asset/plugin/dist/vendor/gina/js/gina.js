@@ -17728,8 +17728,6 @@ define('gina/toolbar', ['require', 'jquery', 'vendor/uuid'/**, 'lib/merge'*/, 'l
             , keynum             = ''
             , lastPressedKey     = {}
             , coockie            = null
-            , $json              = null
-            , $ginaJson          = null
             , $jsonRAW           = null
             , originalData       = null
             , jsonObject         = null
@@ -17762,8 +17760,6 @@ define('gina/toolbar', ['require', 'jquery', 'vendor/uuid'/**, 'lib/merge'*/, 'l
             $toolbarPos        = $verticalPos.add($horizontalPos);
             $toolbarWidth      = $('#gina-toolbar-width');
             $toolbarHeight     = $toolbar.find('.gina-toolbar-main');
-            $json              = $('#gina-toolbar-json');
-            $ginaJson          = $('#gina-toolbar-gina-json');
             $jsonRAW           = $('#gina-toolbar-toggle-code-raw');
             $forms             = $('form:not('+ formsIgnored +')');
             $htmlData          = $('#gina-toolbar-data-html');
@@ -17856,29 +17852,22 @@ define('gina/toolbar', ['require', 'jquery', 'vendor/uuid'/**, 'lib/merge'*/, 'l
          * */
         var loadData = function (section, data, ginaData) {
 
-            var $currentForms = null, txt = null;
+            var $currentForms = null;
             try {
 
-                txt = ($json) ? $json.text() : '';
-                // txt = txt
-                //         .replace(/:null/gi, ':\"null\"')
-                //         .replace(/:true/gi, ':\"true\"')
-                //         .replace(/:false/gi, ':\"false\"');
+                var __gd = window.__ginaData;
 
-                if (txt == '' || txt == 'null' ) {
-                    // $json.text('Empty')
-                    $json.text('{}')
+                if (!__gd || !__gd.user) {
+                    // no server data available
                 } else {
-                    jsonObject = JSON.parse( txt );
-                    ginaJsonObject = JSON.parse($ginaJson.text());
-
-                    $json.text('');
+                    jsonObject     = __gd.user;
+                    ginaJsonObject = __gd.gina;
 
                     // backing up document data for restore action
                     if (!originalData) {
                         originalData = {
                             jsonObject      : JSON.clone(jsonObject),
-                            ginaJsonObject  : JSON.clone( ginaJsonObject)
+                            ginaJsonObject  : JSON.clone(ginaJsonObject)
                         };
                         lastJsonObjectState = {}; // jsonObject.data
                     }
@@ -18344,14 +18333,9 @@ define('gina/toolbar', ['require', 'jquery', 'vendor/uuid'/**, 'lib/merge'*/, 'l
             changeToolbarHeight();
 
             // Parse JSON
-            var txt = ($json) ? $json.text() : '';
-            // dev only - allows HTML 5 mock
-            if ( /^\{\{ (.*) \}\}/.test(txt) ) {
-                // loading mock
-                //var url = document.location.protocol + '//' + document.location.pathname.replace('index.html', '');
-                //url + 'mock.json';
-                loadJSON(txt, loadData); //parse
-
+            // dev only - if no server data, allow loading a mock JSON file
+            if ( !window.__ginaData || !window.__ginaData.user ) {
+                loadJSON('', loadData);
             } else {
                 loadData()
             }
@@ -19138,7 +19122,7 @@ define('gina/toolbar', ['require', 'jquery', 'vendor/uuid'/**, 'lib/merge'*/, 'l
             var html = createInputFile('mock', 'Select your JSON file');
 
             $htmlData.html(html);
-            $json.text('');
+            window.__ginaData = window.__ginaData || {};
 
             $htmlData.find('input').off('change').on('change', function(e) {
 
@@ -19151,11 +19135,14 @@ define('gina/toolbar', ['require', 'jquery', 'vendor/uuid'/**, 'lib/merge'*/, 'l
                     file        = $(this)[0].files[0]; // jQuery way
                     reader      = new FileReader();
                     reader.addEventListener('load', function(){
-                        // user
-                        $json.text(reader.result);
-                        // gina <- being duplicated to prevent bugs
-                        $ginaJson.text(reader.result);
-                        cb();
+                        try {
+                            var parsed = JSON.parse(reader.result);
+                            window.__ginaData.user = parsed;
+                            window.__ginaData.gina = parsed;
+                            cb();
+                        } catch(e) {
+                            console.error('[gina toolbar] Could not parse mock JSON: ' + e.message);
+                        }
                     }, false);
 
                     reader.readAsBinaryString(file)
@@ -19177,9 +19164,7 @@ define('gina/toolbar', ['require', 'jquery', 'vendor/uuid'/**, 'lib/merge'*/, 'l
 
                                 reader[i]  = new FileReader();
                                 reader[i].addEventListener('load', function onEventListenerAdded(e){
-
-                                    // user
-                                    $json.text(e.currentTarget.result);
+                                    try { window.__ginaData.user = JSON.parse(e.currentTarget.result); } catch(ex) {}
                                     ++done;
                                     complete(done)
                                 }, false);
@@ -19192,8 +19177,7 @@ define('gina/toolbar', ['require', 'jquery', 'vendor/uuid'/**, 'lib/merge'*/, 'l
                                 //console.log(file);
                                 reader[i]  = new FileReader();
                                 reader[i].addEventListener('load', function onEventListenerAdded(e){
-                                    // gina
-                                    $ginaJson.text(e.currentTarget.result);
+                                    try { window.__ginaData.gina = JSON.parse(e.currentTarget.result); } catch(ex) {}
                                     ++done;
                                     complete(done)
                                 }, false);

@@ -76,8 +76,6 @@ define('gina/toolbar', ['require', 'vendor/uuid'/**, 'lib/merge'*/, 'lib/collect
             , keynum             = ''
             , lastPressedKey     = {}
             , coockie            = null
-            , $json              = null
-            , $ginaJson          = null
             , $jsonRAW           = null
             , originalData       = null
             , jsonObject         = null
@@ -110,8 +108,6 @@ define('gina/toolbar', ['require', 'vendor/uuid'/**, 'lib/merge'*/, 'lib/collect
             $toolbarPos        = [$verticalPos, $horizontalPos];
             $toolbarWidth      = qs('#gina-toolbar-width');
             $toolbarHeight     = qs('.gina-toolbar-main', $toolbar);
-            $json              = qs('#gina-toolbar-json');
-            $ginaJson          = qs('#gina-toolbar-gina-json');
             $jsonRAW           = qs('#gina-toolbar-toggle-code-raw');
             $forms             = qsa('form:not('+ formsIgnored +')');
             $htmlData          = qs('#gina-toolbar-data-html');
@@ -204,24 +200,22 @@ define('gina/toolbar', ['require', 'vendor/uuid'/**, 'lib/merge'*/, 'lib/collect
          * */
         var loadData = function (section, data, ginaData) {
 
-            var $currentForms = null, txt = null;
+            var $currentForms = null;
             try {
 
-                txt = ($json) ? $json.textContent : '';
+                var __gd = window.__ginaData;
 
-                if (txt == '' || txt == 'null' ) {
-                    $json.textContent = '{}';
+                if (!__gd || !__gd.user) {
+                    // no server data available
                 } else {
-                    jsonObject = JSON.parse( txt );
-                    ginaJsonObject = JSON.parse($ginaJson.textContent);
-
-                    $json.textContent = '';
+                    jsonObject     = __gd.user;
+                    ginaJsonObject = __gd.gina;
 
                     // backing up document data for restore action
                     if (!originalData) {
                         originalData = {
                             jsonObject      : JSON.clone(jsonObject),
-                            ginaJsonObject  : JSON.clone( ginaJsonObject)
+                            ginaJsonObject  : JSON.clone(ginaJsonObject)
                         };
                         lastJsonObjectState = {}; // jsonObject.data
                     }
@@ -643,12 +637,9 @@ define('gina/toolbar', ['require', 'vendor/uuid'/**, 'lib/merge'*/, 'lib/collect
             changeToolbarHeight();
 
             // Parse JSON
-            var txt = ($json) ? $json.textContent : '';
-            // dev only - allows HTML 5 mock
-            if ( /^\{\{ (.*) \}\}/.test(txt) ) {
-                // loading mock
-                loadJSON(txt, loadData); //parse
-
+            // dev only - if no server data, allow loading a mock JSON file
+            if ( !window.__ginaData || !window.__ginaData.user ) {
+                loadJSON('', loadData);
             } else {
                 loadData()
             }
@@ -1375,7 +1366,7 @@ define('gina/toolbar', ['require', 'vendor/uuid'/**, 'lib/merge'*/, 'lib/collect
             var html = createInputFile('mock', 'Select your JSON file');
 
             $htmlData.innerHTML = html;
-            $json.textContent = '';
+            window.__ginaData = window.__ginaData || {};
 
             var inp = qs('input', $htmlData);
             if (inp) {
@@ -1390,11 +1381,14 @@ define('gina/toolbar', ['require', 'vendor/uuid'/**, 'lib/merge'*/, 'lib/collect
                         file        = this.files[0];
                         reader      = new FileReader();
                         reader.addEventListener('load', function(){
-                            // user
-                            $json.textContent = reader.result;
-                            // gina <- being duplicated to prevent bugs
-                            $ginaJson.textContent = reader.result;
-                            cb();
+                            try {
+                                var parsed = JSON.parse(reader.result);
+                                window.__ginaData.user = parsed;
+                                window.__ginaData.gina = parsed;
+                                cb();
+                            } catch(e) {
+                                console.error('[gina toolbar] Could not parse mock JSON: ' + e.message);
+                            }
                         }, false);
 
                         reader.readAsBinaryString(file)
@@ -1416,9 +1410,7 @@ define('gina/toolbar', ['require', 'vendor/uuid'/**, 'lib/merge'*/, 'lib/collect
 
                                     reader[i]  = new FileReader();
                                     reader[i].addEventListener('load', function onEventListenerAdded(e){
-
-                                        // user
-                                        $json.textContent = e.currentTarget.result;
+                                        try { window.__ginaData.user = JSON.parse(e.currentTarget.result); } catch(ex) {}
                                         ++done;
                                         complete(done)
                                     }, false);
@@ -1430,8 +1422,7 @@ define('gina/toolbar', ['require', 'vendor/uuid'/**, 'lib/merge'*/, 'lib/collect
                                 case /gina/.test(file.name):
                                     reader[i]  = new FileReader();
                                     reader[i].addEventListener('load', function onEventListenerAdded(e){
-                                        // gina
-                                        $ginaJson.textContent = e.currentTarget.result;
+                                        try { window.__ginaData.gina = JSON.parse(e.currentTarget.result); } catch(ex) {}
                                         ++done;
                                         complete(done)
                                     }, false);
