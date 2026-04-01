@@ -63,22 +63,25 @@ onCompleteCall(emitter)          // Wraps an EventEmitter .onComplete(cb) into a
 
 ```javascript
 // controllers/controller.content.js
-var SuperController = require('../../../core/controller/controller');
+// NO require, NO inherits — the router (router.js) calls inherits(Controller, SuperController)
+// automatically before dispatch. All SuperController methods are available via `this` / `self`.
 
-function Controller() {}
-Controller = inherits(Controller, SuperController);
-
-Controller.prototype.home = function(req, res, next) {
+function ApiContentController() {
     var self = this;
-    self.render({ title: 'Home' });           // HTML via Swig
-    // self.renderJSON({ ok: true });          // JSON
-};
 
-module.exports = Controller;
+    this.home = function(req, res) {
+        self.render({ title: 'Home' });           // HTML via Swig
+        // self.renderJSON({ ok: true });          // JSON
+    };
+}
+
+module.exports = ApiContentController;
 ```
 
 **Rules:**
-- `inherits(Child, Parent)` creates per-request instances — each request gets its own `local` closure, no shared state.
+- Controller files are **plain constructor functions** — no `require`, no `inherits`, no `prototype` assignments. The router does `inherits(Controller, SuperController)` before every dispatch (see `router.js:557-560`). Each request gets a fresh instance with its own `local` closure.
+- Name the constructor `${Bundle}${Namespace}Controller` (e.g. `ApiContentController` for bundle `api`, namespace `content`). The name is not enforced but matches the boilerplate convention.
+- `inherits` is a Gina global — it is NOT available inside controller files via a require, only as an injected global in other framework files.
 - Auth is at `req.session.user` (NOT `req.user`).
 - Request data: `req.get` (GET query), `req.post` (POST body), `req.put` (PUT body), `req.patch` (PATCH body — partial update), `req.delete` (DELETE query), `req.head` (HEAD query — body suppressed). `req.body` aliases `req.post`/`req.put`/`req.patch`. Routes declared as GET automatically accept HEAD. PATCH vs PUT: PATCH sends only changed fields; PUT replaces the full resource. OPTIONS is CORS-only, never dispatched to a controller.
 - Routes declared in `routing.json`, not in code.
@@ -493,3 +496,4 @@ Bundle HTTP ports are allocated per-project in `~/.gina/ports.json`.
 16. **Post-merge state check required after every `git merge --ff-only`** — `post_install.js` does NOT run on a git pull/merge; it only runs on `npm install`. When the version changes (especially a `shortVersion` bump like `0.2 → 0.3`), three state stores go stale simultaneously: `~/.gina/main.json` (`def_framework`, `frameworks["${shortVersion}"]`, all metadata keys), `~/.gina/${shortVersion}/settings.json` (missing entirely), and `gina.db` `kv_store` (`main` + `settings/${shortVersion}` keys). Running `npm install` from inside the repo also fails (symlink error — `node_modules/.bin/` does not exist in the worktree layout); patch the state files directly instead. See `.claude/git.md § Post-merge state check` for the full checklist.
 17. **Merge frequency** — merge `dev/wip` → `develop` after every feature/fix (frequent is good). Exception: hold at version boundaries (`0.3.x → 0.4.x`, `0.x → 1.x`) until the full release is prepared, because `git mv framework/v*/` during merge is a live deployment of the globally-installed CLI. See `.claude/architecture/git-workflow.md` for the full decision framework.
 18. **CLI stubs** — several CLI commands appear in help.txt or docs but have empty/missing handler files and do NOT work: `project:start/stop/restart`, `port:set`, `framework:get`, `bundle:status/rename/copy`, `project:status/move/backup/restore`, `protocol:remove`, `minion:kill/list`, `framework:update`, `gina --status/-t`. Never suggest these to users. Workarounds: use `bundle:start/stop/restart` per bundle, `port:reset --start-port-from=<N>` for port re-allocation, `env:get` for reading settings. Full inventory in `.claude/cli-reference.md`.
+19. **Controller files must NOT contain `require` or `inherits`** — the router (`router.js:557-560`) calls `inherits(Controller, SuperController)` automatically before every dispatch. Writing `var SuperController = require('../../../core/controller/controller')` or `Controller = inherits(Controller, SuperController)` inside a controller file is wrong and will break on path changes. The correct pattern is a plain constructor function with `this.action = function(req, res) {}` closure-style methods — matching the boilerplate in `core/template/boilerplate/bundle/controllers/controller.content.js`. Never use `Controller.prototype.method` either; actions are defined as properties on `this` inside the constructor.
