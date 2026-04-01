@@ -1057,6 +1057,49 @@ function SuperController(options) {
     }
 
 
+    /**
+     * Stream an AsyncIterable as a chunked HTTP response without buffering.
+     * Required for LLM token streaming and SSE endpoints.
+     *
+     * Content-type determines framing:
+     *   - `text/event-stream` (default) — SSE: each yielded chunk becomes `data: {chunk}\n\n`
+     *   - any other type               — raw chunks written in sequence
+     *
+     * HTTP/2: stream.respond() + stream.write() + stream.end()
+     * HTTP/1.1: response.write() with automatic chunked transfer-encoding
+     *
+     * The iterable should yield strings or Buffers. Objects are coerced via String().
+     * Upstream response headers (CORS, etc.) are preserved in the initial headers frame.
+     *
+     * @param {AsyncIterable} asyncIterable - Source of chunks; typically an AI SDK stream
+     * @param {string}        [contentType] - Response Content-Type (default: text/event-stream)
+     * @returns {void}
+     *
+     * @example
+     * Controller.prototype.chat = async function(req, res, next) {
+     *     var self = this;
+     *     var ai   = getModel('claude');
+     *     async function* tokens() {
+     *         var s = ai.client.messages.stream({ model: ai.model, max_tokens: 1024,
+     *             messages: [{ role: 'user', content: req.post.message }] });
+     *         for await (var ev of s)
+     *             if (ev.type === 'content_block_delta') yield ev.delta.text;
+     *     }
+     *     self.renderStream(tokens());
+     * };
+     */
+    this.renderStream = function(asyncIterable, contentType) {
+        if (this.isCacheless()) {
+            delete require.cache[require.resolve( _(__dirname + '/controller.render-stream', true))];
+        }
+
+        return require( _(__dirname + '/controller.render-stream', true) )(asyncIterable, contentType, {
+            self        : self,
+            local       : local,
+            headersSent : headersSent
+        });
+    }
+
 
     /**
      * Send a plain-text response.
@@ -3735,6 +3778,10 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
                     params = merge(params, req.delete, true);
                     break;
 
+                case 'patch':
+                    params = merge(params, req.patch, true);
+                    break;
+
                 case 'head':
                     params = merge(params, req.head, true);
                     break;
@@ -3761,6 +3808,10 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
 
                 case 'delete':
                     param = req.delete[name];
+                    break;
+
+                case 'patch':
+                    param = req.patch[name];
                     break;
 
                 case 'head':

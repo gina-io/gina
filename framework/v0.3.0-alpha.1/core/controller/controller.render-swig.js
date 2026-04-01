@@ -796,6 +796,12 @@ module.exports = async function render(userData, displayToolbar, errOptions, dep
                 }
 
                 console.info(local.req.method +' ['+local.res.statusCode +'] '+ local.req.url);
+                // HEAD: send headers only — body suppressed (HTTP spec §4.3.2)
+                if ( /^HEAD$/i.test(local.req.method) ) {
+                    local.res.setHeader('content-type', localOptions.conf.server.coreConfiguration.mime['html'] + '; charset='+ localOptions.conf.encoding);
+                    local.res.setHeader('content-length', Buffer.byteLength(htmlContent, 'utf8'));
+                    local.res.end();
+                } else {
                 // if ( stream ) {
                 //     stream.respond({
                 //         'content-type': localOptions.conf.server.coreConfiguration.mime['html'] + '; charset='+ localOptions.conf.encoding,
@@ -805,6 +811,7 @@ module.exports = async function render(userData, displayToolbar, errOptions, dep
                 //     return stream.end(htmlContent);
                 // }
                 local.res.end( htmlContent );
+                }
                 layout = null;
             }
 
@@ -1225,6 +1232,12 @@ module.exports = async function render(userData, displayToolbar, errOptions, dep
                 }
 
                 console.info(local.req.method +' ['+local.res.statusCode +'] '+ local.req.url);
+                // HEAD: send headers only — body suppressed (HTTP spec §4.3.2)
+                if ( /^HEAD$/i.test(local.req.method) ) {
+                    local.res.setHeader('content-type', localOptions.conf.server.coreConfiguration.mime['html'] + '; charset='+ localOptions.conf.encoding);
+                    local.res.setHeader('content-length', Buffer.byteLength(htmlContent, 'utf8'));
+                    local.res.end();
+                } else {
                 // if ( stream ) {
                 //     stream.respond({
                 //         'content-type': localOptions.conf.server.coreConfiguration.mime['html'] + '; charset='+ localOptions.conf.encoding,
@@ -1234,6 +1247,7 @@ module.exports = async function render(userData, displayToolbar, errOptions, dep
                 //     return stream.end(htmlContent);
                 // }
                 local.res.end( htmlContent );
+                }
 
                 layout = null;
             }

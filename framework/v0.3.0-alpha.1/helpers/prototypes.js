@@ -81,13 +81,7 @@ function PrototypesHelper(instance) {
         } else {
             // For unit tests
             if (!envVars) {
-                var ginaDir = null;
-                try {
-                    ginaDir = process.cwd().match(/.*\/gina/)[0];
-                } catch (ginaDirErr) {
-                    // running outside of gina
-                    ginaDir = __dirname +'/../../../';
-                }
+                var ginaDir = __dirname +'/../../../';
 
                 require(ginaDir +'/utils/helper');
                 setEnvVar('GINA_DIR', ginaDir, true);
