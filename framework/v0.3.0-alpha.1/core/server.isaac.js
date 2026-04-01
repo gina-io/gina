@@ -312,15 +312,16 @@ function ServerEngineClass(options) {
 
 
     if ( /^http\/2/.test(options.protocol) ) {
+        var _h2Opts = (options.http2Options && typeof options.http2Options === 'object') ? options.http2Options : {};
         http2Options.settings = {
-            // Nombre max de requêtes parallèles sur UNE seule connexion TCP
-            maxConcurrentStreams: 1000,
-            // Taille de la fenêtre de réception (évite les blocages sur gros transferts)
-            initialWindowSize: 65535 * 10,
+            // Max parallel streams per TCP connection — configurable via settings.json http2Options.maxConcurrentStreams
+            maxConcurrentStreams : _h2Opts.maxConcurrentStreams || 256,
+            // Flow-control window in bytes — configurable via settings.json http2Options.initialWindowSize
+            initialWindowSize   : _h2Opts.initialWindowSize    || 65535 * 10,
             // #H3 — HPACK bomb defense: cap compressed header list size (SETTINGS_MAX_HEADER_LIST_SIZE)
-            maxHeaderListSize: 65536,
+            maxHeaderListSize   : 65536,
             // #H3 — Server push is deprecated in Chrome/Firefox and removed in HTTP/2 RFC 9113; disable it
-            enablePush: false
+            enablePush          : false
         };
         // #H3 — RST flood defense (CVE-2019-9514, CVE-2023-44487 rapid reset)
         http2Options.maxSessionRejectedStreams = 100;
@@ -341,10 +342,20 @@ function ServerEngineClass(options) {
                 break;
         }
 
+        // ── HTTP/2 session metrics — exposed via /_gina/info ─────────────────────
+        var _h2Metrics = {
+            activeSessions : 0,
+            totalStreams    : 0,
+            goawayCount     : 0,
+            rstCount        : 0
+        };
+        server._h2Metrics = _h2Metrics;
+
         server.on('session', (session) => {
             // 120 seconds (120000 of inactivity
             let sessionTimeout = 120000;
             session.setTimeout(sessionTimeout);
+            _h2Metrics.activeSessions++;
 
             session.on('timeout', () => {
                 // Check if there are active streams before closing
@@ -358,13 +369,20 @@ function ServerEngineClass(options) {
                 }
             });
 
-            session.on('stream', () => {
-                // Optional: reduce noise in production logs
-                // console.warn(`[ SERVER ] New stream on existing session (Multiplexing)`);
+            session.on('stream', (stream) => {
+                _h2Metrics.totalStreams++;
+                stream.on('rstCode', (code) => {
+                    if (code !== 0) _h2Metrics.rstCount++;
+                });
+            });
+
+            session.on('goaway', () => {
+                _h2Metrics.goawayCount++;
             });
 
             session.on('close', () => {
                 // This is normal after 60s of inactivity
+                if (_h2Metrics.activeSessions > 0) _h2Metrics.activeSessions--;
                 console.warn("[ SERVER ] TCP Connection closed");
             });
 
@@ -517,12 +535,21 @@ function ServerEngineClass(options) {
             }
             if ( request.method.toUpperCase() === 'GET' && /\_gina\/info$/i.test(request.url) ) {
 
-                const infoStatus = JSON.stringify({
+                var infoPayload = {
                     "cache-is-enabled": server._cacheIsEnabled,
-                    "memory": process.memoryUsage(),
-                    "uptime":  process.uptime(),
-                    "version": process.version
-                });
+                    "memory"  : process.memoryUsage(),
+                    "uptime"  : process.uptime(),
+                    "version" : process.version
+                };
+                if (server._h2Metrics) {
+                    infoPayload["http2"] = {
+                        activeSessions : server._h2Metrics.activeSessions,
+                        totalStreams    : server._h2Metrics.totalStreams,
+                        goawayCount    : server._h2Metrics.goawayCount,
+                        rstCount       : server._h2Metrics.rstCount
+                    };
+                }
+                const infoStatus = JSON.stringify(infoPayload);
 
                 const infoHeaders = {
                     'cache-control': 'no-cache, no-store, must-revalidate',
