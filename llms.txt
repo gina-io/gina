@@ -450,13 +450,40 @@ All stubs are tracked in `ROADMAP.md § CLI` with target versions. See `.claude/
 | Port | Role |
 | --- | --- |
 | 4100 | Reserved — future socket server migration (currently 8124) |
-| 4101 | Beemaster dev inspector |
+| 4101 | Reserved — future Gina service (Beemaster moved to `/_gina/beemaster/` embedded) |
 | 4102 | engine.io internal transport (moved from 8888, Jupyter conflict) |
 | 4103–4199 | Reserved for future Gina services |
 
 Bundle HTTP ports are allocated per-project in `~/.gina/ports.json`.
 
 **Port scanner window** — the scanner searches `start + max(899, limit + 99)` ports (capped at `maxEnd = 49151`). Default start is `3100`, giving a window of `3100–3999`. If all ports in the window are in use, the scanner fails with "Maximum port number reached". Fix: `gina port:reset @<project> --start-port-from=4200` (not 4100 — that's reserved).
+
+---
+
+## Beemaster dev inspector
+
+Beemaster is a dev-mode SPA embedded in every bundle at `/_gina/beemaster/`. Served by the bundle's own HTTP server — no separate port, process, or project registration. Same origin as the monitored bundle, so `window.opener.__ginaData` is always accessible.
+
+**Data channels:**
+
+1. **`window.opener.__ginaData`** — same-origin polling every 2 s (primary). Always works since Beemaster and the monitored page share the same origin.
+2. **engine.io** — real-time push when the monitored bundle has `ioServer` configured. Beemaster connects to the bundle's own port via `window.location.port`.
+
+**Dev mode injections** (both added to user pages in dev mode, before `</body>`):
+- **`__logsScript`** — patches `console.log/info/warn/error/debug` to push `{ t, l, b, s }` entries to `window.__ginaLogs`. Beemaster reads this via `window.opener.__ginaLogs`.
+- **`__gdScript`** — `window.__ginaData = { gina: {...}, user: {...} }`. `__gdPayload` also stored on `self.serverInstance._lastGinaData` for engine.io.
+
+**`statusbar.html` link** — simple relative `/_gina/beemaster/` (opens in new tab, same origin).
+
+**Serving** — `server.js` `onRequest()` matches `GET /_gina/beemaster/*` in dev mode (engine-agnostic — works with both Isaac and Express). Files served from `core/asset/plugin/dist/vendor/gina/beemaster/` with `no-cache` headers. Requests for `/_gina/beemaster/` or `/_gina/beemaster` serve `index.html`.
+
+**SPA files** (`core/asset/plugin/dist/vendor/gina/beemaster/`):
+
+| File | Role |
+| --- | --- |
+| `index.html` | SPA shell — header, two main tabs (Toolbar, Logs), no-source overlay |
+| `beemaster.js` | SPA logic (polling, renderTree, log tail, copy-to-clipboard, engine.io) |
+| `beemaster.css` | Dark theme (CSS custom properties) |
 
 ---
 
@@ -508,3 +535,5 @@ Bundle HTTP ports are allocated per-project in `~/.gina/ports.json`.
 28. **`req.routing.param.<key>` ≠ URL value — use `req.params.<key>`** — `req.routing.param` holds the raw routing config object from `routing.json`. For URL parameter bindings like `"id": ":id"`, the value stored there is the literal placeholder string `":id"`, not the actual URL segment. The actual captured value is in `req.params.id` (always available) and `req.get.id` / `req.delete.id` etc. (method-specific). Static values declared in `param` (e.g. `"code": 302`) ARE correctly available on `req.routing.param.code`. Rule of thumb: use `req.routing.param` only for static metadata, never for captured URL params.
 29. **`fitsWithRequirements` requires `"slug": ":slug"` in `param` even when `requirements` is set** — the router only increments the route-match score (and populates `req.params`) for a URL parameter if that parameter key exists in the `param` block (e.g. `"slug": ":slug"`). Having `requirements: { "slug": "..." }` alone is not enough — the route will 404 without the binding. The `requirements` block adds regex validation on top of the binding; it does not imply the binding.
 30. **Controller files must NOT contain `require` or `inherits`** — the router (`router.js:557-560`) calls `inherits(Controller, SuperController)` automatically before every dispatch. Writing `var SuperController = require('../../../core/controller/controller')` or `Controller = inherits(Controller, SuperController)` inside a controller file is wrong and will break on path changes. The correct pattern is a plain constructor function with `this.action = function(req, res) {}` closure-style methods — matching the boilerplate in `core/template/boilerplate/bundle/controllers/controller.content.js`. Never use `Controller.prototype.method` either; actions are defined as properties on `this` inside the constructor.
+31. **Beemaster is embedded, not a separate bundle** — served at `/_gina/beemaster/` by `server.js` `onRequest()` in dev mode (engine-agnostic — works with both Isaac and Express). No project registration, no separate port, no auto-start spawn. The SPA files live in `core/asset/plugin/dist/vendor/gina/beemaster/` (framework tree). Same origin as the monitored bundle — `window.opener.__ginaData` always works. Only served when `isDev` is true; production bundles never expose Beemaster.
+32. **`/_gina/*` endpoints: Isaac is source of truth, but must work with Express too** — all `/_gina/*` handlers (healthcheck, assets, cache/stats, info, beemaster) must be engine-agnostic. New `/_gina/*` endpoints go in `server.js` `onRequest()`. Isaac-specific fast-paths (e.g. `readSync`, `server._cached`) can stay in `server.isaac.js` but the base functionality must exist in `server.js`. Existing Isaac-only handlers (healthcheck, assets/routing.json, cache/stats, info) are a known gap being ported incrementally.

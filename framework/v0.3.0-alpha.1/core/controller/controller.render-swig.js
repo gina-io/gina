@@ -901,14 +901,31 @@ module.exports = async function render(userData, displayToolbar, errOptions, dep
             __gdUser.view.stylesheets = 'ignored-by-toolbar';
             __gdUser.view.assets      = assets;
 
+            var __gdPayload = { gina: __gdGina, user: __gdUser };
             var __gdScript = '<script>window.__ginaData = '
-                + JSON.stringify({ gina: __gdGina, user: __gdUser })
+                + JSON.stringify(__gdPayload)
                     .replace(/<\/script>/gi, '<\\/script>')
                     .replace(/<!--/g, '<\\!--')
                 + ';</script>\n';
 
+            // Expose last snapshot for engine.io push
+            self.serverInstance._lastGinaData = __gdPayload;
+
+            var __logsScript = '<script>'
+                + 'window.__ginaLogs = window.__ginaLogs || [];'
+                + '(function(w){'
+                + 'var _c=w.console,_l=w.__ginaLogs,_b="' + (__gdUser.environment && __gdUser.environment.bundle || '') + '";'
+                + '["log","info","warn","error","debug"].forEach(function(lvl){'
+                + 'var orig=_c[lvl].bind(_c);'
+                + '_c[lvl]=function(){'
+                + 'orig.apply(_c,arguments);'
+                + 'try{_l.push({t:Date.now(),l:lvl,b:_b,s:Array.prototype.slice.call(arguments).join(" ")});}catch(e){}'
+                + '};});'
+                + '}(window));</script>\n';
+
             plugin = '\t'
                 + '{# Gina Toolbar #}'
+                + __logsScript
                 + __gdScript
                 + '{%- include "'+ getPath('gina').core +'/asset/plugin/dist/vendor/gina/html/statusbar.html" -%}'// jshint ignore:line
                 + '{# END Gina Toolbar #}'

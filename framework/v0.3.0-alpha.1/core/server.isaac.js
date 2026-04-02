@@ -1064,6 +1064,13 @@ function ServerEngineClass(options) {
                     if ( typeof(payload.session) != 'undefined' ) {
                         this.sessionId = payload.session.id;
                     }
+                    // Beemaster: respond to data pull request
+                    if ( payload.type === 'getGinaData' ) {
+                        var _gd = server._lastGinaData;
+                        if (_gd) {
+                            socket.send(JSON.stringify({ type: 'ginaData', data: _gd }));
+                        }
+                    }
                 } catch(err) {
                     console.error(err.stack||err.message|| err)
                 }

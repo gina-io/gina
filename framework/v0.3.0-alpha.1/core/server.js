@@ -2278,7 +2278,33 @@ function Server(options) {
 
             response.setHeader('X-Powered-By', 'Gina/'+ GINA_VERSION );
 
+            // ── Beemaster SPA — served at /_gina/beemaster/ in dev mode ─────────
+            if (
+                process.env.NODE_ENV_IS_DEV && process.env.NODE_ENV_IS_DEV.toLowerCase() === 'true'
+                && request.method.toUpperCase() === 'GET'
+                && /^\/_gina\/beemaster(\/.*)?$/.test(request.url)
+            ) {
+                var _bmBase = __dirname + '/asset/plugin/dist/vendor/gina/beemaster';
+                var _bmPath = request.url.replace(/^\/_gina\/beemaster\/?/, '').split('?')[0];
+                if (!_bmPath || _bmPath === '') _bmPath = 'index.html';
 
+                var _bmMime = {
+                    'html': 'text/html; charset=utf8',
+                    'js':   'application/javascript; charset=utf8',
+                    'css':  'text/css; charset=utf8'
+                };
+                var _bmExt = _bmPath.split('.').pop();
+                var _bmFile = _(_bmBase + '/' + _bmPath, true);
+
+                if (fs.existsSync(_bmFile)) {
+                    response.setHeader('content-type', _bmMime[_bmExt] || 'application/octet-stream');
+                    response.setHeader('cache-control', 'no-cache, no-store, must-revalidate');
+                    response.setHeader('x-content-type-options', 'nosniff');
+                    console.info(request.method + ' [200] ' + request.url);
+                    return response.end(fs.readFileSync(_bmFile, 'utf8'));
+                }
+                // Fall through to 404 if file not found
+            }
 
             // Fixing an express js bug :(
             // express is trying to force : /path/dir => /path/dir/
