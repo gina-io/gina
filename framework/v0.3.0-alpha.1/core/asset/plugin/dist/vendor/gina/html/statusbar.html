@@ -8,6 +8,8 @@
     var bundle  = env.bundle  || '?';
     var envName = env.env     || '?';
     var dot     = data.error  ? '#e74c3c' : '#2ecc71';
+    // Publish data for Beemaster via localStorage (works regardless of opener)
+    try { localStorage.setItem('__ginaData', JSON.stringify(d)); } catch (e) {}
     var el      = document.createElement('div');
     el.id       = '__gina-statusbar';
     var sr      = el.attachShadow({ mode: 'open' });
@@ -25,7 +27,7 @@
         + '<div id="b">'
         + '<span class="d"></span>'
         + '<span>' + bundle + '@' + envName + '</span>'
-        + '<a href="/_gina/beemaster/" onclick="event.preventDefault();window.open(this.href,\'_gina_beemaster\')">Beemaster &#8599;</a>'
+        + '<a href="/_gina/beemaster/" target="_blank">Beemaster &#8599;</a>'
         + '</div>';
     function inject() {
         if (document.body) document.body.appendChild(el);

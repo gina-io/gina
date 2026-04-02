@@ -187,10 +187,31 @@
         }
     }
 
-    function pollData() {
-        if (!source) return;
+    function tryLocalStorage() {
         try {
-            var gd = source.__ginaData;
+            var raw = localStorage.getItem('__ginaData');
+            if (!raw) return false;
+            var gd = JSON.parse(raw);
+            if (!gd || !gd.user) return false;
+            source = 'localStorage';
+            return true;
+        } catch (e) {
+            return false;
+        }
+    }
+
+    function pollData() {
+        try {
+            var gd;
+            if (source === 'localStorage') {
+                var raw = localStorage.getItem('__ginaData');
+                if (!raw) return;
+                gd = JSON.parse(raw);
+            } else if (source) {
+                gd = source.__ginaData;
+            } else {
+                return;
+            }
             if (!gd) return;
             var str = JSON.stringify(gd);
             if (str === lastGdStr) return; // unchanged
@@ -203,7 +224,7 @@
             qs('#bm-no-source').classList.add('hidden');
             renderSubtab(activeSubtab());
         } catch (e) {
-            source = null;
+            if (source !== 'localStorage') source = null;
             qs('#bm-dot').className = 'bm-dot err';
         }
     }
@@ -336,8 +357,8 @@
 
         setupCopy();
 
-        // Connect — same origin, window.opener always accessible
-        var ok = tryOpener();
+        // Connect — try window.opener first, fall back to localStorage
+        var ok = tryOpener() || tryLocalStorage();
         if (!ok) {
             qs('#bm-no-source').classList.remove('hidden');
             qs('#bm-dot').className = 'bm-dot err';
