@@ -9,9 +9,9 @@
     assigned to bundle HTTP servers:
 
         4100  Socket server (gina daemon)
-        4101  Beemaster dev inspector
+        4101  Reserved
         4102  engine.io internal transport
-        4103–4199  Reserved for future Gina services
+        4103–4199  Reserved for future Gina infrastructure
 
     The port scanner skips this range automatically.
     See: https://www.rfc-editor.org/rfc/rfc6335.html
