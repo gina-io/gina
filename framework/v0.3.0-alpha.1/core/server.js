@@ -3480,6 +3480,12 @@ function Server(options) {
             }
         }
 
+        var _reqMethodKey   = (method || req.method || 'GET').toLowerCase();
+        // Save the original req.params set by server.isaac.js (e.g. { 0: "/path" }).
+        // fitsWithRequirements checks typeof(request.params) != 'undefined' — it must
+        // exist, but contamination keys from failed compareUrls must be removed.
+        var _origParams     = Object.assign({}, req.params);
+
         out:
             for (let name in routing) {
                 // skip non-object entries (e.g. $schema annotations in routing.json)
@@ -3503,6 +3509,13 @@ function Server(options) {
                     continue; // replaced: break — skip entries without param rather than aborting route matching
                 }
 
+                // Clean cross-route contamination from previous iteration's compareUrls.
+                // fitsWithRequirements sets req.params[key] and req[method][key] during
+                // matching; leftover values cause parseRouting lines 396-407 to inject
+                // phantom segments, compounding work on each subsequent compareUrls call.
+                req.params = Object.assign({}, _origParams);
+                delete req[_reqMethodKey];
+
                 // Updating hostname
                 // if (
                 //     typeof(routing[name].hostname) == 'undefined' && !/^redirect$/.test(routing[name].param.control)
@@ -3518,6 +3531,25 @@ function Server(options) {
                 // }
 
                 if (routing[name].bundle != bundle) continue;
+
+                // Early method filter — skip routes whose single HTTP method cannot
+                // match the request.  This avoids the expensive async compareUrls()
+                // call for obvious method mismatches (the main dev-mode perf win,
+                // since the routing cache is cleared on every request in cacheless mode).
+                // Multi-method routes (e.g. "get,post") are NOT filtered here.
+                var _routeMethod = routing[name].method;
+                if ( !/\,/.test(_routeMethod) && !reMethod.test(_routeMethod) ) {
+                    // Exception — HEAD requests match GET routes (HTTP spec)
+                    if ( /^head$/i.test(req.method) && /^get$/i.test(_routeMethod) ) {
+                        /* fall through to compareUrls */
+                    // Exception — GET → DELETE method override
+                    } else if ( /^get$/i.test(req.method) && /^delete$/i.test(_routeMethod) ) {
+                        /* fall through to compareUrls */
+                    } else {
+                        continue;
+                    }
+                }
+
                 // Method filter
                 method = routing[name].method;
                 if ( /\,/.test( method ) && reMethod.test(method) ) {
@@ -3571,7 +3603,7 @@ function Server(options) {
                             req.method = _routing.method;
                             isMethodAllowed = true;
                         } else {
-                            // URL matched but method didn't — keep looking for a route that matches both
+                            // URL matched but method didn't — keep looking for a route that matches both.
                             _methodMismatch405msg = 'Method Not Allowed.\n `'+req.url+'` does not support `' + req.method.toUpperCase() + '`';
                             continue;
                         }
@@ -3648,7 +3680,9 @@ function Server(options) {
                 }
             } // EO for (let name in routing) {
 
-
+        if (!matched && _methodMismatch405msg) {
+            return throwError(res, 405, _methodMismatch405msg, next);
+        }
 
         if (!matched && _methodMismatch405msg) {
             return throwError(res, 405, _methodMismatch405msg, next);
