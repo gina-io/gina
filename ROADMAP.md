@@ -40,7 +40,7 @@ Stub commands confirmed in source — handler files exist but are empty or comme
 
 | Status | Feature | Version | Target |
 | --- | --- | --- | --- |
-| 📋 | **`project:start` / `project:stop` / `project:restart`** — Start, stop, or restart all bundles in a project with one command. `start` accepts `--env`, `--scope`, `--inspect-brk`. `restart` uses the last known environment. Handler files are empty (0 lines) despite being documented in `project/help.txt` with full flag examples. | `0.3.0` | Q3 2026 |
+| ✅ | **`project:start` / `project:stop` / `project:restart`** — Start, stop, or restart all bundles in a project with one command. Each delegates to `gina bundle:start/stop/restart @<project>` (bulk mode). `start` and `restart` accept `--env`, `--scope`, `--inspect-brk` (flags forwarded). 41 unit tests. | `0.3.0-alpha.1` | 2026-04-02 |
 | 📋 | **`framework:get`** — Read one or all keys from `~/.gina/settings.json`. Completes the `gina set` / `gina get` pair. Handler is 0 lines; workaround is `env:get`. | `0.3.0` | Q3 2026 |
 | 📋 | **`port:set`** — Set or update a specific port for a bundle/env/protocol/scheme combination without a full `port:reset`. Syntax: `gina port:set <protocol>:<port> <bundle> @<project>/<env>`. Handler is 0 lines despite being documented in `port/help.txt`. | `0.3.0` | Q3 2026 |
 

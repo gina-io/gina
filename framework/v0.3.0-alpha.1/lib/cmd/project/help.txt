@@ -35,12 +35,12 @@
 
 [ List projects ]
 
-    $ gina project:list [ [ —-more ] | [-b | —-with-bundles] | [-e | -—with-envs] ]
+    $ gina project:list [ [ --more ] | [-b | --with-bundles] | [-e | --with-envs] ]
 
 
 [ Start project ]
 
-    $ gina project:start @<project_name> [ —-env=dev, --scope=local , --inspect-brk=5000 ]
+    $ gina project:start @<project_name> [ --env=dev, --scope=local, --inspect-brk=5000 ]
 
 
 [ Restart project ]
@@ -52,7 +52,7 @@
 
 [ Stop project ]
 
-    Will restart project with the last known environment
+    Will stop all running bundles in the project
 
     $ gina project:stop @<project_name>
 
@@ -70,13 +70,13 @@
 
 [ Build project ]
 
-    $ gina project:build @<project_name> —-scope=local —-env=prod
+    $ gina project:build @<project_name> --scope=local --env=prod
 
 [ Backup project ]
 
     N.B.: Only available when ordering for supoort
 
-    $ gina project:backup @<project_name> —-path=/var/dump —-with-password
+    $ gina project:backup @<project_name> --path=/var/dump --with-password
 
 
 [ Restore project ]
