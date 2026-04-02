@@ -554,17 +554,17 @@ function CmdHelper(cmd, client, debug) {
         var projectPath = _(projectObj.path, true);
 
         // whisper() does a single-pass substitution — env.json uses self-referential
-        // placeholders (e.g. ${bundlesPath} references ${homedir} which references
-        // ${projectName}). All derived values must be pre-computed here before building
-        // reps; whisper will NOT resolve a placeholder whose value was itself a placeholder
-        // in a sibling key. Migration note: placeholders use ${variable} syntax (not {variable}).
+        // placeholders (e.g. ${bundlesPath} references ${projectPath}, ${bundlePath}
+        // references ${bundlesPath}). All derived values must be pre-computed here before
+        // building reps; whisper will NOT resolve a placeholder whose value was itself a
+        // placeholder in a sibling key. Migration note: placeholders use ${variable} syntax (not {variable}).
         var homedir     = projectObj.homedir
             ? _(projectObj.homedir, true)
             : _(os.homedir() + '/.' + cmd.projectName, true);
         var bundlesPath = projectObj.bundles_path
             ? _(projectObj.bundles_path, true)
-            : homedir + '/bundles';
-        var cachePath   = homedir + '/cache';
+            : projectPath + '/bundles';
+        var cachePath   = projectPath + '/cache';
 
         var projectVersion      = '';
         var projectVersionMajor = '';

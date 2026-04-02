@@ -968,7 +968,10 @@ isBundleMounted(projects, bundlesPath, getContext('bundle'), function onBundleMo
         gna.getRunningBundlesSync = process.getRunningBundlesSync = function() {
 
             //TODO - Do that thru IPC or thru socket. ???
-            var pidPath = _(getPath('globalTmpPath') +'/pid');
+            // 'globalTmpPath' was never registered via setPath() and PID files are not
+            // written to a tmp/pid subdirectory. proc.js writes PID files directly into
+            // GINA_RUNDIR (set from settings.json rundir field, e.g. ~/.gina/run/).
+            var pidPath = _(getEnvVar('GINA_RUNDIR'));
             var files = fs.readdirSync(pidPath);
 
             var name = '';
