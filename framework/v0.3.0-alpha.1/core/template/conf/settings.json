@@ -67,7 +67,7 @@
   "cache": {},
   "engine.io": {
     // Reserved Gina infrastructure range: 4100–4199
-    // 4100 = socket server, 4101 = Beemaster dev inspector, 4102 = engine.io, 4103–4199 = reserved
+    // 4100 = socket server, 4101 = reserved, 4102 = engine.io, 4103–4199 = reserved
     "port": 4102
   },
   "livereload": {},
