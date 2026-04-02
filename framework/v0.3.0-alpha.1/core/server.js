@@ -2278,14 +2278,14 @@ function Server(options) {
 
             response.setHeader('X-Powered-By', 'Gina/'+ GINA_VERSION );
 
-            // ── Beemaster SPA — served at /_gina/beemaster/ in dev mode ─────────
+            // ── Inspector SPA — served at /_gina/inspector/ in dev mode ──────────
             if (
                 process.env.NODE_ENV_IS_DEV && process.env.NODE_ENV_IS_DEV.toLowerCase() === 'true'
                 && request.method.toUpperCase() === 'GET'
-                && /^\/_gina\/beemaster(\/.*)?$/.test(request.url)
+                && /\/_gina\/inspector(\/.*)?$/.test(request.url)
             ) {
-                var _bmBase = __dirname + '/asset/plugin/dist/vendor/gina/beemaster';
-                var _bmPath = request.url.replace(/^\/_gina\/beemaster\/?/, '').split('?')[0];
+                var _bmBase = __dirname + '/asset/plugin/dist/vendor/gina/inspector';
+                var _bmPath = request.url.replace(/^.*\/_gina\/inspector\/?/, '').split('?')[0];
                 if (!_bmPath || _bmPath === '') _bmPath = 'index.html';
 
                 var _bmMime = {
@@ -3485,6 +3485,7 @@ function Server(options) {
         // fitsWithRequirements checks typeof(request.params) != 'undefined' — it must
         // exist, but contamination keys from failed compareUrls must be removed.
         var _origParams     = Object.assign({}, req.params);
+        var _origReqMethod  = (typeof(req[_reqMethodKey]) != "undefined") ? Object.assign({}, req[_reqMethodKey]) : undefined;
 
         out:
             for (let name in routing) {
@@ -3680,8 +3681,9 @@ function Server(options) {
                 }
             } // EO for (let name in routing) {
 
-        if (!matched && _methodMismatch405msg) {
-            return throwError(res, 405, _methodMismatch405msg, next);
+        // Restore req[method] if deleted during route matching (#fix: routes without URL params)
+        if (typeof(req[_reqMethodKey]) == "undefined") {
+            req[_reqMethodKey] = _origReqMethod || {};
         }
 
         if (!matched && _methodMismatch405msg) {
