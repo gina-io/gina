@@ -662,6 +662,19 @@ function Routing() {
             }
 
             key     = _param[matched].substring(1);
+
+            // No requirements defined for this param — accept any non-empty segment
+            if ( typeof(params.requirements) == 'undefined' || typeof(params.requirements[key]) == 'undefined' ) {
+                if ( typeof(params.param[key]) != 'undefined' && typeof(request.params) != 'undefined' && urlVal ) {
+                    request.params[key] = urlVal;
+                    if ( typeof(request[requestMethod][key]) == 'undefined' ) {
+                        request[requestMethod][key] = urlVal;
+                    }
+                    return true;
+                }
+                return false;
+            }
+
             // escaping `\` characters
             // TODO - remove comment : all regex requirement must start with `/`
             //regex   = ( /\\/.test(params.requirements[key]) ) ? params.requirements[key].replace(/\\/, '') : params.requirements[key];
@@ -750,6 +763,9 @@ function Routing() {
             }
 
         } else { // slow one
+
+            // No requirements defined — multi-param routes without requirements are not matchable
+            if ( typeof(params.requirements) == 'undefined' ) return false;
 
             // In order to support rules defined like :
             //      { params.url }  => `/section/:name/page:number`

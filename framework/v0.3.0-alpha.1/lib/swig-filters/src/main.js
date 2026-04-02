@@ -330,6 +330,60 @@ function SwigFilters(conf) {
         return text.replace(/(\n|\r)/g, replacement);
     }
 
+    /**
+     * Add or subtract hours from a date.
+     * Mirrors helpers/dateFormat.js::addHours — registered here so Swig templates
+     * can use {{ myDate | addHours(n) }}.
+     *
+     * @param {Date|string} input - date value piped from the template
+     * @param {number} h - hours to add (negative to subtract)
+     * @returns {Date}
+     *
+     * @example
+     *   {{ post.publishedAt | addHours(2) | date('Y-m-d H:i') }}
+     */
+    self.addHours = function(input, h) {
+        var d = (input instanceof Date) ? new Date(input.getTime()) : new Date(input);
+        d.setHours(d.getHours() + h);
+        return d;
+    }
+
+    /**
+     * Add or subtract days from a date.
+     * Mirrors helpers/dateFormat.js::addDays — registered here so Swig templates
+     * can use {{ myDate | addDays(n) }}.
+     *
+     * @param {Date|string} input - date value piped from the template
+     * @param {number} d - days to add (negative to subtract)
+     * @returns {Date}
+     *
+     * @example
+     *   {{ event.startDate | addDays(7) | date('Y-m-d') }}
+     */
+    self.addDays = function(input, d) {
+        var copied = (input instanceof Date) ? new Date(input.getTime()) : new Date(input);
+        copied.setHours(copied.getHours() + d * 24);
+        return copied;
+    }
+
+    /**
+     * Add or subtract years from a date.
+     * Mirrors helpers/dateFormat.js::addYears — registered here so Swig templates
+     * can use {{ myDate | addYears(n) }}.
+     *
+     * @param {Date|string} input - date value piped from the template
+     * @param {number} y - years to add (negative to subtract)
+     * @returns {Date}
+     *
+     * @example
+     *   {{ user.birthDate | addYears(18) | date('Y-m-d') }}
+     */
+    self.addYears = function(input, y) {
+        var d = (input instanceof Date) ? new Date(input.getTime()) : new Date(input);
+        d.setFullYear(d.getFullYear() + y);
+        return d;
+    }
+
 
     return init()
 
