@@ -4482,7 +4482,8 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
         ) {
 
             msg    = ( !/^\d+$/.test(code) && typeof(msg) == 'undefined' ) ?  code : msg;
-            code    = ( res && typeof(res.status) != 'undefined' ) ?  res.status : 500;
+            // Preserve an explicitly passed 3-digit HTTP status code; fall back to res.status or 500
+            code    = ( /^\d{3}$/.test(String(code)) ) ? code : ( res && typeof(res.status) != 'undefined' ) ? res.status : 500;
 
             if ( typeof(statusCodes[code]) != 'undefined' ) {
                 standardErrorMessage = statusCodes[code];

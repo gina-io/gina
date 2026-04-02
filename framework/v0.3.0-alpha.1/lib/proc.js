@@ -335,7 +335,11 @@ function Proc(bundle, proc, usePidFile){
                         // console.debug('removePidFileSync: ['+ process.list[p].pid +']');
                         removePidFileSync(process.list[p].pid);
                         if ( typeof(process.isMinion) == 'undefined' ) {
-                            mountPath   =  _(getPath('mountPath') + '/' + process.list[p].name);
+                            // 'mountPath' was never registered via setPath() — use 'bundles'
+                            // which IS registered (gna.js) and resolves to the same directory:
+                            // ${projectPath}/bundles in prod, ${projectPath}/src in dev.
+                            // In dev mode no symlink exists so existsSync returns false → no-op.
+                            mountPath   =  _(getPath('bundles') + '/' + process.list[p].name);
                             if ( fs.existsSync(mountPath) )
                                 fs.unlinkSync( mountPath );
                         }
