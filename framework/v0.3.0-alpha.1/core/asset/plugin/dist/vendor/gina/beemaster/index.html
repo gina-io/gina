@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Beemaster</title>
+  <link rel="stylesheet" href="/_gina/beemaster/beemaster.css">
+</head>
+<body>
+
+  <!-- ── Header ── -->
+  <header id="bm-header">
+    <div class="bm-brand">
+      <span class="bm-logo" aria-hidden="true">&#x2B21;</span>
+      <strong class="bm-name">Beemaster</strong>
+    </div>
+    <div class="bm-target">
+      <span class="bm-dot" id="bm-dot"></span>
+      <span id="bm-label">connecting&#x2026;</span>
+    </div>
+    <nav class="bm-tabs" aria-label="Main tabs">
+      <button class="bm-tab active" data-tab="toolbar">Toolbar</button>
+      <button class="bm-tab" data-tab="logs">Logs</button>
+    </nav>
+  </header>
+
+  <!-- ── Toolbar tab ── -->
+  <section id="tab-toolbar" class="bm-panel active" aria-label="Toolbar">
+    <nav class="bm-subtabs" aria-label="Toolbar sections">
+      <button class="bm-subtab active" data-subtab="data">Data</button>
+      <button class="bm-subtab" data-subtab="view">View</button>
+      <button class="bm-subtab" data-subtab="forms">Forms</button>
+      <button class="bm-subtab" data-subtab="config">Configuration</button>
+      <button class="bm-subtab" data-subtab="routing">Routing</button>
+    </nav>
+    <div class="bm-content">
+      <div id="subtab-data"    class="bm-subpanel active"><div class="bm-tree-root"></div></div>
+      <div id="subtab-view"    class="bm-subpanel"><div class="bm-tree-root"></div></div>
+      <div id="subtab-forms"   class="bm-subpanel"><div class="bm-tree-root"></div></div>
+      <div id="subtab-config"  class="bm-subpanel"><div class="bm-tree-root"></div></div>
+      <div id="subtab-routing" class="bm-subpanel"><div class="bm-tree-root"></div></div>
+    </div>
+  </section>
+
+  <!-- ── Logs tab ── -->
+  <section id="tab-logs" class="bm-panel" aria-label="Logs">
+    <div class="bm-logs-controls">
+      <select id="bm-log-level" aria-label="Level filter">
+        <option value="">All levels</option>
+        <option value="error">Error</option>
+        <option value="warn">Warn</option>
+        <option value="info">Info</option>
+        <option value="log">Log</option>
+        <option value="debug">Debug</option>
+      </select>
+      <input id="bm-log-search" type="search" placeholder="Search&#x2026;" aria-label="Search logs">
+      <button id="bm-log-pause"  class="bm-btn">&#x23F8; Pause</button>
+      <button id="bm-log-clear"  class="bm-btn">Clear</button>
+    </div>
+    <div id="bm-log-list" class="bm-log-list" role="log" aria-live="polite"></div>
+  </section>
+
+  <!-- ── No-source overlay ── -->
+  <div id="bm-no-source" class="bm-overlay hidden" role="alert">
+    <div class="bm-overlay-box">
+      <p class="bm-overlay-icon" aria-hidden="true">&#x2B21;</p>
+      <h2>No source connected</h2>
+      <p>Open Beemaster by clicking the <strong>Beemaster &#x2197;</strong> link in the status bar of a running Gina bundle (dev mode).</p>
+    </div>
+  </div>
+
+  <script src="/_gina/beemaster/beemaster.js"></script>
+</body>
+</html>
