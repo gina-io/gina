@@ -11,34 +11,68 @@
   <!-- ── Header ── -->
   <header id="bm-header">
     <div class="bm-brand">
-      <span class="bm-logo" aria-hidden="true">&#x2B21;</span>
-      <strong class="bm-name">Beemaster</strong>
+      <button class="bm-settings-btn" id="bm-settings-toggle" aria-label="Settings">
+        <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg"><path d="M29.667,18.098l0,-4.555l-4.879,0c-0.214,-0.827 -0.542,-1.604 -0.968,-2.321l3.455,-3.456l-3.221,-3.221l-3.455,3.456c-0.718,-0.426 -1.494,-0.754 -2.321,-0.968l0,-4.879l-4.556,0l0,4.879c-0.827,0.214 -1.603,0.542 -2.321,0.968l-3.455,-3.456l-3.221,3.221l3.455,3.456c-0.426,0.717 -0.754,1.494 -0.968,2.321l-4.879,0l0,4.555l4.879,0c0.214,0.827 0.542,1.604 0.968,2.321l-3.455,3.456l3.221,3.22l3.455,-3.455c0.718,0.426 1.494,0.754 2.321,0.968l0,4.879l4.556,0l0,-4.879c0.827,-0.214 1.603,-0.542 2.321,-0.968l3.455,3.455l3.221,-3.22l-3.455,-3.456c0.426,-0.717 0.754,-1.492 0.968,-2.321l4.879,0ZM16,20.376c-2.512,0 -4.556,-2.043 -4.556,-4.556c0,-2.51 2.044,-4.555 4.556,-4.555c2.512,0 4.556,2.045 4.556,4.555c0,2.513 -2.044,4.556 -4.556,4.556Z"/></svg>
+      </button>
     </div>
+    <nav class="bm-tabs" aria-label="Main tabs">
+      <button class="bm-tab active" data-tab="data">Data</button>
+      <button class="bm-tab" data-tab="view">View</button>
+      <button class="bm-tab" data-tab="forms">Forms</button>
+      <button class="bm-tab" data-tab="query">Query</button>
+      <button class="bm-tab" data-tab="logs">Logs<span class="bm-log-dot" id="bm-log-dot"></span></button>
+    </nav>
     <div class="bm-target">
       <span class="bm-dot" id="bm-dot"></span>
       <span id="bm-label">connecting&#x2026;</span>
     </div>
-    <nav class="bm-tabs" aria-label="Main tabs">
-      <button class="bm-tab active" data-tab="toolbar">Toolbar</button>
-      <button class="bm-tab" data-tab="logs">Logs</button>
-    </nav>
   </header>
 
-  <!-- ── Toolbar tab ── -->
-  <section id="tab-toolbar" class="bm-panel active" aria-label="Toolbar">
-    <nav class="bm-subtabs" aria-label="Toolbar sections">
-      <button class="bm-subtab active" data-subtab="data">Data</button>
-      <button class="bm-subtab" data-subtab="view">View</button>
-      <button class="bm-subtab" data-subtab="forms">Forms</button>
-      <button class="bm-subtab" data-subtab="config">Configuration</button>
-      <button class="bm-subtab" data-subtab="routing">Routing</button>
-    </nav>
-    <div class="bm-content">
-      <div id="subtab-data"    class="bm-subpanel active"><div class="bm-tree-root"></div></div>
-      <div id="subtab-view"    class="bm-subpanel"><div class="bm-tree-root"></div></div>
-      <div id="subtab-forms"   class="bm-subpanel"><div class="bm-tree-root"></div></div>
-      <div id="subtab-config"  class="bm-subpanel"><div class="bm-tree-root"></div></div>
-      <div id="subtab-routing" class="bm-subpanel"><div class="bm-tree-root"></div></div>
+  <!-- ── Data tab ── -->
+  <section id="tab-data" class="bm-panel active" aria-label="Data">
+    <div class="bm-toolbar-controls">
+      <button class="bm-pill-btn" id="bm-fold-all">Fold all</button>
+      <button class="bm-pill-btn" id="bm-raw">RAW</button>
+    </div>
+    <div class="bm-scroll-area">
+      <div class="bm-tree-root" id="tree-data"></div>
+      <div class="bm-hazard-stripe"></div>
+    </div>
+  </section>
+
+  <!-- ── View tab ── -->
+  <section id="tab-view" class="bm-panel" aria-label="View">
+    <div class="bm-toolbar-controls">
+      <button class="bm-pill-btn" id="bm-fold-all-view">Fold all</button>
+      <button class="bm-pill-btn" id="bm-raw-view">RAW</button>
+    </div>
+    <div class="bm-scroll-area">
+      <div class="bm-tree-root" id="tree-view"></div>
+      <div class="bm-hazard-stripe"></div>
+    </div>
+  </section>
+
+  <!-- ── Forms tab ── -->
+  <section id="tab-forms" class="bm-panel" aria-label="Forms">
+    <div class="bm-toolbar-controls">
+      <button class="bm-pill-btn" id="bm-fold-all-forms">Fold all</button>
+      <button class="bm-pill-btn" id="bm-raw-forms">RAW</button>
+    </div>
+    <div class="bm-scroll-area">
+      <div class="bm-tree-root" id="tree-forms"></div>
+      <div class="bm-hazard-stripe"></div>
+    </div>
+  </section>
+
+  <!-- ── Query tab ── -->
+  <section id="tab-query" class="bm-panel" aria-label="Query">
+    <div class="bm-toolbar-controls">
+      <button class="bm-pill-btn" id="bm-fold-all-query">Fold all</button>
+      <button class="bm-pill-btn" id="bm-raw-query">RAW</button>
+    </div>
+    <div class="bm-scroll-area">
+      <div class="bm-tree-root" id="tree-query"></div>
+      <div class="bm-hazard-stripe"></div>
     </div>
   </section>
 

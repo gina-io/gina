@@ -3,49 +3,56 @@
 
 :root {
     --bg:        #1a1b1e;
-    --bg2:       #212226;
+    --bg2:       #111;
     --bg3:       #2a2b30;
-    --border:    #35363c;
+    --border:    #444;
     --text:      #d4d5db;
-    --text-dim:  #6b6d78;
-    --accent:    #f5a623;
+    --text-dim:  #888;
+    --accent:    #f2af0d;
     --ok:        #4caf50;
     --err:       #f44336;
-    --warn:      #ff9800;
-    --info:      #2196f3;
-    --debug:     #9e9e9e;
-    --null:      #888;
-    --bool:      #c792ea;
-    --num:       #f78c6c;
-    --str:       #c3e88d;
-    --key:       #82aaff;
-    --index:     #546e7a;
-    --bracket:   #89ddff;
-    --count:     #546e7a;
-    --font:      'SF Mono', 'Fira Code', 'Cascadia Code', Menlo, monospace;
-    --sans:      -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --warn:      #f4b125;
+    --info:      #218af3;
+    --debug:     #888;
+
+    /* value colors — matching the old toolbar palette */
+    --null:      #f78c6a;
+    --bool:      #ffaa3e;
+    --num:       #f78c6a;
+    --str:       #5ba1cf;
+    --key:       #fff;
+    --key-added: #c3e88d;
+    --index:     #888;
+    --bracket:   #888;
+    --count:     #888;
+
+    --font:      'SF Mono', 'Fira Code', 'Cascadia Code', Menlo, 'Lucida Grande', monospace;
+    --sans:      'Lucida Grande', Lucida, Arial, Helvetica, sans-serif;
     --radius:    4px;
-    --hdr:       40px;
-    --tabs-h:    34px;
+    --hdr:       32px;
 }
 
 html, body {
     height: 100%;
     overflow: hidden;
-    background: var(--bg);
+    background: rgba(0, 0, 0, 0.92);
     color: var(--text);
-    font: 13px/1.5 var(--sans);
+    font: 12px/18px var(--sans);
+}
+
+@supports (-webkit-backdrop-filter: none) or (backdrop-filter: none) {
+    body {
+        -webkit-backdrop-filter: blur(6px);
+        backdrop-filter: blur(6px);
+    }
 }
 
 /* ── Header ───────────────────────────────────────────────────────────────── */
 #bm-header {
     display: flex;
     align-items: center;
-    gap: 12px;
     height: var(--hdr);
-    padding: 0 12px;
     background: var(--bg2);
-    border-bottom: 1px solid var(--border);
     flex-shrink: 0;
     position: relative;
     z-index: 10;
@@ -54,21 +61,37 @@ html, body {
 .bm-brand {
     display: flex;
     align-items: center;
-    gap: 6px;
     flex-shrink: 0;
 }
 
-.bm-logo {
-    font-size: 18px;
-    color: var(--accent);
-    line-height: 1;
+.bm-settings-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 8px;
+    transition: background .15s;
 }
 
-.bm-name {
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--text);
-    letter-spacing: .02em;
+.bm-settings-btn svg {
+    width: 16px;
+    height: 16px;
+    fill: #fff;
+    transition: fill .15s;
+}
+
+.bm-settings-btn:hover svg {
+    fill: var(--accent);
+    animation: bm-rotate 2s both;
+}
+
+@keyframes bm-rotate {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(180deg); }
 }
 
 .bm-target {
@@ -78,6 +101,8 @@ html, body {
     font-size: 11px;
     color: var(--text-dim);
     flex-shrink: 0;
+    margin-left: auto;
+    padding-right: 10px;
 }
 
 .bm-dot {
@@ -90,25 +115,66 @@ html, body {
 .bm-dot.ok  { background: var(--ok); box-shadow: 0 0 4px var(--ok); }
 .bm-dot.err { background: var(--err); }
 
+/* ── Main tabs ────────────────────────────────────────────────────────────── */
 .bm-tabs {
     display: flex;
-    gap: 2px;
-    margin-left: auto;
+    gap: 0;
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    align-items: stretch;
 }
 
-/* ── Main tabs ────────────────────────────────────────────────────────────── */
 .bm-tab {
+    display: flex;
+    align-items: center;
     background: none;
     border: none;
-    padding: 4px 12px;
-    font: 12px var(--sans);
-    color: var(--text-dim);
+    border-bottom: 2px solid transparent;
+    padding: 0 10px;
+    font: 12px/18px var(--sans);
+    color: #fff;
     cursor: pointer;
-    border-radius: var(--radius);
+    text-decoration: none;
     transition: color .15s, background .15s;
+    position: relative;
+    white-space: nowrap;
 }
-.bm-tab:hover  { color: var(--text); background: var(--bg3); }
-.bm-tab.active { color: var(--accent); background: var(--bg3); font-weight: 600; }
+.bm-tab:hover  {
+    color: var(--bg2);
+    background: var(--accent);
+}
+.bm-tab.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+}
+.bm-tab.active:hover {
+    color: var(--accent);
+    background: transparent;
+}
+
+/* Logs dot indicator */
+.bm-log-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-left: 5px;
+    background: transparent;
+    vertical-align: middle;
+}
+.bm-log-dot.active {
+    animation: bm-heartbeat 3.5s infinite;
+}
+.bm-log-dot.debug  { background: var(--debug); }
+.bm-log-dot.info   { background: var(--info); }
+.bm-log-dot.warn   { background: var(--warn); }
+.bm-log-dot.error  { background: var(--err); }
+
+@keyframes bm-heartbeat {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+}
 
 /* ── Panels layout ────────────────────────────────────────────────────────── */
 body {
@@ -124,58 +190,71 @@ body {
 }
 .bm-panel.active { display: flex; }
 
-/* ── Subtabs ──────────────────────────────────────────────────────────────── */
-.bm-subtabs {
+/* ── Toolbar controls (Fold all / RAW) ────────────────────────────────────── */
+.bm-toolbar-controls {
     display: flex;
-    gap: 0;
-    height: var(--tabs-h);
-    align-items: center;
-    padding: 0 8px;
-    background: var(--bg2);
+    gap: 8px;
+    padding: 10px 15px 8px;
     border-bottom: 1px solid var(--border);
     flex-shrink: 0;
-    overflow-x: auto;
-    scrollbar-width: none;
+    background: transparent;
 }
-.bm-subtabs::-webkit-scrollbar { display: none; }
 
-.bm-subtab {
+.bm-pill-btn {
+    display: inline-block;
+    padding: 3px 10px;
+    color: #fff;
+    font: 12px var(--sans);
+    text-decoration: none;
     background: none;
-    border: none;
-    border-bottom: 2px solid transparent;
-    padding: 6px 12px;
-    font: 11px var(--sans);
-    color: var(--text-dim);
+    border: 1px solid #888;
+    border-radius: 24px;
     cursor: pointer;
-    white-space: nowrap;
-    transition: color .15s, border-color .15s;
-    margin-bottom: -1px;
+    transition: border-color .15s, color .15s;
+    line-height: 18px;
 }
-.bm-subtab:hover  { color: var(--text); }
-.bm-subtab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+.bm-pill-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+.bm-pill-btn:focus,
+.bm-pill-btn:active {
+    outline: none;
+    border-color: #fff;
+}
+.bm-pill-btn.active {
+    color: var(--accent);
+    border-color: var(--accent);
+}
 
-/* ── Toolbar content ──────────────────────────────────────────────────────── */
-.bm-content {
+/* ── Scrollable content area ─────────────────────────────────────────────── */
+.bm-scroll-area {
     flex: 1;
-    overflow: hidden;
-    position: relative;
-}
-
-.bm-subpanel {
-    display: none;
-    height: 100%;
     overflow-y: auto;
-    padding: 8px 12px;
+    padding: 12px 15px;
 }
-.bm-subpanel.active { display: block; }
 
 /* Scrollbar */
-.bm-subpanel::-webkit-scrollbar,
+.bm-scroll-area::-webkit-scrollbar,
 .bm-log-list::-webkit-scrollbar { width: 6px; }
-.bm-subpanel::-webkit-scrollbar-track,
+.bm-scroll-area::-webkit-scrollbar-track,
 .bm-log-list::-webkit-scrollbar-track { background: transparent; }
-.bm-subpanel::-webkit-scrollbar-thumb,
+.bm-scroll-area::-webkit-scrollbar-thumb,
 .bm-log-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* ── Hazard stripe ────────────────────────────────────────────────────────── */
+.bm-hazard-stripe {
+    display: block;
+    padding: 3px 0;
+    margin: 12px 0 0;
+    background: repeating-linear-gradient(
+        -45deg,
+        #f4b125, #f4b125 10px,
+        #111 10px, #111 20px
+    );
+    border-radius: 10px;
+    min-height: 6px;
+}
 
 /* ── JSON tree ────────────────────────────────────────────────────────────── */
 .bm-tree-root {
@@ -184,43 +263,60 @@ body {
 
 .bm-tree {
     list-style: none;
-    padding-left: 16px;
-    border-left: 1px solid var(--border);
-    margin: 2px 0 2px 6px;
+    padding-left: 20px;
+    margin: 0;
 }
 
-.bm-tree li { padding: 1px 0; }
+/* Hide nested trees when folded (details closed) */
+.bm-tree li { padding: 0; }
 
-details { display: inline-block; vertical-align: top; width: 100%; }
-details[open] > summary .bm-bracket:last-of-type::after { content: ''; }
+details { display: block; width: 100%; }
 
 summary.bm-summary {
     cursor: pointer;
     list-style: none;
     outline: none;
     user-select: none;
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
+    display: block;
+    line-height: 1.7;
 }
 summary.bm-summary::-webkit-details-marker { display: none; }
-summary.bm-summary::before {
-    content: '▸';
-    font-size: 9px;
-    color: var(--text-dim);
-    display: inline-block;
-    width: 10px;
-    transition: transform .1s;
-}
-details[open] > summary.bm-summary::before { transform: rotate(90deg); }
 
-.bm-bracket { color: var(--bracket); font-weight: 600; }
-.bm-count   { color: var(--count); font-size: 10px; padding: 0 2px; }
+/* Triangle arrow — pointing right when collapsed, rotates down when open */
+summary.bm-summary::before {
+    content: '';
+    display: inline-block;
+    width: 0;
+    height: 0;
+    margin-right: 5px;
+    border-top: 5px solid transparent;
+    border-bottom: 5px solid transparent;
+    border-left: 8px solid #888;
+    vertical-align: middle;
+    position: relative;
+    top: -1px;
+    transition: transform .15s, border-left-color .15s;
+}
+summary.bm-summary:hover::before {
+    border-left-color: #eeffff;
+}
+details[open] > summary.bm-summary::before {
+    transform: rotate(90deg);
+}
+
+/* Empty nodes (no children) — dim the toggle */
+summary.bm-summary.is-empty::before {
+    border-left-color: #444;
+}
+
+.bm-bracket { color: var(--bracket); }
+.bm-count   { color: var(--count); font-size: 11px; }
 .bm-key     { color: var(--key); }
-.bm-index   { color: var(--index); font-size: 10px; }
+.bm-key-added { color: var(--key-added); }
+.bm-index   { color: var(--index); font-size: 11px; }
 .bm-colon   { color: var(--text-dim); }
 
-.bm-null  { color: var(--null); font-style: italic; }
+.bm-null  { color: var(--null); }
 .bm-bool  { color: var(--bool); }
 .bm-num   { color: var(--num); }
 .bm-str   { color: var(--str); }
@@ -229,14 +325,63 @@ details[open] > summary.bm-summary::before { transform: rotate(90deg); }
 .bm-hint  { color: var(--text-dim); font: 12px var(--sans); font-style: italic; }
 .bm-error { color: var(--err); font: 12px var(--sans); }
 
+/* Key-value pair layout */
+.bm-kv {
+    display: block;
+    line-height: 1.7;
+}
+
 /* Copy interaction */
 .bm-copyable {
     cursor: pointer;
-    border-radius: 2px;
-    transition: background .1s;
+    display: inline-block;
+    padding: 0 4px;
+    border-radius: 3px;
+    transition: background .1s, color .1s;
 }
-.bm-copyable:hover    { background: rgba(255,255,255,.06); }
-.bm-copyable.copied   { background: rgba(76,175,80,.25); }
+.bm-copyable:hover {
+    color: var(--bg2);
+    background: var(--str);
+}
+.bm-copyable.copied {
+    background: rgba(76,175,80,.35);
+}
+
+/* Overridden values (struck-through) */
+.bm-overridden .bm-key,
+.bm-overridden .bm-copyable {
+    color: #888;
+    text-decoration: line-through;
+}
+.bm-overridden .bm-copyable:hover {
+    color: var(--bg2);
+    background: #888;
+}
+
+/* Links for URLs and UUIDs */
+.bm-link {
+    color: var(--str);
+    text-decoration: underline;
+    text-decoration-color: rgba(91,161,207,.4);
+    cursor: pointer;
+    padding: 0 4px;
+    border-radius: 3px;
+    transition: background .1s, color .1s;
+}
+.bm-link:hover {
+    color: var(--bg2);
+    background: var(--str);
+    text-decoration: none;
+}
+
+/* ── RAW JSON view ───────────────────────────────────────────────────────── */
+.bm-raw-view {
+    font: 12px/1.5 var(--font);
+    color: var(--text);
+    white-space: pre-wrap;
+    word-break: break-all;
+    padding: 8px 0;
+}
 
 /* ── Logs tab ─────────────────────────────────────────────────────────────── */
 #tab-logs {
@@ -324,7 +469,7 @@ details[open] > summary.bm-summary::before { transform: rotate(90deg); }
 .bm-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(26,27,30,.92);
+    background: rgba(0,0,0,.92);
     display: flex;
     align-items: center;
     justify-content: center;
