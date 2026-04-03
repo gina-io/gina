@@ -30,6 +30,14 @@ if (!process.gina._resolver) process.gina._resolver = new Resolver();
 const resolver = process.gina._resolver;
 if (!process.gina._cache) process.gina._cache = new lib.Cache();
 const cache = process.gina._cache;
+// #QI — AsyncLocalStorage binds the dev query log to the request's async context.
+// Without this, process.gina._devQueryLog (a single global pointer) gets overwritten
+// by concurrent requests, causing queries from async entity callbacks to push to
+// the wrong request's array.
+if (!process.gina._queryALS) {
+    var { AsyncLocalStorage } = require('async_hooks');
+    process.gina._queryALS = new AsyncLocalStorage();
+}
 var merge           = lib.merge;
 var inherits        = lib.inherits;
 var console         = lib.logger;
@@ -78,13 +86,14 @@ function SuperController(options) {
     var self = this;
     //private
     var local = {
-        req     : null,
-        res     : null,
-        next    : null,
-        options : options || null,
-        query   : {},
-        _data   : {},
-        view    : {}
+        req       : null,
+        res       : null,
+        next      : null,
+        options   : options || null,
+        query     : {},
+        _data     : {},
+        view      : {},
+        _queryLog : []
     };
 
     /**
@@ -230,6 +239,23 @@ function SuperController(options) {
         local.options = options;
         local.options.renderingStack = (local.options.renderingStack) ? local.options.renderingStack : [];
         local.options.isRenderingCustomError = (local.options.isRenderingCustomError) ? local.options.isRenderingCustomError : false;
+
+        // #QI — dev-mode query instrumentation: the query log lives on `req` so it
+        // survives requireController() and form-validator paths that call setOptions()
+        // again with a different controller (and thus a different `local`). Only the
+        // FIRST setOptions() for this request creates the array; subsequent calls
+        // reuse it. AsyncLocalStorage.enterWith() binds the log to this request's
+        // async context so connector queries always push to the correct array,
+        // even when concurrent requests interleave.
+        if (_isDev) {
+            if (!req._devQueryLog) {
+                req._devQueryLog = [];
+            }
+            local._queryLog = req._devQueryLog;
+            if (process.gina._queryALS) {
+                process.gina._queryALS.enterWith({ _devQueryLog: req._devQueryLog });
+            }
+        }
 
         // N.B.: Avoid setting `page` properties as much as possible from the routing.json
         // It will be easier for the framework if set from the controller.
@@ -3502,6 +3528,15 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
                         // Success path
                         if (self && self.isHaltedRequest() && typeof local.onHaltedRequestResumed !== 'undefined') {
                             local.onHaltedRequestResumed(false);
+                        }
+                        // #QI — extract upstream query log from the response and
+                        // merge into the current request's log. This surfaces
+                        // coreapi queries in the dashboard Inspector automatically.
+                        if (_isDev && data && data.__ginaQueries && local._queryLog) {
+                            for (var _qi = 0; _qi < data.__ginaQueries.length; _qi++) {
+                                local._queryLog.push(data.__ginaQueries[_qi]);
+                            }
+                            delete data.__ginaQueries;
                         }
                         return callback(false, data);
                     }

@@ -652,6 +652,12 @@ function Couchbase(conn, infos) {
                     var trigger = 'N1QL:'+entityName.toLowerCase()+ '#'+ name;
                     var statement = (sdkVersion <= 2) ? query.options.statement : query;
 
+                    // #QI — dev-mode query instrumentation: push a query entry into the
+                    // request-scoped _devQueryLog via AsyncLocalStorage. Timing starts
+                    // here; finalized in onQueryCallback. AsyncLocalStorage ensures each
+                    // request's async callbacks push to the correct array, even when
+                    // concurrent requests interleave.
+                    var _queryEntry = null;
                     if (envIsDev) {
                         //var statement = (sdkVersion <= 2) ? query.options.statement : query;
                         console.debug('[ ' + trigger +' ] '+ statement);
@@ -659,14 +665,42 @@ function Couchbase(conn, infos) {
                         if (queryParams.length > 0) {
                             console.debug('[ ' + trigger +' ] Found query params: '+ queryParams);
                         }
+
+                        var _alsStore = process.gina && process.gina._queryALS ? process.gina._queryALS.getStore() : null;
+                        var _devLog = _alsStore ? _alsStore._devQueryLog : null;
+                        if (_devLog) {
+                            _queryEntry = {
+                                type        : 'N1QL',
+                                trigger     : entityName.toLowerCase() + '#' + name,
+                                statement   : String(statement),
+                                params      : queryParams.length > 0 ? queryParams.slice() : [],
+                                durationMs  : 0,
+                                resultCount : 0,
+                                resultSize  : 0,
+                                error       : null,
+                                source      : source || '',
+                                origin      : infos.bundle,
+                                connector   : 'couchbase'
+                            };
+                            _queryEntry._startMs = Date.now();
+                            _devLog.push(_queryEntry);
+                        }
                     }
 
 
 
                     var onQueryCallback = function(err, data, meta) {
-                        // if (/^company#getDocumentNextId$/.test(trigger)) {
-                        //     console.log('[ ' + trigger + '] onQueryCallback => ', err, data, meta);
-                        // }
+                        // #QI — finalize query entry timing
+                        if (_queryEntry) {
+                            _queryEntry.durationMs = Date.now() - _queryEntry._startMs;
+                            delete _queryEntry._startMs;
+                            if (err) {
+                                _queryEntry.error = err.message || String(err);
+                            } else {
+                                _queryEntry.resultCount = data ? (Array.isArray(data) ? data.length : 1) : 0;
+                                try { _queryEntry.resultSize = data ? JSON.stringify(data).length : 0; } catch(_e) { _queryEntry.resultSize = 0; }
+                            }
+                        }
 
                         if (!data || data.length == 0) {
                             data = null
@@ -1085,8 +1119,30 @@ function Couchbase(conn, infos) {
             // trick to set event on the fly
             var statement = (sdkVersion <= 2) ? query.options.statement : query;
 
+            // #QI — dev-mode query instrumentation for bulkInsert
+            var _biQueryEntry = null;
             if (envIsDev) {
                 console.debug('[ ' + trigger +' ] '+statement);
+
+                var _biAlsStore = process.gina && process.gina._queryALS ? process.gina._queryALS.getStore() : null;
+                var _biDevLog = _biAlsStore ? _biAlsStore._devQueryLog : null;
+                if (_biDevLog) {
+                    _biQueryEntry = {
+                        type        : 'N1QL',
+                        trigger     : this.name.toLowerCase() + '#' + name,
+                        statement   : String(statement),
+                        params      : [],
+                        durationMs  : 0,
+                        resultCount : 0,
+                        resultSize  : 0,
+                        error       : null,
+                        source      : 'bulkInsert',
+                        origin      : infos.bundle,
+                        connector   : 'couchbase'
+                    };
+                    _biQueryEntry._startMs = Date.now();
+                    _biDevLog.push(_biQueryEntry);
+                }
             }
 
             var self = this;
@@ -1096,6 +1152,12 @@ function Couchbase(conn, infos) {
                 conn._scope._bucket._cluster.query(query, queryOptions)
                     .catch( function onError(err) {
                         try {
+                            // #QI — finalize bulkInsert query entry on error
+                            if (_biQueryEntry) {
+                                _biQueryEntry.durationMs = Date.now() - _biQueryEntry._startMs;
+                                delete _biQueryEntry._startMs;
+                                _biQueryEntry.error = err.message || String(err);
+                            }
                             var error = new Error(err.cause.first_error_message);
                             error.stack = trigger +'\n'+ err.cause.http_body;
                             self.emit(trigger, error);
@@ -1110,23 +1172,29 @@ function Couchbase(conn, infos) {
                                 _data = null
                             }
 
+                            // #QI — finalize bulkInsert query entry on success
+                            if (_biQueryEntry) {
+                                _biQueryEntry.durationMs = Date.now() - _biQueryEntry._startMs;
+                                delete _biQueryEntry._startMs;
+                                _biQueryEntry.resultCount = _data ? (Array.isArray(_data) ? _data.length : 1) : 0;
+                                try { _biQueryEntry.resultSize = _data ? JSON.stringify(_data).length : 0; } catch(_e) { _biQueryEntry.resultSize = 0; }
+                            }
+
                             if (!err && _meta && typeof(_meta.errors) != 'undefined' ) {
                                 err = new Error('`GenericN1QLError::bulkInsert`\n'+_meta.errors[0].msg);
                                 err.status = 403;
+                                if (_biQueryEntry) _biQueryEntry.error = err.message;
                             } else if (err) {
                                 err.status  = 500;
                                 err.message = '`GenericN1QLError::bulkInsert`\n'+ err.message;
                                 err.stack   = '`GenericN1QLError::bulkInsert`\n'+ err.stack;
+                                if (_biQueryEntry) _biQueryEntry.error = err.message;
                             }
                             if (envIsDev) {
                                 console.debug('[ bulkInsert response ] : err ? '+ err + ', meta : \n'+ JSON.stringify(_meta) +'\n data :\n'+ JSON.stringify(_data) );
                             }
 
                             self.emit(trigger, err, data.rows, data.meta);
-                            // Tempory fix
-                            // setTimeout(() => {
-                            //     self.emit(trigger, err, data.rows, data.meta);
-                            // }, (9+recCount) );
 
                         } catch (_err) {
                             console.error(_err.stack);
@@ -1136,6 +1204,18 @@ function Couchbase(conn, infos) {
                 conn.query(query, rec, function(err, data, meta) {
                     if (!data || data.length == 0) {
                         data = null
+                    }
+
+                    // #QI — finalize bulkInsert query entry (SDK v2)
+                    if (_biQueryEntry) {
+                        _biQueryEntry.durationMs = Date.now() - _biQueryEntry._startMs;
+                        delete _biQueryEntry._startMs;
+                        if (err) {
+                            _biQueryEntry.error = err.message || String(err);
+                        } else {
+                            _biQueryEntry.resultCount = data ? (Array.isArray(data) ? data.length : 1) : 0;
+                            try { _biQueryEntry.resultSize = data ? JSON.stringify(data).length : 0; } catch(_e) { _biQueryEntry.resultSize = 0; }
+                        }
                     }
 
                     if (!err && meta && typeof(meta.errors) != 'undefined' ) {
