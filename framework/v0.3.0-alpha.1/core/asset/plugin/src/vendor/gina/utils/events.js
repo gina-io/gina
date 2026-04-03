@@ -347,7 +347,9 @@ function handleXhr(xhr, $el, options, require) {
             $link.eventData.error = result;
 
         //updateToolbar(result, resultIsObject);
-        window.ginaToolbar.update('data-xhr', result, resultIsObject);
+        if ( typeof(window.ginaToolbar) != 'undefined' && window.ginaToolbar ) {
+            window.ginaToolbar.update('data-xhr', result, resultIsObject);
+        }
 
         triggerEvent(gina, $target, 'error.' + id, result);
 
@@ -457,12 +459,12 @@ function handleXhr(xhr, $el, options, require) {
                                     XHRView = JSON.parse(decodeURIComponent(XHRView.value));
 
                                     // update data tab
-                                    if ( gina && typeof(window.ginaToolbar) && typeof(XHRData) != 'undefined' ) {
+                                    if ( gina && typeof(window.ginaToolbar) != 'undefined' && window.ginaToolbar && typeof(XHRData) != 'undefined' ) {
                                         window.ginaToolbar.update('data-xhr', XHRData);
                                     }
 
                                     // update view tab
-                                    if ( gina && typeof(window.ginaToolbar) && typeof(XHRView) != 'undefined' ) {
+                                    if ( gina && typeof(window.ginaToolbar) != 'undefined' && window.ginaToolbar && typeof(XHRView) != 'undefined' ) {
                                         window.ginaToolbar.update('view-xhr', XHRView);
                                     }
 
@@ -490,7 +492,7 @@ function handleXhr(xhr, $el, options, require) {
 
                     XHRData = result;
                     // update toolbar
-                    if ( gina && typeof(window.ginaToolbar) == 'object' && XHRData ) {
+                    if ( gina && typeof(window.ginaToolbar) != 'undefined' && window.ginaToolbar && XHRData ) {
                         try {
                             // don't refresh for html datas
                             if ( typeof(XHRData) != 'undefined' && /\/html/.test(contentType) ) {
@@ -525,7 +527,7 @@ function handleXhr(xhr, $el, options, require) {
 
                     XHRData = result;
                     // update toolbar
-                    if ( gina && typeof(window.ginaToolbar) == 'object' && XHRData ) {
+                    if ( gina && typeof(window.ginaToolbar) != 'undefined' && window.ginaToolbar && XHRData ) {
                         try {
 
                             if ( typeof(XHRData) != 'undefined' ) {
@@ -617,7 +619,7 @@ function handleXhr(xhr, $el, options, require) {
 
                             // update toolbar
                             XHRData = result;
-                            if ( gina && typeof(window.ginaToolbar) == 'object' && XHRData ) {
+                            if ( gina && typeof(window.ginaToolbar) != 'undefined' && window.ginaToolbar && XHRData ) {
                                 try {
                                     // update toolbar
                                     window.ginaToolbar.update('data-xhr', XHRData );
@@ -677,7 +679,7 @@ function handleXhr(xhr, $el, options, require) {
 
                     // update toolbar
                     XHRData = result;
-                    if ( gina && typeof(window.ginaToolbar) == "object" && XHRData ) {
+                    if ( gina && typeof(window.ginaToolbar) != 'undefined' && window.ginaToolbar && XHRData ) {
                         try {
                             // update toolbar
                             window.ginaToolbar.update('data-xhr', XHRData );

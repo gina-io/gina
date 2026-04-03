@@ -268,6 +268,8 @@ Gina's built-in per-bundle inspector. Phases 1–2 ship as an embedded SPA at `/
 | ✅ | **Real-time data via engine.io** — Push-based data updates when engine.io is configured. | `0.3.0-alpha.1` | 2026-04-02 |
 | ✅ | **Logs tab** — Real-time log tail with level filter, source filter (Client/Server), text search, pause/resume. Client logs via `window.__ginaLogs`; server logs via SSE (`/_gina/logs`). | `0.3.0-alpha.1` | 2026-04-02 |
 | ✅ | **Query tab** — Per-request query instrumentation via AsyncLocalStorage in the Couchbase connector. Cross-bundle propagation via `__ginaQueries` JSON sidecar. Split trigger badge (entity\|method), SQL syntax highlighting, params table, free-text search. Tagged with `origin` (bundle) and `connector`. | `0.3.0-alpha.1` | 2026-04-03 |
+| ✅ | **Remove legacy toolbar from `gina.min.js`** — Toolbar AMD module removed from RequireJS bundle. The `statusbar.html` shim is now the sole provider of `window.ginaToolbar` in dev mode. Guard fixes in `events.js` (unguarded call, `typeof == 'object'` null bug). Source directory retained for reference. | `0.3.0-alpha.1` | 2026-04-03 |
+| 📋 | **Reorganize Inspector source to match plugin conventions** — Move source files into type-based subdirectories (`html/`, `css/`, `js/`) matching toolbar and popin conventions. Add `sass/` when Inspector gets its own SASS pipeline; add `svg-src/` when it gets custom icons. Build script updated; dist layout unchanged. | `0.3.0` | Q3 2026 |
 
 ### Phase 3 — Production
 

@@ -228,6 +228,27 @@ do
 
 done
 
+# Copying Inspector SPA (no build step — straight copy from src to dist)
+echo -e "\n[ Copying Inspector SPA & statusbar ]"
+inspector_src=$SCRIPT_PATH/src/vendor/gina/inspector
+inspector_dist=$SCRIPT_PATH/dist/vendor/gina/inspector
+if [ -d "${inspector_src}" ]; then
+    if [ ! -d "${inspector_dist}" ]; then
+        mkdir -pv $inspector_dist >/dev/null 2>&1
+    fi
+    # Copy SPA files (exclude statusbar.html — it goes to dist/html/ not dist/inspector/)
+    for f in $inspector_src/*.html $inspector_src/*.js $inspector_src/*.css; do
+        [ -f "$f" ] && [ "$(basename $f)" != "statusbar.html" ] && cp "$f" "$inspector_dist/"
+    done
+    echo -e "Inspector: ${inspector_src} -> ${inspector_dist}"
+fi
+statusbar_src=$SCRIPT_PATH/src/vendor/gina/inspector/statusbar.html
+statusbar_dist=$SCRIPT_PATH/dist/vendor/gina/html/statusbar.html
+if [ -f "${statusbar_src}" ]; then
+    cp $statusbar_src $statusbar_dist
+    echo -e "Statusbar: ${statusbar_src} -> ${statusbar_dist}"
+fi
+
 # Building RequireJS lib
 filename="build.json"
 if [ "${build_env}" == "dev" ]; then

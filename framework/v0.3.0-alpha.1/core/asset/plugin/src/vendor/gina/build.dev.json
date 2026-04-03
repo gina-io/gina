@@ -27,7 +27,7 @@
     "lib/form-validator"  : "../../../../core/plugins/lib/validator/src/form-validator",
 
     "gina"                  : "vendor/gina/main",
-    "gina/toolbar"          : "vendor/gina/toolbar/main",
+    // removed: toolbar is no longer bundled — the statusbar.html shim provides ginaToolbar in dev mode
     "gina/popin"            : "vendor/gina/popin/main",
     "gina/link"             : "vendor/gina/link/main",
     "gina/storage"          : "../../../plugins/lib/storage/src/main",

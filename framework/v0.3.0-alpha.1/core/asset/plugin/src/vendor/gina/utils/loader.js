@@ -14,7 +14,6 @@
  * */
 
 window['originalContext']   = window['jQuery'] || null;
-window['ginaToolbar']       = null;
 
 /**
  * onGinaLoaded
@@ -280,12 +279,8 @@ window['onGinaLoaded']      = function(gina) {
         headEls = null;
     }
 
-    // All required must be listed in `src/main.js` defined modules list
-    if ( /^true$/i.test(options['envIsDev']) ) {
-        var Toolbar             = window['require']('gina/toolbar');
-        // Gina and its deps must be loaded first (e.g.: gina.config.routing)
-        window['ginaToolbar']   = new Toolbar();
-    }
+    // removed: toolbar is no longer bundled into gina.min.js
+    // In dev mode, statusbar.html provides ginaToolbar via Object.defineProperty shim
 
     return true;
 }
