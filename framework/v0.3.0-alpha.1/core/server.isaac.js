@@ -595,6 +595,104 @@ function ServerEngineClass(options) {
                 return response.end(cacheStatsData);
             }
 
+            // ── Inspector SPA — served at /_gina/inspector/ in dev mode ──────────
+            if (
+                isCacheless
+                && request.method.toUpperCase() === 'GET'
+                && /\/_gina\/inspector(\/.*)?$/.test(request.url)
+            ) {
+                var _inspBase = __dirname + '/asset/plugin/dist/vendor/gina/inspector';
+                var _inspPath = request.url.replace(/^.*\/_gina\/inspector\/?/, '').split('?')[0];
+                if (!_inspPath || _inspPath === '') _inspPath = 'index.html';
+
+                var _inspMime = {
+                    'html': 'text/html; charset=utf8',
+                    'js':   'application/javascript; charset=utf8',
+                    'css':  'text/css; charset=utf8'
+                };
+                var _inspExt  = _inspPath.split('.').pop();
+                var _inspFile = _(_inspBase + '/' + _inspPath, true);
+
+                if (fs.existsSync(_inspFile)) {
+                    var _inspHeaders = {
+                        'content-type': _inspMime[_inspExt] || 'application/octet-stream',
+                        'cache-control': 'no-cache, no-store, must-revalidate',
+                        'x-content-type-options': 'nosniff',
+                        'X-Powered-By': 'Gina/' + GINA_VERSION
+                    };
+
+                    // HTTP/2
+                    if (response.stream) {
+                        response.stream.respond({ ':status': 200, ..._inspHeaders });
+                        return response.stream.end(fs.readFileSync(_inspFile, 'utf8'));
+                    }
+
+                    // HTTP/1.1
+                    response.writeHead(200, _inspHeaders);
+                    console.info(request.method + ' [200] ' + request.url);
+                    return response.end(fs.readFileSync(_inspFile, 'utf8'));
+                }
+                // Fall through to 404 if file not found
+            }
+
+            // ── Server-side log streaming — SSE at /_gina/logs in dev mode ──
+            if (
+                isCacheless
+                && request.method.toUpperCase() === 'GET'
+                && /\/_gina\/logs$/.test(request.url)
+            ) {
+                var _ansiRe = /\x1B\[\d+m/g;
+
+                var _sseHeaders = {
+                    'content-type': 'text/event-stream; charset=utf-8',
+                    'cache-control': 'no-cache, no-store',
+                    'connection': 'keep-alive',
+                    'x-content-type-options': 'nosniff',
+                    'X-Powered-By': 'Gina/' + GINA_VERSION
+                };
+
+                var _write, _onClose;
+
+                // HTTP/2
+                if (response.stream) {
+                    response.stream.respond({ ':status': 200, ..._sseHeaders });
+                    _write   = function(d) { try { response.stream.write(d); } catch(e){} };
+                    _onClose = function(fn) { response.stream.on('close', fn); };
+                } else {
+                    // HTTP/1.1
+                    response.writeHead(200, _sseHeaders);
+                    _write   = function(d) { try { response.write(d); } catch(e){} };
+                    _onClose = function(fn) { request.on('close', fn); };
+                }
+
+                _write(':ok\n\n');
+
+                var _sseLogListener = function(payload) {
+                    try {
+                        var entry = JSON.parse(payload);
+                        var level = entry.level === 'catch' ? 'log' : (entry.level || 'log');
+                        var msg   = (entry.content || '').replace(_ansiRe, '').replace(/\n$/, '');
+                        if (!msg) return;
+                        var evt = JSON.stringify({
+                            t: Date.now(),
+                            l: level,
+                            b: entry.group || '',
+                            s: msg,
+                            src: 'server'
+                        });
+                        _write('data: ' + evt + '\n\n');
+                    } catch (e) {}
+                };
+
+                process.on('logger#default', _sseLogListener);
+                _onClose(function() {
+                    process.removeListener('logger#default', _sseLogListener);
+                });
+
+                console.info(request.method + ' [200] ' + request.url + ' (SSE)');
+                return; // keep the connection open
+            }
+
             // Proxy detection - Needs to be place after /_gina/health/*
             isProxyHost = getContext('isProxyHost') || false;
             requestHost = request.headers.host || request.headers[':authority'];
@@ -1076,8 +1174,37 @@ function ServerEngineClass(options) {
                 }
             });
 
+            // ── Broadcast server-side log entries to connected Inspector ──
+            if (options.isCacheless) {
+                var _ioAnsiRe = /\x1B\[\d+m/g;
+
+                var _ioLogListener = function(payload) {
+                    try {
+                        var entry = JSON.parse(payload);
+                        var level = entry.level === 'catch' ? 'log' : (entry.level || 'log');
+                        var msg   = (entry.content || '').replace(_ioAnsiRe, '').replace(/\n$/, '');
+                        if (!msg) return;
+                        socket.send(JSON.stringify({
+                            type: 'log',
+                            data: {
+                                t: Date.now(),
+                                l: level,
+                                b: entry.group || '',
+                                s: msg,
+                                src: 'server'
+                            }
+                        }));
+                    } catch (e) { /* socket may be closing */ }
+                };
+
+                process.on('logger#default', _ioLogListener);
+            }
+
             socket.on('close', function(){
                 console.debug('[IO SERVER ] closed socket #'+ this.id);
+                if (typeof _ioLogListener !== 'undefined') {
+                    process.removeListener('logger#default', _ioLogListener);
+                }
             });
         });
 

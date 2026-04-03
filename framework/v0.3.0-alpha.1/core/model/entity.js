@@ -368,8 +368,12 @@ function EntitySuper(conn, caller, injected) {
                         // as an uncaughtException that corrupts the event loop.
                         if (_innerResult && typeof(_innerResult.then) === 'function') {
                             _innerResult.then(
-                                function(data) { if (typeof _resolver === 'function') _resolver(null, data); },
-                                function(err)  { if (typeof _resolver === 'function') _resolver(err); }
+                                function(data) {
+                                    if (typeof _resolver === 'function') _resolver(null, data);
+                                },
+                                function(err) {
+                                    if (typeof _resolver === 'function') _resolver(err);
+                                }
                             );
                         }
 

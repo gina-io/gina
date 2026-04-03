@@ -2306,6 +2306,47 @@ function Server(options) {
                 // Fall through to 404 if file not found
             }
 
+            // ── Server-side log streaming — SSE at /_gina/logs in dev mode ──
+            if (
+                process.env.NODE_ENV_IS_DEV && process.env.NODE_ENV_IS_DEV.toLowerCase() === 'true'
+                && request.method.toUpperCase() === 'GET'
+                && /\/_gina\/logs$/.test(request.url)
+            ) {
+                var _ansiRe = /\x1B\[\d+m/g;
+
+                response.setHeader('content-type', 'text/event-stream; charset=utf-8');
+                response.setHeader('cache-control', 'no-cache, no-store');
+                response.setHeader('connection', 'keep-alive');
+                response.setHeader('x-content-type-options', 'nosniff');
+                // Initial SSE comment to establish the connection
+                response.write(':ok\n\n');
+
+                var _sseLogListener = function(payload) {
+                    try {
+                        var entry = JSON.parse(payload);
+                        var level = entry.level === 'catch' ? 'log' : (entry.level || 'log');
+                        var msg   = (entry.content || '').replace(_ansiRe, '').replace(/\n$/, '');
+                        if (!msg) return;
+                        var evt = JSON.stringify({
+                            t: Date.now(),
+                            l: level,
+                            b: entry.group || '',
+                            s: msg,
+                            src: 'server'
+                        });
+                        response.write('data: ' + evt + '\n\n');
+                    } catch (e) { /* connection may be closing */ }
+                };
+
+                process.on('logger#default', _sseLogListener);
+                request.on('close', function() {
+                    process.removeListener('logger#default', _sseLogListener);
+                });
+
+                console.info(request.method + ' [200] ' + request.url + ' (SSE)');
+                return; // keep the connection open — do not call response.end()
+            }
+
             // Fixing an express js bug :(
             // express is trying to force : /path/dir => /path/dir/
             // which causes : /path/dir/path/dir/  <---- by trying to add a slash in the end

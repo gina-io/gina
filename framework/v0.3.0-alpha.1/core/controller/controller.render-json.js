@@ -207,6 +207,13 @@ module.exports = function renderJSON(jsonObj, deps) {
 
         console.info(request.method +' ['+ response.statusCode +'] '+ request.url);
 
+        // #QI — in dev mode, embed the request-scoped query log so upstream
+        // callers (dashboard calling coreapi via self.query()) can merge it
+        // into their own Inspector view. Stripped by the caller after extraction.
+        if (self.isCacheless() && local._queryLog && local._queryLog.length > 0) {
+            jsonObj.__ginaQueries = local._queryLog;
+        }
+
         var data = JSON.stringify(jsonObj);
 
         // HEAD: send all response headers (including content-length reflecting what the body

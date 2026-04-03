@@ -891,6 +891,11 @@ module.exports = async function render(userData, displayToolbar, errOptions, dep
             ||
             hasViews() && localOptions.debugMode
         ) {
+            // #QI — inject dev-mode query log into data.page for Inspector
+            if (local._queryLog && local._queryLog.length > 0) {
+                data.page.queries = local._queryLog;
+            }
+
             var __gdGina = JSON.parse(JSON.stringify(data.page));
             __gdGina.view.assets      = {};
             __gdGina.view.scripts     = 'ignored-by-toolbar';
