@@ -19,7 +19,7 @@
 | --- | --- | --- | --- |
 | **Apr 2026** | `0.1.8` | Boilerplate fixes — ship a correct scaffold before any other work | #BP1–#BP7, #R2–#R4, #K1–#K4 |
 | **Q2 2026** | `0.2.0` ✅ | Stability · WatcherService · Connectors (Redis, SQLite) · Adoption Phase 1 · Visibility Phase 1–2 · AI Phase 1 · Startup cache · Pointer compression · Couchbase v2 deprecation · Couchbase security & critical bug fixes · HTTP/2 bug fixes & security hardening | #M1–#M3, #R1, #CN1–#CN2, #CN7, #K5, #A1–#A6, #A9–#A11, #V1–#V6, #AI1–#AI2, #P1, #P4, #H1–#H3, #CB1–#CB6 |
-| **Q3 2026** | `0.3.0` | Async · Dev tooling · Connectors (MySQL, PostgreSQL) · K8s session · On-ramp · AI Phase 2 · Route radix tree · Connector peerDeps · 103 Early Hints · HTTP/2 observability & config · Security & CVE page · Tutorial locale detection · Couchbase medium fixes · Per-bundle framework version · Inspector Phase 1–2 | #M4–#M7, #CN3–#CN4, #CN9, #A7–#A8, #A12–#A13, #A15–#A16, #V7–#V8, #V11, #AI4–#AI5, #UT1, #P2, #H4–#H7, #CB7–#CB12, #R7, #INS1–#INS7 |
+| **Q3 2026** | `0.3.0` | Async · Dev tooling · Connectors (MySQL, PostgreSQL) · K8s session · On-ramp · AI Phase 2 · Route radix tree · Connector peerDeps · 103 Early Hints · HTTP/2 observability & config · Security & CVE page · Tutorial locale detection · Couchbase medium fixes · Per-bundle framework version · Inspector Phase 1–2 | #M4–#M7, #CN3–#CN4, #CN9, #A7–#A8, #A12–#A13, #A15–#A16, #V7–#V8, #V11, #AI4–#AI5, #UT1, #P2, #H4–#H7, #CB7–#CB12, #R7, #INS1–#INS7, #INS14 |
 | **Q4 2026** | `0.4.0` | DX · AI Phase 2–3 · ScyllaDB · Prometheus metrics · Bun investigation · Couchbase v2 removal · Docs offline ZIP · HTTP/2 rapid reset defense · Trailer support | #M8–#M9, #CN5, #CN8, #OBS1, #AI3, #AI6–#AI8, #P3, #V10, #H8–#H10, #CB13 |
 | **Q1 2027** | `0.5.0` | Future platform · HTTP/2 advanced features · Inspector Production | #M10–#M12, #M14, #H11–#H13, #INS8–#INS10 |
 | **Q3 2027** | `1.0.0` | First stable release — Windows alpha compatibility is a hard gate | #W1 |
@@ -32,7 +32,7 @@
 | --- | --- | --- | --- | --- |
 | ✅ Boilerplate (#BP) | 7 | 0 | 0 | 7 |
 | Features (#R) | 5 | 0 | 2 | 7 |
-| Inspector (#INS) | 7 | 0 | 5 | 12 |
+| Inspector (#INS) | 7 | 0 | 6 | 13 |
 | Modernisation (#M) | 3 | 0 | 11 | 14 |
 | Connectors (#CN) | 4 | 0 | 5 | 9 |
 | K8s & Docker (#K) | 5 | 0 | 0 | 5 |
@@ -110,6 +110,8 @@ Prerequisite for all other phases. Zero change to the existing toolbar UI — ju
 | ✅ | #INS5 | ✓ | Real-time data via engine.io | `0.3.0-alpha.1` | 2026-04-02 | `server.isaac.js` `socket.on('message')` responds to `{ type: "getGinaData" }` with `{ type: "ginaData", data: server._lastGinaData }`. `controller.render-swig.js` stores `__gdPayload` on `self.serverInstance._lastGinaData` after each render. |
 | ✅ | #INS6 | ✓ | Logs tab | `0.3.0-alpha.1` | 2026-04-02 | Real-time log tail with level filter (debug/info/warn/error), source filter (All/Client/Server), text search, pause/resume. Client: `window.__ginaLogs` injected by `__logsScript`. Server: SSE stream via `/_gina/logs` tapping `process.on('logger#default')`. |
 | ✅ | #INS7 | ✓ | Query tab | `0.3.0-alpha.1` | 2026-04-03 | Per-request query instrumentation via AsyncLocalStorage in the Couchbase connector's N1QL execution path. Cross-bundle propagation via `__ginaQueries` JSON sidecar. UI: split trigger badge (entity\|method), SQL syntax highlighting, params table ($1/$2 → value), free-text search bar. Each entry tagged with `origin` (bundle) and `connector` (connector name). |
+| ✅ | #INS13 | | Remove legacy toolbar from `gina.min.js` | `0.3.0-alpha.1` | 2026-04-03 | `src/vendor/gina/toolbar/main.js` removed from RequireJS bundle (`main.js` dependency array, `build.json`, `build.dev.json`). `loader.js` toolbar instantiation removed. `events.js` unguarded `ginaToolbar.update()` call fixed + 5 faulty `typeof == 'object'` guards normalised (passed for `null`). The `statusbar.html` shim is now the sole provider of `window.ginaToolbar` (dev mode); prod mode skips all calls via guards. `src/vendor/gina/toolbar/` directory retained on disk for reference — not physically removed yet. Toolbar CSS (~580 lines of dead `gina-toolbar-*` rules) still concatenated into `gina.min.css` via the SASS build — cleanup deferred. |
+| 📋 | #INS14 | | Reorganize Inspector source to match plugin conventions | `0.3.0` | Q3 2026 | Move Inspector source files into type-based subdirectories matching the toolbar convention: `html/` (index.html, statusbar.html), `css/` (inspector.css), `js/` (inspector.js). Add `sass/` when Inspector gets its own SASS pipeline (currently hand-authored CSS). Add `svg-src/` when Inspector gets its own icons (currently uses inline SVG and CSS-only indicators). Update build script Phase 3 to read from new subdirectory paths — dist layout unchanged (flat `dist/vendor/gina/inspector/`). **Constraint:** no `sass/` directory until Inspector CSS is converted to SASS (would trigger build auto-discovery and CSS concatenation into `gina.min.css`). Deferred until Inspector gains enough files to justify the overhead — current 4-file flat layout works but breaks maintenance consistency with toolbar and popin. |
 
 ### Phase 3 — Production
 

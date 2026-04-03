@@ -1,4 +1,4 @@
-define('gina', [ 'require', 'vendor/uuid', 'lib/merge', 'lib/routing', 'utils/events', 'helpers/prototypes', 'helpers/dateFormat', 'gina/toolbar' ], function (require) {
+define('gina', [ 'require', 'vendor/uuid', 'lib/merge', 'lib/routing', 'utils/events', 'helpers/prototypes', 'helpers/dateFormat' ], function (require) {
 
     /**
      * Imports & definitions
