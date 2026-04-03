@@ -8,8 +8,93 @@
     var bundle  = env.bundle  || '?';
     var envName = env.env     || '?';
     var dot     = data.error  ? '#e74c3c' : '#2ecc71';
-    // Publish data for Beemaster via localStorage (works regardless of opener)
+
+    // ── ginaToolbar shim ──────────────────────────────────────────────────
+    // gina.min.js is a stale build that creates its own window.ginaToolbar
+    // with a loadData function that accesses removed DOM elements
+    // (#gina-toolbar-json). We use Object.defineProperty to lock our shim
+    // so gina.min.js cannot overwrite it on DOMContentLoaded.
+    var _origData = null;
+    var _shim = {
+        update: function (section, sectionData) {
+            if (!window.__ginaData) return;
+            var u = window.__ginaData.user;
+            var g = window.__ginaData.gina;
+            if (!u || !g) return;
+
+            // Save original state for restore (once)
+            if (!_origData) {
+                try { _origData = JSON.parse(JSON.stringify({ data: u.data, view: u.view })); } catch (e) {}
+            }
+
+            if (section === 'data-xhr' || section === 'view-xhr') {
+                if (sectionData) {
+                    u[section] = sectionData;
+                    g[section] = sectionData;
+                } else {
+                    delete u[section];
+                    delete g[section];
+                }
+            } else if (section === 'el-xhr') {
+                u['el-xhr'] = sectionData;
+            } else if (section === 'forms') {
+                if (typeof sectionData === 'object' && sectionData !== null) {
+                    if (!u.forms) u.forms = {};
+                    var fk = Object.keys(sectionData);
+                    for (var i = 0; i < fk.length; i++) u.forms[fk[i]] = sectionData[fk[i]];
+                }
+            }
+
+            // Sync localStorage for the Inspector's fallback channel
+            try { localStorage.setItem('__ginaData', JSON.stringify(window.__ginaData)); } catch (e) {}
+        },
+        restore: function () {
+            if (!window.__ginaData) return;
+            var u = window.__ginaData.user;
+            if (!u) return;
+            delete u['data-xhr'];
+            delete u['view-xhr'];
+            delete u['el-xhr'];
+            if (_origData) {
+                try {
+                    u.data = JSON.parse(JSON.stringify(_origData.data));
+                    u.view = JSON.parse(JSON.stringify(_origData.view));
+                } catch (e) {}
+            }
+            try { localStorage.setItem('__ginaData', JSON.stringify(window.__ginaData)); } catch (e) {}
+        },
+        hasParsedUrls: false
+    };
+
+    // Lock with defineProperty — gina.min.js DOMContentLoaded init will
+    // try window.ginaToolbar = new GinaToolbar() which triggers our setter
+    // that silently absorbs the assignment while preserving our update/restore.
+    try {
+        Object.defineProperty(window, 'ginaToolbar', {
+            get: function () { return _shim; },
+            set: function (v) {
+                // Absorb gina.min.js's assignment without overwriting shim
+                if (v && typeof v === 'object') {
+                    var keys = Object.keys(v);
+                    for (var i = 0; i < keys.length; i++) {
+                        var k = keys[i];
+                        if (k !== 'update' && k !== 'restore') {
+                            _shim[k] = v[k];
+                        }
+                    }
+                }
+            },
+            configurable: true,
+            enumerable: true
+        });
+    } catch (e) {
+        window.ginaToolbar = _shim;
+    }
+
+    // Publish data for Inspector via localStorage (works regardless of opener)
     try { localStorage.setItem('__ginaData', JSON.stringify(d)); } catch (e) {}
+    var webroot = env.webroot || '/';
+    if (webroot.charAt(webroot.length - 1) !== '/') webroot += '/';
     var el      = document.createElement('div');
     el.id       = '__gina-statusbar';
     var sr      = el.attachShadow({ mode: 'open' });
@@ -27,7 +112,7 @@
         + '<div id="b">'
         + '<span class="d"></span>'
         + '<span>' + bundle + '@' + envName + '</span>'
-        + '<a href="/_gina/beemaster/" target="_blank">Beemaster &#8599;</a>'
+        + '<a href="' + webroot + '_gina/inspector/" target="_blank" rel="opener">Inspector &#8599;</a>'
         + '</div>';
     function inject() {
         if (document.body) document.body.appendChild(el);
