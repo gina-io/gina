@@ -19,9 +19,9 @@
 | --- | --- | --- | --- |
 | **Apr 2026** | `0.1.8` | Boilerplate fixes — ship a correct scaffold before any other work | #BP1–#BP7, #R2–#R4, #K1–#K4 |
 | **Q2 2026** | `0.2.0` ✅ | Stability · WatcherService · Connectors (Redis, SQLite) · Adoption Phase 1 · Visibility Phase 1–2 · AI Phase 1 · Startup cache · Pointer compression · Couchbase v2 deprecation · Couchbase security & critical bug fixes · HTTP/2 bug fixes & security hardening | #M1–#M3, #R1, #CN1–#CN2, #CN7, #K5, #A1–#A6, #A9–#A11, #V1–#V6, #AI1–#AI2, #P1, #P4, #H1–#H3, #CB1–#CB6 |
-| **Q3 2026** | `0.3.0` | Async · Dev tooling · Connectors (MySQL, PostgreSQL) · K8s session · On-ramp · AI Phase 2 · Route radix tree · Connector peerDeps · 103 Early Hints · HTTP/2 observability & config · Security & CVE page · Tutorial locale detection · Couchbase medium fixes · Per-bundle framework version · Beemaster Phase 1 | #M4–#M7, #CN3–#CN4, #CN9, #A7–#A8, #A12–#A13, #A15–#A16, #V7–#V8, #V11, #AI4–#AI5, #UT1, #P2, #H4–#H7, #CB7–#CB12, #R7, #BM1–#BM2 |
-| **Q4 2026** | `0.4.0` | DX · AI Phase 2–3 · ScyllaDB · Prometheus metrics · Bun investigation · Couchbase v2 removal · Docs offline ZIP · HTTP/2 rapid reset defense · Trailer support · Beemaster core | #M8–#M9, #CN5, #CN8, #OBS1, #AI3, #AI6–#AI8, #P3, #V10, #H8–#H10, #CB13, #BM3–#BM6 |
-| **Q1 2027** | `0.5.0` | Future platform · HTTP/2 advanced features · Beemaster admin | #M10–#M12, #M14, #H11–#H13, #BM7–#BM10, #BM12 |
+| **Q3 2026** | `0.3.0` | Async · Dev tooling · Connectors (MySQL, PostgreSQL) · K8s session · On-ramp · AI Phase 2 · Route radix tree · Connector peerDeps · 103 Early Hints · HTTP/2 observability & config · Security & CVE page · Tutorial locale detection · Couchbase medium fixes · Per-bundle framework version · Inspector Phase 1–2 | #M4–#M7, #CN3–#CN4, #CN9, #A7–#A8, #A12–#A13, #A15–#A16, #V7–#V8, #V11, #AI4–#AI5, #UT1, #P2, #H4–#H7, #CB7–#CB12, #R7, #INS1–#INS7 |
+| **Q4 2026** | `0.4.0` | DX · AI Phase 2–3 · ScyllaDB · Prometheus metrics · Bun investigation · Couchbase v2 removal · Docs offline ZIP · HTTP/2 rapid reset defense · Trailer support | #M8–#M9, #CN5, #CN8, #OBS1, #AI3, #AI6–#AI8, #P3, #V10, #H8–#H10, #CB13 |
+| **Q1 2027** | `0.5.0` | Future platform · HTTP/2 advanced features · Inspector Production | #M10–#M12, #M14, #H11–#H13, #INS8–#INS10 |
 | **Q3 2027** | `1.0.0` | First stable release — Windows alpha compatibility is a hard gate | #W1 |
 
 ---
@@ -32,7 +32,7 @@
 | --- | --- | --- | --- | --- |
 | ✅ Boilerplate (#BP) | 7 | 0 | 0 | 7 |
 | Features (#R) | 5 | 0 | 2 | 7 |
-| Beemaster (#BM) | 0 | 0 | 13 | 13 |
+| Inspector (#INS) | 7 | 0 | 5 | 12 |
 | Modernisation (#M) | 3 | 0 | 11 | 14 |
 | Connectors (#CN) | 4 | 0 | 5 | 9 |
 | K8s & Docker (#K) | 5 | 0 | 0 | 5 |
@@ -46,7 +46,7 @@
 | Unit Tests (#UT) | 0 | 0 | 1 | 1 |
 | Couchbase Hardening (#CB) | 13 | 0 | 0 | 13 |
 | Observability (#OBS) | 0 | 0 | 1 | 1 |
-| **Total** | **58** | **0** | **64** | **122** |
+| **Total** | **65** | **0** | **56** | **121** |
 
 ---
 
@@ -80,13 +80,17 @@ Scaffold correctness issues. Every new project inherits these problems on day on
 
 ---
 
-## Beemaster (#BM)
+## Inspector (#INS)
 
-Standalone gina dev and admin tool. Served as its own gina bundle (`services/src/beemaster/`) on port 4101. Replaces the in-page toolbar with a thin status bar and moves all tooling UI to an isolated browser tab. Works for both local and remote/K8s gina instances.
+Gina's built-in per-bundle inspector. Phases 1–2 ship as an embedded SPA at `/_gina/inspector/` inside every bundle's own HTTP server (dev mode). Phase 3 evolves it into a standalone web app served by `services/src/inspector/` that can connect to any bundle in any environment — including production.
 
-**Architecture decision:** Shadow DOM, browser extension, separate popup window, and Electron were all evaluated. Shadow DOM doesn't scale to admin operations. Electron is local-only and cannot manage remote/K8s instances. A browser extension requires distribution overhead and is a UI shell without its own backend. The standalone web app is the strict superset — full admin UI, works locally and remotely. A browser extension companion (#BM13) can be layered on top later.
+**Inspector vs Beemaster:** Inspector is a per-bundle inspection tool (data, queries, logs, routing for a single page request). Beemaster is a separate project — a global admin app for managing all bundles, projects, and connectors across gina instances. Inspector feeds data to Beemaster but is self-contained.
 
-**Existing scaffolding already in place:** `services/src/toolbar/` skeleton, `engine.io-client` bundled (currently dead weight), port range 4100+ reserved for services, port 8125 already the MQ/log-tail port.
+**Architecture decision:** Shadow DOM, browser extension, Electron, and standalone web app were all evaluated. Shadow DOM doesn't scale beyond inline inspection. Electron is heavy (~200 MB RAM) and adds distribution burden for what is essentially a web UI. A browser extension is browser-specific, has Chrome Web Store distribution friction, and can't inspect from a different machine. The standalone web app is the pragmatic choice — works locally and remotely, accessible from any browser on any machine, zero install. A browser extension companion (#INS10) can be layered on top later as a thin DevTools panel shell.
+
+**Evolution path:** embedded SPA (current, dev mode) → standalone web app at `services/src/inspector/` → authenticated remote connections → production-ready.
+
+**Existing scaffolding:** `services/src/toolbar/` skeleton (to be renamed `services/src/inspector/`), `engine.io-client` bundled (currently dead weight), port range 4100+ reserved for services, port 8125 already the MQ/log-tail port.
 
 ### Phase 1 — Decouple in-page toolbar
 
@@ -94,34 +98,30 @@ Prerequisite for all other phases. Zero change to the existing toolbar UI — ju
 
 | Status | ID | Public | Feature | Version | Target | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
-| 📋 | #BM1 | ✓ | Thin in-page status bar | `0.3.0` | Q3 2026 | Remove the in-page toolbar AMD bundle entirely. Replace with a lightweight `<div id="gina-status">` injected by the render pipeline — no RequireJS, no jQuery, no SASS. Contains: bundle name, current environment, a status dot (green = ok, yellow = warnings, red = errors) derived from `page.errors`, and an "Open Beemaster" link to port 4101. Injected only when `NODE_ENV_IS_DEV=true`. Zero impact on the app DOM tree, zero CSS conflicts. Keyboard shortcut `Ctrl+Shift+G` opens Beemaster in a new tab. |
-| 📋 | #BM2 | ✓ | `window.__ginaData` — replace `<pre>` embedding | `0.3.0` | Q3 2026 | The current toolbar serializes the full `page` object into `<pre id="gina-data">` / `<pre id="gina-view">` tags inside the HTML body. Replace with a single `<script>window.__ginaData={...}</script>` tag injected before `</body>` — dev mode only. Contains: `{ data, view, env, forms, routing, user, errors }`. Smaller page weight, no DOM nodes to scrape, Beemaster reads it on connect via the `window.opener` reference or a `postMessage` handshake. Production mode: tag is never injected. |
+| ✅ | #INS1 | ✓ | Thin in-page status bar | `0.3.0` | 2026-04-01 | Replaces the in-page toolbar bundle. A `<script>` tag included from `statusbar.html` creates a Shadow DOM host (`#__gina-statusbar`, fixed bottom-right) in dev mode. Shows a status dot (green = ok, red = `data.error` set), `bundle@env`, and an "Open Inspector" link to `/_gina/inspector/`. Pure vanilla JS — no RequireJS, no jQuery, no SASS. Shadow DOM provides full CSS isolation. `gina.js` toolbar still loads but silently deactivates (`#gina-toolbar` absent → `!$toolbar.length` guard). |
+| ✅ | #INS2 | ✓ | `window.__ginaData` — replace `<pre>` embedding | `0.3.0` | 2026-04-01 | Replace with a single `<script>window.__ginaData={...}</script>` tag injected before `</body>` — dev mode only. Smaller page weight, no DOM nodes to scrape. Inspector reads it on connect via `window.opener` or a `postMessage` handshake. `gina` and `user` sub-objects built in Node.js (no Swig serialization); `</script>` and `<!--` sequences escaped. Toolbar JS reads `window.__ginaData` directly; mock file-upload writes back to it. |
 
-### Phase 2 — Beemaster core
-
-| Status | ID | Public | Feature | Version | Target | Notes |
-| --- | --- | --- | --- | --- | --- | --- |
-| 📋 | #BM3 | ✓ | `services/src/beemaster/` bundle scaffold | `0.4.0` | Q4 2026 | Create the Beemaster gina bundle. Config: `app.json`, `routing.json`, `settings.json`, `settings.server.json`. Port: 4101. Single-page application served at `/` with tab-based navigation. Reads `window.__ginaData` from the inspected tab via `window.opener` or a `postMessage` channel. Auto-starts alongside the gina dev server when `NODE_ENV_IS_DEV=true`. Replaces the empty `services/src/toolbar/` skeleton. |
-| 📋 | #BM4 | ✓ | Toolbar tab | `0.4.0` | Q4 2026 | Migrate the full toolbar UI to the Beemaster Toolbar tab. Sub-tabs: **Data** (page data tree with expand/collapse), **View** (view model), **Forms** (form state, field values, validation errors, XHR status), **Configuration** (bundle `app.json`, environment variables), **Routing** (matched route, full `routing.json` rule, URL params). Source: `toolbar/main.js` (jQuery-free since 2026-03-28) rewritten as a plain ES5 module loaded by Beemaster's own bundle — AMD/RequireJS no longer needed. Copy-to-clipboard and value inspector features carry over as-is. |
-| 📋 | #BM5 | ✓ | Real-time data via engine.io | `0.4.0` | Q4 2026 | Wire the already-bundled `engine.io-client` (currently dead weight in `gina.min.js`) to port 8125. The Beemaster bundle subscribes to the gina MQ on port 8125 and pushes updates to connected Beemaster clients over a persistent socket. Replaces the `<pre>` snapshot model — data, log events, and XHR activity stream in real time. Prerequisite for #BM6 and #BM10. |
-| 📋 | #BM6 | ✓ | Logs tab | `0.4.0` | Q4 2026 | Real-time log tail via the engine.io channel (#BM5). Replaces the stub Logs tab in the current toolbar (zero implementation). Features: live tail with pause/resume, log level filter (debug/info/warn/error), bundle filter, text search, timestamp display. Log entries arrive as JSON over the engine.io channel; Beemaster renders them in a virtual-scrolling list to handle high log volume without DOM bloat. |
-
-### Phase 3 — Admin
+### Phase 2 — Inspector core
 
 | Status | ID | Public | Feature | Version | Target | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
-| 📋 | #BM12 | — | Auth layer | `0.5.0` | Q1 2027 | Token-based auth gate for all write operations (bundle start/stop/build, project add/remove, connector config edits). Token configured under `beemaster.token` in `services/src/beemaster/config/settings.json` or via `BEEMASTER_TOKEN` env var. Read-only tabs (Toolbar, Logs, Routing) are unauthenticated in local dev. Write operations always require the token. HTTPS strongly recommended before exposing Beemaster outside `localhost`. Prerequisite for #BM7–#BM9. |
-| 📋 | #BM7 | ✓ | Bundles tab | `0.5.0` | Q1 2027 | List all known bundles (running and stopped) by querying the gina socket API on port 8124. Columns: name, project, port, env, status, uptime, last error. Actions: start, stop, restart, build — each dispatches the equivalent `gina bundle:*` socket command. Real-time status updates via engine.io (#BM5). Requires auth (#BM12). |
-| 📋 | #BM8 | ✓ | Projects tab | `0.5.0` | Q1 2027 | List all registered gina projects from `~/.gina/${shortVersion}/projects.json`. Actions: add project (name, path), remove project, view project summary (bundles, ports, env). Config files (`app.json`, `routing.json`, `connectors.json`) shown as read-only JSON with syntax highlighting; "Open in editor" triggers the OS default editor via a gina CLI command. Requires auth (#BM12). |
-| 📋 | #BM9 | ✓ | DB connectors tab | `0.5.0` | Q1 2027 | View all connectors declared in `connectors.json` across registered bundles. Columns: connector type (Couchbase/SQLite/Redis/MySQL/PostgreSQL/ScyllaDB), bundle, host:port, database/bucket, connection status (live/error/unconfigured), last error. Test connection button shows latency. Credentials always masked. Requires auth (#BM12). |
-| 📋 | #BM10 | ✓ | Query inspector | `0.5.0` | Q1 2027 | Live entity query log replacing the stub Query tab. Hooks into the connector `execute()` path: captures connector type, query text (N1QL/SQL), bound parameters, duration (ms), row count, error if any. Delivered via engine.io (#BM5). Filters: connector, bundle, slow query threshold. Clicking a row expands the full query with parameters. |
+| ✅ | #INS3 | ✓ | Embedded SPA at `/_gina/inspector/` | `0.3.0-alpha.1` | 2026-04-02 | Inspector served by the bundle's own HTTP server in dev mode. No separate port, process, or project registration. Engine-agnostic handler in `server.js` `onRequest()` serves `/_gina/inspector/*` requests (works with both Isaac and Express), serving `index.html`, `inspector.js`, and `inspector.css` from `core/asset/plugin/dist/vendor/gina/inspector/`. Same origin — `window.opener.__ginaData` always accessible. |
+| ✅ | #INS4 | ✓ | Data tab | `0.3.0-alpha.1` | 2026-04-02 | Full toolbar UI (Data, View, Forms, Configuration, Routing sub-tabs) in Inspector SPA. `renderTree()` renders any JSON value as a collapsible `<details>/<summary>` tree; click-to-copy on leaf values. Routing tab fetches `/_gina/assets/routing.json` (same origin). Configuration tab strips `routing`/`reverseRouting` large blobs. Data polls `window.opener.__ginaData` every 2 s; `tryEngineIO()` falls back to engine.io when `typeof eio !== 'undefined'`. |
+| ✅ | #INS5 | ✓ | Real-time data via engine.io | `0.3.0-alpha.1` | 2026-04-02 | `server.isaac.js` `socket.on('message')` responds to `{ type: "getGinaData" }` with `{ type: "ginaData", data: server._lastGinaData }`. `controller.render-swig.js` stores `__gdPayload` on `self.serverInstance._lastGinaData` after each render. |
+| ✅ | #INS6 | ✓ | Logs tab | `0.3.0-alpha.1` | 2026-04-02 | Real-time log tail with level filter (debug/info/warn/error), source filter (All/Client/Server), text search, pause/resume. Client: `window.__ginaLogs` injected by `__logsScript`. Server: SSE stream via `/_gina/logs` tapping `process.on('logger#default')`. |
+| ✅ | #INS7 | ✓ | Query tab | `0.3.0-alpha.1` | 2026-04-03 | Per-request query instrumentation via AsyncLocalStorage in the Couchbase connector's N1QL execution path. Cross-bundle propagation via `__ginaQueries` JSON sidecar. UI: split trigger badge (entity\|method), SQL syntax highlighting, params table ($1/$2 → value), free-text search bar. Each entry tagged with `origin` (bundle) and `connector` (connector name). |
 
-### Phase 4 — Advanced
+### Phase 3 — Production
+
+Evolves the embedded SPA into a standalone web app that can inspect bundles in any environment, including production.
 
 | Status | ID | Public | Feature | Version | Target | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
-| 📋 | #BM11 | ✓ | Multi-instance support | post-1.0.0 | — | Connect Beemaster to remote gina instances (staging, K8s) by entering a host:port in Beemaster settings. Each instance appears as a named environment tab. Requires the remote instance to have Beemaster running with auth (#BM12) and port 8125 accessible from the browser. Enables managing multiple deployments from a single Beemaster tab. |
-| 📋 | #BM13 | ✓ | Browser extension companion | post-1.0.0 | — | Chrome/Firefox DevTools panel that embeds a Beemaster view in F12, connecting to the local Beemaster instance via WebSocket. The extension is a thin UI shell — all data and logic live in `services/src/beemaster/`. Modeled after Vue DevTools and React DevTools. Optional enhancement on top of the standalone app — not a replacement. Requires Manifest V3 service worker design for the WebSocket background connection. |
+| 📋 | #INS8 | ✓ | `services/src/inspector/` standalone bundle | `0.5.0` | Q1 2027 | Rename `services/src/toolbar/` to `services/src/inspector/`. The Inspector SPA becomes a standalone gina bundle served at `/` on port 4101. Reads data from connected bundles via authenticated WebSocket — no longer requires `window.opener`. Auto-starts alongside the gina dev server when `NODE_ENV_IS_DEV=true`. The embedded SPA at `/_gina/inspector/` remains available for quick dev-mode access. |
+| 📋 | #INS9 | ✓ | Authenticated agent endpoint (`/_gina/agent`) | `0.5.0` | Q1 2027 | A WebSocket endpoint on each bundle, gated by an API key (not `NODE_ENV_IS_DEV`). The key lives in `settings.json` (`inspector.agent_key`), rotatable. The agent exposes the same data channels (queries, routing, logs, `__ginaData`) to authenticated clients only. Prerequisite for production inspection. In dev mode with no key configured, the agent accepts all connections (zero-config local dev). |
+| 📋 | #INS10 | ✓ | Toggleable instrumentation | `0.5.0` | Q1 2027 | Query instrumentation currently keys on `NODE_ENV_IS_DEV`. Add a separate runtime toggle (`inspector.instrumentation` in `settings.json` or via `/_gina/agent` command) so instrumentation can be enabled in production for a specific time window without running in full dev mode. Toggle-on starts the AsyncLocalStorage query log; toggle-off stops it. Minimal overhead when disabled (single boolean check). |
+| 📋 | #INS11 | ✓ | Multi-bundle dashboard | post-1.0.0 | — | The standalone Inspector discovers all running bundles in a project via `ports.json` and connects to each bundle's agent endpoint. Shows all bundles side by side — queries, logs, and data from every bundle on a single screen. Enables full-stack request tracing across bundle boundaries (e.g. dashboard → coreapi → storage). |
+| 📋 | #INS12 | ✓ | Browser extension companion | post-1.0.0 | — | Chrome/Firefox DevTools panel that embeds an Inspector view in F12, connecting to the local Inspector instance via WebSocket. The extension is a thin UI shell — all data and logic live in `services/src/inspector/`. Optional enhancement on top of the standalone app — not a replacement. Requires Manifest V3 service worker design for the WebSocket background connection. |
 
 ---
 

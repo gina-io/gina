@@ -452,7 +452,7 @@ All stubs are tracked in `ROADMAP.md § CLI` with target versions. See `.claude/
 | Port | Role |
 | --- | --- |
 | 4100 | Reserved — future socket server migration (currently 8124) |
-| 4101 | Reserved (Beemaster moved to `/_gina/beemaster/` built-in endpoint) |
+| 4101 | Reserved (Inspector moved to `/_gina/inspector/` built-in endpoint) |
 | 4102 | engine.io internal transport (moved from 8888, Jupyter conflict) |
 | 4103–4199 | Reserved for future Gina infrastructure |
 
@@ -462,30 +462,48 @@ Bundle HTTP ports are allocated per-project in `~/.gina/ports.json`.
 
 ---
 
-## Beemaster dev inspector
+## Inspector (formerly "Beemaster")
 
-Beemaster is a dev-mode SPA embedded in every bundle at `/_gina/beemaster/`. Served by the bundle's own HTTP server — no separate port, process, or project registration. Same origin as the monitored bundle, so `window.opener.__ginaData` is always accessible.
+The Inspector is a dev-mode SPA embedded in every bundle at `/_gina/inspector/`. Served by the bundle's own HTTP server — no separate port, process, or project registration. Same origin as the monitored bundle, so `window.opener.__ginaData` is always accessible.
 
 **Data channels:**
 
-1. **`window.opener.__ginaData`** — same-origin polling every 2 s (primary). Always works since Beemaster and the monitored page share the same origin.
-2. **engine.io** — real-time push when the monitored bundle has `ioServer` configured. Beemaster connects to the bundle's own port via `window.location.port`.
+1. **`window.opener.__ginaData`** — same-origin polling every 2 s (primary). Always works since the Inspector and the monitored page share the same origin.
+2. **engine.io** — real-time push when the monitored bundle has `ioServer` configured. The Inspector connects to the bundle's own port via `window.location.port`.
+
+**Log channels:**
+
+- **Client-side:** `window.opener.__ginaLogs` — array filled by the `__logsScript` capture script injected in dev mode.
+- **Server-side (SSE):** `/_gina/logs` endpoint streams log entries via SSE. Taps `process.on('logger#default')` — no logger modification needed. Dev mode only.
+- **Server-side (engine.io):** `{ type: 'log', data: {...} }` WebSocket messages pushed from the `ioServer` connection handler when engine.io is configured.
 
 **Dev mode injections** (both added to user pages in dev mode, before `</body>`):
-- **`__logsScript`** — patches `console.log/info/warn/error/debug` to push `{ t, l, b, s }` entries to `window.__ginaLogs`. Beemaster reads this via `window.opener.__ginaLogs`.
+- **`__logsScript`** — patches `console.log/info/warn/error/debug` to push `{ t, l, b, s }` entries to `window.__ginaLogs`. The Inspector reads this via `window.opener.__ginaLogs`.
 - **`__gdScript`** — `window.__ginaData = { gina: {...}, user: {...} }`. `__gdPayload` also stored on `self.serverInstance._lastGinaData` for engine.io.
 
-**`statusbar.html` link** — simple relative `/_gina/beemaster/` (opens in new tab, same origin).
+**`statusbar.html` link** — simple relative `/_gina/inspector/` (opens in new tab, same origin).
 
-**Serving** — `server.js` `onRequest()` matches `GET /_gina/beemaster/*` in dev mode (engine-agnostic — works with both Isaac and Express). Files served from `core/asset/plugin/dist/vendor/gina/beemaster/` with `no-cache` headers. Requests for `/_gina/beemaster/` or `/_gina/beemaster` serve `index.html`.
+**Serving** — `server.js` `onRequest()` matches `GET /_gina/inspector/*` in dev mode (engine-agnostic — works with both Isaac and Express). Files served from `core/asset/plugin/dist/vendor/gina/inspector/` with `no-cache` headers. Requests for `/_gina/inspector/` or `/_gina/inspector` serve `index.html`.
 
-**SPA files** (`core/asset/plugin/dist/vendor/gina/beemaster/`):
+**SPA files** (`core/asset/plugin/dist/vendor/gina/inspector/`):
 
 | File | Role |
 | --- | --- |
-| `index.html` | SPA shell — header, two main tabs (Toolbar, Logs), no-source overlay |
-| `beemaster.js` | SPA logic (polling, renderTree, log tail, copy-to-clipboard, engine.io) |
-| `beemaster.css` | Dark theme (CSS custom properties) |
+| `index.html` | SPA shell — tabs (Data, View, Forms, Query, Logs), no-source overlay |
+| `inspector.js` | SPA logic (polling, renderTree, log tail, SSE client, copy-to-clipboard, engine.io) |
+| `inspector.css` | Light/dark theme (CSS custom properties) |
+
+**Unit tests:** `test/core/inspector.test.js` (renamed from `beemaster.test.js`).
+
+**Query Instrumentation (QI):**
+
+Dev-mode query instrumentation captures every database query tied to the current HTTP request and surfaces them in the Inspector "Query" tab.
+
+- **Per-request isolation** — `process.gina._queryALS` (`AsyncLocalStorage`) binds the query log to the request's async context via `enterWith()` in `setOptions()`. Created once in `controller.js`, survives dev-mode cache busts.
+- **Connector-level interception** — instrumented in the Couchbase connector's N1QL execution path (`core/connectors/couchbase/index.js`), not in `entity.js`. Connector-generated methods use closure variables — entity wrappers can't see them. Query entry shape: `{ type, trigger, statement, params, durationMs, resultCount, error, source, origin, connector }`.
+- **`origin` tagging** — `infos.bundle` (set on `Entity.prototype.bundle` at registration). **`connector` tagging** — hardcoded string per connector (e.g. `'couchbase'`).
+- **Cross-bundle propagation** — when bundle A calls B via `self.query()`, B's queries travel back as `__ginaQueries` in the JSON response (embedded by `render-json.js`). A's `query()` callback extracts, merges into its own `local._queryLog`, and deletes the field before data reaches the controller action.
+- **Inspector UI** — split trigger badge (`entity` | `method`), SQL syntax highlighting, params table (`$1`/`$2` → value), free-text search bar filtering across all fields.
 
 ---
 
@@ -537,10 +555,11 @@ Beemaster is a dev-mode SPA embedded in every bundle at `/_gina/beemaster/`. Ser
 28. **`req.routing.param.<key>` ≠ URL value — use `req.params.<key>`** — `req.routing.param` holds the raw routing config object from `routing.json`. For URL parameter bindings like `"id": ":id"`, the value stored there is the literal placeholder string `":id"`, not the actual URL segment. The actual captured value is in `req.params.id` (always available) and `req.get.id` / `req.delete.id` etc. (method-specific). Static values declared in `param` (e.g. `"code": 302`) ARE correctly available on `req.routing.param.code`. Rule of thumb: use `req.routing.param` only for static metadata, never for captured URL params.
 29. **`fitsWithRequirements` requires `"slug": ":slug"` in `param` even when `requirements` is set** — the router only increments the route-match score (and populates `req.params`) for a URL parameter if that parameter key exists in the `param` block (e.g. `"slug": ":slug"`). Having `requirements: { "slug": "..." }` alone is not enough — the route will 404 without the binding. The `requirements` block adds regex validation on top of the binding; it does not imply the binding.
 30. **Controller files must NOT contain `require` or `inherits`** — the router (`router.js:557-560`) calls `inherits(Controller, SuperController)` automatically before every dispatch. Writing `var SuperController = require('../../../core/controller/controller')` or `Controller = inherits(Controller, SuperController)` inside a controller file is wrong and will break on path changes. The correct pattern is a plain constructor function with `this.action = function(req, res) {}` closure-style methods — matching the boilerplate in `core/template/boilerplate/bundle/controllers/controller.content.js`. Never use `Controller.prototype.method` either; actions are defined as properties on `this` inside the constructor.
-31. **Beemaster is a built-in dev inspector, not a service or separate bundle** — served at `/_gina/beemaster/` by `server.js` `onRequest()` in dev mode (engine-agnostic — works with both Isaac and Express). Runs inside the bundle's own process — no project registration, no separate port, no auto-start spawn. The SPA files live in `core/asset/plugin/dist/vendor/gina/beemaster/` (framework tree). Same origin as the monitored bundle — `window.opener.__ginaData` always works. Only served when `isDev` is true; production bundles never expose Beemaster.
-32. **`/_gina/*` are built-in endpoints, not services** — all `/_gina/*` handlers (healthcheck, assets, cache/stats, info, beemaster) run inside the bundle's own HTTP server process. No separate process or port. Isaac is the source of truth, but every handler must also work with Express. New `/_gina/*` endpoints go in `server.js` `onRequest()`. Isaac-specific fast-paths (e.g. `readSync`, `server._cached`) can stay in `server.isaac.js` but the base functionality must exist in `server.js`. Existing Isaac-only handlers (healthcheck, assets/routing.json, cache/stats, info) are a known gap being ported incrementally.
+31. **Inspector (formerly Beemaster) is a built-in dev inspector, not a service or separate bundle** — served at `/_gina/inspector/` by `server.js` `onRequest()` in dev mode (engine-agnostic — works with both Isaac and Express). Runs inside the bundle's own process — no project registration, no separate port, no auto-start spawn. The SPA files live in `core/asset/plugin/dist/vendor/gina/inspector/` (framework tree). Same origin as the monitored bundle — `window.opener.__ginaData` always works. Only served when `isDev` is true; production bundles never expose the Inspector.
+32. **`/_gina/*` are built-in endpoints, not services** — all `/_gina/*` handlers (healthcheck, assets, cache/stats, info, inspector, logs) run inside the bundle's own HTTP server process. No separate process or port. Isaac is the source of truth, but every handler must also work with Express. New `/_gina/*` endpoints go in `server.js` `onRequest()`. Isaac-specific fast-paths (e.g. `readSync`, `server._cached`) can stay in `server.isaac.js` but the base functionality must exist in `server.js`. Existing Isaac-only handlers (healthcheck, assets/routing.json, cache/stats, info) are a known gap being ported incrementally.
 33. **`query()` callback — `false` is the success sentinel** — `self.query()` calls `callback(false, data)` on success, not `callback(null, data)`. Use `if (err)` as the error guard — it works because `false` is falsy. Never check `err === null` (always false on success). Never use `err = merge(err, {...})` on a real Error object — `merge()` destroys `message` and `stack`. Assign extra properties directly: `err.session = userSession`.
 34. **`server.js` is NOT hot-reloaded** — `refreshCore()` evicts `lib/index.js` and `plugins/index.js` from `require.cache`. It does NOT evict `server.js`, `server.isaac.js`, or `server.express.js`. Changes to these files require a full bundle stop + start (or container restart). A page refresh is not enough.
 35. **Routing loop cross-route contamination** — `fitsWithRequirements()` mutates `request.params` and `request[method]` (e.g. `request.get`) during each route comparison. Leftover values from non-matching routes cause `parseRouting` lines 396–407 to inject phantom URL segments, compounding work exponentially. Fix: `req.params = Object.assign({}, _origParams)` + `delete req[method]` before each `compareUrls()`. Never `delete req.params` — `fitsWithRequirements` gates on `typeof(request.params) != 'undefined'`. Never use `JSON.clone` on request state in the routing loop — `Object.assign` is sufficient and safe.
 36. **`server.isaac.js:812` initializes `req.params`** — `request.params = {}` and `request.params[0] = url` are set before `handle()` runs. Any code that deletes `req.params` breaks `fitsWithRequirements` which checks `typeof(request.params) != 'undefined'` before setting param values.
 37. **`handle()` is async without `.catch()`** — `handle(req, res, next, bundle, pathname, config)` at `server.js:3095` is called without `await` or `.catch()`. Any unhandled throw becomes a silent unhandled promise rejection. When debugging routing crashes, wrap the body in try-catch temporarily.
+38. **Inspector CSS: `<select>` and `<input>` need separate rules** — macOS native `<select>` ignores `line-height` for vertical text centering; use explicit vertical `padding` (e.g. `4px 8px`) instead. `padding: 0` + `line-height: 26px` works for `<input>` but leaves `<select>` text cramped/clipped. Keep `--sans` for selects and `--mono` for search inputs — mono is wider and looks awkward in native option lists. When unifying toolbar styles across Inspector tabs, always split `select` and `input` CSS rules.
