@@ -11,6 +11,7 @@ Gina follows a BDFL governance model — see [GOVERNANCE.md](./GOVERNANCE.md) fo
 - [Running the tests](#running-the-tests)
 - [Development environment](#development-environment)
 - [Debugging](#debugging)
+- [Coding conventions](#coding-conventions)
 - [Branch model](#branch-model)
 - [Commit style](#commit-style)
 - [Changelog](#changelog)
@@ -121,6 +122,14 @@ gina start --inspect-gina
 ```bash
 gina bundle:restart <bundle_name> @<project_name> --inspect=<port_number>
 ```
+
+---
+
+## Coding conventions
+
+All coding conventions — variable declarations, function style, constructor patterns, error handling, async patterns, naming, JSDoc, EventEmitter usage, path handling, logging, and test conventions — are documented in [CONVENTIONS.md](./CONVENTIONS.md).
+
+Please read it before submitting your first pull request.
 
 ---
 
