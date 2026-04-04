@@ -242,13 +242,18 @@ Each log entry has a stable `_id` (auto-incremented `_logIdCounter`). Every rend
 
 | Gesture | Effect |
 |---|---|
-| Click | Copy that single row (green flash + checkmark feedback) |
+| Click | Copy that single row (green flash + checkmark + left accent feedback) |
+| Drag (mousedown → mousemove → mouseup) | Range-select from start to end row |
 | Shift+click | Range-select from last clicked to here |
 | Ctrl / Cmd+click | Toggle individual row |
 | Escape | Deselect all |
 | Ctrl / Cmd+C | Copy all selected (when logs tab active, focus not in an input) |
 
 Selection state: `Set<number> selectedLogIds`. `updateSelectionUI()` manages badge/info button visibility. `copySelectedLogs()` iterates `logs[]` directly (not the DOM) — filtered-out entries are still copied if selected, output is chronological.
+
+**Drag-to-select:** `mousedown` on a log row starts tracking; `mousemove` across other rows builds a range selection in real time; `mouseup` finalises the selection. If the mouse doesn't move (same row), the event is treated as a plain click instead. Implemented via `_dragSelecting`, `_dragStartLid`, `_dragMoved` flags and the `selectRange()` / `applySelectionClasses()` helpers.
+
+**Copy feedback and cleanup:** After any copy (single-click, multi-select badge, or Ctrl/Cmd+C), the "Copy N" badge shows "Copied", then fades out over 400ms (`opacity` transition + `setTimeout` — `transitionend` was unreliable when elements become hidden mid-transition). Selection is cleared after the fade completes. For single-row clicks, the left accent + green flash stay visible for 900ms before clearing.
 
 ### Rendering
 
@@ -310,6 +315,8 @@ Full QI architecture is documented in `.claude/architecture/index.md § Inspecto
 | `__gina_inspector_poll_interval` | Data poll interval in ms (default 2000) |
 | `__gina_inspector_settings_open` | Whether the settings panel is expanded |
 | `__gina_inspector_auto_expand` | Whether all tree nodes are auto-expanded |
+| `__gina_inspector_geometry` | Window position/size `{ x, y, w, h }` — saved on resize (debounced) and beforeunload, restored by statusbar on next open |
+| `__gina_inspector_env_height` | Environment panel resize height in px — persisted across sessions |
 
 ---
 
@@ -320,11 +327,30 @@ Full QI architecture is documented in `.claude/architecture/index.md § Inspecto
 - `#tab-logs.active` uses `display: flex` (column) to let `#bm-log-list` fill remaining height
 - `.bm-log` has `user-select: none` and `cursor: pointer` to support row selection UX
 
+### Log row selection styling
+
+Selected rows (`.bm-log-selected`) use a 3px left amber accent line (`::before` pseudo-element, `rgba(242,175,13,0.7)`) and a subtle amber background (`rgba(242,175,13,0.13)`). Contiguous selected groups get rounded corners (6px) on the first and last rows, with the accent line bridging gaps between consecutive rows (`top: -1px` on `.bm-log-selected + .bm-log-selected::before`).
+
+The accent line uses `::before` instead of `border-left` because `border-left` curves with `border-radius`, breaking the straight vertical line. The `::before` element is positioned absolutely (`left: 0; top: 0; bottom: 0; width: 3px`) and gets its own independent `border-radius` only at the outer corners of the selection group.
+
+Corner detection uses CSS `:has()` and `+` adjacent sibling combinators:
+- First in group: `&.bm-log-selected:not(.bm-log-selected + &)` → top corners rounded
+- Last in group: `&.bm-log-selected:not(:has(+ .bm-log-selected))` → bottom corners rounded
+- Solo row: both selectors combined → all 4 corners rounded
+
+Light theme uses `rgba(200,133,10,...)` variants for the accent and background.
+
+### Logo watermark
+
+Content panes (`.bm-scroll-area`, `.bm-logs-body`) display the Gina logo as a fixed-position watermark at bottom-right (`position: fixed; bottom: 24px; right: 24px; width: 120px; height: 120px; opacity: 0.045`). The SVG logo (`logo.svg`) is served from `/_gina/inspector/logo.svg`. On dark theme, `filter: invert(1)` makes the black SVG visible against dark backgrounds.
+
 ### CSS gotchas
 
 - **Native `<select>` ignores `line-height`** on macOS — use explicit `padding` for height, not `line-height`
 - Keep `--sans` font for `<select>` dropdowns, `--mono` for text inputs — keep their CSS rules separate
 - DOM re-render from search input: when `innerHTML` replacement causes focus loss, manually `.focus()` and restore `selectionStart`/`selectionEnd`
+- **`transitionend` is unreliable for hidden elements** — if an element becomes `display: none` before or during a CSS transition, `transitionend` may never fire. Use `setTimeout` matching the transition duration instead.
+- **`border-left` curves with `border-radius`** — for straight vertical accent lines on rounded containers, use a `::before` pseudo-element instead of `border-left`.
 
 ---
 

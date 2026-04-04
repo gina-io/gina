@@ -305,4 +305,4 @@ Gina's built-in per-bundle inspector. Phases 1–2 ship as an embedded SPA at `/
 
 ---
 
-*Last updated: 2026-04-03 (Inspector Phase 2 complete — Query tab with per-request instrumentation, cross-bundle propagation, SQL highlighting; renamed Beemaster → Inspector (Beemaster is now a separate global admin project); added Phase 3 Production roadmap — standalone bundle, authenticated agent endpoint, toggleable instrumentation, multi-bundle dashboard) · To suggest a feature, [open an issue](https://github.com/gina-io/gina/issues).*
+*Last updated: 2026-04-04 (Inspector Phase 2 polish — drag-to-select log rows, copy badge fade-out, left accent selection styling, logo watermark, window geometry and env panel persistence; HTTP/2 client retry with backoff and pre-flight PING validation) · To suggest a feature, [open an issue](https://github.com/gina-io/gina/issues).*
