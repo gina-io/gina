@@ -496,9 +496,9 @@ The Inspector is a dev-mode SPA embedded in every bundle at `/_gina/inspector/`.
 
 **`statusbar.html` link** — simple relative `/_gina/inspector/` (opens in new tab, same origin).
 
-**Serving** — `server.js` `onRequest()` matches `GET /_gina/inspector/*` in dev mode (engine-agnostic — works with both Isaac and Express). Files served from `core/asset/plugin/dist/vendor/gina/inspector/` with `no-cache` headers. Requests for `/_gina/inspector/` or `/_gina/inspector` serve `index.html`.
+**Serving** — `server.js` `onRequest()` matches `GET /_gina/inspector/*` in dev mode (engine-agnostic — works with both Isaac and Express). Files served from `core/asset/plugin/dist/vendor/gina/inspector/` with `no-cache` headers. Requests for `/_gina/inspector/` or `/_gina/inspector` serve `index.html`. MIME types: `html` → `text/html`, `js` → `application/javascript`, `css` → `text/css`, `svg` → `image/svg+xml`.
 
-**Source** (`core/asset/plugin/src/vendor/gina/inspector/`): organized by type — `html/` (index.html, statusbar.html), `js/` (inspector.js), `sass/` (inspector.scss), `css/` (compiled intermediate). SCSS source uses nesting and CSS custom properties for theming. Build script Phase 3 compiles SCSS and copies to flat dist. Inspector SASS is excluded from Phase 2 auto-discovery — CSS is served separately at `/_gina/inspector/inspector.css`, not concatenated into `gina.min.css`.
+**Source** (`core/asset/plugin/src/vendor/gina/inspector/`): organized by type — `html/` (index.html, statusbar.html), `js/` (inspector.js), `sass/` (inspector.scss), `css/` (compiled intermediate), `img/` (logo.svg). SCSS source uses nesting and CSS custom properties for theming. Build script Phase 3 compiles SCSS and copies to flat dist. Inspector SASS is excluded from Phase 2 auto-discovery — CSS is served separately at `/_gina/inspector/inspector.css`, not concatenated into `gina.min.css`.
 
 **Dist** (`core/asset/plugin/dist/vendor/gina/inspector/`): flat layout — `index.html`, `inspector.js`, `inspector.css`, `logo.svg`.
 

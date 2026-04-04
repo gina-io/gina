@@ -54,12 +54,20 @@ describe('01 - Inspector handler is in server.js (engine-agnostic)', function() 
         );
     });
 
-    it('server.isaac.js does NOT contain a duplicate Inspector handler', function() {
+    it('server.isaac.js contains the Inspector fast-path handler', function() {
         var isaacSrc = fs.readFileSync(ISAAC_SOURCE, 'utf8');
         assert.ok(
-            isaacSrc.indexOf('/_gina\\/inspector') === -1
-            && isaacSrc.indexOf('/_gina/inspector') === -1,
-            'Inspector handler must not exist in server.isaac.js — it belongs in server.js'
+            isaacSrc.indexOf('/_gina\\/inspector') > -1
+            || isaacSrc.indexOf('/_gina/inspector') > -1,
+            'expected /_gina/inspector handler in server.isaac.js (fast-path)'
+        );
+    });
+
+    it('server.isaac.js includes SVG MIME type for Inspector', function() {
+        var isaacSrc = fs.readFileSync(ISAAC_SOURCE, 'utf8');
+        assert.ok(
+            isaacSrc.indexOf('image/svg+xml') > -1,
+            'expected image/svg+xml MIME type in server.isaac.js'
         );
     });
 
@@ -90,6 +98,10 @@ describe('02 - Inspector URL pattern matching', function() {
 
     it('matches /_gina/inspector/inspector.css', function() {
         assert.ok(pattern.test('/_gina/inspector/inspector.css'));
+    });
+
+    it('matches /_gina/inspector/logo.svg', function() {
+        assert.ok(pattern.test('/_gina/inspector/logo.svg'));
     });
 
     it('matches deep paths /_gina/inspector/sub/dir/file.js', function() {
@@ -162,6 +174,10 @@ describe('03 - Inspector path extraction', function() {
         assert.equal(extractPath('/_gina/inspector?t=123'), 'index.html');
     });
 
+    it('/_gina/inspector/logo.svg → logo.svg', function() {
+        assert.equal(extractPath('/_gina/inspector/logo.svg'), 'logo.svg');
+    });
+
     it('strips webroot prefix /entreprise/_gina/inspector/ → index.html', function() {
         assert.equal(extractPath('/entreprise/_gina/inspector/'), 'index.html');
     });
@@ -181,7 +197,8 @@ describe('04 - Inspector MIME type resolution', function() {
     var _bmMime = {
         'html': 'text/html; charset=utf8',
         'js':   'application/javascript; charset=utf8',
-        'css':  'text/css; charset=utf8'
+        'css':  'text/css; charset=utf8',
+        'svg':  'image/svg+xml'
     };
 
     function resolveMime(filename) {
@@ -201,8 +218,19 @@ describe('04 - Inspector MIME type resolution', function() {
         assert.equal(resolveMime('inspector.css'), 'text/css; charset=utf8');
     });
 
+    it('logo.svg → image/svg+xml', function() {
+        assert.equal(resolveMime('logo.svg'), 'image/svg+xml');
+    });
+
     it('unknown.png → application/octet-stream', function() {
         assert.equal(resolveMime('unknown.png'), 'application/octet-stream');
+    });
+
+    it('server.js includes SVG MIME type in Inspector handler', function() {
+        assert.ok(
+            getServerSrc().indexOf('image/svg+xml') > -1,
+            'expected image/svg+xml in server.js Inspector MIME map'
+        );
     });
 
 });
@@ -222,6 +250,10 @@ describe('05 - Inspector SPA files exist', function() {
 
     it('inspector.css exists', function() {
         assert.ok(fs.existsSync(path.join(BM_DIR, 'inspector.css')));
+    });
+
+    it('logo.svg exists', function() {
+        assert.ok(fs.existsSync(path.join(BM_DIR, 'logo.svg')));
     });
 
     it('index.html contains the SPA shell markers', function() {
@@ -1016,6 +1048,210 @@ describe('17 - Inspector SPA includes SSE client and source filter', function() 
         assert.ok(
             css.indexOf('.bm-log-src') > -1,
             'expected .bm-log-src CSS rule'
+        );
+    });
+
+});
+
+
+// ── 18 — Persistence: window geometry and env panel height ────────────────
+
+describe('18 - Inspector persistence: window geometry and env panel height', function() {
+
+    var _inspJs18;
+    function getInspJs18() {
+        return _inspJs18 || (_inspJs18 = fs.readFileSync(path.join(BM_DIR, 'inspector.js'), 'utf8'));
+    }
+
+    it('inspector.js defines GEOMETRY_STORAGE_KEY', function() {
+        assert.ok(
+            getInspJs18().indexOf('__gina_inspector_geometry') > -1,
+            'expected __gina_inspector_geometry key in inspector.js'
+        );
+    });
+
+    it('inspector.js defines ENV_HEIGHT_STORAGE_KEY', function() {
+        assert.ok(
+            getInspJs18().indexOf('__gina_inspector_env_height') > -1,
+            'expected __gina_inspector_env_height key in inspector.js'
+        );
+    });
+
+    it('inspector.js saves geometry on resize', function() {
+        var src = getInspJs18();
+        assert.ok(
+            src.indexOf('resize') > -1 && src.indexOf('GEOMETRY_STORAGE_KEY') > -1,
+            'expected resize listener saving to GEOMETRY_STORAGE_KEY'
+        );
+    });
+
+    it('inspector.js saves geometry on beforeunload', function() {
+        assert.ok(
+            getInspJs18().indexOf('beforeunload') > -1,
+            'expected beforeunload listener for geometry persistence'
+        );
+    });
+
+    it('statusbar.html restores geometry from localStorage', function() {
+        var statusbar = fs.readFileSync(
+            path.join(BM_DIR, '..', 'html', 'statusbar.html'), 'utf8'
+        );
+        assert.ok(
+            statusbar.indexOf('__gina_inspector_geometry') > -1,
+            'expected __gina_inspector_geometry read in statusbar.html'
+        );
+    });
+
+});
+
+
+// ── 19 — Drag-to-select and copy fade-out ─────────────────────────────────
+
+describe('19 - Inspector drag-to-select log rows and copy fade-out', function() {
+
+    var _inspJs19;
+    function getInspJs19() {
+        return _inspJs19 || (_inspJs19 = fs.readFileSync(path.join(BM_DIR, 'inspector.js'), 'utf8'));
+    }
+
+    it('inspector.js registers mousedown listener on log list', function() {
+        assert.ok(
+            getInspJs19().indexOf("logList.addEventListener('mousedown'") > -1,
+            'expected mousedown listener on logList'
+        );
+    });
+
+    it('inspector.js registers mousemove listener for drag', function() {
+        assert.ok(
+            getInspJs19().indexOf("addEventListener('mousemove'") > -1,
+            'expected mousemove listener for drag selection'
+        );
+    });
+
+    it('inspector.js defines selectRange function', function() {
+        assert.ok(
+            getInspJs19().indexOf('function selectRange') > -1,
+            'expected selectRange function definition'
+        );
+    });
+
+    it('inspector.js defines applySelectionClasses function', function() {
+        assert.ok(
+            getInspJs19().indexOf('function applySelectionClasses') > -1,
+            'expected applySelectionClasses function definition'
+        );
+    });
+
+    it('inspector.js tracks drag state with _dragSelecting', function() {
+        assert.ok(
+            getInspJs19().indexOf('_dragSelecting') > -1,
+            'expected _dragSelecting state variable'
+        );
+    });
+
+    it('inspector.js distinguishes drag from click with _dragMoved', function() {
+        assert.ok(
+            getInspJs19().indexOf('_dragMoved') > -1,
+            'expected _dragMoved flag for drag/click distinction'
+        );
+    });
+
+    it('copy badge shows "Copied" feedback', function() {
+        assert.ok(
+            getInspJs19().indexOf('\\u2713 Copied') > -1,
+            'expected checkmark + Copied text in copySelectedLogs'
+        );
+    });
+
+    it('copy badge fades out via CSS class', function() {
+        assert.ok(
+            getInspJs19().indexOf("classList.add('fade-out')") > -1,
+            'expected fade-out class added to badge after copy'
+        );
+    });
+
+    it('selection is cleared after copy fade completes', function() {
+        var src = getInspJs19();
+        // After the fade timeout, selectedLogIds.clear() must be called
+        var fadeIdx = src.indexOf("classList.add('fade-out')");
+        var afterFade = src.substring(fadeIdx, fadeIdx + 600);
+        assert.ok(
+            afterFade.indexOf('selectedLogIds.clear()') > -1,
+            'expected selectedLogIds.clear() after fade-out'
+        );
+    });
+
+});
+
+
+// ── 20 — Selection CSS: left accent and rounded corners ───────────────────
+
+describe('20 - Inspector selection CSS: left accent line and rounded corners', function() {
+
+    var _inspCss20;
+    function getInspCss20() {
+        return _inspCss20 || (_inspCss20 = fs.readFileSync(path.join(BM_DIR, 'inspector.css'), 'utf8'));
+    }
+
+    it('CSS contains .bm-log-selected class', function() {
+        assert.ok(
+            getInspCss20().indexOf('.bm-log-selected') > -1,
+            'expected .bm-log-selected in inspector.css'
+        );
+    });
+
+    it('CSS uses ::before pseudo-element for accent line', function() {
+        assert.ok(
+            getInspCss20().indexOf('.bm-log-selected::before') > -1,
+            'expected .bm-log-selected::before in inspector.css'
+        );
+    });
+
+    it('accent line is 3px wide', function() {
+        var css = getInspCss20();
+        var beforeIdx = css.indexOf('.bm-log-selected::before');
+        if (beforeIdx === -1) { assert.fail('::before block not found'); return; }
+        var block = css.substring(beforeIdx, beforeIdx + 300);
+        assert.ok(
+            block.indexOf('width: 3px') > -1 || block.indexOf('width:3px') > -1,
+            'expected 3px width on accent pseudo-element'
+        );
+    });
+
+    it('CSS applies border-radius for contiguous group corners', function() {
+        var css = getInspCss20();
+        assert.ok(
+            css.indexOf('border-radius: 6px 6px 0 0') > -1,
+            'expected top rounded corners on first selected row'
+        );
+        assert.ok(
+            css.indexOf('border-radius: 0 0 6px 6px') > -1,
+            'expected bottom rounded corners on last selected row'
+        );
+    });
+
+    it('CSS has solo row full border-radius', function() {
+        var css = getInspCss20();
+        // Solo selected row: border-radius: 6px (all corners)
+        assert.ok(
+            /border-radius:\s*6px\b/.test(css),
+            'expected full 6px border-radius for solo selected row'
+        );
+    });
+
+    it('CSS contains badge fade-out transition', function() {
+        var css = getInspCss20();
+        assert.ok(
+            css.indexOf('.fade-out') > -1,
+            'expected .fade-out class in inspector.css'
+        );
+    });
+
+    it('CSS contains logo watermark styles', function() {
+        var css = getInspCss20();
+        assert.ok(
+            css.indexOf('logo.svg') > -1,
+            'expected logo.svg reference in inspector.css watermark styles'
         );
     });
 
