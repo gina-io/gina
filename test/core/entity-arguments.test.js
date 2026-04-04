@@ -187,28 +187,26 @@ var instD = new M2ConcurrentEntity(null, null);
 
 describe('entity._arguments buffer — DISPATCH:BUFFER_CALLBACK (#M2)', function() {
 
-    it('Promise path: _arguments[trigger] deleted after consuming buffered result', function(_, done) {
+    it('Promise path: stale _arguments[trigger] cleared unconditionally (#M5)', function() {
         var trigger = 'm2Promise#findOne';
 
-        // Simulate DISPATCH:PREEMPTIVE_BUFFER: pre-populate the buffer as if a concurrent call's
-        // emit fired before any once-listener was registered.
-        // #M2 — queue format: outer array is the queue; inner array is [err, data] arguments.
+        // Simulate a stale buffer entry — in practice this never happens for
+        // connector methods (trigger name mismatch) or Option B custom methods
+        // (_callbacks is an array, preventing setListener from firing).  But if
+        // one existed, Option B must delete it so it cannot leak across calls.
         instA._arguments          = instA._arguments || {};
-        instA._arguments[trigger] = [[null, {id: 'promise-path-result'}]];
+        instA._arguments[trigger] = [[null, {id: 'stale-data'}]];
 
-        // Call via the Promise path (entity context preserved: this[m] is defined).
-        var p = instA.findOne('x');
+        // Call via the Promise path — buffer is cleared, not consumed.
+        // The Promise won't resolve (method is a no-op) but we only care
+        // about the buffer being deleted.
+        instA.findOne('x');
 
-        p.then(function(data) {
-            // Buffer consumed and deleted — next caller must not reuse it.
-            assert.equal(
-                typeof instA._arguments[trigger],
-                'undefined',
-                'Promise path must delete _arguments[trigger] after consuming'
-            );
-            assert.deepEqual(data, {id: 'promise-path-result'});
-            done();
-        }).catch(done);
+        assert.equal(
+            typeof instA._arguments[trigger],
+            'undefined',
+            'Option B must defensively delete stale _arguments[trigger]'
+        );
     });
 
 

@@ -1,0 +1,3 @@
+kind: Fixed
+body: Removed dead buffer consumption code from entity.js Option B path (_arguments[trigger] was unreachable for both connector-generated and custom entity methods). Added defensive unconditional clear at Option B entry point to prevent stale buffer leakage across calls (#M5).
+time: 2026-04-04T06:35:38.819509+01:00

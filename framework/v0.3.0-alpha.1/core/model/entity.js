@@ -288,59 +288,75 @@ function EntitySuper(conn, caller, injected) {
 
                         if (entity._triggers.indexOf(events[i].shortName) > -1) {
 
-                            // #M2 — queue check: buffer is now an array; treat missing/empty as "no buffer".
-                            if (!entity._arguments || !entity._arguments[events[i].shortName] || entity._arguments[events[i].shortName].length === 0) {
+                            // #M5 — defensive clear: delete any stale _arguments entry so
+                            // it cannot accumulate across calls.  This is unconditional
+                            // (prod + dev) — the dev-mode clear at lines 186-188 only runs
+                            // when isCacheless=true.
+                            if (entity._arguments && entity._arguments[events[i].shortName]) {
+                                delete entity._arguments[events[i].shortName];
+                            }
 
-                                // #M2 — resolver: double-resolution guard replaces the old _callbacks
-                                // delete guard. The queue dispatch listener manages _callbacks —
-                                // _resolver no longer needs to touch it.
-                                //
-                                // _innerResult.then() (connector Promise path) and the queue dispatch
-                                // listener may both call _resolver; the _resolved flag ensures only
-                                // the first call wins.
-                                var _resolved = false;
-                                var _resolver = function(err, data) {
-                                    if (_resolved) return;
-                                    _resolved = true;
-                                    if (err) _reject(err);
-                                    else     _resolve(data);
+                            // #M5 — _arguments buffer removed from Option B (2026-04-04).
+                            //
+                            // The _arguments buffer (entity.js:497-509) is populated by
+                            // setListener when an emit fires with no in-flight resolver.
+                            // In Option B, this never happens:
+                            //
+                            //   1. Connector methods: connector emits 'N1QL:entity#method'
+                            //      (prefixed, lowercase); the buffer .once() listens on
+                            //      'entity#method' (different event) — never fires.
+                            //
+                            //   2. Custom entity methods: _callbacks[e] is an array (pushed
+                            //      below) before cached.apply() calls the method.  When the
+                            //      method calls entity.emit(type), line 578 checks
+                            //      !Array.isArray(_callbacks[type]) — false — so setListener
+                            //      is never called and the buffer is never populated.
+                            //
+                            // Resolution always flows through _innerResult.then() → _resolver
+                            // (connector Promise) or the _onQueueEmit dispatch listener
+                            // (entity emit).  The _resolved flag prevents double-resolution.
+                            //
+                            // The promisify fast-path (lines 218-243) retains its own
+                            // _arguments check — it runs in a different context.
+
+                            // #M2 — resolver: double-resolution guard replaces the old _callbacks
+                            // delete guard. The queue dispatch listener manages _callbacks —
+                            // _resolver no longer needs to touch it.
+                            //
+                            // _innerResult.then() (connector Promise path) and the queue dispatch
+                            // listener may both call _resolver; the _resolved flag ensures only
+                            // the first call wins.
+                            var _resolved = false;
+                            var _resolver = function(err, data) {
+                                if (_resolved) return;
+                                _resolved = true;
+                                if (err) _reject(err);
+                                else     _resolve(data);
+                            };
+
+                            // #M2 — FIFO queue: push this invocation's resolver instead of
+                            // overwriting the single _callbacks slot.  removeAllListeners is
+                            // removed — it was killing in-flight callers' queue dispatch listener.
+                            if (!entity._callbacks[e]) {
+                                entity._callbacks[e] = [];
+                            }
+                            entity._callbacks[e].push(_resolver);
+
+                            // Register a single persistent dispatch listener only when none is
+                            // active.  It dequeues the oldest resolver on each emit so concurrent
+                            // callers each receive their own result in arrival order.
+                            if (entity.listenerCount(e) === 0) {
+                                var _onQueueEmit = function onQueueEmit() {
+                                    var _q = entity._callbacks[e];
+                                    if (!_q || _q.length === 0) return;
+                                    var _fn = _q.shift();
+                                    _fn.apply(null, arguments);
+                                    if (!_q || _q.length === 0) {
+                                        delete entity._callbacks[e];
+                                        entity.removeListener(e, _onQueueEmit);
+                                    }
                                 };
-
-                                // #M2 — FIFO queue: push this invocation's resolver instead of
-                                // overwriting the single _callbacks slot.  removeAllListeners is
-                                // removed — it was killing in-flight callers' queue dispatch listener.
-                                if (!entity._callbacks[e]) {
-                                    entity._callbacks[e] = [];
-                                }
-                                entity._callbacks[e].push(_resolver);
-
-                                // Register a single persistent dispatch listener only when none is
-                                // active.  It dequeues the oldest resolver on each emit so concurrent
-                                // callers each receive their own result in arrival order.
-                                if (entity.listenerCount(e) === 0) {
-                                    var _onQueueEmit = function onQueueEmit() {
-                                        var _q = entity._callbacks[e];
-                                        if (!_q || _q.length === 0) return;
-                                        var _fn = _q.shift();
-                                        _fn.apply(null, arguments);
-                                        if (!_q || _q.length === 0) {
-                                            delete entity._callbacks[e];
-                                            entity.removeListener(e, _onQueueEmit);
-                                        }
-                                    };
-                                    entity.on(e, _onQueueEmit);
-                                }
-
-                            } else {
-                                // Event already fired — args were buffered in _arguments queue.
-                                // #M2 — shift oldest buffered result: concurrent callers each
-                                // consume their own result, not a shared stale scalar.
-                                var _args = entity._arguments[events[i].shortName].shift();
-                                if (entity._arguments[events[i].shortName].length === 0) {
-                                    delete entity._arguments[events[i].shortName];
-                                }
-                                if (_args[0]) _reject(_args[0]);
-                                else          _resolve(_args[1]);
+                                entity.on(e, _onQueueEmit);
                             }
                         }
 
