@@ -2291,7 +2291,8 @@ function Server(options) {
                 var _bmMime = {
                     'html': 'text/html; charset=utf8',
                     'js':   'application/javascript; charset=utf8',
-                    'css':  'text/css; charset=utf8'
+                    'css':  'text/css; charset=utf8',
+                    'svg':  'image/svg+xml'
                 };
                 var _bmExt = _bmPath.split('.').pop();
                 var _bmFile = _(_bmBase + '/' + _bmPath, true);

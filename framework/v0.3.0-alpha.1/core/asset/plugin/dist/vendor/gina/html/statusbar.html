@@ -129,6 +129,12 @@
             var h = screen.availHeight;
             var left = screen.availWidth - w;
             var top  = 0;
+            try {
+                var geo = JSON.parse(localStorage.getItem('__gina_inspector_geometry'));
+                if (geo && geo.w > 100 && geo.h > 100) {
+                    w = geo.w; h = geo.h; left = geo.x; top = geo.y;
+                }
+            } catch (e) {}
             window.open(
                 inspUrl,
                 'gina-inspector',

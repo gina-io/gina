@@ -608,7 +608,8 @@ function ServerEngineClass(options) {
                 var _inspMime = {
                     'html': 'text/html; charset=utf8',
                     'js':   'application/javascript; charset=utf8',
-                    'css':  'text/css; charset=utf8'
+                    'css':  'text/css; charset=utf8',
+                    'svg':  'image/svg+xml'
                 };
                 var _inspExt  = _inspPath.split('.').pop();
                 var _inspFile = _(_inspBase + '/' + _inspPath, true);

@@ -279,6 +279,10 @@ if [ -d "${inspector_src}" ]; then
     for f in $inspector_src/css/*.css; do
         [ -f "$f" ] && cp "$f" "$inspector_dist/"
     done
+    # Copy images (logo, icons)
+    for f in $inspector_src/img/*.svg $inspector_src/img/*.png; do
+        [ -f "$f" ] && cp "$f" "$inspector_dist/"
+    done
     echo -e "Inspector: ${inspector_src} -> ${inspector_dist}"
 fi
 

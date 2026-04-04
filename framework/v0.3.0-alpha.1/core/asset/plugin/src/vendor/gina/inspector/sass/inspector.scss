@@ -515,6 +515,26 @@ body {
     position: relative;
 }
 
+/* ── Logo watermark (content panes) ──────────────────────────────────────── */
+.bm-scroll-area::after,
+.bm-logs-body::after {
+    content: '';
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    width: 140px;
+    height: 140px;
+    background: url('logo.svg') no-repeat center / contain;
+    opacity: 0.06;
+    pointer-events: none;
+    z-index: 0;
+    filter: invert(1);
+}
+[data-theme="light"] .bm-scroll-area::after,
+[data-theme="light"] .bm-logs-body::after {
+    filter: none;
+}
+
 /* ── Scroll progress bar (fixed bottom) ────────────────────────────────── */
 .bm-scroll-progress {
     position: fixed;
