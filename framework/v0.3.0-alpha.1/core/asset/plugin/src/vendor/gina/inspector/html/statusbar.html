@@ -38,10 +38,15 @@
             } else if (section === 'el-xhr') {
                 u['el-xhr'] = sectionData;
             } else if (section === 'forms') {
-                if (typeof sectionData === 'object' && sectionData !== null) {
+                if (typeof sectionData === 'object' && sectionData !== null && sectionData.id) {
                     if (!u.forms) u.forms = {};
+                    if (!u.forms[sectionData.id]) u.forms[sectionData.id] = {};
+                    var fd = u.forms[sectionData.id];
                     var fk = Object.keys(sectionData);
-                    for (var i = 0; i < fk.length; i++) u.forms[fk[i]] = sectionData[fk[i]];
+                    for (var i = 0; i < fk.length; i++) {
+                        if (fk[i] === 'id') continue;
+                        fd[fk[i]] = sectionData[fk[i]];
+                    }
                 }
             }
 
