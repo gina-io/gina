@@ -139,6 +139,12 @@ do
             continue
         fi
 
+        # Inspector SASS is compiled in Phase 3 and served separately at
+        # /_gina/inspector/inspector.css — NOT concatenated into gina.min.css.
+        if [ "$f" == "inspector" ]; then
+            continue
+        fi
+
         echo -e "Found plugin [${f}]: ${css_dist_dir}"
         vendors[$i]=$f
         i=$((i+1))
@@ -228,21 +234,56 @@ do
 
 done
 
-# Copying Inspector SPA (no build step — straight copy from src to dist)
-echo -e "\n[ Copying Inspector SPA & statusbar ]"
+# Building Inspector SPA (compile SASS, then copy from subdirs to flat dist)
+echo -e "\n[ Building Inspector SPA & statusbar ]"
 inspector_src=$SCRIPT_PATH/src/vendor/gina/inspector
 inspector_dist=$SCRIPT_PATH/dist/vendor/gina/inspector
+
+# Compile Inspector SASS -> CSS (stays in src/inspector/css/ as intermediate)
+inspector_sass=$inspector_src/sass
+inspector_css=$inspector_src/css
+if [ -d "${inspector_sass}" ]; then
+    if [ ! -d "${inspector_css}" ]; then
+        mkdir -pv $inspector_css >/dev/null 2>&1
+    fi
+    sass_list=$( ls -lah $inspector_sass | grep -Eo '[^ ]+$' )
+    IFS=$'\n';
+    for sf in ${sass_list[@]}; do
+        is_sass_file=$( echo $sf | grep -Eo '\.(sass|scss)$' )
+        if [ ! "${is_sass_file}" ]; then continue; fi
+        css_prefix=$( echo $sf | sed -e s/\.[^.]*$// )
+        css_file=$css_prefix.css
+        cmd="${sass_bin} --update ${inspector_sass}/${sf}:${inspector_css}/${css_file}"
+        if [ "${build_env}" == "dev" ]; then
+            cmd="${sass_bin} --update --no-source-map ${inspector_sass}/${sf}:${inspector_css}/${css_file}"
+        fi
+        eval $cmd
+    done
+    echo -e "Inspector SASS: ${inspector_sass} -> ${inspector_css}"
+fi
+
+# Copy compiled files from subdirs to flat dist
 if [ -d "${inspector_src}" ]; then
     if [ ! -d "${inspector_dist}" ]; then
         mkdir -pv $inspector_dist >/dev/null 2>&1
     fi
-    # Copy SPA files (exclude statusbar.html — it goes to dist/html/ not dist/inspector/)
-    for f in $inspector_src/*.html $inspector_src/*.js $inspector_src/*.css; do
+    # Copy HTML (index.html only — statusbar goes to dist/html/)
+    for f in $inspector_src/html/*.html; do
         [ -f "$f" ] && [ "$(basename $f)" != "statusbar.html" ] && cp "$f" "$inspector_dist/"
+    done
+    # Copy JS
+    for f in $inspector_src/js/*.js; do
+        [ -f "$f" ] && cp "$f" "$inspector_dist/"
+    done
+    # Copy CSS (compiled from SASS)
+    for f in $inspector_src/css/*.css; do
+        [ -f "$f" ] && cp "$f" "$inspector_dist/"
     done
     echo -e "Inspector: ${inspector_src} -> ${inspector_dist}"
 fi
-statusbar_src=$SCRIPT_PATH/src/vendor/gina/inspector/statusbar.html
+
+# Statusbar goes to dist/vendor/gina/html/ (server-side include)
+statusbar_src=$inspector_src/html/statusbar.html
 statusbar_dist=$SCRIPT_PATH/dist/vendor/gina/html/statusbar.html
 if [ -f "${statusbar_src}" ]; then
     cp $statusbar_src $statusbar_dist
