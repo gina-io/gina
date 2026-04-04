@@ -2323,16 +2323,37 @@
         } else {
             fallbackCopy(text);
         }
-        // Feedback on the badge copy button (only when the badge is visible)
+        // Feedback: show "Copied", then fade out badge and clear selection
         var badge   = qs('#bm-log-sel-badge');
         var copyBtn = qs('#bm-log-sel-copy');
         if (copyBtn && badge && !badge.classList.contains('hidden')) {
-            var orig = copyBtn.textContent;
             copyBtn.textContent = '\u2713 Copied';
             copyBtn.classList.add('copied');
             setTimeout(function () {
-                copyBtn.textContent = orig;
-                copyBtn.classList.remove('copied');
+                badge.classList.add('fade-out');
+                // Use setTimeout matching CSS transition duration instead of
+                // transitionend — the event can be lost if the element is hidden
+                // or re-rendered before the transition completes.
+                setTimeout(function () {
+                    badge.classList.remove('fade-out');
+                    badge.classList.add('hidden');
+                    copyBtn.classList.remove('copied');
+                    copyBtn.textContent = '';
+                    selectedLogIds.clear();
+                    lastClickedLid = -1;
+                    var allRows = qsa('.bm-log[data-lid]', qs('#bm-log-list'));
+                    for (var i = 0; i < allRows.length; i++) allRows[i].classList.remove('bm-log-selected');
+                    updateSelectionUI();
+                }, 420);
+            }, 600);
+        } else {
+            // No badge visible (single-row click copy) — keep accent briefly visible
+            setTimeout(function () {
+                selectedLogIds.clear();
+                lastClickedLid = -1;
+                var allRows = qsa('.bm-log[data-lid]', qs('#bm-log-list'));
+                for (var i = 0; i < allRows.length; i++) allRows[i].classList.remove('bm-log-selected');
+                updateSelectionUI();
             }, 900);
         }
     }
@@ -2779,45 +2800,89 @@
             });
         }
 
-        // Prevent browser drag-selection on log rows
-        qs('#bm-log-list').addEventListener('mousedown', function (ev) {
-            if (ev.target.closest('.bm-log[data-lid]')) ev.preventDefault();
+        // ── Log row selection: click, Shift+click, Ctrl/Cmd+click, drag ──
+        var _dragSelecting = false;
+        var _dragStartLid  = -1;
+        var _dragMoved     = false;
+
+        var logList = qs('#bm-log-list');
+
+        /** @inner */
+        function applySelectionClasses() {
+            var allRows = qsa('.bm-log[data-lid]', logList);
+            for (var i = 0; i < allRows.length; i++) {
+                var r = allRows[i];
+                r.classList.toggle('bm-log-selected', selectedLogIds.has(+r.getAttribute('data-lid')));
+            }
+        }
+
+        /** @inner */
+        function selectRange(fromLid, toLid, additive) {
+            var rows = qsa('.bm-log[data-lid]', logList);
+            var ids  = rows.map(function (r) { return +r.getAttribute('data-lid'); });
+            var fromIdx = ids.indexOf(fromLid);
+            var toIdx   = ids.indexOf(toLid);
+            if (fromIdx === -1 || toIdx === -1) return;
+            if (!additive) selectedLogIds.clear();
+            var lo = Math.min(fromIdx, toIdx), hi = Math.max(fromIdx, toIdx);
+            for (var j = lo; j <= hi; j++) selectedLogIds.add(ids[j]);
+        }
+
+        logList.addEventListener('mousedown', function (ev) {
+            var row = ev.target.closest('.bm-log[data-lid]');
+            if (!row) return;
+            ev.preventDefault();
+            _dragSelecting = true;
+            _dragMoved     = false;
+            _dragStartLid  = +row.getAttribute('data-lid');
         });
 
-        // Log row selection — click, Shift+click, Ctrl/Cmd+click
-        qs('#bm-log-list').addEventListener('click', function (ev) {
+        document.addEventListener('mousemove', function (ev) {
+            if (!_dragSelecting) return;
             var row = ev.target.closest('.bm-log[data-lid]');
             if (!row) return;
             var lid = +row.getAttribute('data-lid');
+            if (lid === _dragStartLid && !_dragMoved) return;
+            _dragMoved = true;
+            selectRange(_dragStartLid, lid, false);
+            applySelectionClasses();
+            updateSelectionUI();
+        });
+
+        document.addEventListener('mouseup', function (ev) {
+            if (!_dragSelecting) return;
+            _dragSelecting = false;
+
+            if (_dragMoved) {
+                // Drag completed — selection is already applied
+                lastClickedLid = _dragStartLid;
+                return;
+            }
+
+            // No drag movement — treat as a click
+            var row = ev.target.closest('.bm-log[data-lid]');
+            if (!row) return;
+            var lid = +row.getAttribute('data-lid');
+
             if (ev.shiftKey && lastClickedLid >= 0) {
-                var rows = qsa('.bm-log[data-lid]', this);
-                var ids  = rows.map(function (r) { return +r.getAttribute('data-lid'); });
-                var fromIdx = ids.indexOf(lastClickedLid);
-                var toIdx   = ids.indexOf(lid);
-                if (fromIdx !== -1 && toIdx !== -1) {
-                    if (!ev.ctrlKey && !ev.metaKey) selectedLogIds.clear();
-                    var lo = Math.min(fromIdx, toIdx), hi = Math.max(fromIdx, toIdx);
-                    for (var j = lo; j <= hi; j++) selectedLogIds.add(ids[j]);
-                }
+                selectRange(lastClickedLid, lid, ev.ctrlKey || ev.metaKey);
             } else if (ev.ctrlKey || ev.metaKey) {
                 if (selectedLogIds.has(lid)) selectedLogIds.delete(lid);
                 else selectedLogIds.add(lid);
                 lastClickedLid = lid;
             } else {
-                // Plain click — select this row and immediately copy it
+                // Plain click — select this row, show accent, copy, then fade
                 selectedLogIds.clear();
                 selectedLogIds.add(lid);
                 lastClickedLid = lid;
+                applySelectionClasses();
+                updateSelectionUI();
                 copySelectedLogs();
                 row.classList.add('bm-log-row-copied');
                 setTimeout(function () { row.classList.remove('bm-log-row-copied'); }, 900);
+                return; // applySelectionClasses already called
             }
-            // Re-apply classes without full re-render
-            var allRows = qsa('.bm-log[data-lid]', this);
-            for (var i = 0; i < allRows.length; i++) {
-                var r = allRows[i];
-                r.classList.toggle('bm-log-selected', selectedLogIds.has(+r.getAttribute('data-lid')));
-            }
+            applySelectionClasses();
             updateSelectionUI();
         });
 

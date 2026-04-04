@@ -975,7 +975,10 @@ details[open] > summary.bm-summary::before { transform: rotate(90deg); }
 
 /* Badge hidden by default, shown when ≥2 rows selected */
 .bm-log-sel-badge {
+    opacity: 1;
+    transition: opacity .4s ease-out;
     &.hidden { display: none; }
+    &.fade-out { opacity: 0; }
 }
 /* Shortcut popover — hidden by default, animated on .open */
 .bm-log-help-pop {
@@ -1118,17 +1121,46 @@ details[open] > summary.bm-summary::before { transform: rotate(90deg); }
 
     &.bm-log-selected {
         background: rgba(242, 175, 13, 0.13);
-        outline: 1px solid rgba(242, 175, 13, 0.28);
-        outline-offset: -1px;
+        border-bottom-color: transparent;
 
         &:hover { background: rgba(242, 175, 13, 0.19); }
 
+        /* Left accent line — straight, unaffected by border-radius */
+        &::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 3px;
+            background: rgba(242, 175, 13, 0.7);
+        }
+
         [data-theme="light"] & {
             background: rgba(200, 133, 10, 0.10);
-            outline-color: rgba(200, 133, 10, 0.30);
 
+            &::before { background: rgba(200, 133, 10, 0.7); }
             &:hover { background: rgba(200, 133, 10, 0.16); }
         }
+    }
+
+    /* Extend accent line to bridge the gap between consecutive selected rows */
+    &.bm-log-selected + .bm-log-selected::before {
+        top: -1px;
+    }
+
+    /* Rounded corners on first/last of contiguous selected group */
+    &.bm-log-selected:not(.bm-log-selected + &) {
+        border-radius: 6px 6px 0 0;
+        &::before { border-radius: 3px 0 0 0; }
+    }
+    &.bm-log-selected:not(:has(+ .bm-log-selected)) {
+        border-radius: 0 0 6px 6px;
+        &::before { border-radius: 0 0 0 3px; }
+    }
+    &.bm-log-selected:not(.bm-log-selected + &):not(:has(+ .bm-log-selected)) {
+        border-radius: 6px;
+        &::before { border-radius: 3px 0 0 3px; }
     }
 
     /* Single-click copy feedback — green flash + checkmark */
