@@ -485,13 +485,9 @@ The Inspector is a dev-mode SPA embedded in every bundle at `/_gina/inspector/`.
 
 **Serving** — `server.js` `onRequest()` matches `GET /_gina/inspector/*` in dev mode (engine-agnostic — works with both Isaac and Express). Files served from `core/asset/plugin/dist/vendor/gina/inspector/` with `no-cache` headers. Requests for `/_gina/inspector/` or `/_gina/inspector` serve `index.html`.
 
-**SPA files** (`core/asset/plugin/dist/vendor/gina/inspector/`):
+**Source** (`core/asset/plugin/src/vendor/gina/inspector/`): organized by type — `html/` (index.html, statusbar.html), `js/` (inspector.js), `sass/` (inspector.scss), `css/` (compiled intermediate). SCSS source uses nesting and CSS custom properties for theming. Build script Phase 3 compiles SCSS and copies to flat dist. Inspector SASS is excluded from Phase 2 auto-discovery — CSS is served separately at `/_gina/inspector/inspector.css`, not concatenated into `gina.min.css`.
 
-| File | Role |
-| --- | --- |
-| `index.html` | SPA shell — tabs (Data, View, Forms, Query, Logs), no-source overlay |
-| `inspector.js` | SPA logic (polling, renderTree, log tail, SSE client, copy-to-clipboard, engine.io) |
-| `inspector.css` | Light/dark theme (CSS custom properties) |
+**Dist** (`core/asset/plugin/dist/vendor/gina/inspector/`): flat layout — `index.html`, `inspector.js`, `inspector.css`.
 
 **Unit tests:** `test/core/inspector.test.js` (renamed from `beemaster.test.js`).
 
