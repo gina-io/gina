@@ -1156,8 +1156,15 @@ details[open] > summary.bm-summary::before {
 }
 
 /* Badge hidden by default, shown when ≥2 rows selected */
+.bm-log-sel-badge {
+  opacity: 1;
+  transition: opacity 0.4s ease-out;
+}
 .bm-log-sel-badge.hidden {
   display: none;
+}
+.bm-log-sel-badge.fade-out {
+  opacity: 0;
 }
 
 /* Shortcut popover — hidden by default, animated on .open */
@@ -1307,6 +1314,8 @@ details[open] > summary.bm-summary::before {
   cursor: pointer;
   user-select: none;
   position: relative;
+  /* Extend accent line to bridge the gap between consecutive selected rows */
+  /* Rounded corners on first/last of contiguous selected group */
   /* Single-click copy feedback — green flash + checkmark */
 }
 .bm-log:hover {
@@ -1314,18 +1323,50 @@ details[open] > summary.bm-summary::before {
 }
 .bm-log.bm-log-selected {
   background: rgba(242, 175, 13, 0.13);
-  outline: 1px solid rgba(242, 175, 13, 0.28);
-  outline-offset: -1px;
+  border-bottom-color: transparent;
+  /* Left accent line — straight, unaffected by border-radius */
 }
 .bm-log.bm-log-selected:hover {
   background: rgba(242, 175, 13, 0.19);
 }
+.bm-log.bm-log-selected::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: rgba(242, 175, 13, 0.7);
+}
 [data-theme=light] .bm-log.bm-log-selected {
   background: rgba(200, 133, 10, 0.1);
-  outline-color: rgba(200, 133, 10, 0.3);
+}
+[data-theme=light] .bm-log.bm-log-selected::before {
+  background: rgba(200, 133, 10, 0.7);
 }
 [data-theme=light] .bm-log.bm-log-selected:hover {
   background: rgba(200, 133, 10, 0.16);
+}
+.bm-log.bm-log-selected + .bm-log-selected::before {
+  top: -1px;
+}
+.bm-log.bm-log-selected:not(.bm-log-selected + .bm-log) {
+  border-radius: 6px 6px 0 0;
+}
+.bm-log.bm-log-selected:not(.bm-log-selected + .bm-log)::before {
+  border-radius: 3px 0 0 0;
+}
+.bm-log.bm-log-selected:not(:has(+ .bm-log-selected)) {
+  border-radius: 0 0 6px 6px;
+}
+.bm-log.bm-log-selected:not(:has(+ .bm-log-selected))::before {
+  border-radius: 0 0 0 3px;
+}
+.bm-log.bm-log-selected:not(.bm-log-selected + .bm-log):not(:has(+ .bm-log-selected)) {
+  border-radius: 6px;
+}
+.bm-log.bm-log-selected:not(.bm-log-selected + .bm-log):not(:has(+ .bm-log-selected))::before {
+  border-radius: 3px 0 0 3px;
 }
 .bm-log.bm-log-row-copied {
   background: rgba(76, 175, 80, 0.15) !important;
