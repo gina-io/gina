@@ -79,6 +79,10 @@
     var SETTINGS_STORAGE_KEY = '__gina_inspector_settings_open';
     /** @constant {string} localStorage key — auto-expand tree nodes toggle */
     var EXPAND_STORAGE_KEY   = '__gina_inspector_auto_expand';
+    /** @constant {string} localStorage key — window geometry (width, height, left, top) */
+    var GEOMETRY_STORAGE_KEY = '__gina_inspector_geometry';
+    /** @constant {string} localStorage key — environment panel resize height */
+    var ENV_HEIGHT_STORAGE_KEY = '__gina_inspector_env_height';
 
     /** @constant {RegExp} Matches UUID v4 strings */
     var RE_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -2526,6 +2530,12 @@
         var wrap = qs('#bm-settings-env-wrap');
         if (!handle || !wrap) return;
 
+        // Restore saved height
+        try {
+            var savedH = localStorage.getItem(ENV_HEIGHT_STORAGE_KEY);
+            if (savedH) wrap.style.maxHeight = savedH + 'px';
+        } catch (e) {}
+
         var startY = 0, startH = 0, dragging = false;
 
         handle.addEventListener('mousedown', function (e) {
@@ -2548,6 +2558,9 @@
                 dragging = false;
                 document.body.style.cursor = '';
                 document.body.style.userSelect = '';
+                try {
+                    localStorage.setItem(ENV_HEIGHT_STORAGE_KEY, parseInt(wrap.style.maxHeight, 10));
+                } catch (e) {}
             }
         });
     }
@@ -2899,6 +2912,25 @@
 
         tryEngineIO();
         tryServerLogs();
+
+        // ── Persist window geometry on resize/move ──────────────────────────
+        var _geoTimer = null;
+        function saveGeometry() {
+            try {
+                localStorage.setItem(GEOMETRY_STORAGE_KEY, JSON.stringify({
+                    w: window.outerWidth,
+                    h: window.outerHeight,
+                    x: window.screenX,
+                    y: window.screenY
+                }));
+            } catch (e) {}
+        }
+        function debouncedSaveGeometry() {
+            if (_geoTimer) clearTimeout(_geoTimer);
+            _geoTimer = setTimeout(saveGeometry, 300);
+        }
+        window.addEventListener('resize', debouncedSaveGeometry);
+        window.addEventListener('beforeunload', saveGeometry);
 
         pollDataTimer = setInterval(pollData, pollDataMs);
         setInterval(pollLogs, POLL_LOGS_MS);
