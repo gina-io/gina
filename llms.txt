@@ -162,7 +162,7 @@ module.exports = UserEntity;
 - Entities extend EventEmitter (via EntitySuper).
 - Entity methods return a native Promise with `.onComplete(cb)` shim for backward compat.
 - `_scope` is set on every entity prototype by the connector from `connectors.json`.
-- `_arguments[trigger]` buffers results for late-binding listeners — cleared in dev mode per call.
+- `_arguments[trigger]` buffers results for late-binding listeners — cleared in dev mode per call. Buffer is unreachable in Option B (Promise path): connector trigger naming mismatch + `_callbacks` array check prevent `setListener` from firing. Dead consumption code removed (#M5); defensive unconditional clear at Option B entry.
 - Dependency injection: `new MyEntity(conn, caller, { connector: mockConn })` for tests.
 
 ---
@@ -500,7 +500,7 @@ The Inspector is a dev-mode SPA embedded in every bundle at `/_gina/inspector/`.
 
 **Source** (`core/asset/plugin/src/vendor/gina/inspector/`): organized by type — `html/` (index.html, statusbar.html), `js/` (inspector.js), `sass/` (inspector.scss), `css/` (compiled intermediate). SCSS source uses nesting and CSS custom properties for theming. Build script Phase 3 compiles SCSS and copies to flat dist. Inspector SASS is excluded from Phase 2 auto-discovery — CSS is served separately at `/_gina/inspector/inspector.css`, not concatenated into `gina.min.css`.
 
-**Dist** (`core/asset/plugin/dist/vendor/gina/inspector/`): flat layout — `index.html`, `inspector.js`, `inspector.css`.
+**Dist** (`core/asset/plugin/dist/vendor/gina/inspector/`): flat layout — `index.html`, `inspector.js`, `inspector.css`, `logo.svg`.
 
 **Unit tests:** `test/core/inspector.test.js` (renamed from `beemaster.test.js`).
 
@@ -513,6 +513,15 @@ Dev-mode query instrumentation captures every database query tied to the current
 - **`origin` tagging** — `infos.bundle` (set on `Entity.prototype.bundle` at registration). **`connector` tagging** — hardcoded string per connector (e.g. `'couchbase'`).
 - **Cross-bundle propagation** — when bundle A calls B via `self.query()`, B's queries travel back as `__ginaQueries` in the JSON response (embedded by `render-json.js`). A's `query()` callback extracts, merges into its own `local._queryLog`, and deletes the field before data reaches the controller action.
 - **Inspector UI** — split trigger badge (`entity` | `method`), SQL syntax highlighting, params table (`$1`/`$2` → value), free-text search bar filtering across all fields.
+
+**UX enhancements:**
+
+- **Logo watermark** — Gina logo displayed as a fixed-position watermark (bottom-right, 0.045 opacity) on content panes. `filter: invert(1)` for dark theme. SVG served at `/_gina/inspector/logo.svg`.
+- **Window geometry persistence** — Inspector popup position/size saved to `localStorage.__gina_inspector_geometry` on resize (debounced) and `beforeunload`. `statusbar.html` restores geometry on next open via `window.open()` features string.
+- **Env panel height persistence** — resizable environment panel height saved to `localStorage.__gina_inspector_env_height`.
+- **Drag-to-select log rows** — `mousedown` → `mousemove` → `mouseup` builds a range selection in real time. Plain click (no movement) copies the single row with a green flash + left accent feedback.
+- **Copy badge fade-out** — after copy, badge shows "Copied", fades out (400ms opacity transition via `setTimeout`), then clears the selection. `transitionend` was unreliable — replaced with `setTimeout`.
+- **Selection styling** — 3px left amber accent (`::before` pseudo-element), subtle amber background, rounded corners (6px) on first/last rows of contiguous groups. CSS `:has()` and `+` sibling combinators detect group boundaries.
 
 ---
 
