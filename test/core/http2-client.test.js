@@ -50,7 +50,9 @@ function GinaHttp2Error(message, opts) {
     this.code        = opts.code        || 'UNKNOWN';
     this.retryable   = typeof opts.retryable  === 'boolean' ? opts.retryable  : false;
     this.status      = opts.status      || 500;
-    this.retriedOnce = typeof opts.retriedOnce === 'boolean' ? opts.retriedOnce : false;
+    this.retryCount  = typeof opts.retryCount === 'number' ? opts.retryCount : 0;
+    // Backward compatibility: retriedOnce is derived from retryCount
+    this.retriedOnce = this.retryCount > 0;
 }
 GinaHttp2Error.prototype             = Object.create(Error.prototype);
 GinaHttp2Error.prototype.constructor = GinaHttp2Error;
@@ -83,7 +85,8 @@ function swallowIfNonCritical(isCritical, err) {
  *
  * ctx fields:
  *   isFinished  { value: bool }   mutable box
- *   isRetry     bool
+ *   retryCount  number            current retry attempt (0 = first try)
+ *   maxRetries  number            max retry attempts (default 2)
  *   isCritical  bool
  *   streamTimeout number (ms)
  *   options     object  (must have ':authority', ':method', ':path')
@@ -105,14 +108,14 @@ function onStreamTimeoutLogic(ctx) {
     if (tIdx !== -1) ctx.sessions.splice(tIdx, 1);
     if (!ctx.client.destroyed) ctx.client.destroy();
 
-    if (!ctx.isRetry) {
+    if (ctx.retryCount < ctx.maxRetries) {
         return { action: 'retry' };
     }
 
     var ms  = ctx.streamTimeout;
     var msStr = ms > 1000 ? (ms / 1000) + 's' : ms + 'ms';
     var msg   = '[HTTP2] No response from ' + ctx.options[':authority'] + ' after ' + msStr;
-    var err   = new GinaHttp2Error(msg, { code: 'TIMEOUT', retryable: true, status: 503, retriedOnce: true });
+    var err   = new GinaHttp2Error(msg, { code: 'TIMEOUT', retryable: false, status: 503, retryCount: ctx.retryCount });
 
     if (swallowIfNonCritical(ctx.isCritical, err)) return { action: 'swallowed', err: err };
 
@@ -134,7 +137,7 @@ function onQueryClosedLogic(ctx) {
     if (ctx.isFinished.value) return { action: 'noop' };
     ctx.isFinished.value = true;
 
-    if (!ctx.isRetry) {
+    if (ctx.retryCount < ctx.maxRetries) {
         ctx.cache.delete(ctx.sessKey);
         var cIdx = ctx.sessions.indexOf(ctx.sessKey);
         if (cIdx !== -1) ctx.sessions.splice(cIdx, 1);
@@ -144,7 +147,7 @@ function onQueryClosedLogic(ctx) {
 
     var err = new GinaHttp2Error(
         '[HTTP2] Stream closed before response was complete (GOAWAY / session timeout / network reset)',
-        { code: 'PREMATURE_CLOSE', retryable: true, status: 503, retriedOnce: true }
+        { code: 'PREMATURE_CLOSE', retryable: false, status: 503, retryCount: ctx.retryCount }
     );
 
     if (swallowIfNonCritical(ctx.isCritical, err)) return { action: 'swallowed', err: err };
@@ -169,8 +172,8 @@ function onQueryErrorLogic(ctx) {
     var error     = ctx.error;
     var errorCode = error.code || (error.cause ? error.cause.code : null);
 
-    // Retry path for ERR_HTTP2_STREAM_ERROR or ECONNRESET on first attempt only
-    if (!ctx.isRetry && (errorCode === 'ERR_HTTP2_STREAM_ERROR' || errorCode === 'ECONNRESET')) {
+    // Retry path for ERR_HTTP2_STREAM_ERROR or ECONNRESET (up to maxRetries)
+    if (ctx.retryCount < ctx.maxRetries && (errorCode === 'ERR_HTTP2_STREAM_ERROR' || errorCode === 'ECONNRESET')) {
         ctx.isFinished.value = true;
         ctx.cache.delete(ctx.sessKey);
         if (!ctx.client.destroyed) ctx.client.destroy();
@@ -188,9 +191,9 @@ function onQueryErrorLogic(ctx) {
     var ginaStatus = isConnError ? 503 : 500;
     var ginaErr    = new GinaHttp2Error(error.message, {
         code       : ginaCode,
-        retryable  : !ctx.isRetry,
+        retryable  : ctx.retryCount < ctx.maxRetries,
         status     : ginaStatus,
-        retriedOnce: ctx.isRetry
+        retryCount : ctx.retryCount
     });
     ginaErr.cause = error;
 
@@ -207,11 +210,11 @@ function onQueryErrorLogic(ctx) {
 /**
  * on502EndLogic — 502 handling from req.on('end') (#H2 fix).
  *
- * ctx fields: httpStatus, isRetry, schedule (replacement for setTimeout).
+ * ctx fields: httpStatus, retryCount, maxRetries, schedule (replacement for setTimeout).
  * Returns { action: 'retry-scheduled'|'no-retry' }
  */
 function on502EndLogic(ctx) {
-    if (ctx.httpStatus === 502 && !ctx.isRetry) {
+    if (ctx.httpStatus === 502 && ctx.retryCount < ctx.maxRetries) {
         ctx.schedule(); // mirrors: setTimeout(fn, 2000)
         return { action: 'retry-scheduled' };
     }
@@ -271,7 +274,8 @@ function makeOptions() {
 function makeCtx(overrides) {
     return Object.assign({
         isFinished  : { value: false },
-        isRetry     : false,
+        retryCount  : 0,
+        maxRetries  : 2,
         isCritical  : true,
         streamTimeout: 10000,
         options     : makeOptions(),
@@ -335,11 +339,12 @@ describe('01 - GinaHttp2Error — construction and field defaults (#H4)', functi
     });
 
     it('stores provided opts fields', function() {
-        var e = new GinaHttp2Error('msg', { code: 'TIMEOUT', retryable: true, status: 503, retriedOnce: true });
+        var e = new GinaHttp2Error('msg', { code: 'TIMEOUT', retryable: true, status: 503, retryCount: 2 });
         assert.equal(e.code,        'TIMEOUT');
         assert.equal(e.retryable,   true);
         assert.equal(e.status,      503);
-        assert.equal(e.retriedOnce, true);
+        assert.equal(e.retryCount,  2);
+        assert.equal(e.retriedOnce, true); // derived from retryCount > 0
     });
 
     it('retryable: false is stored correctly (not coerced to true)', function() {
@@ -347,9 +352,11 @@ describe('01 - GinaHttp2Error — construction and field defaults (#H4)', functi
         assert.equal(e.retryable, false);
     });
 
-    it('retriedOnce: true is stored correctly', function() {
-        var e = new GinaHttp2Error('msg', { retriedOnce: true });
+    it('retriedOnce is derived from retryCount > 0', function() {
+        var e = new GinaHttp2Error('msg', { retryCount: 1 });
         assert.equal(e.retriedOnce, true);
+        var e2 = new GinaHttp2Error('msg', { retryCount: 0 });
+        assert.equal(e2.retriedOnce, false);
     });
 
 });
@@ -413,8 +420,8 @@ describe('03 - Source structure — all retry paths present in controller.js', f
         assert.ok(/handleHTTP2ClientRequest\s*=\s*function\([^)]*isCritical/.test(src));
     });
 
-    it('isRetry parameter is in function signature', function() {
-        assert.ok(/handleHTTP2ClientRequest\s*=\s*function\([^)]*isRetry/.test(src));
+    it('retryCount parameter is in function signature', function() {
+        assert.ok(/handleHTTP2ClientRequest\s*=\s*function\([^)]*retryCount/.test(src));
     });
 
     it('_swallowIfNonCritical helper is defined inside the function', function() {
@@ -458,6 +465,50 @@ describe('03 - Source structure — all retry paths present in controller.js', f
         assert.ok(src.indexOf('Object.create(Error.prototype)') > -1);
     });
 
+    it('retryCount field is set on GinaHttp2Error', function() {
+        assert.ok(src.indexOf('this.retryCount') > -1);
+    });
+
+    it('retriedOnce is derived from retryCount > 0', function() {
+        assert.ok(src.indexOf('this.retriedOnce = this.retryCount > 0') > -1);
+    });
+
+    it('HTTP2_MAX_RETRIES constant is defined', function() {
+        assert.ok(src.indexOf('var HTTP2_MAX_RETRIES') > -1);
+    });
+
+    it('HTTP2_RETRY_DELAY_MS constant is defined', function() {
+        assert.ok(src.indexOf('var HTTP2_RETRY_DELAY_MS') > -1);
+    });
+
+    it('pre-flight PING: HTTP2_PREFLIGHT_STALE_MS constant is defined', function() {
+        assert.ok(src.indexOf('var HTTP2_PREFLIGHT_STALE_MS') > -1);
+    });
+
+    it('pre-flight PING: HTTP2_PREFLIGHT_DEADLINE_MS constant is defined', function() {
+        assert.ok(src.indexOf('var HTTP2_PREFLIGHT_DEADLINE_MS') > -1);
+    });
+
+    it('pre-flight PING: _lastPongAt is tracked on new sessions', function() {
+        assert.ok(src.indexOf('client._lastPongAt = Date.now()') > -1);
+    });
+
+    it('pre-flight PING: _sendRequest wrapper function is defined', function() {
+        assert.ok(src.indexOf('var _sendRequest = function _sendRequest()') > -1);
+    });
+
+    it('pre-flight PING: PREFLIGHT_TIMEOUT error code is present', function() {
+        assert.ok(src.indexOf("code: 'PREFLIGHT_TIMEOUT'") > -1);
+    });
+
+    it('pre-flight PING: PREFLIGHT_FAILED error code is present', function() {
+        assert.ok(src.indexOf("code: 'PREFLIGHT_FAILED'") > -1);
+    });
+
+    it('retry with backoff: retryCount < HTTP2_MAX_RETRIES guard is present', function() {
+        assert.ok(src.indexOf('retryCount < HTTP2_MAX_RETRIES') > -1);
+    });
+
 });
 
 
@@ -472,46 +523,46 @@ describe('04 - onStreamTimeout handler — stream-level timeout (#H4)', function
     });
 
     it('sets isFinished to true on first call', function() {
-        var ctx = makeCtx({ isRetry: false });
+        var ctx = makeCtx({ retryCount: 0 });
         onStreamTimeoutLogic(ctx);
         assert.equal(ctx.isFinished.value, true);
     });
 
-    it('first attempt (isRetry=false) returns retry action', function() {
-        var ctx = makeCtx({ isRetry: false });
+    it('first attempt (retryCount=0) returns retry action', function() {
+        var ctx = makeCtx({ retryCount: 0 });
         var result = onStreamTimeoutLogic(ctx);
         assert.equal(result.action, 'retry');
     });
 
     it('first attempt: destroys client if not already destroyed', function() {
-        var ctx = makeCtx({ isRetry: false });
+        var ctx = makeCtx({ retryCount: 0 });
         onStreamTimeoutLogic(ctx);
         assert.equal(ctx.client._destroyCalled, true);
     });
 
     it('first attempt: does NOT destroy client if already destroyed', function() {
-        var ctx = makeCtx({ isRetry: false, client: makeClient(true) });
+        var ctx = makeCtx({ retryCount: 0, client: makeClient(true) });
         onStreamTimeoutLogic(ctx);
         assert.equal(ctx.client._destroyCalled, false);
     });
 
     it('first attempt: sessKey is deleted from cache', function() {
-        var ctx = makeCtx({ isRetry: false });
+        var ctx = makeCtx({ retryCount: 0 });
         onStreamTimeoutLogic(ctx);
         assert.ok(ctx.cache._deleted.indexOf(ctx.sessKey) > -1);
     });
 
     it('first attempt: sessKey is removed from sessions array', function() {
-        var ctx = makeCtx({ isRetry: false, sessions: ['http2session:api.test.local', 'other'] });
+        var ctx = makeCtx({ retryCount: 0, sessions: ['http2session:api.test.local', 'other'] });
         onStreamTimeoutLogic(ctx);
         assert.equal(ctx.sessions.indexOf('http2session:api.test.local'), -1);
         assert.ok(ctx.sessions.indexOf('other') > -1); // only target removed
     });
 
-    it('retry attempt (isRetry=true, isCritical=true, callback): calls callback with GinaHttp2Error', function(_, done) {
+    it('retry attempt (retryCount exhausted, isCritical=true, callback): calls callback with GinaHttp2Error', function(_, done) {
         var called = null;
         var ctx = makeCtx({
-            isRetry  : true,
+            retryCount: 2,
             isCritical: true,
             callback : function(err) { called = err; }
         });
@@ -522,34 +573,34 @@ describe('04 - onStreamTimeout handler — stream-level timeout (#H4)', function
     });
 
     it('retry attempt: error has code TIMEOUT', function() {
-        var ctx = makeCtx({ isRetry: true, callback: function() {} });
+        var ctx = makeCtx({ retryCount: 2, callback: function() {} });
         var result = onStreamTimeoutLogic(ctx);
         assert.equal(result.err.code, 'TIMEOUT');
     });
 
     it('retry attempt: error has status 503', function() {
-        var ctx = makeCtx({ isRetry: true, callback: function() {} });
+        var ctx = makeCtx({ retryCount: 2, callback: function() {} });
         var result = onStreamTimeoutLogic(ctx);
         assert.equal(result.err.status, 503);
     });
 
     it('retry attempt: error has retriedOnce=true', function() {
-        var ctx = makeCtx({ isRetry: true, callback: function() {} });
+        var ctx = makeCtx({ retryCount: 2, callback: function() {} });
         var result = onStreamTimeoutLogic(ctx);
         assert.equal(result.err.retriedOnce, true);
     });
 
-    it('retry attempt: error has retryable=true', function() {
-        var ctx = makeCtx({ isRetry: true, callback: function() {} });
+    it('exhausted retries: error has retryable=false', function() {
+        var ctx = makeCtx({ retryCount: 2, callback: function() {} });
         var result = onStreamTimeoutLogic(ctx);
-        assert.equal(result.err.retryable, true);
+        assert.equal(result.err.retryable, false);
     });
 
     it('retry attempt, no callback: emits query#complete with status 503', function(_, done) {
         var emitted = null;
         var self    = makeSelf();
         self.on('query#complete', function(payload) { emitted = payload; });
-        var ctx = makeCtx({ isRetry: true, isCritical: true, self: self });
+        var ctx = makeCtx({ retryCount: 2, isCritical: true, self: self });
         var result = onStreamTimeoutLogic(ctx);
         assert.equal(result.action, 'emit');
         assert.equal(emitted.status, 503);
@@ -557,9 +608,9 @@ describe('04 - onStreamTimeout handler — stream-level timeout (#H4)', function
         done();
     });
 
-    it('non-critical (isCritical=false, isRetry=true): swallowed, no callback called', function() {
+    it('non-critical (isCritical=false, retryCount exhausted): swallowed, no callback called', function() {
         var cbCalled = false;
-        var ctx = makeCtx({ isRetry: true, isCritical: false, callback: function() { cbCalled = true; } });
+        var ctx = makeCtx({ retryCount: 2, isCritical: false, callback: function() { cbCalled = true; } });
         var result = onStreamTimeoutLogic(ctx);
         assert.equal(result.action, 'swallowed');
         assert.equal(cbCalled, false);
@@ -578,33 +629,33 @@ describe('05 - onQueryClosed handler — GOAWAY / premature stream close (#H1)',
         assert.equal(result.action, 'noop');
     });
 
-    it('first attempt (isRetry=false): returns retry action', function() {
-        var ctx = makeCtx({ isRetry: false });
+    it('first attempt (retryCount=0): returns retry action', function() {
+        var ctx = makeCtx({ retryCount: 0 });
         var result = onQueryClosedLogic(ctx);
         assert.equal(result.action, 'retry');
     });
 
     it('first attempt: sessKey is deleted from cache', function() {
-        var ctx = makeCtx({ isRetry: false });
+        var ctx = makeCtx({ retryCount: 0 });
         onQueryClosedLogic(ctx);
         assert.ok(ctx.cache._deleted.indexOf(ctx.sessKey) > -1);
     });
 
     it('first attempt: sessKey removed from sessions array', function() {
-        var ctx = makeCtx({ isRetry: false, sessions: ['http2session:api.test.local'] });
+        var ctx = makeCtx({ retryCount: 0, sessions: ['http2session:api.test.local'] });
         onQueryClosedLogic(ctx);
         assert.equal(ctx.sessions.length, 0);
     });
 
     it('first attempt: client is destroyed', function() {
-        var ctx = makeCtx({ isRetry: false });
+        var ctx = makeCtx({ retryCount: 0 });
         onQueryClosedLogic(ctx);
         assert.equal(ctx.client._destroyCalled, true);
     });
 
-    it('retry attempt (isRetry=true), callback: calls callback with GinaHttp2Error', function(_, done) {
+    it('retry attempt (retryCount exhausted), callback: calls callback with GinaHttp2Error', function(_, done) {
         var received = null;
-        var ctx = makeCtx({ isRetry: true, callback: function(err) { received = err; } });
+        var ctx = makeCtx({ retryCount: 2, callback: function(err) { received = err; } });
         var result = onQueryClosedLogic(ctx);
         assert.equal(result.action, 'callback');
         assert.ok(received instanceof GinaHttp2Error);
@@ -612,19 +663,19 @@ describe('05 - onQueryClosed handler — GOAWAY / premature stream close (#H1)',
     });
 
     it('retry attempt: error has code PREMATURE_CLOSE', function() {
-        var ctx = makeCtx({ isRetry: true, callback: function() {} });
+        var ctx = makeCtx({ retryCount: 2, callback: function() {} });
         var result = onQueryClosedLogic(ctx);
         assert.equal(result.err.code, 'PREMATURE_CLOSE');
     });
 
     it('retry attempt: error has status 503', function() {
-        var ctx = makeCtx({ isRetry: true, callback: function() {} });
+        var ctx = makeCtx({ retryCount: 2, callback: function() {} });
         var result = onQueryClosedLogic(ctx);
         assert.equal(result.err.status, 503);
     });
 
     it('retry attempt: error has retriedOnce=true', function() {
-        var ctx = makeCtx({ isRetry: true, callback: function() {} });
+        var ctx = makeCtx({ retryCount: 2, callback: function() {} });
         var result = onQueryClosedLogic(ctx);
         assert.equal(result.err.retriedOnce, true);
     });
@@ -633,7 +684,7 @@ describe('05 - onQueryClosed handler — GOAWAY / premature stream close (#H1)',
         var emitted = null;
         var self    = makeSelf();
         self.on('query#complete', function(payload) { emitted = payload; });
-        var ctx = makeCtx({ isRetry: true, self: self });
+        var ctx = makeCtx({ retryCount: 2, self: self });
         var result = onQueryClosedLogic(ctx);
         assert.equal(result.action, 'emit');
         assert.equal(emitted.status, 503);
@@ -642,7 +693,7 @@ describe('05 - onQueryClosed handler — GOAWAY / premature stream close (#H1)',
 
     it('non-critical (isCritical=false): swallowed', function() {
         var cbCalled = false;
-        var ctx = makeCtx({ isRetry: true, isCritical: false, callback: function() { cbCalled = true; } });
+        var ctx = makeCtx({ retryCount: 2, isCritical: false, callback: function() { cbCalled = true; } });
         var result = onQueryClosedLogic(ctx);
         assert.equal(result.action, 'swallowed');
         assert.equal(cbCalled, false);
@@ -662,86 +713,86 @@ describe('06 - onQueryError handler — stream error / connection error', functi
         assert.equal(result.action, 'noop');
     });
 
-    it('ERR_HTTP2_STREAM_ERROR + !isRetry → retry', function() {
+    it('ERR_HTTP2_STREAM_ERROR + retryCount < maxRetries → retry', function() {
         var err = Object.assign(new Error('stream'), { code: 'ERR_HTTP2_STREAM_ERROR' });
-        var ctx = makeCtx({ isRetry: false, error: err });
+        var ctx = makeCtx({ retryCount: 0, error: err });
         var result = onQueryErrorLogic(ctx);
         assert.equal(result.action, 'retry');
     });
 
-    it('ECONNRESET + !isRetry → retry', function() {
+    it('ECONNRESET + retryCount < maxRetries → retry', function() {
         var err = Object.assign(new Error('reset'), { code: 'ECONNRESET' });
-        var ctx = makeCtx({ isRetry: false, error: err });
+        var ctx = makeCtx({ retryCount: 0, error: err });
         var result = onQueryErrorLogic(ctx);
         assert.equal(result.action, 'retry');
     });
 
     it('ERR_HTTP2_STREAM_ERROR retry: client destroyed on retry path', function() {
         var err = Object.assign(new Error('stream'), { code: 'ERR_HTTP2_STREAM_ERROR' });
-        var ctx = makeCtx({ isRetry: false, error: err });
+        var ctx = makeCtx({ retryCount: 0, error: err });
         onQueryErrorLogic(ctx);
         assert.equal(ctx.client._destroyCalled, true);
     });
 
-    it('ERR_HTTP2_STREAM_ERROR + isRetry=true → callback, STREAM_ERROR code', function() {
+    it('ERR_HTTP2_STREAM_ERROR + retryCount exhausted → callback, STREAM_ERROR code', function() {
         var err = Object.assign(new Error('stream'), { code: 'ERR_HTTP2_STREAM_ERROR' });
         var received = null;
-        var ctx = makeCtx({ isRetry: true, error: err, callback: function(e) { received = e; } });
+        var ctx = makeCtx({ retryCount: 2, error: err, callback: function(e) { received = e; } });
         var result = onQueryErrorLogic(ctx);
         assert.equal(result.action, 'callback');
         assert.equal(result.err.code, 'STREAM_ERROR');
     });
 
-    it('ERR_HTTP2_STREAM_ERROR + isRetry=true: error has status 500', function() {
+    it('ERR_HTTP2_STREAM_ERROR + retryCount exhausted: error has status 500', function() {
         var err = Object.assign(new Error('stream'), { code: 'ERR_HTTP2_STREAM_ERROR' });
-        var ctx = makeCtx({ isRetry: true, error: err, callback: function() {} });
+        var ctx = makeCtx({ retryCount: 2, error: err, callback: function() {} });
         var result = onQueryErrorLogic(ctx);
         assert.equal(result.err.status, 500);
     });
 
-    it('ERR_HTTP2_STREAM_ERROR + isRetry=true: retryable=false (already retried once)', function() {
+    it('ERR_HTTP2_STREAM_ERROR + retryCount exhausted: retryable=false (already retried once)', function() {
         var err = Object.assign(new Error('stream'), { code: 'ERR_HTTP2_STREAM_ERROR' });
-        var ctx = makeCtx({ isRetry: true, error: err, callback: function() {} });
+        var ctx = makeCtx({ retryCount: 2, error: err, callback: function() {} });
         var result = onQueryErrorLogic(ctx);
         assert.equal(result.err.retryable, false);
     });
 
-    it('ERR_HTTP2_STREAM_ERROR + isRetry=false: retryable=true before first retry', function() {
+    it('ERR_HTTP2_STREAM_ERROR + retryCount=0: retryable=true before first retry', function() {
         // On the non-retry path, the error wrapping isn't reached (action=retry).
-        // Verify by running the retry attempt that the logic sets retryable=!isRetry correctly.
+        // Verify by running the retry attempt that the logic sets retryable=retryCount < maxRetries correctly.
         var err = Object.assign(new Error('stream'), { code: 'ERR_HTTP2_STREAM_ERROR' });
-        var ctx = makeCtx({ isRetry: true, error: err, callback: function() {} });
+        var ctx = makeCtx({ retryCount: 2, error: err, callback: function() {} });
         var result = onQueryErrorLogic(ctx);
-        // isRetry=true → retryable should be !true = false
+        // retryCount exhausted (2 >= maxRetries=2) → retryable should be false
         assert.equal(result.err.retryable, false);
-        // And retriedOnce = isRetry = true
+        // retriedOnce derived from retryCount > 0
         assert.equal(result.err.retriedOnce, true);
     });
 
     it('ECONNREFUSED (any attempt): no retry, callback immediately', function() {
         var err = Object.assign(new Error('refused'), { code: 'ECONNREFUSED' });
-        var ctx = makeCtx({ isRetry: false, error: err, callback: function() {} });
+        var ctx = makeCtx({ retryCount: 0, error: err, callback: function() {} });
         var result = onQueryErrorLogic(ctx);
         assert.equal(result.action, 'callback');
     });
 
     it('ECONNREFUSED: error code is ECONNREFUSED', function() {
         var err = Object.assign(new Error('refused'), { code: 'ECONNREFUSED' });
-        var ctx = makeCtx({ isRetry: false, error: err, callback: function() {} });
+        var ctx = makeCtx({ retryCount: 0, error: err, callback: function() {} });
         var result = onQueryErrorLogic(ctx);
         assert.equal(result.err.code, 'ECONNREFUSED');
     });
 
     it('ECONNREFUSED: status is 503 (connection error)', function() {
         var err = Object.assign(new Error('refused'), { code: 'ECONNREFUSED' });
-        var ctx = makeCtx({ isRetry: false, error: err, callback: function() {} });
+        var ctx = makeCtx({ retryCount: 0, error: err, callback: function() {} });
         var result = onQueryErrorLogic(ctx);
         assert.equal(result.err.status, 503);
     });
 
     it('original error is preserved as .cause on GinaHttp2Error', function() {
         var original = Object.assign(new Error('stream'), { code: 'ERR_HTTP2_STREAM_ERROR' });
-        var ctx = makeCtx({ isRetry: true, error: original, callback: function() {} });
+        var ctx = makeCtx({ retryCount: 2, error: original, callback: function() {} });
         var result = onQueryErrorLogic(ctx);
         assert.strictEqual(result.err.cause, original);
     });
@@ -749,7 +800,7 @@ describe('06 - onQueryError handler — stream error / connection error', functi
     it('non-critical (isCritical=false): swallowed regardless of error code', function() {
         var err = Object.assign(new Error('stream'), { code: 'ERR_HTTP2_STREAM_ERROR' });
         var cbCalled = false;
-        var ctx = makeCtx({ isRetry: true, isCritical: false, error: err, callback: function() { cbCalled = true; } });
+        var ctx = makeCtx({ retryCount: 2, isCritical: false, error: err, callback: function() { cbCalled = true; } });
         var result = onQueryErrorLogic(ctx);
         assert.equal(result.action, 'swallowed');
         assert.equal(cbCalled, false);
@@ -760,7 +811,7 @@ describe('06 - onQueryError handler — stream error / connection error', functi
         var self    = makeSelf();
         self.on('query#complete', function(p) { emitted = p; });
         var err = Object.assign(new Error('stream'), { code: 'ERR_HTTP2_STREAM_ERROR' });
-        var ctx = makeCtx({ isRetry: true, error: err, self: self });
+        var ctx = makeCtx({ retryCount: 2, error: err, self: self });
         var result = onQueryErrorLogic(ctx);
         assert.equal(result.action, 'emit');
         assert.ok(emitted !== null);
@@ -774,17 +825,17 @@ describe('06 - onQueryError handler — stream error / connection error', functi
 
 describe('07 - onEnd 502 handler — upstream Bad Gateway retry (#H2)', function() {
 
-    it('httpStatus=502, !isRetry: schedules a retry', function() {
+    it('httpStatus=502, retryCount < maxRetries: schedules a retry', function() {
         var scheduled = false;
-        var ctx = { httpStatus: 502, isRetry: false, schedule: function() { scheduled = true; } };
+        var ctx = { httpStatus: 502, retryCount: 0, maxRetries: 2, schedule: function() { scheduled = true; } };
         var result = on502EndLogic(ctx);
         assert.equal(result.action, 'retry-scheduled');
         assert.equal(scheduled, true);
     });
 
-    it('httpStatus=502, isRetry=true: does NOT schedule retry (only one retry)', function() {
+    it('httpStatus=502, retryCount exhausted: does NOT schedule retry (retries exhausted)', function() {
         var scheduled = false;
-        var ctx = { httpStatus: 502, isRetry: true, schedule: function() { scheduled = true; } };
+        var ctx = { httpStatus: 502, retryCount: 2, maxRetries: 2, schedule: function() { scheduled = true; } };
         var result = on502EndLogic(ctx);
         assert.equal(result.action, 'no-retry');
         assert.equal(scheduled, false);
@@ -792,20 +843,20 @@ describe('07 - onEnd 502 handler — upstream Bad Gateway retry (#H2)', function
 
     it('httpStatus=200: no retry scheduled', function() {
         var scheduled = false;
-        var ctx = { httpStatus: 200, isRetry: false, schedule: function() { scheduled = true; } };
+        var ctx = { httpStatus: 200, retryCount: 0, maxRetries: 2, schedule: function() { scheduled = true; } };
         var result = on502EndLogic(ctx);
         assert.equal(result.action, 'no-retry');
         assert.equal(scheduled, false);
     });
 
     it('httpStatus=503: no retry scheduled (503 is not 502)', function() {
-        var ctx = { httpStatus: 503, isRetry: false, schedule: function() {} };
+        var ctx = { httpStatus: 503, retryCount: 0, maxRetries: 2, schedule: function() {} };
         var result = on502EndLogic(ctx);
         assert.equal(result.action, 'no-retry');
     });
 
     it('httpStatus=null: no retry scheduled', function() {
-        var ctx = { httpStatus: null, isRetry: false, schedule: function() {} };
+        var ctx = { httpStatus: null, retryCount: 0, maxRetries: 2, schedule: function() {} };
         var result = on502EndLogic(ctx);
         assert.equal(result.action, 'no-retry');
     });
@@ -840,7 +891,7 @@ describe('08 - swallowIfNonCritical helper — non-critical error handling (#H3)
     it('non-critical handler in onStreamTimeout swallows and returns swallowed action', function() {
         var cbCalled = false;
         var ctx = makeCtx({
-            isRetry   : true,
+            retryCount: 2,
             isCritical: false,
             callback  : function() { cbCalled = true; }
         });
@@ -852,7 +903,7 @@ describe('08 - swallowIfNonCritical helper — non-critical error handling (#H3)
     it('non-critical handler in onQueryClosed swallows and returns swallowed action', function() {
         var cbCalled = false;
         var ctx = makeCtx({
-            isRetry   : true,
+            retryCount: 2,
             isCritical: false,
             callback  : function() { cbCalled = true; }
         });
@@ -865,7 +916,7 @@ describe('08 - swallowIfNonCritical helper — non-critical error handling (#H3)
         var err    = Object.assign(new Error('stream'), { code: 'ERR_HTTP2_STREAM_ERROR' });
         var cbCalled = false;
         var ctx = makeCtx({
-            isRetry   : true,
+            retryCount: 2,
             isCritical: false,
             error     : err,
             callback  : function() { cbCalled = true; }
