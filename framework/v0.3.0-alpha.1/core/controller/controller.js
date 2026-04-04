@@ -2553,7 +2553,7 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
             }
             browser = require(''+ httpLib);
             if ( /http2/.test(httpLib) ) {
-                return handleHTTP2ClientRequest(browser, options, callback, false, isCritical);
+                return handleHTTP2ClientRequest(browser, options, callback, 0, isCritical);
             } else {
                 return handleHTTP1ClientRequest(browser, options, callback);
             }
@@ -2949,18 +2949,18 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
 
     /**
      * Typed HTTP/2 client error — H4.
-     * All HTTP/2 failure modes (GOAWAY, timeout, stream error, premature close, 502)
-     * now surface as GinaHttp2Error instances instead of plain Error objects, giving
-     * callers machine-readable `code`, `retryable`, `status`, and `retriedOnce` fields
+     * All HTTP/2 failure modes (GOAWAY, timeout, stream error, premature close, 502,
+     * pre-flight PING failure) surface as GinaHttp2Error instances, giving callers
+     * machine-readable `code`, `retryable`, `status`, and `retryCount` fields
      * without having to inspect message strings or embedded status objects.
      *
      * @constructor
      * @param {string}  message            - Human-readable error description
      * @param {object}  opts
-     * @param {string}  opts.code          - PREMATURE_CLOSE | TIMEOUT | STREAM_ERROR | ECONNRESET | ECONNREFUSED | BAD_GATEWAY
-     * @param {boolean} opts.retryable     - true when a transparent retry was or could be attempted
+     * @param {string}  opts.code          - PREMATURE_CLOSE | TIMEOUT | STREAM_ERROR | ECONNRESET | ECONNREFUSED | BAD_GATEWAY | PREFLIGHT_TIMEOUT | PREFLIGHT_FAILED
+     * @param {boolean} opts.retryable     - true when further retries are still possible
      * @param {number}  opts.status        - HTTP status to surface to the caller (502, 503, 500…)
-     * @param {boolean} opts.retriedOnce   - true when this error was raised on the retry attempt
+     * @param {number}  opts.retryCount    - number of retries already attempted (0 = original request failed)
      */
     function GinaHttp2Error(message, opts) {
         Error.call(this);
@@ -2975,7 +2975,9 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
         this.code        = opts.code        || 'UNKNOWN';
         this.retryable   = typeof opts.retryable  === 'boolean' ? opts.retryable  : false;
         this.status      = opts.status      || 500;
-        this.retriedOnce = typeof opts.retriedOnce === 'boolean' ? opts.retriedOnce : false;
+        this.retryCount  = typeof opts.retryCount === 'number' ? opts.retryCount : 0;
+        // Backward compatibility: retriedOnce is derived from retryCount
+        this.retriedOnce = this.retryCount > 0;
     }
     GinaHttp2Error.prototype             = Object.create(Error.prototype);
     GinaHttp2Error.prototype.constructor = GinaHttp2Error;
@@ -2988,9 +2990,32 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
         'ECONNREFUSED'            : 'ECONNREFUSED'
     };
 
-    var handleHTTP2ClientRequest = function(browser, options, callback, isRetry = false, isCritical = true) {
+    /**
+     * HTTP/2 client request handler with retry, backoff, and pre-flight PING.
+     *
+     * Sends an HTTP/2 request to an upstream bundle (inter-bundle `self.query()`).
+     * Caches sessions per-authority. Validates session freshness via pre-flight PING
+     * before sending on a cached session whose last PONG is older than HTTP2_PREFLIGHT_STALE_MS.
+     * Retries up to HTTP2_MAX_RETRIES times on transient failures (timeout, stream error,
+     * premature close, 502, pre-flight failure) with HTTP2_RETRY_DELAY_MS backoff on 2nd+ retry.
+     * ECONNREFUSED is never retried.
+     *
+     * @inner
+     * @param {object}   browser     - HTTP/2 client module (node:http2)
+     * @param {object}   options     - Request options (:authority, :method, :path, :scheme, headers, etc.)
+     * @param {function} [callback]  - Node-style callback; if omitted, emits 'query#complete' on self
+     * @param {number}   [retryCount=0] - Current retry attempt (0 = first try)
+     * @param {boolean}  [isCritical=true] - When false, errors are swallowed silently (H3)
+     *
+     * @fires SuperController#query.complete
+     */
+    var handleHTTP2ClientRequest = function(browser, options, callback, retryCount = 0, isCritical = true) {
 
-        var HTTP2_SESSION_MAX = 50; // max concurrent HTTP/2 sessions in cache
+        var HTTP2_SESSION_MAX = 50;           // max concurrent HTTP/2 sessions in cache
+        var HTTP2_MAX_RETRIES = 2;            // total retry attempts (original + 2 retries = 3 tries)
+        var HTTP2_RETRY_DELAY_MS = 500;       // delay before 2nd+ retry (backoff)
+        var HTTP2_PREFLIGHT_STALE_MS = 3000;  // session stale if last PONG > 3s ago
+        var HTTP2_PREFLIGHT_DEADLINE_MS = 1500; // pre-flight PING timeout
 
         // H3: non-critical error helper. When isCritical is false, errors are swallowed
         // (log-only) instead of propagating to the caller. Returns true when swallowed
@@ -3101,6 +3126,7 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
             }
 
             client = browser.connect(authority, options);
+            client._lastPongAt = Date.now(); // session just connected — inherently validated
 
             // Optional but recommended on M4/Orbstack
             client.setTimeout(0); // disable the default timeout to keep session active
@@ -3192,6 +3218,8 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
                         var _pingErrIdx = self.serverInstance._http2Sessions.indexOf(sessKey);
                         if (_pingErrIdx !== -1) self.serverInstance._http2Sessions.splice(_pingErrIdx, 1);
                         _pingErrIdx = null;
+                    } else {
+                        client._lastPongAt = Date.now(); // track for pre-flight freshness check
                     }
                 });
             }, 5000);
@@ -3284,6 +3312,24 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
         headers = cleanHeaders;
 
 
+        // ─────────────────────────────────────────────────────────────
+        // Pre-flight PING — validate cached sessions before use
+        //
+        // OrbStack (and other Docker networking layers) can silently drop
+        // TCP connections between PING intervals. A request sent on a dead
+        // session is buffered in the kernel socket and never delivered.
+        //
+        // Before creating a stream, check if the session was validated by
+        // a successful PONG within the last HTTP2_PREFLIGHT_STALE_MS. If
+        // not, send a PING and wait up to HTTP2_PREFLIGHT_DEADLINE_MS for
+        // a response. On failure: evict the session and retry with a fresh
+        // connection.
+        //
+        // New sessions skip this — _lastPongAt is set to Date.now() at
+        // connection time, so they're inherently fresh.
+        // ─────────────────────────────────────────────────────────────
+        var _sendRequest = function _sendRequest() {
+
         const req = client.request(headers);
 
         let isFinished  = false;
@@ -3301,25 +3347,32 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
         // Stream-level timeout — mirrors the HTTP/1 path (handleHTTP1ClientRequest line ~2744).
         // Without this, a stream that receives no events hangs indefinitely (OrbStack ARM64
         // silently drops idle inter-container TCP connections without RST or FIN).
-        // On timeout: evict the dead session and retry once with a fresh connection.
-        // If the retry also times out, surface the error to the caller.
+        // On timeout: evict the dead session and retry with a fresh connection (up to
+        // HTTP2_MAX_RETRIES times, with HTTP2_RETRY_DELAY_MS backoff on 2nd+ retry).
         var _streamTimeout = parseTimeout(options.requestTimeout) || 10000;
         req.setTimeout(_streamTimeout, function onStreamTimeout() {
             if (isFinished) return;
             isFinished = true;
-            console.warn('[HTTP2] Stream timeout ('+ (_streamTimeout > 1000 ? (_streamTimeout / 1000) + 's' : _streamTimeout + 'ms') +') on '+ options[':method'] +' '+ options[':path'] +' — evicting dead session');
+            console.warn('[HTTP2] Stream timeout ('+ (_streamTimeout > 1000 ? (_streamTimeout / 1000) + 's' : _streamTimeout + 'ms') +') on '+ options[':method'] +' '+ options[':path'] +' — evicting dead session (attempt '+ (retryCount + 1) +'/'+ (HTTP2_MAX_RETRIES + 1) +')');
             // Synchronous eviction ensures the retry below creates a fresh session.
             cache.delete(sessKey);
             var _tIdx = self.serverInstance._http2Sessions.indexOf(sessKey);
             if (_tIdx !== -1) self.serverInstance._http2Sessions.splice(_tIdx, 1);
             if (!client.destroyed) client.destroy(); // no error arg — suppresses session 'error' event
-            if (!isRetry) {
+            if (retryCount < HTTP2_MAX_RETRIES) {
                 options.queryData = options._body;
-                return handleHTTP2ClientRequest(browser, options, callback, true, isCritical);
+                var _tNext = retryCount + 1;
+                if (_tNext > 1) {
+                    // Backoff on 2nd+ retry — gives OrbStack time to stabilize
+                    return setTimeout(function() {
+                        handleHTTP2ClientRequest(browser, options, callback, _tNext, isCritical);
+                    }, HTTP2_RETRY_DELAY_MS);
+                }
+                return handleHTTP2ClientRequest(browser, options, callback, _tNext, isCritical);
             }
-            // Retry also timed out — surface the error (H4: typed GinaHttp2Error)
-            var _timeoutMsg = '[HTTP2] No response from '+ options[':authority'] +' after '+ (_streamTimeout > 1000 ? (_streamTimeout / 1000) + 's' : _streamTimeout + 'ms');
-            var _timeoutErr = new GinaHttp2Error(_timeoutMsg, { code: 'TIMEOUT', retryable: true, status: 503, retriedOnce: true });
+            // All retries exhausted — surface the error (H4: typed GinaHttp2Error)
+            var _timeoutMsg = '[HTTP2] No response from '+ options[':authority'] +' after '+ (_streamTimeout > 1000 ? (_streamTimeout / 1000) + 's' : _streamTimeout + 'ms') +' (exhausted '+ HTTP2_MAX_RETRIES +' retries)';
+            var _timeoutErr = new GinaHttp2Error(_timeoutMsg, { code: 'TIMEOUT', retryable: false, status: 503, retryCount: retryCount });
             // H3: if non-critical, swallow and return
             if (_swallowIfNonCritical(_timeoutErr)) return;
             if (typeof callback === 'function') {
@@ -3343,15 +3396,20 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
 
 
             // If the session closed exactly when we sent the request (Race Condition)
-            // We attempt ONE retry with a fresh connection
-            if (!isRetry && (errorCode === 'ERR_HTTP2_STREAM_ERROR' || errorCode === 'ECONNRESET')) {
+            // Retry with a fresh connection (up to HTTP2_MAX_RETRIES, with backoff)
+            if (retryCount < HTTP2_MAX_RETRIES && (errorCode === 'ERR_HTTP2_STREAM_ERROR' || errorCode === 'ECONNRESET')) {
                 isFinished = true; // Mark current attempt as done
-                console.warn(`[HTTP2][RETRYING] Stream failed on ${options[':path']}. Retrying with fresh session...`);
                 cache.delete(sessKey);
                 if (!client.destroyed) client.destroy();
-                // Recursive call with isRetry = true to prevent infinite loops
                 options.queryData = options._body; // restore body for retry
-                return handleHTTP2ClientRequest(browser, options, callback, true, isCritical);
+                var _eNext = retryCount + 1;
+                console.warn('[HTTP2][RETRYING] Stream failed on '+ options[':path'] +' ('+ errorCode +') — retry '+ _eNext +'/'+ HTTP2_MAX_RETRIES);
+                if (_eNext > 1) {
+                    return setTimeout(function() {
+                        handleHTTP2ClientRequest(browser, options, callback, _eNext, isCritical);
+                    }, HTTP2_RETRY_DELAY_MS);
+                }
+                return handleHTTP2ClientRequest(browser, options, callback, _eNext, isCritical);
             }
 
             isFinished = true;
@@ -3392,9 +3450,9 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
             var _ginaStatus  = isConnError ? 503 : 500;
             var _ginaErr = new GinaHttp2Error(error.message, {
                 code       : _ginaErrCode,
-                retryable  : !isRetry,
+                retryable  : retryCount < HTTP2_MAX_RETRIES,
                 status     : _ginaStatus,
-                retriedOnce: isRetry
+                retryCount : retryCount
             });
             _ginaErr.cause = error; // preserve original Node error (stack, syscall, etc.)
             if (isConnError && error.accessPoint) { _ginaErr.accessPoint = error.accessPoint; }
@@ -3416,27 +3474,33 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
         //     console.warn('Request stream closed.');
         // });
         // H1 fix: stream closing before 'end' left requests hanging indefinitely
-        // (no callback, no query#complete). Now retries once with a fresh session on
+        // (no callback, no query#complete). Now retries with a fresh session on
         // premature close — covers GOAWAY race, server timeout, and network reset.
-        // If the retry also closes prematurely, the 503 is surfaced to the caller.
+        // Retries up to HTTP2_MAX_RETRIES times with backoff.
         req.on('close', function onQueryClosed() {
             if (isFinished) return;
             isFinished = true;
-            console.warn('[HTTP2] Premature stream close on '+ options[':method'] +' '+ options[':path'] +' — GOAWAY / session reset');
-            if (!isRetry) {
+            console.warn('[HTTP2] Premature stream close on '+ options[':method'] +' '+ options[':path'] +' — GOAWAY / session reset (attempt '+ (retryCount + 1) +'/'+ (HTTP2_MAX_RETRIES + 1) +')');
+            if (retryCount < HTTP2_MAX_RETRIES) {
                 cache.delete(sessKey);
                 var _cIdx = self.serverInstance._http2Sessions.indexOf(sessKey);
                 if (_cIdx !== -1) self.serverInstance._http2Sessions.splice(_cIdx, 1);
                 if (!client.destroyed) client.destroy();
                 options.queryData = options._body;
-                return handleHTTP2ClientRequest(browser, options, callback, true, isCritical);
+                var _cNext = retryCount + 1;
+                if (_cNext > 1) {
+                    return setTimeout(function() {
+                        handleHTTP2ClientRequest(browser, options, callback, _cNext, isCritical);
+                    }, HTTP2_RETRY_DELAY_MS);
+                }
+                return handleHTTP2ClientRequest(browser, options, callback, _cNext, isCritical);
             }
             // H4: typed GinaHttp2Error — callers can check err.code === 'PREMATURE_CLOSE'
             var prematureCloseErr = new GinaHttp2Error('[HTTP2] Stream closed before response was complete (GOAWAY / session timeout / network reset)', {
                 code       : 'PREMATURE_CLOSE',
-                retryable  : true,
+                retryable  : false,
                 status     : 503,
-                retriedOnce: true
+                retryCount : retryCount
             });
             // H3: if non-critical, swallow and return
             if (_swallowIfNonCritical(prematureCloseErr)) return;
@@ -3469,17 +3533,18 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
 
             // H2 fix: 502 from nginx means the upstream bundle was unreachable (idle TCP
             // drop between nginx and the bundle — transient on OrbStack ARM64 and in
-            // production after a keepalive expiry). Retry once after a short delay to give
+            // production after a keepalive expiry). Retry after a short delay to give
             // nginx time to reconnect to the bundle before surfacing the error to the caller.
-            if (httpStatus === 502 && !isRetry) {
-                console.warn('[HTTP2][RETRYING] 502 from '+ options[':authority'] + options[':path'] +' — retrying in 2s');
+            if (httpStatus === 502 && retryCount < HTTP2_MAX_RETRIES) {
+                var _502Next = retryCount + 1;
+                console.warn('[HTTP2][RETRYING] 502 from '+ options[':authority'] + options[':path'] +' — retry '+ _502Next +'/'+ HTTP2_MAX_RETRIES +' in 2s');
                 setTimeout(function onHttp2RetryAfter502() {
                     cache.delete(sessKey);
                     var _rIdx = self.serverInstance._http2Sessions.indexOf(sessKey);
                     if (_rIdx !== -1) self.serverInstance._http2Sessions.splice(_rIdx, 1);
                     if (!client.destroyed) client.destroy();
                     options.queryData = options._body;
-                    handleHTTP2ClientRequest(browser, options, callback, true, isCritical);
+                    handleHTTP2ClientRequest(browser, options, callback, _502Next, isCritical);
                 }, 2000);
                 return;
             }
@@ -3709,6 +3774,74 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
             }
         }
 
+        }; // EO _sendRequest
+
+        // Pre-flight PING: check if the cached session needs validation
+        var _staleSince = Date.now() - (client._lastPongAt || 0);
+        if (_staleSince > HTTP2_PREFLIGHT_STALE_MS && !client.destroyed && !client.closed) {
+            var _pfDone = false;
+            var _pfDeadline = setTimeout(function onPreflightDeadline() {
+                if (_pfDone) return;
+                _pfDone = true;
+                console.warn('[HTTP2] Pre-flight PING timeout ('+ HTTP2_PREFLIGHT_DEADLINE_MS +'ms) — session stale for '+ _staleSince +'ms, evicting: '+ sessKey);
+                cache.delete(sessKey);
+                var _pfIdx = self.serverInstance._http2Sessions.indexOf(sessKey);
+                if (_pfIdx !== -1) self.serverInstance._http2Sessions.splice(_pfIdx, 1);
+                if (!client.destroyed) client.destroy();
+                if (retryCount < HTTP2_MAX_RETRIES) {
+                    options.queryData = options._body || body;
+                    var _pfNext = retryCount + 1;
+                    if (_pfNext > 1) {
+                        return setTimeout(function() {
+                            handleHTTP2ClientRequest(browser, options, callback, _pfNext, isCritical);
+                        }, HTTP2_RETRY_DELAY_MS);
+                    }
+                    return handleHTTP2ClientRequest(browser, options, callback, _pfNext, isCritical);
+                }
+                var _pfErr = new GinaHttp2Error('[HTTP2] Pre-flight PING failed — no response from '+ authority +' after '+ HTTP2_PREFLIGHT_DEADLINE_MS +'ms', {
+                    code: 'PREFLIGHT_TIMEOUT', retryable: false, status: 503, retryCount: retryCount
+                });
+                if (_swallowIfNonCritical(_pfErr)) return;
+                if (typeof callback === 'function') return callback(_pfErr);
+                self.emit('query#complete', { status: 503, error: _pfErr });
+            }, HTTP2_PREFLIGHT_DEADLINE_MS);
+
+            client.ping(function onPreflightPong(err) {
+                if (_pfDone) return;
+                _pfDone = true;
+                clearTimeout(_pfDeadline);
+                if (err) {
+                    console.warn('[HTTP2] Pre-flight PING error — evicting session: '+ sessKey +' ('+ (err.message || err) +')');
+                    cache.delete(sessKey);
+                    var _pfEIdx = self.serverInstance._http2Sessions.indexOf(sessKey);
+                    if (_pfEIdx !== -1) self.serverInstance._http2Sessions.splice(_pfEIdx, 1);
+                    if (!client.destroyed) client.destroy();
+                    if (retryCount < HTTP2_MAX_RETRIES) {
+                        options.queryData = options._body || body;
+                        var _pfENext = retryCount + 1;
+                        if (_pfENext > 1) {
+                            return setTimeout(function() {
+                                handleHTTP2ClientRequest(browser, options, callback, _pfENext, isCritical);
+                            }, HTTP2_RETRY_DELAY_MS);
+                        }
+                        return handleHTTP2ClientRequest(browser, options, callback, _pfENext, isCritical);
+                    }
+                    var _pfErr2 = new GinaHttp2Error('[HTTP2] Pre-flight PING failed on '+ authority +': '+ (err.message || err), {
+                        code: 'PREFLIGHT_FAILED', retryable: false, status: 503, retryCount: retryCount
+                    });
+                    if (_swallowIfNonCritical(_pfErr2)) return;
+                    if (typeof callback === 'function') return callback(_pfErr2);
+                    self.emit('query#complete', { status: 503, error: _pfErr2 });
+                    return;
+                }
+                // PONG received — session confirmed alive
+                client._lastPongAt = Date.now();
+                _sendRequest();
+            });
+        } else {
+            // Session is fresh (validated within HTTP2_PREFLIGHT_STALE_MS) — proceed immediately
+            _sendRequest();
+        }
 
         return {
             onComplete  : function(cb) {

@@ -1,0 +1,3 @@
+kind: Added
+body: 'HTTP/2 client resilience: retry with backoff (up to 2 retries with 500ms delay), pre-flight PING validation on cached sessions, and session freshness tracking via _lastPongAt. Protects against OrbStack silent TCP drops and stale HTTP/2 sessions.'
+time: 2026-04-04T05:57:35.879778+01:00

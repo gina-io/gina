@@ -325,6 +325,19 @@ Counters are live — no restart required. `activeSessions` is bounded by ≥ 0.
 | — | HPACK bomb | `maxHeaderListSize: 65536` |
 | — | Server push abuse | `enablePush: false` |
 
+**HTTP/2 client resilience** (inter-bundle `self.query()` calls):
+
+`handleHTTP2ClientRequest` retries failed requests up to 2 times with 500ms backoff on 2nd+ retry. Before sending on a cached session, validates freshness via a pre-flight PING (if no PONG received in 3s, evicts session and retries). Protects against silent TCP drops (observed with OrbStack Docker networking) and stale HTTP/2 sessions.
+
+| Constant | Value | Purpose |
+|---|---|---|
+| `HTTP2_MAX_RETRIES` | 2 | Max retry attempts (3 total tries) |
+| `HTTP2_RETRY_DELAY_MS` | 500 | Backoff delay on 2nd+ retry |
+| `HTTP2_PREFLIGHT_STALE_MS` | 3000 | Session age threshold before pre-flight PING |
+| `HTTP2_PREFLIGHT_DEADLINE_MS` | 1500 | Pre-flight PING timeout |
+
+`GinaHttp2Error` codes: `TIMEOUT`, `PREMATURE_CLOSE`, `STREAM_ERROR`, `ECONNRESET`, `ECONNREFUSED`, `PREFLIGHT_TIMEOUT`, `PREFLIGHT_FAILED`. `ECONNREFUSED` is never retried. `retryCount` tracks attempts; `retriedOnce` is derived from `retryCount > 0`.
+
 ---
 
 ## Routing (routing.json)
