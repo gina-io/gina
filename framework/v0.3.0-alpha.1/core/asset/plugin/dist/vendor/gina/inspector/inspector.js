@@ -5,6 +5,8 @@
  * `{webroot}/_gina/inspector/` on the same origin as the monitored bundle.
  *
  * **Data channels** (in priority order):
+ *   0. `/_gina/agent` SSE          — remote/standalone mode (`?target=` param);
+ *      streams both data and logs via named events
  *   1. `window.opener.__ginaData`  — same-origin polling (always available
  *      when opened via the statusbar link)
  *   2. `localStorage.__ginaData`   — fallback when opener is unavailable
@@ -16,12 +18,13 @@
  *     console capture script injected in dev mode)
  *   - Server-side SSE: `/_gina/logs` (taps `process.on('logger#default')`;
  *     dev mode only)
+ *   - Server-side SSE agent: `/_gina/agent` `event: log` (standalone mode only)
  *   - Server-side engine.io: `{ type: 'log' }` WebSocket messages (requires
  *     ioServer config)
  *
  * **Tabs:** Data, View, Forms, Query, Logs
  *
- * @see .claude/plugins/inspector.md — full architecture documentation
+ * @see .claude/plugins/inspector/index.md — full architecture documentation
  *
  * @typedef {Object} LogEntry
  * @property {number}  t    - Timestamp (ms since epoch)
@@ -40,6 +43,8 @@
  * @property {number}  durationMs  - Execution time in ms
  * @property {number}  resultCount - Rows returned
  * @property {number}  [resultSize] - Result size in bytes
+ * @property {?Array<{name: string, primary: boolean}>} indexes - Index descriptors used by the query;
+ *           `null` if the connector does not support index reporting, empty array if no indexes used
  * @property {?string} error       - Error message if failed
  * @property {string}  source      - `'server'`
  * @property {string}  origin      - Bundle name
@@ -83,6 +88,48 @@
     var GEOMETRY_STORAGE_KEY = '__gina_inspector_geometry';
     /** @constant {string} localStorage key — environment panel resize height */
     var ENV_HEIGHT_STORAGE_KEY = '__gina_inspector_env_height';
+    /** @constant {string} localStorage key — flow label column width */
+    var FLOW_LABEL_WIDTH_KEY = '__gina_inspector_flow_label_width';
+    /** @constant {string} localStorage key — query language filter */
+    var QUERY_LANG_KEY = '__gina_inspector_query_lang';
+    /** @constant {string} localStorage key — query connector filter */
+    var QUERY_CONNECTOR_KEY = '__gina_inspector_query_connector';
+    /** @constant {string} localStorage key — query bundle filter */
+    var QUERY_BUNDLE_KEY = '__gina_inspector_query_bundle';
+    /** @constant {string} localStorage key — tab layout preference (balanced/backend/frontend/custom) */
+    var TAB_LAYOUT_KEY = '__gina_inspector_tab_layout';
+    /** @constant {string} localStorage key — user-defined custom tab order */
+    var CUSTOM_ORDER_KEY = '__gina_inspector_tab_layout_custom';
+
+    /**
+     * Tab order definitions for each layout preset.
+     *
+     * - **balanced** (default) — Data, View, Logs, Forms, Query, Flow
+     * - **backend** — Data, Query, Flow, Logs, View, Forms
+     * - **frontend** — View, Data, Forms, Logs, Query, Flow
+     *
+     * Each array contains `data-tab` attribute values in display order.
+     * @constant {Object.<string, string[]>}
+     */
+    var TAB_LAYOUTS = {
+        balanced: ['data', 'view', 'logs', 'forms', 'query', 'flow'],
+        backend:  ['data', 'query', 'flow', 'logs', 'view', 'forms'],
+        frontend: ['view', 'data', 'forms', 'logs', 'query', 'flow']
+    };
+
+    /**
+     * Default performance anomaly thresholds.
+     * Metrics exceeding `warn` get an amber indicator; exceeding `critical`
+     * get a red indicator with stronger visual emphasis.
+     * @constant {Object.<string, {warn: number, critical: number}>}
+     */
+    var PERF_THRESHOLDS = {
+        loadMs:     { warn: 3000,    critical: 10000 },
+        weight:     { warn: 1048576, critical: 5242880 },
+        fcpMs:      { warn: 2500,    critical: 4000 },
+        queryMs:    { warn: 500,     critical: 2000 },
+        queryCount: { warn: 20,      critical: 50 }
+    };
 
     /** @constant {RegExp} Matches UUID v4 strings */
     var RE_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -775,6 +822,112 @@
         return { num: (bytes / 1048576).toFixed(2), unit: 'MB' };
     }
 
+    // ── Performance anomaly detection ─────────────────────────────────────
+
+    /**
+     * Check page metrics and query data against performance thresholds.
+     *
+     * Returns an array of anomaly objects, each describing a metric that
+     * exceeded its warning or critical threshold. An empty array means
+     * no anomalies detected.
+     *
+     * @inner
+     * @param {PageMetrics} metrics - Page performance metrics
+     * @param {QueryEntry[]} [queries] - Query entries from the current request
+     * @returns {Array<{metric: string, value: number, level: string, label: string}>}
+     */
+    function checkPerfAnomalies(metrics, queries) {
+        var result = [];
+        var t = PERF_THRESHOLDS;
+
+        if (metrics.loadMs && metrics.loadMs > t.loadMs.warn) {
+            var _lCrit = metrics.loadMs > t.loadMs.critical;
+            result.push({
+                metric: 'load', value: metrics.loadMs,
+                level: _lCrit ? 'critical' : 'warn',
+                label: 'Load ' + fmtMs(metrics.loadMs) + (_lCrit
+                    ? ' (critical > ' + fmtMs(t.loadMs.critical) + ')'
+                    : ' (slow > ' + fmtMs(t.loadMs.warn) + ')')
+            });
+        }
+        if (metrics.weight && metrics.weight > t.weight.warn) {
+            var _wCrit = metrics.weight > t.weight.critical;
+            result.push({
+                metric: 'weight', value: metrics.weight,
+                level: _wCrit ? 'critical' : 'warn',
+                label: 'Transfer ' + formatBytes(metrics.weight) + (_wCrit
+                    ? ' (critical > ' + formatBytes(t.weight.critical) + ')'
+                    : ' (large > ' + formatBytes(t.weight.warn) + ')')
+            });
+        }
+        if (metrics.fcpMs && metrics.fcpMs > t.fcpMs.warn) {
+            var _fCrit = metrics.fcpMs > t.fcpMs.critical;
+            result.push({
+                metric: 'fcp', value: metrics.fcpMs,
+                level: _fCrit ? 'critical' : 'warn',
+                label: 'FCP ' + fmtMs(metrics.fcpMs) + (_fCrit
+                    ? ' (critical > ' + fmtMs(t.fcpMs.critical) + ')'
+                    : ' (slow > ' + fmtMs(t.fcpMs.warn) + ')')
+            });
+        }
+
+        if (queries && Array.isArray(queries)) {
+            var _totalMs = 0;
+            for (var qi = 0; qi < queries.length; qi++) {
+                _totalMs += (queries[qi].durationMs || 0);
+            }
+            if (_totalMs > t.queryMs.warn) {
+                var _qCrit = _totalMs > t.queryMs.critical;
+                result.push({
+                    metric: 'queryMs', value: _totalMs,
+                    level: _qCrit ? 'critical' : 'warn',
+                    label: 'Query total ' + fmtMs(_totalMs) + (_qCrit
+                        ? ' (critical > ' + fmtMs(t.queryMs.critical) + ')'
+                        : ' (slow > ' + fmtMs(t.queryMs.warn) + ')')
+                });
+            }
+            if (queries.length > t.queryCount.warn) {
+                var _cCrit = queries.length > t.queryCount.critical;
+                result.push({
+                    metric: 'queryCount', value: queries.length,
+                    level: _cCrit ? 'critical' : 'warn',
+                    label: queries.length + ' queries' + (_cCrit
+                        ? ' (critical > ' + t.queryCount.critical + ')'
+                        : ' (many > ' + t.queryCount.warn + ')')
+                });
+            }
+        }
+
+        return result;
+    }
+
+    /**
+     * Update the View tab dot indicator based on detected anomalies.
+     *
+     * Uses the same visual pattern as the log-dot: 8px circle with
+     * heartbeat animation, colored by severity (warn = amber, critical = red).
+     *
+     * @inner
+     * @param {Array<{metric: string, level: string, label: string}>} anomalies
+     */
+    function updateViewDot(anomalies) {
+        var dot = qs('#bm-view-dot');
+        if (!dot) return;
+        if (!anomalies || anomalies.length === 0) {
+            dot.className = 'bm-view-dot';
+            dot.title = '';
+            return;
+        }
+        var hasCritical = false;
+        var tips = [];
+        for (var i = 0; i < anomalies.length; i++) {
+            if (anomalies[i].level === 'critical') hasCritical = true;
+            tips.push('\u26a0 ' + anomalies[i].label);
+        }
+        dot.className = 'bm-view-dot active ' + (hasCritical ? 'error' : 'warn');
+        dot.title = tips.join('\n');
+    }
+
     // ── View tab — sectioned layout ───────────────────────────────────────
 
     /**
@@ -839,6 +992,13 @@
         var u = ginaData && ginaData.user ? ginaData.user : {};
         var isXhr = typeof u['view-xhr'] !== 'undefined';
         var metrics = getPageMetrics(isXhr);
+        var _hasDataXhr = typeof u['data-xhr'] !== 'undefined';
+        var _viewQueries = _hasDataXhr && u['data-xhr'] && u['data-xhr'].queries
+            ? u['data-xhr'].queries : u.queries;
+        var _anomalies = checkPerfAnomalies(metrics, _viewQueries || []);
+        var _anomMap = {};
+        for (var _ai = 0; _ai < _anomalies.length; _ai++) _anomMap[_anomalies[_ai].metric] = _anomalies[_ai];
+        updateViewDot(_anomalies);
         var hasBadges = engine || metrics.weight || metrics.loadMs || metrics.transferMs || metrics.fcpMs;
         if (hasBadges) {
             h += '<div class="bm-view-badges">';
@@ -854,7 +1014,8 @@
                 var weightTitle = _showDual
                     ? 'Resource: ' + formatBytes(_res) + ' | Transfer: ' + formatBytes(_xfr)
                     : (isXhr ? 'XHR response transfer size' : 'Page transfer size (document)');
-                h += '<span class="bm-vbadge bm-vbadge-weight" title="' + weightTitle + '">'
+                var _aw = _anomMap['weight'];
+                h += '<span class="bm-vbadge bm-vbadge-weight' + (_aw ? ' bm-perf-' + _aw.level : '') + '" title="' + weightTitle + (_aw ? '\n\u26a0 ' + _aw.label : '') + '">'
                     + '<svg viewBox="0 0 16 16"><path d="M3.5 1h9l2.5 14H1zM4.8 2.5h6.4l2 11H2.8z"/></svg>';
                 if (_showDual) {
                     var _rp = splitBytes(_res), _xp = splitBytes(_xfr);
@@ -879,7 +1040,8 @@
                 var timeTitle = _showDualTime
                     ? 'Load: ' + fmtMs(_ld) + ' | Transfer: ' + fmtMs(_tf)
                     : (isXhr ? 'XHR round-trip duration' : (_ld ? 'Page load time' : 'Document transfer time (requestStart \u2192 responseEnd)'));
-                h += '<span class="bm-vbadge bm-vbadge-load" title="' + timeTitle + '">'
+                var _al = _anomMap['load'];
+                h += '<span class="bm-vbadge bm-vbadge-load' + (_al ? ' bm-perf-' + _al.level : '') + '" title="' + timeTitle + (_al ? '\n\u26a0 ' + _al.label : '') + '">'
                     + '<svg viewBox="0 0 16 16"><path d="M8 3.5a.5.5 0 00-1 0V8a.5.5 0 00.252.434l3.5 2a.5.5 0 00.496-.868L8 7.71V3.5z"/><path d="M8 16A8 8 0 108 0a8 8 0 000 16zm7-8A7 7 0 111 8a7 7 0 0114 0z"/></svg>';
                 if (_showDualTime) {
                     h += '<span class="bm-vbadge-res">' + fmtMs(_ld) + '</span>'
@@ -891,7 +1053,8 @@
                 h += '</span>';
             }
             if (metrics.fcpMs) {
-                h += '<span class="bm-vbadge bm-vbadge-fcp" title="First Contentful Paint">'
+                var _af = _anomMap['fcp'];
+                h += '<span class="bm-vbadge bm-vbadge-fcp' + (_af ? ' bm-perf-' + _af.level : '') + '" title="First Contentful Paint' + (_af ? '\n\u26a0 ' + _af.label : '') + '">'
                     + '<svg viewBox="0 0 16 16"><path d="M8 1.5s-4.5 4.75-4.5 8a4.5 4.5 0 109 0C12.5 6.25 8 1.5 8 1.5zm0 11.5a3.5 3.5 0 01-3.5-3.5c0-1.13.56-2.54 1.45-3.98A20.3 20.3 0 018 2.92a20.3 20.3 0 012.05 2.6c.89 1.44 1.45 2.85 1.45 3.98A3.5 3.5 0 018 13z"/></svg>'
                     + fmtMs(metrics.fcpMs) + ' FCP</span>';
             }
@@ -1129,11 +1292,147 @@
      * Get the currently active tab name.
      * @inner
      * @returns {string} Tab name (e.g. `'data'`, `'view'`, `'forms'`,
-     *                   `'query'`, `'logs'`)
+     *                   `'query'`, `'flow'`, `'logs'`)
      */
     function activeTab() {
         var active = qs('.bm-tab.active');
         return active ? active.dataset.tab : 'data';
+    }
+
+    /**
+     * Reorder tab buttons in the header `nav.bm-tabs` to match the given
+     * layout preset.  Moves existing DOM nodes (preserving event listeners)
+     * by appending them in the order defined in {@link TAB_LAYOUTS}.
+     *
+     * For `'custom'`, reads the saved order from localStorage.  If none is
+     * saved, the current DOM order is kept as-is.
+     *
+     * @inner
+     * @param {string} layout - One of `'balanced'`, `'backend'`, `'frontend'`, `'custom'`
+     */
+    function applyTabLayout(layout) {
+        var order;
+        var nav = qs('.bm-tabs');
+        if (!nav) return;
+        if (layout === 'custom') {
+            order = getCustomOrder();
+            // Only enable drag-mode when settings panel is open
+            var _panel = qs('#bm-settings');
+            if (_panel && !_panel.classList.contains('hidden')) {
+                nav.classList.add('bm-drag-mode');
+            } else {
+                nav.classList.remove('bm-drag-mode');
+            }
+        } else {
+            order = TAB_LAYOUTS[layout];
+            nav.classList.remove('bm-drag-mode');
+        }
+        if (!order) return;
+        for (var i = 0; i < order.length; i++) {
+            var btn = qs('.bm-tab[data-tab="' + order[i] + '"]');
+            if (btn) nav.appendChild(btn);
+        }
+    }
+
+    /**
+     * Read the user's custom tab order from localStorage.
+     * Returns `null` if no valid custom order is saved.
+     *
+     * @inner
+     * @returns {?string[]} Array of tab names in custom order, or null
+     */
+    function getCustomOrder() {
+        try {
+            var raw = localStorage.getItem(CUSTOM_ORDER_KEY);
+            if (raw) {
+                var arr = JSON.parse(raw);
+                if (Array.isArray(arr) && arr.length === 6) return arr;
+            }
+        } catch (e) {}
+        return null;
+    }
+
+    /**
+     * Save the current DOM tab order as the custom layout in localStorage.
+     * @inner
+     */
+    function saveCustomOrder() {
+        var nav = qs('.bm-tabs');
+        if (!nav) return;
+        var order = [];
+        var tabs = nav.querySelectorAll('.bm-tab');
+        for (var i = 0; i < tabs.length; i++) {
+            order.push(tabs[i].dataset.tab);
+        }
+        try { localStorage.setItem(CUSTOM_ORDER_KEY, JSON.stringify(order)); } catch (e) {}
+    }
+
+    /**
+     * Read the current tab order from the DOM.
+     * @inner
+     * @returns {string[]} Array of tab names in current DOM order
+     */
+    function getCurrentTabOrder() {
+        var nav = qs('.bm-tabs');
+        if (!nav) return TAB_LAYOUTS.balanced;
+        var order = [];
+        var tabs = nav.querySelectorAll('.bm-tab');
+        for (var i = 0; i < tabs.length; i++) {
+            order.push(tabs[i].dataset.tab);
+        }
+        return order;
+    }
+
+    /**
+     * Tab name → category color mapping for the layout preview pills.
+     * Uses the same theme variables as the Flow tab category bars.
+     * @constant {Object.<string, string>}
+     * @inner
+     */
+    var TAB_PREVIEW_COLORS = {
+        data:  'var(--info)',
+        view:  'var(--ok)',
+        logs:  'var(--text-dim)',
+        forms: 'var(--warn)',
+        query: 'var(--num)',
+        flow:  'var(--accent)'
+    };
+
+    /**
+     * Tab name → short display label for preview pills.
+     * @constant {Object.<string, string>}
+     * @inner
+     */
+    var TAB_PREVIEW_LABELS = {
+        data: 'Data', view: 'View', logs: 'Logs',
+        forms: 'Forms', query: 'Query', flow: 'Flow'
+    };
+
+    /**
+     * Render a row of tiny colored pills into `#bm-layout-preview` showing
+     * the tab order for the given layout preset.  Each pill is color-coded
+     * by tab category and connected by arrows.
+     *
+     * For `'custom'`, reads from localStorage or falls back to the current DOM order.
+     *
+     * @inner
+     * @param {string} layout - One of `'balanced'`, `'backend'`, `'frontend'`, `'custom'`
+     */
+    function renderLayoutPreview(layout) {
+        var el = qs('#bm-layout-preview');
+        if (!el) return;
+        var order = (layout === 'custom')
+            ? (getCustomOrder() || getCurrentTabOrder())
+            : TAB_LAYOUTS[layout];
+        if (!order) { el.innerHTML = ''; return; }
+        var html = '';
+        for (var i = 0; i < order.length; i++) {
+            var tab = order[i];
+            if (i > 0) html += '<span class="bm-lp-arrow">\u203A</span>';
+            html += '<span class="bm-lp-pill" style="--pill-color:' + TAB_PREVIEW_COLORS[tab] + '">'
+                  + TAB_PREVIEW_LABELS[tab] + '</span>';
+        }
+        el.innerHTML = html;
     }
 
     /**
@@ -1230,6 +1529,11 @@
                     ? u['data-xhr'].queries : u.queries;
                 content = renderQueryContent(queryData);
                 break;
+            case 'flow':
+                var flowData = hasXhr && u['data-xhr'] && u['data-xhr'].flow
+                    ? u['data-xhr'].flow : u.flow;
+                content = renderFlowContent(flowData);
+                break;
         }
 
         treeEl.innerHTML = content || '<span class="bm-empty">No data</span>';
@@ -1260,6 +1564,12 @@
     var _queryFilterBundle = '';
     /** @type {?QueryEntry[]} Last received queries array (for toolbar re-render) */
     var _lastQueries = null;
+    /** @type {?number} Debounce timer for query search input */
+    var _querySearchTimer = null;
+    /** @constant {number} Max query cards to show before "Show all" button */
+    var QUERY_PAGE_SIZE = 20;
+    /** @type {boolean} Whether all query cards should be shown (pagination override) */
+    var _queryShowAll = false;
 
     /**
      * Format a byte size into a human-readable string.
@@ -1451,6 +1761,8 @@
     // SVG icons for stat badges (12×12, filled)
     var _svgClock  = '<svg viewBox="0 0 16 16"><path d="M8 1a7 7 0 100 14A7 7 0 008 1zm0 1.5a5.5 5.5 0 110 11 5.5 5.5 0 010-11zm.5 2.25a.5.5 0 00-1 0V8a.5.5 0 00.22.416l2.5 1.667a.5.5 0 00.56-.83L8.5 7.72V4.75z"/></svg>';
     var _svgWeight = '<svg viewBox="0 0 16 16"><path d="M8 1a2.5 2.5 0 012.45 2H13a1 1 0 011 1v9a1 1 0 01-1 1H3a1 1 0 01-1-1V4a1 1 0 011-1h2.55A2.5 2.5 0 018 1zm0 1.5a1 1 0 100 2 1 1 0 000-2zM4 9.5a.5.5 0 000 1h8a.5.5 0 000-1H4zm0-2.5a.5.5 0 000 1h8a.5.5 0 000-1H4z"/></svg>';
+    var _svgIdx    = '<svg viewBox="0 0 16 16"><path d="M2 3.5A1.5 1.5 0 013.5 2h9A1.5 1.5 0 0114 3.5v1A1.5 1.5 0 0112.5 6h-9A1.5 1.5 0 012 4.5v-1zm1.5 0a.5.5 0 00-.5.5v.5a.5.5 0 00.5.5h9a.5.5 0 00.5-.5V4a.5.5 0 00-.5-.5h-9zM2 8.5A1.5 1.5 0 013.5 7h5A1.5 1.5 0 0110 8.5v1A1.5 1.5 0 018.5 11h-5A1.5 1.5 0 012 9.5v-1zm1.5 0a.5.5 0 00-.5.5v.5a.5.5 0 00.5.5h5a.5.5 0 00.5-.5V9a.5.5 0 00-.5-.5h-5zM2 13a1 1 0 011-1h3a1 1 0 110 2H3a1 1 0 01-1-1z"/></svg>';
+    var _svgIdxWarn = '<svg viewBox="0 0 16 16"><path d="M8.982 1.566a1.13 1.13 0 00-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767L8.982 1.566zM8 5a.905.905 0 00-.9.995l.35 3.507a.553.553 0 001.1 0l.35-3.507A.905.905 0 008 5zm.002 6a1 1 0 100 2 1 1 0 000-2z"/></svg>';
 
     /**
      * Classify total query duration for badge coloring.
@@ -1578,13 +1890,32 @@
             }
         }
 
-        // Tab badge
+        // Tab badge color — three tiers:
+        //   red  (err)  : missing index OR both time slow + weight heavy
+        //   warn        : only one of time slow / weight heavy
+        //   default     : everything ok
         if (tabBadge) {
             if (hasQueries) {
                 tabBadge.textContent = queries.length;
                 tabBadge.classList.remove('hidden');
+                var hasIdxIssue = false;
+                for (var qi = 0; qi < queries.length; qi++) {
+                    var qIdx = queries[qi].indexes;
+                    if (qIdx !== null && qIdx !== undefined && qIdx.length === 0) {
+                        hasIdxIssue = true;
+                        break;
+                    }
+                }
+                var isSlow  = durationClass(totalMs) === 'slow';
+                var isHeavy = weightClass(totalSize, filtered.length) === 'heavy';
+                var isErr   = hasIdxIssue || (isSlow && isHeavy);
+                var isWarn  = !isErr && (isSlow || isHeavy);
+                tabBadge.classList.toggle('bm-tab-badge-err',  isErr);
+                tabBadge.classList.toggle('bm-tab-badge-warn', isWarn);
             } else {
                 tabBadge.classList.add('hidden');
+                tabBadge.classList.remove('bm-tab-badge-err');
+                tabBadge.classList.remove('bm-tab-badge-warn');
             }
         }
     }
@@ -1615,15 +1946,35 @@
         }
 
         var h = '';
+        var limit = (_queryShowAll || filtered.length <= QUERY_PAGE_SIZE) ? filtered.length : QUERY_PAGE_SIZE;
+        var noIndexItems = []; // cards with supported but missing indexes
+        var perfItems    = []; // cards that are slow (>= 500ms) or heavy (avg >= 100 KB)
 
-        for (var i = 0; i < filtered.length; i++) {
+        for (var i = 0; i < limit; i++) {
             var q = filtered[i];
             var hasError = q.error ? ' bm-query-has-error' : '';
-            var durationClass = '';
-            if (q.durationMs > 500) durationClass = ' bm-query-slow';
-            else if (q.durationMs > 100) durationClass = ' bm-query-medium';
+            var durCls = '';
+            if (q.durationMs > 500) durCls = ' bm-query-slow';
+            else if (q.durationMs > 100) durCls = ' bm-query-medium';
 
-            h += '<div class="bm-query-card' + hasError + '">'
+            var cardId = 'bm-qcard-' + i;
+
+            // Track queries with supported but missing indexes
+            if (q.indexes !== null && q.indexes !== undefined && q.indexes.length === 0) {
+                noIndexItems.push({ id: cardId, trigger: q.trigger || q.type || ('Query #' + (i + 1)) });
+            }
+
+            // Track slow or heavy queries
+            var _isSlow  = (q.durationMs || 0) >= 500;
+            var _isHeavy = weightClass(q.resultSize || 0, 1) === 'heavy';
+            if (_isSlow || _isHeavy) {
+                var reason = _isSlow && _isHeavy ? 'slow + heavy'
+                    : _isSlow ? 'slow (' + fmtMs(q.durationMs) + ')'
+                    : 'heavy (' + formatSize(q.resultSize) + ')';
+                perfItems.push({ id: cardId, trigger: q.trigger || q.type || ('Query #' + (i + 1)), reason: reason });
+            }
+
+            h += '<div class="bm-query-card' + hasError + '" id="' + cardId + '">'
                 + '<div class="bm-query-header">'
                 + '<span class="bm-query-badge">' + escHtml(q.type || 'SQL') + '</span>';
 
@@ -1653,18 +2004,42 @@
 
             var sizeHtml = '';
             if (q.resultSize > 0) {
-                sizeHtml = '<span class="bm-query-size">' + formatSize(q.resultSize) + '</span>';
+                sizeHtml = '<span class="bm-query-size bm-stat-' + weightClass(q.resultSize, 1) + '">' + formatSize(q.resultSize) + '</span>';
             }
 
             h += '<span class="bm-query-right">'
                 + triggerHtml
                 + sizeHtml
-                + '<span class="bm-query-timing' + durationClass + '">' + fmtMs(q.durationMs || 0) + '</span>'
+                + '<span class="bm-query-timing' + durCls + '">' + fmtMs(q.durationMs || 0) + '</span>'
                 + '</span>'
                 + '</div>';
 
             if (q.statement) {
                 var compiled = compileQuery(q.statement, q.params);
+
+                // Index badges (inline in stmt meta bar, left of rows count)
+                var indexHtml = '';
+                if (q.indexes !== null && q.indexes !== undefined) {
+                    if (q.indexes.length === 0) {
+                        indexHtml = '<span class="bm-query-idx bm-idx-none" title="No index used — full bucket scan">'
+                            + _svgIdxWarn + ' no index</span>';
+                    } else {
+                        for (var ix = 0; ix < q.indexes.length; ix++) {
+                            var idx = q.indexes[ix];
+                            var idxCls = idx.primary ? 'bm-idx-primary' : 'bm-idx-secondary';
+                            var idxTip = (idx.primary ? 'Primary index scan (consider adding a secondary index)' : 'Secondary index')
+                                + ' — click to copy';
+                            indexHtml += '<span class="bm-query-idx bm-idx-copy ' + idxCls + '" title="' + idxTip
+                                + '" data-idx-name="' + escHtml(idx.name) + '">'
+                                + (idx.primary ? _svgIdxWarn : _svgIdx) + ' '
+                                + escHtml(idx.name) + '</span>';
+                        }
+                    }
+                } else if (q.connector) {
+                    indexHtml = '<span class="bm-query-idx bm-idx-na" title="Index info not available for this connector">'
+                        + _svgIdx + ' N/A</span>';
+                }
+
                 var rowCountBadge = '';
                 if (typeof q.resultCount !== 'undefined') {
                     rowCountBadge = '<span class="bm-query-stmt-rows">'
@@ -1672,13 +2047,20 @@
                         + '<span class="bm-query-stmt-rows-val">' + q.resultCount + '</span>'
                         + '</span>';
                 }
+
+                var metaHtml = '';
+                if (indexHtml || rowCountBadge) {
+                    metaHtml = '<span class="bm-query-stmt-meta">'
+                        + indexHtml + rowCountBadge + '</span>';
+                }
+
                 h += '<div class="bm-query-stmt-wrap">'
                     + '<pre class="bm-query-statement">' + highlightSQL(q.statement) + '</pre>'
                     + '<button class="bm-query-copy" title="Copy compiled query" data-compiled="'
                     + escHtml(compiled) + '">'
                     + '<svg viewBox="0 0 16 16" width="13" height="13"><path fill="currentColor" d="M4 1.5A1.5 1.5 0 015.5 0h5A1.5 1.5 0 0112 1.5v9a1.5 1.5 0 01-1.5 1.5h-5A1.5 1.5 0 014 10.5v-9z" opacity=".35"/><path fill="currentColor" d="M2 4.5A1.5 1.5 0 013.5 3h5A1.5 1.5 0 0110 4.5v9A1.5 1.5 0 018.5 15h-5A1.5 1.5 0 012 13.5v-9z"/></svg>'
                     + '</button>'
-                    + rowCountBadge
+                    + metaHtml
                     + '</div>';
             }
 
@@ -1703,6 +2085,350 @@
 
             h += '</div>'; // close bm-query-card
         }
+
+        if (limit < filtered.length) {
+            var remaining = filtered.length - limit;
+            h += '<button class="bm-query-show-all">Show all (' + remaining + ' more)</button>';
+        }
+
+        // Prepend missing-index warning banner
+        if (noIndexItems.length > 0) {
+            var banner = '<div class="bm-idx-banner">'
+                + '<span class="bm-idx-banner-icon">' + _svgIdxWarn + '</span>'
+                + '<div class="bm-idx-banner-body">'
+                + '<strong>' + noIndexItems.length + ' quer' + (noIndexItems.length === 1 ? 'y' : 'ies')
+                + ' without index</strong> — full bucket scan'
+                + '<ul class="bm-banner-list">';
+            for (var ni = 0; ni < noIndexItems.length; ni++) {
+                banner += '<li><a class="bm-idx-banner-link" href="#' + noIndexItems[ni].id + '">'
+                    + escHtml(noIndexItems[ni].trigger) + '</a></li>';
+            }
+            banner += '</ul></div></div>';
+            h = banner + h;
+        }
+
+        // Prepend performance warning banner (slow / heavy queries)
+        if (perfItems.length > 0) {
+            var pbanner = '<div class="bm-perf-banner">'
+                + '<span class="bm-perf-banner-icon">' + _svgClock + '</span>'
+                + '<div class="bm-perf-banner-body">'
+                + '<strong>' + perfItems.length + ' quer' + (perfItems.length === 1 ? 'y needs' : 'ies need')
+                + ' attention</strong> — slow or heavy result'
+                + '<ul class="bm-banner-list">';
+            for (var pi = 0; pi < perfItems.length; pi++) {
+                pbanner += '<li><a class="bm-perf-banner-link" href="#' + perfItems[pi].id + '">'
+                    + escHtml(perfItems[pi].trigger)
+                    + '<span class="bm-perf-banner-reason">' + escHtml(perfItems[pi].reason) + '</span>'
+                    + '</a></li>';
+            }
+            pbanner += '</ul></div></div>';
+            h = pbanner + h;
+        }
+
+        return h;
+    }
+
+    // ── Flow tab (waterfall timeline) ─────────────────────────────────────
+
+    /** @constant {Object<string, string>} Category CSS class suffix → human label */
+    var FLOW_CAT_LABELS = {
+        routing:    'Routing',
+        middleware: 'Middleware',
+        controller: 'Controller',
+        io:         'Query (HTTP)',
+        db:         'Query (N1QL)',
+        template:   'Template',
+        response:   'Response',
+        total:      'Total',
+        gap:        'Gap'
+    };
+
+    /** Minimum gap in ms before inserting a gap entry */
+    var FLOW_GAP_THRESHOLD_MS = 1;
+
+    /**
+     * Render a scale bar (three marks: 0, mid, end) for a waterfall section.
+     * @inner
+     * @param {number} totalMs - Total time span
+     * @returns {string} HTML string
+     */
+    function renderFlowScale(totalMs) {
+        var h = '<div class="bm-flow-scale">';
+        h += '<span class="bm-flow-scale-mark" style="left:0">0 ms</span>';
+        h += '<span class="bm-flow-scale-mark" style="left:50%">' + fmtMs(Math.round(totalMs / 2)) + '</span>';
+        h += '<span class="bm-flow-scale-mark" style="left:100%">' + fmtMs(totalMs) + '</span>';
+        h += '</div>';
+        return h;
+    }
+
+    /**
+     * Detect uninstrumented gaps between sorted flow entries and insert
+     * synthetic "overhead" entries so the waterfall accounts for 100% of
+     * the total time. Uses a high-water mark to handle overlapping entries
+     * (e.g. controller-action spanning inner queries).
+     *
+     * Skips entries with cat "total" — those are the full-span summary bar.
+     *
+     * @inner
+     * @param {Array<Object>} entries - Sorted timing entries
+     * @param {number} t0 - Baseline epoch ms (requestStart)
+     * @param {number} totalEndMs - Epoch ms of the total span end
+     * @returns {Array<Object>} Entries with gap entries inserted, sorted by startMs
+     */
+    function insertFlowGaps(entries, t0, totalEndMs) {
+        var result = [];
+        var hwm = t0; // high-water mark — furthest endMs seen so far
+        var gapIndex = 0;
+
+        for (var i = 0; i < entries.length; i++) {
+            var e = entries[i];
+            if (e.cat === 'total') { result.push(e); continue; }
+
+            var eEnd = e.endMs || (e.startMs + (e.durationMs || 0));
+
+            // Gap before this entry?
+            if (e.startMs > hwm + FLOW_GAP_THRESHOLD_MS) {
+                var gapMs = e.startMs - hwm;
+                result.push({
+                    label: 'uninstrumented', cat: 'gap',
+                    startMs: hwm, endMs: e.startMs,
+                    durationMs: gapMs, _isGap: true
+                });
+                gapIndex++;
+            }
+
+            result.push(e);
+            if (eEnd > hwm) hwm = eEnd;
+        }
+
+        // Trailing gap (after last entry, before total end)
+        if (totalEndMs > hwm + FLOW_GAP_THRESHOLD_MS) {
+            result.push({
+                label: 'uninstrumented', cat: 'gap',
+                startMs: hwm, endMs: totalEndMs,
+                durationMs: totalEndMs - hwm, _isGap: true
+            });
+        }
+
+        return result;
+    }
+
+    /**
+     * Render waterfall rows for a list of flow entries.
+     * @inner
+     * @param {Array<Object>} entries - Sorted timing entries (may include gap entries)
+     * @param {number} t0 - Baseline time (epoch ms or relative 0)
+     * @param {number} totalMs - Total span for percentage calculation
+     * @returns {string} HTML string
+     */
+    /**
+     * Clean a flow entry label by stripping the category prefix that the
+     * badge already conveys. When the detail field holds a more meaningful
+     * name (action name, rule name), promote it into the badge and suppress
+     * the detail line.
+     * @inner
+     * @param {string} label  - Raw label from the timeline entry
+     * @param {string} cat    - Category key
+     * @param {string|null} detail - Detail string (may be promoted)
+     * @returns {{ name: string, detail: string|null }}
+     */
+    function cleanFlowLabel(label, cat, detail) {
+        var name = label;
+        var det  = detail || null;
+
+        switch (cat) {
+            case 'routing':
+                // "route-match" + detail "rule: home@dashboard" → name "home@dashboard"
+                if (label === 'route-match' && det) {
+                    name = det.replace(/^rule:\s*/, '');
+                    det = null;
+                } else if (label === 'request-setup') {
+                    name = 'request setup';
+                } else {
+                    name = label.replace(/^route-/, '');
+                }
+                break;
+
+            case 'controller':
+                // "controller-action" + detail "home" → name "home"
+                // "controller-setup" + detail "home" → name "setup (home)"
+                if (label === 'controller-action' && det) {
+                    name = det;
+                    det = null;
+                } else if (label === 'controller-setup' && det) {
+                    name = 'setup (' + det + ')';
+                    det = null;
+                } else if (label === 'controller-setup') {
+                    name = 'setup';
+                }
+                break;
+
+            case 'io':
+                // "query → coreapi" → "→ coreapi"
+                name = label.replace(/^query\s*/, '');
+                break;
+
+            case 'template':
+                // "swig-compile" → "compile"
+                name = label.replace(/^swig-/, '');
+                break;
+
+            case 'response':
+                // "response-write" → "write", "stream-write" → "stream"
+                name = label.replace(/^response-/, '').replace(/^stream-/, '');
+                break;
+        }
+
+        return { name: name, detail: det };
+    }
+
+    function renderFlowRows(entries, t0, totalMs) {
+        var h = '';
+        for (var j = 0; j < entries.length; j++) {
+            var e = entries[j];
+            var dur = e.durationMs || ((e.endMs || e.startMs) - e.startMs);
+            var left = ((e.startMs - t0) / totalMs) * 100;
+            var width = (dur / totalMs) * 100;
+            if (width < 0.5) width = 0.5;
+
+            var catClass = e.cat ? ' bm-flow-cat-' + escHtml(e.cat) : '';
+            var catLabel = (e.cat && FLOW_CAT_LABELS[e.cat]) ? FLOW_CAT_LABELS[e.cat] : '';
+            var rowCatClass = e.cat ? ' bm-flow-is-' + escHtml(e.cat) : '';
+            var cleaned = cleanFlowLabel(e.label, e.cat, e.detail);
+            var tooltip = escHtml(e.label + ': ' + fmtMs(dur) + (e.detail ? ' \u2014 ' + e.detail : ''));
+
+            h += '<div class="bm-flow-row' + rowCatClass + '">';
+            h += '<div class="bm-flow-label" title="' + tooltip + '">';
+            h += '<span class="bm-flow-badge">';
+            if (catLabel) {
+                h += '<span class="bm-flow-badge-cat' + catClass + '">' + escHtml(catLabel) + '</span>';
+            }
+            h += '<span class="bm-flow-badge-name' + catClass + '">' + escHtml(cleaned.name) + '</span>';
+            h += '</span>';
+            if (cleaned.detail) {
+                h += '<span class="bm-flow-label-detail">' + escHtml(cleaned.detail) + '</span>';
+            }
+            h += '</div>';
+            h += '<div class="bm-flow-track-wrap">';
+            h += '<span class="bm-flow-track">';
+            h += '<span class="bm-flow-bar' + catClass + '" style="left:'
+                + left.toFixed(2) + '%;width:' + width.toFixed(2) + '%" title="' + tooltip + '">';
+            if (width > 8) {
+                h += '<span class="bm-flow-dur">' + fmtMs(dur) + '</span>';
+            }
+            h += '</span></span>';
+            h += '</div>';
+            h += '<span class="bm-flow-time">' + fmtMs(dur) + '</span>';
+            h += '</div>';
+        }
+        return h;
+    }
+
+    /**
+     * Read the client document transfer time from the opener window's
+     * Navigation Timing API. Transfer time = `responseEnd` (time from
+     * navigation start to last byte of the document received). Used for
+     * the progress bar that shows server processing as a proportion of
+     * total transfer time.
+     *
+     * @inner
+     * @returns {number|null} Document transfer time in ms, or null
+     */
+    function getClientTransferMs() {
+        try {
+            var win = (source && source !== 'localStorage') ? source : null;
+            if (!win || !win.performance) return null;
+            var perf = win.performance;
+            if (!perf.getEntriesByType) return null;
+            var nav = perf.getEntriesByType('navigation');
+            if (!nav || nav.length === 0) return null;
+            var n = nav[0];
+            if (n.responseEnd > 0) return Math.round(n.responseEnd);
+            return null;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    /**
+     * Render the Flow tab — a horizontal waterfall/timeline chart showing
+     * the HTTP request lifecycle phases with per-step timing.
+     *
+     * When client transfer time is available (from `window.opener.performance`),
+     * a compact progress bar in the controls bar shows server processing time
+     * as a proportion of total document transfer time.
+     *
+     * @inner
+     * @param {Object} timeline - Timeline data from `__ginaData.user.flow`
+     * @param {number} timeline.requestStart - Epoch ms of request arrival
+     * @param {Array<Object>} timeline.entries - Array of timing entries
+     * @returns {string} HTML string
+     *
+     * @example
+     *   renderFlowContent({ requestStart: 1712345678901, entries: [
+     *       { label: 'route-match', cat: 'routing', startMs: 1712345678901, endMs: 1712345678903, durationMs: 2 }
+     *   ] })
+     */
+    function renderFlowContent(timeline) {
+        var totalEl = qs('#bm-flow-total');
+        var progressWrap = qs('#bm-flow-progress-wrap');
+
+        if (!timeline || !timeline.entries || timeline.entries.length === 0) {
+            if (totalEl) { totalEl.className = 'bm-flow-total'; totalEl.innerHTML = ''; }
+            if (progressWrap) progressWrap.innerHTML = '';
+            return '<span class="bm-hint">No timeline data for this request.</span>';
+        }
+
+        var t0 = timeline.requestStart;
+        var entries = timeline.entries.slice().sort(function (a, b) {
+            return a.startMs - b.startMs;
+        });
+        var maxEnd = t0;
+        for (var i = 0; i < entries.length; i++) {
+            var end = entries[i].endMs || (entries[i].startMs + (entries[i].durationMs || 0));
+            if (end > maxEnd) maxEnd = end;
+        }
+        var serverTotalMs = maxEnd - t0;
+        if (serverTotalMs <= 0) serverTotalMs = 1;
+
+        // ── Dual badge for total time (same pattern as Query tab) ──────
+        if (totalEl) {
+            totalEl.className = 'bm-flow-total bm-vbadge bm-stat-' + durationClass(serverTotalMs);
+            totalEl.innerHTML = _svgClock + fmtMs(serverTotalMs);
+            totalEl.setAttribute('data-tooltip', durationTooltip(serverTotalMs));
+        }
+
+        // ── Progress bar: server time as proportion of client transfer ──
+        if (progressWrap) {
+            var clientMs = getClientTransferMs();
+            if (clientMs && clientMs > 0) {
+                var pct = Math.min((serverTotalMs / clientMs) * 100, 100);
+                var ph = '<span class="bm-flow-progress">';
+                ph += '<span class="bm-flow-progress-track">';
+                ph += '<span class="bm-flow-progress-fill" style="width:' + pct.toFixed(1) + '%"></span>';
+                ph += '</span>';
+                ph += '<span class="bm-flow-progress-pct">' + pct.toFixed(0) + '%</span>';
+                ph += '<span class="bm-flow-progress-text">of <span class="bm-flow-progress-val">' + fmtMs(clientMs) + '</span> transfer</span>';
+                ph += '</span>';
+                progressWrap.innerHTML = ph;
+            } else {
+                progressWrap.innerHTML = '';
+            }
+        }
+
+        // Filter out 'total' entries — the total is already shown in the badge;
+        // keeping it in the waterfall adds a redundant full-width bar and
+        // confuses insertFlowGaps (a span from t0 to tEnd masks every gap).
+        var filtered = [];
+        for (var fi = 0; fi < entries.length; fi++) {
+            if (entries[fi].cat !== 'total') filtered.push(entries[fi]);
+        }
+        var withGaps = insertFlowGaps(filtered, t0, maxEnd);
+
+        var h = '<div class="bm-flow-waterfall">';
+        h += renderFlowScale(serverTotalMs);
+        h += renderFlowRows(withGaps, t0, serverTotalMs);
+        h += '</div>';
 
         return h;
     }
@@ -1996,6 +2722,12 @@
                 memRow.style.display = 'flex';
             }
         }
+
+        // Footer version
+        var verEl = qs('#bm-footer-version');
+        if (verEl && env['gina']) {
+            verEl.innerHTML = '<span class="bm-footer-brand">Gina</span> v' + env['gina'].replace(/</g, '&lt;');
+        }
     }
 
     /**
@@ -2015,7 +2747,15 @@
     function pollData() {
         try {
             var gd;
-            if (source === 'localStorage') {
+            if (source === 'agent') {
+                // Agent mode — data is pushed via SSE; nothing to poll.
+                // When called manually (refresh button), re-render from cache.
+                if (ginaData) {
+                    var tab = activeTab();
+                    if (tab !== 'logs') renderTab(tab);
+                }
+                return;
+            } else if (source === 'localStorage') {
                 var raw = localStorage.getItem('__ginaData');
                 if (!raw) return;
                 gd = JSON.parse(raw);
@@ -2039,6 +2779,17 @@
             var env = (gd.user && gd.user.environment) || {};
             qs('#bm-label').textContent = (env.bundle || '?') + '@' + (env.env || '?');
             qs('#bm-dot').className = 'bm-dot ok';
+            // Update window title with the inspected page URL
+            try {
+                var _pageUrl = (source && source !== 'localStorage' && source.location)
+                    ? source.location.pathname + source.location.search
+                    : null;
+                document.title = _pageUrl
+                    ? 'Inspector — ' + _pageUrl
+                    : 'Inspector — ' + (env.bundle || '?') + '@' + (env.env || '?');
+            } catch (e) {
+                document.title = 'Inspector — ' + (env.bundle || '?') + '@' + (env.env || '?');
+            }
             qs('#bm-no-source').classList.add('hidden');
             renderEnvironmentInfo();
             var tab = activeTab();
@@ -2050,6 +2801,16 @@
                 var _qd = _hasXhr && _u['data-xhr'] && _u['data-xhr'].queries
                     ? _u['data-xhr'].queries : _u.queries;
                 updateQueryToolbar(_qd || null);
+            }
+            // Always update view dot regardless of active tab
+            if (tab !== 'view') {
+                var _u2 = gd.user || {};
+                var _isXhr2 = typeof _u2['view-xhr'] !== 'undefined';
+                var _vm = getPageMetrics(_isXhr2);
+                var _dxhr = typeof _u2['data-xhr'] !== 'undefined';
+                var _vq = _dxhr && _u2['data-xhr'] && _u2['data-xhr'].queries
+                    ? _u2['data-xhr'].queries : _u2.queries;
+                updateViewDot(checkPerfAnomalies(_vm, _vq || []));
             }
             hideLoader();
         } catch (e) {
@@ -2437,6 +3198,107 @@
         } catch (e) {}
     }
 
+    // ── Remote data source via /_gina/agent SSE ─────────────────────────
+
+    /**
+     * Attempt to connect to a remote bundle via the `/_gina/agent` SSE endpoint.
+     * Activated when the Inspector is opened with a `?target=` query parameter
+     * (e.g. `http://localhost:4101/inspector/?target=http://localhost:3100`).
+     *
+     * When connected, this is the sole data and log source — opener polling,
+     * localStorage fallback, `tryServerLogs()`, and `pollLogs()` are all skipped.
+     *
+     * The endpoint uses named SSE events:
+     *   - `event: data` — full `__ginaData` payload (same shape as `window.__ginaData`)
+     *   - `event: log`  — single log entry `{ t, l, b, s, src }`
+     *
+     * @inner
+     * @returns {boolean} `true` if a `target` param was found and connection initiated
+     */
+    function tryAgent() {
+        if (typeof EventSource === 'undefined') return false;
+
+        var params = new URLSearchParams(window.location.search);
+        var target = params.get('target');
+        if (!target) return false;
+
+        // Normalise: strip trailing slash
+        target = target.replace(/\/+$/, '');
+        var url = target + '/_gina/agent';
+
+        source = 'agent';
+        qs('#bm-dot').className = 'bm-dot warn';
+        qs('#bm-label').textContent = 'Connecting\u2026';
+
+        try {
+            var es = new EventSource(url);
+
+            es.addEventListener('data', function (ev) {
+                try {
+                    var gd = JSON.parse(ev.data);
+                    if (!gd) return;
+                    var str = JSON.stringify(gd);
+                    if (str === lastGdStr) return;
+                    showLoader();
+                    lastGdStr = str;
+                    ginaData = gd;
+                    var env = (gd.user && gd.user.environment) || {};
+                    qs('#bm-label').textContent = (env.bundle || '?') + '@' + (env.env || '?');
+                    qs('#bm-dot').className = 'bm-dot ok';
+                    document.title = 'Inspector — ' + (env.bundle || '?') + '@' + (env.env || '?');
+                    qs('#bm-no-source').classList.add('hidden');
+                    renderEnvironmentInfo();
+                    var tab = activeTab();
+                    if (tab !== 'logs') renderTab(tab);
+                    if (tab !== 'query') {
+                        var _u = gd.user || {};
+                        var _hasXhr = typeof _u['data-xhr'] !== 'undefined';
+                        var _qd = _hasXhr && _u['data-xhr'] && _u['data-xhr'].queries
+                            ? _u['data-xhr'].queries : _u.queries;
+                        updateQueryToolbar(_qd || null);
+                    }
+                    if (tab !== 'view') {
+                        var _u2 = gd.user || {};
+                        var _isXhr2 = typeof _u2['view-xhr'] !== 'undefined';
+                        var _vm = getPageMetrics(_isXhr2);
+                        var _dxhr = typeof _u2['data-xhr'] !== 'undefined';
+                        var _vq = _dxhr && _u2['data-xhr'] && _u2['data-xhr'].queries
+                            ? _u2['data-xhr'].queries : _u2.queries;
+                        updateViewDot(checkPerfAnomalies(_vm, _vq || []));
+                    }
+                    hideLoader();
+                } catch (e) {}
+            });
+
+            es.addEventListener('log', function (ev) {
+                if (paused) return;
+                try {
+                    var entry = JSON.parse(ev.data);
+                    entry._id = ++_logIdCounter;
+                    logs.push(entry);
+                    if (logs.length > MAX_LOG_ENTRIES) logs.shift();
+                    updateLogDot([entry]);
+                    scheduleRender();
+                } catch (e) {}
+            });
+
+            es.addEventListener('open', function () {
+                qs('#bm-dot').className = 'bm-dot ok';
+                // Label stays as "Connecting…" until the first data event updates it
+            });
+
+            es.onerror = function () {
+                // EventSource reconnects automatically.
+                // Show warning state while disconnected.
+                qs('#bm-dot').className = 'bm-dot warn';
+            };
+        } catch (e) {
+            return false;
+        }
+
+        return true;
+    }
+
     // ── Copy to clipboard ──────────────────────────────────────────────────
 
     /**
@@ -2496,7 +3358,18 @@
             } catch (e) {}
             toggle.addEventListener('click', function () {
                 panel.classList.toggle('hidden');
-                try { localStorage.setItem(SETTINGS_STORAGE_KEY, String(!panel.classList.contains('hidden'))); } catch (e) {}
+                var isOpen = !panel.classList.contains('hidden');
+                try { localStorage.setItem(SETTINGS_STORAGE_KEY, String(isOpen)); } catch (e) {}
+                // Sync drag-mode: only allow tab dragging when settings is open + custom layout
+                var nav = qs('.bm-tabs');
+                if (nav) {
+                    var activeLayout = qs('.bm-layout-btn.active');
+                    if (isOpen && activeLayout && activeLayout.dataset.layout === 'custom') {
+                        nav.classList.add('bm-drag-mode');
+                    } else {
+                        nav.classList.remove('bm-drag-mode');
+                    }
+                }
             });
         }
 
@@ -2536,6 +3409,142 @@
                 var tab = activeTab();
                 if (tab !== 'logs') renderTab(tab);
             });
+        }
+
+        // Tab layout segmented control — restore persisted layout, wire click
+        var layoutBtns = qsa('.bm-layout-btn');
+        if (layoutBtns.length) {
+            var savedLayout = null;
+            try { savedLayout = localStorage.getItem(TAB_LAYOUT_KEY); } catch (e) {}
+            var isValidPreset = savedLayout && (TAB_LAYOUTS[savedLayout] || savedLayout === 'custom');
+            var initialLayout = isValidPreset ? savedLayout : 'balanced';
+            // Activate the matching button and apply
+            layoutBtns.forEach(function (btn) {
+                btn.classList.toggle('active', btn.dataset.layout === initialLayout);
+            });
+            applyTabLayout(initialLayout);
+            renderLayoutPreview(initialLayout);
+
+            layoutBtns.forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    var layout = this.dataset.layout;
+                    layoutBtns.forEach(function (b) { b.classList.toggle('active', b === btn); });
+                    if (layout === 'custom' && !getCustomOrder()) {
+                        // First time entering custom mode — snapshot current order
+                        saveCustomOrder();
+                    }
+                    applyTabLayout(layout);
+                    renderLayoutPreview(layout);
+                    try { localStorage.setItem(TAB_LAYOUT_KEY, layout); } catch (e) {}
+                });
+            });
+        }
+
+        // ── Tab drag-to-reorder (custom layout mode) ──────────────────────
+        setupTabDrag();
+    }
+
+    /**
+     * Wire mousedown/mousemove/mouseup on `.bm-tab` buttons to allow
+     * drag-to-reorder when the nav bar has `.bm-drag-mode`.
+     *
+     * Drag is started on mousedown + mousemove (> 4px threshold to avoid
+     * accidental drags on plain clicks).  The dragged tab follows the cursor
+     * via opacity feedback and a drop-indicator line appears between potential
+     * drop targets.  On mouseup the tab is moved in the DOM and the new order
+     * is persisted to localStorage.
+     *
+     * @inner
+     */
+    function setupTabDrag() {
+        var nav = qs('.bm-tabs');
+        if (!nav) return;
+
+        var _dragTab = null;
+        var _dragStartX = 0;
+        var _dragging = false;
+        var _dropTarget = null;
+
+        nav.addEventListener('mousedown', function (e) {
+            if (!nav.classList.contains('bm-drag-mode')) return;
+            var tab = e.target.closest('.bm-tab');
+            if (!tab) return;
+            e.preventDefault();
+            _dragTab = tab;
+            _dragStartX = e.clientX;
+            _dragging = false;
+            _dropTarget = null;
+        });
+
+        document.addEventListener('mousemove', function (e) {
+            if (!_dragTab) return;
+            if (!_dragging) {
+                // Start dragging only after a 4px threshold
+                if (Math.abs(e.clientX - _dragStartX) < 4) return;
+                _dragging = true;
+                _dragTab.classList.add('bm-tab-dragging');
+            }
+            // Find the drop target
+            clearDropIndicators();
+            var tabs = nav.querySelectorAll('.bm-tab');
+            var best = null;
+            var bestDist = Infinity;
+            for (var i = 0; i < tabs.length; i++) {
+                if (tabs[i] === _dragTab) continue;
+                var rect = tabs[i].getBoundingClientRect();
+                var center = rect.left + rect.width / 2;
+                var dist = Math.abs(e.clientX - center);
+                if (dist < bestDist) {
+                    bestDist = dist;
+                    best = tabs[i];
+                }
+            }
+            if (best) {
+                var bestRect = best.getBoundingClientRect();
+                // Drop before or after depending on cursor position
+                if (e.clientX < bestRect.left + bestRect.width / 2) {
+                    best.classList.add('bm-tab-drop-before');
+                    _dropTarget = { ref: best, pos: 'before' };
+                } else {
+                    // Show indicator on the next sibling if any
+                    var next = best.nextElementSibling;
+                    if (next && next.classList.contains('bm-tab')) {
+                        next.classList.add('bm-tab-drop-before');
+                    }
+                    _dropTarget = { ref: best, pos: 'after' };
+                }
+            }
+        });
+
+        document.addEventListener('mouseup', function () {
+            if (!_dragTab) return;
+            clearDropIndicators();
+            _dragTab.classList.remove('bm-tab-dragging');
+            if (_dragging && _dropTarget) {
+                if (_dropTarget.pos === 'before') {
+                    nav.insertBefore(_dragTab, _dropTarget.ref);
+                } else {
+                    // Insert after _dropTarget.ref
+                    var after = _dropTarget.ref.nextSibling;
+                    nav.insertBefore(_dragTab, after);
+                }
+                saveCustomOrder();
+                renderLayoutPreview('custom');
+            }
+            _dragTab = null;
+            _dragging = false;
+            _dropTarget = null;
+        });
+
+        /**
+         * Clear all drop indicator classes from tab buttons.
+         * @inner
+         */
+        function clearDropIndicators() {
+            var tabs = nav.querySelectorAll('.bm-tab');
+            for (var i = 0; i < tabs.length; i++) {
+                tabs[i].classList.remove('bm-tab-drop-before');
+            }
         }
     }
 
@@ -2581,6 +3590,57 @@
                 document.body.style.userSelect = '';
                 try {
                     localStorage.setItem(ENV_HEIGHT_STORAGE_KEY, parseInt(wrap.style.maxHeight, 10));
+                } catch (e) {}
+            }
+        });
+    }
+
+    /**
+     * Set up drag-to-resize on the Flow tab label column.
+     * A vertical handle between the label and the waterfall track lets
+     * the user widen or narrow the left panel. Width is persisted in
+     * localStorage across sessions.
+     * @inner
+     */
+    function setupFlowResize() {
+        var handle = qs('#bm-flow-resize');
+        if (!handle) return;
+
+        // Restore saved width
+        try {
+            var savedW = localStorage.getItem(FLOW_LABEL_WIDTH_KEY);
+            if (savedW) {
+                document.documentElement.style.setProperty('--flow-label-w', savedW + 'px');
+            }
+        } catch (e) {}
+
+        var startX = 0, startW = 0, dragging = false;
+
+        handle.addEventListener('mousedown', function (e) {
+            e.preventDefault();
+            startX = e.clientX;
+            // Read current computed width of the first label
+            var firstLabel = qs('.bm-flow-label');
+            startW = firstLabel ? firstLabel.offsetWidth : 280;
+            dragging = true;
+            document.body.style.cursor = 'ew-resize';
+            document.body.style.userSelect = 'none';
+        });
+
+        document.addEventListener('mousemove', function (e) {
+            if (!dragging) return;
+            var newW = Math.max(120, Math.min(500, startW + (e.clientX - startX)));
+            document.documentElement.style.setProperty('--flow-label-w', newW + 'px');
+        });
+
+        document.addEventListener('mouseup', function () {
+            if (dragging) {
+                dragging = false;
+                document.body.style.cursor = '';
+                document.body.style.userSelect = '';
+                try {
+                    var cur = getComputedStyle(document.documentElement).getPropertyValue('--flow-label-w');
+                    localStorage.setItem(FLOW_LABEL_WIDTH_KEY, parseInt(cur, 10));
                 } catch (e) {}
             }
         });
@@ -2922,34 +3982,63 @@
             }
         }
 
+        // Restore persisted query filter state
+        try {
+            var _savedLang = localStorage.getItem(QUERY_LANG_KEY);
+            var _savedConn = localStorage.getItem(QUERY_CONNECTOR_KEY);
+            var _savedBundle = localStorage.getItem(QUERY_BUNDLE_KEY);
+            if (_savedLang) _queryFilterLang = _savedLang;
+            if (_savedConn) _queryFilterConnector = _savedConn;
+            if (_savedBundle) _queryFilterBundle = _savedBundle;
+        } catch (e) {}
+
         var querySearchEl = qs('#bm-query-search');
         if (querySearchEl) {
             querySearchEl.addEventListener('input', function () {
                 _querySearchTxt = this.value || '';
-                rerenderQueries();
+                _queryShowAll = false;
+                if (_querySearchTimer) clearTimeout(_querySearchTimer);
+                _querySearchTimer = setTimeout(function () { rerenderQueries(); }, 200);
             });
         }
         var queryLangEl = qs('#bm-query-lang');
         if (queryLangEl) {
+            if (_queryFilterLang) queryLangEl.value = _queryFilterLang;
             queryLangEl.addEventListener('change', function () {
                 _queryFilterLang = this.value;
+                _queryShowAll = false;
+                try { localStorage.setItem(QUERY_LANG_KEY, this.value); } catch (e) {}
                 rerenderQueries();
             });
         }
         var queryConnEl = qs('#bm-query-connector');
         if (queryConnEl) {
+            if (_queryFilterConnector) queryConnEl.value = _queryFilterConnector;
             queryConnEl.addEventListener('change', function () {
                 _queryFilterConnector = this.value;
+                _queryShowAll = false;
+                try { localStorage.setItem(QUERY_CONNECTOR_KEY, this.value); } catch (e) {}
                 rerenderQueries();
             });
         }
         var queryBundleEl = qs('#bm-query-bundle');
         if (queryBundleEl) {
+            if (_queryFilterBundle) queryBundleEl.value = _queryFilterBundle;
             queryBundleEl.addEventListener('change', function () {
                 _queryFilterBundle = this.value;
+                _queryShowAll = false;
+                try { localStorage.setItem(QUERY_BUNDLE_KEY, this.value); } catch (e) {}
                 rerenderQueries();
             });
         }
+
+        // "Show all" button — delegated click handler for query pagination
+        document.addEventListener('click', function (e) {
+            if (e.target.classList.contains('bm-query-show-all')) {
+                _queryShowAll = true;
+                rerenderQueries();
+            }
+        });
 
         // Query copy-compiled-query — delegated click handler
         document.addEventListener('click', function (e) {
@@ -2963,20 +4052,102 @@
             });
         });
 
+        // Index badge copy — delegated click handler
+        document.addEventListener('click', function (e) {
+            var badge = e.target.closest('.bm-idx-copy');
+            if (!badge) return;
+            var name = badge.getAttribute('data-idx-name');
+            if (!name) return;
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(name).catch(function () { fallbackCopy(name); });
+            } else {
+                fallbackCopy(name);
+            }
+            badge.classList.add('copied');
+            setTimeout(function () { badge.classList.remove('copied'); }, 900);
+        });
+
+        // Banner anchor click — smooth scroll + highlight on query card
+        document.addEventListener('click', function (e) {
+            var link = e.target.closest('.bm-idx-banner-link') || e.target.closest('.bm-perf-banner-link');
+            if (!link) return;
+            e.preventDefault();
+            var targetId = link.getAttribute('href');
+            if (!targetId) return;
+            var card = qs(targetId);
+            if (!card) return;
+            var hlClass = link.classList.contains('bm-perf-banner-link') ? 'bm-perf-highlight' : 'bm-idx-highlight';
+            card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            card.classList.add(hlClass);
+            setTimeout(function () { card.classList.remove(hlClass); }, 2000);
+        });
+
         setupSettings();
         setupEnvResize();
+        setupFlowResize();
         setupScrollToTop();
 
-        var ok = tryOpener() || tryLocalStorage();
-        if (!ok) {
-            hideLoader();
-            qs('#bm-no-source').classList.remove('hidden');
-            qs('#bm-dot').className = 'bm-dot err';
-            qs('#bm-label').textContent = 'No source';
+        // ── Refresh button — force immediate re-poll ────────────────────────
+        var refreshBtn = qs('#bm-refresh');
+        if (refreshBtn) {
+            refreshBtn.addEventListener('click', function () {
+                lastGdStr = '';
+                refreshBtn.classList.add('spinning');
+                pollData();
+                refreshBtn.addEventListener('animationend', function onEnd() {
+                    refreshBtn.classList.remove('spinning');
+                    refreshBtn.removeEventListener('animationend', onEnd);
+                }, { once: true });
+            });
         }
 
-        tryEngineIO();
-        tryServerLogs();
+        // ── Data source acquisition ────────────────────────────────────────
+        // Agent mode (?target= param) is the highest-priority source — it
+        // provides both data and logs via a single SSE stream.  When active,
+        // opener/localStorage polling and tryServerLogs() are unnecessary.
+        var isAgent = tryAgent();
+
+        if (!isAgent) {
+            var ok = tryOpener() || tryLocalStorage();
+            if (!ok) {
+                hideLoader();
+                qs('#bm-no-source').classList.remove('hidden');
+                qs('#bm-dot').className = 'bm-dot err';
+                qs('#bm-label').textContent = 'No source';
+            }
+
+            /**
+             * Manual connect form on the "No source" overlay.
+             *
+             * When the Inspector opens without a `?target=` param and without
+             * `window.opener`, a form is shown allowing the user to type a
+             * bundle URL.  On submit the page reloads with `?target=<url>`,
+             * which activates `tryAgent()` and connects via SSE.
+             *
+             * The handler auto-prefixes `http://` when no scheme is provided
+             * and strips trailing slashes before encoding the target.
+             *
+             * @inner
+             */
+            var connectForm = qs('#bm-connect-form');
+            if (connectForm) {
+                connectForm.addEventListener('submit', function (ev) {
+                    ev.preventDefault();
+                    var urlInput = qs('#bm-connect-url');
+                    var raw = (urlInput.value || '').trim();
+                    if (!raw) return;
+                    // Normalise: add scheme if missing, strip trailing slash
+                    if (!/^https?:\/\//i.test(raw)) raw = 'http://' + raw;
+                    raw = raw.replace(/\/+$/, '');
+                    // Navigate with ?target= to activate agent mode
+                    var loc = window.location.pathname + '?target=' + encodeURIComponent(raw);
+                    window.location.href = loc;
+                });
+            }
+
+            tryEngineIO();
+            tryServerLogs();
+        }
 
         // ── Persist window geometry on resize/move ──────────────────────────
         var _geoTimer = null;
@@ -2997,10 +4168,14 @@
         window.addEventListener('resize', debouncedSaveGeometry);
         window.addEventListener('beforeunload', saveGeometry);
 
-        pollDataTimer = setInterval(pollData, pollDataMs);
-        setInterval(pollLogs, POLL_LOGS_MS);
-
-        pollData();
+        // In agent mode, data arrives via SSE push — no polling needed.
+        // pollData() still runs on the timer as a no-op (source === 'agent'
+        // early-returns) so the refresh button works for manual re-renders.
+        if (!isAgent) {
+            pollDataTimer = setInterval(pollData, pollDataMs);
+            setInterval(pollLogs, POLL_LOGS_MS);
+            pollData();
+        }
     }
 
     if (document.readyState === 'loading') {
