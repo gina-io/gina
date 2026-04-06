@@ -416,7 +416,8 @@ gina bundle:restart <bundle> @<project> # Restart a bundle
 gina project:start @<project> --env=dev # Start all bundles in a project
 gina project:stop @<project>            # Stop all bundles in a project
 gina project:restart @<project>         # Restart all bundles in a project
-gina bundle:add <bundle> @<project>     # Scaffold a new bundle
+gina bundle:add <bundle> @<project>     # Scaffold a new bundle (overwrites existing src)
+gina bundle:add <bundle> @<project> --import  # Register existing bundle (preserves src)
 gina bundle:remove <bundle> @<project>  # Remove a bundle
 gina bundle:list @<project>             # List bundles
 gina view:add <bundle> @<project>       # Add HTML templates to a bundle

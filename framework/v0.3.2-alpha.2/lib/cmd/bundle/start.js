@@ -266,6 +266,16 @@ function Start(opt, cmd) {
 
         var bundle = (isBulkStart) ? self.bundles[bundleIndex] : self.name;
         // terminal.debug('bundle -> ', bundle);
+
+        var msg = null;
+        if ( !isBulkStart && !isDefined('bundle', bundle) ) {
+            msg = 'Bundle [ '+ bundle +' ] is not registered inside `@'+ self.projectName +'`.\nDid you run `gina bundle:add '+ bundle +' @'+ self.projectName +'` first?';
+            terminal.error(msg);
+
+            opt.msg = msg;
+            return end(opt, cmd, isBulkStart, bundleIndex, true)
+        }
+
         var env = ( typeof(self.bundlesByProject[self.projectName][bundle].def_env) != 'undefined') ? self.bundlesByProject[self.projectName][bundle].def_env : self.defaultEnv;
         var scope = ( typeof(self.bundlesByProject[self.projectName][bundle].def_scope) != 'undefined') ? self.bundlesByProject[self.projectName][bundle].def_scpoe : self.defaultScope;
         // terminal.debug('env -> ', env);
@@ -275,18 +285,6 @@ function Start(opt, cmd) {
         // terminal.debug('scheme -> ', scheme);
         var bundlePort = self.portsReverseData[bundle + '@' + self.projectName][env][protocol][scheme];
         // terminal.debug('port -> ', bundlePort);
-
-        var msg = null;
-        if ( !isBulkStart && !isDefined('bundle', bundle) ) {
-            msg = 'Bundle [ '+ bundle +' ] is not registered inside `@'+ self.projectName +'`';
-            terminal.error(msg);
-            // opt.client.write(msg);
-            // // CMD exit
-            // opt.client.emit('end');
-
-            opt.msg = msg;
-            return end(opt, cmd, isBulkStart, bundleIndex, true)
-        }
 
         var isStarting  = false
             , params    = null
