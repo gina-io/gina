@@ -28,6 +28,106 @@ function Couchbase(conn, infos) {
     var scopeIsProduction   = ( /^true$/i.test(process.env.NODE_SCOPE_IS_PRODUCTION) ) ? true : false;
 
     /**
+     * Walk a Couchbase N1QL query plan tree and extract index names.
+     * Accepts either a `meta.profile` object (with `executionTimings`) or
+     * a bare EXPLAIN plan object (the first row of an EXPLAIN result).
+     *
+     * Detects three operator types:
+     * - `IndexScan3` — secondary index access (green badge)
+     * - `PrimaryScan3` — primary index scan (amber badge)
+     * - `ExpressionScan` / `KeyScan` — USE KEYS direct KV lookup (green badge,
+     *   reported as "KV lookup (USE KEYS)")
+     *
+     * @inner
+     * @param {object} profile - The plan object (meta.profile or EXPLAIN row)
+     * @returns {Array<{name: string, primary: boolean}>|null} Array of index descriptors,
+     *          empty array if no indexes found in the plan, or null if profile is unavailable
+     */
+    var extractIndexes = function(profile) {
+        if (!profile || typeof(profile) !== 'object') return null;
+        var root = profile.executionTimings || profile;
+        if (!root || typeof(root) !== 'object') return null;
+
+        var results = [];
+        var seen = {};
+        var walk = function(node) {
+            if (!node || typeof(node) !== 'object') return;
+            var op = node['#operator'];
+            if (op) {
+                // IndexScan3 / PrimaryScan3 — standard index access
+                if (typeof(node.index) === 'string' && !seen[node.index]) {
+                    seen[node.index] = true;
+                    results.push({
+                        name    : node.index,
+                        primary : /Primary/i.test(op)
+                    });
+                }
+                // ExpressionScan / KeyScan — USE KEYS direct KV lookup (no index needed)
+                if (/ExpressionScan|KeyScan/i.test(op) && !seen['__kv_lookup']) {
+                    seen['__kv_lookup'] = true;
+                    results.push({
+                        name    : 'KV lookup (USE KEYS)',
+                        primary : false
+                    });
+                }
+            }
+            if (node['~child'])    walk(node['~child']);
+            if (node['~children'] && Array.isArray(node['~children'])) {
+                for (var i = 0; i < node['~children'].length; i++) {
+                    walk(node['~children'][i]);
+                }
+            }
+        };
+        walk(root);
+        return results;
+    };
+
+    /**
+     * Per-statement EXPLAIN cache for dev-mode index extraction.
+     * Keyed by the N1QL statement string. Each entry holds the
+     * extracted indexes array (or null on EXPLAIN failure).
+     * Populated lazily — first query triggers the EXPLAIN, subsequent
+     * queries with the same statement reuse the cached result.
+     * @type {Map<string, Array<{name: string, primary: boolean}>|null>}
+     * @private
+     */
+    var _explainCache = new Map();
+
+    /**
+     * Runs EXPLAIN on a N1QL statement asynchronously and caches the
+     * extracted indexes. Patches `queryEntry.indexes` in-place once
+     * the EXPLAIN result is available.
+     *
+     * @param {object} conn - The Couchbase connection object (with `_cluster`)
+     * @param {string} statement - The original N1QL statement (without EXPLAIN prefix)
+     * @param {object} queryEntry - The QI entry to patch with index info
+     * @param {object} queryOptions - Query options (for parameters)
+     * @private
+     */
+    var explainForIndexes = function(conn, statement, queryEntry, queryOptions) {
+        // Mark as pending so we don't fire multiple EXPLAINs for the same statement
+        _explainCache.set(statement, null);
+
+        var explainOpts = {
+            adhoc: true,
+            parameters: queryOptions.parameters || []
+        };
+
+        conn._cluster.query('EXPLAIN ' + statement, explainOpts)
+            .then(function(data) {
+                var plan = (data && data.rows && data.rows[0]) ? data.rows[0].plan || data.rows[0] : null;
+                var indexes = extractIndexes(plan);
+                _explainCache.set(statement, indexes);
+                // Patch the current query entry in-place (it's already in _devLog)
+                queryEntry.indexes = indexes;
+            })
+            .catch(function() {
+                // EXPLAIN failed — leave indexes as null (N/A badge)
+                _explainCache.set(statement, null);
+            });
+    };
+
+    /**
      * Init
      * @constructor
      * */
@@ -515,6 +615,15 @@ function Couchbase(conn, infos) {
                         adhoc: false
                     };
 
+                    // #QI — enable query profiling in dev mode so extractIndexes() can read meta.profile.
+                    // Note: SDK v4 C++ binding does not surface meta.profile — the EXPLAIN
+                    // fallback in onQueryCallback handles index extraction instead. The
+                    // profile option is kept so that future SDK versions that fix the
+                    // binding will work via the fast path without code changes.
+                    if (envIsDev && sdkVersion > 2) {
+                        queryOptions.profile = 'timings';
+                    }
+
                     // NOT_BOUNDED, but REQUEST_PLUS should be set for SELECT operation following an INSERT or an UPDATE
                     // starting from SDK v3
                     var userConsistencyOpt = null;
@@ -677,6 +786,7 @@ function Couchbase(conn, infos) {
                                 durationMs  : 0,
                                 resultCount : 0,
                                 resultSize  : 0,
+                                indexes     : null,
                                 error       : null,
                                 source      : source || '',
                                 origin      : infos.bundle,
@@ -690,15 +800,29 @@ function Couchbase(conn, infos) {
 
 
                     var onQueryCallback = function(err, data, meta) {
-                        // #QI — finalize query entry timing
+                        // #QI — finalize query entry timing and index extraction
                         if (_queryEntry) {
                             _queryEntry.durationMs = Date.now() - _queryEntry._startMs;
-                            delete _queryEntry._startMs;
+                            // _startMs is kept for the Flow tab timeline (#FI)
                             if (err) {
                                 _queryEntry.error = err.message || String(err);
                             } else {
                                 _queryEntry.resultCount = data ? (Array.isArray(data) ? data.length : 1) : 0;
                                 try { _queryEntry.resultSize = data ? JSON.stringify(data).length : 0; } catch(_e) { _queryEntry.resultSize = 0; }
+                            }
+                            // #QI — extract index usage from query profile or EXPLAIN cache
+                            if (meta && meta.profile) {
+                                // Fast path: SDK returned profile data (SDK v3 or future fix)
+                                _queryEntry.indexes = extractIndexes(meta.profile);
+                            } else if (sdkVersion > 2) {
+                                // Fallback: SDK C++ binding does not surface meta.profile.
+                                // Use cached EXPLAIN result or trigger one asynchronously.
+                                var _stmt = _queryEntry.statement;
+                                if (_explainCache.has(_stmt)) {
+                                    _queryEntry.indexes = _explainCache.get(_stmt);
+                                } else {
+                                    explainForIndexes(conn, _stmt, _queryEntry, queryOptions);
+                                }
                             }
                         }
 
@@ -842,7 +966,7 @@ function Couchbase(conn, infos) {
                                     return;
                                 }
 
-                                conn._cluster.query(query, queryParams)
+                                conn._cluster.query(query, queryOptions)
                                     .catch( function onError(err) {
                                         try {
                                             var error = new Error(err.cause.first_error_message);
@@ -884,7 +1008,7 @@ function Couchbase(conn, infos) {
                                     conn._cluster.restQuery(trigger, query, queryParams, onQueryCallback);
                                     return;
                                 }
-                                conn._cluster.query(query, queryParams)
+                                conn._cluster.query(query, queryOptions)
                                     .catch( function onError(err) {
                                         try {
                                             var error = new Error(err.cause.first_error_message);
@@ -1061,7 +1185,10 @@ function Couchbase(conn, infos) {
             var queryOptions = {
                 adhoc: true
             };
-
+            // #QI — enable query profiling in dev mode for index extraction
+            if (envIsDev && sdkVersion > 2) {
+                queryOptions.profile = 'timings';
+            }
 
             if ( typeof(options) != 'undefined' ) {
                 queryOptions = merge(options, queryOptions)
@@ -1135,6 +1262,7 @@ function Couchbase(conn, infos) {
                         durationMs  : 0,
                         resultCount : 0,
                         resultSize  : 0,
+                        indexes     : null,
                         error       : null,
                         source      : 'bulkInsert',
                         origin      : infos.bundle,
@@ -1155,7 +1283,7 @@ function Couchbase(conn, infos) {
                             // #QI — finalize bulkInsert query entry on error
                             if (_biQueryEntry) {
                                 _biQueryEntry.durationMs = Date.now() - _biQueryEntry._startMs;
-                                delete _biQueryEntry._startMs;
+                                // _startMs is kept for the Flow tab timeline (#FI)
                                 _biQueryEntry.error = err.message || String(err);
                             }
                             var error = new Error(err.cause.first_error_message);
@@ -1175,9 +1303,20 @@ function Couchbase(conn, infos) {
                             // #QI — finalize bulkInsert query entry on success
                             if (_biQueryEntry) {
                                 _biQueryEntry.durationMs = Date.now() - _biQueryEntry._startMs;
-                                delete _biQueryEntry._startMs;
+                                // _startMs is kept for the Flow tab timeline (#FI)
                                 _biQueryEntry.resultCount = _data ? (Array.isArray(_data) ? _data.length : 1) : 0;
                                 try { _biQueryEntry.resultSize = _data ? JSON.stringify(_data).length : 0; } catch(_e) { _biQueryEntry.resultSize = 0; }
+                                // #QI — extract index usage from query profile or EXPLAIN cache
+                                if (_meta && _meta.profile) {
+                                    _biQueryEntry.indexes = extractIndexes(_meta.profile);
+                                } else if (sdkVersion > 2) {
+                                    var _biStmt = _biQueryEntry.statement;
+                                    if (_explainCache.has(_biStmt)) {
+                                        _biQueryEntry.indexes = _explainCache.get(_biStmt);
+                                    } else {
+                                        explainForIndexes(conn, _biStmt, _biQueryEntry, queryOptions);
+                                    }
+                                }
                             }
 
                             if (!err && _meta && typeof(_meta.errors) != 'undefined' ) {

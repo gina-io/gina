@@ -9,7 +9,7 @@ function StoragePlugin(options) {
 
     var merge       = merge || require('lib/merge');;
     var Collection  = Collection || require('lib/collection');
-    var uuid        = uuid || require('vendor/uuid');
+    var uuid        = uuid || { v1: function() { return Date.now().toString(36) + '-' + crypto.randomUUID(); }, v4: function() { return crypto.randomUUID(); } };
     var dateFormat  = dateFormat || require('helpers/dateFormat');
 
 

@@ -324,9 +324,11 @@ function ServerEngineClass(options) {
             enablePush          : false
         };
         // #H3 — RST flood defense (CVE-2019-9514, CVE-2023-44487 rapid reset)
-        http2Options.maxSessionRejectedStreams = 100;
+        // #H7 — configurable via settings.json http2Options.maxSessionRejectedStreams (default 100)
+        http2Options.maxSessionRejectedStreams = _h2Opts.maxSessionRejectedStreams || 100;
         // #H3 — CONTINUATION flood defense (CVE-2024-27316, CVE-2024-27983)
-        http2Options.maxSessionInvalidFrames = 1000;
+        // #H7 — configurable via settings.json http2Options.maxSessionInvalidFrames (default 1000)
+        http2Options.maxSessionInvalidFrames = _h2Opts.maxSessionInvalidFrames || 1000;
         var http2   = require('http2');
         switch (options.scheme) {
             case 'http':
@@ -491,6 +493,10 @@ function ServerEngineClass(options) {
         server.on('request', (request, response) => {
 
             request.originalUrl = request.url;
+            // #FI — dev-mode request timeline for Inspector Flow tab
+            if (isCacheless) {
+                request._devTimeline = { requestStart: Date.now(), entries: [] };
+            }
             // From the original
 
             acceptEncodingArr = null;
@@ -692,6 +698,82 @@ function ServerEngineClass(options) {
 
                 console.info(request.method + ' [200] ' + request.url + ' (SSE)');
                 return; // keep the connection open
+            }
+
+            // ── Inspector agent — combined SSE at /_gina/agent in dev mode ──
+            if (
+                isCacheless
+                && request.method.toUpperCase() === 'GET'
+                && /\/_gina\/agent$/.test(request.url)
+            ) {
+                var _agAnsiRe = /\x1B\[\d+m/g;
+
+                var _agHeaders = {
+                    'content-type': 'text/event-stream; charset=utf-8',
+                    'cache-control': 'no-cache, no-store',
+                    'connection': 'keep-alive',
+                    'access-control-allow-origin': '*',
+                    'x-content-type-options': 'nosniff',
+                    'X-Powered-By': 'Gina/' + GINA_VERSION
+                };
+
+                var _agWrite, _agOnClose;
+
+                // HTTP/2
+                if (response.stream) {
+                    response.stream.respond({ ':status': 200, ..._agHeaders });
+                    _agWrite   = function(d) { try { response.stream.write(d); } catch(e){} };
+                    _agOnClose = function(fn) { response.stream.on('close', fn); };
+                } else {
+                    // HTTP/1.1
+                    response.writeHead(200, _agHeaders);
+                    _agWrite   = function(d) { try { response.write(d); } catch(e){} };
+                    _agOnClose = function(fn) { request.on('close', fn); };
+                }
+
+                _agWrite(':ok\n\n');
+
+                // Send current snapshot immediately if available
+                if (server._lastGinaData) {
+                    try {
+                        _agWrite('event: data\ndata: ' + JSON.stringify(server._lastGinaData) + '\n\n');
+                    } catch (e) {}
+                }
+
+                // Data updates — emitted by render-swig.js on every HTML render
+                var _agDataListener = function(payload) {
+                    try {
+                        _agWrite('event: data\ndata: ' + JSON.stringify(payload) + '\n\n');
+                    } catch (e) {}
+                };
+
+                // Log entries — same source as /_gina/logs
+                var _agLogListener = function(payload) {
+                    try {
+                        var entry = JSON.parse(payload);
+                        var level = entry.level === 'catch' ? 'log' : (entry.level || 'log');
+                        var msg   = (entry.content || '').replace(_agAnsiRe, '').replace(/\n$/, '');
+                        if (!msg) return;
+                        var evt = JSON.stringify({
+                            t: Date.now(),
+                            l: level,
+                            b: entry.group || '',
+                            s: msg,
+                            src: 'server'
+                        });
+                        _agWrite('event: log\ndata: ' + evt + '\n\n');
+                    } catch (e) {}
+                };
+
+                process.on('inspector#data', _agDataListener);
+                process.on('logger#default', _agLogListener);
+                _agOnClose(function() {
+                    process.removeListener('inspector#data', _agDataListener);
+                    process.removeListener('logger#default', _agLogListener);
+                });
+
+                console.info(request.method + ' [200] ' + request.url + ' (SSE agent)');
+                return;
             }
 
             // Proxy detection - Needs to be place after /_gina/health/*
@@ -1163,7 +1245,7 @@ function ServerEngineClass(options) {
                     if ( typeof(payload.session) != 'undefined' ) {
                         this.sessionId = payload.session.id;
                     }
-                    // Beemaster: respond to data pull request
+                    // Inspector: respond to data pull request
                     if ( payload.type === 'getGinaData' ) {
                         var _gd = server._lastGinaData;
                         if (_gd) {

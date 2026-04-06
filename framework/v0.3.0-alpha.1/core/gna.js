@@ -1129,7 +1129,7 @@ isBundleMounted(projects, bundlesPath, getContext('bundle'), function onBundleMo
                                 if ( typeof(instance.use) == 'function' ) {
 
                                     // catching unhandled errors
-                                    instance.use( function cathUnhandledErrorMiddlewar(error, request, response, next){
+                                    instance.use( function catchUnhandledErrorMiddlewar(error, request, response, next){
 
                                         if (arguments.length < 4) {
                                             next        = response;

@@ -72,6 +72,9 @@ function Lib() {
         // #R1 — WatcherService: fs.watch-based file-change registry. Class is hot-reloadable;
         // instantiated once per bundle in gna.js:onStarted and stored as gna.watcher.
         Watcher         : _require('./watcher'),
+        // #M4 — Promise adapter for .onComplete() EventEmitter callbacks.
+        // Enables async/await in controller actions without rewriting entities.
+        async           : _require('./async'),
         // replaced: _require('./state') — StateStore is a singleton backed by node:sqlite
         // (DatabaseSync). Hot-reloading it in dev mode would close and re-open the DB
         // connection on every HTTP request, racing with in-flight writes. Use plain

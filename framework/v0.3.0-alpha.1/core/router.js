@@ -387,6 +387,8 @@ function Router(env, scope) {
             refreshCoreDependencies();
         }
 
+        // #FI — controller setup start (file loading + inherits + new + setOptions)
+        var _setupStart = (request._devTimeline) ? Date.now() : 0;
 
         var action          = request.control = params.param.control;
         // more can be added ... but it will always start by `on`Something.
@@ -566,6 +568,16 @@ function Router(env, scope) {
             // Required before setting options
             controller.serverInstance = serverInstance;
             controller.setOptions(request, response, next, options);
+            // #FI — controller setup end
+            if (_setupStart && request._devTimeline) {
+                var _setupEnd = Date.now();
+                request._devTimeline.entries.push({
+                    label: 'controller-setup', cat: 'controller',
+                    startMs: _setupStart, endMs: _setupEnd,
+                    durationMs: _setupEnd - _setupStart,
+                    detail: (options.control || null)
+                });
+            }
 
             /**
              * requireController
@@ -690,9 +702,27 @@ function Router(env, scope) {
 
 
 
+            // #FI — route middleware names for timeline detail
+            var _routeMwNames = (request._devTimeline && middleware.length > 0)
+                ? middleware.join(', ') : null;
+            var _routeMwStart = (request._devTimeline) ? Date.now() : 0;
+
             if (middleware.length > 0) {
                 processMiddlewares(serverInstance, middleware, controller, action, request, response, next,
                     function onDone(action, request, response, next){
+                        // #FI — route middleware end + action start
+                        if (_routeMwStart && request._devTimeline) {
+                            request._devTimeline.entries.push({
+                                label: 'route-middleware', cat: 'middleware',
+                                startMs: _routeMwStart, endMs: Date.now(),
+                                durationMs: Date.now() - _routeMwStart,
+                                detail: _routeMwNames
+                            });
+                        }
+                        if (request._devTimeline) {
+                            request._devTimeline._actionStart = Date.now();
+                        }
+
                         // handle superController events
                         for (let e=0; e<reservedActions.length; ++e) {
                             if ( typeof(controller[reservedActions[e]]) == 'function' ) {
@@ -721,6 +751,11 @@ function Router(env, scope) {
 
                     });
             } else {
+                // #FI — action start (no middleware path)
+                if (request._devTimeline) {
+                    request._devTimeline._actionStart = Date.now();
+                }
+
                 // handle superController events
                 // e.g.: inside your controller, you can defined: `this.onReady = function(){...}` which will always be called before the main action
                 for (let e=0; e<reservedActions.length; ++e) {

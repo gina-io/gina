@@ -255,6 +255,10 @@ function SuperController(options) {
             if (process.gina._queryALS) {
                 process.gina._queryALS.enterWith({ _devQueryLog: req._devQueryLog });
             }
+            // #FI — propagate request timeline into local for render access
+            if (req._devTimeline) {
+                local._timeline = req._devTimeline;
+            }
         }
 
         // N.B.: Avoid setting `page` properties as much as possible from the routing.json
@@ -958,10 +962,10 @@ function SuperController(options) {
      * Delegates to `self.render()` after setting `local.options.isWithoutLayout = true`.
      *
      * @param {object}  data            - Template data
-     * @param {boolean} [displayToolbar] - Show the Gina dev toolbar when `true`
+     * @param {boolean} [displayInspector] - Show the Gina dev inspector when `true`
      * @returns {void}
      */
-    this.renderWithoutLayout = function (data, displayToolbar) {
+    this.renderWithoutLayout = function (data, displayInspector) {
 
         // preventing multiple call of self.renderWithoutLayout() when controller is rendering from another required controller
         if (local.options.renderingStack.length > 1) {
@@ -970,7 +974,7 @@ function SuperController(options) {
 
         local.options.isWithoutLayout = true;
 
-        self.render(data, displayToolbar);
+        self.render(data, displayInspector);
     }
 
 
@@ -994,11 +998,22 @@ function SuperController(options) {
      *
      *
      * @param {object} userData
-     * @param {boolean} [displayToolbar]
+     * @param {boolean} [displayInspector]
      * @param {object} [errOptions]
      * @returns {void}
      * */
-    this.render = function (userData, displayToolbar, errOptions) {
+    this.render = function (userData, displayInspector, errOptions) {
+        // #FI — controller action ended, rendering begins
+        if (_isDev && local._timeline && local._timeline._actionStart) {
+            var _renderStart = Date.now();
+            local._timeline.entries.push({
+                label: 'controller-action', cat: 'controller',
+                startMs: local._timeline._actionStart, endMs: _renderStart,
+                durationMs: _renderStart - local._timeline._actionStart,
+                detail: (local.options.control || null)
+            });
+            local._timeline._renderStart = _renderStart;
+        }
         // #EH1 — auto-send 103 Early Hints from accumulated h2Links (CSS/JS preloads).
         // h2Links is populated by getNodeRes() for HTTP/2 non-dev requests only.
         // Firing here — before getAssets() and Swig compilation — gives the browser
@@ -1016,7 +1031,7 @@ function SuperController(options) {
             delete require.cache[require.resolve( _(__dirname + '/controller.render-swig', true))];
         }
 
-        return require( _(__dirname + '/controller.render-swig', true) )(userData, displayToolbar, errOptions, {
+        return require( _(__dirname + '/controller.render-swig', true) )(userData, displayInspector, errOptions, {
             self        : self,
             local       : local,
             getData     : getData,
@@ -1025,7 +1040,7 @@ function SuperController(options) {
             swig        : swig,
             SwigFilters : SwigFilters,
             headersSent : headersSent
-        }); //(userData, displayToolbar, errOptions)
+        }); //(userData, displayInspector, errOptions)
     }
 
 
@@ -1071,6 +1086,17 @@ function SuperController(options) {
      * @returns {void}
      */
     this.renderJSON = function(jsonObj) {
+        // #FI — controller action ended, rendering begins
+        if (_isDev && local._timeline && local._timeline._actionStart) {
+            var _renderStart = Date.now();
+            local._timeline.entries.push({
+                label: 'controller-action', cat: 'controller',
+                startMs: local._timeline._actionStart, endMs: _renderStart,
+                durationMs: _renderStart - local._timeline._actionStart,
+                detail: (local.options.control || null)
+            });
+            local._timeline._renderStart = _renderStart;
+        }
         if  (this.isCacheless() ) {
             delete require.cache[require.resolve( _(__dirname + '/controller.render-json', true))];
         }
@@ -1115,6 +1141,18 @@ function SuperController(options) {
      * };
      */
     this.renderStream = function(asyncIterable, contentType) {
+        // #FI — controller action ended, streaming begins
+        if (_isDev && local._timeline && local._timeline._actionStart) {
+            var _streamRenderStart = Date.now();
+            local._timeline.entries.push({
+                label: 'controller-action', cat: 'controller',
+                startMs: local._timeline._actionStart, endMs: _streamRenderStart,
+                durationMs: _streamRenderStart - local._timeline._actionStart,
+                detail: (local.options.control || null)
+            });
+            local._timeline._renderStart = _streamRenderStart;
+        }
+
         if (this.isCacheless()) {
             delete require.cache[require.resolve( _(__dirname + '/controller.render-stream', true))];
         }
@@ -2541,6 +2579,10 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
         try {
             options.queryData = queryData;
 
+            // #FI — save target bundle name before clearing (for Flow label)
+            if (_isDev && bundle) {
+                options._targetBundle = bundle;
+            }
             bundle = null;
 
             // TODO - Add preferred communication method option: cCurl or HTTP
@@ -2552,6 +2594,10 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
                 httpLib += 's';
             }
             browser = require(''+ httpLib);
+            // #FI — capture query call start time for Flow timeline
+            if (_isDev && local._timeline) {
+                options._timelineStart = Date.now();
+            }
             if ( /http2/.test(httpLib) ) {
                 return handleHTTP2ClientRequest(browser, options, callback, 0, isCritical);
             } else {
@@ -3169,6 +3215,8 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
             });
 
             client.on('goaway', (errorCode, lastStreamID) => {
+                // #H5 — log GOAWAY details for upstream connection debugging
+                console.warn('[http2] GOAWAY received — errorCode: ' + errorCode + ', lastStreamID: ' + lastStreamID + ', session: ' + sessKey);
                 if (_pingInterval) { clearInterval(_pingInterval); _pingInterval = null; }
                 cache.delete(sessKey);
                 var _goawayIdx = self.serverInstance._http2Sessions.indexOf(sessKey);
@@ -3602,6 +3650,25 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
                                 local._queryLog.push(data.__ginaQueries[_qi]);
                             }
                             delete data.__ginaQueries;
+                        }
+                        // #FI — record query call duration and merge upstream timeline
+                        if (_isDev && local._timeline) {
+                            if (options._timelineStart) {
+                                local._timeline.entries.push({
+                                    label: options._targetBundle ? ('query \u2192 ' + options._targetBundle) : 'query',
+                                    cat: 'io',
+                                    startMs: options._timelineStart, endMs: Date.now(),
+                                    durationMs: Date.now() - options._timelineStart,
+                                    detail: (options.hostname || '') + (options.path || '')
+                                });
+                            }
+                            if (data && data.__ginaFlow && Array.isArray(data.__ginaFlow)) {
+                                for (var _fi = 0; _fi < data.__ginaFlow.length; _fi++) {
+                                    data.__ginaFlow[_fi].origin = data.__ginaFlow[_fi].origin || (options.hostname || '');
+                                    local._timeline.entries.push(data.__ginaFlow[_fi]);
+                                }
+                                delete data.__ginaFlow;
+                            }
                         }
                         return callback(false, data);
                     }
@@ -4557,9 +4624,9 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
             }
             data.session = ( typeof(session.user) != 'undefined' ) ? JSON.clone(session.user) : JSON.clone(session);
         }
-        var displayToolbar = req.routing.param.displayToolbar || false;
-        if (req.routing.param.displayToolbar) {
-            delete req.routing.param.displayToolbar
+        var displayInspector = req.routing.param.displayInspector || false;
+        if (req.routing.param.displayInspector) {
+            delete req.routing.param.displayInspector
         }
         var isLocalOptionResetNeeded = req.routing.param.isLocalOptionResetNeeded || false;
         var errOptions = null;
@@ -4593,7 +4660,7 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
 
         }
         delete local.options.namespace;
-        self.render(data, displayToolbar, errOptions);
+        self.render(data, displayInspector, errOptions);
     }
 
     var getResponseProtocol = function (response) {
@@ -4913,7 +4980,7 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
                         routeObj.param.title = ( typeof(eData.title) != 'undefined' ) ? eData.title : 'Error ' + eData.status;
                         routeObj.param.file = eFilename;
                         routeObj.param.error = eData;
-                        routeObj.param.displayToolbar = self.isCacheless();
+                        routeObj.param.displayInspector = self.isCacheless();
                         routeObj.param.isLocalOptionResetNeeded = true;
 
 

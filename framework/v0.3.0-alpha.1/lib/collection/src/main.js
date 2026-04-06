@@ -53,7 +53,7 @@ if ( typeof(module) !== 'undefined' && module.exports ) {
 function Collection(content, options) {
 
     var isGFFCtx        = ( ( typeof(module) !== 'undefined' ) && module.exports ) ? false : true;
-    var uuid            = (isGFFCtx) ? require('vendor/uuid') : require('uuid');
+    var uuid            = (isGFFCtx) ? { v4: function() { return crypto.randomUUID(); } } : require('uuid');
     var merge           = (isGFFCtx) ? require('lib/merge') : require('../../../lib/merge');
 
     // defined search option rules

@@ -14,6 +14,22 @@
     // "template": false,
 
     /**
+    * `http2Options` settings
+    * HTTP/2 tuning (only applies when protocol is http/2).
+    * Overrides framework defaults from core/template/conf/settings.json.
+    * maxConcurrentStreams      : max parallel streams per TCP connection (default: 256)
+    * initialWindowSize        : flow-control window in bytes (default: 655350 = 10× Node default)
+    * maxSessionRejectedStreams : RST flood defense — CVE-2019-9514, CVE-2023-44487 (default: 100)
+    * maxSessionInvalidFrames  : CONTINUATION flood defense — CVE-2024-27316, CVE-2024-27983 (default: 1000)
+    */
+    // "http2Options": {
+    //     "maxConcurrentStreams": 256,
+    //     "initialWindowSize": 655350,
+    //     "maxSessionRejectedStreams": 100,
+    //     "maxSessionInvalidFrames": 1000
+    // },
+
+    /**
     * `response` settings
     * This section is mostly used to setup CORS
     */

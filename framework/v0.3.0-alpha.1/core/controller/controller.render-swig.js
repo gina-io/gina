@@ -139,7 +139,7 @@ async function writeCache(bundle, opt, htmlContent) {
  *
  *
  * @param {object}   userData              - Data merged into the template context
- * @param {boolean}  [displayToolbar]      - Show the Gina dev toolbar when `true`
+ * @param {boolean}  [displayInspector]    - Show the Gina dev inspector when `true`
  * @param {object}   [errOptions]          - Override `local.options` when rendering a custom error page
  * @param {object}   deps                  - Inherited refs from SuperController
  * @param {object}   deps.self             - The SuperController instance
@@ -152,7 +152,7 @@ async function writeCache(bundle, opt, htmlContent) {
  * @param {function} deps.headersSent      - Returns `true` when response headers are already sent
  * @returns {Promise<void>}
  */
-module.exports = async function render(userData, displayToolbar, errOptions, deps) {
+module.exports = async function render(userData, displayInspector, errOptions, deps) {
 
     // Inherited from controller
     self            = deps.self;
@@ -445,7 +445,7 @@ module.exports = async function render(userData, displayToolbar, errOptions, dep
         extendFound = null;
     }
 
-    localOptions.debugMode = ( typeof(displayToolbar) == 'undefined' ) ? undefined : ( (/true/i.test(displayToolbar)) ? true : false ); // only active for dev env
+    localOptions.debugMode = ( typeof(displayInspector) == 'undefined' ) ? undefined : ( (/true/i.test(displayInspector)) ? true : false ); // only active for dev env
 
     // specific override
     if (
@@ -765,12 +765,55 @@ module.exports = async function render(userData, displayToolbar, errOptions, dep
         ) {
             compiledTemplate = cache.get(cacheKey).template;
 
+            // #FI — inject flow data before template execution on the cache-hit path.
+            // The cached compiled template includes the __ginaData script (from the
+            // miss-path toolbar injection), so data.page.flow must be populated before
+            // compiledTemplate(data) for the Inspector to see timeline entries.
+            if (local._timeline && local._timeline.entries.length > 0) {
+                if (local._queryLog) {
+                    for (var _cti = 0; _cti < local._queryLog.length; _cti++) {
+                        var _cqe = local._queryLog[_cti];
+                        if (_cqe._startMs) {
+                            local._timeline.entries.push({
+                                label: 'n1ql:' + (_cqe.trigger || 'query'),
+                                cat: 'db',
+                                startMs: _cqe._startMs,
+                                endMs: _cqe._startMs + (_cqe.durationMs || 0),
+                                durationMs: _cqe.durationMs || 0,
+                                detail: (_cqe.statement || '').substring(0, 80)
+                            });
+                        }
+                    }
+                }
+                data.page.flow = {
+                    requestStart: local._timeline.requestStart,
+                    entries: local._timeline.entries
+                };
+            }
+            if (local._queryLog && local._queryLog.length > 0) {
+                data.page.queries = local._queryLog;
+            }
+            // #FI — snapshot count BEFORE late entries are pushed.
+            // data.page.flow.entries is a reference to local._timeline.entries,
+            // so reading .length later would include entries pushed after this point.
+            var _cacheFlowSnapshot = (local._timeline) ? local._timeline.entries.length : 0;
+
             if ( !headersSent() ) {
                 if ( localOptions.isRenderingCustomError ) {
                     localOptions.isRenderingCustomError = false;
                 }
 
+                // #FI — template execution timing (cache hit — no compile phase)
+                var _cacheExecStart = (local._timeline) ? Date.now() : 0;
                 htmlContent = compiledTemplate(data);
+                if (_cacheExecStart && local._timeline) {
+                    local._timeline.entries.push({
+                        label: 'swig-execute', cat: 'template',
+                        startMs: _cacheExecStart, endMs: Date.now(),
+                        durationMs: Date.now() - _cacheExecStart,
+                        detail: (data.page.view.file || null)
+                    });
+                }
                 local.res.setHeader('content-type', localOptions.conf.server.coreConfiguration.mime['html'] + '; charset='+ localOptions.conf.encoding );
 
                 if (
@@ -792,6 +835,39 @@ module.exports = async function render(userData, displayToolbar, errOptions, dep
                     var _ccTtl = ( typeof(_ccCfg.ttl) != 'undefined' && _ccCfg.ttl > 0 ) ? _ccCfg.ttl : localOptions.conf.server.cache.ttl;
                     if ( _ccTtl > 0 ) {
                         local.res.setHeader('Cache-Control', ( _ccCfg.visibility === 'public' ? 'public' : 'private' ) + ', max-age=' + ~~(_ccTtl));
+                    }
+                }
+
+                // #FI — response write + total timing (cache hit)
+                if (local._timeline) {
+                    var _cacheRespEnd = Date.now();
+                    var _cacheRwStart = local._timeline._renderStart || local._timeline._actionStart || local._timeline.requestStart;
+                    local._timeline.entries.push({
+                        label: 'response-write', cat: 'response',
+                        startMs: _cacheRwStart, endMs: _cacheRespEnd,
+                        durationMs: _cacheRespEnd - _cacheRwStart,
+                        detail: null
+                    });
+                    local._timeline.entries.push({
+                        label: 'total', cat: 'total',
+                        startMs: local._timeline.requestStart,
+                        endMs: _cacheRespEnd,
+                        durationMs: _cacheRespEnd - local._timeline.requestStart,
+                        detail: null
+                    });
+
+                    // Patch late entries into HTML — flow/execute/response/total were pushed
+                    // after data.page.flow was set, so the __ginaData script in the cached
+                    // template has stale entries. Inject a small correction script.
+                    // Uses _cacheFlowSnapshot saved before any late entries were pushed.
+                    var _cacheLateEntries = local._timeline.entries.slice(_cacheFlowSnapshot);
+                    if (_cacheLateEntries.length > 0 && (displayInspector || self.isCacheless())) {
+                        var _cachePatchScript = '<script>if(window.__ginaData&&window.__ginaData.user&&window.__ginaData.user.flow){'
+                            + 'var _e=window.__ginaData.user.flow.entries;'
+                            + 'var _p=' + JSON.stringify(_cacheLateEntries) + ';'
+                            + 'for(var _i=0;_i<_p.length;_i++){_e.push(_p[_i])}'
+                            + '}</script>';
+                        htmlContent = htmlContent.replace(/<\/body>/i, _cachePatchScript + '</body>');
                     }
                 }
 
@@ -896,6 +972,35 @@ module.exports = async function render(userData, displayToolbar, errOptions, dep
                 data.page.queries = local._queryLog;
             }
 
+            // #FI — inject dev-mode request timeline for Inspector Flow tab.
+            // Also convert QI entries into timeline entries so the waterfall
+            // shows N1QL queries alongside routing/controller/template phases.
+            if (local._timeline && local._timeline.entries.length > 0) {
+                if (local._queryLog) {
+                    for (var _ti = 0; _ti < local._queryLog.length; _ti++) {
+                        var _qe = local._queryLog[_ti];
+                        if (_qe._startMs) {
+                            local._timeline.entries.push({
+                                label: 'n1ql:' + (_qe.trigger || 'query'),
+                                cat: 'db',
+                                startMs: _qe._startMs,
+                                endMs: _qe._startMs + (_qe.durationMs || 0),
+                                durationMs: _qe.durationMs || 0,
+                                detail: (_qe.statement || '').substring(0, 80)
+                            });
+                        }
+                    }
+                }
+                data.page.flow = {
+                    requestStart: local._timeline.requestStart,
+                    entries: local._timeline.entries
+                };
+            }
+            // #FI — snapshot count BEFORE late entries are pushed.
+            // data.page.flow.entries is a reference to local._timeline.entries,
+            // so reading .length later would include entries pushed after this point.
+            var _flowSnapshotCount = (local._timeline) ? local._timeline.entries.length : 0;
+
             var __gdGina = JSON.parse(JSON.stringify(data.page));
             __gdGina.view.assets      = {};
             __gdGina.view.scripts     = 'ignored-by-toolbar';
@@ -913,8 +1018,9 @@ module.exports = async function render(userData, displayToolbar, errOptions, dep
                     .replace(/<!--/g, '<\\!--')
                 + ';</script>\n';
 
-            // Expose last snapshot for engine.io push
+            // Expose last snapshot for engine.io push and /_gina/agent SSE
             self.serverInstance._lastGinaData = __gdPayload;
+            process.emit('inspector#data', __gdPayload);
 
             var __logsScript = '<script>'
                 + 'window.__ginaLogs = window.__ginaLogs || [];'
@@ -929,16 +1035,20 @@ module.exports = async function render(userData, displayToolbar, errOptions, dep
                 + '}(window));</script>\n';
 
             plugin = '\t'
-                + '{# Gina Toolbar #}'
+                + '{# Gina Inspector #}'
                 + __logsScript
                 + __gdScript
                 + '{%- include "'+ getPath('gina').core +'/asset/plugin/dist/vendor/gina/html/statusbar.html" -%}'// jshint ignore:line
-                + '{# END Gina Toolbar #}'
+                + '{# END Gina Inspector #}'
             ;
 
 
             if (isWithoutLayout && localOptions.debugMode || localOptions.debugMode ) {
                 if (self.isXMLRequest()) {
+                    // #FI + #QI — inject flow and queries into data.page.data so the
+                    // XHR hidden input carries them to the Inspector on popin/dialog open.
+                    if (data.page.flow)    { data.page.data.flow    = data.page.flow; }
+                    if (data.page.queries) { data.page.data.queries = data.page.queries; }
                     XHRData = '\t<input type="hidden" id="gina-without-layout-xhr-data" value="'+ encodeRFC5987ValueChars(JSON.stringify(data.page.data)) +'">\n\r';
                     XHRView = '\n<input type="hidden" id="gina-without-layout-xhr-view" value="'+ encodeRFC5987ValueChars(JSON.stringify(viewInfos)) +'">';
                     if ( /<\/body>/i.test(layout) ) {
@@ -954,10 +1064,10 @@ module.exports = async function render(userData, displayToolbar, errOptions, dep
 
             if (
                 self.isCacheless()
-                    && !/\{\# Gina Toolbar \#\}/.test(layout)
+                    && !/\{\# Gina Inspector \#\}/.test(layout)
                 ||
                 localOptions.debugMode
-                    && !/\{\# Gina Toolbar \#\}/.test(layout)
+                    && !/\{\# Gina Inspector \#\}/.test(layout)
             ) {
                 layout = layout.replace(/<\/body>/i, plugin + '\n\t</body>');
             }
@@ -1011,6 +1121,10 @@ module.exports = async function render(userData, displayToolbar, errOptions, dep
             //     viewInfos.assets = assets;
 
 
+            // #FI + #QI — inject flow and queries into data.page.data so the
+            // XHR hidden input carries them to the Inspector on popin/dialog open.
+            if (data.page.flow)    { data.page.data.flow    = data.page.flow; }
+            if (data.page.queries) { data.page.data.queries = data.page.queries; }
             XHRData = '\n<input type="hidden" id="gina-without-layout-xhr-data" value="'+ encodeRFC5987ValueChars(JSON.stringify(data.page.data)) +'">';
             XHRView = '\n<input type="hidden" id="gina-without-layout-xhr-view" value="'+ encodeRFC5987ValueChars(JSON.stringify(viewInfos)) +'">';
             if ( /<\/body>/i.test(layout) ) {
@@ -1206,7 +1320,17 @@ module.exports = async function render(userData, displayToolbar, errOptions, dep
                     }
                 }
             }
+            // #FI — template compilation timing
+            var _compileStart = (local._timeline) ? Date.now() : 0;
             compiledTemplate = swig.compile(_templateContent, mapping);
+            if (_compileStart && local._timeline) {
+                local._timeline.entries.push({
+                    label: 'swig-compile', cat: 'template',
+                    startMs: _compileStart, endMs: Date.now(),
+                    durationMs: Date.now() - _compileStart,
+                    detail: (data.page.view.file || null)
+                });
+            }
 
             if (
                 String(self.serverInstance._cacheIsEnabled).toLowerCase() === 'true'
@@ -1225,7 +1349,17 @@ module.exports = async function render(userData, displayToolbar, errOptions, dep
                 if ( localOptions.isRenderingCustomError ) {
                     localOptions.isRenderingCustomError = false;
                 }
+                // #FI — template execution timing
+                var _execStart = (local._timeline) ? Date.now() : 0;
                 htmlContent = compiledTemplate(data);
+                if (_execStart && local._timeline) {
+                    local._timeline.entries.push({
+                        label: 'swig-execute', cat: 'template',
+                        startMs: _execStart, endMs: Date.now(),
+                        durationMs: Date.now() - _execStart,
+                        detail: (data.page.view.file || null)
+                    });
+                }
                 local.res.setHeader('content-type', localOptions.conf.server.coreConfiguration.mime['html'] + '; charset='+ localOptions.conf.encoding );
 
                 if (
@@ -1250,6 +1384,39 @@ module.exports = async function render(userData, displayToolbar, errOptions, dep
                     var _ccTtl = ( typeof(_ccCfg.ttl) != 'undefined' && _ccCfg.ttl > 0 ) ? _ccCfg.ttl : localOptions.conf.server.cache.ttl;
                     if ( _ccTtl > 0 ) {
                         local.res.setHeader('Cache-Control', ( _ccCfg.visibility === 'public' ? 'public' : 'private' ) + ', max-age=' + ~~(_ccTtl));
+                    }
+                }
+
+                // #FI — response write + total timing
+                if (local._timeline) {
+                    var _respEnd = Date.now();
+                    var _rwStart = local._timeline._renderStart || local._timeline._actionStart || local._timeline.requestStart;
+                    local._timeline.entries.push({
+                        label: 'response-write', cat: 'response',
+                        startMs: _rwStart, endMs: _respEnd,
+                        durationMs: _respEnd - _rwStart,
+                        detail: null
+                    });
+                    local._timeline.entries.push({
+                        label: 'total', cat: 'total',
+                        startMs: local._timeline.requestStart,
+                        endMs: _respEnd,
+                        durationMs: _respEnd - local._timeline.requestStart,
+                        detail: null
+                    });
+
+                    // #FI — patch late entries into the HTML.
+                    // __ginaData was serialized (deep clone) before swig-compile,
+                    // so template/response/total entries are missing from it.
+                    // Uses _flowSnapshotCount saved before any late entries were pushed.
+                    var _lateEntries = local._timeline.entries.slice(_flowSnapshotCount);
+                    if (_lateEntries.length > 0 && (displayInspector || self.isCacheless())) {
+                        var _patchScript = '<script>if(window.__ginaData&&window.__ginaData.user&&window.__ginaData.user.flow){'
+                            + 'var _e=window.__ginaData.user.flow.entries;'
+                            + 'var _p=' + JSON.stringify(_lateEntries) + ';'
+                            + 'for(var _i=0;_i<_p.length;_i++){_e.push(_p[_i])}'
+                            + '}</script>';
+                        htmlContent = htmlContent.replace(/<\/body>/i, _patchScript + '</body>');
                     }
                 }
 

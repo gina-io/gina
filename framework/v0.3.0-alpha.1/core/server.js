@@ -913,6 +913,10 @@ function Server(options) {
             if ( /\<script/.test(layoutAssets[i]) ) {
                 type    = 'javascript';
                 tag     = 'script';
+                // Skip inline scripts (no src attribute) — not external assets
+                if ( !/\ssrc\s*=/.test(layoutAssets[i]) ) {
+                    continue;
+                }
             }
 
             domain  = null;
@@ -2208,6 +2212,11 @@ function Server(options) {
         // catch all (request urls)
         self.instance.all('*', function onInstance(request, response, next) {
 
+            // #FI — dev-mode request timeline for Inspector Flow tab
+            if (self.isCacheless()) {
+                request._devTimeline = { requestStart: Date.now(), entries: [] };
+            }
+
             // Caching = [...]
             // TODO - handle this through a middleware
             /**
@@ -2346,6 +2355,67 @@ function Server(options) {
 
                 console.info(request.method + ' [200] ' + request.url + ' (SSE)');
                 return; // keep the connection open — do not call response.end()
+            }
+
+            // ── Inspector agent — combined SSE at /_gina/agent in dev mode ──
+            // Streams both __ginaData updates and server-side log entries over
+            // a single SSE connection. The standalone Inspector connects here
+            // instead of using window.opener polling + separate /_gina/logs.
+            if (
+                process.env.NODE_ENV_IS_DEV && process.env.NODE_ENV_IS_DEV.toLowerCase() === 'true'
+                && request.method.toUpperCase() === 'GET'
+                && /\/_gina\/agent$/.test(request.url)
+            ) {
+                var _agAnsiRe = /\x1B\[\d+m/g;
+
+                response.setHeader('content-type', 'text/event-stream; charset=utf-8');
+                response.setHeader('cache-control', 'no-cache, no-store');
+                response.setHeader('connection', 'keep-alive');
+                response.setHeader('access-control-allow-origin', '*');
+                response.setHeader('x-content-type-options', 'nosniff');
+                response.write(':ok\n\n');
+
+                // Send current snapshot immediately if available
+                if (self.instance && self.instance._lastGinaData) {
+                    try {
+                        response.write('event: data\ndata: ' + JSON.stringify(self.instance._lastGinaData) + '\n\n');
+                    } catch (e) {}
+                }
+
+                // Data updates — emitted by render-swig.js on every HTML render
+                var _agDataListener = function(payload) {
+                    try {
+                        response.write('event: data\ndata: ' + JSON.stringify(payload) + '\n\n');
+                    } catch (e) {}
+                };
+
+                // Log entries — same source as /_gina/logs
+                var _agLogListener = function(payload) {
+                    try {
+                        var entry = JSON.parse(payload);
+                        var level = entry.level === 'catch' ? 'log' : (entry.level || 'log');
+                        var msg   = (entry.content || '').replace(_agAnsiRe, '').replace(/\n$/, '');
+                        if (!msg) return;
+                        var evt = JSON.stringify({
+                            t: Date.now(),
+                            l: level,
+                            b: entry.group || '',
+                            s: msg,
+                            src: 'server'
+                        });
+                        response.write('event: log\ndata: ' + evt + '\n\n');
+                    } catch (e) {}
+                };
+
+                process.on('inspector#data', _agDataListener);
+                process.on('logger#default', _agLogListener);
+                request.on('close', function() {
+                    process.removeListener('inspector#data', _agDataListener);
+                    process.removeListener('logger#default', _agLogListener);
+                });
+
+                console.info(request.method + ' [200] ' + request.url + ' (SSE agent)');
+                return;
             }
 
             // Fixing an express js bug :(
@@ -3335,7 +3405,22 @@ function Server(options) {
             return throwError(nextMiddleware._response, 500, (err.stack|err.message|err), nextMiddleware._next, nextMiddleware._nextAction);
         }
 
-        expressMiddlewares[nextMiddleware._index](nextMiddleware._request, nextMiddleware._response, function onNextMiddleware(err, request, response) {
+        // #FI — per-middleware timing
+        var _mwFn = expressMiddlewares[nextMiddleware._index];
+        var _mwStart = (nextMiddleware._request._devTimeline) ? Date.now() : 0;
+
+        _mwFn(nextMiddleware._request, nextMiddleware._response, function onNextMiddleware(err, request, response) {
+
+            // #FI — record this middleware's duration
+            if (_mwStart && nextMiddleware._request._devTimeline) {
+                nextMiddleware._request._devTimeline.entries.push({
+                    label: _mwFn.name || ('middleware[' + nextMiddleware._index + ']'),
+                    cat: 'middleware',
+                    startMs: _mwStart, endMs: Date.now(),
+                    durationMs: Date.now() - _mwStart,
+                    detail: null
+                });
+            }
 
             if (err) {
                 return throwError(nextMiddleware._response, 500, (err.stack||err.message||err), nextMiddleware._next, nextMiddleware._nextAction);
@@ -3439,6 +3524,17 @@ function Server(options) {
 
     var handle = async function(req, res, next, bundle, pathname, config) {
 
+        // #FI — request setup time (header parsing, CORS, Inspector endpoint checks)
+        if (req._devTimeline) {
+            var _handleStart = Date.now();
+            req._devTimeline.entries.push({
+                label: 'request-setup', cat: 'routing',
+                startMs: req._devTimeline.requestStart, endMs: _handleStart,
+                durationMs: _handleStart - req._devTimeline.requestStart,
+                detail: null
+            });
+        }
+
         var matched             = false
             , isRoute           = null
             , withViews         = hasViews(bundle)
@@ -3486,6 +3582,9 @@ function Server(options) {
         ;
         try {
 
+
+            // #FI — route matching start
+            var _routeMatchStart = (isCacheless && req._devTimeline) ? Date.now() : 0;
 
             var routing   = config.getRouting(bundle, self.env);
 
@@ -3728,6 +3827,16 @@ function Server(options) {
             req[_reqMethodKey] = _origReqMethod || {};
         }
 
+        // #FI — route matching end
+        if (_routeMatchStart && req._devTimeline) {
+            req._devTimeline.entries.push({
+                label: 'route-match', cat: 'routing',
+                startMs: _routeMatchStart, endMs: Date.now(),
+                durationMs: Date.now() - _routeMatchStart,
+                detail: matched ? ('rule: ' + (req.routing && req.routing.rule || '?')) : '404'
+            });
+        }
+
         if (!matched && _methodMismatch405msg) {
             return throwError(res, 405, _methodMismatch405msg, next);
         }
@@ -3739,7 +3848,9 @@ function Server(options) {
                 nextMiddleware._request      = req;
                 nextMiddleware._response     = res;
                 nextMiddleware._next         = next;
-                nextMiddleware._nextAction   = 'route'
+                nextMiddleware._nextAction   = 'route';
+                // #FI — express middleware start
+                nextMiddleware._timelineStart = (req._devTimeline) ? Date.now() : 0;
 
                 return nextMiddleware()
             }
@@ -3914,7 +4025,7 @@ function Server(options) {
                     routeObj.param.title = ( typeof(eData.title) != 'undefined' ) ? eData.title : 'Error ' + eData.status;
                     routeObj.param.file = eFilename;
                     routeObj.param.error = eData;
-                    routeObj.param.displayToolbar = self.isCacheless();
+                    routeObj.param.displayInspector = self.isCacheless();
 
                     local.request.routing = routeObj;
 

@@ -1733,8 +1733,13 @@ function PathHelper() {
      * (`mkdir`, `cp`, `mv`, `rm`) and `Shell` commands — both of which fire
      * `.onComplete(err, result)` rather than returning a Promise.
      *
+     * Implementation lives in `lib/async/src/main.js` (#M4). This global injection
+     * delegates to the lib module for backward compatibility — existing call sites
+     * use the global directly; new code can also `require` it via `lib.async`.
+     *
      * @global
      * @function onCompleteCall
+     * @see module:lib/async
      *
      * @param {EventEmitter} emitter - Object with an `.onComplete(cb)` method
      * @returns {Promise<*>} Resolves with the operation result, rejects on error
@@ -1747,14 +1752,7 @@ function PathHelper() {
      *     self.renderJSON({ ok: true });
      * };
      */
-    onCompleteCall = function(emitter) {
-        return new Promise(function(resolve, reject) {
-            emitter.onComplete(function(err, result) {
-                if (err) return reject(err);
-                resolve(result);
-            });
-        });
-    }
+    onCompleteCall = require('./../lib/async/src/main')
 
 }//EO PathHelper.
 

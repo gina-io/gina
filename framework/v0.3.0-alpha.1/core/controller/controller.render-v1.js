@@ -16,11 +16,11 @@ var self, local, SuperController, getData, hasViews, setResources, SwigFilters, 
  *
  *
  * @param {object} userData
- * @param {boolean} [displayToolbar]
+ * @param {boolean} [displayInspector]
  * @param {object} [errOptions]
  * @returns {void}
  * */
-module.exports = async function render(userData, displayToolbar, errOptions, deps) {
+module.exports = async function render(userData, displayInspector, errOptions, deps) {
     console.info('render V1');
     self            = deps.self;
     local           = deps.local;
@@ -201,7 +201,7 @@ module.exports = async function render(userData, displayToolbar, errOptions, dep
     hasLayoutInPath     = null;
     _templateContent    = null;
 
-    localOptions.debugMode = ( typeof(displayToolbar) == 'undefined' ) ? undefined : ( (/true/i.test(displayToolbar)) ? true : false ); // only active for dev env
+    localOptions.debugMode = ( typeof(displayInspector) == 'undefined' ) ? undefined : ( (/true/i.test(displayInspector)) ? true : false ); // only active for dev env
 
     // specific override
     if (
@@ -507,7 +507,17 @@ module.exports = async function render(userData, displayToolbar, errOptions, dep
 
             // precompilation needed in case of `extends` or in order to display the toolbar
             if ( hasViews() && self.isCacheless() || /\{\%(\s+extends|extends)/.test(layout) ) {
+                // #FI — pre-compile timing
+                var _preCompileStart = (local._timeline) ? Date.now() : 0;
                 layout = swig.compile(layout, mapping)(data);
+                if (_preCompileStart && local._timeline) {
+                    local._timeline.entries.push({
+                        label: 'swig-precompile', cat: 'template',
+                        startMs: _preCompileStart, endMs: Date.now(),
+                        durationMs: Date.now() - _preCompileStart,
+                        detail: (mapping.filename || null)
+                    });
+                }
             }
             //dic['page.content'] = layout;
 
@@ -595,14 +605,14 @@ module.exports = async function render(userData, displayToolbar, errOptions, dep
             ;
 
             plugin = '\t'
-                + '{# Gina Toolbar #}'
+                + '{# Gina Inspector #}'
                 + '{%- set userDataInspector                    = JSON.clone(page) -%}'
                 // + '{%- set userDataInspector                    = { view: {}, environment: { routing: {}}} -%}'
                 + '{%- set userDataInspector.view.scripts       = "ignored-by-toolbar"  -%}'
                 + '{%- set userDataInspector.view.stylesheets   = "ignored-by-toolbar"  -%}'
                 + '{%- set userDataInspector.view.assets        = '+ JSON.stringify(assets) +' -%}'
-                + '{# END Gina Toolbar #}'
-                + '{%- include "'+ getPath('gina').core +'/asset/plugin/dist/vendor/gina/html/toolbar.html" with { gina: ginaDataInspector, user: userDataInspector } -%}'// jshint ignore:line
+                + '{# END Gina Inspector #}'
+                + '{%- include "'+ getPath('gina').core +'/asset/plugin/dist/vendor/gina/html/statusbar.html" -%}'// jshint ignore:line
             ;
 
 
@@ -736,7 +746,7 @@ module.exports = async function render(userData, displayToolbar, errOptions, dep
         dic['page.content'] = layout;
         /**
         // special case for template without layout in debug mode - dev only
-        if ( hasViews() && localOptions.debugMode && self.isCacheless() && !/\{\# Gina Toolbar \#\}/.test(layout) ) {
+        if ( hasViews() && localOptions.debugMode && self.isCacheless() && !/\{\# Gina Inspector \#\}/.test(layout) ) {
             try {
 
                 layout = layout.replace(/<\/body>/i, plugin + '\n\t</body>');
@@ -881,12 +891,42 @@ module.exports = async function render(userData, displayToolbar, errOptions, dep
 
             // Last compilation before rendering
             // Now we can use `data` instead of `swigData`
+            // #FI — final compile timing
+            var _compileStart = (local._timeline) ? Date.now() : 0;
             layout = swig.compile(layout, mapping)(data);
+            if (_compileStart && local._timeline) {
+                local._timeline.entries.push({
+                    label: 'swig-compile', cat: 'template',
+                    startMs: _compileStart, endMs: Date.now(),
+                    durationMs: Date.now() - _compileStart,
+                    detail: (mapping.filename || null)
+                });
+            }
 
             if ( !headersSent() ) {
                 if ( local.options.isRenderingCustomError ) {
                     local.options.isRenderingCustomError = false;
                 }
+
+                // #FI — response write + total timing
+                if (local._timeline) {
+                    var _respEnd = Date.now();
+                    var _rwStart = local._timeline._renderStart || local._timeline._actionStart || local._timeline.requestStart;
+                    local._timeline.entries.push({
+                        label: 'response-write', cat: 'response',
+                        startMs: _rwStart, endMs: _respEnd,
+                        durationMs: _respEnd - _rwStart,
+                        detail: null
+                    });
+                    local._timeline.entries.push({
+                        label: 'total', cat: 'total',
+                        startMs: local._timeline.requestStart,
+                        endMs: _respEnd,
+                        durationMs: _respEnd - local._timeline.requestStart,
+                        detail: null
+                    });
+                }
+
                 console.info(local.req.method +' ['+local.res.statusCode +'] '+ local.req.url);
                 local.res.end(layout);
                 layout = null;

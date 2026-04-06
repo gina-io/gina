@@ -290,6 +290,32 @@ function Sqlite(conn, infos) {
                 }
             }
 
+            // ── QI — dev-mode query instrumentation ──────────────────────────
+            var _devLog = null, _queryEntry = null;
+            if (envIsDev) {
+                var _alsStore = process.gina && process.gina._queryALS
+                    ? process.gina._queryALS.getStore() : null;
+                _devLog = _alsStore ? _alsStore._devQueryLog : null;
+                if (_devLog) {
+                    _queryEntry = {
+                        type        : 'SQL',
+                        trigger     : entityName.toLowerCase() + '#' + name,
+                        statement   : String(queryString),
+                        params      : args.length > 0 ? args.slice() : [],
+                        durationMs  : 0,
+                        resultCount : 0,
+                        resultSize  : 0,
+                        indexes     : null,
+                        error       : null,
+                        source      : source || '',
+                        origin      : infos.bundle,
+                        connector   : 'sqlite'
+                    };
+                    _queryEntry._startMs = Date.now();
+                    _devLog.push(_queryEntry);
+                }
+            }
+
             // ── Option B — native Promise with .onComplete() shim ─────────────
             //
             // Mirrors the Couchbase N1QL Option-B pattern (connector/index.js).
@@ -316,9 +342,19 @@ function Sqlite(conn, infos) {
                 setTimeout(function() {
                     try {
                         var result = execute(args);
+                        if (_queryEntry) {
+                            _queryEntry.durationMs = Date.now() - _queryEntry._startMs;
+                            // _startMs is kept for the Flow tab timeline (#FI)
+                            _queryEntry.resultCount = result ? (Array.isArray(result) ? result.length : 1) : 0;
+                            try { _queryEntry.resultSize = result ? JSON.stringify(result).length : 0; } catch(_e) { _queryEntry.resultSize = 0; }
+                        }
                         _internalData = result;
                         _resolve(result);
                     } catch (e) {
+                        if (_queryEntry) {
+                            _queryEntry.durationMs = Date.now() - _queryEntry._startMs;
+                            _queryEntry.error = e.message || String(e);
+                        }
                         e.message = '[ ' + source + ' ]\n' + e.message;
                         _reject(e);
                     }
@@ -330,8 +366,17 @@ function Sqlite(conn, infos) {
                 // Direct callback path (util.promisify or explicit callback)
                 try {
                     var result = execute(args);
+                    if (_queryEntry) {
+                        _queryEntry.durationMs = Date.now() - _queryEntry._startMs;
+                        _queryEntry.resultCount = result ? (Array.isArray(result) ? result.length : 1) : 0;
+                        try { _queryEntry.resultSize = result ? JSON.stringify(result).length : 0; } catch(_e) { _queryEntry.resultSize = 0; }
+                    }
                     _mainCallback(null, result);
                 } catch (e) {
+                    if (_queryEntry) {
+                        _queryEntry.durationMs = Date.now() - _queryEntry._startMs;
+                        _queryEntry.error = e.message || String(e);
+                    }
                     e.message = '[ ' + source + ' ]\n' + e.message;
                     _mainCallback(e);
                 }

@@ -58,6 +58,10 @@ module.exports = function renderStream(asyncIterable, contentType, deps) {
         return isSSE ? 'data: ' + s + '\n\n' : s;
     }
 
+    // #FI — stream start time for Inspector Flow tab
+    var _timeline = local._timeline || null;
+    var _streamStart = _timeline ? Date.now() : 0;
+
     ;(async function _doStream() {
         var chunk;
         try {
@@ -107,6 +111,24 @@ module.exports = function renderStream(asyncIterable, contentType, deps) {
 
                 if (!response.writableEnded) response.end();
                 response.headersSent = true;
+            }
+
+            // #FI — stream response + total timing
+            if (_streamStart && _timeline) {
+                var _streamEnd = Date.now();
+                _timeline.entries.push({
+                    label: 'stream-write', cat: 'response',
+                    startMs: _streamStart, endMs: _streamEnd,
+                    durationMs: _streamEnd - _streamStart,
+                    detail: contentType
+                });
+                _timeline.entries.push({
+                    label: 'total', cat: 'total',
+                    startMs: _timeline.requestStart,
+                    endMs: _streamEnd,
+                    durationMs: _streamEnd - _timeline.requestStart,
+                    detail: null
+                });
             }
 
         } catch (err) {

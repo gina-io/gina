@@ -255,6 +255,32 @@ function Mysql(conn, infos) {
                 }
             }
 
+            // ── QI — dev-mode query instrumentation ──────────────────────────
+            var _devLog = null, _queryEntry = null;
+            if (envIsDev) {
+                var _alsStore = process.gina && process.gina._queryALS
+                    ? process.gina._queryALS.getStore() : null;
+                _devLog = _alsStore ? _alsStore._devQueryLog : null;
+                if (_devLog) {
+                    _queryEntry = {
+                        type        : 'MySQL',
+                        trigger     : entityName.toLowerCase() + '#' + name,
+                        statement   : String(queryString),
+                        params      : args.length > 0 ? args.slice() : [],
+                        durationMs  : 0,
+                        resultCount : 0,
+                        resultSize  : 0,
+                        indexes     : null,
+                        error       : null,
+                        source      : source || '',
+                        origin      : infos.bundle,
+                        connector   : 'mysql'
+                    };
+                    _queryEntry._startMs = Date.now();
+                    _devLog.push(_queryEntry);
+                }
+            }
+
             // ── Option B — native Promise with .onComplete() shim ─────────────
             //
             // mysql2 pool.execute() is natively async — no setTimeout(0) needed.
@@ -278,12 +304,21 @@ function Mysql(conn, infos) {
                 };
 
                 conn.execute(queryString, args, function(err, results) {
+                    if (_queryEntry) {
+                        _queryEntry.durationMs = Date.now() - _queryEntry._startMs;
+                        // _startMs is kept for the Flow tab timeline (#FI)
+                    }
                     if (err) {
+                        if (_queryEntry) _queryEntry.error = err.message || String(err);
                         err.message = '[ ' + source + ' ]\n' + err.message;
                         _reject(err);
                         return;
                     }
                     var raw = coerce(results);
+                    if (_queryEntry) {
+                        _queryEntry.resultCount = raw ? (Array.isArray(raw) ? raw.length : 1) : 0;
+                        try { _queryEntry.resultSize = raw ? JSON.stringify(raw).length : 0; } catch(_e) { _queryEntry.resultSize = 0; }
+                    }
                     _internalData = raw;
                     _resolve(raw);
                 });
@@ -293,12 +328,21 @@ function Mysql(conn, infos) {
             } else {
                 // Direct callback path (util.promisify or explicit callback)
                 conn.execute(queryString, args, function(err, results) {
+                    if (_queryEntry) {
+                        _queryEntry.durationMs = Date.now() - _queryEntry._startMs;
+                    }
                     if (err) {
+                        if (_queryEntry) _queryEntry.error = err.message || String(err);
                         err.message = '[ ' + source + ' ]\n' + err.message;
                         _mainCallback(err);
                         return;
                     }
-                    _mainCallback(null, coerce(results));
+                    var raw = coerce(results);
+                    if (_queryEntry) {
+                        _queryEntry.resultCount = raw ? (Array.isArray(raw) ? raw.length : 1) : 0;
+                        try { _queryEntry.resultSize = raw ? JSON.stringify(raw).length : 0; } catch(_e) { _queryEntry.resultSize = 0; }
+                    }
+                    _mainCallback(null, raw);
                 });
             }
         };

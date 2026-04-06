@@ -92,7 +92,7 @@ function ValidatorPlugin(rules, data, formId) {
         require('../../../../../helpers/data');
     }
 
-    var uuid            = (isGFFCtx) ? require('vendor/uuid') : require('uuid');
+    var uuid            = (isGFFCtx) ? { v1: function() { return Date.now().toString(36) + '-' + crypto.randomUUID(); }, v4: function() { return crypto.randomUUID(); } } : require('uuid');
     var merge           = (isGFFCtx) ? require('lib/merge') : require('../../../../../lib/merge');
     var inherits        = (isGFFCtx) ? require('lib/inherits') : require('../../../../../lib/inherits');
     var FormValidator   = (isGFFCtx) ? require('lib/form-validator') : require('./form-validator');

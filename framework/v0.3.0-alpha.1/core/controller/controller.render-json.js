@@ -214,6 +214,36 @@ module.exports = function renderJSON(jsonObj, deps) {
             jsonObj.__ginaQueries = local._queryLog;
         }
 
+        // #FI — in dev mode, push response-write + total timing so the Flow
+        // waterfall has closing bars for JSON responses. Pushed before the
+        // __ginaFlow sidecar injection so they travel with cross-bundle data.
+        if (self.isCacheless() && local._timeline) {
+            var _jsonRespEnd = Date.now();
+            var _jsonRwStart = local._timeline._renderStart || local._timeline._actionStart || local._timeline.requestStart;
+            local._timeline.entries.push({
+                label    : 'response-write',
+                cat      : 'response',
+                startMs  : _jsonRwStart,
+                endMs    : _jsonRespEnd,
+                durationMs : _jsonRespEnd - _jsonRwStart,
+                detail   : null
+            });
+            local._timeline.entries.push({
+                label    : 'total',
+                cat      : 'total',
+                startMs  : local._timeline.requestStart,
+                endMs    : _jsonRespEnd,
+                durationMs : _jsonRespEnd - local._timeline.requestStart,
+                detail   : null
+            });
+        }
+
+        // #FI — in dev mode, embed the request-scoped timeline so upstream
+        // callers can merge it into their own Inspector Flow tab.
+        if (self.isCacheless() && local._timeline && local._timeline.entries.length > 0) {
+            jsonObj.__ginaFlow = local._timeline.entries;
+        }
+
         var data = JSON.stringify(jsonObj);
 
         // HEAD: send all response headers (including content-length reflecting what the body

@@ -11,6 +11,13 @@
  * Returns `{ instance: app, middleware: express }` where `instance` is the
  * configured Express app and `middleware` is the raw express module.
  *
+ * **Inspector endpoints:** This file has no `/_gina/*` handlers.
+ * `server.js` registers all Inspector endpoints (`/_gina/inspector/*`,
+ * `/_gina/logs`, `/_gina/agent`) on the Express `app` instance returned
+ * here, inside its `onRequest()` catch-all (`self.instance.all('*', ...)`).
+ * No fast-path is needed in this adapter because Express request handling
+ * already flows through `server.js`.
+ *
  * @class ServerEngineClass
  * @constructor
  * @param {object} options - Server configuration
