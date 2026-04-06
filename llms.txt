@@ -54,7 +54,7 @@ setContext(key, value)       // Write to global store
 define(key, value)           // Property definition helper
 getEnvVar(key)               // Read env variable
 setEnvVar(key, val, protect) // Write env variable
-onCompleteCall(emitter)          // Wraps an EventEmitter .onComplete(cb) into a native Promise — use to await PathObject ops (mkdir/cp/mv/rm) and Shell commands from async controller actions
+onCompleteCall(emitter)          // Wraps an EventEmitter .onComplete(cb) into a native Promise — lib/async/src/main.js, also available as global and via lib.async
 ```
 
 ---
@@ -292,16 +292,18 @@ ai.client.chat.completions.create({ stream: true, ... });
 
 ## HTTP/2 settings & metrics
 
-**Configurable settings** (via `settings.json` `http2Options`):
+**Configurable settings** (via `settings.json` `http2Options` or `settings.server.json` `http2Options`):
 ```json
 {
   "http2Options": {
     "maxConcurrentStreams": 256,
-    "initialWindowSize": 655350
+    "initialWindowSize": 655350,
+    "maxSessionRejectedStreams": 100,
+    "maxSessionInvalidFrames": 1000
   }
 }
 ```
-Security-critical settings are hardcoded and not user-overridable: `maxHeaderListSize: 65536` (HPACK bomb), `enablePush: false`, `maxSessionRejectedStreams: 100` (RST/Rapid Reset), `maxSessionInvalidFrames: 1000` (CONTINUATION flood).
+Security-critical settings that are hardcoded and not user-overridable: `maxHeaderListSize: 65536` (HPACK bomb), `enablePush: false`.
 
 **Session metrics** — exposed at `/_gina/info` under `"http2"` key:
 ```json
@@ -337,6 +339,8 @@ Counters are live — no restart required. `activeSessions` is bounded by ≥ 0.
 | `HTTP2_PREFLIGHT_DEADLINE_MS` | 1500 | Pre-flight PING timeout |
 
 `GinaHttp2Error` codes: `TIMEOUT`, `PREMATURE_CLOSE`, `STREAM_ERROR`, `ECONNRESET`, `ECONNREFUSED`, `PREFLIGHT_TIMEOUT`, `PREFLIGHT_FAILED`. `ECONNREFUSED` is never retried. `retryCount` tracks attempts; `retriedOnce` is derived from `retryCount > 0`.
+
+**GOAWAY logging** — when a cached HTTP/2 session receives a GOAWAY frame, the handler logs `console.warn('[http2] GOAWAY received — errorCode: X, lastStreamID: Y, session: Z')`. `errorCode` distinguishes clean server restarts (0 = NO_ERROR) from protocol errors (e.g. 1 = PROTOCOL_ERROR, 11 = ENHANCE_YOUR_CALM). `lastStreamID` indicates which streams were processed before the GOAWAY.
 
 ---
 
@@ -481,6 +485,7 @@ The Inspector is a dev-mode SPA embedded in every bundle at `/_gina/inspector/`.
 
 **Data channels:**
 
+0. **`/_gina/agent` SSE** — remote/standalone mode. Activated by `?target=<bundle_url>` query param. Streams `event: data` (ginaData updates) + `event: log` (server log entries) over a single SSE connection. When active, all other channels are skipped. The "No source" overlay provides a manual connect form that navigates to `?target=<url>` — users can type a bundle URL (scheme auto-prefixed) instead of editing the address bar.
 1. **`window.opener.__ginaData`** — same-origin polling every 2 s (primary). Always works since the Inspector and the monitored page share the same origin.
 2. **engine.io** — real-time push when the monitored bundle has `ioServer` configured. The Inspector connects to the bundle's own port via `window.location.port`.
 
@@ -488,11 +493,12 @@ The Inspector is a dev-mode SPA embedded in every bundle at `/_gina/inspector/`.
 
 - **Client-side:** `window.opener.__ginaLogs` — array filled by the `__logsScript` capture script injected in dev mode.
 - **Server-side (SSE):** `/_gina/logs` endpoint streams log entries via SSE. Taps `process.on('logger#default')` — no logger modification needed. Dev mode only.
+- **Server-side (SSE agent):** `/_gina/agent` endpoint `event: log` — combined stream in standalone mode. Same log format as `/_gina/logs`.
 - **Server-side (engine.io):** `{ type: 'log', data: {...} }` WebSocket messages pushed from the `ioServer` connection handler when engine.io is configured.
 
 **Dev mode injections** (both added to user pages in dev mode, before `</body>`):
 - **`__logsScript`** — patches `console.log/info/warn/error/debug` to push `{ t, l, b, s }` entries to `window.__ginaLogs`. The Inspector reads this via `window.opener.__ginaLogs`.
-- **`__gdScript`** — `window.__ginaData = { gina: {...}, user: {...} }`. `__gdPayload` also stored on `self.serverInstance._lastGinaData` for engine.io.
+- **`__gdScript`** — `window.__ginaData = { gina: {...}, user: {...} }`. `__gdPayload` also stored on `self.serverInstance._lastGinaData` for engine.io. Also emits `process.emit('inspector#data', __gdPayload)` for `/_gina/agent` SSE clients.
 
 **`statusbar.html` link** — simple relative `/_gina/inspector/` (opens in new tab, same origin).
 
@@ -509,10 +515,12 @@ The Inspector is a dev-mode SPA embedded in every bundle at `/_gina/inspector/`.
 Dev-mode query instrumentation captures every database query tied to the current HTTP request and surfaces them in the Inspector "Query" tab.
 
 - **Per-request isolation** — `process.gina._queryALS` (`AsyncLocalStorage`) binds the query log to the request's async context via `enterWith()` in `setOptions()`. Created once in `controller.js`, survives dev-mode cache busts.
-- **Connector-level interception** — instrumented in the Couchbase connector's N1QL execution path (`core/connectors/couchbase/index.js`), not in `entity.js`. Connector-generated methods use closure variables — entity wrappers can't see them. Query entry shape: `{ type, trigger, statement, params, durationMs, resultCount, error, source, origin, connector }`.
-- **`origin` tagging** — `infos.bundle` (set on `Entity.prototype.bundle` at registration). **`connector` tagging** — hardcoded string per connector (e.g. `'couchbase'`).
+- **Connector-level interception** — instrumented in each connector's query execution path, not in `entity.js`. Connector-generated methods use closure variables — entity wrappers can't see them. Query entry shape: `{ type, trigger, statement, params, durationMs, resultCount, resultSize, error, source, origin, connector, indexes }`.
+- **Supported connectors** — Couchbase (`type: 'N1QL'`, `connector: 'couchbase'`), MySQL (`type: 'MySQL'`, `connector: 'mysql'`), PostgreSQL (`type: 'PG'`, `connector: 'postgresql'`), SQLite (`type: 'SQL'`, `connector: 'sqlite'`). SQLite uses synchronous `execute()` (try/catch) instead of async callbacks.
+- **`origin` tagging** — `infos.bundle` (set on `Entity.prototype.bundle` at registration). **`connector` tagging** — hardcoded string per connector.
 - **Cross-bundle propagation** — when bundle A calls B via `self.query()`, B's queries travel back as `__ginaQueries` in the JSON response (embedded by `render-json.js`). A's `query()` callback extracts, merges into its own `local._queryLog`, and deletes the field before data reaches the controller action.
-- **Inspector UI** — split trigger badge (`entity` | `method`), SQL syntax highlighting, params table (`$1`/`$2` → value), free-text search bar filtering across all fields.
+- **Index reporting (Couchbase)** — `extractIndexes(profile)` walks `meta.profile.executionTimings` tree (`~child`/`~children` recursion) to find `IndexScan3`/`PrimaryScan3`/`ExpressionScan`/`KeyScan` operators and extract index names. Two extraction paths: `meta.profile` (fast, SDK v3) and EXPLAIN fallback (SDK v4 — C++ binding doesn't surface `meta.profile`). `_explainCache` Map caches per unique statement. `USE KEYS` queries detected via `ExpressionScan`/`KeyScan` operators. Enabled by `queryOptions.profile = 'timings'` in dev mode for SDK v3+. Three visual states: green (secondary), amber (primary scan), red (no index). Grey N/A badge for unsupported connectors.
+- **Inspector UI** — split trigger badge (`entity` | `method`), SQL syntax highlighting, params table (`$1`/`$2` → value), free-text search bar with 200ms debounce, per-card weight color-coding (`bm-stat-*`), filter persistence (lang/connector/bundle in localStorage), pagination (20 cards default, "Show all" button).
 
 **UX enhancements:**
 
@@ -522,6 +530,8 @@ Dev-mode query instrumentation captures every database query tied to the current
 - **Drag-to-select log rows** — `mousedown` → `mousemove` → `mouseup` builds a range selection in real time. Plain click (no movement) copies the single row with a green flash + left accent feedback.
 - **Copy badge fade-out** — after copy, badge shows "Copied", fades out (400ms opacity transition via `setTimeout`), then clears the selection. `transitionend` was unreliable — replaced with `setTimeout`.
 - **Selection styling** — 3px left amber accent (`::before` pseudo-element), subtle amber background, rounded corners (6px) on first/last rows of contiguous groups. CSS `:has()` and `+` sibling combinators detect group boundaries.
+- **Tab layout presets** — segmented control (joined buttons with SVG icons) in settings panel, split from other settings by a thin divider. Four presets: Balanced (default: Data, View, Logs, Forms, Query, Flow), Backend (Data, Query, Flow, Logs, View, Forms), Frontend (View, Data, Forms, Logs, Query, Flow), Custom (user-defined drag-to-reorder). Color-coded preview pills below the control show the active order at a glance. `applyTabLayout()` reorders DOM nodes (preserving listeners). `renderLayoutPreview()` rebuilds the pill row. Persisted in `localStorage.__gina_inspector_tab_layout`. Custom order persisted separately in `localStorage.__gina_inspector_tab_layout_custom` as a JSON array. Custom mode adds `.bm-drag-mode` to the tab bar — tabs become draggable with grab cursor, 2px amber drop indicator, and 4px drag threshold.
+- **Performance anomaly alerts** — View tab dot indicator (8px circle, heartbeat animation) activates when page metrics exceed thresholds (load > 3s warn / 10s critical, transfer > 1MB / 5MB, FCP > 2.5s / 4s, query total > 500ms / 2s, query count > 20 / 50). Affected badges get `bm-perf-warn` (amber border) or `bm-perf-critical` (red border) class. Tooltip shows threshold details. `checkPerfAnomalies(metrics, queries)` runs on every poll cycle.
 
 ---
 
@@ -570,6 +580,9 @@ Dev-mode query instrumentation captures every database query tied to the current
 25. **Framework edits in `gina-dev` have no effect on a running bundle until the live install is also patched** — bundles always load from `~/.npm-global/lib/node_modules/gina/` (the main worktree). Editing `gina-dev/framework/…` only affects the next `git merge --ff-only` into `develop`. When testing a framework fix mid-session, apply the same edit to both `gina-dev` and `~/.npm-global/lib/node_modules/gina/` in parallel, then restart the affected bundle.
 26. **`throwError` call-signature reference** — four valid forms: `(errorObj)` (1-arg object/Error); `(res, string)` (2-arg, code inferred from `res.status || 500`); `(res, code, Error)` (3-arg with Error object); `(res, code, string)` (3-arg with string message, code preserved as of this fix). Always `return` immediately after calling `throwError` in a controller action.
 27. **freelancer/v3 `setting-get-one-design` was a latent crash** — `coreapi` routing has `"url": "/settings/get/design/:designId"` with no `requirements` block. Before the `fitsWithRequirements` fix (gotcha #20), every GET to that URL threw a 500 TypeError. The fix makes it work correctly. Worth testing that route after the next ff-only merge.
+28. **Connector code is NOT hot-reloaded** — `core/connectors/*/index.js` modules are loaded once at bundle startup via entity registration, not via `lib/index.js`. `refreshCore()` does not evict them. Any change (new QI fields, `extractIndexes()`, `profile: "timings"`) requires `gina bundle:stop` + `gina bundle:start` or `docker restart <container>`.
+29. **Couchbase SDK v4 `meta.profile` is always undefined** — the C++ binding (`couchbase-cxx-client`) does not forward the `profile` field from the N1QL server response. `meta.profile` is `undefined` even with `profile: 'timings'` in the request. The EXPLAIN fallback (`explainForIndexes()`) runs `EXPLAIN <statement>` asynchronously and caches results per unique statement. First request for a new statement may show N/A; subsequent requests hit the cache. `USE KEYS` queries use `ExpressionScan`/`KeyScan` operators (no `index` field) — detected separately by `extractIndexes()`.
+30. **Test lookback constants are fragile** — `inspector.test.js` section 08 scans backward from `_devLog.push(_queryEntry)` by byte distance looking for `envIsDev`. Adding helper functions or fields between the guard and the push increases the distance. Current constant: 1800 chars. Always check after adding code near the connector QI guard.
 28. **`req.routing.param.<key>` ≠ URL value — use `req.params.<key>`** — `req.routing.param` holds the raw routing config object from `routing.json`. For URL parameter bindings like `"id": ":id"`, the value stored there is the literal placeholder string `":id"`, not the actual URL segment. The actual captured value is in `req.params.id` (always available) and `req.get.id` / `req.delete.id` etc. (method-specific). Static values declared in `param` (e.g. `"code": 302`) ARE correctly available on `req.routing.param.code`. Rule of thumb: use `req.routing.param` only for static metadata, never for captured URL params.
 29. **`fitsWithRequirements` requires `"slug": ":slug"` in `param` even when `requirements` is set** — the router only increments the route-match score (and populates `req.params`) for a URL parameter if that parameter key exists in the `param` block (e.g. `"slug": ":slug"`). Having `requirements: { "slug": "..." }` alone is not enough — the route will 404 without the binding. The `requirements` block adds regex validation on top of the binding; it does not imply the binding.
 30. **Controller files must NOT contain `require` or `inherits`** — the router (`router.js:557-560`) calls `inherits(Controller, SuperController)` automatically before every dispatch. Writing `var SuperController = require('../../../core/controller/controller')` or `Controller = inherits(Controller, SuperController)` inside a controller file is wrong and will break on path changes. The correct pattern is a plain constructor function with `this.action = function(req, res) {}` closure-style methods — matching the boilerplate in `core/template/boilerplate/bundle/controllers/controller.content.js`. Never use `Controller.prototype.method` either; actions are defined as properties on `this` inside the constructor.
@@ -581,3 +594,7 @@ Dev-mode query instrumentation captures every database query tied to the current
 36. **`server.isaac.js:812` initializes `req.params`** — `request.params = {}` and `request.params[0] = url` are set before `handle()` runs. Any code that deletes `req.params` breaks `fitsWithRequirements` which checks `typeof(request.params) != 'undefined'` before setting param values.
 37. **`handle()` is async without `.catch()`** — `handle(req, res, next, bundle, pathname, config)` at `server.js:3095` is called without `await` or `.catch()`. Any unhandled throw becomes a silent unhandled promise rejection. When debugging routing crashes, wrap the body in try-catch temporarily.
 38. **Inspector CSS: `<select>` and `<input>` need separate rules** — macOS native `<select>` ignores `line-height` for vertical text centering; use explicit vertical `padding` (e.g. `4px 8px`) instead. `padding: 0` + `line-height: 26px` works for `<input>` but leaves `<select>` text cramped/clipped. Keep `--sans` for selects and `--mono` for search inputs — mono is wider and looks awkward in native option lists. When unifying toolbar styles across Inspector tabs, always split `select` and `input` CSS rules.
+39. **`getAssets()` warns on inline `<script>` tags** — `server.js:811` regex matches all `<script>...</script>` tags in the rendered HTML, including inline ones. Inline scripts have no `src` attribute, so the `urlArr` match at line 927 returns `null`, causing `urlArr.length` to throw into the catch block that prints `"Problem with this asset"`. Fix: skip `<script>` tags without `\ssrc\s*=` after the tag detection block. The `\s` before `src` prevents false matches on `data-src`. Inline scripts are not external assets — they have no URL to catalog.
+40. **`queryParams` vs `queryOptions` at `conn._cluster.query()`** — the Couchbase connector's `conn._cluster.query()` must receive the full `queryOptions` object (which includes `parameters: queryParams`, `profile`, `scanConsistency`, `adhoc`), NOT the raw `queryParams` array. Passing `queryParams` silently drops all non-parameter options because the SDK only reads named properties from the options object. This bug existed at lines 892 and 934 for years, invisibly disabling `profile: 'timings'`, `scanConsistency`, and `adhoc: false` on every SDK v3+ query.
+41. **Option B is the active dispatch path in the Couchbase connector** — `register()` in `readSource()` has two paths: Option A (`self._isRegisteredFromProto === true`) and Option B (`!self._isRegisteredFromProto`). Option B is always active for all connector-generated entity methods. When adding debug logging or QI instrumentation to the query execution path, place it in Option B — Option A is dead code.
+42. **Docker `node_modules` isolation** — Docker containers using `node_modules` anonymous volumes have their own copy of all npm packages. Edits to `node_modules/` on the host are invisible inside the container. To debug SDK-level behaviour, either `docker exec` and edit inside the container, or add logging to the framework connector code (which IS bind-mounted) rather than the SDK itself.

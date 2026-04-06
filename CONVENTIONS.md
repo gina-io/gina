@@ -46,7 +46,7 @@ var init = function() { ... }
 var freeMemory = function(variables, isGlobalModeNeeded) { ... }
 
 // public instance method
-this.render = function(userData, displayToolbar, errOptions) { ... }
+this.render = function(userData, displayInspector, errOptions) { ... }
 
 // async addition (recent)
 this.store = async function(key, value, ttl) { ... }

@@ -31,7 +31,7 @@ Node.js MVC framework with built-in HTTP/2, multi-bundle architecture, and scope
 
 ```bash
 npm install -g gina@latest --prefix=~/.npm-global
-gina new myproject
+gina project:add @myproject --path=$(pwd)/myproject
 gina bundle:add api @myproject
 gina bundle:start api @myproject
 open https://localhost:3100
