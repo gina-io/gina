@@ -927,3 +927,40 @@ describe('08 - swallowIfNonCritical helper — non-critical error handling (#H3)
     });
 
 });
+
+
+// ─── 09 — GOAWAY handler logs errorCode and lastStreamID (#H5) ──────────────
+
+describe('09 - GOAWAY handler logs errorCode and lastStreamID (#H5)', function() {
+
+    var ctrlSrc;
+    function getCtrlSrc() { return ctrlSrc || (ctrlSrc = fs.readFileSync(SOURCE, 'utf8')); }
+
+    it('source has console.warn in goaway handler with errorCode', function() {
+        var src = getCtrlSrc();
+        var goawayIdx = src.indexOf("client.on('goaway'");
+        assert.ok(goawayIdx > -1, 'expected client.on(\'goaway\') handler in source');
+        // Check the next 400 chars for the warn line
+        var block = src.substring(goawayIdx, goawayIdx + 400);
+        assert.ok(
+            block.indexOf('console.warn') > -1,
+            'expected console.warn in GOAWAY handler — #H5 logging missing'
+        );
+        assert.ok(
+            block.indexOf('errorCode') > -1,
+            'expected errorCode in GOAWAY log message'
+        );
+        assert.ok(
+            block.indexOf('lastStreamID') > -1,
+            'expected lastStreamID in GOAWAY log message'
+        );
+    });
+
+    it('source has #H5 marker comment', function() {
+        assert.ok(
+            getCtrlSrc().indexOf('#H5') > -1,
+            'expected #H5 marker comment in controller.js'
+        );
+    });
+
+});

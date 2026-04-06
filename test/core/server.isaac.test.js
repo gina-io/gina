@@ -135,17 +135,17 @@ describe('03 - HTTP/2 configurable settings source structure (#H3)', function() 
         );
     });
 
-    it('source sets maxSessionRejectedStreams to 100 (RST/Rapid Reset defense)', function() {
+    it('source defaults maxSessionRejectedStreams to 100 (RST/Rapid Reset defense) (#H7)', function() {
         assert.ok(
-            getSrc().indexOf('http2Options.maxSessionRejectedStreams = 100') > -1,
-            'expected `maxSessionRejectedStreams = 100` — RST flood / Rapid Reset defense missing'
+            getSrc().indexOf('_h2Opts.maxSessionRejectedStreams || 100') > -1,
+            'expected `_h2Opts.maxSessionRejectedStreams || 100` — configurable RST flood defense'
         );
     });
 
-    it('source sets maxSessionInvalidFrames to 1000 (CONTINUATION flood defense)', function() {
+    it('source defaults maxSessionInvalidFrames to 1000 (CONTINUATION flood defense) (#H7)', function() {
         assert.ok(
-            getSrc().indexOf('http2Options.maxSessionInvalidFrames = 1000') > -1,
-            'expected `maxSessionInvalidFrames = 1000` — CONTINUATION flood defense missing'
+            getSrc().indexOf('_h2Opts.maxSessionInvalidFrames || 1000') > -1,
+            'expected `_h2Opts.maxSessionInvalidFrames || 1000` — configurable CONTINUATION flood defense'
         );
     });
 
@@ -155,55 +155,79 @@ describe('03 - HTTP/2 configurable settings source structure (#H3)', function() 
 // 03b — HTTP/2 configurable settings pure logic
 describe('03b - HTTP/2 configurable settings: fallback logic', function() {
 
-    // Replica of the _h2Opts fallback logic in server.isaac.js
+    // Replica of the _h2Opts fallback logic in server.isaac.js (settings + session guards)
     function resolveH2Settings(optionsHttp2Options) {
         var _h2Opts = (optionsHttp2Options && typeof optionsHttp2Options === 'object') ? optionsHttp2Options : {};
         return {
-            maxConcurrentStreams : _h2Opts.maxConcurrentStreams || 256,
-            initialWindowSize   : _h2Opts.initialWindowSize    || 65535 * 10,
-            maxHeaderListSize   : 65536,
-            enablePush          : false
+            settings: {
+                maxConcurrentStreams : _h2Opts.maxConcurrentStreams || 256,
+                initialWindowSize   : _h2Opts.initialWindowSize    || 65535 * 10,
+                maxHeaderListSize   : 65536,
+                enablePush          : false
+            },
+            // #H7 — session-level guards now also configurable
+            maxSessionRejectedStreams : _h2Opts.maxSessionRejectedStreams || 100,
+            maxSessionInvalidFrames  : _h2Opts.maxSessionInvalidFrames   || 1000
         };
     }
 
     it('uses default maxConcurrentStreams (256) when http2Options absent', function() {
-        assert.equal(resolveH2Settings(undefined).maxConcurrentStreams, 256);
+        assert.equal(resolveH2Settings(undefined).settings.maxConcurrentStreams, 256);
     });
 
     it('uses default maxConcurrentStreams (256) when http2Options is null', function() {
-        assert.equal(resolveH2Settings(null).maxConcurrentStreams, 256);
+        assert.equal(resolveH2Settings(null).settings.maxConcurrentStreams, 256);
     });
 
     it('uses default maxConcurrentStreams (256) when http2Options is not an object', function() {
-        assert.equal(resolveH2Settings('string').maxConcurrentStreams, 256);
+        assert.equal(resolveH2Settings('string').settings.maxConcurrentStreams, 256);
     });
 
     it('honours custom maxConcurrentStreams from settings.json', function() {
-        assert.equal(resolveH2Settings({ maxConcurrentStreams: 512 }).maxConcurrentStreams, 512);
+        assert.equal(resolveH2Settings({ maxConcurrentStreams: 512 }).settings.maxConcurrentStreams, 512);
     });
 
     it('uses default initialWindowSize (655350) when http2Options absent', function() {
-        assert.equal(resolveH2Settings(undefined).initialWindowSize, 65535 * 10);
+        assert.equal(resolveH2Settings(undefined).settings.initialWindowSize, 65535 * 10);
     });
 
     it('honours custom initialWindowSize from settings.json', function() {
-        assert.equal(resolveH2Settings({ initialWindowSize: 131070 }).initialWindowSize, 131070);
+        assert.equal(resolveH2Settings({ initialWindowSize: 131070 }).settings.initialWindowSize, 131070);
     });
 
     it('always uses hardcoded maxHeaderListSize (65536)', function() {
-        assert.equal(resolveH2Settings({ maxHeaderListSize: 99999 }).maxHeaderListSize, 65536);
+        assert.equal(resolveH2Settings({ maxHeaderListSize: 99999 }).settings.maxHeaderListSize, 65536);
     });
 
     it('always disables server push regardless of user config', function() {
-        assert.equal(resolveH2Settings({ enablePush: true }).enablePush, false);
+        assert.equal(resolveH2Settings({ enablePush: true }).settings.enablePush, false);
     });
 
     it('http2Options empty object falls back to all defaults', function() {
         var s = resolveH2Settings({});
-        assert.equal(s.maxConcurrentStreams, 256);
-        assert.equal(s.initialWindowSize, 65535 * 10);
-        assert.equal(s.maxHeaderListSize, 65536);
-        assert.equal(s.enablePush, false);
+        assert.equal(s.settings.maxConcurrentStreams, 256);
+        assert.equal(s.settings.initialWindowSize, 65535 * 10);
+        assert.equal(s.settings.maxHeaderListSize, 65536);
+        assert.equal(s.settings.enablePush, false);
+        assert.equal(s.maxSessionRejectedStreams, 100);
+        assert.equal(s.maxSessionInvalidFrames, 1000);
+    });
+
+    // #H7 — session-level guard configurability
+    it('uses default maxSessionRejectedStreams (100) when absent', function() {
+        assert.equal(resolveH2Settings(undefined).maxSessionRejectedStreams, 100);
+    });
+
+    it('honours custom maxSessionRejectedStreams from settings.json', function() {
+        assert.equal(resolveH2Settings({ maxSessionRejectedStreams: 50 }).maxSessionRejectedStreams, 50);
+    });
+
+    it('uses default maxSessionInvalidFrames (1000) when absent', function() {
+        assert.equal(resolveH2Settings(undefined).maxSessionInvalidFrames, 1000);
+    });
+
+    it('honours custom maxSessionInvalidFrames from settings.json', function() {
+        assert.equal(resolveH2Settings({ maxSessionInvalidFrames: 500 }).maxSessionInvalidFrames, 500);
     });
 
 });
