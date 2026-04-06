@@ -1,0 +1,3 @@
+kind: Added
+body: 'SQL index reporting Phase A (#QI1): connectors read indexes.sql at startup and populate query instrumentation index badges in the Inspector'
+time: 2026-04-06T07:56:14.587934+01:00

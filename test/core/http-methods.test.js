@@ -323,11 +323,13 @@ describe('07 - HTTP methods: render-swig.js HEAD suppression', function() {
     });
 
     it('calls local.res.end() without body for HEAD', function() {
-        // The HEAD path should call res.end() with no argument
+        // The HEAD path should call res.end() with no argument (HTTP/1.1 fallback)
+        // #H8 added an inner stream branch: if (stream) { stream.end() } else { local.res.end() }
+        // so we look for local.res.end() within the full HEAD block (up to `} else if`)
         var headGuards = src.split('/^HEAD$/i.test(local.req.method)');
         assert.ok(headGuards.length >= 2, 'Expected at least one HEAD guard in render-swig');
         headGuards.slice(1).forEach(function(block) {
-            var blockEnd = block.indexOf('} else {');
+            var blockEnd = block.indexOf('} else if');
             assert.ok(/local\.res\.end\(\)/.test(block.slice(0, blockEnd)),
                 'HEAD branch should call res.end() with no body');
         });

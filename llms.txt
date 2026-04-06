@@ -1,6 +1,6 @@
 # Gina — LLM Reference
 
-Node.js MVC framework. No Express dependency. Built-in HTTP/2. Multi-bundle architecture. Scope-based data isolation. CommonJS throughout (no ESM).
+Node.js MVC framework. No Express dependency. Built-in HTTP/2. Multi-bundle architecture. Scope-based data isolation. CommonJS throughout (no ESM). Single runtime dependency (`engine.io`) — all other functionality uses Node.js built-ins.
 
 ---
 
@@ -28,7 +28,7 @@ framework/v${version}/
     router.js           URL routing (matches routing.json rules)
     controller/
       controller.js     SuperController base class (per-request instances via inherits)
-      controller.render-swig.js   HTML rendering (delegate file, hot-reloaded in dev)
+      controller.render-swig.js   HTML rendering (delegate file, hot-reloaded in dev). HTTP/2: uses stream.respond() + stream.end() directly (#H8). Tests: test/core/render-swig.test.js (77 tests — async I/O, error normalization, exit paths, guard patterns, HTTP/2 stream implementation)
       controller.render-json.js   JSON rendering (delegate file)
     model/entity.js     EntitySuper — EventEmitter base for all ORM entities
     connectors/         Couchbase, Redis, SQLite connectors
@@ -520,6 +520,7 @@ Dev-mode query instrumentation captures every database query tied to the current
 - **`origin` tagging** — `infos.bundle` (set on `Entity.prototype.bundle` at registration). **`connector` tagging** — hardcoded string per connector.
 - **Cross-bundle propagation** — when bundle A calls B via `self.query()`, B's queries travel back as `__ginaQueries` in the JSON response (embedded by `render-json.js`). A's `query()` callback extracts, merges into its own `local._queryLog`, and deletes the field before data reaches the controller action.
 - **Index reporting (Couchbase)** — `extractIndexes(profile)` walks `meta.profile.executionTimings` tree (`~child`/`~children` recursion) to find `IndexScan3`/`PrimaryScan3`/`ExpressionScan`/`KeyScan` operators and extract index names. Two extraction paths: `meta.profile` (fast, SDK v3) and EXPLAIN fallback (SDK v4 — C++ binding doesn't surface `meta.profile`). `_explainCache` Map caches per unique statement. `USE KEYS` queries detected via `ExpressionScan`/`KeyScan` operators. Enabled by `queryOptions.profile = 'timings'` in dev mode for SDK v3+. Three visual states: green (secondary), amber (primary scan), red (no index). Grey N/A badge for unsupported connectors.
+- **Index reporting (SQL connectors — #QI1)** — `sql-parser.js` provides `parseCreateIndexes(src)` (parses `CREATE [UNIQUE] INDEX` statements → `{ tableName: [{ name, primary }] }` map) and `extractTargetTable(queryString)` (extracts primary table from SELECT/INSERT/UPDATE/DELETE). Each SQL connector reads an optional `indexes.sql` from the bundle's `sql/` directory at init time, builds an in-memory `_knownIndexes` map. QI resolves `_queryEntry.indexes` per query: `null` when no `indexes.sql` (N/A badge), `[]` when file exists but no index covers the table (red badge), `[{name, primary}]` when matched (green badge). No EXPLAIN round-trip — index knowledge comes from the project's own schema definitions.
 - **Inspector UI** — split trigger badge (`entity` | `method`), SQL syntax highlighting, params table (`$1`/`$2` → value), free-text search bar with 200ms debounce, per-card weight color-coding (`bm-stat-*`), filter persistence (lang/connector/bundle in localStorage), pagination (20 cards default, "Show all" button).
 
 **UX enhancements:**

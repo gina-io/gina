@@ -874,19 +874,54 @@ module.exports = async function render(userData, displayInspector, errOptions, d
                 console.info(local.req.method +' ['+local.res.statusCode +'] '+ local.req.url);
                 // HEAD: send headers only — body suppressed (HTTP spec §4.3.2)
                 if ( /^HEAD$/i.test(local.req.method) ) {
-                    local.res.setHeader('content-type', localOptions.conf.server.coreConfiguration.mime['html'] + '; charset='+ localOptions.conf.encoding);
-                    local.res.setHeader('content-length', Buffer.byteLength(htmlContent, 'utf8'));
-                    local.res.end();
+                    if ( stream ) {
+                        // #H8 — HTTP/2 HEAD: stream.respond() with content-length, no body.
+                        if ( !stream.headersSent ) {
+                            var _headH = {
+                                'content-type'   : localOptions.conf.server.coreConfiguration.mime['html'] + '; charset='+ localOptions.conf.encoding,
+                                'content-length' : Buffer.byteLength(htmlContent, 'utf8'),
+                                ':status'        : local.res.statusCode || 200
+                            };
+                            var _pendingH = local.res.getHeaders ? local.res.getHeaders() : {};
+                            for (var _hk in _pendingH) {
+                                if (!(_hk in _headH)) _headH[_hk] = _pendingH[_hk];
+                            }
+                            stream.respond(_headH);
+                        }
+                        stream.end();
+                        local.res.headersSent = true;
+                    } else {
+                        local.res.setHeader('content-type', localOptions.conf.server.coreConfiguration.mime['html'] + '; charset='+ localOptions.conf.encoding);
+                        local.res.setHeader('content-length', Buffer.byteLength(htmlContent, 'utf8'));
+                        local.res.end();
+                    }
+                } else if ( stream ) {
+                    // #H8 — Direct HTTP/2 stream: bypass HTTP/1.1 compat layer.
+                    // Guard: client may have disconnected (nginx timeout, browser navigation)
+                    // before the async callback completed. stream.destroyed is true in that
+                    // case — respond() would throw ERR_HTTP2_INVALID_STREAM.
+                    if (stream.destroyed || stream.closed) {
+                        console.warn('[render-swig] Stream already destroyed — client disconnected before response was sent ('+ local.req.url +')');
+                    } else {
+                        if ( !stream.headersSent ) {
+                            var _streamHeaders = {
+                                'content-type' : localOptions.conf.server.coreConfiguration.mime['html'] + '; charset='+ localOptions.conf.encoding,
+                                ':status'      : local.res.statusCode || 200
+                            };
+                            // Merge headers set earlier in the pipeline (CORS, cache-control, etc.)
+                            // — stream.respond() on the raw HTTP/2 stream does not include headers
+                            // set via response.setHeader().
+                            var _pendingHeaders = local.res.getHeaders ? local.res.getHeaders() : {};
+                            for (var _rhk in _pendingHeaders) {
+                                if (!(_rhk in _streamHeaders)) _streamHeaders[_rhk] = _pendingHeaders[_rhk];
+                            }
+                            stream.respond(_streamHeaders);
+                        }
+                        stream.end(htmlContent);
+                        local.res.headersSent = true;
+                    }
                 } else {
-                // if ( stream ) {
-                //     stream.respond({
-                //         'content-type': localOptions.conf.server.coreConfiguration.mime['html'] + '; charset='+ localOptions.conf.encoding,
-                //         ':status': 200
-                //     });
-                //     layout = null;
-                //     return stream.end(htmlContent);
-                // }
-                local.res.end( htmlContent );
+                    local.res.end( htmlContent );
                 }
                 layout = null;
             }
@@ -1423,19 +1458,48 @@ module.exports = async function render(userData, displayInspector, errOptions, d
                 console.info(local.req.method +' ['+local.res.statusCode +'] '+ local.req.url);
                 // HEAD: send headers only — body suppressed (HTTP spec §4.3.2)
                 if ( /^HEAD$/i.test(local.req.method) ) {
-                    local.res.setHeader('content-type', localOptions.conf.server.coreConfiguration.mime['html'] + '; charset='+ localOptions.conf.encoding);
-                    local.res.setHeader('content-length', Buffer.byteLength(htmlContent, 'utf8'));
-                    local.res.end();
+                    if ( stream ) {
+                        // #H8 — HTTP/2 HEAD: stream.respond() with content-length, no body.
+                        if ( !stream.headersSent ) {
+                            var _headH2 = {
+                                'content-type'   : localOptions.conf.server.coreConfiguration.mime['html'] + '; charset='+ localOptions.conf.encoding,
+                                'content-length' : Buffer.byteLength(htmlContent, 'utf8'),
+                                ':status'        : local.res.statusCode || 200
+                            };
+                            var _pendingH2 = local.res.getHeaders ? local.res.getHeaders() : {};
+                            for (var _hk2 in _pendingH2) {
+                                if (!(_hk2 in _headH2)) _headH2[_hk2] = _pendingH2[_hk2];
+                            }
+                            stream.respond(_headH2);
+                        }
+                        stream.end();
+                        local.res.headersSent = true;
+                    } else {
+                        local.res.setHeader('content-type', localOptions.conf.server.coreConfiguration.mime['html'] + '; charset='+ localOptions.conf.encoding);
+                        local.res.setHeader('content-length', Buffer.byteLength(htmlContent, 'utf8'));
+                        local.res.end();
+                    }
+                } else if ( stream ) {
+                    // #H8 — Direct HTTP/2 stream: bypass HTTP/1.1 compat layer.
+                    if (stream.destroyed || stream.closed) {
+                        console.warn('[render-swig] Stream already destroyed — client disconnected before response was sent ('+ local.req.url +')');
+                    } else {
+                        if ( !stream.headersSent ) {
+                            var _streamHeaders2 = {
+                                'content-type' : localOptions.conf.server.coreConfiguration.mime['html'] + '; charset='+ localOptions.conf.encoding,
+                                ':status'      : local.res.statusCode || 200
+                            };
+                            var _pendingHeaders2 = local.res.getHeaders ? local.res.getHeaders() : {};
+                            for (var _rhk2 in _pendingHeaders2) {
+                                if (!(_rhk2 in _streamHeaders2)) _streamHeaders2[_rhk2] = _pendingHeaders2[_rhk2];
+                            }
+                            stream.respond(_streamHeaders2);
+                        }
+                        stream.end(htmlContent);
+                        local.res.headersSent = true;
+                    }
                 } else {
-                // if ( stream ) {
-                //     stream.respond({
-                //         'content-type': localOptions.conf.server.coreConfiguration.mime['html'] + '; charset='+ localOptions.conf.encoding,
-                //         ':status': 200
-                //     });
-                //     layout = null;
-                //     return stream.end(htmlContent);
-                // }
-                local.res.end( htmlContent );
+                    local.res.end( htmlContent );
                 }
 
                 layout = null;
@@ -1456,18 +1520,26 @@ module.exports = async function render(userData, displayInspector, errOptions, d
         if ( typeof(local.req.params.errorObject) != 'undefined' ) {
             return self.throwError(local.req.params.errorObject);
         }
-        // if (
-        //     stream
-        //     && !headersSent()
-        // ) {
-        //     stream.respond({
-        //         'content-type': localOptions.conf.server.coreConfiguration.mime['html'] + '; charset='+ localOptions.conf.encoding,
-        //         ':status': 500
-        //     });
-        //     layout = null;
-        //     return stream.end('Unexpected controller error while trying to render.');
-        // }
-        local.res.end('Unexpected controller error while trying to render.');
+        if ( stream ) {
+            // #H8 — Direct HTTP/2 stream for error fallthrough.
+            if (stream.destroyed || stream.closed) {
+                console.warn('[render-swig] Stream already destroyed — client disconnected before error response was sent ('+ (local.req ? local.req.url : 'unknown') +')');
+            } else if ( !stream.headersSent ) {
+                var _errHeaders = {
+                    'content-type' : localOptions.conf.server.coreConfiguration.mime['html'] + '; charset='+ localOptions.conf.encoding,
+                    ':status'      : 500
+                };
+                var _pendingErrH = local.res.getHeaders ? local.res.getHeaders() : {};
+                for (var _ehk in _pendingErrH) {
+                    if (!(_ehk in _errHeaders)) _errHeaders[_ehk] = _pendingErrH[_ehk];
+                }
+                stream.respond(_errHeaders);
+                stream.end('Unexpected controller error while trying to render.');
+                local.res.headersSent = true;
+            }
+        } else {
+            local.res.end('Unexpected controller error while trying to render.');
+        }
 
         // Release per-request refs — save next first since local.next is used directly here.
         var _next = ( typeof(local.next) != 'undefined' ) ? local.next : null;
