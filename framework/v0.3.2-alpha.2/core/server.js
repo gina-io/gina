@@ -2257,7 +2257,8 @@ function Server(options) {
         self.instance.all('*', function onInstance(request, response, next) {
 
             // #FI — dev-mode request timeline for Inspector Flow tab
-            if (self.isCacheless()) {
+            // Only initialized when the Inspector has been opened (process.gina._inspectorActive)
+            if (self.isCacheless() && process.gina._inspectorActive) {
                 request._devTimeline = { requestStart: Date.now(), entries: [] };
             }
 
@@ -2337,6 +2338,8 @@ function Server(options) {
                 && request.method.toUpperCase() === 'GET'
                 && /\/_gina\/inspector(\/.*)?$/.test(request.url)
             ) {
+                // Activate profiling on first Inspector access
+                if (!process.gina._inspectorActive) process.gina._inspectorActive = true;
                 var _bmBase = __dirname + '/asset/plugin/dist/vendor/gina/inspector';
                 var _bmPath = request.url.replace(/^.*\/_gina\/inspector\/?/, '').split('?')[0];
                 if (!_bmPath || _bmPath === '') _bmPath = 'index.html';
@@ -2366,6 +2369,8 @@ function Server(options) {
                 && request.method.toUpperCase() === 'GET'
                 && /\/_gina\/logs$/.test(request.url)
             ) {
+                // Activate profiling on SSE connection
+                if (!process.gina._inspectorActive) process.gina._inspectorActive = true;
                 var _ansiRe = /\x1B\[\d+m/g;
 
                 response.setHeader('content-type', 'text/event-stream; charset=utf-8');
@@ -2410,6 +2415,8 @@ function Server(options) {
                 && request.method.toUpperCase() === 'GET'
                 && /\/_gina\/agent$/.test(request.url)
             ) {
+                // Activate profiling on SSE connection
+                if (!process.gina._inspectorActive) process.gina._inspectorActive = true;
                 var _agAnsiRe = /\x1B\[\d+m/g;
 
                 response.setHeader('content-type', 'text/event-stream; charset=utf-8');
@@ -2908,6 +2915,8 @@ function Server(options) {
      */
     var processRequestData = function(request, response, next) {
 
+
+
         var bodyStr = null, obj = null, exception = null;
         // to compare with /core/controller/controller.js -> getParams()
         switch( request.method.toLowerCase() ) {
@@ -3091,6 +3100,7 @@ function Server(options) {
 
                             obj = formatDataFromString(bodyStr);
 
+
                             if ( typeof(obj) != 'undefined' && obj.count() == 0 && bodyStr.length > 1 ) {
                                 try {
                                     request.put = merge(request.put, obj);
@@ -3122,8 +3132,10 @@ function Server(options) {
                 }
 
                 if ( obj && typeof(obj) != 'undefined' && obj.count() > 0 ) {
-                    // still need this to allow compatibility with express & connect middlewares
+                    
+// still need this to allow compatibility with express & connect middlewares
                     request.body = request.put = merge(request.put, obj);
+
                 }
 
 
@@ -3672,6 +3684,7 @@ function Server(options) {
         var _origParams     = Object.assign({}, req.params);
         var _origReqMethod  = (typeof(req[_reqMethodKey]) != "undefined") ? Object.assign({}, req[_reqMethodKey]) : undefined;
 
+
         out:
             for (let name in routing) {
                 // skip non-object entries (e.g. $schema annotations in routing.json)
@@ -3700,7 +3713,7 @@ function Server(options) {
                 // matching; leftover values cause parseRouting lines 396-407 to inject
                 // phantom segments, compounding work on each subsequent compareUrls call.
                 req.params = Object.assign({}, _origParams);
-                delete req[_reqMethodKey];
+                req[_reqMethodKey] = _origReqMethod ? Object.assign({}, _origReqMethod) : {};
 
                 // Updating hostname
                 // if (
@@ -3869,6 +3882,20 @@ function Server(options) {
         // Restore req[method] if deleted during route matching (#fix: routes without URL params)
         if (typeof(req[_reqMethodKey]) == "undefined") {
             req[_reqMethodKey] = _origReqMethod || {};
+        } else if (
+            _origReqMethod && typeof(_origReqMethod) == "object"
+            && ["get", "put", "post", "patch", "delete"].indexOf(_reqMethodKey) > -1
+            && _origReqMethod.count() > 0
+        ) {
+            // compareUrls recreates req[method] with only URL params, discarding
+            // body data parsed by processRequestData (or query params for GET). Merge back in.
+            // URL params (in req[method]) take precedence over original values.
+            var _bodyKeys = Object.keys(_origReqMethod);
+            for (var _bk = 0; _bk < _bodyKeys.length; ++_bk) {
+                if (typeof(req[_reqMethodKey][_bodyKeys[_bk]]) == "undefined") {
+                    req[_reqMethodKey][_bodyKeys[_bk]] = _origReqMethod[_bodyKeys[_bk]];
+                }
+            }
         }
 
         // #FI — route matching end

@@ -494,7 +494,8 @@ function ServerEngineClass(options) {
 
             request.originalUrl = request.url;
             // #FI — dev-mode request timeline for Inspector Flow tab
-            if (isCacheless) {
+            // Only initialized when the Inspector has been opened (process.gina._inspectorActive)
+            if (isCacheless && process.gina._inspectorActive) {
                 request._devTimeline = { requestStart: Date.now(), entries: [] };
             }
             // From the original
@@ -607,6 +608,8 @@ function ServerEngineClass(options) {
                 && request.method.toUpperCase() === 'GET'
                 && /\/_gina\/inspector(\/.*)?$/.test(request.url)
             ) {
+                // Activate profiling on first Inspector access
+                if (!process.gina._inspectorActive) process.gina._inspectorActive = true;
                 var _inspBase = __dirname + '/asset/plugin/dist/vendor/gina/inspector';
                 var _inspPath = request.url.replace(/^.*\/_gina\/inspector\/?/, '').split('?')[0];
                 if (!_inspPath || _inspPath === '') _inspPath = 'index.html';
@@ -648,6 +651,8 @@ function ServerEngineClass(options) {
                 && request.method.toUpperCase() === 'GET'
                 && /\/_gina\/logs$/.test(request.url)
             ) {
+                // Activate profiling on SSE connection
+                if (!process.gina._inspectorActive) process.gina._inspectorActive = true;
                 var _ansiRe = /\x1B\[\d+m/g;
 
                 var _sseHeaders = {
@@ -706,6 +711,8 @@ function ServerEngineClass(options) {
                 && request.method.toUpperCase() === 'GET'
                 && /\/_gina\/agent$/.test(request.url)
             ) {
+                // Activate profiling on SSE connection
+                if (!process.gina._inspectorActive) process.gina._inspectorActive = true;
                 var _agAnsiRe = /\x1B\[\d+m/g;
 
                 var _agHeaders = {

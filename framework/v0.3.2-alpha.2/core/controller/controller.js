@@ -38,6 +38,13 @@ if (!process.gina._queryALS) {
     var { AsyncLocalStorage } = require('async_hooks');
     process.gina._queryALS = new AsyncLocalStorage();
 }
+// Inspector activation flag — when false, profiling (flow timeline, query log)
+// is skipped and JSON responses stay clean. Set to true when the Inspector SPA
+// is opened or an SSE client connects to /_gina/agent or /_gina/logs.
+// Lives on process.gina so it survives dev-mode cache busting of controller.js.
+if (typeof process.gina._inspectorActive === 'undefined') {
+    process.gina._inspectorActive = false;
+}
 var merge           = lib.merge;
 var inherits        = lib.inherits;
 var console         = lib.logger;
@@ -247,7 +254,7 @@ function SuperController(options) {
         // reuse it. AsyncLocalStorage.enterWith() binds the log to this request's
         // async context so connector queries always push to the correct array,
         // even when concurrent requests interleave.
-        if (_isDev) {
+        if (_isDev && process.gina._inspectorActive) {
             if (!req._devQueryLog) {
                 req._devQueryLog = [];
             }
@@ -2436,6 +2443,7 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
         }
 
 
+        
         if ( typeof(data) != 'undefined' &&  data.count() > 0) {
 
             queryData = '?';
