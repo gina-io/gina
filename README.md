@@ -1,6 +1,6 @@
 # Gina
 
-[![npm version](https://badge.fury.io/js/gina.svg)](https://badge.fury.io/js/gina) [![GitHub version](https://badge.fury.io/gh/gina-io%2Fgina.svg)](https://badge.fury.io/gh/gina-io%2Fgina) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![Node.js >= 18](https://img.shields.io/badge/node-%3E%3D%2018-brightgreen)](https://nodejs.org) [![Tests](https://github.com/gina-io/gina/actions/workflows/test.yml/badge.svg)](https://github.com/gina-io/gina/actions/workflows/test.yml)
+[![npm version](https://badge.fury.io/js/gina.svg)](https://badge.fury.io/js/gina) [![GitHub version](https://badge.fury.io/gh/gina-io%2Fgina.svg)](https://badge.fury.io/gh/gina-io%2Fgina) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![Node.js >= 22](https://img.shields.io/badge/node-%3E%3D%2022-brightgreen)](https://nodejs.org) [![Tests](https://github.com/gina-io/gina/actions/workflows/test.yml/badge.svg)](https://github.com/gina-io/gina/actions/workflows/test.yml)
 
 > **Documentation:** [gina.io/docs](https://gina.io/docs/) · **Issues:** [GitHub](https://github.com/gina-io/gina/issues) · **Changelog:** [CHANGELOG.md](./CHANGELOG.md)
 
@@ -37,16 +37,16 @@ gina bundle:start api @myproject
 open https://localhost:3100
 ```
 
-## What's in 0.3.0-alpha.1
+## What's in 0.3.0
 
 - **AI connector** — any LLM via `connectors.json`; unified `.infer()` normaliser; raw `.client` for streaming
-- **MySQL & PostgreSQL connectors** — entity wiring, SQL files, native Promise + `.onComplete()` shim
+- **MySQL, PostgreSQL & SQLite connectors** — entity wiring, SQL files, native Promise + `.onComplete()` shim
 - **Async controller actions** — `async function` actions with automatic rejection handling
 - **`renderStream()`** — stream `AsyncIterable` as SSE or chunked HTTP without buffering
 - **103 Early Hints** — automatic for CSS/JS; manual via `self.setEarlyHints(links)`
 - **Route radix trie** — O(m) candidate lookup at startup; linear scan replaced on cache miss
-- **HTTP/2 session metrics** — `activeSessions`, `totalStreams`, `goawayCount`, `rstCount` in `/_gina/info`
-- **Configurable HTTP/2 settings** — `maxConcurrentStreams` and `initialWindowSize` via `settings.json`
+- **HTTP/2 client resilience** — retry with backoff, pre-flight PING validation, typed error codes
+- **Inspector** — dev-mode SPA with Data, View, Forms, Query, Flow, and Logs tabs; tab layout presets; drag-to-reorder; query instrumentation with index reporting; performance anomaly alerts; SSE-based standalone mode
 - **WatcherService hot reload** — file-change-triggered eviction; per-request overhead eliminated
 - **Per-bundle framework version** — pin `"gina_version"` in `manifest.json` per bundle
 

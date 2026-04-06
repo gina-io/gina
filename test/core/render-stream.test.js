@@ -71,13 +71,13 @@ describe('01 - renderStream: controller.js wiring', function() {
     });
 
     it('cache-busts controller.render-stream in cacheless mode', function() {
-        var block = src.slice(src.indexOf('this.renderStream'), src.indexOf('this.renderStream') + 500);
+        var block = src.slice(src.indexOf('this.renderStream'), src.indexOf('this.renderStream') + 1100);
         assert.ok(/isCacheless/.test(block));
         assert.ok(/delete require\.cache/.test(block));
     });
 
     it('passes asyncIterable, contentType, and deps to the delegate', function() {
-        var block = src.slice(src.indexOf('this.renderStream'), src.indexOf('this.renderStream') + 500);
+        var block = src.slice(src.indexOf('this.renderStream'), src.indexOf('this.renderStream') + 1100);
         assert.ok(/asyncIterable/.test(block));
         assert.ok(/contentType/.test(block));
         assert.ok(/self\s*:\s*self/.test(block));
