@@ -1,3 +1,0 @@
-kind: Added
-body: 'Inspector Query tab: index badges per query card showing which database indexes are used (green for secondary, amber for primary scan, red for no index, grey N/A for unsupported connectors)'
-time: 2026-04-05T17:58:08.650243+01:00

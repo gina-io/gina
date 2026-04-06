@@ -1,3 +1,0 @@
-kind: Changed
-body: 'Renamed legacy Inspector parameter and marker names across the render pipeline: `displayToolbar` → `displayInspector` (server.js, controller.js, render-swig.js, render-v1.js), `{# Gina Toolbar #}` → `{# Gina Inspector #}` comment markers and guard regexes, "Beemaster" → "Inspector" in server.isaac.js and scan.js comments. `render-v1.js` now includes `statusbar.html` instead of `toolbar.html`, completing the migration of all render paths to the modern Inspector statusbar.'
-time: 2026-04-05T22:10:01.206249+01:00

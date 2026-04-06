@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'Fixed method-based routing on shared URLs — the router now continues scanning after a URL match with a wrong method instead of immediately throwing 405. GET /notes and POST /notes can coexist as separate routing rules; a 405 is only emitted after the full scan finds no method match.'
-time: 2026-04-01T22:00:00.000000+01:00
