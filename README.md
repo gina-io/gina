@@ -37,18 +37,12 @@ gina bundle:start api @myproject
 open https://localhost:3100
 ```
 
-## What's in 0.3.0
+## What's in 0.3.1
 
-- **AI connector** — any LLM via `connectors.json`; unified `.infer()` normaliser; raw `.client` for streaming
-- **MySQL, PostgreSQL & SQLite connectors** — entity wiring, SQL files, native Promise + `.onComplete()` shim
-- **Async controller actions** — `async function` actions with automatic rejection handling
-- **`renderStream()`** — stream `AsyncIterable` as SSE or chunked HTTP without buffering
-- **103 Early Hints** — automatic for CSS/JS; manual via `self.setEarlyHints(links)`
-- **Route radix trie** — O(m) candidate lookup at startup; linear scan replaced on cache miss
-- **HTTP/2 client resilience** — retry with backoff, pre-flight PING validation, typed error codes
-- **Inspector** — dev-mode SPA with Data, View, Forms, Query, Flow, and Logs tabs; tab layout presets; drag-to-reorder; query instrumentation with index reporting; performance anomaly alerts; SSE-based standalone mode
-- **WatcherService hot reload** — file-change-triggered eviction; per-request overhead eliminated
-- **Per-bundle framework version** — pin `"gina_version"` in `manifest.json` per bundle
+- **Dependency reduction** — `ssl-checker`, `colors`, and `uuid` removed; engine.io is now the sole runtime dependency
+- **HTTP/2 direct stream for HTML** — `render-swig.js` uses `stream.respond()` + `stream.end()` directly, bypassing the HTTP/1.1 compat layer
+- **SQL index reporting** — MySQL, PostgreSQL, and SQLite connectors read `indexes.sql` at startup; Inspector Query tab shows index badges per query
+- **Release workflow fixes** — auto-delete publish branch; stable docs merge to main
 
 See the full [Changelog](./CHANGELOG.md) and [Roadmap](./ROADMAP.md).
 

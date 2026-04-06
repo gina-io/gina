@@ -1,3 +1,0 @@
-kind: Changed
-body: HTML rendering now uses direct HTTP/2 stream.respond() + stream.end(), bypassing the HTTP/1.1 compatibility layer (matching JSON rendering behaviour)
-time: 2026-04-06T09:04:16.028891+01:00
