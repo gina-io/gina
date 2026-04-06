@@ -9758,7 +9758,7 @@ function ValidatorPlugin(rules, data, formId) {
         require('../../../../../helpers/data');
     }
 
-    var uuid            = (isGFFCtx) ? { v1: function() { return Date.now().toString(36) + '-' + crypto.randomUUID(); }, v4: function() { return crypto.randomUUID(); } } : require('uuid');
+    var uuid            = { v1: function() { return Date.now().toString(36) + '-' + crypto.randomUUID(); }, v4: function() { return crypto.randomUUID(); } };
     var merge           = (isGFFCtx) ? require('lib/merge') : require('../../../../../lib/merge');
     var inherits        = (isGFFCtx) ? require('lib/inherits') : require('../../../../../lib/inherits');
     var FormValidator   = (isGFFCtx) ? require('lib/form-validator') : require('./form-validator');
@@ -18895,7 +18895,7 @@ function StoragePlugin(options) {
 
     var merge       = merge || require('lib/merge');;
     var Collection  = Collection || require('lib/collection');
-    var uuid        = uuid || { v1: function() { return Date.now().toString(36) + '-' + crypto.randomUUID(); }, v4: function() { return crypto.randomUUID(); } };
+    var uuid        = { v1: function() { return Date.now().toString(36) + '-' + crypto.randomUUID(); }, v4: function() { return crypto.randomUUID(); } };
     var dateFormat  = dateFormat || require('helpers/dateFormat');
 
 
@@ -19304,7 +19304,7 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
     // Publish as node.js module
     var merge       = require('lib/merge'); //require('../../../../../lib/merge');
     var Collection  = require('lib/collection'); //require('../../../../../lib/collection');
-    var uuid        = require('uuid');
+    var uuid        = { v1: function() { return Date.now().toString(36) + '-' + crypto.randomUUID(); }, v4: function() { return crypto.randomUUID(); } };
 
     module.exports = StoragePlugin
 
@@ -19598,7 +19598,7 @@ if ( typeof(module) !== 'undefined' && module.exports ) {
 function Collection(content, options) {
 
     var isGFFCtx        = ( ( typeof(module) !== 'undefined' ) && module.exports ) ? false : true;
-    var uuid            = (isGFFCtx) ? { v4: function() { return crypto.randomUUID(); } } : require('uuid');
+    var uuid            = { v4: function() { return crypto.randomUUID(); } };
     var merge           = (isGFFCtx) ? require('lib/merge') : require('../../../lib/merge');
 
     // defined search option rules
