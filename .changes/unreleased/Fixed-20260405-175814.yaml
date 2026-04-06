@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'Inspector Query tab: durationClass variable shadowing in renderQueryContent'
+time: 2026-04-05T17:58:14.787397+01:00

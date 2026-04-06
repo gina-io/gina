@@ -1,0 +1,3 @@
+kind: Added
+body: 'Inspector Query tab: search input debounce (200ms), filter persistence in localStorage, and pagination (20 cards default with Show all button)'
+time: 2026-04-05T17:58:13.633854+01:00
