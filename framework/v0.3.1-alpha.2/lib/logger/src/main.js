@@ -12,17 +12,52 @@ var util                = require('util');
 var promisify           = util.promisify;
 const { EventEmitter }  = require('events');
 
-// During initial pre-install & post-install, `colors` might not be installed !
-var colors              = null;
 var frameworkPath       = __dirname +'/../../../../..';
-// var frameworkVersion    = require(frameworkPath + '/package.json').version;
-try {
-    colors = require('colors') || require(frameworkPath +'/node_modules/colors');
-} catch (err) {
-    // colors not found
-    // It is ok, since this case is handled by the `pre-install` script
-    throw err
-}
+
+/**
+ * Built-in ANSI color styles — replaces the `colors` npm package.
+ *
+ * Only the styles actually used by logger levels are included:
+ * magenta, red, yellow, black, cyan, gray. All close with code 39
+ * (default foreground). Additional styles are provided for completeness
+ * so that `setColors()` can copy them if external code references them.
+ *
+ * @constant {Object} colors
+ * @inner
+ */
+var colors = {
+    styles: {
+        // Modifiers
+        reset:     { open: '\x1b[0m',  close: '\x1b[0m'  },
+        bold:      { open: '\x1b[1m',  close: '\x1b[22m' },
+        dim:       { open: '\x1b[2m',  close: '\x1b[22m' },
+        italic:    { open: '\x1b[3m',  close: '\x1b[23m' },
+        underline: { open: '\x1b[4m',  close: '\x1b[24m' },
+        inverse:   { open: '\x1b[7m',  close: '\x1b[27m' },
+        hidden:    { open: '\x1b[8m',  close: '\x1b[28m' },
+        strikethrough: { open: '\x1b[9m', close: '\x1b[29m' },
+        // Foreground colors
+        black:     { open: '\x1b[30m', close: '\x1b[39m' },
+        red:       { open: '\x1b[31m', close: '\x1b[39m' },
+        green:     { open: '\x1b[32m', close: '\x1b[39m' },
+        yellow:    { open: '\x1b[33m', close: '\x1b[39m' },
+        blue:      { open: '\x1b[34m', close: '\x1b[39m' },
+        magenta:   { open: '\x1b[35m', close: '\x1b[39m' },
+        cyan:      { open: '\x1b[36m', close: '\x1b[39m' },
+        white:     { open: '\x1b[37m', close: '\x1b[39m' },
+        gray:      { open: '\x1b[90m', close: '\x1b[39m' },
+        grey:      { open: '\x1b[90m', close: '\x1b[39m' },
+        // Background colors
+        bgBlack:   { open: '\x1b[40m', close: '\x1b[49m' },
+        bgRed:     { open: '\x1b[41m', close: '\x1b[49m' },
+        bgGreen:   { open: '\x1b[42m', close: '\x1b[49m' },
+        bgYellow:  { open: '\x1b[43m', close: '\x1b[49m' },
+        bgBlue:    { open: '\x1b[44m', close: '\x1b[49m' },
+        bgMagenta: { open: '\x1b[45m', close: '\x1b[49m' },
+        bgCyan:    { open: '\x1b[46m', close: '\x1b[49m' },
+        bgWhite:   { open: '\x1b[47m', close: '\x1b[49m' }
+    }
+};
 
 var merge           = require('../../merge');
 var inherits        = require('../../inherits');

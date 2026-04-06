@@ -266,20 +266,8 @@ function PreInstall() {
             }
         }
 
-        // Let's temporarily install `colors` into `GINA_DIR` it will be removed by the `post_install.js` script
-        var initialDir = process.cwd();
-
-        if ( !fs.existsSync(self.gina +'/node_modules/colors') ) {
-            process.chdir(self.gina);
-
-            var oldConfigGlobal = process.env.npm_config_global;
-            process.env.npm_config_global=false;
-            var cmd = ( isWin32() ) ? 'npm.cmd install colors@1.4.0' : 'npm install colors@1.4.0';
-            execSync(cmd);
-            process.env.npm_config_global=oldConfigGlobal;
-
-            process.chdir(initialDir);
-        }
+        // `colors` dependency removed in 0.3.1 — ANSI codes are now built into the logger.
+        // No temporary install needed.
 
 
 

@@ -3,8 +3,7 @@ var fs              = require('fs');
 var util            = require('util');
 var EventEmitter    = require('events').EventEmitter;
 // const exec       = require('child_process').exec;  // CB-SEC-1/2: removed — restQuery now uses http.request()
-// CB-LOW-1 fix: uuid was assigned without `var`, leaking into global.uuid.
-var uuid            = require('uuid');
+// CB-LOW-1 fix: uuid import removed in 0.3.1 — was imported but never called.
 var couchbase       = require(getPath('project') +'/node_modules/couchbase');// jshint ignore:line
 var gina            = require('../../../../core/gna');
 var lib             = gina.lib;

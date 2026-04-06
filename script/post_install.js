@@ -58,20 +58,8 @@ var getUserHome = function() {
     return home()
 };
 
-// just in case `post_install` is called by hand
-var initialDir = process.cwd();
-var frameworkPath   = __dirname +'/..';
-if ( !fs.existsSync(frameworkPath +'/node_modules/colors') ) {
-    process.chdir(frameworkPath);
-
-    var oldConfigGlobal = process.env.npm_config_global;
-    process.env.npm_config_global=false;
-    var cmd = ( isWin32() ) ? 'npm.cmd install colors@1.4.0' : 'npm install colors@1.4.0';
-    execSync(cmd);
-    process.env.npm_config_global=oldConfigGlobal;
-
-    process.chdir(initialDir);
-}
+// `colors` dependency removed in 0.3.1 — ANSI codes are now built into the logger.
+// No temporary install needed.
 
 var lib         = require('./lib');
 var console     = lib.logger;
@@ -466,37 +454,7 @@ function PostInstall() {
         done()
     }
 
-    self.cleanupIfNeeded = function(done) {
-
-        var frameworkPath = self.gina;
-        console.debug('Framework path is: ' + frameworkPath);
-
-        // Let's cleanup `colors` from `GINA_DIR`
-        if ( new _(frameworkPath +'/node_modules/colors', true).existsSync() ) {
-            var initialDir = process.cwd();
-            process.chdir(frameworkPath);
-            var oldConfigGlobal = process.env.npm_config_global;
-            process.env.npm_config_global=false;
-
-            // var cmd = self.prefix +'/bin/';
-            // cmd += ( isWin32() ) ? 'npm.cmd rm colors' : 'npm rm colors';
-
-            var cmd = ( isWin32() ) ? 'npm.cmd rm colors' : 'npm rm colors';
-
-            try {
-                execSync(cmd);
-                console.debug('Removed default `colors` module from `GINA_DIR`... This is normal ;)');
-            } catch (npmErr) {
-                process.chdir(initialDir);
-                return done(npmErr);
-            }
-
-            process.chdir(initialDir);
-            process.env.npm_config_global=oldConfigGlobal;
-        }
-
-        done()
-    }
+    // `cleanupIfNeeded` removed in 0.3.1 — `colors` is no longer installed.
 
     self.checkUserExtensions = async function(done) {
         var err = null;

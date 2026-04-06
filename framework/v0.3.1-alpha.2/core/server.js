@@ -47,9 +47,7 @@ const Busboy        = require('./deps/busboy-1.6.0');
 const Stream        = require('stream');
 const util          = require('util');
 var https           = require('https');
-// #B10 fix: ssl-checker is only used in verifyCertificate() for HTTPS cert checks.
-// Require it lazily so bundles without HTTPS certs don't crash at startup.
-// const sslChecker = require('ssl-checker');
+// ssl-checker dependency removed in 0.3.1 — replaced by inline verifyCertificate().
 
 
 var Config          = require('./config');
@@ -303,9 +301,11 @@ function Server(options) {
     }
 
     /**
-     * Checks TLS certificate validity for an HTTPS endpoint using `ssl-checker`.
-     * Logs an emergency-level warning when the certificate is invalid or the
-     * wildcard exception applies.
+     * Checks TLS certificate validity for an HTTPS endpoint.
+     *
+     * Replaces the `ssl-checker` npm package with a direct `https.request` +
+     * `res.socket.getPeerCertificate()` call. Returns the same result shape:
+     * `{ daysRemaining, valid, validFrom, validTo, validFor }`.
      *
      * @memberof module:gina/core/server
      * @param {string} endpoint - Hostname to verify (e.g. `'myapp.dev'`)
@@ -313,23 +313,67 @@ function Server(options) {
      * @returns {Promise<void>} Resolves when valid; throws if DNS/cert check fails
      */
     this.verifyCertificate = async function(endpoint, port) {
-        // #B10 fix: lazy-require ssl-checker — only needed for HTTPS cert verification
-        const sslChecker = require('ssl-checker');
         let sslDetails = null;
         console.debug('Checking certificate validity...');
         try {
             console.debug('[ssl] endpoint: ', endpoint);
-            sslDetails = await sslChecker(endpoint, {
-                method: 'GET',
-                // rejectUnauthorized: true,
-                port: port || 443,
-                path: "/_gina/health/check",
-                timeout: 5000,
-                // replaced: fs.readFileSync(credentials.ca) — credentials paths use ~/ which fs.readFileSync does not expand; _() expands $HOME via execSync('echo $HOME')
-                ca: fs.readFileSync(_(self.conf[self.appName][self.env].content.settings.server.credentials.ca, true)),
-                agent: new https.Agent({
-                    maxCachedSessions: 0
-                })
+            sslDetails = await new Promise(function(resolve, reject) {
+                var _port = port || 443;
+                var reqOptions = {
+                    host: endpoint,
+                    port: _port,
+                    method: 'GET',
+                    path: '/_gina/health/check',
+                    rejectUnauthorized: false,
+                    // replaced: fs.readFileSync(credentials.ca) — credentials paths use ~/ which fs.readFileSync does not expand; _() expands $HOME via execSync('echo $HOME')
+                    ca: fs.readFileSync(_(self.conf[self.appName][self.env].content.settings.server.credentials.ca, true)),
+                    agent: new https.Agent({ maxCachedSessions: 0 })
+                };
+
+                var timeoutId = setTimeout(function() {
+                    req.destroy();
+                    reject(new Error('Timed Out'));
+                }, 5000);
+
+                var req = https.request(reqOptions, function(res) {
+                    clearTimeout(timeoutId);
+                    var cert = res.socket.getPeerCertificate();
+                    res.socket.destroy();
+
+                    if (!cert || !cert.valid_from || !cert.valid_to) {
+                        return reject(new Error('No certificate'));
+                    }
+
+                    var validFrom = new Date(cert.valid_from).toISOString();
+                    var validTo   = new Date(cert.valid_to).toISOString();
+                    var now       = Date.now();
+                    var expiry    = new Date(cert.valid_to).getTime();
+                    var daysRemaining = Math.floor((expiry - now) / 86400000);
+
+                    var result = {
+                        daysRemaining: daysRemaining,
+                        valid: res.socket.authorized || false,
+                        validFrom: validFrom,
+                        validTo: validTo
+                    };
+
+                    // Extract Subject Alternative Names (DNS entries)
+                    if (cert.subjectaltname) {
+                        result.validFor = cert.subjectaltname
+                            .split(',')
+                            .map(function(s) { return s.trim().replace(/^DNS:/, ''); })
+                            .filter(function(s) { return s.length > 0; });
+                    }
+
+                    resolve(result);
+                });
+
+                req.on('error', function(err) {
+                    clearTimeout(timeoutId);
+                    reject(err);
+                });
+
+                req.end();
             });
         } catch (err) {
             if (!sslDetails) {

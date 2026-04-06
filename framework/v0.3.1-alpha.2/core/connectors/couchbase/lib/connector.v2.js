@@ -13,8 +13,7 @@ var merge           = lib.merge;
 var modelUtil       = new lib.Model();
 
 //globalized
-// CB-LOW-1 fix: uuid was assigned without `var`, leaking into global.uuid.
-var uuid            = require('uuid');
+// CB-LOW-1 fix: uuid import removed in 0.3.1 — was imported but never called.
 N1qlQuery           = couchbase.N1qlQuery || null;
 N1qlStringQuery     = couchbase.N1qlStringQuery || null;
 ViewQuery           = couchbase.ViewQuery || null;

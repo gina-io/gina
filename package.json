@@ -67,14 +67,11 @@
   "license": "MIT",
   "readmeFilename": "README.md",
   "dependencies": {
-    "engine.io": "^6.0.0",
-    "ssl-checker": "2.0.10"
+    "engine.io": "^6.0.0"
   },
   "devDependencies": {
-    "colors": "1.4.0",
     "engine.io-client": "^6.6.3",
-    "requirejs": "^2.3.7",
-    "uuid": "^9.0.0"
+    "requirejs": "^2.3.7"
   },
   "peerDependencies": {
     "@anthropic-ai/sdk": ">=0.27.0",

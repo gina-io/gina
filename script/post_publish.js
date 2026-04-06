@@ -429,6 +429,63 @@ function PostPublish() {
         done();
     }
 
+    /**
+     * cleanupPublishBranch - Deletes the temporary branch created by prepare_version.js
+     *
+     * Alpha publishes create a branch like `031-alpha2` (version with dots stripped).
+     * Stable publishes commit to `develop` directly and do not create a temporary branch.
+     * This step prevents stale branch accumulation on the remote.
+     *
+     * @param {function} done - Callback
+     */
+    self.cleanupPublishBranch = function(done) {
+
+        // Skip on dry-run
+        if (typeof(process.env.npm_config_dry_run) != 'undefined') {
+            return done();
+        }
+
+        // Stable publishes commit to develop directly — no branch to clean up.
+        if (!self.isAlpha) {
+            return done();
+        }
+
+        // Derive the branch name the same way prepare_version.js does:
+        // version with dots stripped, e.g. "0.3.1-alpha.2" -> "031-alpha2"
+        var publishBranch = self.publishedVersion.replace(/\./g, '');
+
+        // Never delete develop or master
+        if (/^(develop|master|main)$/.test(publishBranch)) {
+            return done();
+        }
+
+        console.info('[cleanupPublishBranch] Deleting temporary branch ' + publishBranch);
+
+        var initialDir = process.cwd();
+        process.chdir(self.gina);
+        try {
+            // Delete local branch (may already be gone if bumpVersion switched away)
+            try {
+                execSync('$(which git) branch -d ' + publishBranch + ' 2>/dev/null');
+            } catch (_e) {
+                // Branch doesn't exist locally — that's fine
+            }
+
+            // Delete remote branch
+            execSync('$(which git) push origin --delete ' + publishBranch);
+            console.info('[cleanupPublishBranch] Deleted origin/' + publishBranch);
+        } catch (err) {
+            // Non-fatal: the branch may already be gone or the remote may not have it
+            var errOut = err.output ? err.output.toString() : (err.message || '');
+            if (!/remote ref does not exist|not found/i.test(errOut)) {
+                console.warn('[cleanupPublishBranch] Could not delete ' + publishBranch + ': ' + errOut);
+            }
+        }
+        process.chdir(initialDir);
+
+        done();
+    }
+
     self.end = function(done) {
 
         restoreSymlinks(done);
