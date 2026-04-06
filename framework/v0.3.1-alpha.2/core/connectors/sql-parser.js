@@ -146,7 +146,146 @@ function extractFirstBlockComment(src) {
 }
 
 
+/**
+ * parseCreateIndexes — parse CREATE INDEX statements from a SQL source string
+ * and build a table-keyed index map.
+ *
+ * Handles:
+ *   CREATE INDEX <name> ON <table> (...)
+ *   CREATE UNIQUE INDEX <name> ON <table> (...)
+ *   CREATE INDEX IF NOT EXISTS <name> ON <table> (...)
+ *   CREATE UNIQUE INDEX IF NOT EXISTS <name> ON <table> (...)
+ *
+ * Table names are normalised to lowercase. Quoted identifiers (`"tbl"`,
+ * `` `tbl` ``) are unquoted. Schema-qualified names (`schema.table`) keep
+ * only the table part.
+ *
+ * @param  {string} src  Raw SQL source (may contain comments)
+ * @return {Object.<string, Array<{name: string, primary: boolean}>>}
+ *         Map of lowercase table name → array of index descriptors.
+ *         Returns an empty object when no CREATE INDEX statements are found.
+ */
+function parseCreateIndexes(src) {
+    var map = {};
+    if (!src) return map;
+
+    // Strip comments first so -- or /* inside strings doesn't confuse us
+    var clean = stripComments(src);
+
+    // Match CREATE [UNIQUE] INDEX [IF NOT EXISTS] <name> ON <table>
+    // Captures: (1) index name, (2) table name
+    var re = /CREATE\s+(?:UNIQUE\s+)?INDEX\s+(?:IF\s+NOT\s+EXISTS\s+)?(\S+)\s+ON\s+(\S+)/gi;
+    var m;
+
+    while ((m = re.exec(clean)) !== null) {
+        var idxName   = unquoteIdentifier(m[1]);
+        var tableName = unquoteIdentifier(m[2]);
+
+        // Strip schema prefix (schema.table → table)
+        var dotPos = tableName.lastIndexOf('.');
+        if (dotPos > -1) tableName = tableName.substring(dotPos + 1);
+
+        // Strip trailing parenthesis if captured (e.g. "users(" from "ON users(email)")
+        tableName = tableName.replace(/\(.*$/, '');
+
+        tableName = tableName.toLowerCase();
+
+        if (!map[tableName]) map[tableName] = [];
+
+        // Deduplicate by index name
+        var exists = false;
+        for (var i = 0; i < map[tableName].length; i++) {
+            if (map[tableName][i].name === idxName) { exists = true; break; }
+        }
+        if (!exists) {
+            map[tableName].push({ name: idxName, primary: false });
+        }
+    }
+
+    return map;
+}
+
+
+/**
+ * extractTargetTable — extract the primary target table from a SQL statement.
+ *
+ * Handles SELECT ... FROM <table>, INSERT INTO <table>, UPDATE <table>,
+ * DELETE FROM <table>. Returns the lowercase, unquoted table name, or null
+ * if no table can be determined.
+ *
+ * For JOINs, only the first FROM target is returned (Phase A limitation —
+ * full multi-table extraction is deferred to Phase B).
+ *
+ * @param  {string} queryString  Cleaned SQL (comments already stripped)
+ * @return {string|null}         Lowercase table name, or null
+ */
+function extractTargetTable(queryString) {
+    if (!queryString) return null;
+
+    var m;
+
+    // INSERT INTO <table>
+    m = queryString.match(/\bINSERT\s+INTO\s+(\S+)/i);
+    if (m) return normaliseTableName(m[1]);
+
+    // UPDATE <table>
+    m = queryString.match(/\bUPDATE\s+(\S+)/i);
+    if (m) return normaliseTableName(m[1]);
+
+    // DELETE FROM <table>
+    m = queryString.match(/\bDELETE\s+FROM\s+(\S+)/i);
+    if (m) return normaliseTableName(m[1]);
+
+    // SELECT ... FROM <table>
+    m = queryString.match(/\bFROM\s+(\S+)/i);
+    if (m) return normaliseTableName(m[1]);
+
+    return null;
+}
+
+
+/**
+ * Unquote a SQL identifier — strips surrounding `"`, `` ` ``, or `[` `]`.
+ * @inner
+ * @param  {string} id
+ * @return {string}
+ */
+function unquoteIdentifier(id) {
+    if (!id) return id;
+    if ((id[0] === '"' && id[id.length - 1] === '"') ||
+        (id[0] === '`' && id[id.length - 1] === '`')) {
+        return id.substring(1, id.length - 1);
+    }
+    if (id[0] === '[' && id[id.length - 1] === ']') {
+        return id.substring(1, id.length - 1);
+    }
+    return id;
+}
+
+
+/**
+ * Normalise a captured table token: unquote, strip schema prefix,
+ * strip trailing punctuation, lowercase.
+ * @inner
+ * @param  {string} raw
+ * @return {string|null}
+ */
+function normaliseTableName(raw) {
+    if (!raw) return null;
+    raw = unquoteIdentifier(raw);
+    // Strip schema prefix
+    var dot = raw.lastIndexOf('.');
+    if (dot > -1) raw = raw.substring(dot + 1);
+    // Strip trailing parens, commas, semicolons
+    raw = raw.replace(/[,(;]+$/, '');
+    raw = unquoteIdentifier(raw); // unquote again after schema strip (schema."table")
+    return raw.toLowerCase() || null;
+}
+
+
 module.exports = {
     stripComments           : stripComments,
-    extractFirstBlockComment: extractFirstBlockComment
+    extractFirstBlockComment: extractFirstBlockComment,
+    parseCreateIndexes      : parseCreateIndexes,
+    extractTargetTable      : extractTargetTable
 };

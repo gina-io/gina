@@ -3869,7 +3869,7 @@ describe('40 - MySQL connector QI: AsyncLocalStorage instrumentation', function(
         var src = getMysqlSrc();
         var pushIdx = src.indexOf('_devLog.push(_queryEntry)');
         assert.ok(pushIdx > -1, '_devLog push must exist');
-        var before = src.substring(Math.max(0, pushIdx - 1200), pushIdx);
+        var before = src.substring(Math.max(0, pushIdx - 1500), pushIdx);
         assert.ok(
             before.indexOf('envIsDev') > -1,
             '_devLog push must be inside envIsDev guard'
@@ -3945,13 +3945,29 @@ describe('40 - MySQL connector QI: AsyncLocalStorage instrumentation', function(
         );
     });
 
-    it('indexes field is null (MySQL has no profile-based index extraction)', function() {
+    it('indexes field uses _knownIndexes lookup (#QI1)', function() {
         var src = getMysqlSrc();
+        assert.ok(
+            src.indexOf('_knownIndexes') > -1,
+            'expected _knownIndexes variable in MySQL connector'
+        );
         var entryIdx = src.indexOf('_queryEntry = {');
         var block = src.substring(entryIdx, entryIdx + 750);
         assert.ok(
-            /indexes\s*:\s*null/.test(block),
-            'expected indexes: null in MySQL _queryEntry (index reporting not yet supported)'
+            /indexes\s*:\s*_indexes/.test(block),
+            'expected indexes: _indexes (resolved from _knownIndexes) in MySQL _queryEntry'
+        );
+    });
+
+    it('_knownIndexes loaded from indexes.sql at init (#QI1)', function() {
+        var src = getMysqlSrc();
+        assert.ok(
+            src.indexOf('indexes.sql') > -1,
+            'expected indexes.sql file reference in MySQL connector'
+        );
+        assert.ok(
+            src.indexOf('parseCreateIndexes') > -1,
+            'expected parseCreateIndexes call in MySQL connector'
         );
     });
 
@@ -4406,7 +4422,7 @@ describe('41 - PostgreSQL connector QI: AsyncLocalStorage instrumentation', func
         var src = getPgSrc();
         var pushIdx = src.indexOf('_devLog.push(_queryEntry)');
         assert.ok(pushIdx > -1, '_devLog push must exist');
-        var before = src.substring(Math.max(0, pushIdx - 1200), pushIdx);
+        var before = src.substring(Math.max(0, pushIdx - 1500), pushIdx);
         assert.ok(
             before.indexOf('envIsDev') > -1,
             '_devLog push must be inside envIsDev guard'
@@ -4480,13 +4496,29 @@ describe('41 - PostgreSQL connector QI: AsyncLocalStorage instrumentation', func
         );
     });
 
-    it('indexes field is null (PG has no profile-based index extraction)', function() {
+    it('indexes field uses _knownIndexes lookup (#QI1)', function() {
         var src = getPgSrc();
+        assert.ok(
+            src.indexOf('_knownIndexes') > -1,
+            'expected _knownIndexes variable in PG connector'
+        );
         var entryIdx = src.indexOf('_queryEntry = {');
         var block = src.substring(entryIdx, entryIdx + 750);
         assert.ok(
-            /indexes\s*:\s*null/.test(block),
-            'expected indexes: null in PG _queryEntry (index reporting not yet supported)'
+            /indexes\s*:\s*_indexes/.test(block),
+            'expected indexes: _indexes (resolved from _knownIndexes) in PG _queryEntry'
+        );
+    });
+
+    it('_knownIndexes loaded from indexes.sql at init (#QI1)', function() {
+        var src = getPgSrc();
+        assert.ok(
+            src.indexOf('indexes.sql') > -1,
+            'expected indexes.sql file reference in PG connector'
+        );
+        assert.ok(
+            src.indexOf('parseCreateIndexes') > -1,
+            'expected parseCreateIndexes call in PG connector'
         );
     });
 
@@ -4567,7 +4599,7 @@ describe('42 - SQLite connector QI: AsyncLocalStorage instrumentation', function
         var src = getSqliteSrc();
         var pushIdx = src.indexOf('_devLog.push(_queryEntry)');
         assert.ok(pushIdx > -1, '_devLog push must exist');
-        var before = src.substring(Math.max(0, pushIdx - 1200), pushIdx);
+        var before = src.substring(Math.max(0, pushIdx - 1500), pushIdx);
         assert.ok(
             before.indexOf('envIsDev') > -1,
             '_devLog push must be inside envIsDev guard'
@@ -4641,13 +4673,29 @@ describe('42 - SQLite connector QI: AsyncLocalStorage instrumentation', function
         );
     });
 
-    it('indexes field is null (SQLite has no profile-based index extraction)', function() {
+    it('indexes field uses _knownIndexes lookup (#QI1)', function() {
         var src = getSqliteSrc();
+        assert.ok(
+            src.indexOf('_knownIndexes') > -1,
+            'expected _knownIndexes variable in SQLite connector'
+        );
         var entryIdx = src.indexOf('_queryEntry = {');
         var block = src.substring(entryIdx, entryIdx + 750);
         assert.ok(
-            /indexes\s*:\s*null/.test(block),
-            'expected indexes: null in SQLite _queryEntry (index reporting not yet supported)'
+            /indexes\s*:\s*_indexes/.test(block),
+            'expected indexes: _indexes (resolved from _knownIndexes) in SQLite _queryEntry'
+        );
+    });
+
+    it('_knownIndexes loaded from indexes.sql at init (#QI1)', function() {
+        var src = getSqliteSrc();
+        assert.ok(
+            src.indexOf('indexes.sql') > -1,
+            'expected indexes.sql file reference in SQLite connector'
+        );
+        assert.ok(
+            src.indexOf('parseCreateIndexes') > -1,
+            'expected parseCreateIndexes call in SQLite connector'
         );
     });
 
@@ -5249,6 +5297,207 @@ describe('45 - Query tab: index badge copy, tab badge tiers, warning banners', f
         assert.ok(
             /\[data-theme.*light\].*\.bm-perf-banner/.test(css),
             'expected light theme override for .bm-perf-banner'
+        );
+    });
+
+});
+
+
+// ── 46 — sql-parser: parseCreateIndexes and extractTargetTable (#QI1) ────────
+
+describe('46 - sql-parser: parseCreateIndexes and extractTargetTable (#QI1)', function() {
+
+    var sqlParser = require(path.join(FW, 'core/connectors/sql-parser'));
+
+    // ── parseCreateIndexes ──────────────────────────────────────────────────
+
+    it('parseCreateIndexes is exported', function() {
+        assert.strictEqual(typeof sqlParser.parseCreateIndexes, 'function');
+    });
+
+    it('parses a basic CREATE INDEX statement', function() {
+        var src = 'CREATE INDEX idx_users_email ON users (email);';
+        var map = sqlParser.parseCreateIndexes(src);
+        assert.ok(map['users'], 'expected "users" key in map');
+        assert.strictEqual(map['users'].length, 1);
+        assert.strictEqual(map['users'][0].name, 'idx_users_email');
+        assert.strictEqual(map['users'][0].primary, false);
+    });
+
+    it('parses CREATE UNIQUE INDEX', function() {
+        var src = 'CREATE UNIQUE INDEX idx_users_username ON users (username);';
+        var map = sqlParser.parseCreateIndexes(src);
+        assert.strictEqual(map['users'].length, 1);
+        assert.strictEqual(map['users'][0].name, 'idx_users_username');
+        assert.strictEqual(map['users'][0].primary, false);
+    });
+
+    it('parses CREATE INDEX IF NOT EXISTS', function() {
+        var src = 'CREATE INDEX IF NOT EXISTS idx_orders_date ON orders (created_at);';
+        var map = sqlParser.parseCreateIndexes(src);
+        assert.ok(map['orders']);
+        assert.strictEqual(map['orders'][0].name, 'idx_orders_date');
+    });
+
+    it('parses multiple indexes on the same table', function() {
+        var src = [
+            'CREATE INDEX idx_users_email ON users (email);',
+            'CREATE INDEX idx_users_name ON users (last_name, first_name);'
+        ].join('\n');
+        var map = sqlParser.parseCreateIndexes(src);
+        assert.strictEqual(map['users'].length, 2);
+    });
+
+    it('parses indexes on different tables', function() {
+        var src = [
+            'CREATE INDEX idx_users_email ON users (email);',
+            'CREATE INDEX idx_orders_user ON orders (user_id);'
+        ].join('\n');
+        var map = sqlParser.parseCreateIndexes(src);
+        assert.ok(map['users']);
+        assert.ok(map['orders']);
+    });
+
+    it('deduplicates indexes by name', function() {
+        var src = [
+            'CREATE INDEX idx_users_email ON users (email);',
+            'CREATE INDEX idx_users_email ON users (email);'
+        ].join('\n');
+        var map = sqlParser.parseCreateIndexes(src);
+        assert.strictEqual(map['users'].length, 1);
+    });
+
+    it('handles quoted identifiers', function() {
+        var src = 'CREATE INDEX "idx_users_email" ON "users" ("email");';
+        var map = sqlParser.parseCreateIndexes(src);
+        assert.ok(map['users']);
+        assert.strictEqual(map['users'][0].name, 'idx_users_email');
+    });
+
+    it('handles backtick-quoted identifiers (MySQL)', function() {
+        var src = 'CREATE INDEX `idx_users_email` ON `users` (`email`);';
+        var map = sqlParser.parseCreateIndexes(src);
+        assert.ok(map['users']);
+        assert.strictEqual(map['users'][0].name, 'idx_users_email');
+    });
+
+    it('strips schema prefix from table name', function() {
+        var src = 'CREATE INDEX idx_users_email ON public.users (email);';
+        var map = sqlParser.parseCreateIndexes(src);
+        assert.ok(map['users'], 'expected schema-stripped "users" key');
+    });
+
+    it('normalises table names to lowercase', function() {
+        var src = 'CREATE INDEX idx_Users_Email ON Users (email);';
+        var map = sqlParser.parseCreateIndexes(src);
+        assert.ok(map['users'], 'expected lowercase "users" key');
+    });
+
+    it('ignores comments in indexes.sql', function() {
+        var src = [
+            '-- This is a comment',
+            'CREATE INDEX idx_users_email ON users (email);',
+            '/* block comment */',
+            'CREATE INDEX idx_orders_date ON orders (created_at);'
+        ].join('\n');
+        var map = sqlParser.parseCreateIndexes(src);
+        assert.ok(map['users']);
+        assert.ok(map['orders']);
+    });
+
+    it('returns empty object for empty input', function() {
+        var map = sqlParser.parseCreateIndexes('');
+        assert.deepStrictEqual(map, {});
+    });
+
+    it('returns empty object for null input', function() {
+        var map = sqlParser.parseCreateIndexes(null);
+        assert.deepStrictEqual(map, {});
+    });
+
+    it('returns empty object when no CREATE INDEX found', function() {
+        var src = 'SELECT * FROM users WHERE id = 1;';
+        var map = sqlParser.parseCreateIndexes(src);
+        assert.deepStrictEqual(map, {});
+    });
+
+    // ── extractTargetTable ──────────────────────────────────────────────────
+
+    it('extractTargetTable is exported', function() {
+        assert.strictEqual(typeof sqlParser.extractTargetTable, 'function');
+    });
+
+    it('extracts table from SELECT ... FROM', function() {
+        assert.strictEqual(sqlParser.extractTargetTable('SELECT * FROM users WHERE id = ?'), 'users');
+    });
+
+    it('extracts table from INSERT INTO', function() {
+        assert.strictEqual(sqlParser.extractTargetTable('INSERT INTO users (name) VALUES (?)'), 'users');
+    });
+
+    it('extracts table from UPDATE', function() {
+        assert.strictEqual(sqlParser.extractTargetTable('UPDATE users SET name = ? WHERE id = ?'), 'users');
+    });
+
+    it('extracts table from DELETE FROM', function() {
+        assert.strictEqual(sqlParser.extractTargetTable('DELETE FROM users WHERE id = ?'), 'users');
+    });
+
+    it('normalises extracted table to lowercase', function() {
+        assert.strictEqual(sqlParser.extractTargetTable('SELECT * FROM Users WHERE id = ?'), 'users');
+    });
+
+    it('strips schema prefix from extracted table', function() {
+        assert.strictEqual(sqlParser.extractTargetTable('SELECT * FROM public.users WHERE id = ?'), 'users');
+    });
+
+    it('returns null for empty input', function() {
+        assert.strictEqual(sqlParser.extractTargetTable(''), null);
+        assert.strictEqual(sqlParser.extractTargetTable(null), null);
+    });
+
+    it('handles quoted table names in FROM', function() {
+        assert.strictEqual(sqlParser.extractTargetTable('SELECT * FROM "users" WHERE id = ?'), 'users');
+    });
+
+    it('handles backtick-quoted table names', function() {
+        assert.strictEqual(sqlParser.extractTargetTable('SELECT * FROM `users` WHERE id = ?'), 'users');
+    });
+
+    // ── Integration: connector source references ────────────────────────────
+
+    it('all three SQL connectors import sql-parser', function() {
+        var mysqlSrc = fs.readFileSync(path.join(FW, 'core/connectors/mysql/index.js'), 'utf8');
+        var pgSrc    = fs.readFileSync(path.join(FW, 'core/connectors/postgresql/index.js'), 'utf8');
+        var sqliteSrc = fs.readFileSync(path.join(FW, 'core/connectors/sqlite/index.js'), 'utf8');
+        assert.ok(mysqlSrc.indexOf('sql-parser') > -1, 'MySQL imports sql-parser');
+        assert.ok(pgSrc.indexOf('sql-parser') > -1, 'PG imports sql-parser');
+        assert.ok(sqliteSrc.indexOf('sql-parser') > -1, 'SQLite imports sql-parser');
+    });
+
+    it('all three SQL connectors call extractTargetTable', function() {
+        var mysqlSrc = fs.readFileSync(path.join(FW, 'core/connectors/mysql/index.js'), 'utf8');
+        var pgSrc    = fs.readFileSync(path.join(FW, 'core/connectors/postgresql/index.js'), 'utf8');
+        var sqliteSrc = fs.readFileSync(path.join(FW, 'core/connectors/sqlite/index.js'), 'utf8');
+        assert.ok(mysqlSrc.indexOf('extractTargetTable') > -1, 'MySQL calls extractTargetTable');
+        assert.ok(pgSrc.indexOf('extractTargetTable') > -1, 'PG calls extractTargetTable');
+        assert.ok(sqliteSrc.indexOf('extractTargetTable') > -1, 'SQLite calls extractTargetTable');
+    });
+
+    it('_knownIndexes defaults to null (no indexes.sql = N/A badge)', function() {
+        var mysqlSrc = fs.readFileSync(path.join(FW, 'core/connectors/mysql/index.js'), 'utf8');
+        assert.ok(
+            /var _knownIndexes\s*=\s*null/.test(mysqlSrc),
+            'expected _knownIndexes = null default'
+        );
+    });
+
+    it('_indexes falls back to [] when _knownIndexes exists but table not found', function() {
+        var mysqlSrc = fs.readFileSync(path.join(FW, 'core/connectors/mysql/index.js'), 'utf8');
+        // The pattern: _indexes = (_tbl && _knownIndexes[_tbl]) ? _knownIndexes[_tbl] : []
+        assert.ok(
+            mysqlSrc.indexOf('_knownIndexes[_tbl]) ? _knownIndexes[_tbl] : []') > -1,
+            'expected fallback to empty array when table not in _knownIndexes'
         );
     });
 

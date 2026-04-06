@@ -61,6 +61,11 @@ function Mysql(conn, infos) {
     var envIsDev    = ( /^true$/i.test(process.env.NODE_ENV_IS_DEV) ) ? true : false;
     var isCacheless = (process.env.NODE_ENV_IS_DEV == 'false') ? false : true;
 
+    // #QI1 — in-memory index map built from indexes.sql at startup.
+    // Keys are lowercase table names; values are [{ name, primary }].
+    // null when no indexes.sql exists (grey N/A badge in Inspector).
+    var _knownIndexes = null;
+
     // -------------------------------------------------------------------------
     // init — load entities + SQL methods
     // -------------------------------------------------------------------------
@@ -120,6 +125,18 @@ function Mysql(conn, infos) {
             for (var s = 0, sLen = sqlEntries.length; s < sLen; s++) {
                 if ( /^\./.test(sqlEntries[s]) ) continue;
                 loadSQL(entities, conn, _(sqlDir + '/' + sqlEntries[s]));
+            }
+
+            // #QI1 — load indexes.sql if present
+            var indexesFile = _(sqlDir + '/indexes.sql', true);
+            if (fs.existsSync(indexesFile)) {
+                try {
+                    var indexesSrc = fs.readFileSync(indexesFile).toString();
+                    _knownIndexes = sqlParser.parseCreateIndexes(indexesSrc);
+                } catch (e) {
+                    console.warn('[mysql] Failed to parse indexes.sql: ' + e.message);
+                    _knownIndexes = {};
+                }
             }
         }
 
@@ -262,6 +279,12 @@ function Mysql(conn, infos) {
                     ? process.gina._queryALS.getStore() : null;
                 _devLog = _alsStore ? _alsStore._devQueryLog : null;
                 if (_devLog) {
+                    // #QI1 — resolve indexes from _knownIndexes map
+                    var _indexes = null;
+                    if (_knownIndexes !== null) {
+                        var _tbl = sqlParser.extractTargetTable(queryString);
+                        _indexes = (_tbl && _knownIndexes[_tbl]) ? _knownIndexes[_tbl] : [];
+                    }
                     _queryEntry = {
                         type        : 'MySQL',
                         trigger     : entityName.toLowerCase() + '#' + name,
@@ -270,7 +293,7 @@ function Mysql(conn, infos) {
                         durationMs  : 0,
                         resultCount : 0,
                         resultSize  : 0,
-                        indexes     : null,
+                        indexes     : _indexes,
                         error       : null,
                         source      : source || '',
                         origin      : infos.bundle,
