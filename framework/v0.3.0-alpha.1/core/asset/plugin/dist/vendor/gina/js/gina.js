@@ -2147,7 +2147,6 @@ var requirejs, require, define;
 
 define("requireLib", function(){});
 
-!function(r,n){"object"==typeof exports&&"undefined"!=typeof module?n(exports):"function"==typeof define&&define.amd?define('vendor/uuid',["exports"],n):n((r=r||self).uuid={})}(this,(function(r){"use strict";var n="undefined"!=typeof crypto&&crypto.getRandomValues&&crypto.getRandomValues.bind(crypto)||"undefined"!=typeof msCrypto&&"function"==typeof msCrypto.getRandomValues&&msCrypto.getRandomValues.bind(msCrypto),e=new Uint8Array(16);function t(){if(!n)throw new Error("crypto.getRandomValues() not supported. See https://github.com/uuidjs/uuid#getrandomvalues-not-supported");return n(e)}for(var o,a,u=[],f=0;f<256;++f)u[f]=(f+256).toString(16).substr(1);function c(r,n){var e=n||0,t=u;return[t[r[e++]],t[r[e++]],t[r[e++]],t[r[e++]],"-",t[r[e++]],t[r[e++]],"-",t[r[e++]],t[r[e++]],"-",t[r[e++]],t[r[e++]],"-",t[r[e++]],t[r[e++]],t[r[e++]],t[r[e++]],t[r[e++]],t[r[e++]]].join("")}var i=0,s=0;function v(r,n,e){var t=function(r,t,o,a){var u=o&&a||0;if("string"==typeof r&&(r=function(r){r=unescape(encodeURIComponent(r));for(var n=new Array(r.length),e=0;e<r.length;e++)n[e]=r.charCodeAt(e);return n}(r)),"string"==typeof t&&(t=function(r){var n=[];return r.replace(/[a-fA-F0-9]{2}/g,(function(r){n.push(parseInt(r,16))})),n}(t)),!Array.isArray(r))throw TypeError("value must be an array of bytes");if(!Array.isArray(t)||16!==t.length)throw TypeError("namespace must be uuid string or an Array of 16 byte values");var f=e(t.concat(r));if(f[6]=15&f[6]|n,f[8]=63&f[8]|128,o)for(var i=0;i<16;++i)o[u+i]=f[i];return o||c(f)};try{t.name=r}catch(r){}return t.DNS="6ba7b810-9dad-11d1-80b4-00c04fd430c8",t.URL="6ba7b811-9dad-11d1-80b4-00c04fd430c8",t}function d(r,n){var e=(65535&r)+(65535&n);return(r>>16)+(n>>16)+(e>>16)<<16|65535&e}function l(r,n,e,t,o,a){return d((u=d(d(n,r),d(t,a)))<<(f=o)|u>>>32-f,e);var u,f}function p(r,n,e,t,o,a,u){return l(n&e|~n&t,r,n,o,a,u)}function y(r,n,e,t,o,a,u){return l(n&t|e&~t,r,n,o,a,u)}function h(r,n,e,t,o,a,u){return l(n^e^t,r,n,o,a,u)}function g(r,n,e,t,o,a,u){return l(e^(n|~t),r,n,o,a,u)}var m=v("v3",48,(function(r){if("string"==typeof r){var n=unescape(encodeURIComponent(r));r=new Array(n.length);for(var e=0;e<n.length;e++)r[e]=n.charCodeAt(e)}return function(r){var n,e,t,o=[],a=32*r.length;for(n=0;n<a;n+=8)e=r[n>>5]>>>n%32&255,t=parseInt("0123456789abcdef".charAt(e>>>4&15)+"0123456789abcdef".charAt(15&e),16),o.push(t);return o}(function(r,n){var e,t,o,a,u;r[n>>5]|=128<<n%32,r[14+(n+64>>>9<<4)]=n;var f=1732584193,c=-271733879,i=-1732584194,s=271733878;for(e=0;e<r.length;e+=16)t=f,o=c,a=i,u=s,f=p(f,c,i,s,r[e],7,-680876936),s=p(s,f,c,i,r[e+1],12,-389564586),i=p(i,s,f,c,r[e+2],17,606105819),c=p(c,i,s,f,r[e+3],22,-1044525330),f=p(f,c,i,s,r[e+4],7,-176418897),s=p(s,f,c,i,r[e+5],12,1200080426),i=p(i,s,f,c,r[e+6],17,-1473231341),c=p(c,i,s,f,r[e+7],22,-45705983),f=p(f,c,i,s,r[e+8],7,1770035416),s=p(s,f,c,i,r[e+9],12,-1958414417),i=p(i,s,f,c,r[e+10],17,-42063),c=p(c,i,s,f,r[e+11],22,-1990404162),f=p(f,c,i,s,r[e+12],7,1804603682),s=p(s,f,c,i,r[e+13],12,-40341101),i=p(i,s,f,c,r[e+14],17,-1502002290),c=p(c,i,s,f,r[e+15],22,1236535329),f=y(f,c,i,s,r[e+1],5,-165796510),s=y(s,f,c,i,r[e+6],9,-1069501632),i=y(i,s,f,c,r[e+11],14,643717713),c=y(c,i,s,f,r[e],20,-373897302),f=y(f,c,i,s,r[e+5],5,-701558691),s=y(s,f,c,i,r[e+10],9,38016083),i=y(i,s,f,c,r[e+15],14,-660478335),c=y(c,i,s,f,r[e+4],20,-405537848),f=y(f,c,i,s,r[e+9],5,568446438),s=y(s,f,c,i,r[e+14],9,-1019803690),i=y(i,s,f,c,r[e+3],14,-187363961),c=y(c,i,s,f,r[e+8],20,1163531501),f=y(f,c,i,s,r[e+13],5,-1444681467),s=y(s,f,c,i,r[e+2],9,-51403784),i=y(i,s,f,c,r[e+7],14,1735328473),c=y(c,i,s,f,r[e+12],20,-1926607734),f=h(f,c,i,s,r[e+5],4,-378558),s=h(s,f,c,i,r[e+8],11,-2022574463),i=h(i,s,f,c,r[e+11],16,1839030562),c=h(c,i,s,f,r[e+14],23,-35309556),f=h(f,c,i,s,r[e+1],4,-1530992060),s=h(s,f,c,i,r[e+4],11,1272893353),i=h(i,s,f,c,r[e+7],16,-155497632),c=h(c,i,s,f,r[e+10],23,-1094730640),f=h(f,c,i,s,r[e+13],4,681279174),s=h(s,f,c,i,r[e],11,-358537222),i=h(i,s,f,c,r[e+3],16,-722521979),c=h(c,i,s,f,r[e+6],23,76029189),f=h(f,c,i,s,r[e+9],4,-640364487),s=h(s,f,c,i,r[e+12],11,-421815835),i=h(i,s,f,c,r[e+15],16,530742520),c=h(c,i,s,f,r[e+2],23,-995338651),f=g(f,c,i,s,r[e],6,-198630844),s=g(s,f,c,i,r[e+7],10,1126891415),i=g(i,s,f,c,r[e+14],15,-1416354905),c=g(c,i,s,f,r[e+5],21,-57434055),f=g(f,c,i,s,r[e+12],6,1700485571),s=g(s,f,c,i,r[e+3],10,-1894986606),i=g(i,s,f,c,r[e+10],15,-1051523),c=g(c,i,s,f,r[e+1],21,-2054922799),f=g(f,c,i,s,r[e+8],6,1873313359),s=g(s,f,c,i,r[e+15],10,-30611744),i=g(i,s,f,c,r[e+6],15,-1560198380),c=g(c,i,s,f,r[e+13],21,1309151649),f=g(f,c,i,s,r[e+4],6,-145523070),s=g(s,f,c,i,r[e+11],10,-1120210379),i=g(i,s,f,c,r[e+2],15,718787259),c=g(c,i,s,f,r[e+9],21,-343485551),f=d(f,t),c=d(c,o),i=d(i,a),s=d(s,u);return[f,c,i,s]}(function(r){var n,e=[];for(e[(r.length>>2)-1]=void 0,n=0;n<e.length;n+=1)e[n]=0;var t=8*r.length;for(n=0;n<t;n+=8)e[n>>5]|=(255&r[n/8])<<n%32;return e}(r),8*r.length))}));function b(r,n,e,t){switch(r){case 0:return n&e^~n&t;case 1:return n^e^t;case 2:return n&e^n&t^e&t;case 3:return n^e^t}}function A(r,n){return r<<n|r>>>32-n}var w=v("v5",80,(function(r){var n=[1518500249,1859775393,2400959708,3395469782],e=[1732584193,4023233417,2562383102,271733878,3285377520];if("string"==typeof r){var t=unescape(encodeURIComponent(r));r=new Array(t.length);for(var o=0;o<t.length;o++)r[o]=t.charCodeAt(o)}r.push(128);var a=r.length/4+2,u=Math.ceil(a/16),f=new Array(u);for(o=0;o<u;o++){f[o]=new Array(16);for(var c=0;c<16;c++)f[o][c]=r[64*o+4*c]<<24|r[64*o+4*c+1]<<16|r[64*o+4*c+2]<<8|r[64*o+4*c+3]}for(f[u-1][14]=8*(r.length-1)/Math.pow(2,32),f[u-1][14]=Math.floor(f[u-1][14]),f[u-1][15]=8*(r.length-1)&4294967295,o=0;o<u;o++){for(var i=new Array(80),s=0;s<16;s++)i[s]=f[o][s];for(s=16;s<80;s++)i[s]=A(i[s-3]^i[s-8]^i[s-14]^i[s-16],1);var v=e[0],d=e[1],l=e[2],p=e[3],y=e[4];for(s=0;s<80;s++){var h=Math.floor(s/20),g=A(v,5)+b(h,d,l,p)+y+n[h]+i[s]>>>0;y=p,p=l,l=A(d,30)>>>0,d=v,v=g}e[0]=e[0]+v>>>0,e[1]=e[1]+d>>>0,e[2]=e[2]+l>>>0,e[3]=e[3]+p>>>0,e[4]=e[4]+y>>>0}return[e[0]>>24&255,e[0]>>16&255,e[0]>>8&255,255&e[0],e[1]>>24&255,e[1]>>16&255,e[1]>>8&255,255&e[1],e[2]>>24&255,e[2]>>16&255,e[2]>>8&255,255&e[2],e[3]>>24&255,e[3]>>16&255,e[3]>>8&255,255&e[3],e[4]>>24&255,e[4]>>16&255,e[4]>>8&255,255&e[4]]}));r.v1=function(r,n,e){var u=n&&e||0,f=n||[],v=(r=r||{}).node||o,d=void 0!==r.clockseq?r.clockseq:a;if(null==v||null==d){var l=r.random||(r.rng||t)();null==v&&(v=o=[1|l[0],l[1],l[2],l[3],l[4],l[5]]),null==d&&(d=a=16383&(l[6]<<8|l[7]))}var p=void 0!==r.msecs?r.msecs:(new Date).getTime(),y=void 0!==r.nsecs?r.nsecs:s+1,h=p-i+(y-s)/1e4;if(h<0&&void 0===r.clockseq&&(d=d+1&16383),(h<0||p>i)&&void 0===r.nsecs&&(y=0),y>=1e4)throw new Error("uuid.v1(): Can't create more than 10M uuids/sec");i=p,s=y,a=d;var g=(1e4*(268435455&(p+=122192928e5))+y)%4294967296;f[u++]=g>>>24&255,f[u++]=g>>>16&255,f[u++]=g>>>8&255,f[u++]=255&g;var m=p/4294967296*1e4&268435455;f[u++]=m>>>8&255,f[u++]=255&m,f[u++]=m>>>24&15|16,f[u++]=m>>>16&255,f[u++]=d>>>8|128,f[u++]=255&d;for(var b=0;b<6;++b)f[u+b]=v[b];return n||c(f)},r.v3=m,r.v4=function(r,n,e){var o=n&&e||0;"string"==typeof r&&(n="binary"===r?new Array(16):null,r=null);var a=(r=r||{}).random||(r.rng||t)();if(a[6]=15&a[6]|64,a[8]=63&a[8]|128,n)for(var u=0;u<16;++u)n[o+u]=a[u];return n||c(a)},r.v5=w,Object.defineProperty(r,"__esModule",{value:!0})}));
 
 /**
  * @module lib/merge
@@ -4665,6 +4664,7 @@ function Routing() {
         Routing.instance        = self;
         Routing._cached         = [];
         Routing._cachedRoutes   = {};
+        Routing._tries          = {};   // radix tries, keyed by bundle name
     } else {
         self = self.getInstance();
         return self;
@@ -5293,6 +5293,19 @@ function Routing() {
             }
 
             key     = _param[matched].substring(1);
+
+            // No requirements defined for this param — accept any non-empty segment
+            if ( typeof(params.requirements) == 'undefined' || typeof(params.requirements[key]) == 'undefined' ) {
+                if ( typeof(params.param[key]) != 'undefined' && typeof(request.params) != 'undefined' && urlVal ) {
+                    request.params[key] = urlVal;
+                    if ( typeof(request[requestMethod][key]) == 'undefined' ) {
+                        request[requestMethod][key] = urlVal;
+                    }
+                    return true;
+                }
+                return false;
+            }
+
             // escaping `\` characters
             // TODO - remove comment : all regex requirement must start with `/`
             //regex   = ( /\\/.test(params.requirements[key]) ) ? params.requirements[key].replace(/\\/, '') : params.requirements[key];
@@ -5381,6 +5394,9 @@ function Routing() {
             }
 
         } else { // slow one
+
+            // No requirements defined — multi-param routes without requirements are not matchable
+            if ( typeof(params.requirements) == 'undefined' ) return false;
 
             // In order to support rules defined like :
             //      { params.url }  => `/section/:name/page:number`
@@ -6269,6 +6285,49 @@ function Routing() {
         }
     }
 
+    // ── Radix trie — O(m) route candidate lookup ─────────────────────────────
+
+    /**
+     * Build a radix trie for fast route lookup for the given bundle.
+     * Called from onRoutesLoaded() once the routing config is ready.
+     * Safe to call multiple times — each call replaces the previous trie.
+     *
+     * @param {object} routing - full routing map (all bundles)
+     * @param {string} bundle  - bundle name to index
+     */
+    self.buildTrie = function(routing, bundle) {
+        if (isGFFCtx) return; // trie is server-side only
+        var radix = require('./radix');
+        var root  = radix.createNode();
+        for (var name in routing) {
+            var r = routing[name];
+            if (!r || typeof r !== 'object') continue;
+            if (r.bundle !== bundle) continue;
+            // url can be a string ("url1, url2") or an array
+            var rawUrls = Array.isArray(r.url) ? r.url : String(r.url).split(',');
+            for (var i = 0; i < rawUrls.length; i++) {
+                var u = rawUrls[i].trim();
+                if (u) radix.insert(root, u, name);
+            }
+        }
+        Routing._tries[bundle] = root;
+    };
+
+    /**
+     * Return candidate route names for a pathname using the pre-built radix trie.
+     * Returns null when no trie is available for the bundle (safe fall-through
+     * to the linear scan in that case).
+     *
+     * @param {string} pathname - decoded request pathname
+     * @param {string} bundle   - bundle name
+     * @returns {string[]|null}
+     */
+    self.lookupTrie = function(pathname, bundle) {
+        if (!Routing._tries || !Routing._tries[bundle]) return null;
+        var radix = require('./radix');
+        return radix.lookup(Routing._tries[bundle], pathname);
+    };
+
     return self
 }
 
@@ -6363,38 +6422,7 @@ function addListener(target, element, name, callback) {
 function triggerEvent (target, element, name, args, proxiedEvent) {
     if (typeof(element) != 'undefined' && element != null) {
         var evt = null, isDefaultPrevented = false, isAttachedToDOM = false, merge  = null;
-        // if (proxiedEvent) {
-        //     merge = require('lib/merge');
-        // }
-        // done separately because it can be listen at the same time by the user & by gina
-        if ( typeof(jQuery) != 'undefined' ) { //thru jQuery if detected
-
-            // Check if listener is in use: e.g $('#selector').on('eventName', cb)
-            var $events = null; // attached events list
-            // Before jQuery 1.7
-            var version = jQuery['fn']['jquery'].split(/\./);
-            if (version.length > 2) {
-                version = version.splice(0,2).join('.');
-            } else {
-                version = version.join('.');
-            }
-
-            if (version <= '1.7') {
-                $events = jQuery(element)['data']('events')
-            } else {// From 1.8 +
-                $events = jQuery['_data'](jQuery(element)[0], "events")
-            }
-
-            isAttachedToDOM = ( typeof($events) != 'undefined' && typeof($events[name]) != 'undefined' ) ? true : false;
-
-            if (isAttachedToDOM) { // only trigger if attached
-                evt = jQuery.Event( name );
-                jQuery(element)['trigger'](evt, args);
-                isDefaultPrevented = evt['isDefaultPrevented']();
-            }
-
-
-        }
+        // removed: jquery event bridge (users should use addEventListener instead of $().on())
 
         if (window.CustomEvent || document.createEvent) {
 
@@ -6636,7 +6664,9 @@ function handleXhr(xhr, $el, options, require) {
             $link.eventData.error = result;
 
         //updateToolbar(result, resultIsObject);
-        window.ginaToolbar.update('data-xhr', result, resultIsObject);
+        if ( typeof(window.ginaToolbar) != 'undefined' && window.ginaToolbar ) {
+            window.ginaToolbar.update('data-xhr', result, resultIsObject);
+        }
 
         triggerEvent(gina, $target, 'error.' + id, result);
 
@@ -6746,12 +6776,12 @@ function handleXhr(xhr, $el, options, require) {
                                     XHRView = JSON.parse(decodeURIComponent(XHRView.value));
 
                                     // update data tab
-                                    if ( gina && typeof(window.ginaToolbar) && typeof(XHRData) != 'undefined' ) {
+                                    if ( gina && typeof(window.ginaToolbar) != 'undefined' && window.ginaToolbar && typeof(XHRData) != 'undefined' ) {
                                         window.ginaToolbar.update('data-xhr', XHRData);
                                     }
 
                                     // update view tab
-                                    if ( gina && typeof(window.ginaToolbar) && typeof(XHRView) != 'undefined' ) {
+                                    if ( gina && typeof(window.ginaToolbar) != 'undefined' && window.ginaToolbar && typeof(XHRView) != 'undefined' ) {
                                         window.ginaToolbar.update('view-xhr', XHRView);
                                     }
 
@@ -6779,7 +6809,7 @@ function handleXhr(xhr, $el, options, require) {
 
                     XHRData = result;
                     // update toolbar
-                    if ( gina && typeof(window.ginaToolbar) == 'object' && XHRData ) {
+                    if ( gina && typeof(window.ginaToolbar) != 'undefined' && window.ginaToolbar && XHRData ) {
                         try {
                             // don't refresh for html datas
                             if ( typeof(XHRData) != 'undefined' && /\/html/.test(contentType) ) {
@@ -6814,7 +6844,7 @@ function handleXhr(xhr, $el, options, require) {
 
                     XHRData = result;
                     // update toolbar
-                    if ( gina && typeof(window.ginaToolbar) == 'object' && XHRData ) {
+                    if ( gina && typeof(window.ginaToolbar) != 'undefined' && window.ginaToolbar && XHRData ) {
                         try {
 
                             if ( typeof(XHRData) != 'undefined' ) {
@@ -6906,7 +6936,7 @@ function handleXhr(xhr, $el, options, require) {
 
                             // update toolbar
                             XHRData = result;
-                            if ( gina && typeof(window.ginaToolbar) == 'object' && XHRData ) {
+                            if ( gina && typeof(window.ginaToolbar) != 'undefined' && window.ginaToolbar && XHRData ) {
                                 try {
                                     // update toolbar
                                     window.ginaToolbar.update('data-xhr', XHRData );
@@ -6966,7 +6996,7 @@ function handleXhr(xhr, $el, options, require) {
 
                     // update toolbar
                     XHRData = result;
-                    if ( gina && typeof(window.ginaToolbar) == "object" && XHRData ) {
+                    if ( gina && typeof(window.ginaToolbar) != 'undefined' && window.ginaToolbar && XHRData ) {
                         try {
                             // update toolbar
                             window.ginaToolbar.update('data-xhr', XHRData );
@@ -7291,13 +7321,7 @@ function PrototypesHelper(instance) {
         } else {
             // For unit tests
             if (!envVars) {
-                var ginaDir = null;
-                try {
-                    ginaDir = process.cwd().match(/.*\/gina/)[0];
-                } catch (ginaDirErr) {
-                    // running outside of gina
-                    ginaDir = __dirname +'/../../../';
-                }
+                var ginaDir = __dirname +'/../../../';
 
                 require(ginaDir +'/utils/helper');
                 setEnvVar('GINA_DIR', ginaDir, true);
@@ -7972,1945 +7996,1278 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
     // Publish as AMD module
     define( 'helpers/dateFormat',[],function() { return DateFormatHelper })
 };
-/*! jQuery v1.12.4 | (c) jQuery Foundation | jquery.org/license */
-!function(a,b){"object"==typeof module&&"object"==typeof module.exports?module.exports=a.document?b(a,!0):function(a){if(!a.document)throw new Error("jQuery requires a window with a document");return b(a)}:b(a)}("undefined"!=typeof window?window:this,function(a,b){var c=[],d=a.document,e=c.slice,f=c.concat,g=c.push,h=c.indexOf,i={},j=i.toString,k=i.hasOwnProperty,l={},m="1.12.4",n=function(a,b){return new n.fn.init(a,b)},o=/^[\s\uFEFF\xA0]+|[\s\uFEFF\xA0]+$/g,p=/^-ms-/,q=/-([\da-z])/gi,r=function(a,b){return b.toUpperCase()};n.fn=n.prototype={jquery:m,constructor:n,selector:"",length:0,toArray:function(){return e.call(this)},get:function(a){return null!=a?0>a?this[a+this.length]:this[a]:e.call(this)},pushStack:function(a){var b=n.merge(this.constructor(),a);return b.prevObject=this,b.context=this.context,b},each:function(a){return n.each(this,a)},map:function(a){return this.pushStack(n.map(this,function(b,c){return a.call(b,c,b)}))},slice:function(){return this.pushStack(e.apply(this,arguments))},first:function(){return this.eq(0)},last:function(){return this.eq(-1)},eq:function(a){var b=this.length,c=+a+(0>a?b:0);return this.pushStack(c>=0&&b>c?[this[c]]:[])},end:function(){return this.prevObject||this.constructor()},push:g,sort:c.sort,splice:c.splice},n.extend=n.fn.extend=function(){var a,b,c,d,e,f,g=arguments[0]||{},h=1,i=arguments.length,j=!1;for("boolean"==typeof g&&(j=g,g=arguments[h]||{},h++),"object"==typeof g||n.isFunction(g)||(g={}),h===i&&(g=this,h--);i>h;h++)if(null!=(e=arguments[h]))for(d in e)a=g[d],c=e[d],g!==c&&(j&&c&&(n.isPlainObject(c)||(b=n.isArray(c)))?(b?(b=!1,f=a&&n.isArray(a)?a:[]):f=a&&n.isPlainObject(a)?a:{},g[d]=n.extend(j,f,c)):void 0!==c&&(g[d]=c));return g},n.extend({expando:"jQuery"+(m+Math.random()).replace(/\D/g,""),isReady:!0,error:function(a){throw new Error(a)},noop:function(){},isFunction:function(a){return"function"===n.type(a)},isArray:Array.isArray||function(a){return"array"===n.type(a)},isWindow:function(a){return null!=a&&a==a.window},isNumeric:function(a){var b=a&&a.toString();return!n.isArray(a)&&b-parseFloat(b)+1>=0},isEmptyObject:function(a){var b;for(b in a)return!1;return!0},isPlainObject:function(a){var b;if(!a||"object"!==n.type(a)||a.nodeType||n.isWindow(a))return!1;try{if(a.constructor&&!k.call(a,"constructor")&&!k.call(a.constructor.prototype,"isPrototypeOf"))return!1}catch(c){return!1}if(!l.ownFirst)for(b in a)return k.call(a,b);for(b in a);return void 0===b||k.call(a,b)},type:function(a){return null==a?a+"":"object"==typeof a||"function"==typeof a?i[j.call(a)]||"object":typeof a},globalEval:function(b){b&&n.trim(b)&&(a.execScript||function(b){a.eval.call(a,b)})(b)},camelCase:function(a){return a.replace(p,"ms-").replace(q,r)},nodeName:function(a,b){return a.nodeName&&a.nodeName.toLowerCase()===b.toLowerCase()},each:function(a,b){var c,d=0;if(s(a)){for(c=a.length;c>d;d++)if(b.call(a[d],d,a[d])===!1)break}else for(d in a)if(b.call(a[d],d,a[d])===!1)break;return a},trim:function(a){return null==a?"":(a+"").replace(o,"")},makeArray:function(a,b){var c=b||[];return null!=a&&(s(Object(a))?n.merge(c,"string"==typeof a?[a]:a):g.call(c,a)),c},inArray:function(a,b,c){var d;if(b){if(h)return h.call(b,a,c);for(d=b.length,c=c?0>c?Math.max(0,d+c):c:0;d>c;c++)if(c in b&&b[c]===a)return c}return-1},merge:function(a,b){var c=+b.length,d=0,e=a.length;while(c>d)a[e++]=b[d++];if(c!==c)while(void 0!==b[d])a[e++]=b[d++];return a.length=e,a},grep:function(a,b,c){for(var d,e=[],f=0,g=a.length,h=!c;g>f;f++)d=!b(a[f],f),d!==h&&e.push(a[f]);return e},map:function(a,b,c){var d,e,g=0,h=[];if(s(a))for(d=a.length;d>g;g++)e=b(a[g],g,c),null!=e&&h.push(e);else for(g in a)e=b(a[g],g,c),null!=e&&h.push(e);return f.apply([],h)},guid:1,proxy:function(a,b){var c,d,f;return"string"==typeof b&&(f=a[b],b=a,a=f),n.isFunction(a)?(c=e.call(arguments,2),d=function(){return a.apply(b||this,c.concat(e.call(arguments)))},d.guid=a.guid=a.guid||n.guid++,d):void 0},now:function(){return+new Date},support:l}),"function"==typeof Symbol&&(n.fn[Symbol.iterator]=c[Symbol.iterator]),n.each("Boolean Number String Function Array Date RegExp Object Error Symbol".split(" "),function(a,b){i["[object "+b+"]"]=b.toLowerCase()});function s(a){var b=!!a&&"length"in a&&a.length,c=n.type(a);return"function"===c||n.isWindow(a)?!1:"array"===c||0===b||"number"==typeof b&&b>0&&b-1 in a}var t=function(a){var b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,q,r,s,t,u="sizzle"+1*new Date,v=a.document,w=0,x=0,y=ga(),z=ga(),A=ga(),B=function(a,b){return a===b&&(l=!0),0},C=1<<31,D={}.hasOwnProperty,E=[],F=E.pop,G=E.push,H=E.push,I=E.slice,J=function(a,b){for(var c=0,d=a.length;d>c;c++)if(a[c]===b)return c;return-1},K="checked|selected|async|autofocus|autoplay|controls|defer|disabled|hidden|ismap|loop|multiple|open|readonly|required|scoped",L="[\\x20\\t\\r\\n\\f]",M="(?:\\\\.|[\\w-]|[^\\x00-\\xa0])+",N="\\["+L+"*("+M+")(?:"+L+"*([*^$|!~]?=)"+L+"*(?:'((?:\\\\.|[^\\\\'])*)'|\"((?:\\\\.|[^\\\\\"])*)\"|("+M+"))|)"+L+"*\\]",O=":("+M+")(?:\\((('((?:\\\\.|[^\\\\'])*)'|\"((?:\\\\.|[^\\\\\"])*)\")|((?:\\\\.|[^\\\\()[\\]]|"+N+")*)|.*)\\)|)",P=new RegExp(L+"+","g"),Q=new RegExp("^"+L+"+|((?:^|[^\\\\])(?:\\\\.)*)"+L+"+$","g"),R=new RegExp("^"+L+"*,"+L+"*"),S=new RegExp("^"+L+"*([>+~]|"+L+")"+L+"*"),T=new RegExp("="+L+"*([^\\]'\"]*?)"+L+"*\\]","g"),U=new RegExp(O),V=new RegExp("^"+M+"$"),W={ID:new RegExp("^#("+M+")"),CLASS:new RegExp("^\\.("+M+")"),TAG:new RegExp("^("+M+"|[*])"),ATTR:new RegExp("^"+N),PSEUDO:new RegExp("^"+O),CHILD:new RegExp("^:(only|first|last|nth|nth-last)-(child|of-type)(?:\\("+L+"*(even|odd|(([+-]|)(\\d*)n|)"+L+"*(?:([+-]|)"+L+"*(\\d+)|))"+L+"*\\)|)","i"),bool:new RegExp("^(?:"+K+")$","i"),needsContext:new RegExp("^"+L+"*[>+~]|:(even|odd|eq|gt|lt|nth|first|last)(?:\\("+L+"*((?:-\\d)?\\d*)"+L+"*\\)|)(?=[^-]|$)","i")},X=/^(?:input|select|textarea|button)$/i,Y=/^h\d$/i,Z=/^[^{]+\{\s*\[native \w/,$=/^(?:#([\w-]+)|(\w+)|\.([\w-]+))$/,_=/[+~]/,aa=/'|\\/g,ba=new RegExp("\\\\([\\da-f]{1,6}"+L+"?|("+L+")|.)","ig"),ca=function(a,b,c){var d="0x"+b-65536;return d!==d||c?b:0>d?String.fromCharCode(d+65536):String.fromCharCode(d>>10|55296,1023&d|56320)},da=function(){m()};try{H.apply(E=I.call(v.childNodes),v.childNodes),E[v.childNodes.length].nodeType}catch(ea){H={apply:E.length?function(a,b){G.apply(a,I.call(b))}:function(a,b){var c=a.length,d=0;while(a[c++]=b[d++]);a.length=c-1}}}function fa(a,b,d,e){var f,h,j,k,l,o,r,s,w=b&&b.ownerDocument,x=b?b.nodeType:9;if(d=d||[],"string"!=typeof a||!a||1!==x&&9!==x&&11!==x)return d;if(!e&&((b?b.ownerDocument||b:v)!==n&&m(b),b=b||n,p)){if(11!==x&&(o=$.exec(a)))if(f=o[1]){if(9===x){if(!(j=b.getElementById(f)))return d;if(j.id===f)return d.push(j),d}else if(w&&(j=w.getElementById(f))&&t(b,j)&&j.id===f)return d.push(j),d}else{if(o[2])return H.apply(d,b.getElementsByTagName(a)),d;if((f=o[3])&&c.getElementsByClassName&&b.getElementsByClassName)return H.apply(d,b.getElementsByClassName(f)),d}if(c.qsa&&!A[a+" "]&&(!q||!q.test(a))){if(1!==x)w=b,s=a;else if("object"!==b.nodeName.toLowerCase()){(k=b.getAttribute("id"))?k=k.replace(aa,"\\$&"):b.setAttribute("id",k=u),r=g(a),h=r.length,l=V.test(k)?"#"+k:"[id='"+k+"']";while(h--)r[h]=l+" "+qa(r[h]);s=r.join(","),w=_.test(a)&&oa(b.parentNode)||b}if(s)try{return H.apply(d,w.querySelectorAll(s)),d}catch(y){}finally{k===u&&b.removeAttribute("id")}}}return i(a.replace(Q,"$1"),b,d,e)}function ga(){var a=[];function b(c,e){return a.push(c+" ")>d.cacheLength&&delete b[a.shift()],b[c+" "]=e}return b}function ha(a){return a[u]=!0,a}function ia(a){var b=n.createElement("div");try{return!!a(b)}catch(c){return!1}finally{b.parentNode&&b.parentNode.removeChild(b),b=null}}function ja(a,b){var c=a.split("|"),e=c.length;while(e--)d.attrHandle[c[e]]=b}function ka(a,b){var c=b&&a,d=c&&1===a.nodeType&&1===b.nodeType&&(~b.sourceIndex||C)-(~a.sourceIndex||C);if(d)return d;if(c)while(c=c.nextSibling)if(c===b)return-1;return a?1:-1}function la(a){return function(b){var c=b.nodeName.toLowerCase();return"input"===c&&b.type===a}}function ma(a){return function(b){var c=b.nodeName.toLowerCase();return("input"===c||"button"===c)&&b.type===a}}function na(a){return ha(function(b){return b=+b,ha(function(c,d){var e,f=a([],c.length,b),g=f.length;while(g--)c[e=f[g]]&&(c[e]=!(d[e]=c[e]))})})}function oa(a){return a&&"undefined"!=typeof a.getElementsByTagName&&a}c=fa.support={},f=fa.isXML=function(a){var b=a&&(a.ownerDocument||a).documentElement;return b?"HTML"!==b.nodeName:!1},m=fa.setDocument=function(a){var b,e,g=a?a.ownerDocument||a:v;return g!==n&&9===g.nodeType&&g.documentElement?(n=g,o=n.documentElement,p=!f(n),(e=n.defaultView)&&e.top!==e&&(e.addEventListener?e.addEventListener("unload",da,!1):e.attachEvent&&e.attachEvent("onunload",da)),c.attributes=ia(function(a){return a.className="i",!a.getAttribute("className")}),c.getElementsByTagName=ia(function(a){return a.appendChild(n.createComment("")),!a.getElementsByTagName("*").length}),c.getElementsByClassName=Z.test(n.getElementsByClassName),c.getById=ia(function(a){return o.appendChild(a).id=u,!n.getElementsByName||!n.getElementsByName(u).length}),c.getById?(d.find.ID=function(a,b){if("undefined"!=typeof b.getElementById&&p){var c=b.getElementById(a);return c?[c]:[]}},d.filter.ID=function(a){var b=a.replace(ba,ca);return function(a){return a.getAttribute("id")===b}}):(delete d.find.ID,d.filter.ID=function(a){var b=a.replace(ba,ca);return function(a){var c="undefined"!=typeof a.getAttributeNode&&a.getAttributeNode("id");return c&&c.value===b}}),d.find.TAG=c.getElementsByTagName?function(a,b){return"undefined"!=typeof b.getElementsByTagName?b.getElementsByTagName(a):c.qsa?b.querySelectorAll(a):void 0}:function(a,b){var c,d=[],e=0,f=b.getElementsByTagName(a);if("*"===a){while(c=f[e++])1===c.nodeType&&d.push(c);return d}return f},d.find.CLASS=c.getElementsByClassName&&function(a,b){return"undefined"!=typeof b.getElementsByClassName&&p?b.getElementsByClassName(a):void 0},r=[],q=[],(c.qsa=Z.test(n.querySelectorAll))&&(ia(function(a){o.appendChild(a).innerHTML="<a id='"+u+"'></a><select id='"+u+"-\r\\' msallowcapture=''><option selected=''></option></select>",a.querySelectorAll("[msallowcapture^='']").length&&q.push("[*^$]="+L+"*(?:''|\"\")"),a.querySelectorAll("[selected]").length||q.push("\\["+L+"*(?:value|"+K+")"),a.querySelectorAll("[id~="+u+"-]").length||q.push("~="),a.querySelectorAll(":checked").length||q.push(":checked"),a.querySelectorAll("a#"+u+"+*").length||q.push(".#.+[+~]")}),ia(function(a){var b=n.createElement("input");b.setAttribute("type","hidden"),a.appendChild(b).setAttribute("name","D"),a.querySelectorAll("[name=d]").length&&q.push("name"+L+"*[*^$|!~]?="),a.querySelectorAll(":enabled").length||q.push(":enabled",":disabled"),a.querySelectorAll("*,:x"),q.push(",.*:")})),(c.matchesSelector=Z.test(s=o.matches||o.webkitMatchesSelector||o.mozMatchesSelector||o.oMatchesSelector||o.msMatchesSelector))&&ia(function(a){c.disconnectedMatch=s.call(a,"div"),s.call(a,"[s!='']:x"),r.push("!=",O)}),q=q.length&&new RegExp(q.join("|")),r=r.length&&new RegExp(r.join("|")),b=Z.test(o.compareDocumentPosition),t=b||Z.test(o.contains)?function(a,b){var c=9===a.nodeType?a.documentElement:a,d=b&&b.parentNode;return a===d||!(!d||1!==d.nodeType||!(c.contains?c.contains(d):a.compareDocumentPosition&&16&a.compareDocumentPosition(d)))}:function(a,b){if(b)while(b=b.parentNode)if(b===a)return!0;return!1},B=b?function(a,b){if(a===b)return l=!0,0;var d=!a.compareDocumentPosition-!b.compareDocumentPosition;return d?d:(d=(a.ownerDocument||a)===(b.ownerDocument||b)?a.compareDocumentPosition(b):1,1&d||!c.sortDetached&&b.compareDocumentPosition(a)===d?a===n||a.ownerDocument===v&&t(v,a)?-1:b===n||b.ownerDocument===v&&t(v,b)?1:k?J(k,a)-J(k,b):0:4&d?-1:1)}:function(a,b){if(a===b)return l=!0,0;var c,d=0,e=a.parentNode,f=b.parentNode,g=[a],h=[b];if(!e||!f)return a===n?-1:b===n?1:e?-1:f?1:k?J(k,a)-J(k,b):0;if(e===f)return ka(a,b);c=a;while(c=c.parentNode)g.unshift(c);c=b;while(c=c.parentNode)h.unshift(c);while(g[d]===h[d])d++;return d?ka(g[d],h[d]):g[d]===v?-1:h[d]===v?1:0},n):n},fa.matches=function(a,b){return fa(a,null,null,b)},fa.matchesSelector=function(a,b){if((a.ownerDocument||a)!==n&&m(a),b=b.replace(T,"='$1']"),c.matchesSelector&&p&&!A[b+" "]&&(!r||!r.test(b))&&(!q||!q.test(b)))try{var d=s.call(a,b);if(d||c.disconnectedMatch||a.document&&11!==a.document.nodeType)return d}catch(e){}return fa(b,n,null,[a]).length>0},fa.contains=function(a,b){return(a.ownerDocument||a)!==n&&m(a),t(a,b)},fa.attr=function(a,b){(a.ownerDocument||a)!==n&&m(a);var e=d.attrHandle[b.toLowerCase()],f=e&&D.call(d.attrHandle,b.toLowerCase())?e(a,b,!p):void 0;return void 0!==f?f:c.attributes||!p?a.getAttribute(b):(f=a.getAttributeNode(b))&&f.specified?f.value:null},fa.error=function(a){throw new Error("Syntax error, unrecognized expression: "+a)},fa.uniqueSort=function(a){var b,d=[],e=0,f=0;if(l=!c.detectDuplicates,k=!c.sortStable&&a.slice(0),a.sort(B),l){while(b=a[f++])b===a[f]&&(e=d.push(f));while(e--)a.splice(d[e],1)}return k=null,a},e=fa.getText=function(a){var b,c="",d=0,f=a.nodeType;if(f){if(1===f||9===f||11===f){if("string"==typeof a.textContent)return a.textContent;for(a=a.firstChild;a;a=a.nextSibling)c+=e(a)}else if(3===f||4===f)return a.nodeValue}else while(b=a[d++])c+=e(b);return c},d=fa.selectors={cacheLength:50,createPseudo:ha,match:W,attrHandle:{},find:{},relative:{">":{dir:"parentNode",first:!0}," ":{dir:"parentNode"},"+":{dir:"previousSibling",first:!0},"~":{dir:"previousSibling"}},preFilter:{ATTR:function(a){return a[1]=a[1].replace(ba,ca),a[3]=(a[3]||a[4]||a[5]||"").replace(ba,ca),"~="===a[2]&&(a[3]=" "+a[3]+" "),a.slice(0,4)},CHILD:function(a){return a[1]=a[1].toLowerCase(),"nth"===a[1].slice(0,3)?(a[3]||fa.error(a[0]),a[4]=+(a[4]?a[5]+(a[6]||1):2*("even"===a[3]||"odd"===a[3])),a[5]=+(a[7]+a[8]||"odd"===a[3])):a[3]&&fa.error(a[0]),a},PSEUDO:function(a){var b,c=!a[6]&&a[2];return W.CHILD.test(a[0])?null:(a[3]?a[2]=a[4]||a[5]||"":c&&U.test(c)&&(b=g(c,!0))&&(b=c.indexOf(")",c.length-b)-c.length)&&(a[0]=a[0].slice(0,b),a[2]=c.slice(0,b)),a.slice(0,3))}},filter:{TAG:function(a){var b=a.replace(ba,ca).toLowerCase();return"*"===a?function(){return!0}:function(a){return a.nodeName&&a.nodeName.toLowerCase()===b}},CLASS:function(a){var b=y[a+" "];return b||(b=new RegExp("(^|"+L+")"+a+"("+L+"|$)"))&&y(a,function(a){return b.test("string"==typeof a.className&&a.className||"undefined"!=typeof a.getAttribute&&a.getAttribute("class")||"")})},ATTR:function(a,b,c){return function(d){var e=fa.attr(d,a);return null==e?"!="===b:b?(e+="","="===b?e===c:"!="===b?e!==c:"^="===b?c&&0===e.indexOf(c):"*="===b?c&&e.indexOf(c)>-1:"$="===b?c&&e.slice(-c.length)===c:"~="===b?(" "+e.replace(P," ")+" ").indexOf(c)>-1:"|="===b?e===c||e.slice(0,c.length+1)===c+"-":!1):!0}},CHILD:function(a,b,c,d,e){var f="nth"!==a.slice(0,3),g="last"!==a.slice(-4),h="of-type"===b;return 1===d&&0===e?function(a){return!!a.parentNode}:function(b,c,i){var j,k,l,m,n,o,p=f!==g?"nextSibling":"previousSibling",q=b.parentNode,r=h&&b.nodeName.toLowerCase(),s=!i&&!h,t=!1;if(q){if(f){while(p){m=b;while(m=m[p])if(h?m.nodeName.toLowerCase()===r:1===m.nodeType)return!1;o=p="only"===a&&!o&&"nextSibling"}return!0}if(o=[g?q.firstChild:q.lastChild],g&&s){m=q,l=m[u]||(m[u]={}),k=l[m.uniqueID]||(l[m.uniqueID]={}),j=k[a]||[],n=j[0]===w&&j[1],t=n&&j[2],m=n&&q.childNodes[n];while(m=++n&&m&&m[p]||(t=n=0)||o.pop())if(1===m.nodeType&&++t&&m===b){k[a]=[w,n,t];break}}else if(s&&(m=b,l=m[u]||(m[u]={}),k=l[m.uniqueID]||(l[m.uniqueID]={}),j=k[a]||[],n=j[0]===w&&j[1],t=n),t===!1)while(m=++n&&m&&m[p]||(t=n=0)||o.pop())if((h?m.nodeName.toLowerCase()===r:1===m.nodeType)&&++t&&(s&&(l=m[u]||(m[u]={}),k=l[m.uniqueID]||(l[m.uniqueID]={}),k[a]=[w,t]),m===b))break;return t-=e,t===d||t%d===0&&t/d>=0}}},PSEUDO:function(a,b){var c,e=d.pseudos[a]||d.setFilters[a.toLowerCase()]||fa.error("unsupported pseudo: "+a);return e[u]?e(b):e.length>1?(c=[a,a,"",b],d.setFilters.hasOwnProperty(a.toLowerCase())?ha(function(a,c){var d,f=e(a,b),g=f.length;while(g--)d=J(a,f[g]),a[d]=!(c[d]=f[g])}):function(a){return e(a,0,c)}):e}},pseudos:{not:ha(function(a){var b=[],c=[],d=h(a.replace(Q,"$1"));return d[u]?ha(function(a,b,c,e){var f,g=d(a,null,e,[]),h=a.length;while(h--)(f=g[h])&&(a[h]=!(b[h]=f))}):function(a,e,f){return b[0]=a,d(b,null,f,c),b[0]=null,!c.pop()}}),has:ha(function(a){return function(b){return fa(a,b).length>0}}),contains:ha(function(a){return a=a.replace(ba,ca),function(b){return(b.textContent||b.innerText||e(b)).indexOf(a)>-1}}),lang:ha(function(a){return V.test(a||"")||fa.error("unsupported lang: "+a),a=a.replace(ba,ca).toLowerCase(),function(b){var c;do if(c=p?b.lang:b.getAttribute("xml:lang")||b.getAttribute("lang"))return c=c.toLowerCase(),c===a||0===c.indexOf(a+"-");while((b=b.parentNode)&&1===b.nodeType);return!1}}),target:function(b){var c=a.location&&a.location.hash;return c&&c.slice(1)===b.id},root:function(a){return a===o},focus:function(a){return a===n.activeElement&&(!n.hasFocus||n.hasFocus())&&!!(a.type||a.href||~a.tabIndex)},enabled:function(a){return a.disabled===!1},disabled:function(a){return a.disabled===!0},checked:function(a){var b=a.nodeName.toLowerCase();return"input"===b&&!!a.checked||"option"===b&&!!a.selected},selected:function(a){return a.parentNode&&a.parentNode.selectedIndex,a.selected===!0},empty:function(a){for(a=a.firstChild;a;a=a.nextSibling)if(a.nodeType<6)return!1;return!0},parent:function(a){return!d.pseudos.empty(a)},header:function(a){return Y.test(a.nodeName)},input:function(a){return X.test(a.nodeName)},button:function(a){var b=a.nodeName.toLowerCase();return"input"===b&&"button"===a.type||"button"===b},text:function(a){var b;return"input"===a.nodeName.toLowerCase()&&"text"===a.type&&(null==(b=a.getAttribute("type"))||"text"===b.toLowerCase())},first:na(function(){return[0]}),last:na(function(a,b){return[b-1]}),eq:na(function(a,b,c){return[0>c?c+b:c]}),even:na(function(a,b){for(var c=0;b>c;c+=2)a.push(c);return a}),odd:na(function(a,b){for(var c=1;b>c;c+=2)a.push(c);return a}),lt:na(function(a,b,c){for(var d=0>c?c+b:c;--d>=0;)a.push(d);return a}),gt:na(function(a,b,c){for(var d=0>c?c+b:c;++d<b;)a.push(d);return a})}},d.pseudos.nth=d.pseudos.eq;for(b in{radio:!0,checkbox:!0,file:!0,password:!0,image:!0})d.pseudos[b]=la(b);for(b in{submit:!0,reset:!0})d.pseudos[b]=ma(b);function pa(){}pa.prototype=d.filters=d.pseudos,d.setFilters=new pa,g=fa.tokenize=function(a,b){var c,e,f,g,h,i,j,k=z[a+" "];if(k)return b?0:k.slice(0);h=a,i=[],j=d.preFilter;while(h){c&&!(e=R.exec(h))||(e&&(h=h.slice(e[0].length)||h),i.push(f=[])),c=!1,(e=S.exec(h))&&(c=e.shift(),f.push({value:c,type:e[0].replace(Q," ")}),h=h.slice(c.length));for(g in d.filter)!(e=W[g].exec(h))||j[g]&&!(e=j[g](e))||(c=e.shift(),f.push({value:c,type:g,matches:e}),h=h.slice(c.length));if(!c)break}return b?h.length:h?fa.error(a):z(a,i).slice(0)};function qa(a){for(var b=0,c=a.length,d="";c>b;b++)d+=a[b].value;return d}function ra(a,b,c){var d=b.dir,e=c&&"parentNode"===d,f=x++;return b.first?function(b,c,f){while(b=b[d])if(1===b.nodeType||e)return a(b,c,f)}:function(b,c,g){var h,i,j,k=[w,f];if(g){while(b=b[d])if((1===b.nodeType||e)&&a(b,c,g))return!0}else while(b=b[d])if(1===b.nodeType||e){if(j=b[u]||(b[u]={}),i=j[b.uniqueID]||(j[b.uniqueID]={}),(h=i[d])&&h[0]===w&&h[1]===f)return k[2]=h[2];if(i[d]=k,k[2]=a(b,c,g))return!0}}}function sa(a){return a.length>1?function(b,c,d){var e=a.length;while(e--)if(!a[e](b,c,d))return!1;return!0}:a[0]}function ta(a,b,c){for(var d=0,e=b.length;e>d;d++)fa(a,b[d],c);return c}function ua(a,b,c,d,e){for(var f,g=[],h=0,i=a.length,j=null!=b;i>h;h++)(f=a[h])&&(c&&!c(f,d,e)||(g.push(f),j&&b.push(h)));return g}function va(a,b,c,d,e,f){return d&&!d[u]&&(d=va(d)),e&&!e[u]&&(e=va(e,f)),ha(function(f,g,h,i){var j,k,l,m=[],n=[],o=g.length,p=f||ta(b||"*",h.nodeType?[h]:h,[]),q=!a||!f&&b?p:ua(p,m,a,h,i),r=c?e||(f?a:o||d)?[]:g:q;if(c&&c(q,r,h,i),d){j=ua(r,n),d(j,[],h,i),k=j.length;while(k--)(l=j[k])&&(r[n[k]]=!(q[n[k]]=l))}if(f){if(e||a){if(e){j=[],k=r.length;while(k--)(l=r[k])&&j.push(q[k]=l);e(null,r=[],j,i)}k=r.length;while(k--)(l=r[k])&&(j=e?J(f,l):m[k])>-1&&(f[j]=!(g[j]=l))}}else r=ua(r===g?r.splice(o,r.length):r),e?e(null,g,r,i):H.apply(g,r)})}function wa(a){for(var b,c,e,f=a.length,g=d.relative[a[0].type],h=g||d.relative[" "],i=g?1:0,k=ra(function(a){return a===b},h,!0),l=ra(function(a){return J(b,a)>-1},h,!0),m=[function(a,c,d){var e=!g&&(d||c!==j)||((b=c).nodeType?k(a,c,d):l(a,c,d));return b=null,e}];f>i;i++)if(c=d.relative[a[i].type])m=[ra(sa(m),c)];else{if(c=d.filter[a[i].type].apply(null,a[i].matches),c[u]){for(e=++i;f>e;e++)if(d.relative[a[e].type])break;return va(i>1&&sa(m),i>1&&qa(a.slice(0,i-1).concat({value:" "===a[i-2].type?"*":""})).replace(Q,"$1"),c,e>i&&wa(a.slice(i,e)),f>e&&wa(a=a.slice(e)),f>e&&qa(a))}m.push(c)}return sa(m)}function xa(a,b){var c=b.length>0,e=a.length>0,f=function(f,g,h,i,k){var l,o,q,r=0,s="0",t=f&&[],u=[],v=j,x=f||e&&d.find.TAG("*",k),y=w+=null==v?1:Math.random()||.1,z=x.length;for(k&&(j=g===n||g||k);s!==z&&null!=(l=x[s]);s++){if(e&&l){o=0,g||l.ownerDocument===n||(m(l),h=!p);while(q=a[o++])if(q(l,g||n,h)){i.push(l);break}k&&(w=y)}c&&((l=!q&&l)&&r--,f&&t.push(l))}if(r+=s,c&&s!==r){o=0;while(q=b[o++])q(t,u,g,h);if(f){if(r>0)while(s--)t[s]||u[s]||(u[s]=F.call(i));u=ua(u)}H.apply(i,u),k&&!f&&u.length>0&&r+b.length>1&&fa.uniqueSort(i)}return k&&(w=y,j=v),t};return c?ha(f):f}return h=fa.compile=function(a,b){var c,d=[],e=[],f=A[a+" "];if(!f){b||(b=g(a)),c=b.length;while(c--)f=wa(b[c]),f[u]?d.push(f):e.push(f);f=A(a,xa(e,d)),f.selector=a}return f},i=fa.select=function(a,b,e,f){var i,j,k,l,m,n="function"==typeof a&&a,o=!f&&g(a=n.selector||a);if(e=e||[],1===o.length){if(j=o[0]=o[0].slice(0),j.length>2&&"ID"===(k=j[0]).type&&c.getById&&9===b.nodeType&&p&&d.relative[j[1].type]){if(b=(d.find.ID(k.matches[0].replace(ba,ca),b)||[])[0],!b)return e;n&&(b=b.parentNode),a=a.slice(j.shift().value.length)}i=W.needsContext.test(a)?0:j.length;while(i--){if(k=j[i],d.relative[l=k.type])break;if((m=d.find[l])&&(f=m(k.matches[0].replace(ba,ca),_.test(j[0].type)&&oa(b.parentNode)||b))){if(j.splice(i,1),a=f.length&&qa(j),!a)return H.apply(e,f),e;break}}}return(n||h(a,o))(f,b,!p,e,!b||_.test(a)&&oa(b.parentNode)||b),e},c.sortStable=u.split("").sort(B).join("")===u,c.detectDuplicates=!!l,m(),c.sortDetached=ia(function(a){return 1&a.compareDocumentPosition(n.createElement("div"))}),ia(function(a){return a.innerHTML="<a href='#'></a>","#"===a.firstChild.getAttribute("href")})||ja("type|href|height|width",function(a,b,c){return c?void 0:a.getAttribute(b,"type"===b.toLowerCase()?1:2)}),c.attributes&&ia(function(a){return a.innerHTML="<input/>",a.firstChild.setAttribute("value",""),""===a.firstChild.getAttribute("value")})||ja("value",function(a,b,c){return c||"input"!==a.nodeName.toLowerCase()?void 0:a.defaultValue}),ia(function(a){return null==a.getAttribute("disabled")})||ja(K,function(a,b,c){var d;return c?void 0:a[b]===!0?b.toLowerCase():(d=a.getAttributeNode(b))&&d.specified?d.value:null}),fa}(a);n.find=t,n.expr=t.selectors,n.expr[":"]=n.expr.pseudos,n.uniqueSort=n.unique=t.uniqueSort,n.text=t.getText,n.isXMLDoc=t.isXML,n.contains=t.contains;var u=function(a,b,c){var d=[],e=void 0!==c;while((a=a[b])&&9!==a.nodeType)if(1===a.nodeType){if(e&&n(a).is(c))break;d.push(a)}return d},v=function(a,b){for(var c=[];a;a=a.nextSibling)1===a.nodeType&&a!==b&&c.push(a);return c},w=n.expr.match.needsContext,x=/^<([\w-]+)\s*\/?>(?:<\/\1>|)$/,y=/^.[^:#\[\.,]*$/;function z(a,b,c){if(n.isFunction(b))return n.grep(a,function(a,d){return!!b.call(a,d,a)!==c});if(b.nodeType)return n.grep(a,function(a){return a===b!==c});if("string"==typeof b){if(y.test(b))return n.filter(b,a,c);b=n.filter(b,a)}return n.grep(a,function(a){return n.inArray(a,b)>-1!==c})}n.filter=function(a,b,c){var d=b[0];return c&&(a=":not("+a+")"),1===b.length&&1===d.nodeType?n.find.matchesSelector(d,a)?[d]:[]:n.find.matches(a,n.grep(b,function(a){return 1===a.nodeType}))},n.fn.extend({find:function(a){var b,c=[],d=this,e=d.length;if("string"!=typeof a)return this.pushStack(n(a).filter(function(){for(b=0;e>b;b++)if(n.contains(d[b],this))return!0}));for(b=0;e>b;b++)n.find(a,d[b],c);return c=this.pushStack(e>1?n.unique(c):c),c.selector=this.selector?this.selector+" "+a:a,c},filter:function(a){return this.pushStack(z(this,a||[],!1))},not:function(a){return this.pushStack(z(this,a||[],!0))},is:function(a){return!!z(this,"string"==typeof a&&w.test(a)?n(a):a||[],!1).length}});var A,B=/^(?:\s*(<[\w\W]+>)[^>]*|#([\w-]*))$/,C=n.fn.init=function(a,b,c){var e,f;if(!a)return this;if(c=c||A,"string"==typeof a){if(e="<"===a.charAt(0)&&">"===a.charAt(a.length-1)&&a.length>=3?[null,a,null]:B.exec(a),!e||!e[1]&&b)return!b||b.jquery?(b||c).find(a):this.constructor(b).find(a);if(e[1]){if(b=b instanceof n?b[0]:b,n.merge(this,n.parseHTML(e[1],b&&b.nodeType?b.ownerDocument||b:d,!0)),x.test(e[1])&&n.isPlainObject(b))for(e in b)n.isFunction(this[e])?this[e](b[e]):this.attr(e,b[e]);return this}if(f=d.getElementById(e[2]),f&&f.parentNode){if(f.id!==e[2])return A.find(a);this.length=1,this[0]=f}return this.context=d,this.selector=a,this}return a.nodeType?(this.context=this[0]=a,this.length=1,this):n.isFunction(a)?"undefined"!=typeof c.ready?c.ready(a):a(n):(void 0!==a.selector&&(this.selector=a.selector,this.context=a.context),n.makeArray(a,this))};C.prototype=n.fn,A=n(d);var D=/^(?:parents|prev(?:Until|All))/,E={children:!0,contents:!0,next:!0,prev:!0};n.fn.extend({has:function(a){var b,c=n(a,this),d=c.length;return this.filter(function(){for(b=0;d>b;b++)if(n.contains(this,c[b]))return!0})},closest:function(a,b){for(var c,d=0,e=this.length,f=[],g=w.test(a)||"string"!=typeof a?n(a,b||this.context):0;e>d;d++)for(c=this[d];c&&c!==b;c=c.parentNode)if(c.nodeType<11&&(g?g.index(c)>-1:1===c.nodeType&&n.find.matchesSelector(c,a))){f.push(c);break}return this.pushStack(f.length>1?n.uniqueSort(f):f)},index:function(a){return a?"string"==typeof a?n.inArray(this[0],n(a)):n.inArray(a.jquery?a[0]:a,this):this[0]&&this[0].parentNode?this.first().prevAll().length:-1},add:function(a,b){return this.pushStack(n.uniqueSort(n.merge(this.get(),n(a,b))))},addBack:function(a){return this.add(null==a?this.prevObject:this.prevObject.filter(a))}});function F(a,b){do a=a[b];while(a&&1!==a.nodeType);return a}n.each({parent:function(a){var b=a.parentNode;return b&&11!==b.nodeType?b:null},parents:function(a){return u(a,"parentNode")},parentsUntil:function(a,b,c){return u(a,"parentNode",c)},next:function(a){return F(a,"nextSibling")},prev:function(a){return F(a,"previousSibling")},nextAll:function(a){return u(a,"nextSibling")},prevAll:function(a){return u(a,"previousSibling")},nextUntil:function(a,b,c){return u(a,"nextSibling",c)},prevUntil:function(a,b,c){return u(a,"previousSibling",c)},siblings:function(a){return v((a.parentNode||{}).firstChild,a)},children:function(a){return v(a.firstChild)},contents:function(a){return n.nodeName(a,"iframe")?a.contentDocument||a.contentWindow.document:n.merge([],a.childNodes)}},function(a,b){n.fn[a]=function(c,d){var e=n.map(this,b,c);return"Until"!==a.slice(-5)&&(d=c),d&&"string"==typeof d&&(e=n.filter(d,e)),this.length>1&&(E[a]||(e=n.uniqueSort(e)),D.test(a)&&(e=e.reverse())),this.pushStack(e)}});var G=/\S+/g;function H(a){var b={};return n.each(a.match(G)||[],function(a,c){b[c]=!0}),b}n.Callbacks=function(a){a="string"==typeof a?H(a):n.extend({},a);var b,c,d,e,f=[],g=[],h=-1,i=function(){for(e=a.once,d=b=!0;g.length;h=-1){c=g.shift();while(++h<f.length)f[h].apply(c[0],c[1])===!1&&a.stopOnFalse&&(h=f.length,c=!1)}a.memory||(c=!1),b=!1,e&&(f=c?[]:"")},j={add:function(){return f&&(c&&!b&&(h=f.length-1,g.push(c)),function d(b){n.each(b,function(b,c){n.isFunction(c)?a.unique&&j.has(c)||f.push(c):c&&c.length&&"string"!==n.type(c)&&d(c)})}(arguments),c&&!b&&i()),this},remove:function(){return n.each(arguments,function(a,b){var c;while((c=n.inArray(b,f,c))>-1)f.splice(c,1),h>=c&&h--}),this},has:function(a){return a?n.inArray(a,f)>-1:f.length>0},empty:function(){return f&&(f=[]),this},disable:function(){return e=g=[],f=c="",this},disabled:function(){return!f},lock:function(){return e=!0,c||j.disable(),this},locked:function(){return!!e},fireWith:function(a,c){return e||(c=c||[],c=[a,c.slice?c.slice():c],g.push(c),b||i()),this},fire:function(){return j.fireWith(this,arguments),this},fired:function(){return!!d}};return j},n.extend({Deferred:function(a){var b=[["resolve","done",n.Callbacks("once memory"),"resolved"],["reject","fail",n.Callbacks("once memory"),"rejected"],["notify","progress",n.Callbacks("memory")]],c="pending",d={state:function(){return c},always:function(){return e.done(arguments).fail(arguments),this},then:function(){var a=arguments;return n.Deferred(function(c){n.each(b,function(b,f){var g=n.isFunction(a[b])&&a[b];e[f[1]](function(){var a=g&&g.apply(this,arguments);a&&n.isFunction(a.promise)?a.promise().progress(c.notify).done(c.resolve).fail(c.reject):c[f[0]+"With"](this===d?c.promise():this,g?[a]:arguments)})}),a=null}).promise()},promise:function(a){return null!=a?n.extend(a,d):d}},e={};return d.pipe=d.then,n.each(b,function(a,f){var g=f[2],h=f[3];d[f[1]]=g.add,h&&g.add(function(){c=h},b[1^a][2].disable,b[2][2].lock),e[f[0]]=function(){return e[f[0]+"With"](this===e?d:this,arguments),this},e[f[0]+"With"]=g.fireWith}),d.promise(e),a&&a.call(e,e),e},when:function(a){var b=0,c=e.call(arguments),d=c.length,f=1!==d||a&&n.isFunction(a.promise)?d:0,g=1===f?a:n.Deferred(),h=function(a,b,c){return function(d){b[a]=this,c[a]=arguments.length>1?e.call(arguments):d,c===i?g.notifyWith(b,c):--f||g.resolveWith(b,c)}},i,j,k;if(d>1)for(i=new Array(d),j=new Array(d),k=new Array(d);d>b;b++)c[b]&&n.isFunction(c[b].promise)?c[b].promise().progress(h(b,j,i)).done(h(b,k,c)).fail(g.reject):--f;return f||g.resolveWith(k,c),g.promise()}});var I;n.fn.ready=function(a){return n.ready.promise().done(a),this},n.extend({isReady:!1,readyWait:1,holdReady:function(a){a?n.readyWait++:n.ready(!0)},ready:function(a){(a===!0?--n.readyWait:n.isReady)||(n.isReady=!0,a!==!0&&--n.readyWait>0||(I.resolveWith(d,[n]),n.fn.triggerHandler&&(n(d).triggerHandler("ready"),n(d).off("ready"))))}});function J(){d.addEventListener?(d.removeEventListener("DOMContentLoaded",K),a.removeEventListener("load",K)):(d.detachEvent("onreadystatechange",K),a.detachEvent("onload",K))}function K(){(d.addEventListener||"load"===a.event.type||"complete"===d.readyState)&&(J(),n.ready())}n.ready.promise=function(b){if(!I)if(I=n.Deferred(),"complete"===d.readyState||"loading"!==d.readyState&&!d.documentElement.doScroll)a.setTimeout(n.ready);else if(d.addEventListener)d.addEventListener("DOMContentLoaded",K),a.addEventListener("load",K);else{d.attachEvent("onreadystatechange",K),a.attachEvent("onload",K);var c=!1;try{c=null==a.frameElement&&d.documentElement}catch(e){}c&&c.doScroll&&!function f(){if(!n.isReady){try{c.doScroll("left")}catch(b){return a.setTimeout(f,50)}J(),n.ready()}}()}return I.promise(b)},n.ready.promise();var L;for(L in n(l))break;l.ownFirst="0"===L,l.inlineBlockNeedsLayout=!1,n(function(){var a,b,c,e;c=d.getElementsByTagName("body")[0],c&&c.style&&(b=d.createElement("div"),e=d.createElement("div"),e.style.cssText="position:absolute;border:0;width:0;height:0;top:0;left:-9999px",c.appendChild(e).appendChild(b),"undefined"!=typeof b.style.zoom&&(b.style.cssText="display:inline;margin:0;border:0;padding:1px;width:1px;zoom:1",l.inlineBlockNeedsLayout=a=3===b.offsetWidth,a&&(c.style.zoom=1)),c.removeChild(e))}),function(){var a=d.createElement("div");l.deleteExpando=!0;try{delete a.test}catch(b){l.deleteExpando=!1}a=null}();var M=function(a){var b=n.noData[(a.nodeName+" ").toLowerCase()],c=+a.nodeType||1;return 1!==c&&9!==c?!1:!b||b!==!0&&a.getAttribute("classid")===b},N=/^(?:\{[\w\W]*\}|\[[\w\W]*\])$/,O=/([A-Z])/g;function P(a,b,c){if(void 0===c&&1===a.nodeType){var d="data-"+b.replace(O,"-$1").toLowerCase();if(c=a.getAttribute(d),"string"==typeof c){try{c="true"===c?!0:"false"===c?!1:"null"===c?null:+c+""===c?+c:N.test(c)?n.parseJSON(c):c}catch(e){}n.data(a,b,c)}else c=void 0;
-}return c}function Q(a){var b;for(b in a)if(("data"!==b||!n.isEmptyObject(a[b]))&&"toJSON"!==b)return!1;return!0}function R(a,b,d,e){if(M(a)){var f,g,h=n.expando,i=a.nodeType,j=i?n.cache:a,k=i?a[h]:a[h]&&h;if(k&&j[k]&&(e||j[k].data)||void 0!==d||"string"!=typeof b)return k||(k=i?a[h]=c.pop()||n.guid++:h),j[k]||(j[k]=i?{}:{toJSON:n.noop}),"object"!=typeof b&&"function"!=typeof b||(e?j[k]=n.extend(j[k],b):j[k].data=n.extend(j[k].data,b)),g=j[k],e||(g.data||(g.data={}),g=g.data),void 0!==d&&(g[n.camelCase(b)]=d),"string"==typeof b?(f=g[b],null==f&&(f=g[n.camelCase(b)])):f=g,f}}function S(a,b,c){if(M(a)){var d,e,f=a.nodeType,g=f?n.cache:a,h=f?a[n.expando]:n.expando;if(g[h]){if(b&&(d=c?g[h]:g[h].data)){n.isArray(b)?b=b.concat(n.map(b,n.camelCase)):b in d?b=[b]:(b=n.camelCase(b),b=b in d?[b]:b.split(" ")),e=b.length;while(e--)delete d[b[e]];if(c?!Q(d):!n.isEmptyObject(d))return}(c||(delete g[h].data,Q(g[h])))&&(f?n.cleanData([a],!0):l.deleteExpando||g!=g.window?delete g[h]:g[h]=void 0)}}}n.extend({cache:{},noData:{"applet ":!0,"embed ":!0,"object ":"clsid:D27CDB6E-AE6D-11cf-96B8-444553540000"},hasData:function(a){return a=a.nodeType?n.cache[a[n.expando]]:a[n.expando],!!a&&!Q(a)},data:function(a,b,c){return R(a,b,c)},removeData:function(a,b){return S(a,b)},_data:function(a,b,c){return R(a,b,c,!0)},_removeData:function(a,b){return S(a,b,!0)}}),n.fn.extend({data:function(a,b){var c,d,e,f=this[0],g=f&&f.attributes;if(void 0===a){if(this.length&&(e=n.data(f),1===f.nodeType&&!n._data(f,"parsedAttrs"))){c=g.length;while(c--)g[c]&&(d=g[c].name,0===d.indexOf("data-")&&(d=n.camelCase(d.slice(5)),P(f,d,e[d])));n._data(f,"parsedAttrs",!0)}return e}return"object"==typeof a?this.each(function(){n.data(this,a)}):arguments.length>1?this.each(function(){n.data(this,a,b)}):f?P(f,a,n.data(f,a)):void 0},removeData:function(a){return this.each(function(){n.removeData(this,a)})}}),n.extend({queue:function(a,b,c){var d;return a?(b=(b||"fx")+"queue",d=n._data(a,b),c&&(!d||n.isArray(c)?d=n._data(a,b,n.makeArray(c)):d.push(c)),d||[]):void 0},dequeue:function(a,b){b=b||"fx";var c=n.queue(a,b),d=c.length,e=c.shift(),f=n._queueHooks(a,b),g=function(){n.dequeue(a,b)};"inprogress"===e&&(e=c.shift(),d--),e&&("fx"===b&&c.unshift("inprogress"),delete f.stop,e.call(a,g,f)),!d&&f&&f.empty.fire()},_queueHooks:function(a,b){var c=b+"queueHooks";return n._data(a,c)||n._data(a,c,{empty:n.Callbacks("once memory").add(function(){n._removeData(a,b+"queue"),n._removeData(a,c)})})}}),n.fn.extend({queue:function(a,b){var c=2;return"string"!=typeof a&&(b=a,a="fx",c--),arguments.length<c?n.queue(this[0],a):void 0===b?this:this.each(function(){var c=n.queue(this,a,b);n._queueHooks(this,a),"fx"===a&&"inprogress"!==c[0]&&n.dequeue(this,a)})},dequeue:function(a){return this.each(function(){n.dequeue(this,a)})},clearQueue:function(a){return this.queue(a||"fx",[])},promise:function(a,b){var c,d=1,e=n.Deferred(),f=this,g=this.length,h=function(){--d||e.resolveWith(f,[f])};"string"!=typeof a&&(b=a,a=void 0),a=a||"fx";while(g--)c=n._data(f[g],a+"queueHooks"),c&&c.empty&&(d++,c.empty.add(h));return h(),e.promise(b)}}),function(){var a;l.shrinkWrapBlocks=function(){if(null!=a)return a;a=!1;var b,c,e;return c=d.getElementsByTagName("body")[0],c&&c.style?(b=d.createElement("div"),e=d.createElement("div"),e.style.cssText="position:absolute;border:0;width:0;height:0;top:0;left:-9999px",c.appendChild(e).appendChild(b),"undefined"!=typeof b.style.zoom&&(b.style.cssText="-webkit-box-sizing:content-box;-moz-box-sizing:content-box;box-sizing:content-box;display:block;margin:0;border:0;padding:1px;width:1px;zoom:1",b.appendChild(d.createElement("div")).style.width="5px",a=3!==b.offsetWidth),c.removeChild(e),a):void 0}}();var T=/[+-]?(?:\d*\.|)\d+(?:[eE][+-]?\d+|)/.source,U=new RegExp("^(?:([+-])=|)("+T+")([a-z%]*)$","i"),V=["Top","Right","Bottom","Left"],W=function(a,b){return a=b||a,"none"===n.css(a,"display")||!n.contains(a.ownerDocument,a)};function X(a,b,c,d){var e,f=1,g=20,h=d?function(){return d.cur()}:function(){return n.css(a,b,"")},i=h(),j=c&&c[3]||(n.cssNumber[b]?"":"px"),k=(n.cssNumber[b]||"px"!==j&&+i)&&U.exec(n.css(a,b));if(k&&k[3]!==j){j=j||k[3],c=c||[],k=+i||1;do f=f||".5",k/=f,n.style(a,b,k+j);while(f!==(f=h()/i)&&1!==f&&--g)}return c&&(k=+k||+i||0,e=c[1]?k+(c[1]+1)*c[2]:+c[2],d&&(d.unit=j,d.start=k,d.end=e)),e}var Y=function(a,b,c,d,e,f,g){var h=0,i=a.length,j=null==c;if("object"===n.type(c)){e=!0;for(h in c)Y(a,b,h,c[h],!0,f,g)}else if(void 0!==d&&(e=!0,n.isFunction(d)||(g=!0),j&&(g?(b.call(a,d),b=null):(j=b,b=function(a,b,c){return j.call(n(a),c)})),b))for(;i>h;h++)b(a[h],c,g?d:d.call(a[h],h,b(a[h],c)));return e?a:j?b.call(a):i?b(a[0],c):f},Z=/^(?:checkbox|radio)$/i,$=/<([\w:-]+)/,_=/^$|\/(?:java|ecma)script/i,aa=/^\s+/,ba="abbr|article|aside|audio|bdi|canvas|data|datalist|details|dialog|figcaption|figure|footer|header|hgroup|main|mark|meter|nav|output|picture|progress|section|summary|template|time|video";function ca(a){var b=ba.split("|"),c=a.createDocumentFragment();if(c.createElement)while(b.length)c.createElement(b.pop());return c}!function(){var a=d.createElement("div"),b=d.createDocumentFragment(),c=d.createElement("input");a.innerHTML="  <link/><table></table><a href='/a'>a</a><input type='checkbox'/>",l.leadingWhitespace=3===a.firstChild.nodeType,l.tbody=!a.getElementsByTagName("tbody").length,l.htmlSerialize=!!a.getElementsByTagName("link").length,l.html5Clone="<:nav></:nav>"!==d.createElement("nav").cloneNode(!0).outerHTML,c.type="checkbox",c.checked=!0,b.appendChild(c),l.appendChecked=c.checked,a.innerHTML="<textarea>x</textarea>",l.noCloneChecked=!!a.cloneNode(!0).lastChild.defaultValue,b.appendChild(a),c=d.createElement("input"),c.setAttribute("type","radio"),c.setAttribute("checked","checked"),c.setAttribute("name","t"),a.appendChild(c),l.checkClone=a.cloneNode(!0).cloneNode(!0).lastChild.checked,l.noCloneEvent=!!a.addEventListener,a[n.expando]=1,l.attributes=!a.getAttribute(n.expando)}();var da={option:[1,"<select multiple='multiple'>","</select>"],legend:[1,"<fieldset>","</fieldset>"],area:[1,"<map>","</map>"],param:[1,"<object>","</object>"],thead:[1,"<table>","</table>"],tr:[2,"<table><tbody>","</tbody></table>"],col:[2,"<table><tbody></tbody><colgroup>","</colgroup></table>"],td:[3,"<table><tbody><tr>","</tr></tbody></table>"],_default:l.htmlSerialize?[0,"",""]:[1,"X<div>","</div>"]};da.optgroup=da.option,da.tbody=da.tfoot=da.colgroup=da.caption=da.thead,da.th=da.td;function ea(a,b){var c,d,e=0,f="undefined"!=typeof a.getElementsByTagName?a.getElementsByTagName(b||"*"):"undefined"!=typeof a.querySelectorAll?a.querySelectorAll(b||"*"):void 0;if(!f)for(f=[],c=a.childNodes||a;null!=(d=c[e]);e++)!b||n.nodeName(d,b)?f.push(d):n.merge(f,ea(d,b));return void 0===b||b&&n.nodeName(a,b)?n.merge([a],f):f}function fa(a,b){for(var c,d=0;null!=(c=a[d]);d++)n._data(c,"globalEval",!b||n._data(b[d],"globalEval"))}var ga=/<|&#?\w+;/,ha=/<tbody/i;function ia(a){Z.test(a.type)&&(a.defaultChecked=a.checked)}function ja(a,b,c,d,e){for(var f,g,h,i,j,k,m,o=a.length,p=ca(b),q=[],r=0;o>r;r++)if(g=a[r],g||0===g)if("object"===n.type(g))n.merge(q,g.nodeType?[g]:g);else if(ga.test(g)){i=i||p.appendChild(b.createElement("div")),j=($.exec(g)||["",""])[1].toLowerCase(),m=da[j]||da._default,i.innerHTML=m[1]+n.htmlPrefilter(g)+m[2],f=m[0];while(f--)i=i.lastChild;if(!l.leadingWhitespace&&aa.test(g)&&q.push(b.createTextNode(aa.exec(g)[0])),!l.tbody){g="table"!==j||ha.test(g)?"<table>"!==m[1]||ha.test(g)?0:i:i.firstChild,f=g&&g.childNodes.length;while(f--)n.nodeName(k=g.childNodes[f],"tbody")&&!k.childNodes.length&&g.removeChild(k)}n.merge(q,i.childNodes),i.textContent="";while(i.firstChild)i.removeChild(i.firstChild);i=p.lastChild}else q.push(b.createTextNode(g));i&&p.removeChild(i),l.appendChecked||n.grep(ea(q,"input"),ia),r=0;while(g=q[r++])if(d&&n.inArray(g,d)>-1)e&&e.push(g);else if(h=n.contains(g.ownerDocument,g),i=ea(p.appendChild(g),"script"),h&&fa(i),c){f=0;while(g=i[f++])_.test(g.type||"")&&c.push(g)}return i=null,p}!function(){var b,c,e=d.createElement("div");for(b in{submit:!0,change:!0,focusin:!0})c="on"+b,(l[b]=c in a)||(e.setAttribute(c,"t"),l[b]=e.attributes[c].expando===!1);e=null}();var ka=/^(?:input|select|textarea)$/i,la=/^key/,ma=/^(?:mouse|pointer|contextmenu|drag|drop)|click/,na=/^(?:focusinfocus|focusoutblur)$/,oa=/^([^.]*)(?:\.(.+)|)/;function pa(){return!0}function qa(){return!1}function ra(){try{return d.activeElement}catch(a){}}function sa(a,b,c,d,e,f){var g,h;if("object"==typeof b){"string"!=typeof c&&(d=d||c,c=void 0);for(h in b)sa(a,h,c,d,b[h],f);return a}if(null==d&&null==e?(e=c,d=c=void 0):null==e&&("string"==typeof c?(e=d,d=void 0):(e=d,d=c,c=void 0)),e===!1)e=qa;else if(!e)return a;return 1===f&&(g=e,e=function(a){return n().off(a),g.apply(this,arguments)},e.guid=g.guid||(g.guid=n.guid++)),a.each(function(){n.event.add(this,b,e,d,c)})}n.event={global:{},add:function(a,b,c,d,e){var f,g,h,i,j,k,l,m,o,p,q,r=n._data(a);if(r){c.handler&&(i=c,c=i.handler,e=i.selector),c.guid||(c.guid=n.guid++),(g=r.events)||(g=r.events={}),(k=r.handle)||(k=r.handle=function(a){return"undefined"==typeof n||a&&n.event.triggered===a.type?void 0:n.event.dispatch.apply(k.elem,arguments)},k.elem=a),b=(b||"").match(G)||[""],h=b.length;while(h--)f=oa.exec(b[h])||[],o=q=f[1],p=(f[2]||"").split(".").sort(),o&&(j=n.event.special[o]||{},o=(e?j.delegateType:j.bindType)||o,j=n.event.special[o]||{},l=n.extend({type:o,origType:q,data:d,handler:c,guid:c.guid,selector:e,needsContext:e&&n.expr.match.needsContext.test(e),namespace:p.join(".")},i),(m=g[o])||(m=g[o]=[],m.delegateCount=0,j.setup&&j.setup.call(a,d,p,k)!==!1||(a.addEventListener?a.addEventListener(o,k,!1):a.attachEvent&&a.attachEvent("on"+o,k))),j.add&&(j.add.call(a,l),l.handler.guid||(l.handler.guid=c.guid)),e?m.splice(m.delegateCount++,0,l):m.push(l),n.event.global[o]=!0);a=null}},remove:function(a,b,c,d,e){var f,g,h,i,j,k,l,m,o,p,q,r=n.hasData(a)&&n._data(a);if(r&&(k=r.events)){b=(b||"").match(G)||[""],j=b.length;while(j--)if(h=oa.exec(b[j])||[],o=q=h[1],p=(h[2]||"").split(".").sort(),o){l=n.event.special[o]||{},o=(d?l.delegateType:l.bindType)||o,m=k[o]||[],h=h[2]&&new RegExp("(^|\\.)"+p.join("\\.(?:.*\\.|)")+"(\\.|$)"),i=f=m.length;while(f--)g=m[f],!e&&q!==g.origType||c&&c.guid!==g.guid||h&&!h.test(g.namespace)||d&&d!==g.selector&&("**"!==d||!g.selector)||(m.splice(f,1),g.selector&&m.delegateCount--,l.remove&&l.remove.call(a,g));i&&!m.length&&(l.teardown&&l.teardown.call(a,p,r.handle)!==!1||n.removeEvent(a,o,r.handle),delete k[o])}else for(o in k)n.event.remove(a,o+b[j],c,d,!0);n.isEmptyObject(k)&&(delete r.handle,n._removeData(a,"events"))}},trigger:function(b,c,e,f){var g,h,i,j,l,m,o,p=[e||d],q=k.call(b,"type")?b.type:b,r=k.call(b,"namespace")?b.namespace.split("."):[];if(i=m=e=e||d,3!==e.nodeType&&8!==e.nodeType&&!na.test(q+n.event.triggered)&&(q.indexOf(".")>-1&&(r=q.split("."),q=r.shift(),r.sort()),h=q.indexOf(":")<0&&"on"+q,b=b[n.expando]?b:new n.Event(q,"object"==typeof b&&b),b.isTrigger=f?2:3,b.namespace=r.join("."),b.rnamespace=b.namespace?new RegExp("(^|\\.)"+r.join("\\.(?:.*\\.|)")+"(\\.|$)"):null,b.result=void 0,b.target||(b.target=e),c=null==c?[b]:n.makeArray(c,[b]),l=n.event.special[q]||{},f||!l.trigger||l.trigger.apply(e,c)!==!1)){if(!f&&!l.noBubble&&!n.isWindow(e)){for(j=l.delegateType||q,na.test(j+q)||(i=i.parentNode);i;i=i.parentNode)p.push(i),m=i;m===(e.ownerDocument||d)&&p.push(m.defaultView||m.parentWindow||a)}o=0;while((i=p[o++])&&!b.isPropagationStopped())b.type=o>1?j:l.bindType||q,g=(n._data(i,"events")||{})[b.type]&&n._data(i,"handle"),g&&g.apply(i,c),g=h&&i[h],g&&g.apply&&M(i)&&(b.result=g.apply(i,c),b.result===!1&&b.preventDefault());if(b.type=q,!f&&!b.isDefaultPrevented()&&(!l._default||l._default.apply(p.pop(),c)===!1)&&M(e)&&h&&e[q]&&!n.isWindow(e)){m=e[h],m&&(e[h]=null),n.event.triggered=q;try{e[q]()}catch(s){}n.event.triggered=void 0,m&&(e[h]=m)}return b.result}},dispatch:function(a){a=n.event.fix(a);var b,c,d,f,g,h=[],i=e.call(arguments),j=(n._data(this,"events")||{})[a.type]||[],k=n.event.special[a.type]||{};if(i[0]=a,a.delegateTarget=this,!k.preDispatch||k.preDispatch.call(this,a)!==!1){h=n.event.handlers.call(this,a,j),b=0;while((f=h[b++])&&!a.isPropagationStopped()){a.currentTarget=f.elem,c=0;while((g=f.handlers[c++])&&!a.isImmediatePropagationStopped())a.rnamespace&&!a.rnamespace.test(g.namespace)||(a.handleObj=g,a.data=g.data,d=((n.event.special[g.origType]||{}).handle||g.handler).apply(f.elem,i),void 0!==d&&(a.result=d)===!1&&(a.preventDefault(),a.stopPropagation()))}return k.postDispatch&&k.postDispatch.call(this,a),a.result}},handlers:function(a,b){var c,d,e,f,g=[],h=b.delegateCount,i=a.target;if(h&&i.nodeType&&("click"!==a.type||isNaN(a.button)||a.button<1))for(;i!=this;i=i.parentNode||this)if(1===i.nodeType&&(i.disabled!==!0||"click"!==a.type)){for(d=[],c=0;h>c;c++)f=b[c],e=f.selector+" ",void 0===d[e]&&(d[e]=f.needsContext?n(e,this).index(i)>-1:n.find(e,this,null,[i]).length),d[e]&&d.push(f);d.length&&g.push({elem:i,handlers:d})}return h<b.length&&g.push({elem:this,handlers:b.slice(h)}),g},fix:function(a){if(a[n.expando])return a;var b,c,e,f=a.type,g=a,h=this.fixHooks[f];h||(this.fixHooks[f]=h=ma.test(f)?this.mouseHooks:la.test(f)?this.keyHooks:{}),e=h.props?this.props.concat(h.props):this.props,a=new n.Event(g),b=e.length;while(b--)c=e[b],a[c]=g[c];return a.target||(a.target=g.srcElement||d),3===a.target.nodeType&&(a.target=a.target.parentNode),a.metaKey=!!a.metaKey,h.filter?h.filter(a,g):a},props:"altKey bubbles cancelable ctrlKey currentTarget detail eventPhase metaKey relatedTarget shiftKey target timeStamp view which".split(" "),fixHooks:{},keyHooks:{props:"char charCode key keyCode".split(" "),filter:function(a,b){return null==a.which&&(a.which=null!=b.charCode?b.charCode:b.keyCode),a}},mouseHooks:{props:"button buttons clientX clientY fromElement offsetX offsetY pageX pageY screenX screenY toElement".split(" "),filter:function(a,b){var c,e,f,g=b.button,h=b.fromElement;return null==a.pageX&&null!=b.clientX&&(e=a.target.ownerDocument||d,f=e.documentElement,c=e.body,a.pageX=b.clientX+(f&&f.scrollLeft||c&&c.scrollLeft||0)-(f&&f.clientLeft||c&&c.clientLeft||0),a.pageY=b.clientY+(f&&f.scrollTop||c&&c.scrollTop||0)-(f&&f.clientTop||c&&c.clientTop||0)),!a.relatedTarget&&h&&(a.relatedTarget=h===a.target?b.toElement:h),a.which||void 0===g||(a.which=1&g?1:2&g?3:4&g?2:0),a}},special:{load:{noBubble:!0},focus:{trigger:function(){if(this!==ra()&&this.focus)try{return this.focus(),!1}catch(a){}},delegateType:"focusin"},blur:{trigger:function(){return this===ra()&&this.blur?(this.blur(),!1):void 0},delegateType:"focusout"},click:{trigger:function(){return n.nodeName(this,"input")&&"checkbox"===this.type&&this.click?(this.click(),!1):void 0},_default:function(a){return n.nodeName(a.target,"a")}},beforeunload:{postDispatch:function(a){void 0!==a.result&&a.originalEvent&&(a.originalEvent.returnValue=a.result)}}},simulate:function(a,b,c){var d=n.extend(new n.Event,c,{type:a,isSimulated:!0});n.event.trigger(d,null,b),d.isDefaultPrevented()&&c.preventDefault()}},n.removeEvent=d.removeEventListener?function(a,b,c){a.removeEventListener&&a.removeEventListener(b,c)}:function(a,b,c){var d="on"+b;a.detachEvent&&("undefined"==typeof a[d]&&(a[d]=null),a.detachEvent(d,c))},n.Event=function(a,b){return this instanceof n.Event?(a&&a.type?(this.originalEvent=a,this.type=a.type,this.isDefaultPrevented=a.defaultPrevented||void 0===a.defaultPrevented&&a.returnValue===!1?pa:qa):this.type=a,b&&n.extend(this,b),this.timeStamp=a&&a.timeStamp||n.now(),void(this[n.expando]=!0)):new n.Event(a,b)},n.Event.prototype={constructor:n.Event,isDefaultPrevented:qa,isPropagationStopped:qa,isImmediatePropagationStopped:qa,preventDefault:function(){var a=this.originalEvent;this.isDefaultPrevented=pa,a&&(a.preventDefault?a.preventDefault():a.returnValue=!1)},stopPropagation:function(){var a=this.originalEvent;this.isPropagationStopped=pa,a&&!this.isSimulated&&(a.stopPropagation&&a.stopPropagation(),a.cancelBubble=!0)},stopImmediatePropagation:function(){var a=this.originalEvent;this.isImmediatePropagationStopped=pa,a&&a.stopImmediatePropagation&&a.stopImmediatePropagation(),this.stopPropagation()}},n.each({mouseenter:"mouseover",mouseleave:"mouseout",pointerenter:"pointerover",pointerleave:"pointerout"},function(a,b){n.event.special[a]={delegateType:b,bindType:b,handle:function(a){var c,d=this,e=a.relatedTarget,f=a.handleObj;return e&&(e===d||n.contains(d,e))||(a.type=f.origType,c=f.handler.apply(this,arguments),a.type=b),c}}}),l.submit||(n.event.special.submit={setup:function(){return n.nodeName(this,"form")?!1:void n.event.add(this,"click._submit keypress._submit",function(a){var b=a.target,c=n.nodeName(b,"input")||n.nodeName(b,"button")?n.prop(b,"form"):void 0;c&&!n._data(c,"submit")&&(n.event.add(c,"submit._submit",function(a){a._submitBubble=!0}),n._data(c,"submit",!0))})},postDispatch:function(a){a._submitBubble&&(delete a._submitBubble,this.parentNode&&!a.isTrigger&&n.event.simulate("submit",this.parentNode,a))},teardown:function(){return n.nodeName(this,"form")?!1:void n.event.remove(this,"._submit")}}),l.change||(n.event.special.change={setup:function(){return ka.test(this.nodeName)?("checkbox"!==this.type&&"radio"!==this.type||(n.event.add(this,"propertychange._change",function(a){"checked"===a.originalEvent.propertyName&&(this._justChanged=!0)}),n.event.add(this,"click._change",function(a){this._justChanged&&!a.isTrigger&&(this._justChanged=!1),n.event.simulate("change",this,a)})),!1):void n.event.add(this,"beforeactivate._change",function(a){var b=a.target;ka.test(b.nodeName)&&!n._data(b,"change")&&(n.event.add(b,"change._change",function(a){!this.parentNode||a.isSimulated||a.isTrigger||n.event.simulate("change",this.parentNode,a)}),n._data(b,"change",!0))})},handle:function(a){var b=a.target;return this!==b||a.isSimulated||a.isTrigger||"radio"!==b.type&&"checkbox"!==b.type?a.handleObj.handler.apply(this,arguments):void 0},teardown:function(){return n.event.remove(this,"._change"),!ka.test(this.nodeName)}}),l.focusin||n.each({focus:"focusin",blur:"focusout"},function(a,b){var c=function(a){n.event.simulate(b,a.target,n.event.fix(a))};n.event.special[b]={setup:function(){var d=this.ownerDocument||this,e=n._data(d,b);e||d.addEventListener(a,c,!0),n._data(d,b,(e||0)+1)},teardown:function(){var d=this.ownerDocument||this,e=n._data(d,b)-1;e?n._data(d,b,e):(d.removeEventListener(a,c,!0),n._removeData(d,b))}}}),n.fn.extend({on:function(a,b,c,d){return sa(this,a,b,c,d)},one:function(a,b,c,d){return sa(this,a,b,c,d,1)},off:function(a,b,c){var d,e;if(a&&a.preventDefault&&a.handleObj)return d=a.handleObj,n(a.delegateTarget).off(d.namespace?d.origType+"."+d.namespace:d.origType,d.selector,d.handler),this;if("object"==typeof a){for(e in a)this.off(e,b,a[e]);return this}return b!==!1&&"function"!=typeof b||(c=b,b=void 0),c===!1&&(c=qa),this.each(function(){n.event.remove(this,a,c,b)})},trigger:function(a,b){return this.each(function(){n.event.trigger(a,b,this)})},triggerHandler:function(a,b){var c=this[0];return c?n.event.trigger(a,b,c,!0):void 0}});var ta=/ jQuery\d+="(?:null|\d+)"/g,ua=new RegExp("<(?:"+ba+")[\\s/>]","i"),va=/<(?!area|br|col|embed|hr|img|input|link|meta|param)(([\w:-]+)[^>]*)\/>/gi,wa=/<script|<style|<link/i,xa=/checked\s*(?:[^=]|=\s*.checked.)/i,ya=/^true\/(.*)/,za=/^\s*<!(?:\[CDATA\[|--)|(?:\]\]|--)>\s*$/g,Aa=ca(d),Ba=Aa.appendChild(d.createElement("div"));function Ca(a,b){return n.nodeName(a,"table")&&n.nodeName(11!==b.nodeType?b:b.firstChild,"tr")?a.getElementsByTagName("tbody")[0]||a.appendChild(a.ownerDocument.createElement("tbody")):a}function Da(a){return a.type=(null!==n.find.attr(a,"type"))+"/"+a.type,a}function Ea(a){var b=ya.exec(a.type);return b?a.type=b[1]:a.removeAttribute("type"),a}function Fa(a,b){if(1===b.nodeType&&n.hasData(a)){var c,d,e,f=n._data(a),g=n._data(b,f),h=f.events;if(h){delete g.handle,g.events={};for(c in h)for(d=0,e=h[c].length;e>d;d++)n.event.add(b,c,h[c][d])}g.data&&(g.data=n.extend({},g.data))}}function Ga(a,b){var c,d,e;if(1===b.nodeType){if(c=b.nodeName.toLowerCase(),!l.noCloneEvent&&b[n.expando]){e=n._data(b);for(d in e.events)n.removeEvent(b,d,e.handle);b.removeAttribute(n.expando)}"script"===c&&b.text!==a.text?(Da(b).text=a.text,Ea(b)):"object"===c?(b.parentNode&&(b.outerHTML=a.outerHTML),l.html5Clone&&a.innerHTML&&!n.trim(b.innerHTML)&&(b.innerHTML=a.innerHTML)):"input"===c&&Z.test(a.type)?(b.defaultChecked=b.checked=a.checked,b.value!==a.value&&(b.value=a.value)):"option"===c?b.defaultSelected=b.selected=a.defaultSelected:"input"!==c&&"textarea"!==c||(b.defaultValue=a.defaultValue)}}function Ha(a,b,c,d){b=f.apply([],b);var e,g,h,i,j,k,m=0,o=a.length,p=o-1,q=b[0],r=n.isFunction(q);if(r||o>1&&"string"==typeof q&&!l.checkClone&&xa.test(q))return a.each(function(e){var f=a.eq(e);r&&(b[0]=q.call(this,e,f.html())),Ha(f,b,c,d)});if(o&&(k=ja(b,a[0].ownerDocument,!1,a,d),e=k.firstChild,1===k.childNodes.length&&(k=e),e||d)){for(i=n.map(ea(k,"script"),Da),h=i.length;o>m;m++)g=k,m!==p&&(g=n.clone(g,!0,!0),h&&n.merge(i,ea(g,"script"))),c.call(a[m],g,m);if(h)for(j=i[i.length-1].ownerDocument,n.map(i,Ea),m=0;h>m;m++)g=i[m],_.test(g.type||"")&&!n._data(g,"globalEval")&&n.contains(j,g)&&(g.src?n._evalUrl&&n._evalUrl(g.src):n.globalEval((g.text||g.textContent||g.innerHTML||"").replace(za,"")));k=e=null}return a}function Ia(a,b,c){for(var d,e=b?n.filter(b,a):a,f=0;null!=(d=e[f]);f++)c||1!==d.nodeType||n.cleanData(ea(d)),d.parentNode&&(c&&n.contains(d.ownerDocument,d)&&fa(ea(d,"script")),d.parentNode.removeChild(d));return a}n.extend({htmlPrefilter:function(a){return a.replace(va,"<$1></$2>")},clone:function(a,b,c){var d,e,f,g,h,i=n.contains(a.ownerDocument,a);if(l.html5Clone||n.isXMLDoc(a)||!ua.test("<"+a.nodeName+">")?f=a.cloneNode(!0):(Ba.innerHTML=a.outerHTML,Ba.removeChild(f=Ba.firstChild)),!(l.noCloneEvent&&l.noCloneChecked||1!==a.nodeType&&11!==a.nodeType||n.isXMLDoc(a)))for(d=ea(f),h=ea(a),g=0;null!=(e=h[g]);++g)d[g]&&Ga(e,d[g]);if(b)if(c)for(h=h||ea(a),d=d||ea(f),g=0;null!=(e=h[g]);g++)Fa(e,d[g]);else Fa(a,f);return d=ea(f,"script"),d.length>0&&fa(d,!i&&ea(a,"script")),d=h=e=null,f},cleanData:function(a,b){for(var d,e,f,g,h=0,i=n.expando,j=n.cache,k=l.attributes,m=n.event.special;null!=(d=a[h]);h++)if((b||M(d))&&(f=d[i],g=f&&j[f])){if(g.events)for(e in g.events)m[e]?n.event.remove(d,e):n.removeEvent(d,e,g.handle);j[f]&&(delete j[f],k||"undefined"==typeof d.removeAttribute?d[i]=void 0:d.removeAttribute(i),c.push(f))}}}),n.fn.extend({domManip:Ha,detach:function(a){return Ia(this,a,!0)},remove:function(a){return Ia(this,a)},text:function(a){return Y(this,function(a){return void 0===a?n.text(this):this.empty().append((this[0]&&this[0].ownerDocument||d).createTextNode(a))},null,a,arguments.length)},append:function(){return Ha(this,arguments,function(a){if(1===this.nodeType||11===this.nodeType||9===this.nodeType){var b=Ca(this,a);b.appendChild(a)}})},prepend:function(){return Ha(this,arguments,function(a){if(1===this.nodeType||11===this.nodeType||9===this.nodeType){var b=Ca(this,a);b.insertBefore(a,b.firstChild)}})},before:function(){return Ha(this,arguments,function(a){this.parentNode&&this.parentNode.insertBefore(a,this)})},after:function(){return Ha(this,arguments,function(a){this.parentNode&&this.parentNode.insertBefore(a,this.nextSibling)})},empty:function(){for(var a,b=0;null!=(a=this[b]);b++){1===a.nodeType&&n.cleanData(ea(a,!1));while(a.firstChild)a.removeChild(a.firstChild);a.options&&n.nodeName(a,"select")&&(a.options.length=0)}return this},clone:function(a,b){return a=null==a?!1:a,b=null==b?a:b,this.map(function(){return n.clone(this,a,b)})},html:function(a){return Y(this,function(a){var b=this[0]||{},c=0,d=this.length;if(void 0===a)return 1===b.nodeType?b.innerHTML.replace(ta,""):void 0;if("string"==typeof a&&!wa.test(a)&&(l.htmlSerialize||!ua.test(a))&&(l.leadingWhitespace||!aa.test(a))&&!da[($.exec(a)||["",""])[1].toLowerCase()]){a=n.htmlPrefilter(a);try{for(;d>c;c++)b=this[c]||{},1===b.nodeType&&(n.cleanData(ea(b,!1)),b.innerHTML=a);b=0}catch(e){}}b&&this.empty().append(a)},null,a,arguments.length)},replaceWith:function(){var a=[];return Ha(this,arguments,function(b){var c=this.parentNode;n.inArray(this,a)<0&&(n.cleanData(ea(this)),c&&c.replaceChild(b,this))},a)}}),n.each({appendTo:"append",prependTo:"prepend",insertBefore:"before",insertAfter:"after",replaceAll:"replaceWith"},function(a,b){n.fn[a]=function(a){for(var c,d=0,e=[],f=n(a),h=f.length-1;h>=d;d++)c=d===h?this:this.clone(!0),n(f[d])[b](c),g.apply(e,c.get());return this.pushStack(e)}});var Ja,Ka={HTML:"block",BODY:"block"};function La(a,b){var c=n(b.createElement(a)).appendTo(b.body),d=n.css(c[0],"display");return c.detach(),d}function Ma(a){var b=d,c=Ka[a];return c||(c=La(a,b),"none"!==c&&c||(Ja=(Ja||n("<iframe frameborder='0' width='0' height='0'/>")).appendTo(b.documentElement),b=(Ja[0].contentWindow||Ja[0].contentDocument).document,b.write(),b.close(),c=La(a,b),Ja.detach()),Ka[a]=c),c}var Na=/^margin/,Oa=new RegExp("^("+T+")(?!px)[a-z%]+$","i"),Pa=function(a,b,c,d){var e,f,g={};for(f in b)g[f]=a.style[f],a.style[f]=b[f];e=c.apply(a,d||[]);for(f in b)a.style[f]=g[f];return e},Qa=d.documentElement;!function(){var b,c,e,f,g,h,i=d.createElement("div"),j=d.createElement("div");if(j.style){j.style.cssText="float:left;opacity:.5",l.opacity="0.5"===j.style.opacity,l.cssFloat=!!j.style.cssFloat,j.style.backgroundClip="content-box",j.cloneNode(!0).style.backgroundClip="",l.clearCloneStyle="content-box"===j.style.backgroundClip,i=d.createElement("div"),i.style.cssText="border:0;width:8px;height:0;top:0;left:-9999px;padding:0;margin-top:1px;position:absolute",j.innerHTML="",i.appendChild(j),l.boxSizing=""===j.style.boxSizing||""===j.style.MozBoxSizing||""===j.style.WebkitBoxSizing,n.extend(l,{reliableHiddenOffsets:function(){return null==b&&k(),f},boxSizingReliable:function(){return null==b&&k(),e},pixelMarginRight:function(){return null==b&&k(),c},pixelPosition:function(){return null==b&&k(),b},reliableMarginRight:function(){return null==b&&k(),g},reliableMarginLeft:function(){return null==b&&k(),h}});function k(){var k,l,m=d.documentElement;m.appendChild(i),j.style.cssText="-webkit-box-sizing:border-box;box-sizing:border-box;position:relative;display:block;margin:auto;border:1px;padding:1px;top:1%;width:50%",b=e=h=!1,c=g=!0,a.getComputedStyle&&(l=a.getComputedStyle(j),b="1%"!==(l||{}).top,h="2px"===(l||{}).marginLeft,e="4px"===(l||{width:"4px"}).width,j.style.marginRight="50%",c="4px"===(l||{marginRight:"4px"}).marginRight,k=j.appendChild(d.createElement("div")),k.style.cssText=j.style.cssText="-webkit-box-sizing:content-box;-moz-box-sizing:content-box;box-sizing:content-box;display:block;margin:0;border:0;padding:0",k.style.marginRight=k.style.width="0",j.style.width="1px",g=!parseFloat((a.getComputedStyle(k)||{}).marginRight),j.removeChild(k)),j.style.display="none",f=0===j.getClientRects().length,f&&(j.style.display="",j.innerHTML="<table><tr><td></td><td>t</td></tr></table>",j.childNodes[0].style.borderCollapse="separate",k=j.getElementsByTagName("td"),k[0].style.cssText="margin:0;border:0;padding:0;display:none",f=0===k[0].offsetHeight,f&&(k[0].style.display="",k[1].style.display="none",f=0===k[0].offsetHeight)),m.removeChild(i)}}}();var Ra,Sa,Ta=/^(top|right|bottom|left)$/;a.getComputedStyle?(Ra=function(b){var c=b.ownerDocument.defaultView;return c&&c.opener||(c=a),c.getComputedStyle(b)},Sa=function(a,b,c){var d,e,f,g,h=a.style;return c=c||Ra(a),g=c?c.getPropertyValue(b)||c[b]:void 0,""!==g&&void 0!==g||n.contains(a.ownerDocument,a)||(g=n.style(a,b)),c&&!l.pixelMarginRight()&&Oa.test(g)&&Na.test(b)&&(d=h.width,e=h.minWidth,f=h.maxWidth,h.minWidth=h.maxWidth=h.width=g,g=c.width,h.width=d,h.minWidth=e,h.maxWidth=f),void 0===g?g:g+""}):Qa.currentStyle&&(Ra=function(a){return a.currentStyle},Sa=function(a,b,c){var d,e,f,g,h=a.style;return c=c||Ra(a),g=c?c[b]:void 0,null==g&&h&&h[b]&&(g=h[b]),Oa.test(g)&&!Ta.test(b)&&(d=h.left,e=a.runtimeStyle,f=e&&e.left,f&&(e.left=a.currentStyle.left),h.left="fontSize"===b?"1em":g,g=h.pixelLeft+"px",h.left=d,f&&(e.left=f)),void 0===g?g:g+""||"auto"});function Ua(a,b){return{get:function(){return a()?void delete this.get:(this.get=b).apply(this,arguments)}}}var Va=/alpha\([^)]*\)/i,Wa=/opacity\s*=\s*([^)]*)/i,Xa=/^(none|table(?!-c[ea]).+)/,Ya=new RegExp("^("+T+")(.*)$","i"),Za={position:"absolute",visibility:"hidden",display:"block"},$a={letterSpacing:"0",fontWeight:"400"},_a=["Webkit","O","Moz","ms"],ab=d.createElement("div").style;function bb(a){if(a in ab)return a;var b=a.charAt(0).toUpperCase()+a.slice(1),c=_a.length;while(c--)if(a=_a[c]+b,a in ab)return a}function cb(a,b){for(var c,d,e,f=[],g=0,h=a.length;h>g;g++)d=a[g],d.style&&(f[g]=n._data(d,"olddisplay"),c=d.style.display,b?(f[g]||"none"!==c||(d.style.display=""),""===d.style.display&&W(d)&&(f[g]=n._data(d,"olddisplay",Ma(d.nodeName)))):(e=W(d),(c&&"none"!==c||!e)&&n._data(d,"olddisplay",e?c:n.css(d,"display"))));for(g=0;h>g;g++)d=a[g],d.style&&(b&&"none"!==d.style.display&&""!==d.style.display||(d.style.display=b?f[g]||"":"none"));return a}function db(a,b,c){var d=Ya.exec(b);return d?Math.max(0,d[1]-(c||0))+(d[2]||"px"):b}function eb(a,b,c,d,e){for(var f=c===(d?"border":"content")?4:"width"===b?1:0,g=0;4>f;f+=2)"margin"===c&&(g+=n.css(a,c+V[f],!0,e)),d?("content"===c&&(g-=n.css(a,"padding"+V[f],!0,e)),"margin"!==c&&(g-=n.css(a,"border"+V[f]+"Width",!0,e))):(g+=n.css(a,"padding"+V[f],!0,e),"padding"!==c&&(g+=n.css(a,"border"+V[f]+"Width",!0,e)));return g}function fb(a,b,c){var d=!0,e="width"===b?a.offsetWidth:a.offsetHeight,f=Ra(a),g=l.boxSizing&&"border-box"===n.css(a,"boxSizing",!1,f);if(0>=e||null==e){if(e=Sa(a,b,f),(0>e||null==e)&&(e=a.style[b]),Oa.test(e))return e;d=g&&(l.boxSizingReliable()||e===a.style[b]),e=parseFloat(e)||0}return e+eb(a,b,c||(g?"border":"content"),d,f)+"px"}n.extend({cssHooks:{opacity:{get:function(a,b){if(b){var c=Sa(a,"opacity");return""===c?"1":c}}}},cssNumber:{animationIterationCount:!0,columnCount:!0,fillOpacity:!0,flexGrow:!0,flexShrink:!0,fontWeight:!0,lineHeight:!0,opacity:!0,order:!0,orphans:!0,widows:!0,zIndex:!0,zoom:!0},cssProps:{"float":l.cssFloat?"cssFloat":"styleFloat"},style:function(a,b,c,d){if(a&&3!==a.nodeType&&8!==a.nodeType&&a.style){var e,f,g,h=n.camelCase(b),i=a.style;if(b=n.cssProps[h]||(n.cssProps[h]=bb(h)||h),g=n.cssHooks[b]||n.cssHooks[h],void 0===c)return g&&"get"in g&&void 0!==(e=g.get(a,!1,d))?e:i[b];if(f=typeof c,"string"===f&&(e=U.exec(c))&&e[1]&&(c=X(a,b,e),f="number"),null!=c&&c===c&&("number"===f&&(c+=e&&e[3]||(n.cssNumber[h]?"":"px")),l.clearCloneStyle||""!==c||0!==b.indexOf("background")||(i[b]="inherit"),!(g&&"set"in g&&void 0===(c=g.set(a,c,d)))))try{i[b]=c}catch(j){}}},css:function(a,b,c,d){var e,f,g,h=n.camelCase(b);return b=n.cssProps[h]||(n.cssProps[h]=bb(h)||h),g=n.cssHooks[b]||n.cssHooks[h],g&&"get"in g&&(f=g.get(a,!0,c)),void 0===f&&(f=Sa(a,b,d)),"normal"===f&&b in $a&&(f=$a[b]),""===c||c?(e=parseFloat(f),c===!0||isFinite(e)?e||0:f):f}}),n.each(["height","width"],function(a,b){n.cssHooks[b]={get:function(a,c,d){return c?Xa.test(n.css(a,"display"))&&0===a.offsetWidth?Pa(a,Za,function(){return fb(a,b,d)}):fb(a,b,d):void 0},set:function(a,c,d){var e=d&&Ra(a);return db(a,c,d?eb(a,b,d,l.boxSizing&&"border-box"===n.css(a,"boxSizing",!1,e),e):0)}}}),l.opacity||(n.cssHooks.opacity={get:function(a,b){return Wa.test((b&&a.currentStyle?a.currentStyle.filter:a.style.filter)||"")?.01*parseFloat(RegExp.$1)+"":b?"1":""},set:function(a,b){var c=a.style,d=a.currentStyle,e=n.isNumeric(b)?"alpha(opacity="+100*b+")":"",f=d&&d.filter||c.filter||"";c.zoom=1,(b>=1||""===b)&&""===n.trim(f.replace(Va,""))&&c.removeAttribute&&(c.removeAttribute("filter"),""===b||d&&!d.filter)||(c.filter=Va.test(f)?f.replace(Va,e):f+" "+e)}}),n.cssHooks.marginRight=Ua(l.reliableMarginRight,function(a,b){return b?Pa(a,{display:"inline-block"},Sa,[a,"marginRight"]):void 0}),n.cssHooks.marginLeft=Ua(l.reliableMarginLeft,function(a,b){return b?(parseFloat(Sa(a,"marginLeft"))||(n.contains(a.ownerDocument,a)?a.getBoundingClientRect().left-Pa(a,{
-    marginLeft:0},function(){return a.getBoundingClientRect().left}):0))+"px":void 0}),n.each({margin:"",padding:"",border:"Width"},function(a,b){n.cssHooks[a+b]={expand:function(c){for(var d=0,e={},f="string"==typeof c?c.split(" "):[c];4>d;d++)e[a+V[d]+b]=f[d]||f[d-2]||f[0];return e}},Na.test(a)||(n.cssHooks[a+b].set=db)}),n.fn.extend({css:function(a,b){return Y(this,function(a,b,c){var d,e,f={},g=0;if(n.isArray(b)){for(d=Ra(a),e=b.length;e>g;g++)f[b[g]]=n.css(a,b[g],!1,d);return f}return void 0!==c?n.style(a,b,c):n.css(a,b)},a,b,arguments.length>1)},show:function(){return cb(this,!0)},hide:function(){return cb(this)},toggle:function(a){return"boolean"==typeof a?a?this.show():this.hide():this.each(function(){W(this)?n(this).show():n(this).hide()})}});function gb(a,b,c,d,e){return new gb.prototype.init(a,b,c,d,e)}n.Tween=gb,gb.prototype={constructor:gb,init:function(a,b,c,d,e,f){this.elem=a,this.prop=c,this.easing=e||n.easing._default,this.options=b,this.start=this.now=this.cur(),this.end=d,this.unit=f||(n.cssNumber[c]?"":"px")},cur:function(){var a=gb.propHooks[this.prop];return a&&a.get?a.get(this):gb.propHooks._default.get(this)},run:function(a){var b,c=gb.propHooks[this.prop];return this.options.duration?this.pos=b=n.easing[this.easing](a,this.options.duration*a,0,1,this.options.duration):this.pos=b=a,this.now=(this.end-this.start)*b+this.start,this.options.step&&this.options.step.call(this.elem,this.now,this),c&&c.set?c.set(this):gb.propHooks._default.set(this),this}},gb.prototype.init.prototype=gb.prototype,gb.propHooks={_default:{get:function(a){var b;return 1!==a.elem.nodeType||null!=a.elem[a.prop]&&null==a.elem.style[a.prop]?a.elem[a.prop]:(b=n.css(a.elem,a.prop,""),b&&"auto"!==b?b:0)},set:function(a){n.fx.step[a.prop]?n.fx.step[a.prop](a):1!==a.elem.nodeType||null==a.elem.style[n.cssProps[a.prop]]&&!n.cssHooks[a.prop]?a.elem[a.prop]=a.now:n.style(a.elem,a.prop,a.now+a.unit)}}},gb.propHooks.scrollTop=gb.propHooks.scrollLeft={set:function(a){a.elem.nodeType&&a.elem.parentNode&&(a.elem[a.prop]=a.now)}},n.easing={linear:function(a){return a},swing:function(a){return.5-Math.cos(a*Math.PI)/2},_default:"swing"},n.fx=gb.prototype.init,n.fx.step={};var hb,ib,jb=/^(?:toggle|show|hide)$/,kb=/queueHooks$/;function lb(){return a.setTimeout(function(){hb=void 0}),hb=n.now()}function mb(a,b){var c,d={height:a},e=0;for(b=b?1:0;4>e;e+=2-b)c=V[e],d["margin"+c]=d["padding"+c]=a;return b&&(d.opacity=d.width=a),d}function nb(a,b,c){for(var d,e=(qb.tweeners[b]||[]).concat(qb.tweeners["*"]),f=0,g=e.length;g>f;f++)if(d=e[f].call(c,b,a))return d}function ob(a,b,c){var d,e,f,g,h,i,j,k,m=this,o={},p=a.style,q=a.nodeType&&W(a),r=n._data(a,"fxshow");c.queue||(h=n._queueHooks(a,"fx"),null==h.unqueued&&(h.unqueued=0,i=h.empty.fire,h.empty.fire=function(){h.unqueued||i()}),h.unqueued++,m.always(function(){m.always(function(){h.unqueued--,n.queue(a,"fx").length||h.empty.fire()})})),1===a.nodeType&&("height"in b||"width"in b)&&(c.overflow=[p.overflow,p.overflowX,p.overflowY],j=n.css(a,"display"),k="none"===j?n._data(a,"olddisplay")||Ma(a.nodeName):j,"inline"===k&&"none"===n.css(a,"float")&&(l.inlineBlockNeedsLayout&&"inline"!==Ma(a.nodeName)?p.zoom=1:p.display="inline-block")),c.overflow&&(p.overflow="hidden",l.shrinkWrapBlocks()||m.always(function(){p.overflow=c.overflow[0],p.overflowX=c.overflow[1],p.overflowY=c.overflow[2]}));for(d in b)if(e=b[d],jb.exec(e)){if(delete b[d],f=f||"toggle"===e,e===(q?"hide":"show")){if("show"!==e||!r||void 0===r[d])continue;q=!0}o[d]=r&&r[d]||n.style(a,d)}else j=void 0;if(n.isEmptyObject(o))"inline"===("none"===j?Ma(a.nodeName):j)&&(p.display=j);else{r?"hidden"in r&&(q=r.hidden):r=n._data(a,"fxshow",{}),f&&(r.hidden=!q),q?n(a).show():m.done(function(){n(a).hide()}),m.done(function(){var b;n._removeData(a,"fxshow");for(b in o)n.style(a,b,o[b])});for(d in o)g=nb(q?r[d]:0,d,m),d in r||(r[d]=g.start,q&&(g.end=g.start,g.start="width"===d||"height"===d?1:0))}}function pb(a,b){var c,d,e,f,g;for(c in a)if(d=n.camelCase(c),e=b[d],f=a[c],n.isArray(f)&&(e=f[1],f=a[c]=f[0]),c!==d&&(a[d]=f,delete a[c]),g=n.cssHooks[d],g&&"expand"in g){f=g.expand(f),delete a[d];for(c in f)c in a||(a[c]=f[c],b[c]=e)}else b[d]=e}function qb(a,b,c){var d,e,f=0,g=qb.prefilters.length,h=n.Deferred().always(function(){delete i.elem}),i=function(){if(e)return!1;for(var b=hb||lb(),c=Math.max(0,j.startTime+j.duration-b),d=c/j.duration||0,f=1-d,g=0,i=j.tweens.length;i>g;g++)j.tweens[g].run(f);return h.notifyWith(a,[j,f,c]),1>f&&i?c:(h.resolveWith(a,[j]),!1)},j=h.promise({elem:a,props:n.extend({},b),opts:n.extend(!0,{specialEasing:{},easing:n.easing._default},c),originalProperties:b,originalOptions:c,startTime:hb||lb(),duration:c.duration,tweens:[],createTween:function(b,c){var d=n.Tween(a,j.opts,b,c,j.opts.specialEasing[b]||j.opts.easing);return j.tweens.push(d),d},stop:function(b){var c=0,d=b?j.tweens.length:0;if(e)return this;for(e=!0;d>c;c++)j.tweens[c].run(1);return b?(h.notifyWith(a,[j,1,0]),h.resolveWith(a,[j,b])):h.rejectWith(a,[j,b]),this}}),k=j.props;for(pb(k,j.opts.specialEasing);g>f;f++)if(d=qb.prefilters[f].call(j,a,k,j.opts))return n.isFunction(d.stop)&&(n._queueHooks(j.elem,j.opts.queue).stop=n.proxy(d.stop,d)),d;return n.map(k,nb,j),n.isFunction(j.opts.start)&&j.opts.start.call(a,j),n.fx.timer(n.extend(i,{elem:a,anim:j,queue:j.opts.queue})),j.progress(j.opts.progress).done(j.opts.done,j.opts.complete).fail(j.opts.fail).always(j.opts.always)}n.Animation=n.extend(qb,{tweeners:{"*":[function(a,b){var c=this.createTween(a,b);return X(c.elem,a,U.exec(b),c),c}]},tweener:function(a,b){n.isFunction(a)?(b=a,a=["*"]):a=a.match(G);for(var c,d=0,e=a.length;e>d;d++)c=a[d],qb.tweeners[c]=qb.tweeners[c]||[],qb.tweeners[c].unshift(b)},prefilters:[ob],prefilter:function(a,b){b?qb.prefilters.unshift(a):qb.prefilters.push(a)}}),n.speed=function(a,b,c){var d=a&&"object"==typeof a?n.extend({},a):{complete:c||!c&&b||n.isFunction(a)&&a,duration:a,easing:c&&b||b&&!n.isFunction(b)&&b};return d.duration=n.fx.off?0:"number"==typeof d.duration?d.duration:d.duration in n.fx.speeds?n.fx.speeds[d.duration]:n.fx.speeds._default,null!=d.queue&&d.queue!==!0||(d.queue="fx"),d.old=d.complete,d.complete=function(){n.isFunction(d.old)&&d.old.call(this),d.queue&&n.dequeue(this,d.queue)},d},n.fn.extend({fadeTo:function(a,b,c,d){return this.filter(W).css("opacity",0).show().end().animate({opacity:b},a,c,d)},animate:function(a,b,c,d){var e=n.isEmptyObject(a),f=n.speed(b,c,d),g=function(){var b=qb(this,n.extend({},a),f);(e||n._data(this,"finish"))&&b.stop(!0)};return g.finish=g,e||f.queue===!1?this.each(g):this.queue(f.queue,g)},stop:function(a,b,c){var d=function(a){var b=a.stop;delete a.stop,b(c)};return"string"!=typeof a&&(c=b,b=a,a=void 0),b&&a!==!1&&this.queue(a||"fx",[]),this.each(function(){var b=!0,e=null!=a&&a+"queueHooks",f=n.timers,g=n._data(this);if(e)g[e]&&g[e].stop&&d(g[e]);else for(e in g)g[e]&&g[e].stop&&kb.test(e)&&d(g[e]);for(e=f.length;e--;)f[e].elem!==this||null!=a&&f[e].queue!==a||(f[e].anim.stop(c),b=!1,f.splice(e,1));!b&&c||n.dequeue(this,a)})},finish:function(a){return a!==!1&&(a=a||"fx"),this.each(function(){var b,c=n._data(this),d=c[a+"queue"],e=c[a+"queueHooks"],f=n.timers,g=d?d.length:0;for(c.finish=!0,n.queue(this,a,[]),e&&e.stop&&e.stop.call(this,!0),b=f.length;b--;)f[b].elem===this&&f[b].queue===a&&(f[b].anim.stop(!0),f.splice(b,1));for(b=0;g>b;b++)d[b]&&d[b].finish&&d[b].finish.call(this);delete c.finish})}}),n.each(["toggle","show","hide"],function(a,b){var c=n.fn[b];n.fn[b]=function(a,d,e){return null==a||"boolean"==typeof a?c.apply(this,arguments):this.animate(mb(b,!0),a,d,e)}}),n.each({slideDown:mb("show"),slideUp:mb("hide"),slideToggle:mb("toggle"),fadeIn:{opacity:"show"},fadeOut:{opacity:"hide"},fadeToggle:{opacity:"toggle"}},function(a,b){n.fn[a]=function(a,c,d){return this.animate(b,a,c,d)}}),n.timers=[],n.fx.tick=function(){var a,b=n.timers,c=0;for(hb=n.now();c<b.length;c++)a=b[c],a()||b[c]!==a||b.splice(c--,1);b.length||n.fx.stop(),hb=void 0},n.fx.timer=function(a){n.timers.push(a),a()?n.fx.start():n.timers.pop()},n.fx.interval=13,n.fx.start=function(){ib||(ib=a.setInterval(n.fx.tick,n.fx.interval))},n.fx.stop=function(){a.clearInterval(ib),ib=null},n.fx.speeds={slow:600,fast:200,_default:400},n.fn.delay=function(b,c){return b=n.fx?n.fx.speeds[b]||b:b,c=c||"fx",this.queue(c,function(c,d){var e=a.setTimeout(c,b);d.stop=function(){a.clearTimeout(e)}})},function(){var a,b=d.createElement("input"),c=d.createElement("div"),e=d.createElement("select"),f=e.appendChild(d.createElement("option"));c=d.createElement("div"),c.setAttribute("className","t"),c.innerHTML="  <link/><table></table><a href='/a'>a</a><input type='checkbox'/>",a=c.getElementsByTagName("a")[0],b.setAttribute("type","checkbox"),c.appendChild(b),a=c.getElementsByTagName("a")[0],a.style.cssText="top:1px",l.getSetAttribute="t"!==c.className,l.style=/top/.test(a.getAttribute("style")),l.hrefNormalized="/a"===a.getAttribute("href"),l.checkOn=!!b.value,l.optSelected=f.selected,l.enctype=!!d.createElement("form").enctype,e.disabled=!0,l.optDisabled=!f.disabled,b=d.createElement("input"),b.setAttribute("value",""),l.input=""===b.getAttribute("value"),b.value="t",b.setAttribute("type","radio"),l.radioValue="t"===b.value}();var rb=/\r/g,sb=/[\x20\t\r\n\f]+/g;n.fn.extend({val:function(a){var b,c,d,e=this[0];{if(arguments.length)return d=n.isFunction(a),this.each(function(c){var e;1===this.nodeType&&(e=d?a.call(this,c,n(this).val()):a,null==e?e="":"number"==typeof e?e+="":n.isArray(e)&&(e=n.map(e,function(a){return null==a?"":a+""})),b=n.valHooks[this.type]||n.valHooks[this.nodeName.toLowerCase()],b&&"set"in b&&void 0!==b.set(this,e,"value")||(this.value=e))});if(e)return b=n.valHooks[e.type]||n.valHooks[e.nodeName.toLowerCase()],b&&"get"in b&&void 0!==(c=b.get(e,"value"))?c:(c=e.value,"string"==typeof c?c.replace(rb,""):null==c?"":c)}}}),n.extend({valHooks:{option:{get:function(a){var b=n.find.attr(a,"value");return null!=b?b:n.trim(n.text(a)).replace(sb," ")}},select:{get:function(a){for(var b,c,d=a.options,e=a.selectedIndex,f="select-one"===a.type||0>e,g=f?null:[],h=f?e+1:d.length,i=0>e?h:f?e:0;h>i;i++)if(c=d[i],(c.selected||i===e)&&(l.optDisabled?!c.disabled:null===c.getAttribute("disabled"))&&(!c.parentNode.disabled||!n.nodeName(c.parentNode,"optgroup"))){if(b=n(c).val(),f)return b;g.push(b)}return g},set:function(a,b){var c,d,e=a.options,f=n.makeArray(b),g=e.length;while(g--)if(d=e[g],n.inArray(n.valHooks.option.get(d),f)>-1)try{d.selected=c=!0}catch(h){d.scrollHeight}else d.selected=!1;return c||(a.selectedIndex=-1),e}}}}),n.each(["radio","checkbox"],function(){n.valHooks[this]={set:function(a,b){return n.isArray(b)?a.checked=n.inArray(n(a).val(),b)>-1:void 0}},l.checkOn||(n.valHooks[this].get=function(a){return null===a.getAttribute("value")?"on":a.value})});var tb,ub,vb=n.expr.attrHandle,wb=/^(?:checked|selected)$/i,xb=l.getSetAttribute,yb=l.input;n.fn.extend({attr:function(a,b){return Y(this,n.attr,a,b,arguments.length>1)},removeAttr:function(a){return this.each(function(){n.removeAttr(this,a)})}}),n.extend({attr:function(a,b,c){var d,e,f=a.nodeType;if(3!==f&&8!==f&&2!==f)return"undefined"==typeof a.getAttribute?n.prop(a,b,c):(1===f&&n.isXMLDoc(a)||(b=b.toLowerCase(),e=n.attrHooks[b]||(n.expr.match.bool.test(b)?ub:tb)),void 0!==c?null===c?void n.removeAttr(a,b):e&&"set"in e&&void 0!==(d=e.set(a,c,b))?d:(a.setAttribute(b,c+""),c):e&&"get"in e&&null!==(d=e.get(a,b))?d:(d=n.find.attr(a,b),null==d?void 0:d))},attrHooks:{type:{set:function(a,b){if(!l.radioValue&&"radio"===b&&n.nodeName(a,"input")){var c=a.value;return a.setAttribute("type",b),c&&(a.value=c),b}}}},removeAttr:function(a,b){var c,d,e=0,f=b&&b.match(G);if(f&&1===a.nodeType)while(c=f[e++])d=n.propFix[c]||c,n.expr.match.bool.test(c)?yb&&xb||!wb.test(c)?a[d]=!1:a[n.camelCase("default-"+c)]=a[d]=!1:n.attr(a,c,""),a.removeAttribute(xb?c:d)}}),ub={set:function(a,b,c){return b===!1?n.removeAttr(a,c):yb&&xb||!wb.test(c)?a.setAttribute(!xb&&n.propFix[c]||c,c):a[n.camelCase("default-"+c)]=a[c]=!0,c}},n.each(n.expr.match.bool.source.match(/\w+/g),function(a,b){var c=vb[b]||n.find.attr;yb&&xb||!wb.test(b)?vb[b]=function(a,b,d){var e,f;return d||(f=vb[b],vb[b]=e,e=null!=c(a,b,d)?b.toLowerCase():null,vb[b]=f),e}:vb[b]=function(a,b,c){return c?void 0:a[n.camelCase("default-"+b)]?b.toLowerCase():null}}),yb&&xb||(n.attrHooks.value={set:function(a,b,c){return n.nodeName(a,"input")?void(a.defaultValue=b):tb&&tb.set(a,b,c)}}),xb||(tb={set:function(a,b,c){var d=a.getAttributeNode(c);return d||a.setAttributeNode(d=a.ownerDocument.createAttribute(c)),d.value=b+="","value"===c||b===a.getAttribute(c)?b:void 0}},vb.id=vb.name=vb.coords=function(a,b,c){var d;return c?void 0:(d=a.getAttributeNode(b))&&""!==d.value?d.value:null},n.valHooks.button={get:function(a,b){var c=a.getAttributeNode(b);return c&&c.specified?c.value:void 0},set:tb.set},n.attrHooks.contenteditable={set:function(a,b,c){tb.set(a,""===b?!1:b,c)}},n.each(["width","height"],function(a,b){n.attrHooks[b]={set:function(a,c){return""===c?(a.setAttribute(b,"auto"),c):void 0}}})),l.style||(n.attrHooks.style={get:function(a){return a.style.cssText||void 0},set:function(a,b){return a.style.cssText=b+""}});var zb=/^(?:input|select|textarea|button|object)$/i,Ab=/^(?:a|area)$/i;n.fn.extend({prop:function(a,b){return Y(this,n.prop,a,b,arguments.length>1)},removeProp:function(a){return a=n.propFix[a]||a,this.each(function(){try{this[a]=void 0,delete this[a]}catch(b){}})}}),n.extend({prop:function(a,b,c){var d,e,f=a.nodeType;if(3!==f&&8!==f&&2!==f)return 1===f&&n.isXMLDoc(a)||(b=n.propFix[b]||b,e=n.propHooks[b]),void 0!==c?e&&"set"in e&&void 0!==(d=e.set(a,c,b))?d:a[b]=c:e&&"get"in e&&null!==(d=e.get(a,b))?d:a[b]},propHooks:{tabIndex:{get:function(a){var b=n.find.attr(a,"tabindex");return b?parseInt(b,10):zb.test(a.nodeName)||Ab.test(a.nodeName)&&a.href?0:-1}}},propFix:{"for":"htmlFor","class":"className"}}),l.hrefNormalized||n.each(["href","src"],function(a,b){n.propHooks[b]={get:function(a){return a.getAttribute(b,4)}}}),l.optSelected||(n.propHooks.selected={get:function(a){var b=a.parentNode;return b&&(b.selectedIndex,b.parentNode&&b.parentNode.selectedIndex),null},set:function(a){var b=a.parentNode;b&&(b.selectedIndex,b.parentNode&&b.parentNode.selectedIndex)}}),n.each(["tabIndex","readOnly","maxLength","cellSpacing","cellPadding","rowSpan","colSpan","useMap","frameBorder","contentEditable"],function(){n.propFix[this.toLowerCase()]=this}),l.enctype||(n.propFix.enctype="encoding");var Bb=/[\t\r\n\f]/g;function Cb(a){return n.attr(a,"class")||""}n.fn.extend({addClass:function(a){var b,c,d,e,f,g,h,i=0;if(n.isFunction(a))return this.each(function(b){n(this).addClass(a.call(this,b,Cb(this)))});if("string"==typeof a&&a){b=a.match(G)||[];while(c=this[i++])if(e=Cb(c),d=1===c.nodeType&&(" "+e+" ").replace(Bb," ")){g=0;while(f=b[g++])d.indexOf(" "+f+" ")<0&&(d+=f+" ");h=n.trim(d),e!==h&&n.attr(c,"class",h)}}return this},removeClass:function(a){var b,c,d,e,f,g,h,i=0;if(n.isFunction(a))return this.each(function(b){n(this).removeClass(a.call(this,b,Cb(this)))});if(!arguments.length)return this.attr("class","");if("string"==typeof a&&a){b=a.match(G)||[];while(c=this[i++])if(e=Cb(c),d=1===c.nodeType&&(" "+e+" ").replace(Bb," ")){g=0;while(f=b[g++])while(d.indexOf(" "+f+" ")>-1)d=d.replace(" "+f+" "," ");h=n.trim(d),e!==h&&n.attr(c,"class",h)}}return this},toggleClass:function(a,b){var c=typeof a;return"boolean"==typeof b&&"string"===c?b?this.addClass(a):this.removeClass(a):n.isFunction(a)?this.each(function(c){n(this).toggleClass(a.call(this,c,Cb(this),b),b)}):this.each(function(){var b,d,e,f;if("string"===c){d=0,e=n(this),f=a.match(G)||[];while(b=f[d++])e.hasClass(b)?e.removeClass(b):e.addClass(b)}else void 0!==a&&"boolean"!==c||(b=Cb(this),b&&n._data(this,"__className__",b),n.attr(this,"class",b||a===!1?"":n._data(this,"__className__")||""))})},hasClass:function(a){var b,c,d=0;b=" "+a+" ";while(c=this[d++])if(1===c.nodeType&&(" "+Cb(c)+" ").replace(Bb," ").indexOf(b)>-1)return!0;return!1}}),n.each("blur focus focusin focusout load resize scroll unload click dblclick mousedown mouseup mousemove mouseover mouseout mouseenter mouseleave change select submit keydown keypress keyup error contextmenu".split(" "),function(a,b){n.fn[b]=function(a,c){return arguments.length>0?this.on(b,null,a,c):this.trigger(b)}}),n.fn.extend({hover:function(a,b){return this.mouseenter(a).mouseleave(b||a)}});var Db=a.location,Eb=n.now(),Fb=/\?/,Gb=/(,)|(\[|{)|(}|])|"(?:[^"\\\r\n]|\\["\\\/bfnrt]|\\u[\da-fA-F]{4})*"\s*:?|true|false|null|-?(?!0\d)\d+(?:\.\d+|)(?:[eE][+-]?\d+|)/g;n.parseJSON=function(b){if(a.JSON&&a.JSON.parse)return a.JSON.parse(b+"");var c,d=null,e=n.trim(b+"");return e&&!n.trim(e.replace(Gb,function(a,b,e,f){return c&&b&&(d=0),0===d?a:(c=e||b,d+=!f-!e,"")}))?Function("return "+e)():n.error("Invalid JSON: "+b)},n.parseXML=function(b){var c,d;if(!b||"string"!=typeof b)return null;try{a.DOMParser?(d=new a.DOMParser,c=d.parseFromString(b,"text/xml")):(c=new a.ActiveXObject("Microsoft.XMLDOM"),c.async="false",c.loadXML(b))}catch(e){c=void 0}return c&&c.documentElement&&!c.getElementsByTagName("parsererror").length||n.error("Invalid XML: "+b),c};var Hb=/#.*$/,Ib=/([?&])_=[^&]*/,Jb=/^(.*?):[ \t]*([^\r\n]*)\r?$/gm,Kb=/^(?:about|app|app-storage|.+-extension|file|res|widget):$/,Lb=/^(?:GET|HEAD)$/,Mb=/^\/\//,Nb=/^([\w.+-]+:)(?:\/\/(?:[^\/?#]*@|)([^\/?#:]*)(?::(\d+)|)|)/,Ob={},Pb={},Qb="*/".concat("*"),Rb=Db.href,Sb=Nb.exec(Rb.toLowerCase())||[];function Tb(a){return function(b,c){"string"!=typeof b&&(c=b,b="*");var d,e=0,f=b.toLowerCase().match(G)||[];if(n.isFunction(c))while(d=f[e++])"+"===d.charAt(0)?(d=d.slice(1)||"*",(a[d]=a[d]||[]).unshift(c)):(a[d]=a[d]||[]).push(c)}}function Ub(a,b,c,d){var e={},f=a===Pb;function g(h){var i;return e[h]=!0,n.each(a[h]||[],function(a,h){var j=h(b,c,d);return"string"!=typeof j||f||e[j]?f?!(i=j):void 0:(b.dataTypes.unshift(j),g(j),!1)}),i}return g(b.dataTypes[0])||!e["*"]&&g("*")}function Vb(a,b){var c,d,e=n.ajaxSettings.flatOptions||{};for(d in b)void 0!==b[d]&&((e[d]?a:c||(c={}))[d]=b[d]);return c&&n.extend(!0,a,c),a}function Wb(a,b,c){var d,e,f,g,h=a.contents,i=a.dataTypes;while("*"===i[0])i.shift(),void 0===e&&(e=a.mimeType||b.getResponseHeader("Content-Type"));if(e)for(g in h)if(h[g]&&h[g].test(e)){i.unshift(g);break}if(i[0]in c)f=i[0];else{for(g in c){if(!i[0]||a.converters[g+" "+i[0]]){f=g;break}d||(d=g)}f=f||d}return f?(f!==i[0]&&i.unshift(f),c[f]):void 0}function Xb(a,b,c,d){var e,f,g,h,i,j={},k=a.dataTypes.slice();if(k[1])for(g in a.converters)j[g.toLowerCase()]=a.converters[g];f=k.shift();while(f)if(a.responseFields[f]&&(c[a.responseFields[f]]=b),!i&&d&&a.dataFilter&&(b=a.dataFilter(b,a.dataType)),i=f,f=k.shift())if("*"===f)f=i;else if("*"!==i&&i!==f){if(g=j[i+" "+f]||j["* "+f],!g)for(e in j)if(h=e.split(" "),h[1]===f&&(g=j[i+" "+h[0]]||j["* "+h[0]])){g===!0?g=j[e]:j[e]!==!0&&(f=h[0],k.unshift(h[1]));break}if(g!==!0)if(g&&a["throws"])b=g(b);else try{b=g(b)}catch(l){return{state:"parsererror",error:g?l:"No conversion from "+i+" to "+f}}}return{state:"success",data:b}}n.extend({active:0,lastModified:{},etag:{},ajaxSettings:{url:Rb,type:"GET",isLocal:Kb.test(Sb[1]),global:!0,processData:!0,async:!0,contentType:"application/x-www-form-urlencoded; charset=UTF-8",accepts:{"*":Qb,text:"text/plain",html:"text/html",xml:"application/xml, text/xml",json:"application/json, text/javascript"},contents:{xml:/\bxml\b/,html:/\bhtml/,json:/\bjson\b/},responseFields:{xml:"responseXML",text:"responseText",json:"responseJSON"},converters:{"* text":String,"text html":!0,"text json":n.parseJSON,"text xml":n.parseXML},flatOptions:{url:!0,context:!0}},ajaxSetup:function(a,b){return b?Vb(Vb(a,n.ajaxSettings),b):Vb(n.ajaxSettings,a)},ajaxPrefilter:Tb(Ob),ajaxTransport:Tb(Pb),ajax:function(b,c){"object"==typeof b&&(c=b,b=void 0),c=c||{};var d,e,f,g,h,i,j,k,l=n.ajaxSetup({},c),m=l.context||l,o=l.context&&(m.nodeType||m.jquery)?n(m):n.event,p=n.Deferred(),q=n.Callbacks("once memory"),r=l.statusCode||{},s={},t={},u=0,v="canceled",w={readyState:0,getResponseHeader:function(a){var b;if(2===u){if(!k){k={};while(b=Jb.exec(g))k[b[1].toLowerCase()]=b[2]}b=k[a.toLowerCase()]}return null==b?null:b},getAllResponseHeaders:function(){return 2===u?g:null},setRequestHeader:function(a,b){var c=a.toLowerCase();return u||(a=t[c]=t[c]||a,s[a]=b),this},overrideMimeType:function(a){return u||(l.mimeType=a),this},statusCode:function(a){var b;if(a)if(2>u)for(b in a)r[b]=[r[b],a[b]];else w.always(a[w.status]);return this},abort:function(a){var b=a||v;return j&&j.abort(b),y(0,b),this}};if(p.promise(w).complete=q.add,w.success=w.done,w.error=w.fail,l.url=((b||l.url||Rb)+"").replace(Hb,"").replace(Mb,Sb[1]+"//"),l.type=c.method||c.type||l.method||l.type,l.dataTypes=n.trim(l.dataType||"*").toLowerCase().match(G)||[""],null==l.crossDomain&&(d=Nb.exec(l.url.toLowerCase()),l.crossDomain=!(!d||d[1]===Sb[1]&&d[2]===Sb[2]&&(d[3]||("http:"===d[1]?"80":"443"))===(Sb[3]||("http:"===Sb[1]?"80":"443")))),l.data&&l.processData&&"string"!=typeof l.data&&(l.data=n.param(l.data,l.traditional)),Ub(Ob,l,c,w),2===u)return w;i=n.event&&l.global,i&&0===n.active++&&n.event.trigger("ajaxStart"),l.type=l.type.toUpperCase(),l.hasContent=!Lb.test(l.type),f=l.url,l.hasContent||(l.data&&(f=l.url+=(Fb.test(f)?"&":"?")+l.data,delete l.data),l.cache===!1&&(l.url=Ib.test(f)?f.replace(Ib,"$1_="+Eb++):f+(Fb.test(f)?"&":"?")+"_="+Eb++)),l.ifModified&&(n.lastModified[f]&&w.setRequestHeader("If-Modified-Since",n.lastModified[f]),n.etag[f]&&w.setRequestHeader("If-None-Match",n.etag[f])),(l.data&&l.hasContent&&l.contentType!==!1||c.contentType)&&w.setRequestHeader("Content-Type",l.contentType),w.setRequestHeader("Accept",l.dataTypes[0]&&l.accepts[l.dataTypes[0]]?l.accepts[l.dataTypes[0]]+("*"!==l.dataTypes[0]?", "+Qb+"; q=0.01":""):l.accepts["*"]);for(e in l.headers)w.setRequestHeader(e,l.headers[e]);if(l.beforeSend&&(l.beforeSend.call(m,w,l)===!1||2===u))return w.abort();v="abort";for(e in{success:1,error:1,complete:1})w[e](l[e]);if(j=Ub(Pb,l,c,w)){if(w.readyState=1,i&&o.trigger("ajaxSend",[w,l]),2===u)return w;l.async&&l.timeout>0&&(h=a.setTimeout(function(){w.abort("timeout")},l.timeout));try{u=1,j.send(s,y)}catch(x){if(!(2>u))throw x;y(-1,x)}}else y(-1,"No Transport");function y(b,c,d,e){var k,s,t,v,x,y=c;2!==u&&(u=2,h&&a.clearTimeout(h),j=void 0,g=e||"",w.readyState=b>0?4:0,k=b>=200&&300>b||304===b,d&&(v=Wb(l,w,d)),v=Xb(l,v,w,k),k?(l.ifModified&&(x=w.getResponseHeader("Last-Modified"),x&&(n.lastModified[f]=x),x=w.getResponseHeader("etag"),x&&(n.etag[f]=x)),204===b||"HEAD"===l.type?y="nocontent":304===b?y="notmodified":(y=v.state,s=v.data,t=v.error,k=!t)):(t=y,!b&&y||(y="error",0>b&&(b=0))),w.status=b,w.statusText=(c||y)+"",k?p.resolveWith(m,[s,y,w]):p.rejectWith(m,[w,y,t]),w.statusCode(r),r=void 0,i&&o.trigger(k?"ajaxSuccess":"ajaxError",[w,l,k?s:t]),q.fireWith(m,[w,y]),i&&(o.trigger("ajaxComplete",[w,l]),--n.active||n.event.trigger("ajaxStop")))}return w},getJSON:function(a,b,c){return n.get(a,b,c,"json")},getScript:function(a,b){return n.get(a,void 0,b,"script")}}),n.each(["get","post"],function(a,b){n[b]=function(a,c,d,e){return n.isFunction(c)&&(e=e||d,d=c,c=void 0),n.ajax(n.extend({url:a,type:b,dataType:e,data:c,success:d},n.isPlainObject(a)&&a))}}),n._evalUrl=function(a){return n.ajax({url:a,type:"GET",dataType:"script",cache:!0,async:!1,global:!1,"throws":!0})},n.fn.extend({wrapAll:function(a){if(n.isFunction(a))return this.each(function(b){n(this).wrapAll(a.call(this,b))});if(this[0]){var b=n(a,this[0].ownerDocument).eq(0).clone(!0);this[0].parentNode&&b.insertBefore(this[0]),b.map(function(){var a=this;while(a.firstChild&&1===a.firstChild.nodeType)a=a.firstChild;return a}).append(this)}return this},wrapInner:function(a){return n.isFunction(a)?this.each(function(b){n(this).wrapInner(a.call(this,b))}):this.each(function(){var b=n(this),c=b.contents();c.length?c.wrapAll(a):b.append(a)})},wrap:function(a){var b=n.isFunction(a);return this.each(function(c){n(this).wrapAll(b?a.call(this,c):a)})},unwrap:function(){return this.parent().each(function(){n.nodeName(this,"body")||n(this).replaceWith(this.childNodes)}).end()}});function Yb(a){return a.style&&a.style.display||n.css(a,"display")}function Zb(a){if(!n.contains(a.ownerDocument||d,a))return!0;while(a&&1===a.nodeType){if("none"===Yb(a)||"hidden"===a.type)return!0;a=a.parentNode}return!1}n.expr.filters.hidden=function(a){return l.reliableHiddenOffsets()?a.offsetWidth<=0&&a.offsetHeight<=0&&!a.getClientRects().length:Zb(a)},n.expr.filters.visible=function(a){return!n.expr.filters.hidden(a)};var $b=/%20/g,_b=/\[\]$/,ac=/\r?\n/g,bc=/^(?:submit|button|image|reset|file)$/i,cc=/^(?:input|select|textarea|keygen)/i;function dc(a,b,c,d){var e;if(n.isArray(b))n.each(b,function(b,e){c||_b.test(a)?d(a,e):dc(a+"["+("object"==typeof e&&null!=e?b:"")+"]",e,c,d)});else if(c||"object"!==n.type(b))d(a,b);else for(e in b)dc(a+"["+e+"]",b[e],c,d)}n.param=function(a,b){var c,d=[],e=function(a,b){b=n.isFunction(b)?b():null==b?"":b,d[d.length]=encodeURIComponent(a)+"="+encodeURIComponent(b)};if(void 0===b&&(b=n.ajaxSettings&&n.ajaxSettings.traditional),n.isArray(a)||a.jquery&&!n.isPlainObject(a))n.each(a,function(){e(this.name,this.value)});else for(c in a)dc(c,a[c],b,e);return d.join("&").replace($b,"+")},n.fn.extend({serialize:function(){return n.param(this.serializeArray())},serializeArray:function(){return this.map(function(){var a=n.prop(this,"elements");return a?n.makeArray(a):this}).filter(function(){var a=this.type;return this.name&&!n(this).is(":disabled")&&cc.test(this.nodeName)&&!bc.test(a)&&(this.checked||!Z.test(a))}).map(function(a,b){var c=n(this).val();return null==c?null:n.isArray(c)?n.map(c,function(a){return{name:b.name,value:a.replace(ac,"\r\n")}}):{name:b.name,value:c.replace(ac,"\r\n")}}).get()}}),n.ajaxSettings.xhr=void 0!==a.ActiveXObject?function(){return this.isLocal?ic():d.documentMode>8?hc():/^(get|post|head|put|delete|options)$/i.test(this.type)&&hc()||ic()}:hc;var ec=0,fc={},gc=n.ajaxSettings.xhr();a.attachEvent&&a.attachEvent("onunload",function(){for(var a in fc)fc[a](void 0,!0)}),l.cors=!!gc&&"withCredentials"in gc,gc=l.ajax=!!gc,gc&&n.ajaxTransport(function(b){if(!b.crossDomain||l.cors){var c;return{send:function(d,e){var f,g=b.xhr(),h=++ec;if(g.open(b.type,b.url,b.async,b.username,b.password),b.xhrFields)for(f in b.xhrFields)g[f]=b.xhrFields[f];b.mimeType&&g.overrideMimeType&&g.overrideMimeType(b.mimeType),b.crossDomain||d["X-Requested-With"]||(d["X-Requested-With"]="XMLHttpRequest");for(f in d)void 0!==d[f]&&g.setRequestHeader(f,d[f]+"");g.send(b.hasContent&&b.data||null),c=function(a,d){var f,i,j;if(c&&(d||4===g.readyState))if(delete fc[h],c=void 0,g.onreadystatechange=n.noop,d)4!==g.readyState&&g.abort();else{j={},f=g.status,"string"==typeof g.responseText&&(j.text=g.responseText);try{i=g.statusText}catch(k){i=""}f||!b.isLocal||b.crossDomain?1223===f&&(f=204):f=j.text?200:404}j&&e(f,i,j,g.getAllResponseHeaders())},b.async?4===g.readyState?a.setTimeout(c):g.onreadystatechange=fc[h]=c:c()},abort:function(){c&&c(void 0,!0)}}}});function hc(){try{return new a.XMLHttpRequest}catch(b){}}function ic(){try{return new a.ActiveXObject("Microsoft.XMLHTTP")}catch(b){}}n.ajaxSetup({accepts:{script:"text/javascript, application/javascript, application/ecmascript, application/x-ecmascript"},contents:{script:/\b(?:java|ecma)script\b/},converters:{"text script":function(a){return n.globalEval(a),a}}}),n.ajaxPrefilter("script",function(a){void 0===a.cache&&(a.cache=!1),a.crossDomain&&(a.type="GET",a.global=!1)}),n.ajaxTransport("script",function(a){if(a.crossDomain){var b,c=d.head||n("head")[0]||d.documentElement;return{send:function(e,f){b=d.createElement("script"),b.async=!0,a.scriptCharset&&(b.charset=a.scriptCharset),b.src=a.url,b.onload=b.onreadystatechange=function(a,c){(c||!b.readyState||/loaded|complete/.test(b.readyState))&&(b.onload=b.onreadystatechange=null,b.parentNode&&b.parentNode.removeChild(b),b=null,c||f(200,"success"))},c.insertBefore(b,c.firstChild)},abort:function(){b&&b.onload(void 0,!0)}}}});var jc=[],kc=/(=)\?(?=&|$)|\?\?/;n.ajaxSetup({jsonp:"callback",jsonpCallback:function(){var a=jc.pop()||n.expando+"_"+Eb++;return this[a]=!0,a}}),n.ajaxPrefilter("json jsonp",function(b,c,d){var e,f,g,h=b.jsonp!==!1&&(kc.test(b.url)?"url":"string"==typeof b.data&&0===(b.contentType||"").indexOf("application/x-www-form-urlencoded")&&kc.test(b.data)&&"data");return h||"jsonp"===b.dataTypes[0]?(e=b.jsonpCallback=n.isFunction(b.jsonpCallback)?b.jsonpCallback():b.jsonpCallback,h?b[h]=b[h].replace(kc,"$1"+e):b.jsonp!==!1&&(b.url+=(Fb.test(b.url)?"&":"?")+b.jsonp+"="+e),b.converters["script json"]=function(){return g||n.error(e+" was not called"),g[0]},b.dataTypes[0]="json",f=a[e],a[e]=function(){g=arguments},d.always(function(){void 0===f?n(a).removeProp(e):a[e]=f,b[e]&&(b.jsonpCallback=c.jsonpCallback,jc.push(e)),g&&n.isFunction(f)&&f(g[0]),g=f=void 0}),"script"):void 0}),n.parseHTML=function(a,b,c){if(!a||"string"!=typeof a)return null;"boolean"==typeof b&&(c=b,b=!1),b=b||d;var e=x.exec(a),f=!c&&[];return e?[b.createElement(e[1])]:(e=ja([a],b,f),f&&f.length&&n(f).remove(),n.merge([],e.childNodes))};var lc=n.fn.load;n.fn.load=function(a,b,c){if("string"!=typeof a&&lc)return lc.apply(this,arguments);var d,e,f,g=this,h=a.indexOf(" ");return h>-1&&(d=n.trim(a.slice(h,a.length)),a=a.slice(0,h)),n.isFunction(b)?(c=b,b=void 0):b&&"object"==typeof b&&(e="POST"),g.length>0&&n.ajax({url:a,type:e||"GET",dataType:"html",data:b}).done(function(a){f=arguments,g.html(d?n("<div>").append(n.parseHTML(a)).find(d):a)}).always(c&&function(a,b){g.each(function(){c.apply(this,f||[a.responseText,b,a])})}),this},n.each(["ajaxStart","ajaxStop","ajaxComplete","ajaxError","ajaxSuccess","ajaxSend"],function(a,b){n.fn[b]=function(a){return this.on(b,a)}}),n.expr.filters.animated=function(a){return n.grep(n.timers,function(b){return a===b.elem}).length};function mc(a){return n.isWindow(a)?a:9===a.nodeType?a.defaultView||a.parentWindow:!1}n.offset={setOffset:function(a,b,c){var d,e,f,g,h,i,j,k=n.css(a,"position"),l=n(a),m={};"static"===k&&(a.style.position="relative"),h=l.offset(),f=n.css(a,"top"),i=n.css(a,"left"),j=("absolute"===k||"fixed"===k)&&n.inArray("auto",[f,i])>-1,j?(d=l.position(),g=d.top,e=d.left):(g=parseFloat(f)||0,e=parseFloat(i)||0),n.isFunction(b)&&(b=b.call(a,c,n.extend({},h))),null!=b.top&&(m.top=b.top-h.top+g),null!=b.left&&(m.left=b.left-h.left+e),"using"in b?b.using.call(a,m):l.css(m)}},n.fn.extend({offset:function(a){if(arguments.length)return void 0===a?this:this.each(function(b){n.offset.setOffset(this,a,b)});var b,c,d={top:0,left:0},e=this[0],f=e&&e.ownerDocument;if(f)return b=f.documentElement,n.contains(b,e)?("undefined"!=typeof e.getBoundingClientRect&&(d=e.getBoundingClientRect()),c=mc(f),{top:d.top+(c.pageYOffset||b.scrollTop)-(b.clientTop||0),left:d.left+(c.pageXOffset||b.scrollLeft)-(b.clientLeft||0)}):d},position:function(){if(this[0]){var a,b,c={top:0,left:0},d=this[0];return"fixed"===n.css(d,"position")?b=d.getBoundingClientRect():(a=this.offsetParent(),b=this.offset(),n.nodeName(a[0],"html")||(c=a.offset()),c.top+=n.css(a[0],"borderTopWidth",!0),c.left+=n.css(a[0],"borderLeftWidth",!0)),{top:b.top-c.top-n.css(d,"marginTop",!0),left:b.left-c.left-n.css(d,"marginLeft",!0)}}},offsetParent:function(){return this.map(function(){var a=this.offsetParent;while(a&&!n.nodeName(a,"html")&&"static"===n.css(a,"position"))a=a.offsetParent;return a||Qa})}}),n.each({scrollLeft:"pageXOffset",scrollTop:"pageYOffset"},function(a,b){var c=/Y/.test(b);n.fn[a]=function(d){return Y(this,function(a,d,e){var f=mc(a);return void 0===e?f?b in f?f[b]:f.document.documentElement[d]:a[d]:void(f?f.scrollTo(c?n(f).scrollLeft():e,c?e:n(f).scrollTop()):a[d]=e)},a,d,arguments.length,null)}}),n.each(["top","left"],function(a,b){n.cssHooks[b]=Ua(l.pixelPosition,function(a,c){return c?(c=Sa(a,b),Oa.test(c)?n(a).position()[b]+"px":c):void 0})}),n.each({Height:"height",Width:"width"},function(a,b){n.each({
-    padding:"inner"+a,content:b,"":"outer"+a},function(c,d){n.fn[d]=function(d,e){var f=arguments.length&&(c||"boolean"!=typeof d),g=c||(d===!0||e===!0?"margin":"border");return Y(this,function(b,c,d){var e;return n.isWindow(b)?b.document.documentElement["client"+a]:9===b.nodeType?(e=b.documentElement,Math.max(b.body["scroll"+a],e["scroll"+a],b.body["offset"+a],e["offset"+a],e["client"+a])):void 0===d?n.css(b,c,g):n.style(b,c,d,g)},b,f?d:void 0,f,null)}})}),n.fn.extend({bind:function(a,b,c){return this.on(a,null,b,c)},unbind:function(a,b){return this.off(a,null,b)},delegate:function(a,b,c,d){return this.on(b,a,c,d)},undelegate:function(a,b,c){return 1===arguments.length?this.off(a,"**"):this.off(b,a||"**",c)}}),n.fn.size=function(){return this.length},n.fn.andSelf=n.fn.addBack,"function"==typeof define&&define.amd&&define("jquery",[],function(){return n});var nc=a.jQuery,oc=a.$;return n.noConflict=function(b){return a.$===n&&(a.$=oc),b&&a.jQuery===n&&(a.jQuery=nc),n},b||(a.jQuery=a.$=n),n});
+define('gina', [ 'require', 'lib/merge', 'lib/routing', 'utils/events', 'helpers/prototypes', 'helpers/dateFormat' ], function (require) {
 
-if ( typeof(module) !== 'undefined' && module.exports ) {
-    var lib = require('../../index');
+    /**
+     * Imports & definitions
+     * */
+    var eventsHandler   = require('utils/events'); // events handler
+    var merge           = require('lib/merge');
+    var routing         = require('lib/routing');
+    var dateFormat      = require('helpers/dateFormat')();
+    var prototypes      = require('helpers/prototypes')({ dateFormat: dateFormat });
+    // removed: uuid dependency (replaced by crypto.randomUUID())
+    // removed: jquery dependency
+
+    if (!window.process ) {
+        (function(window, nextTick, process, prefixes, i, p, fnc) {
+            p = window[process] || (window[process] = {});
+            while (!fnc && i < prefixes.length) {
+                fnc = window[prefixes[i++] + 'requestAnimationFrame'];
+            }
+            p[nextTick] = p[nextTick] || (fnc && fnc.bind(window)) || window.setImmediate || window.setTimeout;
+        })(window, 'nextTick', 'process', 'r webkitR mozR msR oR'.split(' '), 0);
+    }
+
+    if (!window.getComputedStyle) {
+        /**
+         * Returns the roster widget element.
+         * @this {Window}
+         * @returns {ComputedStyle}
+         */
+        window.getComputedStyle = function(el, pseudo) {
+            this.el = el;
+            this.getPropertyValue = function(prop) {
+                var re = /(\-([a-z]){1})/g;
+                if (prop == 'float') {
+                    prop = 'styleFloat'
+                }
+                if (re.test(prop)) {
+                    prop = prop.replace(re, function () {
+                        return arguments[2].toUpperCase()
+                    })
+                }
+                return el.currentStyle[prop] ? el.currentStyle[prop] : null
+            }
+            return this
+        }
+    }
+
+
+    async function construct(gina) {
+
+        this.plugin         = 'gina';
+
+        var events          = [ 'ginaloaded', 'ready' ];
+
+        /**
+         * setOptions
+         * Override default config options or add new options properties
+         *
+         * @param {object} options
+         * */
+        var setOptions = function(options) {
+            proto.config = merge(proto.config, options, true)
+        }
+
+        // instance proto
+        var proto           = {
+            'id'                : 'gina-' + crypto.randomUUID(),
+
+            'plugin'            : this.plugin,
+            'on'                : on,
+            'eventData'         : {},
+            'target'            : document, // by default
+        };
+
+        document.id = proto.id;
+
+        var $instance       = {
+            'id'                : proto.id,
+
+            'isFrameworkLoaded' : false,
+            'hasValidator'      : false,
+            'hasPopinHandler'   : false,
+            'config'            : {},
+            'session'           : null,
+            'registeredEvents'  : {},
+            'events'            : {},
+
+            'setOptions'        : setOptions
+        };
+
+        // iframe case
+        if ( typeof(parent.window['gina']) != 'undefined' ) {
+            // inheriting from parent frame instance
+            window['gina'] = merge((window['gina'] || {}), parent.window['gina']);
+        }
+        $instance = merge( (window['gina'] || {}), $instance);
+
+        registerEvents(this.plugin, events);
+        triggerEvent(gina, proto.target, 'ginaloaded', $instance);
+    }
+
+    return construct
+});
+/*!
+ * Engine.IO v6.6.3
+ * (c) 2014-2025 Guillermo Rauch
+ * Released under the MIT License.
+ */
+!function(t,n){"object"==typeof exports&&"undefined"!=typeof module?module.exports=n():"function"==typeof define&&define.amd?define('vendor/engine.io',n):(t="undefined"!=typeof globalThis?globalThis:t||self).eio=n()}(this,(function(){"use strict";function t(t,n){for(var i=0;i<n.length;i++){var r=n[i];r.enumerable=r.enumerable||!1,r.configurable=!0,"value"in r&&(r.writable=!0),Object.defineProperty(t,u(r.key),r)}}function n(n,i,r){return i&&t(n.prototype,i),r&&t(n,r),Object.defineProperty(n,"prototype",{writable:!1}),n}function i(){return i=Object.assign?Object.assign.bind():function(t){for(var n=1;n<arguments.length;n++){var i=arguments[n];for(var r in i)({}).hasOwnProperty.call(i,r)&&(t[r]=i[r])}return t},i.apply(null,arguments)}function r(t){return r=Object.setPrototypeOf?Object.getPrototypeOf.bind():function(t){return t.__proto__||Object.getPrototypeOf(t)},r(t)}function e(t,n){t.prototype=Object.create(n.prototype),t.prototype.constructor=t,s(t,n)}function o(){try{var t=!Boolean.prototype.valueOf.call(Reflect.construct(Boolean,[],(function(){})))}catch(t){}return(o=function(){return!!t})()}function s(t,n){return s=Object.setPrototypeOf?Object.setPrototypeOf.bind():function(t,n){return t.__proto__=n,t},s(t,n)}function u(t){var n=function(t,n){if("object"!=typeof t||!t)return t;var i=t[Symbol.toPrimitive];if(void 0!==i){var r=i.call(t,n||"default");if("object"!=typeof r)return r;throw new TypeError("@@toPrimitive must return a primitive value.")}return("string"===n?String:Number)(t)}(t,"string");return"symbol"==typeof n?n:n+""}function f(t){return f="function"==typeof Symbol&&"symbol"==typeof Symbol.iterator?function(t){return typeof t}:function(t){return t&&"function"==typeof Symbol&&t.constructor===Symbol&&t!==Symbol.prototype?"symbol":typeof t},f(t)}function h(t){var n="function"==typeof Map?new Map:void 0;return h=function(t){if(null===t||!function(t){try{return-1!==Function.toString.call(t).indexOf("[native code]")}catch(n){return"function"==typeof t}}(t))return t;if("function"!=typeof t)throw new TypeError("Super expression must either be null or a function");if(void 0!==n){if(n.has(t))return n.get(t);n.set(t,i)}function i(){return function(t,n,i){if(o())return Reflect.construct.apply(null,arguments);var r=[null];r.push.apply(r,n);var e=new(t.bind.apply(t,r));return i&&s(e,i.prototype),e}(t,arguments,r(this).constructor)}return i.prototype=Object.create(t.prototype,{constructor:{value:i,enumerable:!1,writable:!0,configurable:!0}}),s(i,t)},h(t)}var c=Object.create(null);c.open="0",c.close="1",c.ping="2",c.pong="3",c.message="4",c.upgrade="5",c.noop="6";var a=Object.create(null);Object.keys(c).forEach((function(t){a[c[t]]=t}));var p,l={type:"error",data:"parser error"},v="function"==typeof Blob||"undefined"!=typeof Blob&&"[object BlobConstructor]"===Object.prototype.toString.call(Blob),d="function"==typeof ArrayBuffer,y=function(t){return"function"==typeof ArrayBuffer.isView?ArrayBuffer.isView(t):t&&t.buffer instanceof ArrayBuffer},b=function(t,n,i){var r=t.type,e=t.data;return v&&e instanceof Blob?n?i(e):g(e,i):d&&(e instanceof ArrayBuffer||y(e))?n?i(e):g(new Blob([e]),i):i(c[r]+(e||""))},g=function(t,n){var i=new FileReader;return i.onload=function(){var t=i.result.split(",")[1];n("b"+(t||""))},i.readAsDataURL(t)};function w(t){return t instanceof Uint8Array?t:t instanceof ArrayBuffer?new Uint8Array(t):new Uint8Array(t.buffer,t.byteOffset,t.byteLength)}for(var m="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/",k="undefined"==typeof Uint8Array?[]:new Uint8Array(256),A=0;A<64;A++)k[m.charCodeAt(A)]=A;var j,B="function"==typeof ArrayBuffer,E=function(t,n){if("string"!=typeof t)return{type:"message",data:U(t,n)};var i=t.charAt(0);return"b"===i?{type:"message",data:O(t.substring(1),n)}:a[i]?t.length>1?{type:a[i],data:t.substring(1)}:{type:a[i]}:l},O=function(t,n){if(B){var i=function(t){var n,i,r,e,o,s=.75*t.length,u=t.length,f=0;"="===t[t.length-1]&&(s--,"="===t[t.length-2]&&s--);var h=new ArrayBuffer(s),c=new Uint8Array(h);for(n=0;n<u;n+=4)i=k[t.charCodeAt(n)],r=k[t.charCodeAt(n+1)],e=k[t.charCodeAt(n+2)],o=k[t.charCodeAt(n+3)],c[f++]=i<<2|r>>4,c[f++]=(15&r)<<4|e>>2,c[f++]=(3&e)<<6|63&o;return h}(t);return U(i,n)}return{base64:!0,data:t}},U=function(t,n){return"blob"===n?t instanceof Blob?t:new Blob([t]):t instanceof ArrayBuffer?t:t.buffer},T=String.fromCharCode(30);function S(){return new TransformStream({transform:function(t,n){!function(t,n){v&&t.data instanceof Blob?t.data.arrayBuffer().then(w).then(n):d&&(t.data instanceof ArrayBuffer||y(t.data))?n(w(t.data)):b(t,!1,(function(t){p||(p=new TextEncoder),n(p.encode(t))}))}(t,(function(i){var r,e=i.length;if(e<126)r=new Uint8Array(1),new DataView(r.buffer).setUint8(0,e);else if(e<65536){r=new Uint8Array(3);var o=new DataView(r.buffer);o.setUint8(0,126),o.setUint16(1,e)}else{r=new Uint8Array(9);var s=new DataView(r.buffer);s.setUint8(0,127),s.setBigUint64(1,BigInt(e))}t.data&&"string"!=typeof t.data&&(r[0]|=128),n.enqueue(r),n.enqueue(i)}))}})}function M(t){return t.reduce((function(t,n){return t+n.length}),0)}function x(t,n){if(t[0].length===n)return t.shift();for(var i=new Uint8Array(n),r=0,e=0;e<n;e++)i[e]=t[0][r++],r===t[0].length&&(t.shift(),r=0);return t.length&&r<t[0].length&&(t[0]=t[0].slice(r)),i}function C(t){if(t)return function(t){for(var n in C.prototype)t[n]=C.prototype[n];return t}(t)}C.prototype.on=C.prototype.addEventListener=function(t,n){return this.t=this.t||{},(this.t["$"+t]=this.t["$"+t]||[]).push(n),this},C.prototype.once=function(t,n){function i(){this.off(t,i),n.apply(this,arguments)}return i.fn=n,this.on(t,i),this},C.prototype.off=C.prototype.removeListener=C.prototype.removeAllListeners=C.prototype.removeEventListener=function(t,n){if(this.t=this.t||{},0==arguments.length)return this.t={},this;var i,r=this.t["$"+t];if(!r)return this;if(1==arguments.length)return delete this.t["$"+t],this;for(var e=0;e<r.length;e++)if((i=r[e])===n||i.fn===n){r.splice(e,1);break}return 0===r.length&&delete this.t["$"+t],this},C.prototype.emit=function(t){this.t=this.t||{};for(var n=new Array(arguments.length-1),i=this.t["$"+t],r=1;r<arguments.length;r++)n[r-1]=arguments[r];if(i){r=0;for(var e=(i=i.slice(0)).length;r<e;++r)i[r].apply(this,n)}return this},C.prototype.emitReserved=C.prototype.emit,C.prototype.listeners=function(t){return this.t=this.t||{},this.t["$"+t]||[]},C.prototype.hasListeners=function(t){return!!this.listeners(t).length};var L="function"==typeof Promise&&"function"==typeof Promise.resolve?function(t){return Promise.resolve().then(t)}:function(t,n){return n(t,0)},R="undefined"!=typeof self?self:"undefined"!=typeof window?window:Function("return this")();function D(t){for(var n=arguments.length,i=new Array(n>1?n-1:0),r=1;r<n;r++)i[r-1]=arguments[r];return i.reduce((function(n,i){return t.hasOwnProperty(i)&&(n[i]=t[i]),n}),{})}var P=R.setTimeout,I=R.clearTimeout;function $(t,n){n.useNativeTimers?(t.setTimeoutFn=P.bind(R),t.clearTimeoutFn=I.bind(R)):(t.setTimeoutFn=R.setTimeout.bind(R),t.clearTimeoutFn=R.clearTimeout.bind(R))}function q(){return Date.now().toString(36).substring(3)+Math.random().toString(36).substring(2,5)}var N=function(t){function n(n,i,r){var e;return(e=t.call(this,n)||this).description=i,e.context=r,e.type="TransportError",e}return e(n,t),n}(h(Error)),V=function(t){function n(n){var i;return(i=t.call(this)||this).writable=!1,$(i,n),i.opts=n,i.query=n.query,i.socket=n.socket,i.supportsBinary=!n.forceBase64,i}e(n,t);var i=n.prototype;return i.onError=function(n,i,r){return t.prototype.emitReserved.call(this,"error",new N(n,i,r)),this},i.open=function(){return this.readyState="opening",this.doOpen(),this},i.close=function(){return"opening"!==this.readyState&&"open"!==this.readyState||(this.doClose(),this.onClose()),this},i.send=function(t){"open"===this.readyState&&this.write(t)},i.onOpen=function(){this.readyState="open",this.writable=!0,t.prototype.emitReserved.call(this,"open")},i.onData=function(t){var n=E(t,this.socket.binaryType);this.onPacket(n)},i.onPacket=function(n){t.prototype.emitReserved.call(this,"packet",n)},i.onClose=function(n){this.readyState="closed",t.prototype.emitReserved.call(this,"close",n)},i.pause=function(t){},i.createUri=function(t){var n=arguments.length>1&&void 0!==arguments[1]?arguments[1]:{};return t+"://"+this.i()+this.o()+this.opts.path+this.u(n)},i.i=function(){var t=this.opts.hostname;return-1===t.indexOf(":")?t:"["+t+"]"},i.o=function(){return this.opts.port&&(this.opts.secure&&Number(443!==this.opts.port)||!this.opts.secure&&80!==Number(this.opts.port))?":"+this.opts.port:""},i.u=function(t){var n=function(t){var n="";for(var i in t)t.hasOwnProperty(i)&&(n.length&&(n+="&"),n+=encodeURIComponent(i)+"="+encodeURIComponent(t[i]));return n}(t);return n.length?"?"+n:""},n}(C),X=function(t){function i(){var n;return(n=t.apply(this,arguments)||this).h=!1,n}e(i,t);var r=i.prototype;return r.doOpen=function(){this.p()},r.pause=function(t){var n=this;this.readyState="pausing";var i=function(){n.readyState="paused",t()};if(this.h||!this.writable){var r=0;this.h&&(r++,this.once("pollComplete",(function(){--r||i()}))),this.writable||(r++,this.once("drain",(function(){--r||i()})))}else i()},r.p=function(){this.h=!0,this.doPoll(),this.emitReserved("poll")},r.onData=function(t){var n=this;(function(t,n){for(var i=t.split(T),r=[],e=0;e<i.length;e++){var o=E(i[e],n);if(r.push(o),"error"===o.type)break}return r})(t,this.socket.binaryType).forEach((function(t){if("opening"===n.readyState&&"open"===t.type&&n.onOpen(),"close"===t.type)return n.onClose({description:"transport closed by the server"}),!1;n.onPacket(t)})),"closed"!==this.readyState&&(this.h=!1,this.emitReserved("pollComplete"),"open"===this.readyState&&this.p())},r.doClose=function(){var t=this,n=function(){t.write([{type:"close"}])};"open"===this.readyState?n():this.once("open",n)},r.write=function(t){var n=this;this.writable=!1,function(t,n){var i=t.length,r=new Array(i),e=0;t.forEach((function(t,o){b(t,!1,(function(t){r[o]=t,++e===i&&n(r.join(T))}))}))}(t,(function(t){n.doWrite(t,(function(){n.writable=!0,n.emitReserved("drain")}))}))},r.uri=function(){var t=this.opts.secure?"https":"http",n=this.query||{};return!1!==this.opts.timestampRequests&&(n[this.opts.timestampParam]=q()),this.supportsBinary||n.sid||(n.b64=1),this.createUri(t,n)},n(i,[{key:"name",get:function(){return"polling"}}])}(V),H=!1;try{H="undefined"!=typeof XMLHttpRequest&&"withCredentials"in new XMLHttpRequest}catch(t){}var F=H;function z(){}var G=function(t){function n(n){var i;if(i=t.call(this,n)||this,"undefined"!=typeof location){var r="https:"===location.protocol,e=location.port;e||(e=r?"443":"80"),i.xd="undefined"!=typeof location&&n.hostname!==location.hostname||e!==n.port}return i}e(n,t);var i=n.prototype;return i.doWrite=function(t,n){var i=this,r=this.request({method:"POST",data:t});r.on("success",n),r.on("error",(function(t,n){i.onError("xhr post error",t,n)}))},i.doPoll=function(){var t=this,n=this.request();n.on("data",this.onData.bind(this)),n.on("error",(function(n,i){t.onError("xhr poll error",n,i)})),this.pollXhr=n},n}(X),J=function(t){function n(n,i,r){var e;return(e=t.call(this)||this).createRequest=n,$(e,r),e.l=r,e.v=r.method||"GET",e.m=i,e.k=void 0!==r.data?r.data:null,e.A(),e}e(n,t);var i=n.prototype;return i.A=function(){var t,i=this,r=D(this.l,"agent","pfx","key","passphrase","cert","ca","ciphers","rejectUnauthorized","autoUnref");r.xdomain=!!this.l.xd;var e=this.j=this.createRequest(r);try{e.open(this.v,this.m,!0);try{if(this.l.extraHeaders)for(var o in e.setDisableHeaderCheck&&e.setDisableHeaderCheck(!0),this.l.extraHeaders)this.l.extraHeaders.hasOwnProperty(o)&&e.setRequestHeader(o,this.l.extraHeaders[o])}catch(t){}if("POST"===this.v)try{e.setRequestHeader("Content-type","text/plain;charset=UTF-8")}catch(t){}try{e.setRequestHeader("Accept","*/*")}catch(t){}null===(t=this.l.cookieJar)||void 0===t||t.addCookies(e),"withCredentials"in e&&(e.withCredentials=this.l.withCredentials),this.l.requestTimeout&&(e.timeout=this.l.requestTimeout),e.onreadystatechange=function(){var t;3===e.readyState&&(null===(t=i.l.cookieJar)||void 0===t||t.parseCookies(e.getResponseHeader("set-cookie"))),4===e.readyState&&(200===e.status||1223===e.status?i.B():i.setTimeoutFn((function(){i.O("number"==typeof e.status?e.status:0)}),0))},e.send(this.k)}catch(t){return void this.setTimeoutFn((function(){i.O(t)}),0)}"undefined"!=typeof document&&(this.U=n.requestsCount++,n.requests[this.U]=this)},i.O=function(t){this.emitReserved("error",t,this.j),this.T(!0)},i.T=function(t){if(void 0!==this.j&&null!==this.j){if(this.j.onreadystatechange=z,t)try{this.j.abort()}catch(t){}"undefined"!=typeof document&&delete n.requests[this.U],this.j=null}},i.B=function(){var t=this.j.responseText;null!==t&&(this.emitReserved("data",t),this.emitReserved("success"),this.T())},i.abort=function(){this.T()},n}(C);if(J.requestsCount=0,J.requests={},"undefined"!=typeof document)if("function"==typeof attachEvent)attachEvent("onunload",W);else if("function"==typeof addEventListener){addEventListener("onpagehide"in R?"pagehide":"unload",W,!1)}function W(){for(var t in J.requests)J.requests.hasOwnProperty(t)&&J.requests[t].abort()}var K,Q=(K=Z({xdomain:!1}))&&null!==K.responseType,Y=function(t){function n(n){var i;i=t.call(this,n)||this;var r=n&&n.forceBase64;return i.supportsBinary=Q&&!r,i}return e(n,t),n.prototype.request=function(){var t=arguments.length>0&&void 0!==arguments[0]?arguments[0]:{};return i(t,{xd:this.xd},this.opts),new J(Z,this.uri(),t)},n}(G);function Z(t){var n=t.xdomain;try{if("undefined"!=typeof XMLHttpRequest&&(!n||F))return new XMLHttpRequest}catch(t){}if(!n)try{return new(R[["Active"].concat("Object").join("X")])("Microsoft.XMLHTTP")}catch(t){}}var _="undefined"!=typeof navigator&&"string"==typeof navigator.product&&"reactnative"===navigator.product.toLowerCase(),tt=function(t){function i(){return t.apply(this,arguments)||this}e(i,t);var r=i.prototype;return r.doOpen=function(){var t=this.uri(),n=this.opts.protocols,i=_?{}:D(this.opts,"agent","perMessageDeflate","pfx","key","passphrase","cert","ca","ciphers","rejectUnauthorized","localAddress","protocolVersion","origin","maxPayload","family","checkServerIdentity");this.opts.extraHeaders&&(i.headers=this.opts.extraHeaders);try{this.ws=this.createSocket(t,n,i)}catch(t){return this.emitReserved("error",t)}this.ws.binaryType=this.socket.binaryType,this.addEventListeners()},r.addEventListeners=function(){var t=this;this.ws.onopen=function(){t.opts.autoUnref&&t.ws.S.unref(),t.onOpen()},this.ws.onclose=function(n){return t.onClose({description:"websocket connection closed",context:n})},this.ws.onmessage=function(n){return t.onData(n.data)},this.ws.onerror=function(n){return t.onError("websocket error",n)}},r.write=function(t){var n=this;this.writable=!1;for(var i=function(){var i=t[r],e=r===t.length-1;b(i,n.supportsBinary,(function(t){try{n.doWrite(i,t)}catch(t){}e&&L((function(){n.writable=!0,n.emitReserved("drain")}),n.setTimeoutFn)}))},r=0;r<t.length;r++)i()},r.doClose=function(){void 0!==this.ws&&(this.ws.onerror=function(){},this.ws.close(),this.ws=null)},r.uri=function(){var t=this.opts.secure?"wss":"ws",n=this.query||{};return this.opts.timestampRequests&&(n[this.opts.timestampParam]=q()),this.supportsBinary||(n.b64=1),this.createUri(t,n)},n(i,[{key:"name",get:function(){return"websocket"}}])}(V),nt=R.WebSocket||R.MozWebSocket,it=function(t){function n(){return t.apply(this,arguments)||this}e(n,t);var i=n.prototype;return i.createSocket=function(t,n,i){return _?new nt(t,n,i):n?new nt(t,n):new nt(t)},i.doWrite=function(t,n){this.ws.send(n)},n}(tt),rt=function(t){function i(){return t.apply(this,arguments)||this}e(i,t);var r=i.prototype;return r.doOpen=function(){var t=this;try{this.M=new WebTransport(this.createUri("https"),this.opts.transportOptions[this.name])}catch(t){return this.emitReserved("error",t)}this.M.closed.then((function(){t.onClose()})).catch((function(n){t.onError("webtransport error",n)})),this.M.ready.then((function(){t.M.createBidirectionalStream().then((function(n){var i=function(t,n){j||(j=new TextDecoder);var i=[],r=0,e=-1,o=!1;return new TransformStream({transform:function(s,u){for(i.push(s);;){if(0===r){if(M(i)<1)break;var f=x(i,1);o=!(128&~f[0]),e=127&f[0],r=e<126?3:126===e?1:2}else if(1===r){if(M(i)<2)break;var h=x(i,2);e=new DataView(h.buffer,h.byteOffset,h.length).getUint16(0),r=3}else if(2===r){if(M(i)<8)break;var c=x(i,8),a=new DataView(c.buffer,c.byteOffset,c.length),p=a.getUint32(0);if(p>Math.pow(2,21)-1){u.enqueue(l);break}e=p*Math.pow(2,32)+a.getUint32(4),r=3}else{if(M(i)<e)break;var v=x(i,e);u.enqueue(E(o?v:j.decode(v),n)),r=0}if(0===e||e>t){u.enqueue(l);break}}}})}(Number.MAX_SAFE_INTEGER,t.socket.binaryType),r=n.readable.pipeThrough(i).getReader(),e=S();e.readable.pipeTo(n.writable),t.C=e.writable.getWriter();!function n(){r.read().then((function(i){var r=i.done,e=i.value;r||(t.onPacket(e),n())})).catch((function(t){}))}();var o={type:"open"};t.query.sid&&(o.data='{"sid":"'.concat(t.query.sid,'"}')),t.C.write(o).then((function(){return t.onOpen()}))}))}))},r.write=function(t){var n=this;this.writable=!1;for(var i=function(){var i=t[r],e=r===t.length-1;n.C.write(i).then((function(){e&&L((function(){n.writable=!0,n.emitReserved("drain")}),n.setTimeoutFn)}))},r=0;r<t.length;r++)i()},r.doClose=function(){var t;null===(t=this.M)||void 0===t||t.close()},n(i,[{key:"name",get:function(){return"webtransport"}}])}(V),et={websocket:it,webtransport:rt,polling:Y},ot=/^(?:(?![^:@\/?#]+:[^:@\/]*@)(http|https|ws|wss):\/\/)?((?:(([^:@\/?#]*)(?::([^:@\/?#]*))?)?@)?((?:[a-f0-9]{0,4}:){2,7}[a-f0-9]{0,4}|[^:\/?#]*)(?::(\d*))?)(((\/(?:[^?#](?![^?#\/]*\.[^?#\/.]+(?:[?#]|$)))*\/?)?([^?#\/]*))(?:\?([^#]*))?(?:#(.*))?)/,st=["source","protocol","authority","userInfo","user","password","host","port","relative","path","directory","file","query","anchor"];function ut(t){if(t.length>8e3)throw"URI too long";var n=t,i=t.indexOf("["),r=t.indexOf("]");-1!=i&&-1!=r&&(t=t.substring(0,i)+t.substring(i,r).replace(/:/g,";")+t.substring(r,t.length));for(var e,o,s=ot.exec(t||""),u={},f=14;f--;)u[st[f]]=s[f]||"";return-1!=i&&-1!=r&&(u.source=n,u.host=u.host.substring(1,u.host.length-1).replace(/;/g,":"),u.authority=u.authority.replace("[","").replace("]","").replace(/;/g,":"),u.ipv6uri=!0),u.pathNames=function(t,n){var i=/\/{2,9}/g,r=n.replace(i,"/").split("/");"/"!=n.slice(0,1)&&0!==n.length||r.splice(0,1);"/"==n.slice(-1)&&r.splice(r.length-1,1);return r}(0,u.path),u.queryKey=(e=u.query,o={},e.replace(/(?:^|&)([^&=]*)=?([^&]*)/g,(function(t,n,i){n&&(o[n]=i)})),o),u}var ft="function"==typeof addEventListener&&"function"==typeof removeEventListener,ht=[];ft&&addEventListener("offline",(function(){ht.forEach((function(t){return t()}))}),!1);var ct=function(t){function n(n,r){var e;if((e=t.call(this)||this).binaryType="arraybuffer",e.writeBuffer=[],e.L=0,e.R=-1,e.D=-1,e.P=-1,e.I=1/0,n&&"object"===f(n)&&(r=n,n=null),n){var o=ut(n);r.hostname=o.host,r.secure="https"===o.protocol||"wss"===o.protocol,r.port=o.port,o.query&&(r.query=o.query)}else r.host&&(r.hostname=ut(r.host).host);return $(e,r),e.secure=null!=r.secure?r.secure:"undefined"!=typeof location&&"https:"===location.protocol,r.hostname&&!r.port&&(r.port=e.secure?"443":"80"),e.hostname=r.hostname||("undefined"!=typeof location?location.hostname:"localhost"),e.port=r.port||("undefined"!=typeof location&&location.port?location.port:e.secure?"443":"80"),e.transports=[],e.$={},r.transports.forEach((function(t){var n=t.prototype.name;e.transports.push(n),e.$[n]=t})),e.opts=i({path:"/engine.io",agent:!1,withCredentials:!1,upgrade:!0,timestampParam:"t",rememberUpgrade:!1,addTrailingSlash:!0,rejectUnauthorized:!0,perMessageDeflate:{threshold:1024},transportOptions:{},closeOnBeforeunload:!1},r),e.opts.path=e.opts.path.replace(/\/$/,"")+(e.opts.addTrailingSlash?"/":""),"string"==typeof e.opts.query&&(e.opts.query=function(t){for(var n={},i=t.split("&"),r=0,e=i.length;r<e;r++){var o=i[r].split("=");n[decodeURIComponent(o[0])]=decodeURIComponent(o[1])}return n}(e.opts.query)),ft&&(e.opts.closeOnBeforeunload&&(e.q=function(){e.transport&&(e.transport.removeAllListeners(),e.transport.close())},addEventListener("beforeunload",e.q,!1)),"localhost"!==e.hostname&&(e.N=function(){e.V("transport close",{description:"network connection lost"})},ht.push(e.N))),e.opts.withCredentials&&(e.X=void 0),e.H(),e}e(n,t);var r=n.prototype;return r.createTransport=function(t){var n=i({},this.opts.query);n.EIO=4,n.transport=t,this.id&&(n.sid=this.id);var r=i({},this.opts,{query:n,socket:this,hostname:this.hostname,secure:this.secure,port:this.port},this.opts.transportOptions[t]);return new this.$[t](r)},r.H=function(){var t=this;if(0!==this.transports.length){var i=this.opts.rememberUpgrade&&n.priorWebsocketSuccess&&-1!==this.transports.indexOf("websocket")?"websocket":this.transports[0];this.readyState="opening";var r=this.createTransport(i);r.open(),this.setTransport(r)}else this.setTimeoutFn((function(){t.emitReserved("error","No transports available")}),0)},r.setTransport=function(t){var n=this;this.transport&&this.transport.removeAllListeners(),this.transport=t,t.on("drain",this.F.bind(this)).on("packet",this.G.bind(this)).on("error",this.O.bind(this)).on("close",(function(t){return n.V("transport close",t)}))},r.onOpen=function(){this.readyState="open",n.priorWebsocketSuccess="websocket"===this.transport.name,this.emitReserved("open"),this.flush()},r.G=function(t){if("opening"===this.readyState||"open"===this.readyState||"closing"===this.readyState)switch(this.emitReserved("packet",t),this.emitReserved("heartbeat"),t.type){case"open":this.onHandshake(JSON.parse(t.data));break;case"ping":this.J("pong"),this.emitReserved("ping"),this.emitReserved("pong"),this.W();break;case"error":var n=new Error("server error");n.code=t.data,this.O(n);break;case"message":this.emitReserved("data",t.data),this.emitReserved("message",t.data)}},r.onHandshake=function(t){this.emitReserved("handshake",t),this.id=t.sid,this.transport.query.sid=t.sid,this.R=t.pingInterval,this.D=t.pingTimeout,this.P=t.maxPayload,this.onOpen(),"closed"!==this.readyState&&this.W()},r.W=function(){var t=this;this.clearTimeoutFn(this.K);var n=this.R+this.D;this.I=Date.now()+n,this.K=this.setTimeoutFn((function(){t.V("ping timeout")}),n),this.opts.autoUnref&&this.K.unref()},r.F=function(){this.writeBuffer.splice(0,this.L),this.L=0,0===this.writeBuffer.length?this.emitReserved("drain"):this.flush()},r.flush=function(){if("closed"!==this.readyState&&this.transport.writable&&!this.upgrading&&this.writeBuffer.length){var t=this.Y();this.transport.send(t),this.L=t.length,this.emitReserved("flush")}},r.Y=function(){if(!(this.P&&"polling"===this.transport.name&&this.writeBuffer.length>1))return this.writeBuffer;for(var t,n=1,i=0;i<this.writeBuffer.length;i++){var r=this.writeBuffer[i].data;if(r&&(n+="string"==typeof(t=r)?function(t){for(var n=0,i=0,r=0,e=t.length;r<e;r++)(n=t.charCodeAt(r))<128?i+=1:n<2048?i+=2:n<55296||n>=57344?i+=3:(r++,i+=4);return i}(t):Math.ceil(1.33*(t.byteLength||t.size))),i>0&&n>this.P)return this.writeBuffer.slice(0,i);n+=2}return this.writeBuffer},r.Z=function(){var t=this;if(!this.I)return!0;var n=Date.now()>this.I;return n&&(this.I=0,L((function(){t.V("ping timeout")}),this.setTimeoutFn)),n},r.write=function(t,n,i){return this.J("message",t,n,i),this},r.send=function(t,n,i){return this.J("message",t,n,i),this},r.J=function(t,n,i,r){if("function"==typeof n&&(r=n,n=void 0),"function"==typeof i&&(r=i,i=null),"closing"!==this.readyState&&"closed"!==this.readyState){(i=i||{}).compress=!1!==i.compress;var e={type:t,data:n,options:i};this.emitReserved("packetCreate",e),this.writeBuffer.push(e),r&&this.once("flush",r),this.flush()}},r.close=function(){var t=this,n=function(){t.V("forced close"),t.transport.close()},i=function i(){t.off("upgrade",i),t.off("upgradeError",i),n()},r=function(){t.once("upgrade",i),t.once("upgradeError",i)};return"opening"!==this.readyState&&"open"!==this.readyState||(this.readyState="closing",this.writeBuffer.length?this.once("drain",(function(){t.upgrading?r():n()})):this.upgrading?r():n()),this},r.O=function(t){if(n.priorWebsocketSuccess=!1,this.opts.tryAllTransports&&this.transports.length>1&&"opening"===this.readyState)return this.transports.shift(),this.H();this.emitReserved("error",t),this.V("transport error",t)},r.V=function(t,n){if("opening"===this.readyState||"open"===this.readyState||"closing"===this.readyState){if(this.clearTimeoutFn(this.K),this.transport.removeAllListeners("close"),this.transport.close(),this.transport.removeAllListeners(),ft&&(this.q&&removeEventListener("beforeunload",this.q,!1),this.N)){var i=ht.indexOf(this.N);-1!==i&&ht.splice(i,1)}this.readyState="closed",this.id=null,this.emitReserved("close",t,n),this.writeBuffer=[],this.L=0}},n}(C);ct.protocol=4;var at=function(t){function n(){var n;return(n=t.apply(this,arguments)||this)._=[],n}e(n,t);var i=n.prototype;return i.onOpen=function(){if(t.prototype.onOpen.call(this),"open"===this.readyState&&this.opts.upgrade)for(var n=0;n<this._.length;n++)this.tt(this._[n])},i.tt=function(t){var n=this,i=this.createTransport(t),r=!1;ct.priorWebsocketSuccess=!1;var e=function(){r||(i.send([{type:"ping",data:"probe"}]),i.once("packet",(function(t){if(!r)if("pong"===t.type&&"probe"===t.data){if(n.upgrading=!0,n.emitReserved("upgrading",i),!i)return;ct.priorWebsocketSuccess="websocket"===i.name,n.transport.pause((function(){r||"closed"!==n.readyState&&(c(),n.setTransport(i),i.send([{type:"upgrade"}]),n.emitReserved("upgrade",i),i=null,n.upgrading=!1,n.flush())}))}else{var e=new Error("probe error");e.transport=i.name,n.emitReserved("upgradeError",e)}})))};function o(){r||(r=!0,c(),i.close(),i=null)}var s=function(t){var r=new Error("probe error: "+t);r.transport=i.name,o(),n.emitReserved("upgradeError",r)};function u(){s("transport closed")}function f(){s("socket closed")}function h(t){i&&t.name!==i.name&&o()}var c=function(){i.removeListener("open",e),i.removeListener("error",s),i.removeListener("close",u),n.off("close",f),n.off("upgrading",h)};i.once("open",e),i.once("error",s),i.once("close",u),this.once("close",f),this.once("upgrading",h),-1!==this._.indexOf("webtransport")&&"webtransport"!==t?this.setTimeoutFn((function(){r||i.open()}),200):i.open()},i.onHandshake=function(n){this._=this.nt(n.upgrades),t.prototype.onHandshake.call(this,n)},i.nt=function(t){for(var n=[],i=0;i<t.length;i++)~this.transports.indexOf(t[i])&&n.push(t[i]);return n},n}(ct),pt=function(t){function n(n){var i=arguments.length>1&&void 0!==arguments[1]?arguments[1]:{},r="object"===f(n)?n:i;return(!r.transports||r.transports&&"string"==typeof r.transports[0])&&(r.transports=(r.transports||["polling","websocket","webtransport"]).map((function(t){return et[t]})).filter((function(t){return!!t}))),t.call(this,n,r)||this}return e(n,t),n}(at);return function(t,n){return new pt(t,n)}}));
+//# sourceMappingURL=engine.io.min.js.map
+;
+function BindingHelper(handlerContext) {
+    
+    var self = {};
+    if ( typeof(handlerContext) != 'undefined' ) {
+        self = handlerContext
+    }
+    
+    /**
+     * process bindings
+     * 
+     * e.g.:
+     * result.bindings = 
+     * [
+     *     // close current popin
+     *     {
+     *         call: 'closeActivePopin'
+     *     },
+     *     // mark notification as read
+     *     {
+     *         call: 'onNotification',
+     *         payload: {
+     *             id: obj.notificationId,
+     *             action: 'mark-as-read'
+     *         }
+     *     },
+     *     {
+     *         handler: 'DocumentHandler', // targeting another handler
+     *         call: 'notify' // this method must be public
+     *     }
+     * ]
+     * 
+     * @param {array} bindings
+     * @param {number} [len]
+     * @param {number} [i] 
+     */
+    self.process = function(bindings, len, i) {
+        // handle errors first
+        if ( typeof(bindings) == 'undefined' || !Array.isArray(bindings) ) {
+            throw new Error('`bindings` must be a defined array')
+        }
+        if ( typeof(len) == 'undefined' ) {
+            len = bindings.length;
+            i = 0;
+        }
+        
+        if ( !bindings[i] )
+            return;
+        
+        var handleObject = bindings[i];
+        if ( typeof(handleObject.call) == 'undefined' )
+            throw new Error('`bindings.['+ i +'].call` is required !');
+        
+        if ( typeof(self[ handleObject.call ]) != 'function' ) 
+            throw new Error('`bindingContext.'+ handleObject.call +'` is not a function');
+        
+        // process the collection
+        var hCall = handleObject.call;
+        delete handleObject.call;
+        
+        try {
+            
+            // !! targeted handler instance must be exposed to the window object
+            if ( typeof(handleObject.handler) != 'undefined' ) {
+                
+                if ( !window[ handleObject.handler ] )
+                    throw new Error('`'+ handleObject.handler +'` could not be reached. You must expose it to the `window` do object before any call.');
+                
+                var hHandler = handleObject.handler;
+                delete handleObject.handler;
+                
+                window[ hHandler ].apply( this, Object.values(handleObject) );
+                //restore
+                handleObject.handler = hHandler
+            } else { // by default, will go to main handler or the one listening to xhr results
+                self[ hCall ].apply( this, Object.values(handleObject) );
+            }            
+            
+            //restore
+            handleObject.call = hCall;
+        } catch (err) {
+            console.error('BindingHelper encountered error while trying to execute `'+ hCall +'`' + err.stack || err);
+        }
+        
+        self.process(bindings, len, i+1)
+    }
+    
+    
+    return self
 }
+// Publish as AMD module
+define( 'helpers/binding',[],function() { return BindingHelper });
+/*
+ * This file is part of the gina package.
+ * Copyright (c) 2009-2026 Rhinostone <contact@gina.io>
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
 
+
+// nodejs dependencies
+if ( typeof(module) !== 'undefined' && module.exports) {
+    var fs              = require('fs');
+    var os              = require('os');
+    var dns             = require('dns');
+    var execSync        = require('child_process').execSync;
+    var util            = require('util');
+    var promisify       = util.promisify;
+    try {
+        // With gina framework only
+        var console         =  require('../../logger');
+    } catch (err) {}
+}
 /**
- * @module lib/collection
- * @description In-memory array collection with MongoDB-style query, update,
- * insert, delete, orderBy, and aggregation methods. Each entry gets a `_uuid`
- * index on construction. Works in Node.js (CommonJS) and browser (GFF/AMD).
+ * @module lib/domain
+ * @description Public Suffix List (PSL) based domain parser.
+ * Credits & thanks to the Mozilla Community — https://publicsuffix.org/
+ * Works in both Node.js (server) and browser (GFF) contexts.
  *
- * `Collection.length` returns entry count — do not use `.count()` as it
- * includes function properties in the count.
+ * This lib uses Fetch API (Node.js ≥ 18.0.0).
+ * See: https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch
  *
- * Dependencies: `lib/merge`, `uuid`
+ * TODO - Write a cron to periodically pull updates from `https://publicsuffix.org/`
+ * TODO - Finalize AMD module support
+ * TODO - Replace execSync of `curl` with a Node.js-native synchronous request
  */
 
 /**
- * In-memory document collection with query and mutation methods.
+ * Public Suffix List domain parser.
  *
- * @class Collection
+ * @class Domain
  * @constructor
- * @this {Collection}
+ * @this {Domain}
  *
- * @param {Array}   content      - Initial array of documents (deep-cloned on construction)
- * @param {object}  [options]                      - Options
- * @param {boolean} [options.useLocalStorage=false] - Persist to `localStorage` (browser only)
- * @param {string}  [options.locale='en']           - Locale used for string comparison
- * @returns {object} Collection instance (the enriched `content` array)
- * @throws {Error} When `content` is not an Array
- *
- * @example
- * var col = new Collection([{ id: 1, name: 'Alice' }, { id: 2, name: 'Bob' }]);
- *
- * // find — AND clause
- * col.find({ name: 'Alice' });                          // [{ id:1, name:'Alice', _uuid:'…' }]
- * // find — comparison
- * col.find({ id: '>= 1' });                             // both entries
- * // find — nested
- * col.find({ 'address.city': 'Paris' });
- * // find — within array
- * col.find({ 'tags[*].label': 'news' });
- * // OR clause (pass two filter objects)
- * col.or().find({ name: 'Alice' }, { name: 'Bob' });
- *
- * col.findOne({ id: 1 });                               // { id:1, … }
- * col.update({ id: 1 }, { name: 'Alicia' });
- * col.insert({ id: 3, name: 'Carol' });
- * col.delete({ id: 2 });
- * col.orderBy({ name: 'asc' });
- * col.toRaw();                                          // strip _uuid/_hasItsOwnUuid
+ * @param {object|function} [options]              - Options object, or a callback (shifts arguments)
+ * @param {string}  [options.filename]             - Path to the `.dat` file (default: `../dist/public_suffix_list.dat`)
+ * @param {boolean} [options.isUpdating=false]     - Trigger PSL update on instantiation
+ * @param {function} [cb]                          - Ready callback `cb(err)`
  */
-function Collection(content, options) {
+function Domain(options, cb) {
+
+    this.name = arguments.callee.name;
 
     var isGFFCtx        = ( ( typeof(module) !== 'undefined' ) && module.exports ) ? false : true;
-    var uuid            = (isGFFCtx) ? require('vendor/uuid') : require('uuid');
-    var merge           = (isGFFCtx) ? require('lib/merge') : require('../../../lib/merge');
+    // Detect if user is on IE browser
+    var isIE            = false;
+    var defaultUrl      = "/_gina/assets/public_suffix_list.dat";
+    var customEvent     = null; // isGFFCtx only
+    var myEventBus      = null;
+    if (isGFFCtx) {
+        isIE = !!window.MSInputMethodContext && !!document.documentMode;
+        defaultUrl = gina.config.webroot + defaultUrl.substring(1);
+        // Create a custom event
+        myEventBus = new EventTarget();
 
-    // defined search option rules
-    var searchOptionRules = {
-        isCaseSensitive: {
-            false: {
-                re: '^%s$',
-                modifiers: 'i'
-            },
-            true: {
-                re: '^%s$'
-            }
-        },
-        skipEval: false
-    };
-    var withOrClause = false;
-    var notInSearchModeEnabled = false;
-
-    var localSearchOptions  = null;
-
-    var defaultOptions = {
-        useLocalStorage: false,
-        locale: 'en', // TODO - get settigs.region, or user.region
-        searchOptionRules: searchOptionRules
-    };
-
-
-
-    options = (typeof(options) == 'object') ? merge(options, defaultOptions) : defaultOptions;
-
-    var keywords    = ['not null']; // TODO - null, exists (`true` if property is defined)
-    var tryEval     = function(condition) {
-        try {
-            return eval(condition);
-        } catch(err) {
-            throw new Error('Could not evaluate condition `'+ condition +'`.\n' + err.stack );
-        }
     }
 
-    if (typeof(content) == 'undefined' || content == '' || content == null)
-        content = [];
-
-    if ( !Array.isArray(content) )
-        throw new Error('`new Collection([content] [, options] )`: `content` argument must be an Array !');
-
-    content = (content) ? JSON.clone(content) : []; // original content -> not to be touched
-
-    // Indexing : uuids are generated for each entry
-    var searchIndex = [], idx = 0;
-    for (var entry = 0, entryLen = content.length; entry < entryLen; ++entry) {
-        if (!content[entry]) {
-            content[entry] = {};
-        }
-        if ( typeof(content[entry]._uuid) != 'undefined' ) {
-            content[entry]._hasItsOwnUuid = true;
-        } else {
-            content[entry]._uuid = uuid.v4();
-        }
-
-        // To avoid duplicate entries
-        searchIndex[idx] = content[entry]._uuid;
-        ++idx;
+    if ( typeof(arguments[0]) == 'function' ) {
+        cb = arguments[0];
+        options = undefined;
     }
 
-    var instance = content;
-    /**
-     * Set local search option for the current collection method call
-     *
-     * eg.:
-     *  var recCollection = new Collection(arrayCollection);
-     *  var rec =  recCollection
-     *                  .setSearchOption('city', 'isCaseSensitive', false)
-     *                  .find({ city: 'cap Town' });
-     *
-     * eg.:
-     *  var recCollection = new Collection(arrayCollection);
-     *  var searchOptions = {
-     *      city: {
-     *          isCaseSensitive: false
-     *      }
-     *  };
-     *  var rec =  recCollection
-     *                  .setSearchOption(searchOptions)
-     *                  .find({ city: 'cap Town' });     *
-     *
-     * @param {object|string} searchOptionObject or searchOptionTargetedProperty
-     * @param {string} [searchRule]
-     * @param {boolean} [searchRuleValue] - true to enable, false to disabled
-     *
-     * @returns {object} instance with local search options
-     */
-    instance['setSearchOption'] = function() {
-
-        if (!arguments.length)
-            throw new Error('searchOption cannot be left blank');
-
-        if (arguments.length > 3 || arguments.length < 3 && arguments.length > 1)
-            throw new Error('argument length mismatch');
-
-        var i       = 0
-            , len   = arguments.length
-        ;
-
-        if (len == 1) {
-            if ( typeof(arguments[0]) != 'object' )
-                throw new Error('searchOption must be an object');
-
-            for (var prop in arguments[0]) {
-                if ( typeof(searchOptionRules[prop]) == 'undefined' )
-                    throw new Error(arguments[1] + ' is not an allowed searchOption !');
-            }
-
-            localSearchOptions = arguments[0];
-        } else {
-
-            if ( !localSearchOptions )
-                localSearchOptions = {};
-
-            for (; i < len; ++i) {
-                if ( typeof(searchOptionRules[arguments[1]]) == 'undefined' )
-                    throw new Error(arguments[1] + ' is not an allowed searchOption !');
-
-                if (typeof(localSearchOptions[arguments[0]]) == 'undefined')
-                    localSearchOptions[arguments[0]] = {};
-
-                if ( /true|false/i.test(arguments[2]) ) {
-                    localSearchOptions[arguments[0]][arguments[1]] = /true/i.test(arguments[2]) ? true : false
-                } else {
-                    localSearchOptions[arguments[0]][arguments[1]] = arguments[2]
-                }
-            }
-        }
-
-        return instance
+    var defaultOptions  = {
+        // if isGFFCtx, should be place in the public folder to be served by your own host
+        // e.g.: "./public_suffix_list.dat" located under "/my-www-folder/"
+        filename            : "../dist/public_suffix_list.dat",
+        url                 : defaultUrl,
+        // url                 : "https://publicsuffix.org/list/public_suffix_list.dat",
+        alternativeUrl      : "https://raw.githubusercontent.com/publicsuffix/list/master/public_suffix_list.dat",
+        // only available from backend calls
+        isCachingRequired  : false,
+        isUpdating          : false
     }
 
-
-    instance['find'] = function() {
-        // reset
-        withOrClause = false;
-
-        if ( typeof(arguments[arguments.length-1]) == 'boolean' ) {
-            withOrClause = arguments[arguments.length-1];
-            delete arguments[arguments.length-1];
-            --arguments.length;
-        }
-
-        var filtersStr      = null;
-        var filters         = null;
-        var filtersCount    = null;
-        try {
-            filtersStr      = JSON.stringify(arguments);
-            filters         = JSON.parse(filtersStr);
-            filtersCount    = filters.count();
-        } catch( filtersError) {
-            throw new Error('filter must be an object\n'+ filtersError.stack);
-        }
-
-        if ( typeof(filters) != 'undefined' && filtersCount > 0 ) {
-
-            if (filtersCount > 1) {
-                withOrClause = true;
-            }
-            // checking filter : this should be forbidden -> { type: 'red', type: 'orange'}
-            // var filtersFields = null;
-            // for (let f = 0, fLen = filters.count(); f < fLen; f++) {
-            //     filtersFields = {};
-            //     for (let fField in filters[f]) {
-            //         if (  typeof(filtersFields[ fField ]) != 'undefined' ) {
-            //             throw new Error('Filter field can only be defined once inside a filter object !\n`Field '+ fField +'` is already defined : '+ filters[f])
-            //         }
-            //         filtersFields[ fField ] = true;
-            //     }
-            // }
-
-            var filter              = null
-                , condition         = null
-                , i                 = 0
-                //, tmpContent        = ( Array.isArray(this) && !withOrClause) ? this : JSON.clone(content)
-                , tmpContent        = ( Array.isArray(this) ) ? this : JSON.clone(content)
-                , resultObj         = {}
-                , result            = []
-                , localeLowerCase   = ''
-                , re                = null
-                , field             = null
-                , fieldWithin       = null
-                , value             = null
-                , searchOptions     = localSearchOptions
-                , searchOptionRules = options.searchOptionRules
-            ;
-
-            var matched = null
-                , filterIsArray = null
-                , searchResult = [];
-
-            /**
-             *  Regular Search
-             * @param {object} filter
-             * @param {string} field
-             * @param {strine|number|date} _content
-             * @param {number} matched
-             */
-            var search = function(filter, field, _content, matched, searchOptionRules) {
-                if (
-                    localSearchOptions
-                    && typeof(localSearchOptions[field]) != 'undefined'
-                ) {
-                    searchOptionRules = merge(localSearchOptions, searchOptionRules);
-                }
-
-                var reValidCount = null, searchOptCount = null;
-                 // null case
-                if (filter === null && _content === null) {
-                    ++matched;
-                } else if (
-                    filter
-                    && keywords.indexOf(localeLowerCase) > -1
-                    && localeLowerCase == 'not null'
-                    && typeof(_content) != 'undefined'
-                    && typeof(_content) !== 'object'
-                    && _content != 'null'
-                    && _content != 'undefined'
-                ) {
-
-                    if (result.indexOf(_content) < 0) {
-                        ++matched;
-                    }
-
-                } else if (
-                    typeof(_content) != 'undefined'
-                    && typeof(_content) !== 'object'
-                    && /(<|>|=)/.test(filter)
-                    && !/undefined|function/.test(typeof(_content))
-                    && !searchOptionRules.skipEval
-                ) { // with operations
-                    let originalFilter = filter;
-                    let condition = _content + filter;
-                    if ( typeof(filter) == 'string' && typeof(_content) == 'string' ) {
-                        let comparedValue = filter.replace(/^(<=|>=|!==|!=|===|!==)/g, '');
-                        if ( typeof(_content) == 'string' && !/^\"(.*)\"$/.test(comparedValue) ) {
-                            filter = filter.replace(comparedValue, '\"'+ comparedValue + '\"');
-                        }
-                        condition = '\"'+_content+'\"' + filter;
-                        // restoring in case of datetime eval
-                        filter = originalFilter;
-                    }
-
-                    // looking for a datetime ?
-                    if (
-                        /(\d{4})\-(\d{2})\-(\d{2})(\s+|T)(\d{2}):(\d{2}):(\d{2})/.test(_content)
-                        && /(\d{4})\-(\d{2})\-(\d{2})(\s+|T)(\d{2}):(\d{2}):(\d{2})/.test(filter)
-                    ) {
-
-                        if (tryEval(_content.replace(/(\d{4})\-(\d{2})\-(\d{2})(\s+|T)(\d{2}):(\d{2}):(\d{2})/, 'new Date("$&")') + filter.replace(/(\d{4})\-(\d{2})\-(\d{2})(\s+|T)(\d{2}):(\d{2}):(\d{2})/, 'new Date("$&")'))) {
-                            ++matched;
-                        }
-
-                    } else if (tryEval(condition)) {
-                        ++matched;
-                    }
-
-                } else if (
-                    typeof(_content) != 'undefined'
-                    && typeof(_content) !== 'object'
-                    && _content === filter
-                    && !searchOptions
-                    ||
-                    typeof(_content) != 'undefined'
-                    && typeof(_content) !== 'object'
-                    && _content === filter
-                    && typeof(searchOptions[field]) == 'undefined'
-                    ||
-                    typeof(_content) != 'undefined'
-                    && typeof(_content) !== 'object'
-                    && _content === filter
-                    && typeof(searchOptions[field]) != 'undefined'
-                    && searchOptionRules.skipEval
-                ) {
-
-                    ++matched;
-                } else if (
-                    typeof(_content) != 'undefined'
-                    && typeof(_content) !== 'object'
-                    && searchOptions
-                    && typeof(searchOptions[field]) != 'undefined'
-                ) {
-                    reValidCount    = 0;
-                    searchOptCount  = searchOptions[field].count();
-                    for ( let rule in searchOptions[field]) {
-                        if ( typeof(searchOptionRules[rule][searchOptions[field][rule]]) == 'undefined' ) {
-                            continue
-                        }
-
-                        searchOptionRules[rule][searchOptions[field][rule]].re = searchOptionRules[rule][searchOptions[field][rule]].re.replace(/\%s/, filter);
-
-                        if (searchOptionRules[rule][searchOptions[field][rule]].modifiers) {
-                            re = new RegExp(searchOptionRules[rule][searchOptions[field][rule]].re, searchOptionRules[rule][searchOptions[field][rule]].modifiers);
-                        } else {
-                            re = new RegExp(searchOptionRules[rule][searchOptions[field][rule]].re);
-                        }
-
-                        if ( re.test(_content) ) {
-                            ++reValidCount
-                        }
-                    }
-
-                    if (reValidCount == searchOptCount) {
-                        ++matched;
-                    }
-                }
-
-                return {
-                    matched: matched
-                };
-            }
-
-            var searchThroughProp = function(filter, f, _content, matched) {
-
-                var field = f.split(/\./g);
-                field = field[field.length - 1];
-                re = new RegExp('("' + field + '":\\w+)');
-
-                var value = null;
-
-                try {
-                    if ( _content )
-                        value = eval('_content.'+f);
-                } catch (err) {
-                    // Nothing to do
-                    // means that the field is not available in the collection
-                }
-
-
-
-                if (value /** && value.length > 0*/) {
-                    if ( Array.isArray(value) )
-                        value = value[1].split(/:/)[1];
-                    else if ( typeof(value) == 'string' && /\:/.test(value) )
-                        value = value.split(/:/)[1];
-
-
-                    if (/(<|>|=)/.test(filter)) {
-
-                        // looking for a datetime ?
-                        if (
-                            /(\d{4})\-(\d{2})\-(\d{2})(\s+|T)(\d{2}):(\d{2}):(\d{2})/.test(value)
-                            && /(\d{4})\-(\d{2})\-(\d{2})(\s+|T)(\d{2}):(\d{2}):(\d{2})/.test(filter)
-                        ) {
-
-                            if (tryEval(value.replace(/(\d{4})\-(\d{2})\-(\d{2})(\s+|T)(\d{2}):(\d{2}):(\d{2})/, 'new Date("$&")') + filter.replace(/(\d{4})\-(\d{2})\-(\d{2})(\s+|T)(\d{2}):(\d{2}):(\d{2})/, 'new Date("$&")'))) {
-
-                                ++matched;
-                            }
-
-                        } else if (tryEval(value + filter)) {
-
-                            ++matched;
-                        }
-
-                    } else {
-                        if (value == filter) {
-                            ++matched;
-                        }
-                    }
-
-                }
-
-                return {
-                    matched: matched
-                }
-            }
-
-            // if one of the entry matches the given filter, tag the whole entry as matched
-            var searchWithin = function(filter, f, _content, matched, i) {
-
-                var collectionName  = null
-                    , collection    = null
-                    , arr           = null
-                    , field         = null;
-
-
-                arr = f.split(/\[\*\]/g);
-                collectionName = arr[0].replace(/\[\*\]/, '');// only take the first collection
-                collection = _content[ collectionName ];
-
-
-                field = arr[1];
-                if (/^\./.test(field) )
-                    field = field.substring(1);
-
-                var subMatched = 0;
-                if (collection) {
-
-                    for (var c = 0, cLen = collection.length; c < cLen; ++c) {
-                        // cases with _filter.prop
-                        if (/\./.test(field)) {
-
-                            searchResult = searchThroughProp(filter, field, collection[c], subMatched);
-                            subMatched = searchResult.matched;
-
-                        } else { // normal case
-
-                            searchResult = search(filter, field, collection[c], subMatched, searchOptionRules);
-                            subMatched = searchResult.matched;
-                        }
-
-                        if (subMatched > 0) break;
-                    }
-                }
-
-                return {
-                    matched: (matched + subMatched)
-                }
-            }
-
-
-            for (var o in tmpContent) {
-
-                if (!tmpContent[o]) {
-                    tmpContent[o] = {}
-                }
-
-                if (!/undefined|function/.test( typeof(tmpContent[o]))) {
-
-                    for (let l = 0, lLen = filters.count(); l<lLen; ++l) {
-                        filter = filters[l];
-                        condition = filter.count();
-                        // for each condition
-                        matched = 0;
-
-                        for (var f in filter) {
-                            if ( typeof(filter[f]) == 'undefined' ) throw new Error('filter `'+f+'` cannot be left undefined');
-
-                            localeLowerCase = ( filter[f] !== null && !/(boolean|number)/.test(typeof(filter[f])) ) ? filter[f].toLocaleLowerCase() : filter[f];
-
-                            // cases with tmpContent.prop
-                            if (/\./.test(f)) {
-                                //JSON.stringify(tmpContent[o]).match(/("gross":\w+)/)[1].split(/:/)[1]
-
-                                // detect if array|collection case
-                                if (/\[\*\]/.test(f)) {
-
-                                    searchResult = searchWithin(filter[f], f, tmpContent[o], matched, 0);
-                                    matched = searchResult.matched;
-
-                                } else {
-
-                                    searchResult = searchThroughProp(filter[f], f, tmpContent[o], matched);
-                                    matched = searchResult.matched;
-                                }
-
-                            } else { // normal case
-
-                                searchResult = search(filter[f], f, tmpContent[o][f], matched, searchOptionRules);
-                                matched = searchResult.matched;
-                            }
-                        }
-
-                        if (matched == condition ) { // all conditions must be fulfilled to match
-                            // `this` {Array} is the result of the previous search or the current content
-                            // TODO - Add a switch
-                            if (
-                                withOrClause
-                                && notInSearchModeEnabled
-                                && searchIndex.indexOf(tmpContent[o]._uuid) < 0
-                                || notInSearchModeEnabled
-                                || !withOrClause
-                            ) {
-                                //console.debug('searchIndex ', searchIndex);
-                                if (!withOrClause || withOrClause && result.indexOf(tmpContent[o]._uuid) < 0 || notInSearchModeEnabled) {
-                                    result[i] = tmpContent[o];
-                                    ++i;
-                                }
-                            } else if (
-                                withOrClause
-                                && !notInSearchModeEnabled
-                            ) {
-                                if (result.indexOf(tmpContent[o]._uuid) < 0) {
-                                    result[i] = tmpContent[o];
-                                    ++i;
-                                }
-                            }
-                        }
-
-                    }
-
-                }
-            }
-        } else {
-            result = content
-        }
-
-        // reset localSearchOptions for nest calls
-        localSearchOptions = null;
-
-        // TODO - remove this
-        //if (withOrClause) {
-            // merging with previous result
-            //console.debug('withOrClause: supposed to merge ? \nnotInSearchModeEnabled: '+notInSearchModeEnabled+'\nResult: ' +result)//+'\nThis: '+ this.toRaw();
-            // if (!notInSearchModeEnabled) {
-            //     result  = merge(this, result);
-            // }
-            // TODO - remove this part
-            // Removed this on 2021-01-21 because it was causing duplicate content
-            //result  = merge(this, result, true)
-        //}
-
-        // chaining
-        //result._options         = instance._options;
-        //result.setSearchOption  = instance.setSearchOption;
-
-        result.insert           = instance.insert;
-        result.notIn            = instance.notIn;
-        result.find             = this.find;
-        result.update           = instance.update;
-        result.replace          = instance.replace;
-        result.or               = instance.or;
-        result.findOne          = instance.findOne;
-        result.limit            = instance.limit;
-        result.orderBy          = instance.orderBy;
-        result.delete           = instance.delete;
-        result.toRaw            = instance.toRaw;
-        result.filter           = instance.filter;
-
-        return result
+    if (
+        !isGFFCtx
+        && typeof(options) != 'undefined'
+        && typeof(options.webroot) != 'undefined'
+    ) {
+        defaultOptions.url = options.webroot + defaultUrl.substring(1);
     }
 
-    /**
-     * findOne
-     *
-     * E.g.:
-     *  - new Collection(projects).findOne({name: 'My Project'})
-     *  - new Collection(projects)
-     *              .setSearchOption({name: { isCaseSensitive: false }})
-     *              .findOne({name: 'my project'})
-     *
-     *
-     * Available options :
-     *  isCaseSensitive: [true|false] - set to true by default
-     *  skipEval: [true|false] - set to false by default
-     *
-     * @param {object} filter
-     *
-     * @returns {object} result
-     *
-    */
-    instance['findOne'] = function() {
-        var key         = null // comparison key
-            , result    = null
-            , filters   = null
-            //, uuidSearchModeEnabled = true
-        ;
-
-        if ( typeof(arguments[arguments.length-1]) == 'string' ) {
-            key = arguments[arguments.length - 1];
-            delete arguments[arguments.length - 1];
-            --arguments.length;
-        }
-
-        // if ( typeof(arguments[arguments.length-1]) == 'boolean' ) {
-        //     uuidSearchModeEnabled = arguments[arguments.length - 1]
-        //     delete arguments[arguments.length - 1];
-        //     --arguments.length;
-        // }
-
-        if (arguments.length > 0) {
-            filters = arguments;
-        }
-
-
-        if ( typeof(filters) == 'undefined' || !filters || typeof(filters) != 'object' ) {
-            throw new Error('[ Collection ][ findOne ] `filters` argument must be defined: Array or Filter Object(s) expected');
-        }
-
-        // If an operation (find, insert ...) has been executed, get the previous result; if not, get the whole collection
-        //var currentResult = JSON.clone( (Array.isArray(this)) ? this : content );
-        var currentResult = null;
-        var foundResults = null;
-        if ( Array.isArray(arguments[0]) ) {
-            foundResults = arguments[0];
-        } else {
-            foundResults = instance.find.apply(this, arguments) || [];
-        }
-
-        if (foundResults.length > 0) {
-            currentResult = foundResults.limit(1).toRaw()[0];
-        }
-
-        result          = currentResult;
-        return result
-    }
-
-
-    instance['or'] = function () {
-        arguments[arguments.length] = true;
-        ++arguments.length;
-
-        return instance.find.apply(this, arguments);
-    }
-
-    instance['limit'] = function(resultLimit) {
-        if ( typeof(resultLimit) == 'undefined' || typeof(resultLimit) != 'number' ) {
-            throw new Error('[Collection::result->limit(resultLimit)] : `resultLimit` parametter must by a `number`')
-        }
-
-        var result = Array.isArray(this) ? this : JSON.clone(content);
-
-        //resultLimit
-        result = result.splice(0, resultLimit);
-
-        // chaining
-        result.insert   = instance.insert;
-        result.update   = instance.update;
-        result.replace  = instance.replace;
-        result.notIn    = instance.notIn;
-        result.findOne  = instance.findOne;
-        result.orderBy  = instance.orderBy;
-        result.max      = instance.max;
-        result.delete   = instance.delete;
-        result.toRaw    = instance.toRaw;
-        result.filter   = instance.filter;
-
-        return result
-    }
-
-    /**
-     * notIn
-     * Works like a filter to match results by `excluding` through given `filters` !!
-     *
-     *  filter can be like
-     *      { car: 'toyota' }
-     *      { car: 'toyota', color: 'red' }
-     *
-     *  You can pass more than one filter
-     *      { car: 'toyota', color: 'red' }, { car: 'porche' }
-     *
-     * .notIn(filter) // AND syntax
-     * .notIn(filter1, filter2, filter3) // OR syntax
-     * .notIn(filter, 'id') where `id` is the uuid used for the DIFF - `_uuid
-     * .noIn(collectionObj, 'id')
-     *
-     * By default, Collection use its own internal `_uuid` to search and compare.
-     * This mode is called `uuidSearchModeEnabled`, and it is by default set to `true`.
-     * If you want to disable this mode in order to MATCH/DIFF by forcing check on every single filter
-     * of the resultset :
-     *      .notIn(filter, false) where false must be a real boolean
-     *
-     *
-     *
-     * @param {object|array} filters|arrayToFilter - works like find filterss
-     * @param {string} [key] - unique id for comparison; faster when provided
-    */
-    instance['notIn'] =  function(){
-
-        var arrayToFilter           = null // [] those that we don't want in the result
-            , key                   = null //  string comparison key
-            , result                = null
-            , filters               = null
-            , uuidSearchModeEnabled = true
-        ;
-
-        if ( typeof(arguments[arguments.length-1]) == 'string' ) {
-            key = arguments[arguments.length - 1];
-            delete arguments[arguments.length - 1];
-            --arguments.length;
-        }
-
-        if ( typeof(arguments[arguments.length-1]) == 'boolean' ) {
-            uuidSearchModeEnabled = arguments[arguments.length - 1]
-            delete arguments[arguments.length - 1];
-            --arguments.length;
-        }
-
-        if (arguments.length > 0) {
-            filters = arguments;
-        }
-
-
-        if ( typeof(filters) == 'undefined' || !filters || typeof(filters) != 'object' ) {
-            throw new Error('[ Collection ][ notIn ] `filters` argument must be defined: Array or Filter Object(s) expected');
-        }
-
-        // If an operation (find, insert ...) has been executed, get the previous result; if not, get the whole collection
-        var currentResult = JSON.clone( (Array.isArray(this)) ? this : content );
-
-        var foundResults = null;
-        if ( Array.isArray(arguments[0]) ) {
-            foundResults    = arguments[0];
-        } else {
-            notInSearchModeEnabled = true;
-            foundResults    = instance.find.apply(this, arguments) || [];
-            notInSearchModeEnabled = false;
-        }
-
-
-        if (foundResults.length > 0) {
-
-            // check key
-            if (
-                uuidSearchModeEnabled
-                && key
-                && typeof(foundResults[0]) == 'undefined'
-                && typeof(foundResults[0][key]) == 'undefined'
-            ) {
-                throw new Error('[ Collection ][ notIn ] `key` not valid');
-            } else if ( uuidSearchModeEnabled && !key && typeof(foundResults[0]['_uuid']) != 'undefined' ) {
-                key = '_uuid'
-            } else if ( typeof(foundResults[0]['id']) != 'undefined' ) {
-                key = 'id';
-            }
-
-            if ( !key || typeof(foundResults[0][key]) == 'undefined' ) {
-                throw new Error('No comparison key defined !')
-            }
-
-            // fast search with key
-            var r                       = 0
-                , rLen                  = foundResults.length
-                , c                     = 0
-                , cLen                  = currentResult.length
-                , f                     = 0
-                , fLen                  = filters.count()
-                , keyLen                = null
-                , matched               = 0
-                , fullFiltersMatched    = 0
-            ;
-            if ( uuidSearchModeEnabled && typeof(currentResult[c]) != 'undefined' && currentResult[c].hasOwnProperty(key) ) {
-                // for every single result found
-                for (; r < rLen; ++r) {
-
-                    if (!currentResult.length) break;
-
-                    c = 0; cLen = currentResult.length;
-                    for (; c < cLen; ++c) {
-                        if ( typeof(currentResult[c]) == 'undefined' || typeof(foundResults[r]) == 'undefined' ) {
-                            continue
-                        }
-                        // when matched, we want to remove those not in current result
-                        if (currentResult[c][key] === foundResults[r][key]) {
-                            currentResult.splice(c,1);
-                            break;
-                        }
-                    }
-                }
-            } else if ( typeof(currentResult[c]) == 'undefined' ) { //empty source case
-                // means that since we don't have a source to compare, current === found
-                currentResult = JSON.clone(foundResults);
-
-            } else { // search based on provided filters
-                // for every single result found
-                for (; r < rLen; ++r) {
-                    if (!currentResult.length) break;
-
-                    //onRemoved:
-                    c = 0; cLen = currentResult.length;
-                    for (; c < cLen; ++c) { // current results
-
-                        if ( typeof (currentResult[c]) != 'undefined' ) {
-
-                            // for each filter
-                            fullFiltersMatched = 0;
-                            f = 0;
-                            for (; f < fLen; ++f ) {
-                                if ( typeof(filters[f]) == 'undefined' ) throw new Error('filter `'+f+'` cannot be left undefined');
-
-                                keyLen = filters[f].count();
-                                matched = 0;
-                                for (key in filters[f]) {
-                                    if ( currentResult[c].hasOwnProperty(key) && currentResult[c][key] === foundResults[r][key] ) {
-                                        ++matched;
-                                    }
-                                }
-                                if (matched == keyLen) {
-                                    ++fullFiltersMatched
-                                }
-                            }
-
-                            if (fullFiltersMatched) {
-                                currentResult.splice(c,1);
-                                //break onRemoved;
-                                break;
-                            }
-
-                        }
-                    }
-                }
-            }
-
-        }
-
-        result          = currentResult;
-        result.notIn    = instance.notIn;
-        result.limit    = instance.limit;
-        result.find     = instance.find;
-        result.findOne  = instance.findOne;
-        result.insert   = instance.insert;
-        result.replace  = instance.replace;
-        result.update   = instance.update;
-        result.orderBy  = instance.orderBy;
-        result.max      = instance.max;
-        result.delete   = instance.delete;
-        result.toRaw    = instance.toRaw;
-        result.filter   = instance.filter;
-
-        return result
-    }
-
-    instance['insert'] = function (set) {
-
-        var result = null;
-        if ( typeof(set) !== 'object' ) {
-            throw new Error('filter must be an object');
-        } else {
-
-            var tmpContent = Array.isArray(this) ? this : content;
-
-            // Indexing;
-            set._uuid = uuid.v4();
-            tmpContent.push(set);
-
-            result = tmpContent;
-        }
-
-        // chaining
-        result.limit    = instance.limit;
-        result.find     = instance.find;
-        result.findOne  = instance.findOne;
-        result.update   = instance.update;
-        result.replace  = instance.replace;
-        result.orderBy  = instance.orderBy;
-        result.max      = instance.max;
-        result.notIn    = instance.notIn;
-        result.delete   = instance.delete;
-        result.toRaw    = instance.toRaw;
-        result.filter   = instance.filter;
-
-        return result
-    }
-
-    /**
-     * update
-     *
-     * @param {object} filter
-     * @param {object} set
-     *
-     * @returns {objet} instance
-     */
-    instance['update'] = function() {
-        var key         = '_uuid' // comparison key is _uuid by default
-            , result    = null
-            , filters   = null
-            , set       = null
-            //, uuidSearchModeEnabled = true
-        ;
-
-        // comparison key  : _uuid by default, but can be set to id
-        if ( typeof(arguments[arguments.length-1]) == 'string' ) {
-            key = arguments[arguments.length - 1];
-            delete arguments[arguments.length - 1];
-            --arguments.length;
-        }
-
-        if ( typeof(arguments[arguments.length-1]) == 'object' ) {
-            set = arguments[arguments.length - 1];
-            delete arguments[arguments.length - 1];
-            --arguments.length
-        }
-
-        // if ( typeof(arguments[arguments.length-1]) == 'boolean' ) {
-        //     uuidSearchModeEnabled = arguments[arguments.length - 1]
-        //     delete arguments[arguments.length - 1];
-        //     --arguments.length;
-        // }
-
-        if (arguments.length > 0) {
-            filters = arguments;
-        }
-
-
-        if ( typeof(filters) == 'undefined' || !filters || typeof(filters) != 'object' ) {
-            throw new Error('[ Collection ][ update ] `filters` argument must be defined: Array or Filter Object(s) expected');
-        }
-
-        if ( typeof(set) == 'undefined' || !set || typeof(set) != 'object' ) {
-            throw new Error('[ Collection ][ update ] `set` argument must be defined: Object expected');
-        }
-
-        // If an operation (find, insert ...) has been executed, get the previous result; if not, get the whole collection
-        var foundResults = null;
-        if ( Array.isArray(arguments[0]) ) {
-            foundResults = arguments[0];
-        } else {
-            foundResults = instance.find.apply(this, arguments) || [];
-        }
-
-        result = Array.isArray(this) ? this : JSON.clone(content);
-        if (foundResults.length > 0 ) {
-            var arr = foundResults.toRaw();
-            for (var a = 0, aLen = arr.length; a < aLen; ++a) {
-                arr[a] = merge(JSON.clone(set), arr[a]);
-                // arr[a] = merge(set, arr[a]);
-                for (var r = 0, rLen = result.length; r < rLen; ++r) {
-                    if ( typeof(result[r][key]) == 'undefined' && key == '_uuid' && typeof(result[r]['id']) != 'undefined' ) {
-                        key = 'id';
-                    }
-
-                    if ( result[r][key] == arr[a][key] ) {
-                        result[r] = arr[a];
-                        break;
-                    }
-                }
-            }
-        }
-
-        // chaining
-        result.limit    = instance.limit;
-        result.find     = instance.find;
-        result.findOne  = instance.findOne;
-        result.insert   = instance.insert;
-        result.update   = instance.update;
-        result.replace  = instance.replace;
-        result.orderBy  = instance.orderBy;
-        result.max      = instance.max;
-        result.notIn    = instance.notIn;
-        result.delete   = instance.delete;
-        result.toRaw    = instance.toRaw;
-        result.filter   = instance.filter;
-
-        return result
-    }
-
-
-    instance['replace'] = function() {
-        var key         = '_uuid' // comparison key
-            , result    = null
-            , filters   = null
-            , set       = null
-            //, uuidSearchModeEnabled = true
-        ;
-
-
-        if ( typeof(arguments[arguments.length-1]) == 'string' ) {
-            key = arguments[arguments.length - 1];
-            delete arguments[arguments.length - 1];
-            --arguments.length;
-        }
-
-        if ( typeof(arguments[arguments.length-1]) == 'object' ) {
-            set = arguments[arguments.length - 1];
-            delete arguments[arguments.length - 1];
-            --arguments.length;
-        }
-
-        // if ( typeof(arguments[arguments.length-1]) == 'boolean' ) {
-        //     uuidSearchModeEnabled = arguments[arguments.length - 1]
-        //     delete arguments[arguments.length - 1];
-        //     --arguments.length;
-        // }
-
-        if (arguments.length > 0) {
-            filters = arguments;
-        }
-
-
-        if ( typeof(filters) == 'undefined' || !filters || typeof(filters) != 'object' ) {
-            throw new Error('[ Collection ][ update ] `filters` argument must be defined: Array or Filter Object(s) expected');
-        }
-
-        if ( typeof(set) == 'undefined' || !set || typeof(set) != 'object' ) {
-            throw new Error('[ Collection ][ update ] `set` argument must be defined: Object expected');
-        }
-
-        // If an operation (find, insert ...) has been executed, get the previous result; if not, get the whole collection
-        //var currentResult = JSON.clone( (Array.isArray(this)) ? this : content );
-        var currentResult = null;
-        var foundResults = null;
-        if ( Array.isArray(arguments[0]) ) {
-            foundResults = arguments[0];
-        } else {
-            foundResults = instance.find.apply(this, arguments) || [];
-        }
-
-        result = Array.isArray(this) ? this : JSON.clone(content);
-        if (foundResults.length > 0 ) {
-            var arr = foundResults.toRaw();
-            for (var a = 0, aLen = arr.length; a < aLen; ++a) {
-                arr[a] = JSON.clone(set);
-                for (var r = 0, rLen = result.length; r < rLen; ++r) {
-                    if ( typeof(result[r][key]) == 'undefined' && key == '_uuid' && typeof(result[r]['id']) != 'undefined' ) {
-                        key = 'id';
-                    } else if (typeof(result[r][key]) == 'undefined' && key == '_uuid') {
-                        throw new Error('No comparison key defined !')
-                    }
-
-                    if ( result[r][key] == arr[a][key] ) {
-                        result[r] = arr[a];
-                        break;
-                    }
-                }
-            }
-        }
-
-        // chaining
-        result.limit    = instance.limit;
-        result.find     = instance.find;
-        result.findOne  = instance.findOne;
-        result.insert   = instance.insert;
-        result.update   = instance.update;
-        result.replace  = instance.replace;
-        result.orderBy  = instance.orderBy;
-        result.max      = instance.max;
-        result.notIn    = instance.notIn;
-        result.delete   = instance.delete;
-        result.toRaw    = instance.toRaw;
-        result.filter   = instance.filter;
-
-        return result
-    }
-
-    /**
-     * .delete({ key: 2 })
-     * .delete({ name: 'Jordan' }, ''id) where id will be use as the `uuid` to compare records
-     *
-     * AND syntax
-     * .delete({ car: 'toyota', color: 'red' })
-     *
-     * OR syntax
-     * .delete({ car: 'toyota', color: red }, { car: 'ford' } ) // will delete all `toyota red cars` & all `ford cars`
-     *
-     *  N.B.: will not affect current result - just returning the DIFF
-     *  If you
-     * @param {object} filter - same as `.find(filter)`
-     * @param {string|boolean} [ uuid | disabled ] - by default, Collection is using its internal _uuid
-     * If you want to delete without key comparison, disable `uuid` search mode
-     * .delete({ name: 'Jordan' }, false)
-     *
-     * @returns {array} result
-     */
-    instance['delete'] = function() {
-
-        var result = instance.notIn.apply(this, arguments);
-
-        result.limit    = instance.limit;
-        result.find     = instance.find;
-        result.findOne  = instance.findOne;
-        result.insert   = instance.insert;
-        result.update   = instance.update;
-        result.replace  = instance.replace;
-        result.orderBy  = instance.orderBy;
-        result.max      = instance.max;
-        result.notIn    = instance.notIn;
-        result.toRaw    = instance.toRaw;
-        result.filter   = instance.filter;
-        result.delete   = this.delete;
-
-        return result
-    }
-
-
-    var sortKeywords = [ 'asc', 'desc' ];
-    /**
-     * sort
-     *
-     * @param {object|array} filter
-     * */
-    instance['orderBy'] = function () {
-
-        if ( typeof(arguments) == 'undefined' || arguments.length < 1)
-            throw new Error('[ Collection->orderBy(filter) ] where `filter` must not be empty or null' );
-
-        var filter = null;
-        if ( arguments.length == 1 ) {
-            filter = arguments[0];
-        } else {
-            // converting arguments into array
-            filter = new Array(arguments.length);
-            for (var f = 0, fLen = filter.length; f < fLen; ++f) {
-                filter[f] = arguments[f]
-            }
-        }
-
-        var variableContent = (Array.isArray(this)) ? this : JSON.clone(content);
-        return sortResult(filter, variableContent.toRaw())
-    }
-
-    /**
-     * max
-     * E.g:
-     *  myCollection.max({ order: 'not null'})
-     *      => 5
-     *  myCollection.max({ createAt: 'not null'})
-     *      => '2021-12-31T23:59:59'
-     *  myCollection.max({ firstName: 'not null'})
-     *      => 'Zora'
-     *
-     * @param {object|array} filter
-     *
-     * @returns {number|date|string}
-     * */
-    instance['max'] = function () {
-        if ( typeof(arguments) == 'undefined' || arguments.length < 1)
-            throw new Error('[ Collection->max(filter) ] where `filter` must not be empty or null' );
-
-        var filter = null;
-        if (
-            arguments.length > 1
-            || Array.isArray(arguments[0])
-            || typeof(arguments[0]) == 'object' && arguments[0].count() > 1
-        ) {
-            throw new Error('[ Collection->max(filter) ] only accept one filter length, and fileter count must be equal to 1' );
-        }
-        filter = arguments[0];
-        try {
-            var key = Object.keys(filter)[0];
-            var subFilter = {};
-            subFilter[key] = 'desc';
-            return instance['find'](filter).orderBy(subFilter).limit(1)[0][key];
-        } catch (err) {
-            throw err
-        }
-    }
-
-    /**
-     * sortResult
-     * ref.:
-     *  https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/sort
-     *  https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/localeCompare#Browser_compatibility
-     *
-     * e.g.:
-     *  .orderBy({ name: 'asc' })
-     *
-     *  // overriding filters -> last filter is always right
-     *  .orderBy([ { updatedAt : 'desc'}, { name: 'asc' } ])
-     *
-     *  // sorting boolean
-     *  .orderBy({ isActive: 'desc'}) => will display all active(TRUE) first
-     *  NB.: Boolean are 0 (FALSE) or 1 (TRUE)
-     *
-     *  // combining filters -> the first one is always right
-     *  .orderBy({ updatedAt : 'desc'}, { name: 'asc' })
-     *
-     * @param {object|array} filter
-     * */
-    var sortResult = function (filter, content) {
-        if ( typeof(filter) != 'object') {
-            throw new Error('`filter` parametter must be an object or an array')
-        }
-
-        var condition           = filter.count()
-            , sortOp            = {}
-            , multiSortOp       = null
-            , sortRecursive     = null
-            , key               = null
-            , prop              = null
-            , result            = []
-        ;
-
-        if (condition == 0) return null;
-
-
-        // asc
-        sortOp['asc'] = function (prop, content) {
-
-            var mapped = content.map(function(obj, i) {
-                var _m = {};
-                _m.index = i;
-                _m[prop] = obj[prop];
-                return _m;
-            });
-
-            mapped.sort(function onAscSort(a, b) {
-
-
-                var _compare = function(a, b) {
-                    // handle booleans
-                    if ( /^(true|false)$/i.test(a) ) {
-                        a = ( /true/i.test(a) ) ? 1 : 0;
-                    }
-
-                    if ( /^(true|false)$/i.test(b) ) {
-                        b = ( /true/i.test(b) ) ? 1 : 0;
-                    }
-
-
-                    if ( typeof(a) == 'string' && a != '' ||  typeof(b) == 'string' ) {
-                        // Fixed on 2025-03-08: allowed to compare with one of the fields being NULL or not defined
-                        if ( typeof(a) == 'undefined' || a == null) {
-                            a = ''; // cast to string
-                        }
-                        if ( typeof(b) == 'undefined' || b == null) {
-                            b = ''; // cast to string
-                        }
-
-                        if ( typeof(a) == 'number' ) {
-                            a = ''+a; // cast to string
-                        }
-                        if ( typeof(b) == 'number' ) {
-                            b = ''+b; // cast to string
-                        }
-
-
-                        return a.localeCompare(b, undefined, {sensitivity: 'case', caseFirst: 'upper'})
-                    }
-
-                    if (a > b) {
-                        return 1;
-                    }
-                    if (a < b) {
-                        return -1;
-                    }
-                    // a must be equal to b
-                    return 0;
-                }
-
-
-                if ( typeof(a) == 'object' ) {
-                    return _compare(a[prop], b[prop])
-                }
-
-                return _compare(a, b)
-
-            });
-
-            return mapped.map(function(m, index, result){
-                return content[m.index];
-            });
-        }
-
-        // desc
-        sortOp['desc'] = function (prop, content) {
-            return sortOp['asc'](prop, content).reverse()
-        }
-
-        multiSortOp = function(content, filter) {
-
-            var props = [], keys = [];
-
-            if ( Array.isArray(filter) ) {
-                for (var f = 0, fLen = filter.length; f < fLen; ++f) {
-                    props[f] = Object.keys(filter[f])[0];
-                    keys[f] = filter[f][ props[f]] ;
-                }
-            } else {
-                var f = 0;
-                for (var flt in filter) {
-                    props[f] = flt;
-                    keys[f] = filter[flt] ;
-                    ++f;
-                }
-            }
-
-
-
-            sortRecursive = function(a, b, columns, order_by, index) {
-
-                var direction = order_by[index] == 'desc' ? 1 : 0;
-
-                var res = null, x = null, y = null;
-
-                if ( typeof(a[columns[index]]) == 'string' && a[columns[index]] != '' ) {
-
-                    res = a[columns[index]].localeCompare(b[columns[index]]);
-
-                    if ( direction == 0 && res != 0 ) {
-                        return res < 0 ? -1 : 1
-                    } else if (res != 0) {
-                        return res < 0 ? 1 : -1
-                    }
-
-                    // a must be equal to b
-                    return columns.length - 1 > index ? sortRecursive(a, b, columns, order_by, index + 1) : 0;
-
-                } else if (typeof (a[columns[index]]) == 'number' || typeof(b[columns[index]]) == 'number' ) {
-
-                    res = (''+ a[columns[index]]).localeCompare((''+ b[columns[index]]), undefined, { numeric: true });
-
-                    if (direction == 0 && res != 0) {
-                        return res < 0 ? -1 : 1
-                    } else if (res != 0) {
-                        return res < 0 ? 1 : -1
-                    }
-
-                    // a must be equal to b
-                    return columns.length - 1 > index ? sortRecursive(a, b, columns, order_by, index + 1) : 0;
-
-                } else if ( typeof(a[columns[index]]) == 'boolean' || typeof (b[columns[index]]) == 'boolean' ) {
-
-                    if ( typeof(a[columns[index]]) == 'boolean' ) {
-                        x = (a[columns[index]]) ? 1 : 0;
-                    }
-
-                    if ( typeof(b[columns[index]]) == 'boolean' ) {
-                        y = (b[columns[index]]) ? 1 : 0;
-                    }
-
-                    if (x > y) {
-                        return direction == 0 ? 1 : -1;
-                    }
-
-                    if (x < y) {
-                        return direction == 0 ? -1: 1;
-                    }
-
-                    // a must be equal to b
-                    return columns.length - 1 > index ? sortRecursive(a, b, columns, order_by, index + 1) : 0;
-
-                } else {
-
-                    if (a[columns[index]] > b[columns[index]]) {
-                        return direction == 0 ? 1 : -1;
-                    }
-
-                    if (a[columns[index]] < b[columns[index]]) {
-                        return direction == 0 ? -1 : 1;
-                    }
-                    // a must be equal to b
-                    return columns.length - 1 > index ? sortRecursive(a, b, columns, order_by, index + 1) : 0;
-                }
-            }
-
-            return content.sort(function onMultiSort(a, b) {
-                return sortRecursive(a, b, props, keys, 0);
-            });
-            // return mapped.map(function(m, index, result){
-            //     return content[m.index];
-            // });
-        }
-
-        if ( Array.isArray(filter) || filter.count() > 1 ) {
-
-            result = multiSortOp(content, filter);
-
-        } else {
-
-            prop    = Object.keys(filter)[0];
-            key     = filter[prop];
-
-            result  = sortOp[key](prop, content);
-        }
-
-
-
-        // chaining
-        result.find     = instance.find;
-        result.findOne  = instance.findOne;
-        result.limit    = instance.limit;
-        result.notIn    = instance.notIn;
-        result.insert   = instance.insert;
-        result.update   = instance.update;
-        result.replace  = instance.replace;
-        result.delete   = instance.delete;
-        result.orderBy  = instance.orderBy;
-        result.max      = instance.max;
-        result.toRaw    = instance.toRaw;
-        result.filter   = instance.filter;
-
-        return result
-    };
-
-    /**
-     * toRaw
-     * Transform result into a clean format (without _uuid)
-     *
-     * @returns {array} result
-     * */
-    instance['toRaw'] = function() {
-
-        var result = ( Array.isArray(this) ) ? this.slice() : content.slice();
-        // cleanup
-        for (var i = 0, len = result.length; i < len; ++i) {
-            if (result[i]._hasItsOwnUuid) {
-                let hasItsOwnUuid = (/^true$/i.test(result[i]._hasItsOwnUuid) ) ? true : false;
-                delete result[i]._hasItsOwnUuid;
-                if (hasItsOwnUuid) {
-                    continue;
-                }
-            }
-            if (result[i]._uuid) {
-                delete result[i]._uuid;
-            }
-        }
-
-        // return JSON.clone(result);
-        return result
-    }
-
-    /**
-     * filter
-     * Reduce record propName
-     * @param {string|array} filter
-     *  e.g: 'id'
-     *  e.g: ['id', 'name']
-     *
-     * @returns {array} rawFilteredResult
-     * */
-     instance['filter'] = function(filter) {
-
-        if ( typeof(filter) == 'undefined' ) {
-            throw new Error('`filter` parametter must be a string or an array.');
-        }
-        var result = ( Array.isArray(this) ) ? this : content;
-        if ( !result.length ) {
-            return []
-        }
-        var i = 0, len = result.length;
-        var rawFilteredResult = [], fCount = 0;
-
-        if ( Array.isArray(filter) ) {
-            var f = null, fLen = filter.length, wrote = null;
-            for (; i < len; ++i) {
-                wrote = false;
-                f = 0;
-                for (; f < fLen; ++f) {
-                    if ( typeof(result[i][ filter[f] ]) != 'undefined' ) {
-                        if ( typeof(rawFilteredResult[fCount]) == 'undefined' ) {
-                            rawFilteredResult[fCount] = {}
-                        }
-                        rawFilteredResult[fCount][ filter[f] ] = result[i][ filter[f] ];
-                        wrote = true;
-                    }
-                }
-                if (wrote)
-                    ++fCount;
-            }
-        } else {
-            for (; i < len; ++i) {
-                if ( typeof(result[i][filter]) != 'undefined' ) {
-                    if ( typeof(rawFilteredResult[fCount]) == 'undefined' ) {
-                        rawFilteredResult[fCount] = {}
-                    }
-                    rawFilteredResult[fCount][filter] = result[i][filter];
-                    ++fCount;
-                }
-            }
-        }
-
-        return JSON.clone(rawFilteredResult);
-    }
-
-
-    return instance;
-};
-
-if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
-    // Publish as node.js module
-    module.exports = Collection
-} else if ( typeof(define) === 'function' && define.amd) {
-    // Publish as AMD module
-    define('lib/collection',[],function() { return Collection })
-};
-/**
- * Gina Local Storage
- * N.B.: this is based on Web StorageAPI & Node LocalStorage
- * See.:
- *  - https://developer.mozilla.org/en-US/docs/Web/API/Web_Storage_API
- *  - https://www.npmjs.com/package/node-localstorage
- * */
-function StoragePlugin(options) {
-
-    var merge       = merge || require('lib/merge');;
-    var Collection  = Collection || require('lib/collection');
-    var uuid        = uuid || require('vendor/uuid');
-    var dateFormat  = dateFormat || require('helpers/dateFormat');
-
+    // Get the commit version
+    // cat ./framework/v0.1.6-alpha.83/core/asset/data/public_suffix_list.dat|grep 'COMMIT:'|sed 's/^\/\/ COMMIT\: //'
 
     var self = {
-        'options' : {
-            'bucket': 'default'
-        }
+        name    : this.name,
+        options : null,
+        /**@js_externs rawPSL*/
+        rawPSL  : (isGFFCtx && typeof(window) != 'undefined' && typeof(window['rawPSL']) != 'undefined' ) ? window['rawPSL'] : null,
+        PSL     : [],
     };
 
-    var bucketInstance = {};
-    var storage     = null;
+    var init = function(proto, options, cb) {
 
-    var entities    = {}, collections = {}; // entities & collections (data) objects
-    var keywords    = ['not null']; // TODO - null, exists
-
-
-    var proto = {
-        'bucket'    : undefined,
-        'drop'      : bucketDrop,
-        'Collection': Collection
-    };
-
-    var entityProto = {
-        'insert'    : collectionInsert,
-        'find'      : collectionFind,
-        'findOne'   : collectionFindOne,
-        'update'    : null,
-        'delete'    : collectionDelete,
-        'drop'      : collectionDrop
-    };
-
-    var init = function(options) {
-
-        // detect if cookies are enabled
-        if ( !window.localStorage || window.localStorage && ! typeof(window.localStorage.setItem) == 'undefined' ) {
-            throw new Error('Make sure your browser supports `window.localStorage` to use Gina Storage. See: `https://developer.mozilla.org/en-US/docs/Web/API/Web_Storage_API#Browser_compatibility`');
+        if ( typeof(options) == 'undefined' ) {
+            options = defaultOptions
+        } else {
+            // merge options
+            for(let opt in defaultOptions) {
+                if ( typeof(options[opt]) == 'undefined' ) {
+                    options[opt] = defaultOptions[opt];
+                }
+            }
         }
 
-        if ( typeof(options) != 'object' && typeof(options) != 'undefined' ) {
-            throw new Error('`options` must be an object')
-        } else if ( typeof(options) == 'undefined' ) {
-            var options = {}
+        if (!isGFFCtx) {
+            options.filename = __dirname +'/'+ options.filename;
         }
 
-        self.options    = merge(options, self.options);
-        storage         = window.localStorage;
-
-        var bucketName  = self.options['bucket'];
-        var bucket      = storage.getItem(bucketName);
-
-        if (!bucket && bucketName != undefined) {
-            //console.log('creating new bucket !');
-            bucketCreate(bucketName);
-        } else if (bucketName == undefined) {
-            throw new Error('`bucket` name cannot be undefined')
+        if (isGFFCtx && options.isCachingRequired ) {
+            console.warn('[DOMAIN] `options.isCachingRequired` is only available for backend');
+            options.isCachingRequired = false;
         }
 
-        bucketInstance['bucket'] = bucketName;
-        bucketInstance = merge(bucketInstance, proto);
+        self.options = options;
+
+        if (cb) {
+
+            return loadPSL(options, function onPSLLoaded(err) {
+                if (err) {
+                    cb(err);
+                    return
+                }
+
+                console.debug('[DOMAIN][CB] PSL Loaded');
+                // return proto
+                cb(err, proto)
+            });
+        }
+
+        // Assuming that you have previously initialized Domain
+        loadPSL(options);
+
+        console.debug('[DOMAIN] PSL Loaded');
+
+        return proto
     }
 
+    // TODO - for frontend calls only
+    var onReady = function() {
 
-
-    /**
-     * Create bucket
-     *
-     * @param {string} bucketName
-     * */
-    var bucketCreate = function(bucketName) {
-        storage.setItem(bucketName, JSON.stringify(collections));
     }
 
+    var loadPSL = async function(opt, cb) {
 
-    /**
-     * Drop bucket
-     *
-     * */
-    function bucketDrop() {
-        storage.removeItem(self.options['bucket']);
-        bucketInstance = null;
+        var filenameOrUrl   = (isGFFCtx || opt.isCachingRequired) ? opt.url : opt.filename;
+        var isUpdating      = ( typeof(opt.isUpdating) != 'undefined' ) ? opt.isUpdating : false;
+        var err             = null;
 
-        for (var prop in this) {
-            delete this[prop]
+        if (isGFFCtx) {
+
+            if (self.rawPSL && !isUpdating) {
+                cb(false);
+                return;
+            }
+
+            if (!window.fetch) {// just in case
+                err = new Error('[DOMAIN] Fetch API not supported');
+                cb(err);
+                return;
+            }
+
+            myEventBus.addEventListener('domain_psl.loaded', (event) => {
+                // console.log('Data loaded:', event.detail.data);
+                // console.log('Timestamp:', event.detail.timestamp);
+                cb(event.detail.error);
+            });
+
+
+            if ( window['gina']['_global']['initialized'].indexOf( self.name ) > -1 ) {
+                return;
+            }
+
+            if ( window['gina']['_global']['initialized'].indexOf( self.name ) == -1 ) {
+                window['gina']['_global']['initialized'].push( self.name );
+            }
+
+            var response = null
+                , result = null
+            ;
+            try {
+                response    = await fetch(filenameOrUrl);
+                result      = await response.text();
+
+                self.rawPSL = window['rawPSL'] = result;
+
+            } catch (PSLErr) {
+                // There was an error
+                // console.warn('[DOMAIN] Could not load PSL', err.stack || err.message || err);
+                err = new Error('[DOMAIN] Could not load PSL\n'+ (PSLErr.stack || PSLErr.message || PSLErr) );
+                // cb(err);
+                myEventBus.dispatchEvent(
+                    new CustomEvent('domain_psl.loaded', {
+                        detail: {
+                            data: null,
+                            error: err,
+                            timestamp: new Date()
+                        }
+                    })
+                );
+                return;
+            }
+
+            opt.isUpdating = false;
+
+            myEventBus.dispatchEvent(
+                new CustomEvent('domain_psl.loaded', {
+                    detail: {
+                        data: result,
+                        error: false,
+                        timestamp: new Date()
+                    }
+                })
+            );
+
+            return;
         }
 
-        return bucketInstance;
-    }
+        // file exists ?
+        var exists = false;
+        if ( typeof(fs.accessSync) != 'undefined' ) {
+            try {
+                fs.accessSync(opt.filename, fs.constants.F_OK);
+                exists = true;
+            } catch (err) {
+                exists = false;
+                // to handle symlinks
+                try {
+                    if ( fs.lstatSync(opt.filename).isSymbolicLink() ) {
+                        exists = true
+                    }
+                } catch (linkErr) {}
+            }
+        } else { // support for old version of nodejs
+            exists = fs.existsSync(opt.filename);
+        }
 
-    var collectionSave = function (enforceDeleted) {
+        if (!exists) {
+            opt.isCachingRequired = true;
+        }
 
-        var enforceDeleted = enforceDeleted || false;
+        if (opt.isCachingRequired) { // Fetch is only supported from NodeJS >= 18.0.0
+            var cmd = 'curl -o '+opt.filename +' '+ opt.url +' >/dev/null 2>&1';
+            console.debug('[DOMAIN] Running: '+ cmd);
+            try {
+                console.debug( execSync(cmd).toString() );
+            } catch (err) {
+                console.warn('[DOMAIN] could not fetch from `'+ opt.url +'`. Trying with `'+ opt.alternativeUrl +'`');
+                cmd = 'curl -o '+opt.filename +' '+ opt.alternativeUrl +' >/dev/null 2>&1';
+                try {
+                   console.debug( execSync(cmd).toString() );
+                } catch (altErr) {
+                    cb(altErr);
+                    return;
+                }
+            }
+            // Waiting for the file to be written
+            var found = false;
+            nIntervId = setInterval(() => {
+                // Check for modules availability
+                if ( typeof(fs.accessSync) != 'undefined' ) {
+                    try {
+                        fs.accessSync(opt.filename, fs.constants.F_OK);
+                        found = true;
+                    } catch (err) {
+                        found = false;
+                        // to handle symlinks
+                        try {
+                            if ( fs.lstatSync(opt.filename).isSymbolicLink() ) {
+                                found = true
+                            }
+                        } catch (linkErr) {}
+                    }
+                } else { // support for old version of nodejs
+                    found = fs.existsSync(opt.filename);
+                }
 
+                if ( found ) {
+                    clearInterval(nIntervId);
+                    self.rawPSL = fs.readFileSync(opt.filename).toString();
+                    cb(false);
+
+                    return
+                }
+            }, 200);
+
+
+            // TODO - Synchronize this instead of using CURL
+            // var http = require('http');
+
+            // var port = 80;
+            // var urlArr = opt.url.match(/^(http|https)\:\/\/(.*)\//)[0].split(/\//g);
+            // if ( /\:\d+$/.test(urlArr[1]) ) {
+            //     port = ~~(urlArr[1].match(/\:\d+$/)[0].replace(/^\:/, ''));
+            //     urlArr[1] = urlArr[1].replace(/\:\d+$/, '');
+            // }
+            // var hostname = urlArr[0] +'//'+ urlArr[1];
+            // var path = '/'+ opt.url.split(/\//g).splice(3).join("/");
+
+            // var data = '';
+
+            // var requestOpt = {
+            //     hostname: hostname,
+            //     port: port,
+            //     path: path,
+            //     method: 'GET'
+            // };
+
+            // var req = await http.request(options, (res) => {
+            //     res.setEncoding('utf8');
+            //     res.on('data', (chunk) => {
+            //         console.log(`BODY: ${chunk}`);
+            //         data += chunk;
+            //     });
+            //     res.on('end', () => {
+            //         console.log('No more data in response.');
+            //     });
+            // });
+
+            // req.on('error', (e) => {
+            //     console.error(`problem with request: ${e.message}`);
+            // });
+
+            // req.end();
+
+            // self.rawPSL = data.toString();
+
+
+
+        }
+
+        // Just in case some one delete it once `Domain` has been inatialized
         try {
-            //backing up collections
-            var tmpCollections  = JSON.clone(collections);
-            var index           = this['_index'];
-            var collection      = this['_collection'];
-            var bucket          = this['_bucket'];
-            var filter          = this['_filter'];
-            this['_updatedAt']  = new Date().format("isoDateTime");
-
-            // merge(tmpCollections[ collection ][ index ], this, true);
-            tmpCollections[ collection ][ index ] = merge(tmpCollections[ collection ][ index ], this, true);
-
-            // cleaning
-            delete tmpCollections[ collection ][ index ]['_index'];
-            delete tmpCollections[ collection ][ index ]['_collection'];
-            delete tmpCollections[ collection ][ index ]['_bucket'];
-            delete tmpCollections[ collection ][ index ]['save'];
-            delete tmpCollections[ collection ][ index ]['_filter'];
-
-            if (enforceDeleted && typeof(tmpCollections[ collection ][ index ]) == 'object' ) {
-
-                var parseEnforcedCollection = function (arr, target) {
-                    for (var i = 0, len = arr.length; i < len; ++i) {
-                        if ( typeof (target[i]) == 'object' && typeof(arr[i]) != 'undefined' && !Array.isArray(arr[i]) ) {
-                            parseEnforced(arr[i], target[i])
-                        } else if ( !Array.isArray(arr[i]) ){
-                            if (typeof(arr[i]) == 'undefined') {
-                                delete target[i]
-                            }
-                        } else { // is collection type
-                            parseEnforcedCollection(arr[i], target[i])
-                        }
-                    }
-
-                    return target
-                }
-
-                var parseEnforced = function (obj, target) {
-                    for (var prop in target) {
-                        if ( typeof (target[prop]) == 'object' && typeof(obj[prop]) != 'undefined' && !Array.isArray(obj[prop]) ) {
-                            parseEnforced(obj[prop], target[prop])
-                        } else if ( !Array.isArray(obj[prop]) ){
-                            if (typeof(obj[prop]) == 'undefined') {
-                                delete target[ prop ]
-                            }
-                        } else { // is collection type
-                            parseEnforcedCollection(obj[prop], target[prop])
-                        }
-                    }
-
-                    return target
-                };
-
-                if ( Array.isArray(tmpCollections[ collection ][ index ]) ) {
-                    tmpCollections[ collection ][ index ] = parseEnforcedCollection(this, tmpCollections[ collection ][ index ])
-                } else if ( typeof(tmpCollections[ collection ][ index ] ) == 'object' ) {
-                    tmpCollections[ collection ][ index ] = parseEnforced(this, tmpCollections[ collection ][ index ])
-                } else {
-                    if (typeof(this[prop]) == 'undefined') {
-                        delete tmpCollections[ collection ][ index ]
-                    }
-                }
-            }
-
-            collections[ collection ][ index ] = tmpCollections[ collection ][ index ];
-
-            // saving
-            storage.setItem(bucket, JSON.stringify(collections));
-
-            return collectionFindOne(filter)
-
+            self.rawPSL = fs.readFileSync(opt.filename).toString();
+            if (cb)
+                cb(false)
         } catch (err) {
-            throw err
+            console.warn('[DOMAIN] could not read from `'+ opt.filename +'`');
+            loadPSL(options, cb)
         }
     }
 
-    /**
-     * Create or Get Collection by name
-     *
-     * @param {string} name - Collection name
-     * */
-    function Collection(name) {
-        // retrieve collections state
-        collections = JSON.parse(storage.getItem(this['bucket']));
-        //console.log('collections ', (collections || null) );
-        if ( typeof(collections[name]) == 'undefined' ) {
-            collections[name] = [];
-            storage.setItem(this['bucket'], JSON.stringify(collections));
-            collections = JSON.parse(storage.getItem(this['bucket']));
-        }
-
-        entities[name]      = { '_collection': name, '_bucket': this['bucket'] };
-        entities[name]      = merge(entities[name], entityProto);
-
-        return entities[name]
+    var updatePSL = function(cb) {
+        self.options.isUpdating = true;
+        loadPSL(self.options, cb);
     }
 
     /**
-     * Drop collection
+     * Usage : await domainInstance.getFQDN()
+     * @param {string} hostname (one that can be resolved)
      *
-     * @param {string} name
-     * */
-    function collectionDrop(name) {
-        if ( typeof(collections[ this['_collection'] ]) == 'undefined' ) {
-            throw new Error('Collection `'+name+'` not found')
+     * @return {string} fqdn
+     */
+    var getFQDN = async function(hostname) {
+        var host = (
+            typeof(hostname) != 'undefined'
+            && hostname != ''
+        ) ? hostname : os.hostname();
+        if ( /\./.test(host) ) {
+            return host
         }
 
-        delete entities[ this['_collection'] ]; // delete entity
-        delete collections[ this['_collection'] ]; // delete data
+        console.debug('[DOMAIN][getFQDN] FQDN: ' + host);
+        var ipObj       = null
+            , err       = null
+        ;
+        ipObj = await promisify(dns.lookup)(host, { hints: dns.ADDRCONFIG || dns.V4MAPPED })
+                    .then( function onIP(result) {
+                        console.debug('[DOMAIN][getFQDN] IP: ' + result.address);
+                        console.debug('[DOMAIN][getFQDN] FAMILY: ' + result.family);
 
-        storage.setItem(this['_bucket'], JSON.stringify(collections));
+                        return result;
+                    })
+                    .catch( function onIPErr(_err) {
+                        err = _err;
+                    });
+        if (err) {
+            throw err;
+        }
+        host = await promisify(dns.lookupService)(ipObj.address, 0)
+                    .then( function onLookupService(result) {
+                        console.debug('[DOMAIN][getFQDN] FQDN: ' + result.hostname);
+                        console.debug('[DOMAIN][getFQDN] Service: ' + result.service);
+
+                        return result.hostname;
+                    })
+                    .catch( function onLookupServiceErr(err) {
+                        err = _err;
+                    });
+        if (err) {
+            throw err;
+        }
+
+        if ( !/\./.test(host) ) {
+            throw new Error('[DOMAIN][getFQDN] `'+ host +'` is not a FQDN !');
+        }
+
+        return host;
     }
 
 
     /**
-     * Insert into collection
+     * Load a json file and removing comments if found
      *
-     * @param {object} content
+     * @return {string} filename - path
+     * @return {boolean} [jsonFormat] - false by default
      * */
-    function collectionInsert(content) {
-
-        // TODO - add uuid
-        content['_id']         = uuid.v1();
-        content['_createdAt']  = new Date().format("isoDateTime");
-        content['_updatedAt']  = new Date().format("isoDateTime");
-
-        collections[ this['_collection'] ][ collections[ this['_collection'] ].length ] = content;
-
-        storage.setItem(this['_bucket'], JSON.stringify(collections));
-    }
-
-    /**
-     * Find from collection
-     *
-     * // TODO - add options
-     *
-     * @param {object} filter
-     * @param {object} [options] - e.g.: limit
-     *
-     * @returns {array} result
-     * */
-    function collectionFind(filter, options) {
-        if (!filter) {
-            // TODO - limit of ten by
-            return collections[ this['_collection'] ]
+    var getRootDomain = function(urlOrHostname, jsonFormat) {
+        if ( typeof(jsonFormat) == 'undefined' ) {
+            jsonFormat = false
         }
+        urlOrHostname = urlOrHostname.trim();
+        var isSLD = false
+            , isRegisteredTldOrSld = false
+            , rootDomain = urlOrHostname.replace(/^(.*)\:\/\/|\/(.*)/g, '')
+            // we don't want sub domains: that's why the `.reverse()` is for
+            , rootDomainArr = rootDomain.split(/\./g).reverse()
+            // TLD by default
+            , rootDomainIndex = (rootDomainArr.length) ? rootDomainArr.length-1 : 0
+        ;
 
-        if ( typeof(filter) !== 'object' ) { // == findAll
-            throw new Error('filter must be an object');
-        } else {
-            //console.log('search into ', this['_collection'], collections[ this['_collection'] ], collections);
-            var content             = collections[ this['_collection'] ]
-                , condition         = filter.count()
-                , i                 = 0
-                , found             = []
-                , localeLowerCase   = '';
+        var list = self.rawPSL
+                // remove comments & empty lines
+                .replace(/\/\/\s*(.*)\n|^\s*\n/gm, '')
+                .split(/\n/)
+                .filter( function onFiltered(item, i, iArr) {
+                    // formating ^!, ^. & removing extra junk
+                    // this is specific to the ginven extensions list
+                    if ( /[^a-z 0-9.]+/.test(item) ) {
+                        item = item.replace(/[^a-z 0-9.]+/g, '').replace(/^\./g, '');
+                    }
 
-            for (var o in content) {
-                for (var f in filter) {
-                    localeLowerCase = ( typeof(filter[f]) != 'boolean' ) ? filter[f].toLocaleLowerCase() : filter[f];
-                    if ( filter[f] && keywords.indexOf(localeLowerCase) > -1 && localeLowerCase == 'not null' && typeof(content[o][f]) != 'undefined' && typeof(content[o][f]) !== 'object' && content[o][f] != 'null' && content[o][f] != 'undefined' ) {
-                        if (found.indexOf(content[o][f]) < 0 ) {
-                            found[i] = content[o][f];
-                            ++i
+                    // retain only SLD
+                    if ( /\./.test(item) ) {
+                        if ( !isSLD && new RegExp('.'+item +'$').test(rootDomain) ) {
+                            // Found SLD
+                            isSLD = true;
+                            // console.debug('Found '+ item);
+                            rootDomainIndex = item.split(/\./g).length;
+                            // Stop here
+                            iArr.splice(0, iArr.length);
+                            return false;
                         }
 
-                    } else if ( typeof(content[o][f]) != 'undefined' && typeof(content[o][f]) !== 'object' && content[o][f] === filter[f] ) {
-                        found[i] = content[o];
-                        ++i
+                        return item
                     }
+                    // also get tld to check later if valid/registered
+                    return item
+                });
+
+        // Local or unregistered domain
+        rootDomain = rootDomainArr[rootDomainIndex];
+
+        // TLD & SLD
+        if (rootDomainIndex > 0 ) {
+            // rootDomainArr  = rootDomainArr.splice(0, rootDomainIndex);
+            // rootDomain += '.'+ rootDomainArr.reverse().join('.');
+
+            rootDomainArr  = rootDomainArr.splice(0, rootDomainIndex);
+            var suffix = rootDomainArr[0];
+            // Remove port number
+            if ( /\:(.*)$/.test(suffix) ) {
+                suffix = suffix.replace(/\:(.*)$/, '');
+            }
+            isRegisteredTldOrSld = ( isSLD || !isSLD && list.indexOf(suffix) > -1 ) ? true : false;
+            if (isRegisteredTldOrSld /**&& isSLD || !isSLD && list.indexOf(suffix) < 0*/ ) {
+                if (rootDomainIndex > 1 && !isSLD) {
+                    // This is a TLD
+                    rootDomainArr.splice(2);
+                    rootDomain = rootDomainArr.reverse().join('.');
+                } else {
+                    rootDomain += '.'+ rootDomainArr.reverse().join('.');
+                }
+
+            } else {
+                if (rootDomainIndex > 1) {
+                    // Only allowing pseudo TLD here
+                    rootDomainArr.splice(2);
+                    rootDomain = rootDomainArr.reverse().join('.');
+                } else {
+                    rootDomain += '.'+ rootDomainArr.reverse().join('.');
                 }
             }
         }
 
-        return found
-    }
+        // Remove port number
+        if ( /\:(.*)$/.test(rootDomain) ) {
+            rootDomain = rootDomain.replace(/\:(.*)$/, '');
+        }
 
-    //function collectionLimit(limit) {}
-
-    /**
-     * Find a single result from collection
-     *
-     * e.g:
-     *  // getting a record
-     *  > var objectRecord = <bucket>.Collection('myBucket').findOne({_name: "someName"});
-     *
-     *  // updating record by adding or updating an existing property
-     *  > objectRecord.myProperty = 'some value';
-     *  > objectRecord.save();
-     *
-     *  // deleting record
-     *  > objectRecord.myProperty.delete()
-     *
-     * @param {object} filter
-     *
-     * @returns {object|array|string} result
-     *
-     * */
-    function collectionFindOne(filter) {
-
-        if ( typeof(filter) !== 'object' ) {
-            throw new Error('filter must be an object');
-        } else {
-            var content             = collections[ this['_collection'] ]
-                , condition         = filter.count()
-                , i                 = 0
-                , result            = null
-                , localeLowerCase   = '';
-
-
-            //console.log('condition ', condition, '\nfitler', filter, '\ncontent', content);
-            if (condition == 0) return null;
-
-            for (var o in content) {
-                for (var f in filter) {
-                    localeLowerCase = ( typeof(filter[f]) != 'boolean' ) ? filter[f].toLocaleLowerCase() : filter[f];
-                    if ( filter[f] && keywords.indexOf(localeLowerCase) > -1 && localeLowerCase == 'not null' && typeof(content[o][f]) != 'undefined' && typeof(content[o][f]) !== 'object' && content[o][f] === filter[f] && content[o][f] != 'null' && content[o][f] != 'undefined' ) {
-                        if (result.indexOf(content[o][f]) < 0 ) {
-                            ++i;
-                            if (i === condition) {
-                                result                   = content[o];
-                                result['_index']         = o;
-                                result['_collection']    = this['_collection'];
-                                result['_bucket']        = this['_bucket'];
-                            }
-
-                        }
-
-                    } else if ( typeof(content[o][f]) != 'undefined' && typeof(content[o][f]) !== 'object' && content[o][f] === filter[f] ) {
-                        ++i;
-                        if (i === condition) {
-                            result                   = content[o];
-                            result['_index']         = o;
-                            result['_collection']    = this['_collection'];
-                            result['_bucket']        = this['_bucket'];
-                            result['_filter']        = filter;
-                        }
-                    }
-                }
+        console.debug('[DOMAIN] isSLD: '+ isSLD, urlOrHostname, ' -> ', rootDomain);
+        if ( /^true$/i.test(jsonFormat) ) {
+            return {
+                value               : rootDomain,
+                isSLD               : isSLD,
+                isRegisteredTldOrSld: isRegisteredTldOrSld
             }
         }
-
-        if (result) {
-            /**
-             * save
-             *  e.g.:
-             *      // updating property
-             *      <obj>.property = 'value';
-             *      <obj>.save();
-             *
-             *      // deleting property
-             *      delete <obj>.property;
-             *      <obj>.save(true);
-             *
-             * @param {boolean} enforceDeleted
-             * */
-            result['save'] = collectionSave
+        return {
+            value               : rootDomain,
+            isSLD               : isSLD,
+            isRegisteredTldOrSld: isRegisteredTldOrSld
         }
-
-
-        return result
     }
 
-    /**
-     * Delete from collection
-     *
-     * @param {object} filter
-     *
-     * @returns {array} result
-     * */
-    function collectionDelete(filter) {
-
-        if ( typeof(filter) !== 'object' ) {
-            throw new Error('filter must be an object');
-        } else {
-            var content     = JSON.clone( collections[ this['_collection'] ] )
-                //, condition = filter.count()
-                , i         = 0
-                , found     = [];
-
-            for (var o in content) {
-                for (var f in filter) {
-                    if ( filter[f] && keywords.indexOf(filter[f].toLocaleLowerCase()) > -1 && filter[f].toLowerCase() == 'not null' && typeof(content[o][f]) != 'undefined' && typeof(content[o][f]) !== 'object' && content[o][f] != 'null' && content[o][f] != 'undefined' ) {
-                        if (found.indexOf(content[o][f]) < 0 ) {
-                            found[i] = content[o][f];
-                            delete collections[ this['_collection'] ][o][f];
-                            ++i
-                        }
-
-                    } else if ( typeof(content[o][f]) != 'undefined' && typeof(content[o][f]) !== 'object' && content[o][f] === filter[f] ) {
-                        found[i] = content[o];
-                        collections[ this['_collection'] ].splice(o, 1);
-                        ++i
-                    }
-                }
-            }
-        }
-
-        if (found.length > 0 ) {
-            storage.setItem(this['_bucket'], JSON.stringify(collections));
-            return true
-        }
-
-        return false
+    // Both backend & frontend
+    var _proto = {
+        getRootDomain   : getRootDomain
+    };
+    // Backend proto only
+    if (!isGFFCtx) {
+        _proto.updatePSL    = updatePSL;
+        _proto.getFQDN      = getFQDN;
+    }
+    // Frontend only
+    else {
+        _proto.onReady = onReady;
     }
 
-    init(options);
+
+    if (isGFFCtx && isIE && !window.fetch) {
+        // Create Promise polyfill script tag
+        var promiseScript = document.createElement("script");
+        promiseScript.type = "text/javascript";
+        promiseScript.src =
+            "https://cdn.jsdelivr.net/npm/promise-polyfill@8.1.3/dist/polyfill.min.js";
+
+        // Create Fetch polyfill script tag
+        var fetchScript = document.createElement("script");
+        fetchScript.type = "text/javascript";
+        fetchScript.src =
+            "https://cdn.jsdelivr.net/npm/whatwg-fetch@3.4.0/dist/fetch.umd.min.js";
+
+        // Add polyfills to head element
+        document.head.appendChild(promiseScript);
+        document.head.appendChild(fetchScript);
+
+        // Wait for the polyfills to load and run the function.
+        // TODO - add a setinterval to trigger `onFetchReady`event
+        return setTimeout(() => {
+            return init(_proto, options, cb)
+        }, 500);
+    } else {
+        return init(_proto, options, cb)
+    }
 
 
-    return bucketInstance
-};
+
+}//EO Domain.
 
 if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
     // Publish as node.js module
-    var merge       = require('lib/merge'); //require('../../../../../lib/merge');
-    var Collection  = require('lib/collection'); //require('../../../../../lib/collection');
-    var uuid        = require('uuid');
-
-    module.exports = StoragePlugin
-
+    module.exports = Domain
 } else if ( typeof(define) === 'function' && define.amd) {
     // Publish as AMD module
-    define('gina/storage', ['helpers/dateFormat', 'helpers/prototypes'],function() { return StoragePlugin })
-};
+    define( 'lib/domain',[],function() { return Domain })
+}
+;
+define('gina/link', [ 'require', 'lib/domain', 'lib/merge', 'utils/events' ], function (require) {
+
+    // removed: jquery dependency
+    // removed: uuid dependency (replaced by crypto.randomUUID())
+    var Domain          = require('lib/domain');
+    var domainInstance  = null;
+    var merge           = require('lib/merge');
+
+    require('utils/events'); // events
+
+    /**
+     * Gina Link Handler
+     *
+     * Activate binding with: `data-gina-link`
+     * Optional, if your a.href is empty or with another value than the targeted action : `data-gina-link-url`
+     *
+     * @param {object} options
+     * */
+    function Link(options) {
+
+        this.plugin = 'link';
+
+        var events  = ['loaded', 'ready', 'open', 'close', 'destroy', 'success', 'error', 'progress'];
+        registerEvents(this.plugin, events);
+
+        var self = { // local use only
+            'options' : {
+                'url' : undefined,
+                'class': 'gina-link-default'
+            },
+            authorizedEvents : ['ready', 'success', 'error'],
+            events: {}
+        };
+
+        var instance        = {
+            plugin          : this.plugin,
+            id              : 'gina-links-' + crypto.randomUUID(),
+            on              : on,
+            eventData       : {},
+
+            '$links'       : {},
+            target          : document, // by default
+            isReady         : false,
+            initialized     : false
+        };
+
+        // link proto
+        var $link          = { // is on main `gina-links` container (first level)
+            'plugin'            : this.plugin,
+            'on'                : on,
+            'eventData'         : {},
+            'target'            : document, // by default
+
+            'url'               : null,
+            'request'           : null,
+            '$forms'            : []
+        };
+
+
+
+        // XML Request
+        var xhr = null;
+
+        /**
+         * XML Request options
+         * */
+        var xhrOptions = {
+            'url'           : '',
+            'method'        : 'GET',
+            'isSynchrone'   : false,
+            'withCredentials': true, // if should be enabled under a trusted env
+            'headers'       : {
+                // cross domain is enabled by default, but you need to setup `Access-Control-Allow-Origin`
+                'X-Requested-With': 'XMLHttpRequest' // to set isXMLRequest == true && in case of cross domain origin
+
+            }
+        };
+
+        var registeredLinks = [];
+
+
+
+        var proxyClick = function($childNode, $el, evt) {
+
+            addListener(gina, $childNode, 'click', function(e) {
+                cancelEvent(e);
+
+                triggerEvent(gina, $el, evt);
+            });
+        }
+
+        var getLinkById = function(id) {
+            return ( typeof(instance.$links[id]) != 'undefined' ) ? instance.$links[id] : null;
+        }
+
+        var getLinkByUrl = function(url) {
+            var $link = null;
+
+            for (var p in gina.link.$links) {
+                if ( typeof(gina.link.$links[p].url) != 'undefined' && gina.link.$links[p].url == url ) {
+                    $link = gina.link.$links[p];
+                    break;
+                }
+            }
+
+            return $link;
+        }
+
+
+
+        /**
+         * linkRequest
+         *
+         * @param {string} url
+         * @param {object} [options]
+         * */
+        function linkRequest(url, options) {
+
+            // link object
+            var $link      = getLinkByUrl(url);
+            var id         = $link.id;
+
+
+            // link element
+            var $el         = document.getElementById(id) || null;
+
+            var hLinkIsRequired = null;
+            // forward callback to HTML data event attribute through `hform` status
+            hLinkIsRequired = ( $el.getAttribute('data-gina-link-event-on-success') || $el.getAttribute('data-gina-link-event-on-error') ) ? true : false;
+            // success -> data-gina-form-event-on-submit-success
+            // error -> data-gina-form-event-on-submit-error
+            if (hLinkIsRequired)
+                listenToXhrEvents($link);
+
+            // if ( $el == null ) {
+
+            //     //var className   = $link.options.class +' '+ id;
+            //     $el             = document.createElement('a');
+            //     $el.setAttribute('id', id);
+            //     //$el.setAttribute('class', className);
+            //     instance.target.firstChild.appendChild($el);
+            // }
+
+            if ( typeof(options) == 'undefined' ) {
+                options = xhrOptions;
+            } else {
+                options = merge(options, xhrOptions);
+            }
+
+            if ( /^(http|https)\:/.test(url) && !new RegExp('^' + window.location.protocol + '//'+ window.location.host).test(url) ) {
+                // is request from same domain ?
+                //options.headers['Origin']   = window.protocol+'//'+window.location.host;
+                //options.headers['Origin']   = '*';
+                //options.headers['Host']     = 'https://freelancer-app.fr.local:3154';
+                var hostRootDomain  = domainInstance.getRootDomain(window.location.hostname).value;
+                var urlRootDomain   = domainInstance.getRootDomain(url).value;
+                var isSameDomain    = (hostRootDomain === urlRootDomain) ? true : false;
+                // var isSameDomain    = ( new RegExp(window.location.hostname).test(url) ) ? true : false;
+
+                if (gina.config.envIsDev) {
+                    console.debug('Checking CORS from Popin plugin...\TODO - local CORS Proxy');
+                    console.debug('Is request from same domain ? ', isSameDomain);
+                }
+                if (!isSameDomain) {
+                    // proxy external urls
+                    // TODO - instead of using `cors.io`, try to intégrate a local CORS proxy similar to : http://oskarhane.com/avoid-cors-with-nginx-proxy_pass/
+                    //url = url.match(/^(https|http)\:/)[0] + '//cors.io/?' + url;
+                    url = url.match(/^(https|http)\:/)[0] + '//corsacme.herokuapp.com/?'+ url;
+                    //delete options.headers['X-Requested-With']
+                }
+            }
+            options.url     = url;
+            // updating link options
+            if ($link && typeof($link.options) != 'undefined')
+                options  = merge($link.options, options);
+
+
+            if ( options.withCredentials ) { // Preflighted requests
+                if ('withCredentials' in xhr) {
+                    // XHR for Chrome/Firefox/Opera/Safari.
+                    if (options.isSynchrone) {
+                        xhr.open(options.method, options.url, options.isSynchrone)
+                    } else {
+                        xhr.open(options.method, options.url)
+                    }
+                } else if ( typeof XDomainRequest != 'undefined' ) {
+                    // XDomainRequest for IE.
+                    xhr = new XDomainRequest();
+                    xhr.open(options.method, options.url);
+                } else {
+                    // CORS not supported.
+                    xhr = null;
+                    var result = 'CORS not supported: the server is missing the header `"Access-Control-Allow-Credentials": true` ';
+                    triggerEvent(gina, $el, 'error.' + id, result)
+                }
+            } else { // simple requests
+
+                if (options.isSynchrone) {
+                    xhr.open(options.method, options.url, options.isSynchrone)
+                } else {
+                    xhr.open(options.method, options.url)
+                }
+            }
+
+
+
+            if (!xhr)
+                throw new Error('No `xhr` object initiated');
+
+
+            options.$link = $link;
+            //xhr = handleXhr(xhr, $el, options);
+            handleXhr(xhr, $el, options, require);
+            // sending
+            xhr.send();
+        }
+
+        // var listenToXhrEvents = function($link) {
+
+        //     //data-gina-link-event-on-success
+        //     var htmlSuccesEventCallback =  $link.target.getAttribute('data-gina-link-event-on-success') || null;
+        //     if (htmlSuccesEventCallback != null) {
+
+        //         if ( /\((.*)\)/.test(htmlSuccesEventCallback) ) {
+        //             eval(htmlSuccesEventCallback)
+        //         } else {
+        //             $link.on('success.hlink',  window[htmlSuccesEventCallback])
+        //         }
+        //     }
+
+        //     //data-gina-link-event-on-error
+        //     var htmlErrorEventCallback =  $link.target.getAttribute('data-gina-link-event-on-error') || null;
+        //     if (htmlErrorEventCallback != null) {
+        //         if ( /\((.*)\)/.test(htmlErrorEventCallback) ) {
+        //             eval(htmlErrorEventCallback)
+        //         } else {
+        //             $link.on('error.hlink', window[htmlErrorEventCallback])
+        //         }
+        //     }
+        // }
+
+
+
+
+        function registerLink($link, options) {
+
+            if ( typeof(options) != 'object' ) {
+                throw new Error('`options` must be an object')
+            }
+
+            $link.options = merge(options, self.options);
+
+            // link element
+            var id  = $link.id;
+            var $el = document.getElementById(id) || null;
+
+            if ( typeof(instance.$links[$link.id]) == 'undefined' ) {
+
+
+
+                if ( registeredLinks.indexOf($link.id) > -1 ) {
+                    throw new Error('`link '+$link.id+'` already exists !')
+                }
+
+
+                if (!gina.events[evt]) {
+
+
+
+                    // attach click events
+                    addListener(gina, $el, evt, function(e) {
+                        cancelEvent(e);
+
+                        var $localLink = getLinkById(e.target.id)
+                        // loading & binding link
+                        var localUrl = $localLink.url;
+
+                        // Non-Preflighted requests
+                        if ( typeof($localLink.options.isSynchrone) == 'undefined' ) {
+                            $localLink.options.isSynchrone = false;
+                        }
+                        if ( typeof($localLink.options.withCredentials) == 'undefined' ) {
+                            $localLink.options.withCredentials = false
+                        }
+
+                        linkRequest(localUrl, $localLink.options);
+
+                        //delete gina.events[ $localLink.id ];
+                        //removeListener(gina, event.target, event.type)
+                    });
+
+
+
+                    // bind child elements
+                    var childNodes = $el.childNodes;
+                    var l = 0; lLen = childNodes.length;
+                    if (lLen > 0) {
+                        for(; l < lLen; ++l) {
+                            if (typeof (childNodes[l].tagName) != 'undefined') {
+                                proxyClick(childNodes[l], $el, evt)
+                            }
+                        }
+                    }
+                }
+
+
+
+
+                $link.request       = linkRequest;
+                $link.getLinkById   = getLinkById;
+                $link.getLinkByUrl  = getLinkByUrl;
+
+                instance.$links[$link.id] = $link;
+
+
+
+            }
+        }
+
+        /**
+         * bindLinks
+         *
+         * @param {object} $target - DOM element
+         * @param {object} [options]
+         * */
+        var bindLinks = function($target, options) {
+
+            var id = null;
+            if ( typeof($target) == 'undefined' ) {
+                $target = instance.target;
+                id = instance.id;
+            }
+
+            // binding form elements
+            var found               = null
+                , $el               = null
+                , props             = null
+                , $newLink          = null
+                , url               = null
+                , elId              = null
+                , onEvent           = null
+                , onclickAttribute  = null
+                // a
+                , $a                = $target.getElementsByTagName('a')
+                // buttons
+                //, $button   = $target.getElementsByTagName('button')
+            ;
+
+            var i = 0, len = $a.length;
+            for (; i < len; ++i) {
+                found = $a[i].getAttribute('data-gina-link');
+
+                if (!found && found != "" || /^false$/i.test(found) ) continue;
+
+                $el     = $a[i];
+                props   = {
+                    type: 'a',
+                    method: 'GET'
+                };
+
+
+                url = $el.getAttribute('data-gina-link-url');
+                if ( typeof(url) != 'undefined' && url != null ) {
+                    props.url = url
+                } else {
+                    props.url = $el.getAttribute('href')
+                }
+
+
+
+
+                elId = $el.getAttribute('id');
+                if ( typeof(elId) == 'undefined' || elId == null || elId == '' || /popin\.link/.test(elId) ) {
+
+                    // unbind popin link
+                    // if ( /popin\.link/.test(elId) ) {
+
+                    // }
+
+                    elId = 'link.click.'+ 'gina-link-' + instance.id +'-'+ crypto.randomUUID();
+                }
+                $el['id']   = elId;
+                props.id    = elId;
+                evt         = elId;
+                $el.setAttribute('id', evt);
+
+                if ($el.tagName == 'A') {
+                    onclickAttribute = $el.getAttribute('onclick');
+                }
+
+                if ( !onclickAttribute ) {
+                    $el.setAttribute('onclick', 'return false;')
+                } else if ( typeof(onclickAttribute) != 'undefined' && !/return false/.test(onclickAttribute) ) {
+                    if ( /\;$/.test(onclickAttribute) ) {
+                        onclickAttribute += 'return false;'
+                    } else {
+                        onclickAttribute += '; return false;'
+                    }
+                    $el.setAttribute('onclick', onclickAttribute);
+                }
+
+                $newLink = null;
+
+                if ( typeof(instance.$links[props.id]) == 'undefined' ) {
+                    props.target = $el;
+                    $newLink = merge(props, $link);
+                    registerLink($newLink, options);
+                }
+
+
+            }
+
+        }
+
+        var init = function(options) {
+
+            setupInstanceProto();
+            instance.on('init', function(event) {
+
+                // setting up AJAX
+                if (window.XMLHttpRequest) { // Mozilla, Safari, ...
+                    xhr = new XMLHttpRequest();
+                } else if (window.ActiveXObject) { // IE
+                    try {
+                        xhr = new ActiveXObject("Msxml2.XMLHTTP");
+                    } catch (e) {
+                        try {
+                            xhr = new ActiveXObject("Microsoft.XMLHTTP");
+                        }
+                        catch (e) {}
+                    }
+                }
+
+                // proxies
+                // click on main document
+                evt = 'click';// click proxy
+                // for proxies, use linkInstance.id as target is always `document`
+                addListener(gina, instance.target, evt, function(event) {
+
+                    if ( typeof(event.target.id) == 'undefined' ) {
+                        event.target.setAttribute('id', evt +'.'+ crypto.randomUUID() );
+                        event.target.id = event.target.getAttribute('id')
+                    }
+
+
+
+                    if ( /^link\.click\./.test(event.target.id) ) {
+                        cancelEvent(event);
+                        var _evt = event.target.id;
+
+                        if ( new RegExp( '^link.click.gina-link-' + instance.id).test(_evt) )
+                            triggerEvent(gina, event.target, _evt, event.detail);
+
+                    }
+                });
+
+                if ( typeof(options) == 'undefined' ) {
+                    options = {}
+                }
+                instance.options = options;
+
+                bindLinks(instance.target, options);
+                gina.linkIsBinded = true;
+
+                instance.isReady = true;
+                gina.hasLinkHandler = true;
+                gina.link = merge(gina.link, instance);
+                // trigger link ready event
+                triggerEvent(gina, instance.target, 'ready.' + instance.id, instance);
+            });
+
+
+
+
+            instance.initialized = true;
+
+            return instance
+        }
+
+        var setupInstanceProto = function() {
+
+            instance.bindLinks      = bindLinks;
+            instance.request        = linkRequest;
+            instance.getLinkById    = getLinkById;
+            instance.getLinkByUrl   = getLinkByUrl;
+        }
+
+        if (!domainInstance) {
+            new Domain( function onReady(err, _domainInstance) {
+                if (err) {
+                    throw err
+                }
+
+                domainInstance = _domainInstance;
+            });
+        }
+
+        return init(options)
+    }
+
+    return Link
+});
 /**
  * Operations on selectors
  * */
@@ -10401,7 +9758,7 @@ function ValidatorPlugin(rules, data, formId) {
         require('../../../../../helpers/data');
     }
 
-    var uuid            = (isGFFCtx) ? require('vendor/uuid') : require('uuid');
+    var uuid            = (isGFFCtx) ? { v1: function() { return Date.now().toString(36) + '-' + crypto.randomUUID(); }, v4: function() { return crypto.randomUUID(); } } : require('uuid');
     var merge           = (isGFFCtx) ? require('lib/merge') : require('../../../../../lib/merge');
     var inherits        = (isGFFCtx) ? require('lib/inherits') : require('../../../../../lib/inherits');
     var FormValidator   = (isGFFCtx) ? require('lib/form-validator') : require('./form-validator');
@@ -17672,2846 +17029,11 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
     // Publish as AMD module
     define('gina/validator', ['utils/events', 'utils/dom', 'utils/effects', 'utils/data', 'lib/form-validator', 'lib/routing'], function(){ return ValidatorPlugin })
 };
-define('gina/toolbar', ['require', 'jquery', 'vendor/uuid'/**, 'lib/merge'*/, 'lib/collection', 'lib/routing', 'gina/storage', 'gina/validator' ], function (require) {
-
-    var $           = require('jquery');
-
-    $.noConflict();
-    //var merge       = require('lib/merge');
-    var routing     = require('lib/routing');
-    var Collection  = require('lib/collection');
-    var Storage     = require('gina/storage');
-    //var Validator   = require('gina/validator');
-
-    /**
-     * Toolbar plugin
-     *
-     * TODO - search using `datatables` plugin (https://stackoverflow.com/questions/10400033/is-there-a-jquery-plugin-like-datatables-for-a-ul)
-     */
-    function Toolbar() {
-
-        //console.debug('Toolbar jquery is ', $.fn.jquery);
-
-        var self = {
-            version         : '1.0.3',
-            foldingPaths    : {},
-            foldingClass    : null,
-            isUnfolded      : null,
-            isXHR           : false,
-            isValidator     : false,
-            hasParsedUrls   : false
-        };
-
-        var bucket      = new Storage({bucket: 'gina'}) // <Bucket>
-            , plugins   = bucket.Collection('plugin') // <Collection>
-            //, validator = new Validator() // <Validator>
-        ;
-
-        var $toolbar             = null
-            , settings           = null
-            , isCollapsed        = false
-            , $tabs              = null
-            , $logo              = null
-            , $panelsContainer   = null
-            , $panels            = null
-            , $currentPanel      = null
-            , panelId            = ''
-            , $verticalPos       = null
-            , $horizontalPos     = null
-            , $toolbarPos        = null
-            , position           = ''
-            , $toolbarWidth      = null
-            , width              = 0
-            , $toolbarHeight     = null
-            , toolbarHeight      = 0
-            , contentHeight      = 0
-            , keynum             = ''
-            , lastPressedKey     = {}
-            , coockie            = null
-            , $jsonRAW           = null
-            , originalData       = null
-            , jsonObject         = null
-            , lastJsonObjectState = null
-            , ginaJsonObject     = null
-            , forms              = null
-            , formsIgnored       = '.gina-toolbar-options, .gina-toolbar-content'
-            , $htmlConfigurationEnvironment = null
-            , $htmlData          = null
-            , $htmlView          = null
-            , $htmlForms         = null
-            , $codeFoldingToggle = null
-            , codeFolding        = true
-            , timeoutId          = null
-            , $copyCache         = null
-            , copyValue          = null
-        ;
-
-        var init = function () {
-            // Get elements
-            $toolbar           = $('#gina-toolbar');
-            if (!$toolbar.length) return false;
-
-            $tabs              = $toolbar.find('.gina-toolbar-tab > a');
-            $logo              = $('#gina-toolbar-toggle');
-            $panelsContainer   = $('#gina-toolbar-panels');
-            $panels            = $panelsContainer.find('.gina-toolbar-panel');
-            $verticalPos       = $('#gina-toolbar-vposition');
-            $horizontalPos     = $('#gina-toolbar-hposition');
-            $toolbarPos        = $verticalPos.add($horizontalPos);
-            $toolbarWidth      = $('#gina-toolbar-width');
-            $toolbarHeight     = $toolbar.find('.gina-toolbar-main');
-            $jsonRAW           = $('#gina-toolbar-toggle-code-raw');
-            $forms             = $('form:not('+ formsIgnored +')');
-            $htmlData          = $('#gina-toolbar-data-html');
-            $htmlView          = $('#gina-toolbar-view-html');
-            $htmlForms         = $('#gina-toolbar-forms-html');
-            $htmlConfigurationEnvironment = $('#gina-toolbar-configuration-environment-html')
-            $codeFoldingToggle = $('#gina-toolbar-code-toggle');
-
-            // Append textarea for copy/paste then select it
-            $toolbar.prepend('<textarea class="gina-toolbar-copy"></textarea>');
-            $copyCache         = $toolbar.find('.gina-toolbar-copy');
-
-            // Get toolbar settings
-            settings = plugins.findOne({_name: 'toolbar'});
-
-            if ( !settings ) {
-                // default settings
-                settings = {
-                    _name           : 'toolbar',
-                    _version        : self.version,
-                    _description    : 'Toolbar settings',
-                    _licence        : 'MIT',
-                    _author         : [
-                        {name: 'Fabrice Delaneau', company: 'Freelancer'},
-                        {name: 'Martin-Luther Etouman', company: 'Rhinostone'}
-                    ],
-                    position        : 'top-right',
-                    width           : '30',
-                    panelId         : '#gina-toolbar-data',
-                    isCollapsed     : true,
-                    isUnfolded      : [],
-                    debug           : {
-                        forms   : {
-                            active: false,
-                            strategy: 'frontend' // by default
-                        }
-                    }
-                };
-                // saving default settings
-                plugins.insert(settings);
-                settings = plugins.findOne({_name: 'toolbar'});
-
-            }
-
-            // in case of local storage schema update;
-            if (settings._version != self.version) {
-                checkSchemaUpdate();
-            }
-
-            position    = settings.position;
-            width       = settings.width;
-            panelId     = settings.panelId;
-            isCollapsed = settings.isCollapsed;
-
-            $toolbar.removeClass('gina-toolbar-hidden');
-            handle() // Bind behaviors
-        };
-
-
-        var checkSchemaUpdate = function () {
-            // Run every update from your current version up to the head
-
-            if (settings._version < '1.0.1') {
-                if (!settings.isUnfolded ) {
-                    settings.isUnfolded = [];
-                }
-                if (settings.codeFolding != undefined) {
-                    delete settings.codeFolding;
-                }
-            }
-
-            if ( typeof(settings.isUnfolded) != 'undefined' && !Array.isArray(settings.isUnfolded) ) {
-                settings.isUnfolded = [];
-            }
-
-            // update version number
-            settings._version = self.version;
-
-            // save all changes
-            settings.save(true);
-        }
-
-        /**
-         * loadData
-         *
-         * @param {object} [section]
-         * @param {object} [data]
-         * @param {object} [ginaData]
-         *
-         * */
-        var loadData = function (section, data, ginaData) {
-
-            var $currentForms = null;
-            try {
-
-                var __gd = window.__ginaData;
-
-                if (!__gd || !__gd.user) {
-                    // no server data available
-                } else {
-                    jsonObject     = __gd.user;
-                    ginaJsonObject = __gd.gina;
-
-                    // backing up document data for restore action
-                    if (!originalData) {
-                        originalData = {
-                            jsonObject      : JSON.clone(jsonObject),
-                            ginaJsonObject  : JSON.clone(ginaJsonObject)
-                        };
-                        lastJsonObjectState = {}; // jsonObject.data
-                    }
-                }
-
-            } catch (err) {
-
-                var sectionStr = ( section ) ? ' [ '+ section + ' ] ' : ' ';
-                // var _err = 'Could not load'+ sectionStr +'json\n' + (err.stack||err.message||err);
-                var _err = 'Could not load ['+ sectionStr +'] json\n' + err.message +'\n'+ err.stack;
-                console.error(_err);
-                return;
-                // if ($json) {
-                //     $json.text(_err);
-                // } else {
-                //     throw _err;
-                // }
-            }
-
-            if (jsonObject) {
-
-                if (data && !ginaData) {
-                    if ( !jsonObject[section] )
-                        jsonObject[section] = {};
-
-                    jsonObject[section] = ginaJsonObject[section] = data;
-
-                } else if ( section == 'data-xhr' && !data && jsonObject['data-xhr'] ) {
-                    // reset xhr
-                    delete jsonObject['data-xhr'];
-                } else if (ginaData) {
-                    jsonObject      = data;
-                    ginaJsonObject  = ginaData;
-                }
-
-
-                // Make folding paths
-                makeFoldingPaths(jsonObject, '');
-
-                // Create DOM from JSON
-                // -> Configuration::environment
-                // filtering before
-                if (ginaJsonObject.environment) {
-                    delete ginaJsonObject.environment.routing;
-                    delete ginaJsonObject.environment.reverseRouting;
-                    delete ginaJsonObject.environment.forms;
-                }
-
-                if (jsonObject.environment) {
-                    delete jsonObject.environment.routing;
-                    delete jsonObject.environment.reverseRouting;
-                    delete jsonObject.environment.forms;
-                }
-                // if (
-                //     typeof(ginaJsonObject.environment) != 'undefined'
-                //     && typeof(jsonObject.environment) != 'undefined'
-                // ) {
-                    $htmlConfigurationEnvironment.html(parseObject(jsonObject.environment, ginaJsonObject.environment));
-                // }
-
-
-                var userObject   = { data: jsonObject.data, view: jsonObject.view, forms: jsonObject.forms }
-                    , ginaObject  = { data: ginaJsonObject.data, view: ginaJsonObject.view, forms: ginaJsonObject.forms } ;
-
-
-                // xhr mode
-                self.initiatedXhrFoldingState = false;
-                // validator mode
-                self.isValidator = false;
-
-                var isXHR = null, isXHRViewData = false;
-
-                if ( /^(view-xhr)$/.test(section) ) {
-
-                    isXHR = true;
-
-                    userObject.view = jsonObject[section];
-                    ginaObject.view = ginaJsonObject[section];
-
-                    userObject.data = jsonObject['data-xhr'];
-                    ginaObject.data = ginaJsonObject['data-xhr'];
-                }
-
-                if ( !section || /^(data)$/.test(section) ) {
-
-
-                    // -> Data
-                    $htmlData.html('<ul class="gina-toolbar-code">' + parseObject(userObject.data, ginaObject.data, null, isXHR) +'</ul>');
-
-                    // -> View
-                    // init view
-                    var htmlProp =  '<div id="gina-toolbar-view-html-properties" class="gina-toolbar-section">\n' +
-                                    '    <h2 class="gina-toolbar-section-title">properties</h2>\n' +
-                                    '    <ul class="gina-toolbar-properties"></ul>\n' +
-                                    '</div>';
-
-                    $htmlView.html(htmlProp);
-
-                    $htmlView.html( parseView(userObject.view, ginaObject.view, null, isXHR, $htmlView) );
-
-                    // -> Forms
-                    $currentForms = $forms;
-                    $htmlForms.html('');
-                    $htmlForms.html( parseForms(userObject.forms, ginaObject.forms, $htmlForms, 0, $currentForms, $currentForms.length, isXHR) );
-                    // Form binding
-                    $htmlForms.find('div.gina-toolbar-section > h2').off('click').on('click', function(event) {
-                        event.preventDefault();
-
-                        $(this)
-                            .parent()
-                            .find('ul').first()
-                            .slideToggle();
-                    });
-
-                    //$htmlForms.html( parseView(jsonObject.forms, ginaJsonObject.forms, null, $htmlForms) );
-                } //else
-                if ( /^(data-xhr|view-xhr)$/.test(section) ) {
-
-                    // reset case
-                    if ( typeof(jsonObject[section]) == 'undefined' || !jsonObject[section] || jsonObject[section] == 'null' ) {
-                        return false;
-                    }
-
-                    // -> XHR Data
-                    isXHR = true;
-                    isXHRViewData = (typeof (jsonObject[section].isXHRViewData) != 'undefined') ? true : isXHRViewData;
-
-
-                    // update data section without erasing old data
-                    if (!isXHRViewData && !/^(view-xhr)$/.test(section)) {
-
-                        // also update original data to handle restore action
-                        if ( typeof (jsonObject['el-xhr']) != 'undefined' ) {
-                            lastJsonObjectState.data = JSON.clone(jsonObject[section]);
-                        }
-                    }
-
-                    // -> isXHRViewData (from popin) : cleanup
-                    if (isXHRViewData) {
-                        delete jsonObject[section].isXHRViewData;
-                    }
-
-                    if ( /^(data-xhr)$/.test(section) ) {
-                        $htmlData.html('<ul class="gina-toolbar-code">' + parseObject(jsonObject[section], ginaJsonObject[section], null, isXHR) +'</ul>');
-                    } else if ( /^(view-xhr)$/.test(section) ) {
-                        //$htmlView.html( parseView(userObject.view, ginaObject.view, null, isXHR, $htmlView) );
-                        // -> View
-                        // init view
-                        var htmlProp =  '<div id="gina-toolbar-view-html-properties" class="gina-toolbar-section">\n' +
-                                        '    <h2 class="gina-toolbar-section-title">properties</h2>\n' +
-                                        '    <ul class="gina-toolbar-properties"></ul>\n' +
-                                        '</div>';
-
-                        $htmlView.html(htmlProp);
-                        $htmlView.html( parseView(jsonObject[section], ginaJsonObject[section], null, isXHR, $htmlView) );
-                    }
-
-                } //else
-                if ( /^(el-xhr)$/.test(section) ) {
-                    // -> XHR Forms
-                    isXHR = true;
-                    $currentForms = $('#' + data).find('form:not(' + formsIgnored + ')');
-                    $htmlForms.html('');
-                    $htmlForms.html( parseForms(userObject.forms, ginaObject.forms, $htmlForms, 0, $currentForms, $currentForms.length, isXHR ) );
-                    // Form binding
-                    $htmlForms.find('div.gina-toolbar-section > h2').off('click').on('click', function(event) {
-                        event.preventDefault();
-
-                        $(this)
-                            .parent()
-                            .find('ul').first()
-                            .slideToggle();
-                    });
-                } //else
-                if ( /^(forms)$/.test(section) ) {
-                    isXHR = true;
-                    self.isValidator = true;
-
-                    var $form = $('#gina-toolbar-form-' + data.id);
-                    // for live changes (eg.: on `Validator::getFormById()` call)
-                    if ( !$form.length ) {
-                        // crearte toolbar entry for the new form
-                        $currentForms = $forms;
-                        $htmlForms.html('');
-                        $htmlForms.html( parseForms(userObject.forms, ginaObject.forms, $htmlForms, 0, $currentForms, $currentForms.length, isXHR) );
-                        // Form binding
-                        $htmlForms.find('div.gina-toolbar-section > h2').off('click').on('click', function(event) {
-                            event.preventDefault();
-
-                            $(this)
-                                .parent()
-                                .find('ul').first()
-                                .slideToggle();
-                        });
-                    }
-
-                    // form data sent
-                    if ( typeof(data.rules) != 'undefined' ) {
-                        updateForm(data.id, 'rules', data.rules, isXHR)
-                    }
-
-                    // form errors
-                    if ( typeof(data.errors) != 'undefined' && data.errors.count() > 0 ) {
-                        updateForm(data.id, 'errors', data.errors, isXHR)
-                    }
-
-                    // form data sent
-                    if ( typeof(data.sent) != 'undefined' ) {
-                        updateForm(data.id, 'sent', data.sent, isXHR)
-                    }
-                }
-
-
-                // Manage folding state
-                settings.currentFile = jsonObject.file;
-                if (!settings.currentFile) {
-                    // Init currentFile if none exists
-                    settings.currentFile = jsonObject.file;
-                }
-
-                if (jsonObject.file == settings.currentFile) {
-                    // If current page is the same as the previous page, unfold code as neede
-                    $(document).ready(function () {
-
-                        if (self.isValidator ) {
-                            self.isXHR = true;
-                            if (settings.isUnfolded.length > 0 && !self.initiatedXhrFoldingState) {
-                                self.initiatedXhrFoldingState = true;
-                                setTimeout(function () {
-                                    if (settings.isUnfolded.length > 0)
-                                        initFoldingState(settings.isUnfolded, settings.isUnfolded.length, 0);
-                                }, 200)
-                            }
-                        } else {
-                            if (!isXHR) {
-                                self.isXHR = false;
-                                setTimeout(function () {
-                                    if (settings.isUnfolded.length > 0)
-                                        initFoldingState(settings.isUnfolded, settings.isUnfolded.length, 0);
-                                }, 200)
-                            } else {
-                                self.isXHR = true;
-                                if (settings.isUnfolded.length > 0 && !self.initiatedXhrFoldingState) {
-                                    self.initiatedXhrFoldingState = true;
-                                    initFoldingState(settings.isUnfolded, settings.isUnfolded.length, 0);
-                                }
-                            }
-                        }
-                    })
-                }
-            }
-
-            if ( !section || section == 'el-xhr' && !self.hasParsedUrls) {
-                self.hasParsedUrls = (section && section == 'el-xhr' ) ? true : false;
-                parseUrls(section);
-            }
-        }
-
-
-        var initFoldingState = function (unfolded, len, i) {
-
-            if (i == len) return false;
-
-            var key = unfolded[i];
-            var $kel = null;
-
-            if ( self.isXHR && /^xhr-/.test(key) ) {
-                key = key.replace(/^xhr-/, '');
-                $kel = $('.gina-toolbar-xhr-folding-state-'+ key);
-            } else {
-                $kel = $('.gina-toolbar-folding-state-' + key);
-            }
-
-            toggleCodeFolding( $kel, function onCodeToggled() {
-                i = i + 1;
-                initFoldingState(unfolded, len, i)
-            });
-        }
-
-        var handle = function () {
-
-
-            // Add folding behavior
-            $htmlData
-                .add($htmlView).off('click', 'a').on('click', 'a', function(event) {
-                    event.preventDefault();
-
-                    toggleCodeFolding( $(this), null, true )
-                })
-                .add($htmlForms).off('click', 'a').on('click', 'a', function(event) {
-                    event.preventDefault();
-
-                    toggleCodeFolding( $(this), null, true )
-                });
-
-            $htmlConfigurationEnvironment
-                .add($htmlView).off('click', 'a').on('click', 'a', function(event) {
-                    event.preventDefault();
-
-                    toggleCodeFolding( $(this), null, true )
-                })
-                .add($htmlForms).off('click', 'a').on('click', 'a', function(event) {
-                    event.preventDefault();
-
-                    toggleCodeFolding( $(this), null, true )
-                });
-
-            // Expand/collapse all code
-            $codeFoldingToggle.off('click').on('click', function(event) {
-                event.preventDefault();
-
-                toggleCodeFolding('all', null, true)
-            });
-
-            // Add value to the clipboard
-            $htmlData.add($htmlView, $htmlForms).off('click', '.gina-toolbar-value').on('click', '.gina-toolbar-value', function(event) {
-                event.preventDefault();
-                try {
-                    copyValue = $(this).text();
-                    $copyCache.text(copyValue);
-                    $copyCache.select();
-                    document.execCommand('copy', false, null);
-                    $copyCache.blur();
-                } catch(err) {
-                    alert('Please press Ctrl/Cmd+C to copy the value');
-                    // throw err;
-                }
-
-            });
-
-            // display RAW
-            $jsonRAW.off('click').on('click', function(event){
-                if (jsonObject) {
-                    var jsonOut = window.open("", "JSON RAW", "width=400,height=100");
-                    //jsonOut.document.write( '<pre>' + JSON.stringify(jsonObject, null, 2) + '</pre>' );
-                    jsonOut.document.write( JSON.stringify(jsonObject.data) );
-                }
-            });
-
-            // Tabs
-            $tabs.off('click').on('click', function(event) {
-                event.preventDefault();
-
-                // Hide all panels
-                $tabs.removeClass('gina-toolbar-active');
-                $panels.removeClass('gina-toolbar-active');
-
-                // Show selected tab
-                $(this).addClass('gina-toolbar-active');
-
-                // Show selected panel
-                panelId = $(this).attr('href');
-                $currentPanel = $(panelId).addClass('gina-toolbar-active');
-
-                // Save current active tab to coockie
-                settings.panelId = panelId;
-                settings.save()
-            });
-
-            // Show/hide Toolbar
-            $logo.off('click').on('click', function(event) {
-                event.preventDefault();
-
-                $toolbar.toggleClass('gina-toolbar-collapsed');
-
-                // Save current visibility state to coockie
-                isCollapsed = $toolbar.hasClass('gina-toolbar-collapsed')
-                settings.isCollapsed = isCollapsed;
-                settings.save()
-            });
-
-            // Toolbar position
-            $toolbarPos.off('change').on('change', function(event) {
-                event.preventDefault();
-
-                // Get selected option value
-                var vposition = $verticalPos.val();
-                var hposition = $horizontalPos.val();
-                position = vposition + '-' + hposition
-                changeToolbarPosition(position);
-
-                // Save new position to coockie
-                settings.position = position;
-                settings.save()
-            });
-
-            // Toolbar width
-            $toolbarWidth.off('change').on('change', function(event) {
-                event.preventDefault();
-
-                // Get selected option value
-                width = $toolbarWidth.val();
-                changeToolbarWidth(width);
-
-                // Save new width to coockie
-                settings.width = width;
-                settings.save()
-            });
-
-            // Toolbar height
-            $(window).off('resize').on('resize', function() {
-                changeToolbarHeight();
-            });
-
-            // Show/hide toolbar using gg shorcut
-            $('body').off('keypress').on('keypress', function onKeypressed(event){
-
-                if (!/INPUT|TEXTAREA/.test(event.target.tagName )) {
-                    if (event.keyCode) {
-                        // IE
-                        keynum = event.keyCode;
-                    } else if (event.which) {
-                        // Netscape/Firefox/Opera
-                        keynum = event.which;
-                    } else {
-                        // Chrome/Safari
-                        keynum = event.charCode;
-                    }
-                    var now = new Date();
-                    if (
-                        typeof lastPressedKey.keynum != "undefined"
-                        && lastPressedKey.keynum == keynum
-                        && typeof lastPressedKey.pressTime != "undefined"
-                        && now.getTime() - lastPressedKey.pressTime < 500
-                    ) {
-                        switch (keynum) {
-                            case 103: //This is the "g" key
-                                $toolbar.toggle();
-                                // variousTools.setCookie("gina-toolbar[hub]", params.display.hub, 365);
-                                break;
-                        }
-                    }
-                    lastPressedKey.pressTime = now.getTime();
-                    lastPressedKey.keynum = keynum;
-                }
-
-            });
-
-
-            // Updates Toolbar with current values
-
-            // Select the current tab
-            $tabs.filter('[href="' + panelId +'"]').trigger('click');
-
-            // Open toolbar if needed
-            if (!isCollapsed) {
-                $('#gina-toolbar-toggle').trigger('click');
-            }
-
-            // Change Toolbar Position and init selects
-            changeToolbarPosition(position);
-
-            var positions = position.split('-');
-            $verticalPos.val(positions[0]);
-            $horizontalPos.val(positions[1]);
-
-            // Change Toolbar Width and init select
-            changeToolbarWidth(width);
-
-            $toolbarWidth.val(width);
-
-            // Change Toolbar max-Height;
-            changeToolbarHeight();
-
-            // Parse JSON
-            // dev only - if no server data, allow loading a mock JSON file
-            if ( !window.__ginaData || !window.__ginaData.user ) {
-                loadJSON('', loadData);
-            } else {
-                loadData()
-            }
-        }
-
-
-        var changeToolbarPosition = function (position) {
-            $toolbar
-                .removeClass('gina-toolbar-top-left gina-toolbar-top-right gina-toolbar-bottom-left gina-toolbar-bottom-right')
-                .addClass('gina-toolbar-'+ position);
-        }
-
-        var changeToolbarWidth = function (width) {
-            $toolbar
-                .removeClass('gina-toolbar-auto gina-toolbar-100 gina-toolbar-80 gina-toolbar-60 gina-toolbar-50 gina-toolbar-40 gina-toolbar-30')
-                .addClass('gina-toolbar-'+ width);
-        }
-
-        var changeToolbarHeight = function () {
-            // Use window height - 32px for the header
-            toolbarHeight = window.innerHeight - 32;
-            $toolbar
-                .find('.gina-toolbar-main')
-                .css('max-height', toolbarHeight +'px');
-
-            checkContentHeight()
-        }
-
-        var checkContentHeight = function () {
-            // check toolbar content against window height
-            var $currentMain = $currentPanel.find('.gina-toolbar-main');
-            var $currentContent = $currentMain.find('.gina-toolbar-content');
-            contentHeight = $currentMain.height();
-            if (contentHeight == toolbarHeight) {
-                $currentContent.addClass('gina-toolbar-content-end')
-            } else {
-                $currentContent.removeClass('gina-toolbar-content-end')
-            }
-        }
-
-        var toggleCodeFolding = function ($el, cb, toggledByClick) {
-
-            if ( typeof(toggledByClick) == 'undefined' ) {
-                var toggledByClick = false
-            }
-
-            if ($el != undefined && $el.length && $el != 'all') {
-
-                // Save element folding state
-                self.foldingClass = $el.attr('class');
-                var hasXhrFlag = false;
-
-                if ( /(gina-toolbar-folding-state-[a-z 0-9_-]+|gina-toolbar-xhr-folding-state-[a-z 0-9_-]+)/i.test(self.foldingClass) ) {
-
-                    if ( /gina-toolbar-folding-state-[a-z0-9_-]+/i.test(self.foldingClass) ) {
-                        self.foldingClass = self.foldingClass.match(/gina-toolbar-folding-state-[a-z0-9_-]+/i)[0].replace(/gina-toolbar-folding-state-/, '');
-                    } else {
-                        hasXhrFlag = true;
-                        if ( typeof(self.foldingClass) != 'undefined' )
-                            self.foldingClass = self.foldingClass.match(/gina-toolbar-xhr-folding-state-[a-z0-9_-]+/i)[0].replace(/gina-toolbar-xhr-folding-state-/, 'xhr-');
-                    }
-
-                    if ( settings.isUnfolded.indexOf(self.foldingClass) < 0 ) {
-
-                        settings.isUnfolded.push(self.foldingClass);
-                        settings.save();
-
-                        if (!$el.hasClass('gina-toolbar-unfolded')) {
-                            $el.addClass('gina-toolbar-unfolded');
-                            $el.next('ul').slideToggle('fast');
-                        }
-
-                    } else {
-
-                        if ( settings.isUnfolded.indexOf(self.foldingClass) > -1 && $el.hasClass('gina-toolbar-unfolded') ) {
-
-                            // remove reference & sub-references
-                            var re = new RegExp('^('+ self.foldingClass +')');
-                            for (var i = 0, len = settings.isUnfolded.length; i < len; ++i) {
-                                if ( re.test(settings.isUnfolded[i]) ) {
-                                    if (!self.isValidator && toggledByClick || self.isValidator && hasXhrFlag || toggledByClick ) {
-                                        settings.isUnfolded.splice(i, 1);
-                                        --i
-                                    }
-                                }
-                            }
-
-                            settings.save(true);
-
-                            if ( settings.isUnfolded.indexOf(self.foldingClass) < 0 ) {
-                                $el.removeClass('gina-toolbar-unfolded');
-                                $el.next('ul').slideToggle('fast');
-                            }
-
-
-                        } else {
-                            $el.addClass('gina-toolbar-unfolded');
-                            $el.next('ul').slideToggle('fast');
-                        }
-                    }
-                }
-
-            }
-
-            if (typeof (cb) != 'undefined' && cb != null )
-                cb()
-        }
-
-        var orderKeys = function(obj) {
-
-            var newObj  = {}
-                , k     = null
-                , keys  = []
-                , i     = 0
-                , len   = null
-                ;
-
-            for (k in obj) {
-                if ( obj.hasOwnProperty(k) ){
-                    keys[i] = k;
-                    ++i
-                }
-            }
-
-            len = keys.length;
-            keys.sort();
-
-            for (i = 0; i < len; ++i) {
-                k = keys[i];
-                newObj[k] = obj[k];
-            }
-
-            return newObj
-        }
-
-        var normalizeFoldingStateName = function(stateSection, stateName) {
-
-            var foldingStateName = '', section = null, name = null;
-
-            if ( typeof(stateSection) != 'undefined' && stateSection != '' ) {
-
-                section = stateSection;
-                if ( typeof(stateSection) == 'string' ) {
-                    section = stateSection
-                        .replace(/(\]\[|\[)/g, '-')
-                        .replace(/\]/, '')
-                        .replace(/[^A-Za-z0-9_-]/g, '_')
-                }
-
-                foldingStateName += section + '-'
-            }
-
-            if ( typeof(stateName) != 'undefined' && stateName != '' ) {
-
-                name = stateName;
-                if ( typeof(stateName) == 'string' ) {
-                    name = stateName
-                        .replace(/(\]\[|\[)/g, '-')
-                        .replace(/\]/, '')
-                }
-
-                foldingStateName += name
-            } else {
-                foldingStateName = foldingStateName.substring(0, foldingStateName.length-1)
-            }
-
-            return foldingStateName.trim()
-        }
-
-        var parseObject = function(obj, ginaObj, elId, elIsXHR, elSection) {
-
-            var html            = '';
-            var id              = ( typeof(elId) != 'undefined' && elId != null ) ? elId.replace(/[^A-Za-z0-9_-]/g, '_') : '';
-            var section         = ( typeof(elSection) != 'undefined' && elSection != null ) ? elSection : '';
-            var isXHR           = ( typeof(elIsXHR) != 'undefined' && elIsXHR != null ) ? '-xhr' : '';
-            var count           = '';
-            var objType         = '';
-            var isEmptyClass    = null;
-
-            if (!obj) {
-                return;
-            }
-
-            obj     = orderKeys(obj);
-            ginaObj = orderKeys(ginaObj);
-
-            for (var i in obj) {
-                //console.log('i', i);
-                //if ( /^(_uuid)$/.test(i) ) continue;
-
-                if ( typeof(obj[i]) == 'object' && !Array.isArray(obj[i]) && obj[i] !== null ) { // parse
-                    //id += i + '-';
-                    id += '-' + i.replace(/[^A-Za-z0-9_-]/g, '_');
-                    isEmptyClass = (obj[i].count() > 0 || typeof(ginaObj[i]) != 'undefined' && ginaObj[i].count() > 0) ? '' : ' is-empty';
-
-                    html += '<li class="gina-toolbar-object">';
-                    html +=  '<a href="#" class="gina-toolbar-key gina-toolbar'+ isXHR +'-folding-state-'+ normalizeFoldingStateName( section, i.replace(/[^A-Za-z0-9_-]/g, '_') ) + isEmptyClass +'">'+ i +' <span>{ }</span></a>';
-                    html += '<ul class="gina-toolbar-object">' + parseObject(obj[i], ginaObj[i], id, elIsXHR, elSection) +'</ul>';
-                    html += '</li>';
-                    // clear one level
-                    //id = id.substring(0, id.length - i.length - 1);
-                    id = id.substring(0, id.length - i.length);
-                } else if ( Array.isArray(obj[i]) ) {
-                    //id += i + '-';
-                    id += '-' + i.replace(/[^A-Za-z0-9_-]/g, '_');
-                    isEmptyClass = (obj[i].length > 0 || typeof(ginaObj[i]) != 'undefined' && ginaObj[i].length > 0) ? '' : ' is-empty';
-
-                    html += '<li class="gina-toolbar-collection">';
-                    html +=  '<a href="#" class="gina-toolbar-key gina-toolbar'+ isXHR +'-folding-state-'+ normalizeFoldingStateName( section, i.replace(/[^A-Za-z0-9_-]/g, '_') ) + isEmptyClass +'">'+ i +' <span>['+ obj[i].length +']</span></a>';
-                    html += '<ul class="gina-toolbar-collection">' + parseCollection(obj[i], ginaObj[i], id, elIsXHR, elSection)  +'</ul>';
-                    html += '</li>';
-                    // clear one level
-                    //id = id.substring(0, id.length - i.length - 1);
-                    id = id.substring(0, id.length - i.length);
-                } else {
-                    objType = (ginaObj[i] === null) ? 'null' : typeof(ginaObj[i]);
-                    if ( objType == 'undefined' ) { // new key  declaration added by user
-                        html += '<li class="gina-toolbar-key-value">';
-                        html +=     '<span class="gina-toolbar-key gina-toolbar-key-added">'+ i +':</span> <span class="gina-toolbar-value gina-toolbar-value-type-is-'+ objType +'">'+ obj[i] +'</span>';
-                        html += '</li>';
-                    } else {
-
-                        //if (/^_comment/.test(i) ) continue;
-
-                        if (obj[i] !== ginaObj[i] ) {
-                            html += '<li class="gina-toolbar-key-value gina-toolbar-is-overridden">';
-                            html +=     '<span class="gina-toolbar-key">'+ i +':</span> <span class="gina-toolbar-value">'+ ginaObj[i] +'</span>';
-                            html += '</li>';
-
-                            html += '<li class="gina-toolbar-key-value">';
-                            html +=     '<span class="gina-toolbar-key">'+ i +':</span> <span class="gina-toolbar-value gina-toolbar-value-type-is-'+ objType +'">'+ obj[i] +'</span>';
-                            html += '</li>';
-                        } else {
-                            html += '<li class="gina-toolbar-key-value">';
-                            html +=     '<span class="gina-toolbar-key">'+ i +':</span> <span class="gina-toolbar-value gina-toolbar-value-type-is-'+ objType +'">'+ obj[i] +'</span>';
-                            html += '</li>';
-                        }
-                    }
-                }
-            }
-            return html
-        }
-
-        var parseCollection = function (arr, ginaArr, elId, elIsXHR, elSection) {
-            var html            = '';
-            var id              = ( typeof(elId) != 'undefined' && elId != null ) ? elId : '';
-            var section         = ( typeof(elSection) != 'undefined' && elSection != null ) ? elSection : '';
-            var isXHR           = ( typeof(elIsXHR) != 'undefined' && elIsXHR != null ) ? '-xhr' : '';
-
-            // patch
-            if (!ginaArr) {
-                ginaArr = [];
-            }
-            for (var i = 0, len = arr.length; i<len; ++i) {
-                if ( typeof(arr[i]) == 'object' && !Array.isArray(arr[i]) ) {
-                    //id   += i + '-';
-                    // patch
-                    if (!ginaArr[i]) {
-                        ginaArr[i] = arr[i]
-                    }
-
-                    id   += '-'+ i;
-                    if (section == '') {
-                        section = id;
-                    }
-                    html += '<li class="gina-toolbar-object">';
-                    html +=   '<a href="#" class="gina-toolbar-key gina-toolbar'+ isXHR +'-folding-state-'+ normalizeFoldingStateName( section, i ) +'">'+ i +' <span>{ }</span></a>';
-                    html += '<ul class="gina-toolbar-object">' + parseObject(arr[i], ginaArr[i], id, elIsXHR, elSection) +'</ul>';
-                    html += '</li>';
-                    // clear one level
-                    id = id.substring(0, id.length - i.toString().length - 1);
-
-                } else if ( Array.isArray(arr[i]) ) {
-                    //id   += i + '-';
-                    id   += '-'+ i;
-                    if (section == '') {
-                        section = id;
-                    }
-                    html += '<li class="gina-toolbar-collection">';
-                    html +=   '<a href="#" class="gina-toolbar-key gina-toolbar'+ isXHR +'-folding-state-'+ normalizeFoldingStateName( section, i ) +'">'+ i +'<span>[ ]</span></a>';
-                    html += '<ul class="gina-toolbar-collection">' + parseCollection(arr[i], ginaArr[i], id, elIsXHR, elSection)  +'</ul>';
-                    html += '</li>';
-                    // clear one level
-                    //id = id.substring(0, id.length - i.toString().length - 1);
-                    id = id.substring(0, id.length - i.toString().length);
-                } else {
-                    html += '<li class="gina-toolbar-key-value"><span class="gina-toolbar-key">'+ i +':</span> <span class="gina-toolbar-value">'+ arr[i] +'</span></li>';
-                }
-            }
-            return html
-        }
-
-        var parseView = function (obj, ginaObj, elId, elIsXHR, $html, $root) {
-
-            var id          = (elId != null) ? elId.replace(/[^A-Za-z0-9_-]/g, '_') : '';
-            var section     = null;
-            var isXHR       = ( typeof(elIsXHR) != 'undefined' && elIsXHR != null ) ? '-xhr' : '';
-            var count       = '';
-            var objType     = '';
-            var hasParent   = false;
-            var $parent     = null;
-            var parentId    = null;
-
-            obj     = orderKeys(obj);
-            ginaObj = orderKeys(ginaObj);
-
-            if (!$root)
-                $root = $html;
-
-            for (var i in obj) {
-                section = i;
-                if ( typeof(obj[i]) == 'object' && !Array.isArray(obj[i]) && obj[i] !== null ) { // parse
-
-                    $parent = $('#gina-toolbar-view-' + id.substring(0, id.length - 1));
-                    hasParent = ( $parent.length ) ? true : false;
-
-                    if (!hasParent ) {
-                        id += i.replace(/[^A-Za-z0-9_-]/g, '_') + '-';
-
-                        if (i == 'params') { // force to top
-                            var htmlParams =    '<div id="gina-toolbar-view-'+ id.substring(0, id.length - 1) +'" class="gina-toolbar-section">' +
-                                                    '<h2 class="gina-toolbar-section-title">'+ id.substring(0, id.length - 1) +'</h2>' +
-                                                    '<ul class="'+ id.substring(0, id.length - 1) +'"></ul>' +
-                                                '</div>';
-
-                            $('#gina-toolbar-view-html-properties')
-                                .before(htmlParams);
-                        } else {
-
-                            if ( !/^html/.test(id) ) {
-
-                                var htmlOther = '<div id="gina-toolbar-view-'+ id.substring(0, id.length - 1) +'" class="gina-toolbar-section">' +
-                                                '<h2 class="gina-toolbar-section-title">'+ id.substring(0, id.length - 1) +'</h2>' +
-                                                '<ul class="'+ id.substring(0, id.length - 1) +'"></ul>' +
-                                            '</div>';
-
-                                $html
-                                    .append(htmlOther);
-                            }/** else { // add to properties section
-                                $root
-                                    .find('.gina-toolbar-properties')
-                                    .append('ul.' + id.substring(0, id.length - 1))
-                            }*/
-
-                        }
-
-                        parseView(obj[i], ginaObj[i], id, elIsXHR, $html.find('ul.'+ id.substring(0, id.length - 1)), $root );
-
-                    } else {
-
-                        parentId = id + i.replace(/[^A-Za-z0-9_-]/g, '_') + '-';
-
-                        $parent
-                            .find('ul.'+ id.substring(0, id.length - 1))
-                            .append('<li class="gina-toolbar-object"><a href="#" class="gina-toolbar-key gina-toolbar'+ isXHR +'-folding-state-'+ normalizeFoldingStateName( i.replace(/[^A-Za-z0-9_-]/g, '_'), parentId.substring(0, parentId.length - 1) ) +'">'+ i +' <span>{ }</span></a><ul class="gina-toolbar-object '+ parentId.substring(0, parentId.length - 1) +'"></ul></li>');
-
-                        parseView(obj[i], ginaObj[i], parentId, elIsXHR, $parent.find('ul.'+ id.substring(0, id.length - 1)), $root );
-
-                        id += i.replace(/[^A-Za-z0-9_-]/g, '_') + '-';
-                    }
-
-
-                    // clear one level
-                    id = id.substring(0, id.length - i.length - 1);
-
-
-                } else if ( Array.isArray(obj[i]) ) { // parse collection
-
-
-
-                    $parent = $('#gina-toolbar-view-' + id.substring(0, id.length - 1));
-
-                    hasParent = ( $parent.length ) ? true : false;
-
-                    if ( !hasParent || /^html/.test(id) ) {
-
-                        $parent = $('.' + id);
-                        parentId = id + i.replace(/[^A-Za-z0-9_-]/g, '_') + '-';
-
-                        $parent
-                            //.find('ul.'+ id.substring(0, id.length - 1))
-                            .append('<li class="gina-toolbar-collection"><a href="#" class="gina-toolbar-key gina-toolbar'+ isXHR +'-folding-state-'+ normalizeFoldingStateName( i.replace(/[^A-Za-z0-9_-]/g, '_'), parentId.substring(0, parentId.length - 1) ) +'">'+ i +' <span>['+ obj[i].length +']</span></a><ul> '+ parseCollection(obj[i], ginaObj[i], parentId, $parent.find('li ul.'+ id.substring(0, id.length - 1)), section )+'</ul></li>');
-
-
-                        //parentId = parentId.substring(0, parentId.length - 1)+ '-';
-                        //parentId = id.substring(0, id.length - i.length - 1);
-                        //parseView(obj[i], ginaObj[i], parentId, elIsXHR, $parent.find('ul.'+ parentId.substring(0, parentId.length - 1)), $root );
-
-                        //id += i.replace(/[^A-Za-z0-9_-]/g, '_') + '-';
-                        //$parent = $('#gina-toolbar-view-' + id.substring(0, id.length - 1));
-                        id += i.replace(/[^A-Za-z0-9_-]/g, '_') + '-';
-                    } else {
-
-
-                        parentId = id + i.replace(/[^A-Za-z0-9_-]/g, '_') + '-';
-
-                        $parent
-                            .find('li.'+ id.substring(0, id.length - 1) +' ul')
-                            .append('<li class="gina-toolbar-collection"><a class="gina-toolbar-key gina-toolbar'+ isXHR +'-folding-state-'+ normalizeFoldingStateName( i.replace(/[^A-Za-z0-9_-]/g, '_'), parentId.substring(0, parentId.length - 1) ) +'">'+ i +' <span>['+ obj[i].length +']</span></a><ul>'+ parseCollection(obj[i], ginaObj[i], parentId, $parent.find('li ul.'+ id.substring(0, id.length - 1)), section ) +'</ul></li>');
-
-                        id += i.replace(/[^A-Za-z0-9_-]/g, '_') + '-';
-
-                    }
-
-
-                    // if ( !hasParent || /^html/.test(id) ) {
-                    //     id = id + i.replace(/[^A-Za-z0-9_-]/g, '_') + '-';
-                    //     $root
-                    //         .find('.gina-toolbar-properties')
-                    //         .append('<li class="gina-toolbar-collection"><a class="gina-toolbar-key gina-toolbar'+ isXHR +'-folding-state-'+ normalizeFoldingStateName( i.replace(/[^A-Za-z0-9_-]/g, '_'), id.substring(0, id.length - 1) ) +'">'+ i +' <span>['+ obj[i].length +']</span></a><ul>'+ parseCollection(obj[i], ginaObj[i], parentId, $root.find('.gina-toolbar-properties'), section) +'</ul></li>');
-
-
-                    // } else {
-
-
-                    //     parentId = id + i.replace(/[^A-Za-z0-9_-]/g, '_') + '-';
-
-                    //     $parent
-                    //         .find('li.'+ id.substring(0, id.length - 1) +' ul')
-                    //         .append('<li class="gina-toolbar-collection"><a class="gina-toolbar-key gina-toolbar'+ isXHR +'-folding-state-'+ normalizeFoldingStateName( i.replace(/[^A-Za-z0-9_-]/g, '_'), parentId.substring(0, parentId.length - 1) ) +'">'+ i +' <span>['+ obj[i].length +']</span></a><ul>'+ parseCollection(obj[i], ginaObj[i], parentId, $parent.find('li ul.'+ id.substring(0, id.length - 1)), section ) +'</ul></li>');
-
-                    //     id += i.replace(/[^A-Za-z0-9_-]/g, '_') + '-';
-                    // }
-
-                    // clear one level
-                    id = id.substring(0, id.length - i.length - 1);
-                } else {
-
-
-
-                    objType = (ginaObj[i] === null) ? 'null' : typeof(ginaObj[i]);
-                    if ( objType == 'undefined' ) { // new key  declaration added by user
-                        if (/\-$/.test(id)) {
-                            id = id.substring(0, id.length - 1);
-                        }
-
-                        if (!id) continue;
-
-                        $html
-                            .find('ul.' + id)
-                            .append('<li class="gina-toolbar-key-value"><span class="gina-toolbar-key gina-toolbar-key-added">'+ i +':</span> <span class="gina-toolbar-value gina-toolbar-value-type-is-'+ objType +'">'+ obj[i]+'</span></li>');
-
-                    } else {
-
-                        //if (/^_comment/.test(i) ) continue;
-
-                        if (obj[i] !== ginaObj[i] ) {
-                            if (!id) {
-                                id += i.replace(/[^A-Za-z0-9_-]/g, '_') + '-';
-                            }
-
-                            try {
-                                $html
-                                    .find('ul.' + id)
-                                    .append('<li class="gina-toolbar-key-value gina-toolbar-is-overridden"><span class="gina-toolbar-key">'+ i +':</span> <span class="gina-toolbar-value">'+ ginaObj[i] +'</span></li>');
-
-                                $html
-                                    .find('ul.' + id)
-                                    .append('<li class="gina-toolbar-key-value"><span class="gina-toolbar-key">'+ i +':</span> <span class="gina-toolbar-value gina-toolbar-value-type-is-'+ objType +'">'+ obj[i] +'</span></li>')
-
-                            } catch (err) {
-                                throw new Error('GinaToolbarError: `ul.'+ id +'` not found');
-                            }
-
-                        } else {
-
-                            if ( !id || /^html\-properties/.test(id) ) { // properties case
-                                // if (id) {
-                                //     $html
-                                //         .find('ul.' + id)
-                                //         .append('<li class="gina-toolbar-key-value"><span class="gina-toolbar-key">'+ i +':</span> <span class="gina-toolbar-value gina-toolbar-value-type-is-'+ objType +'">'+ obj[i] +'</span></li>')
-                                // } else {
-                                    $root
-                                        .find('.gina-toolbar-properties')
-                                        .append('<li class="gina-toolbar-key-value"><span class="gina-toolbar-key">'+ i +':</span> <span class="gina-toolbar-value gina-toolbar-value-type-is-'+ objType +'">'+ obj[i] +'</span></li>')
-                                //}
-
-                            } else {
-
-                                $root
-                                    .find('ul.' + id.substring(0, id.length - 1))
-                                    .append('<li class="gina-toolbar-key-value"><span class="gina-toolbar-key">'+ i +':</span> <span class="gina-toolbar-value gina-toolbar-value-type-is-'+ objType +'">'+ obj[i] +'</span></li>')
-                            }
-                        }
-                    }
-                }
-            }
-
-            return $root.html()
-        }
-
-        var parseSection = function (rules, id, elIsXHR, section) {
-
-            return parseObject(rules, rules, id, elIsXHR, section)
-        }
-
-        var parseUrls = function(section) {
-
-            var $el = null;
-            var $currentPopin = (gina.hasPopinHandler) ? gina.popin.getActivePopin() : null;
-            var isPopinContext = ( gina.hasPopinHandler ) ? true : false;
-            if ( isPopinContext && $currentPopin ) {
-                $el = $('#' + $currentPopin.id );
-            } else {
-                $el = $('body');
-            }
-
-            // look for `404: `
-            var found = {}
-                , foundStr = null
-                , formMethod = null
-                , f = 0
-                , fLen = 0
-            ;
-            var matched = $el.html().match(/404\:\[(.+)\](.+)@(.+)\"/gm);
-            if (matched) {
-                f = 0; fLen = matched.length;
-                for (; f < fLen; ++f) {
-                    foundStr = matched[f].replace(/\"(.*)|\"/g, '');
-                    formMethod = foundStr.match(/\[(.*)\]/g, '')[0].replace(/\[|\]/g,'');
-
-                    routing.getRouteByUrl(foundStr, formMethod)
-                }
-            }
-
-            printLogs();
-
-            //console.debug('popinIsActive: '+ isPopinContext +'isXHR: ', self.isXHR, ' -> ' + section, routing.notFound);
-        }
-
-        var printLogs = function() {
-            fLen = routing.notFound.count();
-            if ( fLen > 0 ) {
-                for (f in routing.notFound) {
-                    console.warn( '(x'+ routing.notFound[f].count +') ' + f + ' => ' + routing.notFound[f].message );
-                }
-            }
-        }
-
-        var parseForms = function (obj, ginaObj, $html, i, $forms, len, elIsXHR) {
-
-            if (!len) return false;
-
-            var attributes  = $forms[i].attributes;
-            var formMethod  = null;
-            var attrClass   = 'gina-toolbar-form-attributes';
-            var id = $forms[i].getAttribute('id') || $forms[i].id;
-            var section     = attrClass; // by default
-            var isXHR       = ( typeof(elIsXHR) != 'undefined' && elIsXHR != null ) ? '-xhr' : '';
-            // form fields set
-            // var fields      = validator
-            //                     .getFormById(id)
-            //                     .fieldsSet;
-
-            var $form = $(
-                        '<div id="gina-toolbar-form-'+ id +'" class="gina-toolbar-section">' +
-                            '<h2 class="gina-toolbar-section-title">'+ id +'</h2>' +
-                            '<ul class="gina-toolbar-section-content gina-toolbar-code" style="display: none;">' +
-                                '<li class="'+ attrClass +'">' +
-                                    '<h3 class="gina-toolbar-sub-section-title">'+ attrClass.replace(/gina-toolbar-form-/, '') +'</h3>' +
-                                    '<ul class="gina-toolbar-code"></ul>' +
-                                '</li>' +
-                            '</ul>' +
-                        '</div>');
-
-            var key         = null
-                , val       = null
-                , content   = null
-                , hasEvents = false
-                , routeObj  = null
-            ;
-
-            // testing for action attr to add action route
-
-
-            // adding form attributes
-            for ( var a = 0, aLen = attributes.length; a < aLen; ++a ) {
-
-                key     = attributes[a].name;
-                val     = attributes[a].nodeValue;
-
-                // filters
-                if ( /^method$/.test(key) )
-                    val = val.toUpperCase();
-
-                if ( /^class$/.test(key) && /\s+/.test(val) )
-                    val = '<ul><li>'+ val.replace(/\s+/g, '</li><li>') +'</li></ul>';
-
-                if ( /^action$/.test(key) ) {
-
-                    formMethod  = ( typeof(attributes['method']) != 'undefined' ) ? attributes['method'].nodeValue : null;
-
-                    if (!formMethod) {
-                        console.warn('[ ToolbarFormHelper::UndefinedMethod : form `'+ (id||undefined) +'` method attribute cannot be left undefined !');
-                    }
-
-                    routeObj    = routing.getRouteByUrl(val, formMethod);
-
-                    if ( typeof(routeObj) == 'undefined' || !routeObj ) {
-                        routeObj = {
-                            name: 'not found',
-                            namespace: 'not found',
-                            param: {
-                                control: 'not found',
-                                file: 'not found'
-                            }
-                        }
-                    }
-
-                    val =   '<ul>' +
-                                '<li>' +
-                                    '<span class="gina-toolbar-key">url</span>' +
-                                    '<span class="gina-toolbar-value">' + (val || '#') + '</span>' +
-                                '</li>' +
-                                '<li>' +
-                                    '<span class="gina-toolbar-key">route</span>' +
-                                    '<span class="gina-toolbar-value">' + routeObj.name +'</span>' +
-                                '</li>' +
-                                '<li>' +
-                                    '<span class="gina-toolbar-key">namespace</span>' +
-                                    '<span class="gina-toolbar-value">' + (routeObj.namespace || 'root controller') + '</span>' +
-                                '</li>' +
-                                '<li>' +
-                                    '<span class="gina-toolbar-key">control</span>' +
-                                    '<span class="gina-toolbar-value">' + routeObj.param.control + '</span>' +
-                                '</li>' +
-                                '<li>' +
-                                    '<span class="gina-toolbar-key">file</span>' +
-                                    '<span class="gina-toolbar-value">' + routeObj.param.file + '</span>' +
-                                '</li>' +
-                            '<ul>';
-
-                    content =   '<li>' +
-                                    '<span class="gina-toolbar-key">' + key + ':</span>' +
-                                    '<span class="gina-toolbar-value">' + val + '</span>' +
-                                '</li>';
-                }
-
-                //content = val;
-
-
-                // events
-                if ( /^data-gina-form-event/.test(key) ) {
-                    section     = 'events';
-                    hasEvents   = ( $form
-                                    .find('.'+ attrClass)
-                                    .find('.gina-toolbar-key-events').length ) ? true : false;
-
-                    key = key.replace(/^data-gina-form-event-/, '');
-
-                    if (!hasEvents) {
-                        // adding event sub section
-                        $form
-                            .find('ul.gina-toolbar-section-content')
-                            .append('<li class="gina-toolbar-form-'+ section +'">' +
-                                        '<h3 class="gina-toolbar-sub-section-title">'+ section +'</h3>' +
-                                        '<ul class="gina-toolbar-code"></ul>' +
-                                    '</li>');
-
-                    }
-
-
-                    content =   '<li>' +
-                                    '<span class="gina-toolbar-key">'+ key +':</span>' +
-                                    '<span class="gina-toolbar-value">'+ val +'</span>' +
-                                '</li>';
-
-
-                    $form
-                        .find('ul.gina-toolbar-section-content')
-                        .find('li.gina-toolbar-form-'+ section +' > ul')
-                        .append(content)
-
-
-                } else { // normal case
-
-                    if (!/^action$/.test(key)) {
-                        content = '<li>' +
-                                    '<span class="gina-toolbar-key">' + key + ':</span>' +
-                                    '<span class="gina-toolbar-value">' + val + '</span>' +
-                                '</li>';
-                    }
-
-                    $form
-                        .find('ul.gina-toolbar-section-content')
-                        .find('li.'+ attrClass +' > ul')
-                        .append(content)
-                }
-
-
-            }
-
-            // adding form rules
-            var rules = null;
-
-            try {
-
-                var dataRule = $forms[i].getAttribute('data-gina-form-rule');
-
-                if ( typeof(dataRule) != 'undefined' && dataRule!= null ) {
-                    rules = eval('gina.forms.rules.' + dataRule.replace(/-/g, '.'))
-                } else {
-                    rules = eval('gina.forms.rules.' + id.replace(/-/g, '.'))
-                }
-
-            } catch (err) {}
-
-            if ( rules ) {
-                section = 'rules';
-                $form
-                    .find('ul.gina-toolbar-section-content')
-                    .append('<li class="gina-toolbar-form-'+ section +'">' +
-                                '<h3 class="gina-toolbar-sub-section-title">'+ section +'</h3>' +
-                                '<ul class="gina-toolbar-properties">'+ parseSection( rules, id, elIsXHR, section ) +'</ul>' +
-                            '</li>');
-
-            }
-
-
-
-            $html.append($form);
-
-            ++i;
-
-            if (i < len) {
-                parseForms(obj, ginaObj, $html, i, $forms, len, elIsXHR)
-            }
-        }
-
-        var updateForm = function(id, section, obj, elIsXHR) {
-
-            var $form = $('#gina-toolbar-form-' + id);
-
-            // reset
-            $section = $form
-                .find('ul.gina-toolbar-section-content')
-                .find('li.gina-toolbar-form-'+ section + '> ul');
-
-            if ($section.length > 0) { // update
-
-                if ( obj.count() == 0 ) { // no errors remove section
-                    $form
-                        .find('ul.gina-toolbar-section-content')
-                        .find('li.gina-toolbar-form-' + section)
-                        .remove();
-                    return false
-                }
-
-                $section
-                    .html( parseSection( obj, id, elIsXHR, section ) );
-
-            } else { // init
-
-                $form
-                    .find('ul.gina-toolbar-section-content')
-                    .append('<li class="gina-toolbar-form-'+ section +'">' +
-                                '<h3 class="gina-toolbar-sub-section-title">'+ section +'</h3>' +
-                                '<ul class="gina-toolbar-properties">'+ parseSection( obj, id, elIsXHR, section ) +'</ul>' +
-                            '</li>');
-            }
-
-            // Form binding
-            var $sectionContent = $form.find('ul.gina-toolbar-section-content');
-            if ( !$sectionContent.is(':visible') ) {
-                $sectionContent.slideToggle()
-            }
-
-        }
-
-        var createInputFile = function(id, label) {
-
-            var html = null;
-
-            html  = '<label class="gina-toolbar-input-file">';
-            html += '<input type="file" multiple id="' + id +'">';
-            html += label;
-            html += '</label>';
-
-            return html
-        }
-
-        var loadJSON = function(txt, cb) {
-
-            var html = createInputFile('mock', 'Select your JSON file');
-
-            $htmlData.html(html);
-            window.__ginaData = window.__ginaData || {};
-
-            $htmlData.find('input').off('change').on('change', function(e) {
-
-                var files   = $(this)[0].files;
-                var file    = null;
-                var reader  = null;
-
-
-                if (files.length == 1) {
-                    file        = $(this)[0].files[0]; // jQuery way
-                    reader      = new FileReader();
-                    reader.addEventListener('load', function(){
-                        try {
-                            var parsed = JSON.parse(reader.result);
-                            window.__ginaData.user = parsed;
-                            window.__ginaData.gina = parsed;
-                            cb();
-                        } catch(e) {
-                            console.error('[gina toolbar] Could not parse mock JSON: ' + e.message);
-                        }
-                    }, false);
-
-                    reader.readAsBinaryString(file)
-                } else {
-                    var done = 0;
-                    var complete = function (done) {
-
-                        if (done == files.length) {
-                            cb()
-                        }
-                    };
-
-                    reader  = [];
-
-                    for (var i = 0, len = files.length; i < len; ++i) {
-                        file = files[i];
-                        switch (true) {
-                            case /user/.test(file.name):
-
-                                reader[i]  = new FileReader();
-                                reader[i].addEventListener('load', function onEventListenerAdded(e){
-                                    try { window.__ginaData.user = JSON.parse(e.currentTarget.result); } catch(ex) {}
-                                    ++done;
-                                    complete(done)
-                                }, false);
-
-                                reader[i].readAsBinaryString(file);
-
-                                break;
-
-                            case /gina/.test(file.name):
-                                //console.log(file);
-                                reader[i]  = new FileReader();
-                                reader[i].addEventListener('load', function onEventListenerAdded(e){
-                                    try { window.__ginaData.gina = JSON.parse(e.currentTarget.result); } catch(ex) {}
-                                    ++done;
-                                    complete(done)
-                                }, false);
-
-                                reader[i].readAsBinaryString(file);
-
-                                break;
-                        }
-                    }
-                }
-
-            });
-
-            return false;
-        }
-
-        var makeFoldingPaths = function(obj, tmp) {
-            for (var r in obj) {
-                if ( typeof(obj[r]) == 'object' ) {
-                    self.foldingPaths[tmp + r] = tmp + r;
-                    makeFoldingPaths(obj[r], tmp + r+'-');
-                }
-            }
-        }
-
-        this.update = function (section, data) {
-            loadData(section, data);
-        }
-
-        this.restore = function () {
-            // get last jsonObject.data state
-            if (lastJsonObjectState && typeof (lastJsonObjectState.data) != 'undefined' ) {
-                originalData.jsonObject.data = lastJsonObjectState.data;
-            }
-
-            loadData('data', originalData.jsonObject, originalData.ginaJsonObject);
-            self.hasParsedUrls = false;
-            routing.notFound = {};
-        }
-
-
-        if ( typeof(gina.validator) != 'undefined' ) {
-            gina.validator.on('initialized', function onValidatorReady(){
-                console.log('toolbar validator ready');
-                init();
-            })
-        } else {
-            init();
-        }
-
-    }
-
-    return Toolbar
-});
-define('gina', [ 'require', 'vendor/uuid', 'lib/merge', 'lib/routing', 'utils/events', 'helpers/prototypes', 'helpers/dateFormat', 'gina/toolbar' ], function (require) {
-
-    /**
-     * Imports & definitions
-     * */
-    var eventsHandler   = require('utils/events'); // events handler
-    var merge           = require('lib/merge');
-    var routing         = require('lib/routing');
-    var dateFormat      = require('helpers/dateFormat')();
-    var prototypes      = require('helpers/prototypes')({ dateFormat: dateFormat });
-    var uuid            = require('vendor/uuid');
-
-    var jQuery          = (window['jQuery']) ? window['jQuery'] : null;
-
-    if (!window.process ) {
-        (function(window, nextTick, process, prefixes, i, p, fnc) {
-            p = window[process] || (window[process] = {});
-            while (!fnc && i < prefixes.length) {
-                fnc = window[prefixes[i++] + 'requestAnimationFrame'];
-            }
-            p[nextTick] = p[nextTick] || (fnc && fnc.bind(window)) || window.setImmediate || window.setTimeout;
-        })(window, 'nextTick', 'process', 'r webkitR mozR msR oR'.split(' '), 0);
-    }
-
-    if (!window.getComputedStyle) {
-        /**
-         * Returns the roster widget element.
-         * @this {Window}
-         * @returns {ComputedStyle}
-         */
-        window.getComputedStyle = function(el, pseudo) {
-            this.el = el;
-            this.getPropertyValue = function(prop) {
-                var re = /(\-([a-z]){1})/g;
-                if (prop == 'float') {
-                    prop = 'styleFloat'
-                }
-                if (re.test(prop)) {
-                    prop = prop.replace(re, function () {
-                        return arguments[2].toUpperCase()
-                    })
-                }
-                return el.currentStyle[prop] ? el.currentStyle[prop] : null
-            }
-            return this
-        }
-    }
-
-
-    async function construct(gina) {
-
-        this.plugin         = 'gina';
-
-        var events          = [ 'ginaloaded', 'ready' ];
-
-        /**
-         * setOptions
-         * Override default config options or add new options properties
-         *
-         * @param {object} options
-         * */
-        var setOptions = function(options) {
-            proto.config = merge(proto.config, options, true)
-        }
-
-        // instance proto
-        var proto           = {
-            'id'                : 'gina-' + uuid.v1(),
-
-            'plugin'            : this.plugin,
-            'on'                : on,
-            'eventData'         : {},
-            'target'            : document, // by default
-        };
-
-        document.id = proto.id;
-
-        var $instance       = {
-            'id'                : proto.id,
-
-            'isFrameworkLoaded' : false,
-            'hasValidator'      : false,
-            'hasPopinHandler'   : false,
-            'config'            : {},
-            'session'           : null,
-            'registeredEvents'  : {},
-            'events'            : {},
-
-            'setOptions'        : setOptions
-        };
-
-        // iframe case
-        if ( typeof(parent.window['gina']) != 'undefined' ) {
-            // inheriting from parent frame instance
-            window['gina'] = merge((window['gina'] || {}), parent.window['gina']);
-        }
-        $instance = merge( (window['gina'] || {}), $instance);
-
-        registerEvents(this.plugin, events);
-        triggerEvent(gina, proto.target, 'ginaloaded', $instance);
-    }
-
-    return construct
-});
-/*!
- * Engine.IO v6.6.3
- * (c) 2014-2025 Guillermo Rauch
- * Released under the MIT License.
- */
-!function(t,n){"object"==typeof exports&&"undefined"!=typeof module?module.exports=n():"function"==typeof define&&define.amd?define('vendor/engine.io',n):(t="undefined"!=typeof globalThis?globalThis:t||self).eio=n()}(this,(function(){"use strict";function t(t,n){for(var i=0;i<n.length;i++){var r=n[i];r.enumerable=r.enumerable||!1,r.configurable=!0,"value"in r&&(r.writable=!0),Object.defineProperty(t,u(r.key),r)}}function n(n,i,r){return i&&t(n.prototype,i),r&&t(n,r),Object.defineProperty(n,"prototype",{writable:!1}),n}function i(){return i=Object.assign?Object.assign.bind():function(t){for(var n=1;n<arguments.length;n++){var i=arguments[n];for(var r in i)({}).hasOwnProperty.call(i,r)&&(t[r]=i[r])}return t},i.apply(null,arguments)}function r(t){return r=Object.setPrototypeOf?Object.getPrototypeOf.bind():function(t){return t.__proto__||Object.getPrototypeOf(t)},r(t)}function e(t,n){t.prototype=Object.create(n.prototype),t.prototype.constructor=t,s(t,n)}function o(){try{var t=!Boolean.prototype.valueOf.call(Reflect.construct(Boolean,[],(function(){})))}catch(t){}return(o=function(){return!!t})()}function s(t,n){return s=Object.setPrototypeOf?Object.setPrototypeOf.bind():function(t,n){return t.__proto__=n,t},s(t,n)}function u(t){var n=function(t,n){if("object"!=typeof t||!t)return t;var i=t[Symbol.toPrimitive];if(void 0!==i){var r=i.call(t,n||"default");if("object"!=typeof r)return r;throw new TypeError("@@toPrimitive must return a primitive value.")}return("string"===n?String:Number)(t)}(t,"string");return"symbol"==typeof n?n:n+""}function f(t){return f="function"==typeof Symbol&&"symbol"==typeof Symbol.iterator?function(t){return typeof t}:function(t){return t&&"function"==typeof Symbol&&t.constructor===Symbol&&t!==Symbol.prototype?"symbol":typeof t},f(t)}function h(t){var n="function"==typeof Map?new Map:void 0;return h=function(t){if(null===t||!function(t){try{return-1!==Function.toString.call(t).indexOf("[native code]")}catch(n){return"function"==typeof t}}(t))return t;if("function"!=typeof t)throw new TypeError("Super expression must either be null or a function");if(void 0!==n){if(n.has(t))return n.get(t);n.set(t,i)}function i(){return function(t,n,i){if(o())return Reflect.construct.apply(null,arguments);var r=[null];r.push.apply(r,n);var e=new(t.bind.apply(t,r));return i&&s(e,i.prototype),e}(t,arguments,r(this).constructor)}return i.prototype=Object.create(t.prototype,{constructor:{value:i,enumerable:!1,writable:!0,configurable:!0}}),s(i,t)},h(t)}var c=Object.create(null);c.open="0",c.close="1",c.ping="2",c.pong="3",c.message="4",c.upgrade="5",c.noop="6";var a=Object.create(null);Object.keys(c).forEach((function(t){a[c[t]]=t}));var p,l={type:"error",data:"parser error"},v="function"==typeof Blob||"undefined"!=typeof Blob&&"[object BlobConstructor]"===Object.prototype.toString.call(Blob),d="function"==typeof ArrayBuffer,y=function(t){return"function"==typeof ArrayBuffer.isView?ArrayBuffer.isView(t):t&&t.buffer instanceof ArrayBuffer},b=function(t,n,i){var r=t.type,e=t.data;return v&&e instanceof Blob?n?i(e):g(e,i):d&&(e instanceof ArrayBuffer||y(e))?n?i(e):g(new Blob([e]),i):i(c[r]+(e||""))},g=function(t,n){var i=new FileReader;return i.onload=function(){var t=i.result.split(",")[1];n("b"+(t||""))},i.readAsDataURL(t)};function w(t){return t instanceof Uint8Array?t:t instanceof ArrayBuffer?new Uint8Array(t):new Uint8Array(t.buffer,t.byteOffset,t.byteLength)}for(var m="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/",k="undefined"==typeof Uint8Array?[]:new Uint8Array(256),A=0;A<64;A++)k[m.charCodeAt(A)]=A;var j,B="function"==typeof ArrayBuffer,E=function(t,n){if("string"!=typeof t)return{type:"message",data:U(t,n)};var i=t.charAt(0);return"b"===i?{type:"message",data:O(t.substring(1),n)}:a[i]?t.length>1?{type:a[i],data:t.substring(1)}:{type:a[i]}:l},O=function(t,n){if(B){var i=function(t){var n,i,r,e,o,s=.75*t.length,u=t.length,f=0;"="===t[t.length-1]&&(s--,"="===t[t.length-2]&&s--);var h=new ArrayBuffer(s),c=new Uint8Array(h);for(n=0;n<u;n+=4)i=k[t.charCodeAt(n)],r=k[t.charCodeAt(n+1)],e=k[t.charCodeAt(n+2)],o=k[t.charCodeAt(n+3)],c[f++]=i<<2|r>>4,c[f++]=(15&r)<<4|e>>2,c[f++]=(3&e)<<6|63&o;return h}(t);return U(i,n)}return{base64:!0,data:t}},U=function(t,n){return"blob"===n?t instanceof Blob?t:new Blob([t]):t instanceof ArrayBuffer?t:t.buffer},T=String.fromCharCode(30);function S(){return new TransformStream({transform:function(t,n){!function(t,n){v&&t.data instanceof Blob?t.data.arrayBuffer().then(w).then(n):d&&(t.data instanceof ArrayBuffer||y(t.data))?n(w(t.data)):b(t,!1,(function(t){p||(p=new TextEncoder),n(p.encode(t))}))}(t,(function(i){var r,e=i.length;if(e<126)r=new Uint8Array(1),new DataView(r.buffer).setUint8(0,e);else if(e<65536){r=new Uint8Array(3);var o=new DataView(r.buffer);o.setUint8(0,126),o.setUint16(1,e)}else{r=new Uint8Array(9);var s=new DataView(r.buffer);s.setUint8(0,127),s.setBigUint64(1,BigInt(e))}t.data&&"string"!=typeof t.data&&(r[0]|=128),n.enqueue(r),n.enqueue(i)}))}})}function M(t){return t.reduce((function(t,n){return t+n.length}),0)}function x(t,n){if(t[0].length===n)return t.shift();for(var i=new Uint8Array(n),r=0,e=0;e<n;e++)i[e]=t[0][r++],r===t[0].length&&(t.shift(),r=0);return t.length&&r<t[0].length&&(t[0]=t[0].slice(r)),i}function C(t){if(t)return function(t){for(var n in C.prototype)t[n]=C.prototype[n];return t}(t)}C.prototype.on=C.prototype.addEventListener=function(t,n){return this.t=this.t||{},(this.t["$"+t]=this.t["$"+t]||[]).push(n),this},C.prototype.once=function(t,n){function i(){this.off(t,i),n.apply(this,arguments)}return i.fn=n,this.on(t,i),this},C.prototype.off=C.prototype.removeListener=C.prototype.removeAllListeners=C.prototype.removeEventListener=function(t,n){if(this.t=this.t||{},0==arguments.length)return this.t={},this;var i,r=this.t["$"+t];if(!r)return this;if(1==arguments.length)return delete this.t["$"+t],this;for(var e=0;e<r.length;e++)if((i=r[e])===n||i.fn===n){r.splice(e,1);break}return 0===r.length&&delete this.t["$"+t],this},C.prototype.emit=function(t){this.t=this.t||{};for(var n=new Array(arguments.length-1),i=this.t["$"+t],r=1;r<arguments.length;r++)n[r-1]=arguments[r];if(i){r=0;for(var e=(i=i.slice(0)).length;r<e;++r)i[r].apply(this,n)}return this},C.prototype.emitReserved=C.prototype.emit,C.prototype.listeners=function(t){return this.t=this.t||{},this.t["$"+t]||[]},C.prototype.hasListeners=function(t){return!!this.listeners(t).length};var L="function"==typeof Promise&&"function"==typeof Promise.resolve?function(t){return Promise.resolve().then(t)}:function(t,n){return n(t,0)},R="undefined"!=typeof self?self:"undefined"!=typeof window?window:Function("return this")();function D(t){for(var n=arguments.length,i=new Array(n>1?n-1:0),r=1;r<n;r++)i[r-1]=arguments[r];return i.reduce((function(n,i){return t.hasOwnProperty(i)&&(n[i]=t[i]),n}),{})}var P=R.setTimeout,I=R.clearTimeout;function $(t,n){n.useNativeTimers?(t.setTimeoutFn=P.bind(R),t.clearTimeoutFn=I.bind(R)):(t.setTimeoutFn=R.setTimeout.bind(R),t.clearTimeoutFn=R.clearTimeout.bind(R))}function q(){return Date.now().toString(36).substring(3)+Math.random().toString(36).substring(2,5)}var N=function(t){function n(n,i,r){var e;return(e=t.call(this,n)||this).description=i,e.context=r,e.type="TransportError",e}return e(n,t),n}(h(Error)),V=function(t){function n(n){var i;return(i=t.call(this)||this).writable=!1,$(i,n),i.opts=n,i.query=n.query,i.socket=n.socket,i.supportsBinary=!n.forceBase64,i}e(n,t);var i=n.prototype;return i.onError=function(n,i,r){return t.prototype.emitReserved.call(this,"error",new N(n,i,r)),this},i.open=function(){return this.readyState="opening",this.doOpen(),this},i.close=function(){return"opening"!==this.readyState&&"open"!==this.readyState||(this.doClose(),this.onClose()),this},i.send=function(t){"open"===this.readyState&&this.write(t)},i.onOpen=function(){this.readyState="open",this.writable=!0,t.prototype.emitReserved.call(this,"open")},i.onData=function(t){var n=E(t,this.socket.binaryType);this.onPacket(n)},i.onPacket=function(n){t.prototype.emitReserved.call(this,"packet",n)},i.onClose=function(n){this.readyState="closed",t.prototype.emitReserved.call(this,"close",n)},i.pause=function(t){},i.createUri=function(t){var n=arguments.length>1&&void 0!==arguments[1]?arguments[1]:{};return t+"://"+this.i()+this.o()+this.opts.path+this.u(n)},i.i=function(){var t=this.opts.hostname;return-1===t.indexOf(":")?t:"["+t+"]"},i.o=function(){return this.opts.port&&(this.opts.secure&&Number(443!==this.opts.port)||!this.opts.secure&&80!==Number(this.opts.port))?":"+this.opts.port:""},i.u=function(t){var n=function(t){var n="";for(var i in t)t.hasOwnProperty(i)&&(n.length&&(n+="&"),n+=encodeURIComponent(i)+"="+encodeURIComponent(t[i]));return n}(t);return n.length?"?"+n:""},n}(C),X=function(t){function i(){var n;return(n=t.apply(this,arguments)||this).h=!1,n}e(i,t);var r=i.prototype;return r.doOpen=function(){this.p()},r.pause=function(t){var n=this;this.readyState="pausing";var i=function(){n.readyState="paused",t()};if(this.h||!this.writable){var r=0;this.h&&(r++,this.once("pollComplete",(function(){--r||i()}))),this.writable||(r++,this.once("drain",(function(){--r||i()})))}else i()},r.p=function(){this.h=!0,this.doPoll(),this.emitReserved("poll")},r.onData=function(t){var n=this;(function(t,n){for(var i=t.split(T),r=[],e=0;e<i.length;e++){var o=E(i[e],n);if(r.push(o),"error"===o.type)break}return r})(t,this.socket.binaryType).forEach((function(t){if("opening"===n.readyState&&"open"===t.type&&n.onOpen(),"close"===t.type)return n.onClose({description:"transport closed by the server"}),!1;n.onPacket(t)})),"closed"!==this.readyState&&(this.h=!1,this.emitReserved("pollComplete"),"open"===this.readyState&&this.p())},r.doClose=function(){var t=this,n=function(){t.write([{type:"close"}])};"open"===this.readyState?n():this.once("open",n)},r.write=function(t){var n=this;this.writable=!1,function(t,n){var i=t.length,r=new Array(i),e=0;t.forEach((function(t,o){b(t,!1,(function(t){r[o]=t,++e===i&&n(r.join(T))}))}))}(t,(function(t){n.doWrite(t,(function(){n.writable=!0,n.emitReserved("drain")}))}))},r.uri=function(){var t=this.opts.secure?"https":"http",n=this.query||{};return!1!==this.opts.timestampRequests&&(n[this.opts.timestampParam]=q()),this.supportsBinary||n.sid||(n.b64=1),this.createUri(t,n)},n(i,[{key:"name",get:function(){return"polling"}}])}(V),H=!1;try{H="undefined"!=typeof XMLHttpRequest&&"withCredentials"in new XMLHttpRequest}catch(t){}var F=H;function z(){}var G=function(t){function n(n){var i;if(i=t.call(this,n)||this,"undefined"!=typeof location){var r="https:"===location.protocol,e=location.port;e||(e=r?"443":"80"),i.xd="undefined"!=typeof location&&n.hostname!==location.hostname||e!==n.port}return i}e(n,t);var i=n.prototype;return i.doWrite=function(t,n){var i=this,r=this.request({method:"POST",data:t});r.on("success",n),r.on("error",(function(t,n){i.onError("xhr post error",t,n)}))},i.doPoll=function(){var t=this,n=this.request();n.on("data",this.onData.bind(this)),n.on("error",(function(n,i){t.onError("xhr poll error",n,i)})),this.pollXhr=n},n}(X),J=function(t){function n(n,i,r){var e;return(e=t.call(this)||this).createRequest=n,$(e,r),e.l=r,e.v=r.method||"GET",e.m=i,e.k=void 0!==r.data?r.data:null,e.A(),e}e(n,t);var i=n.prototype;return i.A=function(){var t,i=this,r=D(this.l,"agent","pfx","key","passphrase","cert","ca","ciphers","rejectUnauthorized","autoUnref");r.xdomain=!!this.l.xd;var e=this.j=this.createRequest(r);try{e.open(this.v,this.m,!0);try{if(this.l.extraHeaders)for(var o in e.setDisableHeaderCheck&&e.setDisableHeaderCheck(!0),this.l.extraHeaders)this.l.extraHeaders.hasOwnProperty(o)&&e.setRequestHeader(o,this.l.extraHeaders[o])}catch(t){}if("POST"===this.v)try{e.setRequestHeader("Content-type","text/plain;charset=UTF-8")}catch(t){}try{e.setRequestHeader("Accept","*/*")}catch(t){}null===(t=this.l.cookieJar)||void 0===t||t.addCookies(e),"withCredentials"in e&&(e.withCredentials=this.l.withCredentials),this.l.requestTimeout&&(e.timeout=this.l.requestTimeout),e.onreadystatechange=function(){var t;3===e.readyState&&(null===(t=i.l.cookieJar)||void 0===t||t.parseCookies(e.getResponseHeader("set-cookie"))),4===e.readyState&&(200===e.status||1223===e.status?i.B():i.setTimeoutFn((function(){i.O("number"==typeof e.status?e.status:0)}),0))},e.send(this.k)}catch(t){return void this.setTimeoutFn((function(){i.O(t)}),0)}"undefined"!=typeof document&&(this.U=n.requestsCount++,n.requests[this.U]=this)},i.O=function(t){this.emitReserved("error",t,this.j),this.T(!0)},i.T=function(t){if(void 0!==this.j&&null!==this.j){if(this.j.onreadystatechange=z,t)try{this.j.abort()}catch(t){}"undefined"!=typeof document&&delete n.requests[this.U],this.j=null}},i.B=function(){var t=this.j.responseText;null!==t&&(this.emitReserved("data",t),this.emitReserved("success"),this.T())},i.abort=function(){this.T()},n}(C);if(J.requestsCount=0,J.requests={},"undefined"!=typeof document)if("function"==typeof attachEvent)attachEvent("onunload",W);else if("function"==typeof addEventListener){addEventListener("onpagehide"in R?"pagehide":"unload",W,!1)}function W(){for(var t in J.requests)J.requests.hasOwnProperty(t)&&J.requests[t].abort()}var K,Q=(K=Z({xdomain:!1}))&&null!==K.responseType,Y=function(t){function n(n){var i;i=t.call(this,n)||this;var r=n&&n.forceBase64;return i.supportsBinary=Q&&!r,i}return e(n,t),n.prototype.request=function(){var t=arguments.length>0&&void 0!==arguments[0]?arguments[0]:{};return i(t,{xd:this.xd},this.opts),new J(Z,this.uri(),t)},n}(G);function Z(t){var n=t.xdomain;try{if("undefined"!=typeof XMLHttpRequest&&(!n||F))return new XMLHttpRequest}catch(t){}if(!n)try{return new(R[["Active"].concat("Object").join("X")])("Microsoft.XMLHTTP")}catch(t){}}var _="undefined"!=typeof navigator&&"string"==typeof navigator.product&&"reactnative"===navigator.product.toLowerCase(),tt=function(t){function i(){return t.apply(this,arguments)||this}e(i,t);var r=i.prototype;return r.doOpen=function(){var t=this.uri(),n=this.opts.protocols,i=_?{}:D(this.opts,"agent","perMessageDeflate","pfx","key","passphrase","cert","ca","ciphers","rejectUnauthorized","localAddress","protocolVersion","origin","maxPayload","family","checkServerIdentity");this.opts.extraHeaders&&(i.headers=this.opts.extraHeaders);try{this.ws=this.createSocket(t,n,i)}catch(t){return this.emitReserved("error",t)}this.ws.binaryType=this.socket.binaryType,this.addEventListeners()},r.addEventListeners=function(){var t=this;this.ws.onopen=function(){t.opts.autoUnref&&t.ws.S.unref(),t.onOpen()},this.ws.onclose=function(n){return t.onClose({description:"websocket connection closed",context:n})},this.ws.onmessage=function(n){return t.onData(n.data)},this.ws.onerror=function(n){return t.onError("websocket error",n)}},r.write=function(t){var n=this;this.writable=!1;for(var i=function(){var i=t[r],e=r===t.length-1;b(i,n.supportsBinary,(function(t){try{n.doWrite(i,t)}catch(t){}e&&L((function(){n.writable=!0,n.emitReserved("drain")}),n.setTimeoutFn)}))},r=0;r<t.length;r++)i()},r.doClose=function(){void 0!==this.ws&&(this.ws.onerror=function(){},this.ws.close(),this.ws=null)},r.uri=function(){var t=this.opts.secure?"wss":"ws",n=this.query||{};return this.opts.timestampRequests&&(n[this.opts.timestampParam]=q()),this.supportsBinary||(n.b64=1),this.createUri(t,n)},n(i,[{key:"name",get:function(){return"websocket"}}])}(V),nt=R.WebSocket||R.MozWebSocket,it=function(t){function n(){return t.apply(this,arguments)||this}e(n,t);var i=n.prototype;return i.createSocket=function(t,n,i){return _?new nt(t,n,i):n?new nt(t,n):new nt(t)},i.doWrite=function(t,n){this.ws.send(n)},n}(tt),rt=function(t){function i(){return t.apply(this,arguments)||this}e(i,t);var r=i.prototype;return r.doOpen=function(){var t=this;try{this.M=new WebTransport(this.createUri("https"),this.opts.transportOptions[this.name])}catch(t){return this.emitReserved("error",t)}this.M.closed.then((function(){t.onClose()})).catch((function(n){t.onError("webtransport error",n)})),this.M.ready.then((function(){t.M.createBidirectionalStream().then((function(n){var i=function(t,n){j||(j=new TextDecoder);var i=[],r=0,e=-1,o=!1;return new TransformStream({transform:function(s,u){for(i.push(s);;){if(0===r){if(M(i)<1)break;var f=x(i,1);o=!(128&~f[0]),e=127&f[0],r=e<126?3:126===e?1:2}else if(1===r){if(M(i)<2)break;var h=x(i,2);e=new DataView(h.buffer,h.byteOffset,h.length).getUint16(0),r=3}else if(2===r){if(M(i)<8)break;var c=x(i,8),a=new DataView(c.buffer,c.byteOffset,c.length),p=a.getUint32(0);if(p>Math.pow(2,21)-1){u.enqueue(l);break}e=p*Math.pow(2,32)+a.getUint32(4),r=3}else{if(M(i)<e)break;var v=x(i,e);u.enqueue(E(o?v:j.decode(v),n)),r=0}if(0===e||e>t){u.enqueue(l);break}}}})}(Number.MAX_SAFE_INTEGER,t.socket.binaryType),r=n.readable.pipeThrough(i).getReader(),e=S();e.readable.pipeTo(n.writable),t.C=e.writable.getWriter();!function n(){r.read().then((function(i){var r=i.done,e=i.value;r||(t.onPacket(e),n())})).catch((function(t){}))}();var o={type:"open"};t.query.sid&&(o.data='{"sid":"'.concat(t.query.sid,'"}')),t.C.write(o).then((function(){return t.onOpen()}))}))}))},r.write=function(t){var n=this;this.writable=!1;for(var i=function(){var i=t[r],e=r===t.length-1;n.C.write(i).then((function(){e&&L((function(){n.writable=!0,n.emitReserved("drain")}),n.setTimeoutFn)}))},r=0;r<t.length;r++)i()},r.doClose=function(){var t;null===(t=this.M)||void 0===t||t.close()},n(i,[{key:"name",get:function(){return"webtransport"}}])}(V),et={websocket:it,webtransport:rt,polling:Y},ot=/^(?:(?![^:@\/?#]+:[^:@\/]*@)(http|https|ws|wss):\/\/)?((?:(([^:@\/?#]*)(?::([^:@\/?#]*))?)?@)?((?:[a-f0-9]{0,4}:){2,7}[a-f0-9]{0,4}|[^:\/?#]*)(?::(\d*))?)(((\/(?:[^?#](?![^?#\/]*\.[^?#\/.]+(?:[?#]|$)))*\/?)?([^?#\/]*))(?:\?([^#]*))?(?:#(.*))?)/,st=["source","protocol","authority","userInfo","user","password","host","port","relative","path","directory","file","query","anchor"];function ut(t){if(t.length>8e3)throw"URI too long";var n=t,i=t.indexOf("["),r=t.indexOf("]");-1!=i&&-1!=r&&(t=t.substring(0,i)+t.substring(i,r).replace(/:/g,";")+t.substring(r,t.length));for(var e,o,s=ot.exec(t||""),u={},f=14;f--;)u[st[f]]=s[f]||"";return-1!=i&&-1!=r&&(u.source=n,u.host=u.host.substring(1,u.host.length-1).replace(/;/g,":"),u.authority=u.authority.replace("[","").replace("]","").replace(/;/g,":"),u.ipv6uri=!0),u.pathNames=function(t,n){var i=/\/{2,9}/g,r=n.replace(i,"/").split("/");"/"!=n.slice(0,1)&&0!==n.length||r.splice(0,1);"/"==n.slice(-1)&&r.splice(r.length-1,1);return r}(0,u.path),u.queryKey=(e=u.query,o={},e.replace(/(?:^|&)([^&=]*)=?([^&]*)/g,(function(t,n,i){n&&(o[n]=i)})),o),u}var ft="function"==typeof addEventListener&&"function"==typeof removeEventListener,ht=[];ft&&addEventListener("offline",(function(){ht.forEach((function(t){return t()}))}),!1);var ct=function(t){function n(n,r){var e;if((e=t.call(this)||this).binaryType="arraybuffer",e.writeBuffer=[],e.L=0,e.R=-1,e.D=-1,e.P=-1,e.I=1/0,n&&"object"===f(n)&&(r=n,n=null),n){var o=ut(n);r.hostname=o.host,r.secure="https"===o.protocol||"wss"===o.protocol,r.port=o.port,o.query&&(r.query=o.query)}else r.host&&(r.hostname=ut(r.host).host);return $(e,r),e.secure=null!=r.secure?r.secure:"undefined"!=typeof location&&"https:"===location.protocol,r.hostname&&!r.port&&(r.port=e.secure?"443":"80"),e.hostname=r.hostname||("undefined"!=typeof location?location.hostname:"localhost"),e.port=r.port||("undefined"!=typeof location&&location.port?location.port:e.secure?"443":"80"),e.transports=[],e.$={},r.transports.forEach((function(t){var n=t.prototype.name;e.transports.push(n),e.$[n]=t})),e.opts=i({path:"/engine.io",agent:!1,withCredentials:!1,upgrade:!0,timestampParam:"t",rememberUpgrade:!1,addTrailingSlash:!0,rejectUnauthorized:!0,perMessageDeflate:{threshold:1024},transportOptions:{},closeOnBeforeunload:!1},r),e.opts.path=e.opts.path.replace(/\/$/,"")+(e.opts.addTrailingSlash?"/":""),"string"==typeof e.opts.query&&(e.opts.query=function(t){for(var n={},i=t.split("&"),r=0,e=i.length;r<e;r++){var o=i[r].split("=");n[decodeURIComponent(o[0])]=decodeURIComponent(o[1])}return n}(e.opts.query)),ft&&(e.opts.closeOnBeforeunload&&(e.q=function(){e.transport&&(e.transport.removeAllListeners(),e.transport.close())},addEventListener("beforeunload",e.q,!1)),"localhost"!==e.hostname&&(e.N=function(){e.V("transport close",{description:"network connection lost"})},ht.push(e.N))),e.opts.withCredentials&&(e.X=void 0),e.H(),e}e(n,t);var r=n.prototype;return r.createTransport=function(t){var n=i({},this.opts.query);n.EIO=4,n.transport=t,this.id&&(n.sid=this.id);var r=i({},this.opts,{query:n,socket:this,hostname:this.hostname,secure:this.secure,port:this.port},this.opts.transportOptions[t]);return new this.$[t](r)},r.H=function(){var t=this;if(0!==this.transports.length){var i=this.opts.rememberUpgrade&&n.priorWebsocketSuccess&&-1!==this.transports.indexOf("websocket")?"websocket":this.transports[0];this.readyState="opening";var r=this.createTransport(i);r.open(),this.setTransport(r)}else this.setTimeoutFn((function(){t.emitReserved("error","No transports available")}),0)},r.setTransport=function(t){var n=this;this.transport&&this.transport.removeAllListeners(),this.transport=t,t.on("drain",this.F.bind(this)).on("packet",this.G.bind(this)).on("error",this.O.bind(this)).on("close",(function(t){return n.V("transport close",t)}))},r.onOpen=function(){this.readyState="open",n.priorWebsocketSuccess="websocket"===this.transport.name,this.emitReserved("open"),this.flush()},r.G=function(t){if("opening"===this.readyState||"open"===this.readyState||"closing"===this.readyState)switch(this.emitReserved("packet",t),this.emitReserved("heartbeat"),t.type){case"open":this.onHandshake(JSON.parse(t.data));break;case"ping":this.J("pong"),this.emitReserved("ping"),this.emitReserved("pong"),this.W();break;case"error":var n=new Error("server error");n.code=t.data,this.O(n);break;case"message":this.emitReserved("data",t.data),this.emitReserved("message",t.data)}},r.onHandshake=function(t){this.emitReserved("handshake",t),this.id=t.sid,this.transport.query.sid=t.sid,this.R=t.pingInterval,this.D=t.pingTimeout,this.P=t.maxPayload,this.onOpen(),"closed"!==this.readyState&&this.W()},r.W=function(){var t=this;this.clearTimeoutFn(this.K);var n=this.R+this.D;this.I=Date.now()+n,this.K=this.setTimeoutFn((function(){t.V("ping timeout")}),n),this.opts.autoUnref&&this.K.unref()},r.F=function(){this.writeBuffer.splice(0,this.L),this.L=0,0===this.writeBuffer.length?this.emitReserved("drain"):this.flush()},r.flush=function(){if("closed"!==this.readyState&&this.transport.writable&&!this.upgrading&&this.writeBuffer.length){var t=this.Y();this.transport.send(t),this.L=t.length,this.emitReserved("flush")}},r.Y=function(){if(!(this.P&&"polling"===this.transport.name&&this.writeBuffer.length>1))return this.writeBuffer;for(var t,n=1,i=0;i<this.writeBuffer.length;i++){var r=this.writeBuffer[i].data;if(r&&(n+="string"==typeof(t=r)?function(t){for(var n=0,i=0,r=0,e=t.length;r<e;r++)(n=t.charCodeAt(r))<128?i+=1:n<2048?i+=2:n<55296||n>=57344?i+=3:(r++,i+=4);return i}(t):Math.ceil(1.33*(t.byteLength||t.size))),i>0&&n>this.P)return this.writeBuffer.slice(0,i);n+=2}return this.writeBuffer},r.Z=function(){var t=this;if(!this.I)return!0;var n=Date.now()>this.I;return n&&(this.I=0,L((function(){t.V("ping timeout")}),this.setTimeoutFn)),n},r.write=function(t,n,i){return this.J("message",t,n,i),this},r.send=function(t,n,i){return this.J("message",t,n,i),this},r.J=function(t,n,i,r){if("function"==typeof n&&(r=n,n=void 0),"function"==typeof i&&(r=i,i=null),"closing"!==this.readyState&&"closed"!==this.readyState){(i=i||{}).compress=!1!==i.compress;var e={type:t,data:n,options:i};this.emitReserved("packetCreate",e),this.writeBuffer.push(e),r&&this.once("flush",r),this.flush()}},r.close=function(){var t=this,n=function(){t.V("forced close"),t.transport.close()},i=function i(){t.off("upgrade",i),t.off("upgradeError",i),n()},r=function(){t.once("upgrade",i),t.once("upgradeError",i)};return"opening"!==this.readyState&&"open"!==this.readyState||(this.readyState="closing",this.writeBuffer.length?this.once("drain",(function(){t.upgrading?r():n()})):this.upgrading?r():n()),this},r.O=function(t){if(n.priorWebsocketSuccess=!1,this.opts.tryAllTransports&&this.transports.length>1&&"opening"===this.readyState)return this.transports.shift(),this.H();this.emitReserved("error",t),this.V("transport error",t)},r.V=function(t,n){if("opening"===this.readyState||"open"===this.readyState||"closing"===this.readyState){if(this.clearTimeoutFn(this.K),this.transport.removeAllListeners("close"),this.transport.close(),this.transport.removeAllListeners(),ft&&(this.q&&removeEventListener("beforeunload",this.q,!1),this.N)){var i=ht.indexOf(this.N);-1!==i&&ht.splice(i,1)}this.readyState="closed",this.id=null,this.emitReserved("close",t,n),this.writeBuffer=[],this.L=0}},n}(C);ct.protocol=4;var at=function(t){function n(){var n;return(n=t.apply(this,arguments)||this)._=[],n}e(n,t);var i=n.prototype;return i.onOpen=function(){if(t.prototype.onOpen.call(this),"open"===this.readyState&&this.opts.upgrade)for(var n=0;n<this._.length;n++)this.tt(this._[n])},i.tt=function(t){var n=this,i=this.createTransport(t),r=!1;ct.priorWebsocketSuccess=!1;var e=function(){r||(i.send([{type:"ping",data:"probe"}]),i.once("packet",(function(t){if(!r)if("pong"===t.type&&"probe"===t.data){if(n.upgrading=!0,n.emitReserved("upgrading",i),!i)return;ct.priorWebsocketSuccess="websocket"===i.name,n.transport.pause((function(){r||"closed"!==n.readyState&&(c(),n.setTransport(i),i.send([{type:"upgrade"}]),n.emitReserved("upgrade",i),i=null,n.upgrading=!1,n.flush())}))}else{var e=new Error("probe error");e.transport=i.name,n.emitReserved("upgradeError",e)}})))};function o(){r||(r=!0,c(),i.close(),i=null)}var s=function(t){var r=new Error("probe error: "+t);r.transport=i.name,o(),n.emitReserved("upgradeError",r)};function u(){s("transport closed")}function f(){s("socket closed")}function h(t){i&&t.name!==i.name&&o()}var c=function(){i.removeListener("open",e),i.removeListener("error",s),i.removeListener("close",u),n.off("close",f),n.off("upgrading",h)};i.once("open",e),i.once("error",s),i.once("close",u),this.once("close",f),this.once("upgrading",h),-1!==this._.indexOf("webtransport")&&"webtransport"!==t?this.setTimeoutFn((function(){r||i.open()}),200):i.open()},i.onHandshake=function(n){this._=this.nt(n.upgrades),t.prototype.onHandshake.call(this,n)},i.nt=function(t){for(var n=[],i=0;i<t.length;i++)~this.transports.indexOf(t[i])&&n.push(t[i]);return n},n}(ct),pt=function(t){function n(n){var i=arguments.length>1&&void 0!==arguments[1]?arguments[1]:{},r="object"===f(n)?n:i;return(!r.transports||r.transports&&"string"==typeof r.transports[0])&&(r.transports=(r.transports||["polling","websocket","webtransport"]).map((function(t){return et[t]})).filter((function(t){return!!t}))),t.call(this,n,r)||this}return e(n,t),n}(at);return function(t,n){return new pt(t,n)}}));
-//# sourceMappingURL=engine.io.min.js.map
-;
-function BindingHelper(handlerContext) {
-    
-    var self = {};
-    if ( typeof(handlerContext) != 'undefined' ) {
-        self = handlerContext
-    }
-    
-    /**
-     * process bindings
-     * 
-     * e.g.:
-     * result.bindings = 
-     * [
-     *     // close current popin
-     *     {
-     *         call: 'closeActivePopin'
-     *     },
-     *     // mark notification as read
-     *     {
-     *         call: 'onNotification',
-     *         payload: {
-     *             id: obj.notificationId,
-     *             action: 'mark-as-read'
-     *         }
-     *     },
-     *     {
-     *         handler: 'DocumentHandler', // targeting another handler
-     *         call: 'notify' // this method must be public
-     *     }
-     * ]
-     * 
-     * @param {array} bindings
-     * @param {number} [len]
-     * @param {number} [i] 
-     */
-    self.process = function(bindings, len, i) {
-        // handle errors first
-        if ( typeof(bindings) == 'undefined' || !Array.isArray(bindings) ) {
-            throw new Error('`bindings` must be a defined array')
-        }
-        if ( typeof(len) == 'undefined' ) {
-            len = bindings.length;
-            i = 0;
-        }
-        
-        if ( !bindings[i] )
-            return;
-        
-        var handleObject = bindings[i];
-        if ( typeof(handleObject.call) == 'undefined' )
-            throw new Error('`bindings.['+ i +'].call` is required !');
-        
-        if ( typeof(self[ handleObject.call ]) != 'function' ) 
-            throw new Error('`bindingContext.'+ handleObject.call +'` is not a function');
-        
-        // process the collection
-        var hCall = handleObject.call;
-        delete handleObject.call;
-        
-        try {
-            
-            // !! targeted handler instance must be exposed to the window object
-            if ( typeof(handleObject.handler) != 'undefined' ) {
-                
-                if ( !window[ handleObject.handler ] )
-                    throw new Error('`'+ handleObject.handler +'` could not be reached. You must expose it to the `window` do object before any call.');
-                
-                var hHandler = handleObject.handler;
-                delete handleObject.handler;
-                
-                window[ hHandler ].apply( this, Object.values(handleObject) );
-                //restore
-                handleObject.handler = hHandler
-            } else { // by default, will go to main handler or the one listening to xhr results
-                self[ hCall ].apply( this, Object.values(handleObject) );
-            }            
-            
-            //restore
-            handleObject.call = hCall;
-        } catch (err) {
-            console.error('BindingHelper encountered error while trying to execute `'+ hCall +'`' + err.stack || err);
-        }
-        
-        self.process(bindings, len, i+1)
-    }
-    
-    
-    return self
-}
-// Publish as AMD module
-define( 'helpers/binding',[],function() { return BindingHelper });
-/*
- * This file is part of the gina package.
- * Copyright (c) 2009-2026 Rhinostone <contact@gina.io>
- *
- * For the full copyright and license information, please view the LICENSE
- * file that was distributed with this source code.
- */
-
-
-// nodejs dependencies
-if ( typeof(module) !== 'undefined' && module.exports) {
-    var fs              = require('fs');
-    var os              = require('os');
-    var dns             = require('dns');
-    var execSync        = require('child_process').execSync;
-    var util            = require('util');
-    var promisify       = util.promisify;
-    try {
-        // With gina framework only
-        var console         =  require('../../logger');
-    } catch (err) {}
-}
-/**
- * @module lib/domain
- * @description Public Suffix List (PSL) based domain parser.
- * Credits & thanks to the Mozilla Community — https://publicsuffix.org/
- * Works in both Node.js (server) and browser (GFF) contexts.
- *
- * This lib uses Fetch API (Node.js ≥ 18.0.0).
- * See: https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch
- *
- * TODO - Write a cron to periodically pull updates from `https://publicsuffix.org/`
- * TODO - Finalize AMD module support
- * TODO - Replace execSync of `curl` with a Node.js-native synchronous request
- */
-
-/**
- * Public Suffix List domain parser.
- *
- * @class Domain
- * @constructor
- * @this {Domain}
- *
- * @param {object|function} [options]              - Options object, or a callback (shifts arguments)
- * @param {string}  [options.filename]             - Path to the `.dat` file (default: `../dist/public_suffix_list.dat`)
- * @param {boolean} [options.isUpdating=false]     - Trigger PSL update on instantiation
- * @param {function} [cb]                          - Ready callback `cb(err)`
- */
-function Domain(options, cb) {
-
-    this.name = arguments.callee.name;
-
-    var isGFFCtx        = ( ( typeof(module) !== 'undefined' ) && module.exports ) ? false : true;
-    // Detect if user is on IE browser
-    var isIE            = false;
-    var defaultUrl      = "/_gina/assets/public_suffix_list.dat";
-    var customEvent     = null; // isGFFCtx only
-    var myEventBus      = null;
-    if (isGFFCtx) {
-        isIE = !!window.MSInputMethodContext && !!document.documentMode;
-        defaultUrl = gina.config.webroot + defaultUrl.substring(1);
-        // Create a custom event
-        myEventBus = new EventTarget();
-
-    }
-
-    if ( typeof(arguments[0]) == 'function' ) {
-        cb = arguments[0];
-        options = undefined;
-    }
-
-    var defaultOptions  = {
-        // if isGFFCtx, should be place in the public folder to be served by your own host
-        // e.g.: "./public_suffix_list.dat" located under "/my-www-folder/"
-        filename            : "../dist/public_suffix_list.dat",
-        url                 : defaultUrl,
-        // url                 : "https://publicsuffix.org/list/public_suffix_list.dat",
-        alternativeUrl      : "https://raw.githubusercontent.com/publicsuffix/list/master/public_suffix_list.dat",
-        // only available from backend calls
-        isCachingRequired  : false,
-        isUpdating          : false
-    }
-
-    if (
-        !isGFFCtx
-        && typeof(options) != 'undefined'
-        && typeof(options.webroot) != 'undefined'
-    ) {
-        defaultOptions.url = options.webroot + defaultUrl.substring(1);
-    }
-
-    // Get the commit version
-    // cat ./framework/v0.1.6-alpha.83/core/asset/data/public_suffix_list.dat|grep 'COMMIT:'|sed 's/^\/\/ COMMIT\: //'
-
-    var self = {
-        name    : this.name,
-        options : null,
-        /**@js_externs rawPSL*/
-        rawPSL  : (isGFFCtx && typeof(window) != 'undefined' && typeof(window['rawPSL']) != 'undefined' ) ? window['rawPSL'] : null,
-        PSL     : [],
-    };
-
-    var init = function(proto, options, cb) {
-
-        if ( typeof(options) == 'undefined' ) {
-            options = defaultOptions
-        } else {
-            // merge options
-            for(let opt in defaultOptions) {
-                if ( typeof(options[opt]) == 'undefined' ) {
-                    options[opt] = defaultOptions[opt];
-                }
-            }
-        }
-
-        if (!isGFFCtx) {
-            options.filename = __dirname +'/'+ options.filename;
-        }
-
-        if (isGFFCtx && options.isCachingRequired ) {
-            console.warn('[DOMAIN] `options.isCachingRequired` is only available for backend');
-            options.isCachingRequired = false;
-        }
-
-        self.options = options;
-
-        if (cb) {
-
-            return loadPSL(options, function onPSLLoaded(err) {
-                if (err) {
-                    cb(err);
-                    return
-                }
-
-                console.debug('[DOMAIN][CB] PSL Loaded');
-                // return proto
-                cb(err, proto)
-            });
-        }
-
-        // Assuming that you have previously initialized Domain
-        loadPSL(options);
-
-        console.debug('[DOMAIN] PSL Loaded');
-
-        return proto
-    }
-
-    // TODO - for frontend calls only
-    var onReady = function() {
-
-    }
-
-    var loadPSL = async function(opt, cb) {
-
-        var filenameOrUrl   = (isGFFCtx || opt.isCachingRequired) ? opt.url : opt.filename;
-        var isUpdating      = ( typeof(opt.isUpdating) != 'undefined' ) ? opt.isUpdating : false;
-        var err             = null;
-
-        if (isGFFCtx) {
-
-            if (self.rawPSL && !isUpdating) {
-                cb(false);
-                return;
-            }
-
-            if (!window.fetch) {// just in case
-                err = new Error('[DOMAIN] Fetch API not supported');
-                cb(err);
-                return;
-            }
-
-            myEventBus.addEventListener('domain_psl.loaded', (event) => {
-                // console.log('Data loaded:', event.detail.data);
-                // console.log('Timestamp:', event.detail.timestamp);
-                cb(event.detail.error);
-            });
-
-
-            if ( window['gina']['_global']['initialized'].indexOf( self.name ) > -1 ) {
-                return;
-            }
-
-            if ( window['gina']['_global']['initialized'].indexOf( self.name ) == -1 ) {
-                window['gina']['_global']['initialized'].push( self.name );
-            }
-
-            var response = null
-                , result = null
-            ;
-            try {
-                response    = await fetch(filenameOrUrl);
-                result      = await response.text();
-
-                self.rawPSL = window['rawPSL'] = result;
-
-            } catch (PSLErr) {
-                // There was an error
-                // console.warn('[DOMAIN] Could not load PSL', err.stack || err.message || err);
-                err = new Error('[DOMAIN] Could not load PSL\n'+ (PSLErr.stack || PSLErr.message || PSLErr) );
-                // cb(err);
-                myEventBus.dispatchEvent(
-                    new CustomEvent('domain_psl.loaded', {
-                        detail: {
-                            data: null,
-                            error: err,
-                            timestamp: new Date()
-                        }
-                    })
-                );
-                return;
-            }
-
-            opt.isUpdating = false;
-
-            myEventBus.dispatchEvent(
-                new CustomEvent('domain_psl.loaded', {
-                    detail: {
-                        data: result,
-                        error: false,
-                        timestamp: new Date()
-                    }
-                })
-            );
-
-            return;
-        }
-
-        // file exists ?
-        var exists = false;
-        if ( typeof(fs.accessSync) != 'undefined' ) {
-            try {
-                fs.accessSync(opt.filename, fs.constants.F_OK);
-                exists = true;
-            } catch (err) {
-                exists = false;
-                // to handle symlinks
-                try {
-                    if ( fs.lstatSync(opt.filename).isSymbolicLink() ) {
-                        exists = true
-                    }
-                } catch (linkErr) {}
-            }
-        } else { // support for old version of nodejs
-            exists = fs.existsSync(opt.filename);
-        }
-
-        if (!exists) {
-            opt.isCachingRequired = true;
-        }
-
-        if (opt.isCachingRequired) { // Fetch is only supported from NodeJS >= 18.0.0
-            var cmd = 'curl -o '+opt.filename +' '+ opt.url +' >/dev/null 2>&1';
-            console.debug('[DOMAIN] Running: '+ cmd);
-            try {
-                console.debug( execSync(cmd).toString() );
-            } catch (err) {
-                console.warn('[DOMAIN] could not fetch from `'+ opt.url +'`. Trying with `'+ opt.alternativeUrl +'`');
-                cmd = 'curl -o '+opt.filename +' '+ opt.alternativeUrl +' >/dev/null 2>&1';
-                try {
-                   console.debug( execSync(cmd).toString() );
-                } catch (altErr) {
-                    cb(altErr);
-                    return;
-                }
-            }
-            // Waiting for the file to be written
-            var found = false;
-            nIntervId = setInterval(() => {
-                // Check for modules availability
-                if ( typeof(fs.accessSync) != 'undefined' ) {
-                    try {
-                        fs.accessSync(opt.filename, fs.constants.F_OK);
-                        found = true;
-                    } catch (err) {
-                        found = false;
-                        // to handle symlinks
-                        try {
-                            if ( fs.lstatSync(opt.filename).isSymbolicLink() ) {
-                                found = true
-                            }
-                        } catch (linkErr) {}
-                    }
-                } else { // support for old version of nodejs
-                    found = fs.existsSync(opt.filename);
-                }
-
-                if ( found ) {
-                    clearInterval(nIntervId);
-                    self.rawPSL = fs.readFileSync(opt.filename).toString();
-                    cb(false);
-
-                    return
-                }
-            }, 200);
-
-
-            // TODO - Synchronize this instead of using CURL
-            // var http = require('http');
-
-            // var port = 80;
-            // var urlArr = opt.url.match(/^(http|https)\:\/\/(.*)\//)[0].split(/\//g);
-            // if ( /\:\d+$/.test(urlArr[1]) ) {
-            //     port = ~~(urlArr[1].match(/\:\d+$/)[0].replace(/^\:/, ''));
-            //     urlArr[1] = urlArr[1].replace(/\:\d+$/, '');
-            // }
-            // var hostname = urlArr[0] +'//'+ urlArr[1];
-            // var path = '/'+ opt.url.split(/\//g).splice(3).join("/");
-
-            // var data = '';
-
-            // var requestOpt = {
-            //     hostname: hostname,
-            //     port: port,
-            //     path: path,
-            //     method: 'GET'
-            // };
-
-            // var req = await http.request(options, (res) => {
-            //     res.setEncoding('utf8');
-            //     res.on('data', (chunk) => {
-            //         console.log(`BODY: ${chunk}`);
-            //         data += chunk;
-            //     });
-            //     res.on('end', () => {
-            //         console.log('No more data in response.');
-            //     });
-            // });
-
-            // req.on('error', (e) => {
-            //     console.error(`problem with request: ${e.message}`);
-            // });
-
-            // req.end();
-
-            // self.rawPSL = data.toString();
-
-
-
-        }
-
-        // Just in case some one delete it once `Domain` has been inatialized
-        try {
-            self.rawPSL = fs.readFileSync(opt.filename).toString();
-            if (cb)
-                cb(false)
-        } catch (err) {
-            console.warn('[DOMAIN] could not read from `'+ opt.filename +'`');
-            loadPSL(options, cb)
-        }
-    }
-
-    var updatePSL = function(cb) {
-        self.options.isUpdating = true;
-        loadPSL(self.options, cb);
-    }
-
-    /**
-     * Usage : await domainInstance.getFQDN()
-     * @param {string} hostname (one that can be resolved)
-     *
-     * @return {string} fqdn
-     */
-    var getFQDN = async function(hostname) {
-        var host = (
-            typeof(hostname) != 'undefined'
-            && hostname != ''
-        ) ? hostname : os.hostname();
-        if ( /\./.test(host) ) {
-            return host
-        }
-
-        console.debug('[DOMAIN][getFQDN] FQDN: ' + host);
-        var ipObj       = null
-            , err       = null
-        ;
-        ipObj = await promisify(dns.lookup)(host, { hints: dns.ADDRCONFIG || dns.V4MAPPED })
-                    .then( function onIP(result) {
-                        console.debug('[DOMAIN][getFQDN] IP: ' + result.address);
-                        console.debug('[DOMAIN][getFQDN] FAMILY: ' + result.family);
-
-                        return result;
-                    })
-                    .catch( function onIPErr(_err) {
-                        err = _err;
-                    });
-        if (err) {
-            throw err;
-        }
-        host = await promisify(dns.lookupService)(ipObj.address, 0)
-                    .then( function onLookupService(result) {
-                        console.debug('[DOMAIN][getFQDN] FQDN: ' + result.hostname);
-                        console.debug('[DOMAIN][getFQDN] Service: ' + result.service);
-
-                        return result.hostname;
-                    })
-                    .catch( function onLookupServiceErr(err) {
-                        err = _err;
-                    });
-        if (err) {
-            throw err;
-        }
-
-        if ( !/\./.test(host) ) {
-            throw new Error('[DOMAIN][getFQDN] `'+ host +'` is not a FQDN !');
-        }
-
-        return host;
-    }
-
-
-    /**
-     * Load a json file and removing comments if found
-     *
-     * @return {string} filename - path
-     * @return {boolean} [jsonFormat] - false by default
-     * */
-    var getRootDomain = function(urlOrHostname, jsonFormat) {
-        if ( typeof(jsonFormat) == 'undefined' ) {
-            jsonFormat = false
-        }
-        urlOrHostname = urlOrHostname.trim();
-        var isSLD = false
-            , isRegisteredTldOrSld = false
-            , rootDomain = urlOrHostname.replace(/^(.*)\:\/\/|\/(.*)/g, '')
-            // we don't want sub domains: that's why the `.reverse()` is for
-            , rootDomainArr = rootDomain.split(/\./g).reverse()
-            // TLD by default
-            , rootDomainIndex = (rootDomainArr.length) ? rootDomainArr.length-1 : 0
-        ;
-
-        var list = self.rawPSL
-                // remove comments & empty lines
-                .replace(/\/\/\s*(.*)\n|^\s*\n/gm, '')
-                .split(/\n/)
-                .filter( function onFiltered(item, i, iArr) {
-                    // formating ^!, ^. & removing extra junk
-                    // this is specific to the ginven extensions list
-                    if ( /[^a-z 0-9.]+/.test(item) ) {
-                        item = item.replace(/[^a-z 0-9.]+/g, '').replace(/^\./g, '');
-                    }
-
-                    // retain only SLD
-                    if ( /\./.test(item) ) {
-                        if ( !isSLD && new RegExp('.'+item +'$').test(rootDomain) ) {
-                            // Found SLD
-                            isSLD = true;
-                            // console.debug('Found '+ item);
-                            rootDomainIndex = item.split(/\./g).length;
-                            // Stop here
-                            iArr.splice(0, iArr.length);
-                            return false;
-                        }
-
-                        return item
-                    }
-                    // also get tld to check later if valid/registered
-                    return item
-                });
-
-        // Local or unregistered domain
-        rootDomain = rootDomainArr[rootDomainIndex];
-
-        // TLD & SLD
-        if (rootDomainIndex > 0 ) {
-            // rootDomainArr  = rootDomainArr.splice(0, rootDomainIndex);
-            // rootDomain += '.'+ rootDomainArr.reverse().join('.');
-
-            rootDomainArr  = rootDomainArr.splice(0, rootDomainIndex);
-            var suffix = rootDomainArr[0];
-            // Remove port number
-            if ( /\:(.*)$/.test(suffix) ) {
-                suffix = suffix.replace(/\:(.*)$/, '');
-            }
-            isRegisteredTldOrSld = ( isSLD || !isSLD && list.indexOf(suffix) > -1 ) ? true : false;
-            if (isRegisteredTldOrSld /**&& isSLD || !isSLD && list.indexOf(suffix) < 0*/ ) {
-                if (rootDomainIndex > 1 && !isSLD) {
-                    // This is a TLD
-                    rootDomainArr.splice(2);
-                    rootDomain = rootDomainArr.reverse().join('.');
-                } else {
-                    rootDomain += '.'+ rootDomainArr.reverse().join('.');
-                }
-
-            } else {
-                if (rootDomainIndex > 1) {
-                    // Only allowing pseudo TLD here
-                    rootDomainArr.splice(2);
-                    rootDomain = rootDomainArr.reverse().join('.');
-                } else {
-                    rootDomain += '.'+ rootDomainArr.reverse().join('.');
-                }
-            }
-        }
-
-        // Remove port number
-        if ( /\:(.*)$/.test(rootDomain) ) {
-            rootDomain = rootDomain.replace(/\:(.*)$/, '');
-        }
-
-        console.debug('[DOMAIN] isSLD: '+ isSLD, urlOrHostname, ' -> ', rootDomain);
-        if ( /^true$/i.test(jsonFormat) ) {
-            return {
-                value               : rootDomain,
-                isSLD               : isSLD,
-                isRegisteredTldOrSld: isRegisteredTldOrSld
-            }
-        }
-        return {
-            value               : rootDomain,
-            isSLD               : isSLD,
-            isRegisteredTldOrSld: isRegisteredTldOrSld
-        }
-    }
-
-    // Both backend & frontend
-    var _proto = {
-        getRootDomain   : getRootDomain
-    };
-    // Backend proto only
-    if (!isGFFCtx) {
-        _proto.updatePSL    = updatePSL;
-        _proto.getFQDN      = getFQDN;
-    }
-    // Frontend only
-    else {
-        _proto.onReady = onReady;
-    }
-
-
-    if (isGFFCtx && isIE && !window.fetch) {
-        // Create Promise polyfill script tag
-        var promiseScript = document.createElement("script");
-        promiseScript.type = "text/javascript";
-        promiseScript.src =
-            "https://cdn.jsdelivr.net/npm/promise-polyfill@8.1.3/dist/polyfill.min.js";
-
-        // Create Fetch polyfill script tag
-        var fetchScript = document.createElement("script");
-        fetchScript.type = "text/javascript";
-        fetchScript.src =
-            "https://cdn.jsdelivr.net/npm/whatwg-fetch@3.4.0/dist/fetch.umd.min.js";
-
-        // Add polyfills to head element
-        document.head.appendChild(promiseScript);
-        document.head.appendChild(fetchScript);
-
-        // Wait for the polyfills to load and run the function.
-        // TODO - add a setinterval to trigger `onFetchReady`event
-        return setTimeout(() => {
-            return init(_proto, options, cb)
-        }, 500);
-    } else {
-        return init(_proto, options, cb)
-    }
-
-
-
-}//EO Domain.
-
-if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
-    // Publish as node.js module
-    module.exports = Domain
-} else if ( typeof(define) === 'function' && define.amd) {
-    // Publish as AMD module
-    define( 'lib/domain',[],function() { return Domain })
-}
-;
-define('gina/link', [ 'require', 'jquery', 'vendor/uuid', 'lib/domain', 'lib/merge', 'utils/events' ], function (require) {
-
-    var $               = require('jquery');
-    $.noConflict();
-    var uuid            = require('vendor/uuid');
-    var Domain          = require('lib/domain');
-    var domainInstance  = null;
-    var merge           = require('lib/merge');
-
-    require('utils/events'); // events
-
-    /**
-     * Gina Link Handler
-     *
-     * Activate binding with: `data-gina-link`
-     * Optional, if your a.href is empty or with another value than the targeted action : `data-gina-link-url`
-     *
-     * @param {object} options
-     * */
-    function Link(options) {
-
-        this.plugin = 'link';
-
-        var events  = ['loaded', 'ready', 'open', 'close', 'destroy', 'success', 'error', 'progress'];
-        registerEvents(this.plugin, events);
-
-        var self = { // local use only
-            'options' : {
-                'url' : undefined,
-                'class': 'gina-link-default'
-            },
-            authorizedEvents : ['ready', 'success', 'error'],
-            events: {}
-        };
-
-        var instance        = {
-            plugin          : this.plugin,
-            id              : 'gina-links-' + uuid.v4(),
-            on              : on,
-            eventData       : {},
-
-            '$links'       : {},
-            target          : document, // by default
-            isReady         : false,
-            initialized     : false
-        };
-
-        // link proto
-        var $link          = { // is on main `gina-links` container (first level)
-            'plugin'            : this.plugin,
-            'on'                : on,
-            'eventData'         : {},
-            'target'            : document, // by default
-
-            'url'               : null,
-            'request'           : null,
-            '$forms'            : []
-        };
-
-
-
-        // XML Request
-        var xhr = null;
-
-        /**
-         * XML Request options
-         * */
-        var xhrOptions = {
-            'url'           : '',
-            'method'        : 'GET',
-            'isSynchrone'   : false,
-            'withCredentials': true, // if should be enabled under a trusted env
-            'headers'       : {
-                // cross domain is enabled by default, but you need to setup `Access-Control-Allow-Origin`
-                'X-Requested-With': 'XMLHttpRequest' // to set isXMLRequest == true && in case of cross domain origin
-
-            }
-        };
-
-        var registeredLinks = [];
-
-
-
-        var proxyClick = function($childNode, $el, evt) {
-
-            addListener(gina, $childNode, 'click', function(e) {
-                cancelEvent(e);
-
-                triggerEvent(gina, $el, evt);
-            });
-        }
-
-        var getLinkById = function(id) {
-            return ( typeof(instance.$links[id]) != 'undefined' ) ? instance.$links[id] : null;
-        }
-
-        var getLinkByUrl = function(url) {
-            var $link = null;
-
-            for (var p in gina.link.$links) {
-                if ( typeof(gina.link.$links[p].url) != 'undefined' && gina.link.$links[p].url == url ) {
-                    $link = gina.link.$links[p];
-                    break;
-                }
-            }
-
-            return $link;
-        }
-
-
-
-        /**
-         * linkRequest
-         *
-         * @param {string} url
-         * @param {object} [options]
-         * */
-        function linkRequest(url, options) {
-
-            // link object
-            var $link      = getLinkByUrl(url);
-            var id         = $link.id;
-
-
-            // link element
-            var $el         = document.getElementById(id) || null;
-
-            var hLinkIsRequired = null;
-            // forward callback to HTML data event attribute through `hform` status
-            hLinkIsRequired = ( $el.getAttribute('data-gina-link-event-on-success') || $el.getAttribute('data-gina-link-event-on-error') ) ? true : false;
-            // success -> data-gina-form-event-on-submit-success
-            // error -> data-gina-form-event-on-submit-error
-            if (hLinkIsRequired)
-                listenToXhrEvents($link);
-
-            // if ( $el == null ) {
-
-            //     //var className   = $link.options.class +' '+ id;
-            //     $el             = document.createElement('a');
-            //     $el.setAttribute('id', id);
-            //     //$el.setAttribute('class', className);
-            //     instance.target.firstChild.appendChild($el);
-            // }
-
-            if ( typeof(options) == 'undefined' ) {
-                options = xhrOptions;
-            } else {
-                options = merge(options, xhrOptions);
-            }
-
-            if ( /^(http|https)\:/.test(url) && !new RegExp('^' + window.location.protocol + '//'+ window.location.host).test(url) ) {
-                // is request from same domain ?
-                //options.headers['Origin']   = window.protocol+'//'+window.location.host;
-                //options.headers['Origin']   = '*';
-                //options.headers['Host']     = 'https://freelancer-app.fr.local:3154';
-                var hostRootDomain  = domainInstance.getRootDomain(window.location.hostname).value;
-                var urlRootDomain   = domainInstance.getRootDomain(url).value;
-                var isSameDomain    = (hostRootDomain === urlRootDomain) ? true : false;
-                // var isSameDomain    = ( new RegExp(window.location.hostname).test(url) ) ? true : false;
-
-                if (gina.config.envIsDev) {
-                    console.debug('Checking CORS from Popin plugin...\TODO - local CORS Proxy');
-                    console.debug('Is request from same domain ? ', isSameDomain);
-                }
-                if (!isSameDomain) {
-                    // proxy external urls
-                    // TODO - instead of using `cors.io`, try to intégrate a local CORS proxy similar to : http://oskarhane.com/avoid-cors-with-nginx-proxy_pass/
-                    //url = url.match(/^(https|http)\:/)[0] + '//cors.io/?' + url;
-                    url = url.match(/^(https|http)\:/)[0] + '//corsacme.herokuapp.com/?'+ url;
-                    //delete options.headers['X-Requested-With']
-                }
-            }
-            options.url     = url;
-            // updating link options
-            if ($link && typeof($link.options) != 'undefined')
-                options  = merge($link.options, options);
-
-
-            if ( options.withCredentials ) { // Preflighted requests
-                if ('withCredentials' in xhr) {
-                    // XHR for Chrome/Firefox/Opera/Safari.
-                    if (options.isSynchrone) {
-                        xhr.open(options.method, options.url, options.isSynchrone)
-                    } else {
-                        xhr.open(options.method, options.url)
-                    }
-                } else if ( typeof XDomainRequest != 'undefined' ) {
-                    // XDomainRequest for IE.
-                    xhr = new XDomainRequest();
-                    xhr.open(options.method, options.url);
-                } else {
-                    // CORS not supported.
-                    xhr = null;
-                    var result = 'CORS not supported: the server is missing the header `"Access-Control-Allow-Credentials": true` ';
-                    triggerEvent(gina, $el, 'error.' + id, result)
-                }
-            } else { // simple requests
-
-                if (options.isSynchrone) {
-                    xhr.open(options.method, options.url, options.isSynchrone)
-                } else {
-                    xhr.open(options.method, options.url)
-                }
-            }
-
-
-
-            if (!xhr)
-                throw new Error('No `xhr` object initiated');
-
-
-            options.$link = $link;
-            //xhr = handleXhr(xhr, $el, options);
-            handleXhr(xhr, $el, options, require);
-            // sending
-            xhr.send();
-        }
-
-        // var listenToXhrEvents = function($link) {
-
-        //     //data-gina-link-event-on-success
-        //     var htmlSuccesEventCallback =  $link.target.getAttribute('data-gina-link-event-on-success') || null;
-        //     if (htmlSuccesEventCallback != null) {
-
-        //         if ( /\((.*)\)/.test(htmlSuccesEventCallback) ) {
-        //             eval(htmlSuccesEventCallback)
-        //         } else {
-        //             $link.on('success.hlink',  window[htmlSuccesEventCallback])
-        //         }
-        //     }
-
-        //     //data-gina-link-event-on-error
-        //     var htmlErrorEventCallback =  $link.target.getAttribute('data-gina-link-event-on-error') || null;
-        //     if (htmlErrorEventCallback != null) {
-        //         if ( /\((.*)\)/.test(htmlErrorEventCallback) ) {
-        //             eval(htmlErrorEventCallback)
-        //         } else {
-        //             $link.on('error.hlink', window[htmlErrorEventCallback])
-        //         }
-        //     }
-        // }
-
-
-
-
-        function registerLink($link, options) {
-
-            if ( typeof(options) != 'object' ) {
-                throw new Error('`options` must be an object')
-            }
-
-            $link.options = merge(options, self.options);
-
-            // link element
-            var id  = $link.id;
-            var $el = document.getElementById(id) || null;
-
-            if ( typeof(instance.$links[$link.id]) == 'undefined' ) {
-
-
-
-                if ( registeredLinks.indexOf($link.id) > -1 ) {
-                    throw new Error('`link '+$link.id+'` already exists !')
-                }
-
-
-                if (!gina.events[evt]) {
-
-
-
-                    // attach click events
-                    addListener(gina, $el, evt, function(e) {
-                        cancelEvent(e);
-
-                        var $localLink = getLinkById(e.target.id)
-                        // loading & binding link
-                        var localUrl = $localLink.url;
-
-                        // Non-Preflighted requests
-                        if ( typeof($localLink.options.isSynchrone) == 'undefined' ) {
-                            $localLink.options.isSynchrone = false;
-                        }
-                        if ( typeof($localLink.options.withCredentials) == 'undefined' ) {
-                            $localLink.options.withCredentials = false
-                        }
-
-                        linkRequest(localUrl, $localLink.options);
-
-                        //delete gina.events[ $localLink.id ];
-                        //removeListener(gina, event.target, event.type)
-                    });
-
-
-
-                    // bind child elements
-                    var childNodes = $el.childNodes;
-                    var l = 0; lLen = childNodes.length;
-                    if (lLen > 0) {
-                        for(; l < lLen; ++l) {
-                            if (typeof (childNodes[l].tagName) != 'undefined') {
-                                proxyClick(childNodes[l], $el, evt)
-                            }
-                        }
-                    }
-                }
-
-
-
-
-                $link.request       = linkRequest;
-                $link.getLinkById   = getLinkById;
-                $link.getLinkByUrl  = getLinkByUrl;
-
-                instance.$links[$link.id] = $link;
-
-
-
-            }
-        }
-
-        /**
-         * bindLinks
-         *
-         * @param {object} $target - DOM element
-         * @param {object} [options]
-         * */
-        var bindLinks = function($target, options) {
-
-            var id = null;
-            if ( typeof($target) == 'undefined' ) {
-                $target = instance.target;
-                id = instance.id;
-            }
-
-            // binding form elements
-            var found               = null
-                , $el               = null
-                , props             = null
-                , $newLink          = null
-                , url               = null
-                , elId              = null
-                , onEvent           = null
-                , onclickAttribute  = null
-                // a
-                , $a                = $target.getElementsByTagName('a')
-                // buttons
-                //, $button   = $target.getElementsByTagName('button')
-            ;
-
-            var i = 0, len = $a.length;
-            for (; i < len; ++i) {
-                found = $a[i].getAttribute('data-gina-link');
-
-                if (!found && found != "" || /^false$/i.test(found) ) continue;
-
-                $el     = $a[i];
-                props   = {
-                    type: 'a',
-                    method: 'GET'
-                };
-
-
-                url = $el.getAttribute('data-gina-link-url');
-                if ( typeof(url) != 'undefined' && url != null ) {
-                    props.url = url
-                } else {
-                    props.url = $el.getAttribute('href')
-                }
-
-
-
-
-                elId = $el.getAttribute('id');
-                if ( typeof(elId) == 'undefined' || elId == null || elId == '' || /popin\.link/.test(elId) ) {
-
-                    // unbind popin link
-                    // if ( /popin\.link/.test(elId) ) {
-
-                    // }
-
-                    elId = 'link.click.'+ 'gina-link-' + instance.id +'-'+ uuid.v4();
-                }
-                $el['id']   = elId;
-                props.id    = elId;
-                evt         = elId;
-                $el.setAttribute('id', evt);
-
-                if ($el.tagName == 'A') {
-                    onclickAttribute = $el.getAttribute('onclick');
-                }
-
-                if ( !onclickAttribute ) {
-                    $el.setAttribute('onclick', 'return false;')
-                } else if ( typeof(onclickAttribute) != 'undefined' && !/return false/.test(onclickAttribute) ) {
-                    if ( /\;$/.test(onclickAttribute) ) {
-                        onclickAttribute += 'return false;'
-                    } else {
-                        onclickAttribute += '; return false;'
-                    }
-                    $el.setAttribute('onclick', onclickAttribute);
-                }
-
-                $newLink = null;
-
-                if ( typeof(instance.$links[props.id]) == 'undefined' ) {
-                    props.target = $el;
-                    $newLink = merge(props, $link);
-                    registerLink($newLink, options);
-                }
-
-
-            }
-
-        }
-
-        var init = function(options) {
-
-            setupInstanceProto();
-            instance.on('init', function(event) {
-
-                // setting up AJAX
-                if (window.XMLHttpRequest) { // Mozilla, Safari, ...
-                    xhr = new XMLHttpRequest();
-                } else if (window.ActiveXObject) { // IE
-                    try {
-                        xhr = new ActiveXObject("Msxml2.XMLHTTP");
-                    } catch (e) {
-                        try {
-                            xhr = new ActiveXObject("Microsoft.XMLHTTP");
-                        }
-                        catch (e) {}
-                    }
-                }
-
-                // proxies
-                // click on main document
-                evt = 'click';// click proxy
-                // for proxies, use linkInstance.id as target is always `document`
-                addListener(gina, instance.target, evt, function(event) {
-
-                    if ( typeof(event.target.id) == 'undefined' ) {
-                        event.target.setAttribute('id', evt +'.'+ uuid.v4() );
-                        event.target.id = event.target.getAttribute('id')
-                    }
-
-
-
-                    if ( /^link\.click\./.test(event.target.id) ) {
-                        cancelEvent(event);
-                        var _evt = event.target.id;
-
-                        if ( new RegExp( '^link.click.gina-link-' + instance.id).test(_evt) )
-                            triggerEvent(gina, event.target, _evt, event.detail);
-
-                    }
-                });
-
-                if ( typeof(options) == 'undefined' ) {
-                    options = {}
-                }
-                instance.options = options;
-
-                bindLinks(instance.target, options);
-                gina.linkIsBinded = true;
-
-                instance.isReady = true;
-                gina.hasLinkHandler = true;
-                gina.link = merge(gina.link, instance);
-                // trigger link ready event
-                triggerEvent(gina, instance.target, 'ready.' + instance.id, instance);
-            });
-
-
-
-
-            instance.initialized = true;
-
-            return instance
-        }
-
-        var setupInstanceProto = function() {
-
-            instance.bindLinks      = bindLinks;
-            instance.request        = linkRequest;
-            instance.getLinkById    = getLinkById;
-            instance.getLinkByUrl   = getLinkByUrl;
-        }
-
-        if (!domainInstance) {
-            new Domain( function onReady(err, _domainInstance) {
-                if (err) {
-                    throw err
-                }
-
-                domainInstance = _domainInstance;
-            });
-        }
-
-        return init(options)
-    }
-
-    return Link
-});
-define('gina/popin', [ 'require', 'vendor/uuid', 'jquery', 'lib/domain', 'lib/merge', 'utils/events' ], function (require) {
+define('gina/popin', [ 'require', 'lib/domain', 'lib/merge', 'utils/events' ], function (require) {
 
     // TODO - Integrate dialog-polyfill : https://github.com/GoogleChrome/dialog-polyfill/blob/master/dist/dialog-polyfill.js
-    var $               = require('jquery');
-    $.noConflict();
-    var uuid            = require('vendor/uuid');
+    // removed: jquery dependency
+    // removed: uuid dependency (replaced by crypto.randomUUID())
     var Domain          = require('lib/domain');
     var domainInstance  = null;
     var merge           = require('lib/merge');
@@ -20544,7 +17066,7 @@ define('gina/popin', [ 'require', 'vendor/uuid', 'jquery', 'lib/domain', 'lib/me
 
         var instance        = {
             plugin          : this.plugin,
-            id              : 'gina-popins-' + uuid.v4(),
+            id              : 'gina-popins-' + crypto.randomUUID(),
             on              : on,
             eventData       : {},
 
@@ -20710,7 +17232,7 @@ define('gina/popin', [ 'require', 'vendor/uuid', 'jquery', 'lib/domain', 'lib/me
                 if (name == $popin.name) {
                     id = $el.id || $el.getAttribute('id') || null;
                     // By default
-                    evt = 'popin.click.'+ 'gina-popin-' + instance.id +'-'+ uuid.v4() +'-'+ name;
+                    evt = 'popin.click.'+ 'gina-popin-' + instance.id +'-'+ crypto.randomUUID() +'-'+ name;
                     // console.debug("[POPIN CLICK #1]", id, " VS ", evt);
                     // Retrieving existing event
                     if ( id && new RegExp( '^popin.click.gina-popin-').test(id) ) {
@@ -20789,7 +17311,7 @@ define('gina/popin', [ 'require', 'vendor/uuid', 'jquery', 'lib/domain', 'lib/me
                 }
 
                 if ( typeof(event.target.id) == 'undefined' ) {
-                    event.target.setAttribute('id', evt +'.'+ uuid.v4() );
+                    event.target.setAttribute('id', evt +'.'+ crypto.randomUUID() );
                     event.target.id = event.target.getAttribute('id')
                 }
 
@@ -20899,7 +17421,7 @@ define('gina/popin', [ 'require', 'vendor/uuid', 'jquery', 'lib/domain', 'lib/me
                     }*/ else { // close
 
                         if ( typeof(event.target.id) == 'undefined' ) {
-                            event.target.setAttribute('id', evt +'.'+ uuid.v4() );
+                            event.target.setAttribute('id', evt +'.'+ crypto.randomUUID() );
                             event.target.id = event.target.getAttribute('id')
                         }
 
@@ -21110,7 +17632,7 @@ define('gina/popin', [ 'require', 'vendor/uuid', 'jquery', 'lib/domain', 'lib/me
 
                 if (!$close[b]['id']) {
 
-                    evt = 'popin.close.'+ uuid.v4();
+                    evt = 'popin.close.'+ crypto.randomUUID();
                     $close[b]['id'] = evt;
                     $close[b].setAttribute( 'id', evt);
 
@@ -21156,10 +17678,10 @@ define('gina/popin', [ 'require', 'vendor/uuid', 'jquery', 'lib/domain', 'lib/me
                     // link or action ?
                     if (/^null$/i.test($link[i]['id'])) {
                         if ( isLink ) {
-                            evt = 'popin.link.' + uuid.v4();
+                            evt = 'popin.link.' + crypto.randomUUID();
                             $link[i].setAttribute('data-gina-popin-is-link', true);
                         } else {
-                            evt = 'popin.click.' + uuid.v4();
+                            evt = 'popin.click.' + crypto.randomUUID();
                             $link[i].setAttribute('data-gina-popin-is-link', false);
                         }
                     } else {
@@ -21232,7 +17754,7 @@ define('gina/popin', [ 'require', 'vendor/uuid', 'jquery', 'lib/domain', 'lib/me
                 for(; i < len; ++i) {
 
                     if ( !$forms[i]['id'] || typeof($forms[i]) != 'string' ) {
-                        _id = $forms[i].getAttribute('id') || 'form.' + uuid.v4();
+                        _id = $forms[i].getAttribute('id') || 'form.' + crypto.randomUUID();
                         $forms[i].setAttribute('id', _id);// just in case
                         $forms[i]['id'] = _id
                     } else {
@@ -22363,6 +18885,434 @@ define('gina/popin', [ 'require', 'vendor/uuid', 'jquery', 'lib/domain', 'lib/me
     return Popin
 });
 /**
+ * Gina Local Storage
+ * N.B.: this is based on Web StorageAPI & Node LocalStorage
+ * See.:
+ *  - https://developer.mozilla.org/en-US/docs/Web/API/Web_Storage_API
+ *  - https://www.npmjs.com/package/node-localstorage
+ * */
+function StoragePlugin(options) {
+
+    var merge       = merge || require('lib/merge');;
+    var Collection  = Collection || require('lib/collection');
+    var uuid        = uuid || { v1: function() { return Date.now().toString(36) + '-' + crypto.randomUUID(); }, v4: function() { return crypto.randomUUID(); } };
+    var dateFormat  = dateFormat || require('helpers/dateFormat');
+
+
+    var self = {
+        'options' : {
+            'bucket': 'default'
+        }
+    };
+
+    var bucketInstance = {};
+    var storage     = null;
+
+    var entities    = {}, collections = {}; // entities & collections (data) objects
+    var keywords    = ['not null']; // TODO - null, exists
+
+
+    var proto = {
+        'bucket'    : undefined,
+        'drop'      : bucketDrop,
+        'Collection': Collection
+    };
+
+    var entityProto = {
+        'insert'    : collectionInsert,
+        'find'      : collectionFind,
+        'findOne'   : collectionFindOne,
+        'update'    : null,
+        'delete'    : collectionDelete,
+        'drop'      : collectionDrop
+    };
+
+    var init = function(options) {
+
+        // detect if cookies are enabled
+        if ( !window.localStorage || window.localStorage && ! typeof(window.localStorage.setItem) == 'undefined' ) {
+            throw new Error('Make sure your browser supports `window.localStorage` to use Gina Storage. See: `https://developer.mozilla.org/en-US/docs/Web/API/Web_Storage_API#Browser_compatibility`');
+        }
+
+        if ( typeof(options) != 'object' && typeof(options) != 'undefined' ) {
+            throw new Error('`options` must be an object')
+        } else if ( typeof(options) == 'undefined' ) {
+            var options = {}
+        }
+
+        self.options    = merge(options, self.options);
+        storage         = window.localStorage;
+
+        var bucketName  = self.options['bucket'];
+        var bucket      = storage.getItem(bucketName);
+
+        if (!bucket && bucketName != undefined) {
+            //console.log('creating new bucket !');
+            bucketCreate(bucketName);
+        } else if (bucketName == undefined) {
+            throw new Error('`bucket` name cannot be undefined')
+        }
+
+        bucketInstance['bucket'] = bucketName;
+        bucketInstance = merge(bucketInstance, proto);
+    }
+
+
+
+    /**
+     * Create bucket
+     *
+     * @param {string} bucketName
+     * */
+    var bucketCreate = function(bucketName) {
+        storage.setItem(bucketName, JSON.stringify(collections));
+    }
+
+
+    /**
+     * Drop bucket
+     *
+     * */
+    function bucketDrop() {
+        storage.removeItem(self.options['bucket']);
+        bucketInstance = null;
+
+        for (var prop in this) {
+            delete this[prop]
+        }
+
+        return bucketInstance;
+    }
+
+    var collectionSave = function (enforceDeleted) {
+
+        var enforceDeleted = enforceDeleted || false;
+
+        try {
+            //backing up collections
+            var tmpCollections  = JSON.clone(collections);
+            var index           = this['_index'];
+            var collection      = this['_collection'];
+            var bucket          = this['_bucket'];
+            var filter          = this['_filter'];
+            this['_updatedAt']  = new Date().format("isoDateTime");
+
+            // merge(tmpCollections[ collection ][ index ], this, true);
+            tmpCollections[ collection ][ index ] = merge(tmpCollections[ collection ][ index ], this, true);
+
+            // cleaning
+            delete tmpCollections[ collection ][ index ]['_index'];
+            delete tmpCollections[ collection ][ index ]['_collection'];
+            delete tmpCollections[ collection ][ index ]['_bucket'];
+            delete tmpCollections[ collection ][ index ]['save'];
+            delete tmpCollections[ collection ][ index ]['_filter'];
+
+            if (enforceDeleted && typeof(tmpCollections[ collection ][ index ]) == 'object' ) {
+
+                var parseEnforcedCollection = function (arr, target) {
+                    for (var i = 0, len = arr.length; i < len; ++i) {
+                        if ( typeof (target[i]) == 'object' && typeof(arr[i]) != 'undefined' && !Array.isArray(arr[i]) ) {
+                            parseEnforced(arr[i], target[i])
+                        } else if ( !Array.isArray(arr[i]) ){
+                            if (typeof(arr[i]) == 'undefined') {
+                                delete target[i]
+                            }
+                        } else { // is collection type
+                            parseEnforcedCollection(arr[i], target[i])
+                        }
+                    }
+
+                    return target
+                }
+
+                var parseEnforced = function (obj, target) {
+                    for (var prop in target) {
+                        if ( typeof (target[prop]) == 'object' && typeof(obj[prop]) != 'undefined' && !Array.isArray(obj[prop]) ) {
+                            parseEnforced(obj[prop], target[prop])
+                        } else if ( !Array.isArray(obj[prop]) ){
+                            if (typeof(obj[prop]) == 'undefined') {
+                                delete target[ prop ]
+                            }
+                        } else { // is collection type
+                            parseEnforcedCollection(obj[prop], target[prop])
+                        }
+                    }
+
+                    return target
+                };
+
+                if ( Array.isArray(tmpCollections[ collection ][ index ]) ) {
+                    tmpCollections[ collection ][ index ] = parseEnforcedCollection(this, tmpCollections[ collection ][ index ])
+                } else if ( typeof(tmpCollections[ collection ][ index ] ) == 'object' ) {
+                    tmpCollections[ collection ][ index ] = parseEnforced(this, tmpCollections[ collection ][ index ])
+                } else {
+                    if (typeof(this[prop]) == 'undefined') {
+                        delete tmpCollections[ collection ][ index ]
+                    }
+                }
+            }
+
+            collections[ collection ][ index ] = tmpCollections[ collection ][ index ];
+
+            // saving
+            storage.setItem(bucket, JSON.stringify(collections));
+
+            return collectionFindOne(filter)
+
+        } catch (err) {
+            throw err
+        }
+    }
+
+    /**
+     * Create or Get Collection by name
+     *
+     * @param {string} name - Collection name
+     * */
+    function Collection(name) {
+        // retrieve collections state
+        collections = JSON.parse(storage.getItem(this['bucket']));
+        //console.log('collections ', (collections || null) );
+        if ( typeof(collections[name]) == 'undefined' ) {
+            collections[name] = [];
+            storage.setItem(this['bucket'], JSON.stringify(collections));
+            collections = JSON.parse(storage.getItem(this['bucket']));
+        }
+
+        entities[name]      = { '_collection': name, '_bucket': this['bucket'] };
+        entities[name]      = merge(entities[name], entityProto);
+
+        return entities[name]
+    }
+
+    /**
+     * Drop collection
+     *
+     * @param {string} name
+     * */
+    function collectionDrop(name) {
+        if ( typeof(collections[ this['_collection'] ]) == 'undefined' ) {
+            throw new Error('Collection `'+name+'` not found')
+        }
+
+        delete entities[ this['_collection'] ]; // delete entity
+        delete collections[ this['_collection'] ]; // delete data
+
+        storage.setItem(this['_bucket'], JSON.stringify(collections));
+    }
+
+
+    /**
+     * Insert into collection
+     *
+     * @param {object} content
+     * */
+    function collectionInsert(content) {
+
+        // TODO - add uuid
+        content['_id']         = uuid.v1();
+        content['_createdAt']  = new Date().format("isoDateTime");
+        content['_updatedAt']  = new Date().format("isoDateTime");
+
+        collections[ this['_collection'] ][ collections[ this['_collection'] ].length ] = content;
+
+        storage.setItem(this['_bucket'], JSON.stringify(collections));
+    }
+
+    /**
+     * Find from collection
+     *
+     * // TODO - add options
+     *
+     * @param {object} filter
+     * @param {object} [options] - e.g.: limit
+     *
+     * @returns {array} result
+     * */
+    function collectionFind(filter, options) {
+        if (!filter) {
+            // TODO - limit of ten by
+            return collections[ this['_collection'] ]
+        }
+
+        if ( typeof(filter) !== 'object' ) { // == findAll
+            throw new Error('filter must be an object');
+        } else {
+            //console.log('search into ', this['_collection'], collections[ this['_collection'] ], collections);
+            var content             = collections[ this['_collection'] ]
+                , condition         = filter.count()
+                , i                 = 0
+                , found             = []
+                , localeLowerCase   = '';
+
+            for (var o in content) {
+                for (var f in filter) {
+                    localeLowerCase = ( typeof(filter[f]) != 'boolean' ) ? filter[f].toLocaleLowerCase() : filter[f];
+                    if ( filter[f] && keywords.indexOf(localeLowerCase) > -1 && localeLowerCase == 'not null' && typeof(content[o][f]) != 'undefined' && typeof(content[o][f]) !== 'object' && content[o][f] != 'null' && content[o][f] != 'undefined' ) {
+                        if (found.indexOf(content[o][f]) < 0 ) {
+                            found[i] = content[o][f];
+                            ++i
+                        }
+
+                    } else if ( typeof(content[o][f]) != 'undefined' && typeof(content[o][f]) !== 'object' && content[o][f] === filter[f] ) {
+                        found[i] = content[o];
+                        ++i
+                    }
+                }
+            }
+        }
+
+        return found
+    }
+
+    //function collectionLimit(limit) {}
+
+    /**
+     * Find a single result from collection
+     *
+     * e.g:
+     *  // getting a record
+     *  > var objectRecord = <bucket>.Collection('myBucket').findOne({_name: "someName"});
+     *
+     *  // updating record by adding or updating an existing property
+     *  > objectRecord.myProperty = 'some value';
+     *  > objectRecord.save();
+     *
+     *  // deleting record
+     *  > objectRecord.myProperty.delete()
+     *
+     * @param {object} filter
+     *
+     * @returns {object|array|string} result
+     *
+     * */
+    function collectionFindOne(filter) {
+
+        if ( typeof(filter) !== 'object' ) {
+            throw new Error('filter must be an object');
+        } else {
+            var content             = collections[ this['_collection'] ]
+                , condition         = filter.count()
+                , i                 = 0
+                , result            = null
+                , localeLowerCase   = '';
+
+
+            //console.log('condition ', condition, '\nfitler', filter, '\ncontent', content);
+            if (condition == 0) return null;
+
+            for (var o in content) {
+                for (var f in filter) {
+                    localeLowerCase = ( typeof(filter[f]) != 'boolean' ) ? filter[f].toLocaleLowerCase() : filter[f];
+                    if ( filter[f] && keywords.indexOf(localeLowerCase) > -1 && localeLowerCase == 'not null' && typeof(content[o][f]) != 'undefined' && typeof(content[o][f]) !== 'object' && content[o][f] === filter[f] && content[o][f] != 'null' && content[o][f] != 'undefined' ) {
+                        if (result.indexOf(content[o][f]) < 0 ) {
+                            ++i;
+                            if (i === condition) {
+                                result                   = content[o];
+                                result['_index']         = o;
+                                result['_collection']    = this['_collection'];
+                                result['_bucket']        = this['_bucket'];
+                            }
+
+                        }
+
+                    } else if ( typeof(content[o][f]) != 'undefined' && typeof(content[o][f]) !== 'object' && content[o][f] === filter[f] ) {
+                        ++i;
+                        if (i === condition) {
+                            result                   = content[o];
+                            result['_index']         = o;
+                            result['_collection']    = this['_collection'];
+                            result['_bucket']        = this['_bucket'];
+                            result['_filter']        = filter;
+                        }
+                    }
+                }
+            }
+        }
+
+        if (result) {
+            /**
+             * save
+             *  e.g.:
+             *      // updating property
+             *      <obj>.property = 'value';
+             *      <obj>.save();
+             *
+             *      // deleting property
+             *      delete <obj>.property;
+             *      <obj>.save(true);
+             *
+             * @param {boolean} enforceDeleted
+             * */
+            result['save'] = collectionSave
+        }
+
+
+        return result
+    }
+
+    /**
+     * Delete from collection
+     *
+     * @param {object} filter
+     *
+     * @returns {array} result
+     * */
+    function collectionDelete(filter) {
+
+        if ( typeof(filter) !== 'object' ) {
+            throw new Error('filter must be an object');
+        } else {
+            var content     = JSON.clone( collections[ this['_collection'] ] )
+                //, condition = filter.count()
+                , i         = 0
+                , found     = [];
+
+            for (var o in content) {
+                for (var f in filter) {
+                    if ( filter[f] && keywords.indexOf(filter[f].toLocaleLowerCase()) > -1 && filter[f].toLowerCase() == 'not null' && typeof(content[o][f]) != 'undefined' && typeof(content[o][f]) !== 'object' && content[o][f] != 'null' && content[o][f] != 'undefined' ) {
+                        if (found.indexOf(content[o][f]) < 0 ) {
+                            found[i] = content[o][f];
+                            delete collections[ this['_collection'] ][o][f];
+                            ++i
+                        }
+
+                    } else if ( typeof(content[o][f]) != 'undefined' && typeof(content[o][f]) !== 'object' && content[o][f] === filter[f] ) {
+                        found[i] = content[o];
+                        collections[ this['_collection'] ].splice(o, 1);
+                        ++i
+                    }
+                }
+            }
+        }
+
+        if (found.length > 0 ) {
+            storage.setItem(this['_bucket'], JSON.stringify(collections));
+            return true
+        }
+
+        return false
+    }
+
+    init(options);
+
+
+    return bucketInstance
+};
+
+if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
+    // Publish as node.js module
+    var merge       = require('lib/merge'); //require('../../../../../lib/merge');
+    var Collection  = require('lib/collection'); //require('../../../../../lib/collection');
+    var uuid        = require('uuid');
+
+    module.exports = StoragePlugin
+
+} else if ( typeof(define) === 'function' && define.amd) {
+    // Publish as AMD module
+    define('gina/storage', ['helpers/dateFormat', 'helpers/prototypes'],function() { return StoragePlugin })
+};
+/**
  * Object.assign
  * Ref.: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object/assign
  *
@@ -22593,6 +19543,1512 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
     // Publish as AMD module
     define( 'lib/inherits',[],function() { return Inherits(); });
 };
+
+if ( typeof(module) !== 'undefined' && module.exports ) {
+    var lib = require('../../index');
+}
+
+/**
+ * @module lib/collection
+ * @description In-memory array collection with MongoDB-style query, update,
+ * insert, delete, orderBy, and aggregation methods. Each entry gets a `_uuid`
+ * index on construction. Works in Node.js (CommonJS) and browser (GFF/AMD).
+ *
+ * `Collection.length` returns entry count — do not use `.count()` as it
+ * includes function properties in the count.
+ *
+ * Dependencies: `lib/merge`, `uuid`
+ */
+
+/**
+ * In-memory document collection with query and mutation methods.
+ *
+ * @class Collection
+ * @constructor
+ * @this {Collection}
+ *
+ * @param {Array}   content      - Initial array of documents (deep-cloned on construction)
+ * @param {object}  [options]                      - Options
+ * @param {boolean} [options.useLocalStorage=false] - Persist to `localStorage` (browser only)
+ * @param {string}  [options.locale='en']           - Locale used for string comparison
+ * @returns {object} Collection instance (the enriched `content` array)
+ * @throws {Error} When `content` is not an Array
+ *
+ * @example
+ * var col = new Collection([{ id: 1, name: 'Alice' }, { id: 2, name: 'Bob' }]);
+ *
+ * // find — AND clause
+ * col.find({ name: 'Alice' });                          // [{ id:1, name:'Alice', _uuid:'…' }]
+ * // find — comparison
+ * col.find({ id: '>= 1' });                             // both entries
+ * // find — nested
+ * col.find({ 'address.city': 'Paris' });
+ * // find — within array
+ * col.find({ 'tags[*].label': 'news' });
+ * // OR clause (pass two filter objects)
+ * col.or().find({ name: 'Alice' }, { name: 'Bob' });
+ *
+ * col.findOne({ id: 1 });                               // { id:1, … }
+ * col.update({ id: 1 }, { name: 'Alicia' });
+ * col.insert({ id: 3, name: 'Carol' });
+ * col.delete({ id: 2 });
+ * col.orderBy({ name: 'asc' });
+ * col.toRaw();                                          // strip _uuid/_hasItsOwnUuid
+ */
+function Collection(content, options) {
+
+    var isGFFCtx        = ( ( typeof(module) !== 'undefined' ) && module.exports ) ? false : true;
+    var uuid            = (isGFFCtx) ? { v4: function() { return crypto.randomUUID(); } } : require('uuid');
+    var merge           = (isGFFCtx) ? require('lib/merge') : require('../../../lib/merge');
+
+    // defined search option rules
+    var searchOptionRules = {
+        isCaseSensitive: {
+            false: {
+                re: '^%s$',
+                modifiers: 'i'
+            },
+            true: {
+                re: '^%s$'
+            }
+        },
+        skipEval: false
+    };
+    var withOrClause = false;
+    var notInSearchModeEnabled = false;
+
+    var localSearchOptions  = null;
+
+    var defaultOptions = {
+        useLocalStorage: false,
+        locale: 'en', // TODO - get settigs.region, or user.region
+        searchOptionRules: searchOptionRules
+    };
+
+
+
+    options = (typeof(options) == 'object') ? merge(options, defaultOptions) : defaultOptions;
+
+    var keywords    = ['not null']; // TODO - null, exists (`true` if property is defined)
+    var tryEval     = function(condition) {
+        try {
+            return eval(condition);
+        } catch(err) {
+            throw new Error('Could not evaluate condition `'+ condition +'`.\n' + err.stack );
+        }
+    }
+
+    if (typeof(content) == 'undefined' || content == '' || content == null)
+        content = [];
+
+    if ( !Array.isArray(content) )
+        throw new Error('`new Collection([content] [, options] )`: `content` argument must be an Array !');
+
+    content = (content) ? JSON.clone(content) : []; // original content -> not to be touched
+
+    // Indexing : uuids are generated for each entry
+    var searchIndex = [], idx = 0;
+    for (var entry = 0, entryLen = content.length; entry < entryLen; ++entry) {
+        if (!content[entry]) {
+            content[entry] = {};
+        }
+        if ( typeof(content[entry]._uuid) != 'undefined' ) {
+            content[entry]._hasItsOwnUuid = true;
+        } else {
+            content[entry]._uuid = uuid.v4();
+        }
+
+        // To avoid duplicate entries
+        searchIndex[idx] = content[entry]._uuid;
+        ++idx;
+    }
+
+    var instance = content;
+    /**
+     * Set local search option for the current collection method call
+     *
+     * eg.:
+     *  var recCollection = new Collection(arrayCollection);
+     *  var rec =  recCollection
+     *                  .setSearchOption('city', 'isCaseSensitive', false)
+     *                  .find({ city: 'cap Town' });
+     *
+     * eg.:
+     *  var recCollection = new Collection(arrayCollection);
+     *  var searchOptions = {
+     *      city: {
+     *          isCaseSensitive: false
+     *      }
+     *  };
+     *  var rec =  recCollection
+     *                  .setSearchOption(searchOptions)
+     *                  .find({ city: 'cap Town' });     *
+     *
+     * @param {object|string} searchOptionObject or searchOptionTargetedProperty
+     * @param {string} [searchRule]
+     * @param {boolean} [searchRuleValue] - true to enable, false to disabled
+     *
+     * @returns {object} instance with local search options
+     */
+    instance['setSearchOption'] = function() {
+
+        if (!arguments.length)
+            throw new Error('searchOption cannot be left blank');
+
+        if (arguments.length > 3 || arguments.length < 3 && arguments.length > 1)
+            throw new Error('argument length mismatch');
+
+        var i       = 0
+            , len   = arguments.length
+        ;
+
+        if (len == 1) {
+            if ( typeof(arguments[0]) != 'object' )
+                throw new Error('searchOption must be an object');
+
+            for (var prop in arguments[0]) {
+                if ( typeof(searchOptionRules[prop]) == 'undefined' )
+                    throw new Error(arguments[1] + ' is not an allowed searchOption !');
+            }
+
+            localSearchOptions = arguments[0];
+        } else {
+
+            if ( !localSearchOptions )
+                localSearchOptions = {};
+
+            for (; i < len; ++i) {
+                if ( typeof(searchOptionRules[arguments[1]]) == 'undefined' )
+                    throw new Error(arguments[1] + ' is not an allowed searchOption !');
+
+                if (typeof(localSearchOptions[arguments[0]]) == 'undefined')
+                    localSearchOptions[arguments[0]] = {};
+
+                if ( /true|false/i.test(arguments[2]) ) {
+                    localSearchOptions[arguments[0]][arguments[1]] = /true/i.test(arguments[2]) ? true : false
+                } else {
+                    localSearchOptions[arguments[0]][arguments[1]] = arguments[2]
+                }
+            }
+        }
+
+        return instance
+    }
+
+
+    instance['find'] = function() {
+        // reset
+        withOrClause = false;
+
+        if ( typeof(arguments[arguments.length-1]) == 'boolean' ) {
+            withOrClause = arguments[arguments.length-1];
+            delete arguments[arguments.length-1];
+            --arguments.length;
+        }
+
+        var filtersStr      = null;
+        var filters         = null;
+        var filtersCount    = null;
+        try {
+            filtersStr      = JSON.stringify(arguments);
+            filters         = JSON.parse(filtersStr);
+            filtersCount    = filters.count();
+        } catch( filtersError) {
+            throw new Error('filter must be an object\n'+ filtersError.stack);
+        }
+
+        if ( typeof(filters) != 'undefined' && filtersCount > 0 ) {
+
+            if (filtersCount > 1) {
+                withOrClause = true;
+            }
+            // checking filter : this should be forbidden -> { type: 'red', type: 'orange'}
+            // var filtersFields = null;
+            // for (let f = 0, fLen = filters.count(); f < fLen; f++) {
+            //     filtersFields = {};
+            //     for (let fField in filters[f]) {
+            //         if (  typeof(filtersFields[ fField ]) != 'undefined' ) {
+            //             throw new Error('Filter field can only be defined once inside a filter object !\n`Field '+ fField +'` is already defined : '+ filters[f])
+            //         }
+            //         filtersFields[ fField ] = true;
+            //     }
+            // }
+
+            var filter              = null
+                , condition         = null
+                , i                 = 0
+                //, tmpContent        = ( Array.isArray(this) && !withOrClause) ? this : JSON.clone(content)
+                , tmpContent        = ( Array.isArray(this) ) ? this : JSON.clone(content)
+                , resultObj         = {}
+                , result            = []
+                , localeLowerCase   = ''
+                , re                = null
+                , field             = null
+                , fieldWithin       = null
+                , value             = null
+                , searchOptions     = localSearchOptions
+                , searchOptionRules = options.searchOptionRules
+            ;
+
+            var matched = null
+                , filterIsArray = null
+                , searchResult = [];
+
+            /**
+             *  Regular Search
+             * @param {object} filter
+             * @param {string} field
+             * @param {strine|number|date} _content
+             * @param {number} matched
+             */
+            var search = function(filter, field, _content, matched, searchOptionRules) {
+                if (
+                    localSearchOptions
+                    && typeof(localSearchOptions[field]) != 'undefined'
+                ) {
+                    searchOptionRules = merge(localSearchOptions, searchOptionRules);
+                }
+
+                var reValidCount = null, searchOptCount = null;
+                 // null case
+                if (filter === null && _content === null) {
+                    ++matched;
+                } else if (
+                    filter
+                    && keywords.indexOf(localeLowerCase) > -1
+                    && localeLowerCase == 'not null'
+                    && typeof(_content) != 'undefined'
+                    && typeof(_content) !== 'object'
+                    && _content != 'null'
+                    && _content != 'undefined'
+                ) {
+
+                    if (result.indexOf(_content) < 0) {
+                        ++matched;
+                    }
+
+                } else if (
+                    typeof(_content) != 'undefined'
+                    && typeof(_content) !== 'object'
+                    && /(<|>|=)/.test(filter)
+                    && !/undefined|function/.test(typeof(_content))
+                    && !searchOptionRules.skipEval
+                ) { // with operations
+                    let originalFilter = filter;
+                    let condition = _content + filter;
+                    if ( typeof(filter) == 'string' && typeof(_content) == 'string' ) {
+                        let comparedValue = filter.replace(/^(<=|>=|!==|!=|===|!==)/g, '');
+                        if ( typeof(_content) == 'string' && !/^\"(.*)\"$/.test(comparedValue) ) {
+                            filter = filter.replace(comparedValue, '\"'+ comparedValue + '\"');
+                        }
+                        condition = '\"'+_content+'\"' + filter;
+                        // restoring in case of datetime eval
+                        filter = originalFilter;
+                    }
+
+                    // looking for a datetime ?
+                    if (
+                        /(\d{4})\-(\d{2})\-(\d{2})(\s+|T)(\d{2}):(\d{2}):(\d{2})/.test(_content)
+                        && /(\d{4})\-(\d{2})\-(\d{2})(\s+|T)(\d{2}):(\d{2}):(\d{2})/.test(filter)
+                    ) {
+
+                        if (tryEval(_content.replace(/(\d{4})\-(\d{2})\-(\d{2})(\s+|T)(\d{2}):(\d{2}):(\d{2})/, 'new Date("$&")') + filter.replace(/(\d{4})\-(\d{2})\-(\d{2})(\s+|T)(\d{2}):(\d{2}):(\d{2})/, 'new Date("$&")'))) {
+                            ++matched;
+                        }
+
+                    } else if (tryEval(condition)) {
+                        ++matched;
+                    }
+
+                } else if (
+                    typeof(_content) != 'undefined'
+                    && typeof(_content) !== 'object'
+                    && _content === filter
+                    && !searchOptions
+                    ||
+                    typeof(_content) != 'undefined'
+                    && typeof(_content) !== 'object'
+                    && _content === filter
+                    && typeof(searchOptions[field]) == 'undefined'
+                    ||
+                    typeof(_content) != 'undefined'
+                    && typeof(_content) !== 'object'
+                    && _content === filter
+                    && typeof(searchOptions[field]) != 'undefined'
+                    && searchOptionRules.skipEval
+                ) {
+
+                    ++matched;
+                } else if (
+                    typeof(_content) != 'undefined'
+                    && typeof(_content) !== 'object'
+                    && searchOptions
+                    && typeof(searchOptions[field]) != 'undefined'
+                ) {
+                    reValidCount    = 0;
+                    searchOptCount  = searchOptions[field].count();
+                    for ( let rule in searchOptions[field]) {
+                        if ( typeof(searchOptionRules[rule][searchOptions[field][rule]]) == 'undefined' ) {
+                            continue
+                        }
+
+                        searchOptionRules[rule][searchOptions[field][rule]].re = searchOptionRules[rule][searchOptions[field][rule]].re.replace(/\%s/, filter);
+
+                        if (searchOptionRules[rule][searchOptions[field][rule]].modifiers) {
+                            re = new RegExp(searchOptionRules[rule][searchOptions[field][rule]].re, searchOptionRules[rule][searchOptions[field][rule]].modifiers);
+                        } else {
+                            re = new RegExp(searchOptionRules[rule][searchOptions[field][rule]].re);
+                        }
+
+                        if ( re.test(_content) ) {
+                            ++reValidCount
+                        }
+                    }
+
+                    if (reValidCount == searchOptCount) {
+                        ++matched;
+                    }
+                }
+
+                return {
+                    matched: matched
+                };
+            }
+
+            var searchThroughProp = function(filter, f, _content, matched) {
+
+                var field = f.split(/\./g);
+                field = field[field.length - 1];
+                re = new RegExp('("' + field + '":\\w+)');
+
+                var value = null;
+
+                try {
+                    if ( _content )
+                        value = eval('_content.'+f);
+                } catch (err) {
+                    // Nothing to do
+                    // means that the field is not available in the collection
+                }
+
+
+
+                if (value /** && value.length > 0*/) {
+                    if ( Array.isArray(value) )
+                        value = value[1].split(/:/)[1];
+                    else if ( typeof(value) == 'string' && /\:/.test(value) )
+                        value = value.split(/:/)[1];
+
+
+                    if (/(<|>|=)/.test(filter)) {
+
+                        // looking for a datetime ?
+                        if (
+                            /(\d{4})\-(\d{2})\-(\d{2})(\s+|T)(\d{2}):(\d{2}):(\d{2})/.test(value)
+                            && /(\d{4})\-(\d{2})\-(\d{2})(\s+|T)(\d{2}):(\d{2}):(\d{2})/.test(filter)
+                        ) {
+
+                            if (tryEval(value.replace(/(\d{4})\-(\d{2})\-(\d{2})(\s+|T)(\d{2}):(\d{2}):(\d{2})/, 'new Date("$&")') + filter.replace(/(\d{4})\-(\d{2})\-(\d{2})(\s+|T)(\d{2}):(\d{2}):(\d{2})/, 'new Date("$&")'))) {
+
+                                ++matched;
+                            }
+
+                        } else if (tryEval(value + filter)) {
+
+                            ++matched;
+                        }
+
+                    } else {
+                        if (value == filter) {
+                            ++matched;
+                        }
+                    }
+
+                }
+
+                return {
+                    matched: matched
+                }
+            }
+
+            // if one of the entry matches the given filter, tag the whole entry as matched
+            var searchWithin = function(filter, f, _content, matched, i) {
+
+                var collectionName  = null
+                    , collection    = null
+                    , arr           = null
+                    , field         = null;
+
+
+                arr = f.split(/\[\*\]/g);
+                collectionName = arr[0].replace(/\[\*\]/, '');// only take the first collection
+                collection = _content[ collectionName ];
+
+
+                field = arr[1];
+                if (/^\./.test(field) )
+                    field = field.substring(1);
+
+                var subMatched = 0;
+                if (collection) {
+
+                    for (var c = 0, cLen = collection.length; c < cLen; ++c) {
+                        // cases with _filter.prop
+                        if (/\./.test(field)) {
+
+                            searchResult = searchThroughProp(filter, field, collection[c], subMatched);
+                            subMatched = searchResult.matched;
+
+                        } else { // normal case
+
+                            searchResult = search(filter, field, collection[c], subMatched, searchOptionRules);
+                            subMatched = searchResult.matched;
+                        }
+
+                        if (subMatched > 0) break;
+                    }
+                }
+
+                return {
+                    matched: (matched + subMatched)
+                }
+            }
+
+
+            for (var o in tmpContent) {
+
+                if (!tmpContent[o]) {
+                    tmpContent[o] = {}
+                }
+
+                if (!/undefined|function/.test( typeof(tmpContent[o]))) {
+
+                    for (let l = 0, lLen = filters.count(); l<lLen; ++l) {
+                        filter = filters[l];
+                        condition = filter.count();
+                        // for each condition
+                        matched = 0;
+
+                        for (var f in filter) {
+                            if ( typeof(filter[f]) == 'undefined' ) throw new Error('filter `'+f+'` cannot be left undefined');
+
+                            localeLowerCase = ( filter[f] !== null && !/(boolean|number)/.test(typeof(filter[f])) ) ? filter[f].toLocaleLowerCase() : filter[f];
+
+                            // cases with tmpContent.prop
+                            if (/\./.test(f)) {
+                                //JSON.stringify(tmpContent[o]).match(/("gross":\w+)/)[1].split(/:/)[1]
+
+                                // detect if array|collection case
+                                if (/\[\*\]/.test(f)) {
+
+                                    searchResult = searchWithin(filter[f], f, tmpContent[o], matched, 0);
+                                    matched = searchResult.matched;
+
+                                } else {
+
+                                    searchResult = searchThroughProp(filter[f], f, tmpContent[o], matched);
+                                    matched = searchResult.matched;
+                                }
+
+                            } else { // normal case
+
+                                searchResult = search(filter[f], f, tmpContent[o][f], matched, searchOptionRules);
+                                matched = searchResult.matched;
+                            }
+                        }
+
+                        if (matched == condition ) { // all conditions must be fulfilled to match
+                            // `this` {Array} is the result of the previous search or the current content
+                            // TODO - Add a switch
+                            if (
+                                withOrClause
+                                && notInSearchModeEnabled
+                                && searchIndex.indexOf(tmpContent[o]._uuid) < 0
+                                || notInSearchModeEnabled
+                                || !withOrClause
+                            ) {
+                                //console.debug('searchIndex ', searchIndex);
+                                if (!withOrClause || withOrClause && result.indexOf(tmpContent[o]._uuid) < 0 || notInSearchModeEnabled) {
+                                    result[i] = tmpContent[o];
+                                    ++i;
+                                }
+                            } else if (
+                                withOrClause
+                                && !notInSearchModeEnabled
+                            ) {
+                                if (result.indexOf(tmpContent[o]._uuid) < 0) {
+                                    result[i] = tmpContent[o];
+                                    ++i;
+                                }
+                            }
+                        }
+
+                    }
+
+                }
+            }
+        } else {
+            result = content
+        }
+
+        // reset localSearchOptions for nest calls
+        localSearchOptions = null;
+
+        // TODO - remove this
+        //if (withOrClause) {
+            // merging with previous result
+            //console.debug('withOrClause: supposed to merge ? \nnotInSearchModeEnabled: '+notInSearchModeEnabled+'\nResult: ' +result)//+'\nThis: '+ this.toRaw();
+            // if (!notInSearchModeEnabled) {
+            //     result  = merge(this, result);
+            // }
+            // TODO - remove this part
+            // Removed this on 2021-01-21 because it was causing duplicate content
+            //result  = merge(this, result, true)
+        //}
+
+        // chaining
+        //result._options         = instance._options;
+        //result.setSearchOption  = instance.setSearchOption;
+
+        result.insert           = instance.insert;
+        result.notIn            = instance.notIn;
+        result.find             = this.find;
+        result.update           = instance.update;
+        result.replace          = instance.replace;
+        result.or               = instance.or;
+        result.findOne          = instance.findOne;
+        result.limit            = instance.limit;
+        result.orderBy          = instance.orderBy;
+        result.delete           = instance.delete;
+        result.toRaw            = instance.toRaw;
+        result.filter           = instance.filter;
+
+        return result
+    }
+
+    /**
+     * findOne
+     *
+     * E.g.:
+     *  - new Collection(projects).findOne({name: 'My Project'})
+     *  - new Collection(projects)
+     *              .setSearchOption({name: { isCaseSensitive: false }})
+     *              .findOne({name: 'my project'})
+     *
+     *
+     * Available options :
+     *  isCaseSensitive: [true|false] - set to true by default
+     *  skipEval: [true|false] - set to false by default
+     *
+     * @param {object} filter
+     *
+     * @returns {object} result
+     *
+    */
+    instance['findOne'] = function() {
+        var key         = null // comparison key
+            , result    = null
+            , filters   = null
+            //, uuidSearchModeEnabled = true
+        ;
+
+        if ( typeof(arguments[arguments.length-1]) == 'string' ) {
+            key = arguments[arguments.length - 1];
+            delete arguments[arguments.length - 1];
+            --arguments.length;
+        }
+
+        // if ( typeof(arguments[arguments.length-1]) == 'boolean' ) {
+        //     uuidSearchModeEnabled = arguments[arguments.length - 1]
+        //     delete arguments[arguments.length - 1];
+        //     --arguments.length;
+        // }
+
+        if (arguments.length > 0) {
+            filters = arguments;
+        }
+
+
+        if ( typeof(filters) == 'undefined' || !filters || typeof(filters) != 'object' ) {
+            throw new Error('[ Collection ][ findOne ] `filters` argument must be defined: Array or Filter Object(s) expected');
+        }
+
+        // If an operation (find, insert ...) has been executed, get the previous result; if not, get the whole collection
+        //var currentResult = JSON.clone( (Array.isArray(this)) ? this : content );
+        var currentResult = null;
+        var foundResults = null;
+        if ( Array.isArray(arguments[0]) ) {
+            foundResults = arguments[0];
+        } else {
+            foundResults = instance.find.apply(this, arguments) || [];
+        }
+
+        if (foundResults.length > 0) {
+            currentResult = foundResults.limit(1).toRaw()[0];
+        }
+
+        result          = currentResult;
+        return result
+    }
+
+
+    instance['or'] = function () {
+        arguments[arguments.length] = true;
+        ++arguments.length;
+
+        return instance.find.apply(this, arguments);
+    }
+
+    instance['limit'] = function(resultLimit) {
+        if ( typeof(resultLimit) == 'undefined' || typeof(resultLimit) != 'number' ) {
+            throw new Error('[Collection::result->limit(resultLimit)] : `resultLimit` parametter must by a `number`')
+        }
+
+        var result = Array.isArray(this) ? this : JSON.clone(content);
+
+        //resultLimit
+        result = result.splice(0, resultLimit);
+
+        // chaining
+        result.insert   = instance.insert;
+        result.update   = instance.update;
+        result.replace  = instance.replace;
+        result.notIn    = instance.notIn;
+        result.findOne  = instance.findOne;
+        result.orderBy  = instance.orderBy;
+        result.max      = instance.max;
+        result.delete   = instance.delete;
+        result.toRaw    = instance.toRaw;
+        result.filter   = instance.filter;
+
+        return result
+    }
+
+    /**
+     * notIn
+     * Works like a filter to match results by `excluding` through given `filters` !!
+     *
+     *  filter can be like
+     *      { car: 'toyota' }
+     *      { car: 'toyota', color: 'red' }
+     *
+     *  You can pass more than one filter
+     *      { car: 'toyota', color: 'red' }, { car: 'porche' }
+     *
+     * .notIn(filter) // AND syntax
+     * .notIn(filter1, filter2, filter3) // OR syntax
+     * .notIn(filter, 'id') where `id` is the uuid used for the DIFF - `_uuid
+     * .noIn(collectionObj, 'id')
+     *
+     * By default, Collection use its own internal `_uuid` to search and compare.
+     * This mode is called `uuidSearchModeEnabled`, and it is by default set to `true`.
+     * If you want to disable this mode in order to MATCH/DIFF by forcing check on every single filter
+     * of the resultset :
+     *      .notIn(filter, false) where false must be a real boolean
+     *
+     *
+     *
+     * @param {object|array} filters|arrayToFilter - works like find filterss
+     * @param {string} [key] - unique id for comparison; faster when provided
+    */
+    instance['notIn'] =  function(){
+
+        var arrayToFilter           = null // [] those that we don't want in the result
+            , key                   = null //  string comparison key
+            , result                = null
+            , filters               = null
+            , uuidSearchModeEnabled = true
+        ;
+
+        if ( typeof(arguments[arguments.length-1]) == 'string' ) {
+            key = arguments[arguments.length - 1];
+            delete arguments[arguments.length - 1];
+            --arguments.length;
+        }
+
+        if ( typeof(arguments[arguments.length-1]) == 'boolean' ) {
+            uuidSearchModeEnabled = arguments[arguments.length - 1]
+            delete arguments[arguments.length - 1];
+            --arguments.length;
+        }
+
+        if (arguments.length > 0) {
+            filters = arguments;
+        }
+
+
+        if ( typeof(filters) == 'undefined' || !filters || typeof(filters) != 'object' ) {
+            throw new Error('[ Collection ][ notIn ] `filters` argument must be defined: Array or Filter Object(s) expected');
+        }
+
+        // If an operation (find, insert ...) has been executed, get the previous result; if not, get the whole collection
+        var currentResult = JSON.clone( (Array.isArray(this)) ? this : content );
+
+        var foundResults = null;
+        if ( Array.isArray(arguments[0]) ) {
+            foundResults    = arguments[0];
+        } else {
+            notInSearchModeEnabled = true;
+            foundResults    = instance.find.apply(this, arguments) || [];
+            notInSearchModeEnabled = false;
+        }
+
+
+        if (foundResults.length > 0) {
+
+            // check key
+            if (
+                uuidSearchModeEnabled
+                && key
+                && typeof(foundResults[0]) == 'undefined'
+                && typeof(foundResults[0][key]) == 'undefined'
+            ) {
+                throw new Error('[ Collection ][ notIn ] `key` not valid');
+            } else if ( uuidSearchModeEnabled && !key && typeof(foundResults[0]['_uuid']) != 'undefined' ) {
+                key = '_uuid'
+            } else if ( typeof(foundResults[0]['id']) != 'undefined' ) {
+                key = 'id';
+            }
+
+            if ( !key || typeof(foundResults[0][key]) == 'undefined' ) {
+                throw new Error('No comparison key defined !')
+            }
+
+            // fast search with key
+            var r                       = 0
+                , rLen                  = foundResults.length
+                , c                     = 0
+                , cLen                  = currentResult.length
+                , f                     = 0
+                , fLen                  = filters.count()
+                , keyLen                = null
+                , matched               = 0
+                , fullFiltersMatched    = 0
+            ;
+            if ( uuidSearchModeEnabled && typeof(currentResult[c]) != 'undefined' && currentResult[c].hasOwnProperty(key) ) {
+                // for every single result found
+                for (; r < rLen; ++r) {
+
+                    if (!currentResult.length) break;
+
+                    c = 0; cLen = currentResult.length;
+                    for (; c < cLen; ++c) {
+                        if ( typeof(currentResult[c]) == 'undefined' || typeof(foundResults[r]) == 'undefined' ) {
+                            continue
+                        }
+                        // when matched, we want to remove those not in current result
+                        if (currentResult[c][key] === foundResults[r][key]) {
+                            currentResult.splice(c,1);
+                            break;
+                        }
+                    }
+                }
+            } else if ( typeof(currentResult[c]) == 'undefined' ) { //empty source case
+                // means that since we don't have a source to compare, current === found
+                currentResult = JSON.clone(foundResults);
+
+            } else { // search based on provided filters
+                // for every single result found
+                for (; r < rLen; ++r) {
+                    if (!currentResult.length) break;
+
+                    //onRemoved:
+                    c = 0; cLen = currentResult.length;
+                    for (; c < cLen; ++c) { // current results
+
+                        if ( typeof (currentResult[c]) != 'undefined' ) {
+
+                            // for each filter
+                            fullFiltersMatched = 0;
+                            f = 0;
+                            for (; f < fLen; ++f ) {
+                                if ( typeof(filters[f]) == 'undefined' ) throw new Error('filter `'+f+'` cannot be left undefined');
+
+                                keyLen = filters[f].count();
+                                matched = 0;
+                                for (key in filters[f]) {
+                                    if ( currentResult[c].hasOwnProperty(key) && currentResult[c][key] === foundResults[r][key] ) {
+                                        ++matched;
+                                    }
+                                }
+                                if (matched == keyLen) {
+                                    ++fullFiltersMatched
+                                }
+                            }
+
+                            if (fullFiltersMatched) {
+                                currentResult.splice(c,1);
+                                //break onRemoved;
+                                break;
+                            }
+
+                        }
+                    }
+                }
+            }
+
+        }
+
+        result          = currentResult;
+        result.notIn    = instance.notIn;
+        result.limit    = instance.limit;
+        result.find     = instance.find;
+        result.findOne  = instance.findOne;
+        result.insert   = instance.insert;
+        result.replace  = instance.replace;
+        result.update   = instance.update;
+        result.orderBy  = instance.orderBy;
+        result.max      = instance.max;
+        result.delete   = instance.delete;
+        result.toRaw    = instance.toRaw;
+        result.filter   = instance.filter;
+
+        return result
+    }
+
+    instance['insert'] = function (set) {
+
+        var result = null;
+        if ( typeof(set) !== 'object' ) {
+            throw new Error('filter must be an object');
+        } else {
+
+            var tmpContent = Array.isArray(this) ? this : content;
+
+            // Indexing;
+            set._uuid = uuid.v4();
+            tmpContent.push(set);
+
+            result = tmpContent;
+        }
+
+        // chaining
+        result.limit    = instance.limit;
+        result.find     = instance.find;
+        result.findOne  = instance.findOne;
+        result.update   = instance.update;
+        result.replace  = instance.replace;
+        result.orderBy  = instance.orderBy;
+        result.max      = instance.max;
+        result.notIn    = instance.notIn;
+        result.delete   = instance.delete;
+        result.toRaw    = instance.toRaw;
+        result.filter   = instance.filter;
+
+        return result
+    }
+
+    /**
+     * update
+     *
+     * @param {object} filter
+     * @param {object} set
+     *
+     * @returns {objet} instance
+     */
+    instance['update'] = function() {
+        var key         = '_uuid' // comparison key is _uuid by default
+            , result    = null
+            , filters   = null
+            , set       = null
+            //, uuidSearchModeEnabled = true
+        ;
+
+        // comparison key  : _uuid by default, but can be set to id
+        if ( typeof(arguments[arguments.length-1]) == 'string' ) {
+            key = arguments[arguments.length - 1];
+            delete arguments[arguments.length - 1];
+            --arguments.length;
+        }
+
+        if ( typeof(arguments[arguments.length-1]) == 'object' ) {
+            set = arguments[arguments.length - 1];
+            delete arguments[arguments.length - 1];
+            --arguments.length
+        }
+
+        // if ( typeof(arguments[arguments.length-1]) == 'boolean' ) {
+        //     uuidSearchModeEnabled = arguments[arguments.length - 1]
+        //     delete arguments[arguments.length - 1];
+        //     --arguments.length;
+        // }
+
+        if (arguments.length > 0) {
+            filters = arguments;
+        }
+
+
+        if ( typeof(filters) == 'undefined' || !filters || typeof(filters) != 'object' ) {
+            throw new Error('[ Collection ][ update ] `filters` argument must be defined: Array or Filter Object(s) expected');
+        }
+
+        if ( typeof(set) == 'undefined' || !set || typeof(set) != 'object' ) {
+            throw new Error('[ Collection ][ update ] `set` argument must be defined: Object expected');
+        }
+
+        // If an operation (find, insert ...) has been executed, get the previous result; if not, get the whole collection
+        var foundResults = null;
+        if ( Array.isArray(arguments[0]) ) {
+            foundResults = arguments[0];
+        } else {
+            foundResults = instance.find.apply(this, arguments) || [];
+        }
+
+        result = Array.isArray(this) ? this : JSON.clone(content);
+        if (foundResults.length > 0 ) {
+            var arr = foundResults.toRaw();
+            for (var a = 0, aLen = arr.length; a < aLen; ++a) {
+                arr[a] = merge(JSON.clone(set), arr[a]);
+                // arr[a] = merge(set, arr[a]);
+                for (var r = 0, rLen = result.length; r < rLen; ++r) {
+                    if ( typeof(result[r][key]) == 'undefined' && key == '_uuid' && typeof(result[r]['id']) != 'undefined' ) {
+                        key = 'id';
+                    }
+
+                    if ( result[r][key] == arr[a][key] ) {
+                        result[r] = arr[a];
+                        break;
+                    }
+                }
+            }
+        }
+
+        // chaining
+        result.limit    = instance.limit;
+        result.find     = instance.find;
+        result.findOne  = instance.findOne;
+        result.insert   = instance.insert;
+        result.update   = instance.update;
+        result.replace  = instance.replace;
+        result.orderBy  = instance.orderBy;
+        result.max      = instance.max;
+        result.notIn    = instance.notIn;
+        result.delete   = instance.delete;
+        result.toRaw    = instance.toRaw;
+        result.filter   = instance.filter;
+
+        return result
+    }
+
+
+    instance['replace'] = function() {
+        var key         = '_uuid' // comparison key
+            , result    = null
+            , filters   = null
+            , set       = null
+            //, uuidSearchModeEnabled = true
+        ;
+
+
+        if ( typeof(arguments[arguments.length-1]) == 'string' ) {
+            key = arguments[arguments.length - 1];
+            delete arguments[arguments.length - 1];
+            --arguments.length;
+        }
+
+        if ( typeof(arguments[arguments.length-1]) == 'object' ) {
+            set = arguments[arguments.length - 1];
+            delete arguments[arguments.length - 1];
+            --arguments.length;
+        }
+
+        // if ( typeof(arguments[arguments.length-1]) == 'boolean' ) {
+        //     uuidSearchModeEnabled = arguments[arguments.length - 1]
+        //     delete arguments[arguments.length - 1];
+        //     --arguments.length;
+        // }
+
+        if (arguments.length > 0) {
+            filters = arguments;
+        }
+
+
+        if ( typeof(filters) == 'undefined' || !filters || typeof(filters) != 'object' ) {
+            throw new Error('[ Collection ][ update ] `filters` argument must be defined: Array or Filter Object(s) expected');
+        }
+
+        if ( typeof(set) == 'undefined' || !set || typeof(set) != 'object' ) {
+            throw new Error('[ Collection ][ update ] `set` argument must be defined: Object expected');
+        }
+
+        // If an operation (find, insert ...) has been executed, get the previous result; if not, get the whole collection
+        //var currentResult = JSON.clone( (Array.isArray(this)) ? this : content );
+        var currentResult = null;
+        var foundResults = null;
+        if ( Array.isArray(arguments[0]) ) {
+            foundResults = arguments[0];
+        } else {
+            foundResults = instance.find.apply(this, arguments) || [];
+        }
+
+        result = Array.isArray(this) ? this : JSON.clone(content);
+        if (foundResults.length > 0 ) {
+            var arr = foundResults.toRaw();
+            for (var a = 0, aLen = arr.length; a < aLen; ++a) {
+                arr[a] = JSON.clone(set);
+                for (var r = 0, rLen = result.length; r < rLen; ++r) {
+                    if ( typeof(result[r][key]) == 'undefined' && key == '_uuid' && typeof(result[r]['id']) != 'undefined' ) {
+                        key = 'id';
+                    } else if (typeof(result[r][key]) == 'undefined' && key == '_uuid') {
+                        throw new Error('No comparison key defined !')
+                    }
+
+                    if ( result[r][key] == arr[a][key] ) {
+                        result[r] = arr[a];
+                        break;
+                    }
+                }
+            }
+        }
+
+        // chaining
+        result.limit    = instance.limit;
+        result.find     = instance.find;
+        result.findOne  = instance.findOne;
+        result.insert   = instance.insert;
+        result.update   = instance.update;
+        result.replace  = instance.replace;
+        result.orderBy  = instance.orderBy;
+        result.max      = instance.max;
+        result.notIn    = instance.notIn;
+        result.delete   = instance.delete;
+        result.toRaw    = instance.toRaw;
+        result.filter   = instance.filter;
+
+        return result
+    }
+
+    /**
+     * .delete({ key: 2 })
+     * .delete({ name: 'Jordan' }, ''id) where id will be use as the `uuid` to compare records
+     *
+     * AND syntax
+     * .delete({ car: 'toyota', color: 'red' })
+     *
+     * OR syntax
+     * .delete({ car: 'toyota', color: red }, { car: 'ford' } ) // will delete all `toyota red cars` & all `ford cars`
+     *
+     *  N.B.: will not affect current result - just returning the DIFF
+     *  If you
+     * @param {object} filter - same as `.find(filter)`
+     * @param {string|boolean} [ uuid | disabled ] - by default, Collection is using its internal _uuid
+     * If you want to delete without key comparison, disable `uuid` search mode
+     * .delete({ name: 'Jordan' }, false)
+     *
+     * @returns {array} result
+     */
+    instance['delete'] = function() {
+
+        var result = instance.notIn.apply(this, arguments);
+
+        result.limit    = instance.limit;
+        result.find     = instance.find;
+        result.findOne  = instance.findOne;
+        result.insert   = instance.insert;
+        result.update   = instance.update;
+        result.replace  = instance.replace;
+        result.orderBy  = instance.orderBy;
+        result.max      = instance.max;
+        result.notIn    = instance.notIn;
+        result.toRaw    = instance.toRaw;
+        result.filter   = instance.filter;
+        result.delete   = this.delete;
+
+        return result
+    }
+
+
+    var sortKeywords = [ 'asc', 'desc' ];
+    /**
+     * sort
+     *
+     * @param {object|array} filter
+     * */
+    instance['orderBy'] = function () {
+
+        if ( typeof(arguments) == 'undefined' || arguments.length < 1)
+            throw new Error('[ Collection->orderBy(filter) ] where `filter` must not be empty or null' );
+
+        var filter = null;
+        if ( arguments.length == 1 ) {
+            filter = arguments[0];
+        } else {
+            // converting arguments into array
+            filter = new Array(arguments.length);
+            for (var f = 0, fLen = filter.length; f < fLen; ++f) {
+                filter[f] = arguments[f]
+            }
+        }
+
+        var variableContent = (Array.isArray(this)) ? this : JSON.clone(content);
+        return sortResult(filter, variableContent.toRaw())
+    }
+
+    /**
+     * max
+     * E.g:
+     *  myCollection.max({ order: 'not null'})
+     *      => 5
+     *  myCollection.max({ createAt: 'not null'})
+     *      => '2021-12-31T23:59:59'
+     *  myCollection.max({ firstName: 'not null'})
+     *      => 'Zora'
+     *
+     * @param {object|array} filter
+     *
+     * @returns {number|date|string}
+     * */
+    instance['max'] = function () {
+        if ( typeof(arguments) == 'undefined' || arguments.length < 1)
+            throw new Error('[ Collection->max(filter) ] where `filter` must not be empty or null' );
+
+        var filter = null;
+        if (
+            arguments.length > 1
+            || Array.isArray(arguments[0])
+            || typeof(arguments[0]) == 'object' && arguments[0].count() > 1
+        ) {
+            throw new Error('[ Collection->max(filter) ] only accept one filter length, and fileter count must be equal to 1' );
+        }
+        filter = arguments[0];
+        try {
+            var key = Object.keys(filter)[0];
+            var subFilter = {};
+            subFilter[key] = 'desc';
+            return instance['find'](filter).orderBy(subFilter).limit(1)[0][key];
+        } catch (err) {
+            throw err
+        }
+    }
+
+    /**
+     * sortResult
+     * ref.:
+     *  https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/sort
+     *  https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/localeCompare#Browser_compatibility
+     *
+     * e.g.:
+     *  .orderBy({ name: 'asc' })
+     *
+     *  // overriding filters -> last filter is always right
+     *  .orderBy([ { updatedAt : 'desc'}, { name: 'asc' } ])
+     *
+     *  // sorting boolean
+     *  .orderBy({ isActive: 'desc'}) => will display all active(TRUE) first
+     *  NB.: Boolean are 0 (FALSE) or 1 (TRUE)
+     *
+     *  // combining filters -> the first one is always right
+     *  .orderBy({ updatedAt : 'desc'}, { name: 'asc' })
+     *
+     * @param {object|array} filter
+     * */
+    var sortResult = function (filter, content) {
+        if ( typeof(filter) != 'object') {
+            throw new Error('`filter` parametter must be an object or an array')
+        }
+
+        var condition           = filter.count()
+            , sortOp            = {}
+            , multiSortOp       = null
+            , sortRecursive     = null
+            , key               = null
+            , prop              = null
+            , result            = []
+        ;
+
+        if (condition == 0) return null;
+
+
+        // asc
+        sortOp['asc'] = function (prop, content) {
+
+            var mapped = content.map(function(obj, i) {
+                var _m = {};
+                _m.index = i;
+                _m[prop] = obj[prop];
+                return _m;
+            });
+
+            mapped.sort(function onAscSort(a, b) {
+
+
+                var _compare = function(a, b) {
+                    // handle booleans
+                    if ( /^(true|false)$/i.test(a) ) {
+                        a = ( /true/i.test(a) ) ? 1 : 0;
+                    }
+
+                    if ( /^(true|false)$/i.test(b) ) {
+                        b = ( /true/i.test(b) ) ? 1 : 0;
+                    }
+
+
+                    if ( typeof(a) == 'string' && a != '' ||  typeof(b) == 'string' ) {
+                        // Fixed on 2025-03-08: allowed to compare with one of the fields being NULL or not defined
+                        if ( typeof(a) == 'undefined' || a == null) {
+                            a = ''; // cast to string
+                        }
+                        if ( typeof(b) == 'undefined' || b == null) {
+                            b = ''; // cast to string
+                        }
+
+                        if ( typeof(a) == 'number' ) {
+                            a = ''+a; // cast to string
+                        }
+                        if ( typeof(b) == 'number' ) {
+                            b = ''+b; // cast to string
+                        }
+
+
+                        return a.localeCompare(b, undefined, {sensitivity: 'case', caseFirst: 'upper'})
+                    }
+
+                    if (a > b) {
+                        return 1;
+                    }
+                    if (a < b) {
+                        return -1;
+                    }
+                    // a must be equal to b
+                    return 0;
+                }
+
+
+                if ( typeof(a) == 'object' ) {
+                    return _compare(a[prop], b[prop])
+                }
+
+                return _compare(a, b)
+
+            });
+
+            return mapped.map(function(m, index, result){
+                return content[m.index];
+            });
+        }
+
+        // desc
+        sortOp['desc'] = function (prop, content) {
+            return sortOp['asc'](prop, content).reverse()
+        }
+
+        multiSortOp = function(content, filter) {
+
+            var props = [], keys = [];
+
+            if ( Array.isArray(filter) ) {
+                for (var f = 0, fLen = filter.length; f < fLen; ++f) {
+                    props[f] = Object.keys(filter[f])[0];
+                    keys[f] = filter[f][ props[f]] ;
+                }
+            } else {
+                var f = 0;
+                for (var flt in filter) {
+                    props[f] = flt;
+                    keys[f] = filter[flt] ;
+                    ++f;
+                }
+            }
+
+
+
+            sortRecursive = function(a, b, columns, order_by, index) {
+
+                var direction = order_by[index] == 'desc' ? 1 : 0;
+
+                var res = null, x = null, y = null;
+
+                if ( typeof(a[columns[index]]) == 'string' && a[columns[index]] != '' ) {
+
+                    res = a[columns[index]].localeCompare(b[columns[index]]);
+
+                    if ( direction == 0 && res != 0 ) {
+                        return res < 0 ? -1 : 1
+                    } else if (res != 0) {
+                        return res < 0 ? 1 : -1
+                    }
+
+                    // a must be equal to b
+                    return columns.length - 1 > index ? sortRecursive(a, b, columns, order_by, index + 1) : 0;
+
+                } else if (typeof (a[columns[index]]) == 'number' || typeof(b[columns[index]]) == 'number' ) {
+
+                    res = (''+ a[columns[index]]).localeCompare((''+ b[columns[index]]), undefined, { numeric: true });
+
+                    if (direction == 0 && res != 0) {
+                        return res < 0 ? -1 : 1
+                    } else if (res != 0) {
+                        return res < 0 ? 1 : -1
+                    }
+
+                    // a must be equal to b
+                    return columns.length - 1 > index ? sortRecursive(a, b, columns, order_by, index + 1) : 0;
+
+                } else if ( typeof(a[columns[index]]) == 'boolean' || typeof (b[columns[index]]) == 'boolean' ) {
+
+                    if ( typeof(a[columns[index]]) == 'boolean' ) {
+                        x = (a[columns[index]]) ? 1 : 0;
+                    }
+
+                    if ( typeof(b[columns[index]]) == 'boolean' ) {
+                        y = (b[columns[index]]) ? 1 : 0;
+                    }
+
+                    if (x > y) {
+                        return direction == 0 ? 1 : -1;
+                    }
+
+                    if (x < y) {
+                        return direction == 0 ? -1: 1;
+                    }
+
+                    // a must be equal to b
+                    return columns.length - 1 > index ? sortRecursive(a, b, columns, order_by, index + 1) : 0;
+
+                } else {
+
+                    if (a[columns[index]] > b[columns[index]]) {
+                        return direction == 0 ? 1 : -1;
+                    }
+
+                    if (a[columns[index]] < b[columns[index]]) {
+                        return direction == 0 ? -1 : 1;
+                    }
+                    // a must be equal to b
+                    return columns.length - 1 > index ? sortRecursive(a, b, columns, order_by, index + 1) : 0;
+                }
+            }
+
+            return content.sort(function onMultiSort(a, b) {
+                return sortRecursive(a, b, props, keys, 0);
+            });
+            // return mapped.map(function(m, index, result){
+            //     return content[m.index];
+            // });
+        }
+
+        if ( Array.isArray(filter) || filter.count() > 1 ) {
+
+            result = multiSortOp(content, filter);
+
+        } else {
+
+            prop    = Object.keys(filter)[0];
+            key     = filter[prop];
+
+            result  = sortOp[key](prop, content);
+        }
+
+
+
+        // chaining
+        result.find     = instance.find;
+        result.findOne  = instance.findOne;
+        result.limit    = instance.limit;
+        result.notIn    = instance.notIn;
+        result.insert   = instance.insert;
+        result.update   = instance.update;
+        result.replace  = instance.replace;
+        result.delete   = instance.delete;
+        result.orderBy  = instance.orderBy;
+        result.max      = instance.max;
+        result.toRaw    = instance.toRaw;
+        result.filter   = instance.filter;
+
+        return result
+    };
+
+    /**
+     * toRaw
+     * Transform result into a clean format (without _uuid)
+     *
+     * @returns {array} result
+     * */
+    instance['toRaw'] = function() {
+
+        var result = ( Array.isArray(this) ) ? this.slice() : content.slice();
+        // cleanup
+        for (var i = 0, len = result.length; i < len; ++i) {
+            if (result[i]._hasItsOwnUuid) {
+                let hasItsOwnUuid = (/^true$/i.test(result[i]._hasItsOwnUuid) ) ? true : false;
+                delete result[i]._hasItsOwnUuid;
+                if (hasItsOwnUuid) {
+                    continue;
+                }
+            }
+            if (result[i]._uuid) {
+                delete result[i]._uuid;
+            }
+        }
+
+        // return JSON.clone(result);
+        return result
+    }
+
+    /**
+     * filter
+     * Reduce record propName
+     * @param {string|array} filter
+     *  e.g: 'id'
+     *  e.g: ['id', 'name']
+     *
+     * @returns {array} rawFilteredResult
+     * */
+     instance['filter'] = function(filter) {
+
+        if ( typeof(filter) == 'undefined' ) {
+            throw new Error('`filter` parametter must be a string or an array.');
+        }
+        var result = ( Array.isArray(this) ) ? this : content;
+        if ( !result.length ) {
+            return []
+        }
+        var i = 0, len = result.length;
+        var rawFilteredResult = [], fCount = 0;
+
+        if ( Array.isArray(filter) ) {
+            var f = null, fLen = filter.length, wrote = null;
+            for (; i < len; ++i) {
+                wrote = false;
+                f = 0;
+                for (; f < fLen; ++f) {
+                    if ( typeof(result[i][ filter[f] ]) != 'undefined' ) {
+                        if ( typeof(rawFilteredResult[fCount]) == 'undefined' ) {
+                            rawFilteredResult[fCount] = {}
+                        }
+                        rawFilteredResult[fCount][ filter[f] ] = result[i][ filter[f] ];
+                        wrote = true;
+                    }
+                }
+                if (wrote)
+                    ++fCount;
+            }
+        } else {
+            for (; i < len; ++i) {
+                if ( typeof(result[i][filter]) != 'undefined' ) {
+                    if ( typeof(rawFilteredResult[fCount]) == 'undefined' ) {
+                        rawFilteredResult[fCount] = {}
+                    }
+                    rawFilteredResult[fCount][filter] = result[i][filter];
+                    ++fCount;
+                }
+            }
+        }
+
+        return JSON.clone(rawFilteredResult);
+    }
+
+
+    return instance;
+};
+
+if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
+    // Publish as node.js module
+    module.exports = Collection
+} else if ( typeof(define) === 'function' && define.amd) {
+    // Publish as AMD module
+    define('lib/collection',[],function() { return Collection })
+};
 /**
  * Gina Frontend Framework
  *
@@ -22611,12 +21067,11 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
  *  Useful Globals
  *
  *  window['originalContext']
- *      You have to passe your `jQuery` or your `DollarDom` context to Gina
+ *      You can pass a custom context to Gina handlers
  *      e.g.:
- *          window['originalContext'] = window['jQuery']
+ *          window['originalContext'] = myContext
  *
  *      This can be achieved by overriding `window['originalContext']` before defining your handler
- *       Default value will be jQuery
  *
  * */
 
@@ -22669,16 +21124,8 @@ function ready() {
                     }, 50, i, readyList);
 
                 } else { // onEachHandlerReady
-                    // iframe case
-                    if ( !window.$ && typeof(parent.window.$) != 'undefined' ) {
-                        window.$ = parent.window.$;
-                    }
-                    // by default, but can be overriden in your handler (before the handler definition)
-                    if ( typeof(window.originalContext) == 'undefined' && typeof(window.$) != 'undefined' ) {
-                        window.originalContext = window.$
-                    }
-                    // passes the user's orignalContext by default; if no orignalContext is set will try users'jQuery
-                    readyList[i].ctx = window.originalContext || $;
+                    // removed: jquery / $ context passthrough
+                    readyList[i].ctx = window.originalContext || null;
                     readyList[i].fn.call(window, readyList[i].ctx, window.require);
                     ++i;
                     handleEvent(i, readyList);
@@ -22805,24 +21252,8 @@ if ( typeof(window['gina']) == 'undefined' ) { // could have be defined by loade
 
 
 define('core', ['require', 'gina'], function (require) {
-    // require(['jquery'], function onjQueryLoaded(_jQuery) {
-    //     console.debug('_jQuery loaded ', _jQuery.fn.jquery);
-    //     jquery = _jQuery
-    // });
-
     require('gina')(window['gina']); // passing core required lib through parameters
-
 });
-
-/**
- * It will not work, since jQuery registers itself with the name of 'jquery' and not 'lib/jquery'.
- * In general, explicitly naming modules in the define() call are discouraged, but jQuery has some special constraints.
- */
-// if ( typeof define === "function" && define.amd ) {
-// 	define(['require'], function(require) {
-// 		jQuery = require('jquery');
-// 	});
-// // }
 
 
 require.config({
@@ -22830,10 +21261,8 @@ require.config({
 });
 
 // exporting
-// require(["jquery"]);
 require([
     //vendors
-    "vendor/uuid",
     "vendor/engine.io",
 
     "core",

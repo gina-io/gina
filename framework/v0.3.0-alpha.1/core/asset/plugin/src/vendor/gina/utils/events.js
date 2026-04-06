@@ -74,38 +74,7 @@ function addListener(target, element, name, callback) {
 function triggerEvent (target, element, name, args, proxiedEvent) {
     if (typeof(element) != 'undefined' && element != null) {
         var evt = null, isDefaultPrevented = false, isAttachedToDOM = false, merge  = null;
-        // if (proxiedEvent) {
-        //     merge = require('lib/merge');
-        // }
-        // done separately because it can be listen at the same time by the user & by gina
-        if ( typeof(jQuery) != 'undefined' ) { //thru jQuery if detected
-
-            // Check if listener is in use: e.g $('#selector').on('eventName', cb)
-            var $events = null; // attached events list
-            // Before jQuery 1.7
-            var version = jQuery['fn']['jquery'].split(/\./);
-            if (version.length > 2) {
-                version = version.splice(0,2).join('.');
-            } else {
-                version = version.join('.');
-            }
-
-            if (version <= '1.7') {
-                $events = jQuery(element)['data']('events')
-            } else {// From 1.8 +
-                $events = jQuery['_data'](jQuery(element)[0], "events")
-            }
-
-            isAttachedToDOM = ( typeof($events) != 'undefined' && typeof($events[name]) != 'undefined' ) ? true : false;
-
-            if (isAttachedToDOM) { // only trigger if attached
-                evt = jQuery.Event( name );
-                jQuery(element)['trigger'](evt, args);
-                isDefaultPrevented = evt['isDefaultPrevented']();
-            }
-
-
-        }
+        // removed: jquery event bridge (users should use addEventListener instead of $().on())
 
         if (window.CustomEvent || document.createEvent) {
 

@@ -1,11 +1,11 @@
 {
   "baseUrl": "./../../../src",
   "paths": {
-    "requireLib"            : "../../../../node_modules/requirejs/require",
+    "requireLib"            : "../../../../../../node_modules/requirejs/require",
     // removed: jquery dependency (no AMD module requires it anymore)
+    // removed: uuid dependency (replaced by crypto.randomUUID())
 
-    "vendor/uuid"           : "../../../../node_modules/uuid/dist/umd/uuid.min",
-    "vendor/engine.io"      : "../../../../node_modules/engine.io-client/dist/engine.io.min",
+    "vendor/engine.io"      : "../../../../../../node_modules/engine.io-client/dist/engine.io.min",
 
     "core"                  : "vendor/gina/core",
 

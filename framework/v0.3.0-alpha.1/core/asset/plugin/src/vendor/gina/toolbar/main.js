@@ -1,4 +1,4 @@
-define('gina/toolbar', ['require', 'vendor/uuid'/**, 'lib/merge'*/, 'lib/collection', 'lib/routing', 'gina/storage', 'gina/validator' ], function (require) {
+define('gina/toolbar', ['require'/**, 'lib/merge'*/, 'lib/collection', 'lib/routing', 'gina/storage', 'gina/validator' ], function (require) {
 
     // removed: jquery dependency
     //var merge       = require('lib/merge');

@@ -16,12 +16,11 @@
  *  Useful Globals
  *
  *  window['originalContext']
- *      You have to passe your `jQuery` or your `DollarDom` context to Gina
+ *      You can pass a custom context to Gina handlers
  *      e.g.:
- *          window['originalContext'] = window['jQuery']
+ *          window['originalContext'] = myContext
  *
  *      This can be achieved by overriding `window['originalContext']` before defining your handler
- *       Default value will be jQuery
  *
  * */
 
@@ -74,16 +73,8 @@ function ready() {
                     }, 50, i, readyList);
 
                 } else { // onEachHandlerReady
-                    // iframe case
-                    if ( !window.$ && typeof(parent.window.$) != 'undefined' ) {
-                        window.$ = parent.window.$;
-                    }
-                    // by default, but can be overriden in your handler (before the handler definition)
-                    if ( typeof(window.originalContext) == 'undefined' && typeof(window.$) != 'undefined' ) {
-                        window.originalContext = window.$
-                    }
-                    // passes the user's orignalContext by default; if no orignalContext is set will try users'jQuery
-                    readyList[i].ctx = window.originalContext || $;
+                    // removed: jquery / $ context passthrough
+                    readyList[i].ctx = window.originalContext || null;
                     readyList[i].fn.call(window, readyList[i].ctx, window.require);
                     ++i;
                     handleEvent(i, readyList);
@@ -210,24 +201,8 @@ if ( typeof(window['gina']) == 'undefined' ) { // could have be defined by loade
 
 
 define('core', ['require', 'gina'], function (require) {
-    // require(['jquery'], function onjQueryLoaded(_jQuery) {
-    //     console.debug('_jQuery loaded ', _jQuery.fn.jquery);
-    //     jquery = _jQuery
-    // });
-
     require('gina')(window['gina']); // passing core required lib through parameters
-
 });
-
-/**
- * It will not work, since jQuery registers itself with the name of 'jquery' and not 'lib/jquery'.
- * In general, explicitly naming modules in the define() call are discouraged, but jQuery has some special constraints.
- */
-// if ( typeof define === "function" && define.amd ) {
-// 	define(['require'], function(require) {
-// 		jQuery = require('jquery');
-// 	});
-// // }
 
 
 require.config({
@@ -235,10 +210,8 @@ require.config({
 });
 
 // exporting
-// require(["jquery"]);
 require([
     //vendors
-    "vendor/uuid",
     "vendor/engine.io",
 
     "core",

@@ -1,8 +1,8 @@
-define('gina/popin', [ 'require', 'vendor/uuid', 'lib/domain', 'lib/merge', 'utils/events' ], function (require) {
+define('gina/popin', [ 'require', 'lib/domain', 'lib/merge', 'utils/events' ], function (require) {
 
     // TODO - Integrate dialog-polyfill : https://github.com/GoogleChrome/dialog-polyfill/blob/master/dist/dialog-polyfill.js
     // removed: jquery dependency
-    var uuid            = require('vendor/uuid');
+    // removed: uuid dependency (replaced by crypto.randomUUID())
     var Domain          = require('lib/domain');
     var domainInstance  = null;
     var merge           = require('lib/merge');
@@ -35,7 +35,7 @@ define('gina/popin', [ 'require', 'vendor/uuid', 'lib/domain', 'lib/merge', 'uti
 
         var instance        = {
             plugin          : this.plugin,
-            id              : 'gina-popins-' + uuid.v4(),
+            id              : 'gina-popins-' + crypto.randomUUID(),
             on              : on,
             eventData       : {},
 
@@ -201,7 +201,7 @@ define('gina/popin', [ 'require', 'vendor/uuid', 'lib/domain', 'lib/merge', 'uti
                 if (name == $popin.name) {
                     id = $el.id || $el.getAttribute('id') || null;
                     // By default
-                    evt = 'popin.click.'+ 'gina-popin-' + instance.id +'-'+ uuid.v4() +'-'+ name;
+                    evt = 'popin.click.'+ 'gina-popin-' + instance.id +'-'+ crypto.randomUUID() +'-'+ name;
                     // console.debug("[POPIN CLICK #1]", id, " VS ", evt);
                     // Retrieving existing event
                     if ( id && new RegExp( '^popin.click.gina-popin-').test(id) ) {
@@ -280,7 +280,7 @@ define('gina/popin', [ 'require', 'vendor/uuid', 'lib/domain', 'lib/merge', 'uti
                 }
 
                 if ( typeof(event.target.id) == 'undefined' ) {
-                    event.target.setAttribute('id', evt +'.'+ uuid.v4() );
+                    event.target.setAttribute('id', evt +'.'+ crypto.randomUUID() );
                     event.target.id = event.target.getAttribute('id')
                 }
 
@@ -390,7 +390,7 @@ define('gina/popin', [ 'require', 'vendor/uuid', 'lib/domain', 'lib/merge', 'uti
                     }*/ else { // close
 
                         if ( typeof(event.target.id) == 'undefined' ) {
-                            event.target.setAttribute('id', evt +'.'+ uuid.v4() );
+                            event.target.setAttribute('id', evt +'.'+ crypto.randomUUID() );
                             event.target.id = event.target.getAttribute('id')
                         }
 
@@ -601,7 +601,7 @@ define('gina/popin', [ 'require', 'vendor/uuid', 'lib/domain', 'lib/merge', 'uti
 
                 if (!$close[b]['id']) {
 
-                    evt = 'popin.close.'+ uuid.v4();
+                    evt = 'popin.close.'+ crypto.randomUUID();
                     $close[b]['id'] = evt;
                     $close[b].setAttribute( 'id', evt);
 
@@ -647,10 +647,10 @@ define('gina/popin', [ 'require', 'vendor/uuid', 'lib/domain', 'lib/merge', 'uti
                     // link or action ?
                     if (/^null$/i.test($link[i]['id'])) {
                         if ( isLink ) {
-                            evt = 'popin.link.' + uuid.v4();
+                            evt = 'popin.link.' + crypto.randomUUID();
                             $link[i].setAttribute('data-gina-popin-is-link', true);
                         } else {
-                            evt = 'popin.click.' + uuid.v4();
+                            evt = 'popin.click.' + crypto.randomUUID();
                             $link[i].setAttribute('data-gina-popin-is-link', false);
                         }
                     } else {
@@ -723,7 +723,7 @@ define('gina/popin', [ 'require', 'vendor/uuid', 'lib/domain', 'lib/merge', 'uti
                 for(; i < len; ++i) {
 
                     if ( !$forms[i]['id'] || typeof($forms[i]) != 'string' ) {
-                        _id = $forms[i].getAttribute('id') || 'form.' + uuid.v4();
+                        _id = $forms[i].getAttribute('id') || 'form.' + crypto.randomUUID();
                         $forms[i].setAttribute('id', _id);// just in case
                         $forms[i]['id'] = _id
                     } else {

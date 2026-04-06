@@ -1,4 +1,4 @@
-define('gina', [ 'require', 'vendor/uuid', 'lib/merge', 'lib/routing', 'utils/events', 'helpers/prototypes', 'helpers/dateFormat' ], function (require) {
+define('gina', [ 'require', 'lib/merge', 'lib/routing', 'utils/events', 'helpers/prototypes', 'helpers/dateFormat' ], function (require) {
 
     /**
      * Imports & definitions
@@ -8,9 +8,8 @@ define('gina', [ 'require', 'vendor/uuid', 'lib/merge', 'lib/routing', 'utils/ev
     var routing         = require('lib/routing');
     var dateFormat      = require('helpers/dateFormat')();
     var prototypes      = require('helpers/prototypes')({ dateFormat: dateFormat });
-    var uuid            = require('vendor/uuid');
-
-    var jQuery          = (window['jQuery']) ? window['jQuery'] : null;
+    // removed: uuid dependency (replaced by crypto.randomUUID())
+    // removed: jquery dependency
 
     if (!window.process ) {
         (function(window, nextTick, process, prefixes, i, p, fnc) {
@@ -65,7 +64,7 @@ define('gina', [ 'require', 'vendor/uuid', 'lib/merge', 'lib/routing', 'utils/ev
 
         // instance proto
         var proto           = {
-            'id'                : 'gina-' + uuid.v1(),
+            'id'                : 'gina-' + crypto.randomUUID(),
 
             'plugin'            : this.plugin,
             'on'                : on,
