@@ -4187,6 +4187,7 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
         if (
             getContext('isProxyHost')
             && typeof(tmp.hostname) != 'undefined'
+            && typeof(process.gina.PROXY_HOSTNAME) != 'undefined'
         ) {
             tmp.hostname    = process.gina.PROXY_HOSTNAME;
             tmp.host        = process.gina.PROXY_HOST;

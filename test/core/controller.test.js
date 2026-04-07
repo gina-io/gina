@@ -536,3 +536,347 @@ describe('07 - throwError: explicit 3-digit HTTP status code is preserved', func
         assert.equal(resolveCode(fakeRes, 400), 400, 'explicit 400 must not be overridden by res.status=500');
     });
 });
+
+
+// ─── 08 — getConfig: proxy hostname override guard ───────────────────────────
+
+describe('08 - getConfig: proxy hostname override guard', function() {
+
+    var src = fs.readFileSync(SOURCE, 'utf8');
+
+    // ── (a) source structure ─────────────────────────────────────────────────
+
+    it('source contains the PROXY_HOSTNAME undefined guard in getConfig', function() {
+        // The fix: typeof(process.gina.PROXY_HOSTNAME) != 'undefined' prevents
+        // overwriting a valid hostname with undefined when proxy detection is
+        // a false positive (browser Origin header triggers isProxyHost = true
+        // but no PROXY_HOSTNAME was ever set).
+        var start = src.indexOf('this.getConfig = function(name)');
+        assert.ok(start > -1, 'getConfig definition not found in source');
+        var end = src.indexOf('\n    }', start) + 6;
+        var block = src.slice(start, end);
+        assert.ok(
+            block.indexOf("typeof(process.gina.PROXY_HOSTNAME) != 'undefined'") > -1,
+            'expected PROXY_HOSTNAME undefined guard inside getConfig'
+        );
+    });
+
+    it('source contains the isProxyHost context check in getConfig', function() {
+        var start = src.indexOf('this.getConfig = function(name)');
+        var end = src.indexOf('\n    }', start) + 6;
+        var block = src.slice(start, end);
+        assert.ok(
+            block.indexOf("getContext('isProxyHost')") > -1,
+            "expected getContext('isProxyHost') inside getConfig"
+        );
+    });
+
+    it('source contains the tmp.hostname existence check in getConfig', function() {
+        var start = src.indexOf('this.getConfig = function(name)');
+        var end = src.indexOf('\n    }', start) + 6;
+        var block = src.slice(start, end);
+        assert.ok(
+            block.indexOf("typeof(tmp.hostname) != 'undefined'") > -1,
+            'expected tmp.hostname existence guard inside getConfig'
+        );
+    });
+
+    it('proxy override assigns both hostname and host', function() {
+        var start = src.indexOf('this.getConfig = function(name)');
+        var end = src.indexOf('\n    }', start) + 6;
+        var block = src.slice(start, end);
+        assert.ok(
+            block.indexOf('tmp.hostname') > -1 && block.indexOf('tmp.host') > -1,
+            'expected both tmp.hostname and tmp.host assignments inside getConfig'
+        );
+        assert.ok(
+            block.indexOf('process.gina.PROXY_HOSTNAME') > -1
+            && block.indexOf('process.gina.PROXY_HOST') > -1,
+            'expected assignment from process.gina.PROXY_HOSTNAME and PROXY_HOST'
+        );
+    });
+
+    it('getConfig uses JSON.clone for read-only copies', function() {
+        var start = src.indexOf('this.getConfig = function(name)');
+        var end = src.indexOf('\n    }', start) + 6;
+        var block = src.slice(start, end);
+        assert.ok(
+            block.indexOf('JSON.clone(local.options.conf.content[name])') > -1,
+            'expected JSON.clone for named config lookup'
+        );
+        assert.ok(
+            block.indexOf('JSON.clone(local.options.conf)') > -1,
+            'expected JSON.clone for full config clone'
+        );
+    });
+
+    // ── (b) pure logic — inline replica ──────────────────────────────────────
+    //
+    // Minimal replica of getConfig that mirrors the actual guard logic. We
+    // cannot require the full controller module (it needs a running gina
+    // server), so we test the logic in isolation.
+
+    function makeGetConfigEnv(opts) {
+        opts = opts || {};
+
+        // Simulate JSON.clone as a deep copy (same contract as the polyfill)
+        function clone(obj) {
+            if (obj == null || typeof obj != 'object') return obj;
+            return JSON.parse(JSON.stringify(obj));
+        }
+
+        var local = {
+            options: {
+                conf: opts.conf || {
+                    hostname: 'app.example.com',
+                    host: 'app.example.com:3100',
+                    content: {
+                        routing: { home: { url: '/' } },
+                        settings: { port: 3100, host: 'app.example.com' }
+                    }
+                }
+            }
+        };
+
+        var contextStore = {
+            isProxyHost: opts.isProxyHost || false
+        };
+
+        var savedGina = null;
+
+        function setup() {
+            savedGina = process.gina;
+            process.gina = process.gina ? clone(process.gina) : {};
+            if (typeof opts.proxyHostname != 'undefined') {
+                process.gina.PROXY_HOSTNAME = opts.proxyHostname;
+            }
+            if (typeof opts.proxyHost != 'undefined') {
+                process.gina.PROXY_HOST = opts.proxyHost;
+            }
+        }
+
+        function teardown() {
+            process.gina = savedGina;
+        }
+
+        function getContext(key) {
+            return contextStore[key];
+        }
+
+        function getConfig(name) {
+            var tmp = null;
+            if ( typeof(name) != 'undefined' ) {
+                try {
+                    tmp = clone(local.options.conf.content[name]);
+                } catch (err) {
+                    return undefined;
+                }
+            } else {
+                tmp = clone(local.options.conf);
+            }
+
+            if (
+                getContext('isProxyHost')
+                && typeof(tmp.hostname) != 'undefined'
+                && typeof(process.gina.PROXY_HOSTNAME) != 'undefined'
+            ) {
+                tmp.hostname    = process.gina.PROXY_HOSTNAME;
+                tmp.host        = process.gina.PROXY_HOST;
+            }
+            return tmp;
+        }
+
+        return {
+            local: local,
+            getConfig: getConfig,
+            setup: setup,
+            teardown: teardown
+        };
+    }
+
+    it('normal return with no proxy: hostname unchanged', function() {
+        var env = makeGetConfigEnv({
+            isProxyHost: false
+        });
+        env.setup();
+        try {
+            var conf = env.getConfig();
+            assert.equal(conf.hostname, 'app.example.com',
+                'hostname must be preserved when isProxyHost is false');
+            assert.equal(conf.host, 'app.example.com:3100',
+                'host must be preserved when isProxyHost is false');
+        } finally {
+            env.teardown();
+        }
+    });
+
+    it('proxy override when PROXY_HOSTNAME is defined and isProxyHost is true', function() {
+        var env = makeGetConfigEnv({
+            isProxyHost: true,
+            proxyHostname: 'proxy.example.com',
+            proxyHost: 'proxy.example.com:8080'
+        });
+        env.setup();
+        try {
+            var conf = env.getConfig();
+            assert.equal(conf.hostname, 'proxy.example.com',
+                'hostname must be overridden to PROXY_HOSTNAME');
+            assert.equal(conf.host, 'proxy.example.com:8080',
+                'host must be overridden to PROXY_HOST');
+        } finally {
+            env.teardown();
+        }
+    });
+
+    it('guard: no override when PROXY_HOSTNAME is undefined even if isProxyHost is true', function() {
+        // This is the bug fix scenario: browser Origin header triggers
+        // isProxyHost = true, but PROXY_HOSTNAME was never set. Without the
+        // guard, hostname would be overwritten with undefined.
+        var env = makeGetConfigEnv({
+            isProxyHost: true
+            // proxyHostname intentionally omitted — stays undefined on process.gina
+        });
+        env.setup();
+        try {
+            var conf = env.getConfig();
+            assert.equal(conf.hostname, 'app.example.com',
+                'hostname must be preserved when PROXY_HOSTNAME is undefined (bug fix)');
+            assert.equal(conf.host, 'app.example.com:3100',
+                'host must be preserved when PROXY_HOSTNAME is undefined (bug fix)');
+        } finally {
+            env.teardown();
+        }
+    });
+
+    it('no override when tmp has no hostname property (e.g. named sub-config)', function() {
+        var env = makeGetConfigEnv({
+            isProxyHost: true,
+            proxyHostname: 'proxy.example.com',
+            proxyHost: 'proxy.example.com:8080'
+        });
+        env.setup();
+        try {
+            // 'routing' sub-config has no hostname property
+            var conf = env.getConfig('routing');
+            assert.ok(typeof conf.hostname == 'undefined',
+                'routing sub-config should not have a hostname injected');
+            assert.deepEqual(conf, { home: { url: '/' } },
+                'named config must return content[name] unchanged');
+        } finally {
+            env.teardown();
+        }
+    });
+
+    it('named config lookup returns content[name]', function() {
+        var env = makeGetConfigEnv({
+            isProxyHost: false
+        });
+        env.setup();
+        try {
+            var settings = env.getConfig('settings');
+            assert.deepEqual(settings, { port: 3100, host: 'app.example.com' },
+                'getConfig("settings") must return conf.content.settings');
+        } finally {
+            env.teardown();
+        }
+    });
+
+    it('named config lookup returns undefined for missing key', function() {
+        var env = makeGetConfigEnv({
+            isProxyHost: false
+        });
+        env.setup();
+        try {
+            var result = env.getConfig('nonexistent');
+            assert.equal(result, undefined,
+                'getConfig for a missing key must return undefined');
+        } finally {
+            env.teardown();
+        }
+    });
+
+    it('no-arg call returns full conf clone', function() {
+        var env = makeGetConfigEnv({
+            isProxyHost: false
+        });
+        env.setup();
+        try {
+            var conf = env.getConfig();
+            assert.ok(typeof conf.hostname != 'undefined', 'full conf must include hostname');
+            assert.ok(typeof conf.content != 'undefined', 'full conf must include content');
+        } finally {
+            env.teardown();
+        }
+    });
+
+    it('clone isolation: mutating returned object does not affect original', function() {
+        var env = makeGetConfigEnv({
+            isProxyHost: false
+        });
+        env.setup();
+        try {
+            var conf1 = env.getConfig();
+            conf1.hostname = 'mutated.example.com';
+            conf1.content.routing.injected = true;
+
+            var conf2 = env.getConfig();
+            assert.equal(conf2.hostname, 'app.example.com',
+                'second call must return original hostname, not mutated value');
+            assert.equal(typeof conf2.content.routing.injected, 'undefined',
+                'second call must not see mutation from first call');
+        } finally {
+            env.teardown();
+        }
+    });
+
+    it('clone isolation: named config mutation does not affect original', function() {
+        var env = makeGetConfigEnv({
+            isProxyHost: false
+        });
+        env.setup();
+        try {
+            var routing1 = env.getConfig('routing');
+            routing1.home.url = '/mutated';
+
+            var routing2 = env.getConfig('routing');
+            assert.equal(routing2.home.url, '/',
+                'second call must return original routing, not mutated value');
+        } finally {
+            env.teardown();
+        }
+    });
+
+    it('all three guard conditions must be true for override to apply', function() {
+        // Test matrix: only the (true, true, true) combination applies the override
+        var cases = [
+            { isProxy: false, hasHostname: true,  hasPH: true,  expect: 'app.example.com', label: 'F,T,T' },
+            { isProxy: true,  hasHostname: true,  hasPH: false, expect: 'app.example.com', label: 'T,T,F' },
+            { isProxy: true,  hasHostname: false, hasPH: true,  expect: undefined,          label: 'T,F,T' },
+            { isProxy: true,  hasHostname: true,  hasPH: true,  expect: 'proxy.example.com', label: 'T,T,T' }
+        ];
+
+        cases.forEach(function(c) {
+            var confObj = c.hasHostname
+                ? { hostname: 'app.example.com', host: 'app.example.com:3100', content: {} }
+                : { content: {} };
+            var envOpts = {
+                isProxyHost: c.isProxy,
+                conf: confObj
+            };
+            if (c.hasPH) {
+                envOpts.proxyHostname = 'proxy.example.com';
+                envOpts.proxyHost = 'proxy.example.com:8080';
+            }
+            var env = makeGetConfigEnv(envOpts);
+            env.setup();
+            try {
+                var result = env.getConfig();
+                assert.equal(result.hostname, c.expect,
+                    'case [' + c.label + ']: hostname mismatch');
+            } finally {
+                env.teardown();
+            }
+        });
+    });
+
+});
