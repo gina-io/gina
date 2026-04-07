@@ -207,17 +207,9 @@ module.exports = function renderJSON(jsonObj, deps) {
 
         console.info(request.method +' ['+ response.statusCode +'] '+ request.url);
 
-        // #QI — in dev mode, embed the request-scoped query log so upstream
-        // callers (dashboard calling coreapi via self.query()) can merge it
-        // into their own Inspector view. Stripped by the caller after extraction.
-        if (self.isCacheless() && local._queryLog && local._queryLog.length > 0) {
-            jsonObj.__ginaQueries = local._queryLog;
-        }
-
-        // #FI — in dev mode, push response-write + total timing so the Flow
-        // waterfall has closing bars for JSON responses. Pushed before the
-        // __ginaFlow sidecar injection so they travel with cross-bundle data.
-        if (self.isCacheless() && local._timeline) {
+        // #FI — push response-write + total timing to the timeline so the
+        // Flow waterfall has closing bars for JSON responses.
+        if (self.isCacheless() && process.gina._inspectorActive && local._timeline) {
             var _jsonRespEnd = Date.now();
             var _jsonRwStart = local._timeline._renderStart || local._timeline._actionStart || local._timeline.requestStart;
             local._timeline.entries.push({
@@ -238,9 +230,63 @@ module.exports = function renderJSON(jsonObj, deps) {
             });
         }
 
-        // #FI — in dev mode, embed the request-scoped timeline so upstream
-        // callers can merge it into their own Inspector Flow tab.
-        if (self.isCacheless() && local._timeline && local._timeline.entries.length > 0) {
+        // #INS — emit Inspector payload for JSON responses so the Inspector
+        // Data tab, Flow tab, and footer status bar work for APIs that only
+        // use self.renderJSON(). Gated on _inspectorActive to avoid overhead
+        // when the Inspector has not been opened.
+        if (self.isCacheless() && process.gina._inspectorActive) {
+            var _ctx = getContext('gina') || {};
+            var _conf = local.options.conf || {};
+            var _mem = process.memoryUsage();
+            var _env = {
+                'gina'           : _ctx.version || '',
+                'gina pid'       : getEnvVar('GINA_PID') || String(process.pid),
+                'nodejs'         : process.versions.node + ' ' + process.platform + ' ' + process.arch,
+                'engine'         : (_conf.server && _conf.server.engine) || '',
+                'env'            : process.env.NODE_ENV || '',
+                'envIsDev'       : self.isCacheless(),
+                'scope'          : process.env.NODE_SCOPE || '',
+                'bundle'         : _conf.bundle || '',
+                'project'        : _conf.projectName || '',
+                'protocol'       : (_conf.server && _conf.server.protocol) || '',
+                'scheme'         : (_conf.server && _conf.server.scheme) || '',
+                'port'           : (_conf.server && _conf.server.port) || '',
+                'webroot'        : (_conf.server && _conf.server.webroot) || '',
+                'memory heap'    : (_mem.heapUsed / 1024 / 1024).toFixed(2) + ' MB',
+                'memory allocated': (require('v8').getHeapStatistics().heap_size_limit / (1024 * 1024 * 1024)).toFixed(2) + ' GB',
+                'date.now'       : new Date().toISOString(),
+                'pid'            : process.pid
+            };
+            var _gdUser = {
+                environment : _env,
+                data        : jsonObj
+            };
+            if (local._queryLog && local._queryLog.length > 0) {
+                _gdUser.queries = local._queryLog;
+            }
+            if (local._timeline) {
+                _gdUser.flow = {
+                    requestStart : local._timeline.requestStart,
+                    entries      : local._timeline.entries
+                };
+            }
+            var __gdPayload = { gina: { environment: _env }, user: _gdUser };
+            self.serverInstance._lastGinaData = __gdPayload;
+            process.emit('inspector#data', __gdPayload);
+        }
+
+        // #QI — embed query log as a sidecar for cross-bundle propagation.
+        // When bundle A calls bundle B via self.query(), B's queries travel
+        // back as __ginaQueries in the JSON response body. A's query()
+        // callback extracts, merges into its own _queryLog, and deletes
+        // the field before the data reaches the controller action.
+        if (self.isCacheless() && local._queryLog && local._queryLog.length > 0) {
+            jsonObj.__ginaQueries = local._queryLog;
+        }
+
+        // #FI — embed timeline entries as a sidecar for cross-bundle flow
+        // propagation (mirrors __ginaQueries pattern).
+        if (self.isCacheless() && local._timeline && local._timeline.entries && local._timeline.entries.length > 0) {
             jsonObj.__ginaFlow = local._timeline.entries;
         }
 

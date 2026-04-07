@@ -254,7 +254,11 @@ function SuperController(options) {
         // reuse it. AsyncLocalStorage.enterWith() binds the log to this request's
         // async context so connector queries always push to the correct array,
         // even when concurrent requests interleave.
-        if (_isDev && process.gina._inspectorActive) {
+        // Activated when the Inspector is open locally (_inspectorActive) OR when
+        // the request came from a cross-bundle self.query() call with the Inspector
+        // header (x-gina-inspector). This ensures QI captures queries on target
+        // bundles (e.g. coreapi) without always-on overhead.
+        if (_isDev && (process.gina._inspectorActive || (req.headers && req.headers['x-gina-inspector'] === 'true'))) {
             if (!req._devQueryLog) {
                 req._devQueryLog = [];
             }
@@ -2576,6 +2580,12 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
             options.headers['x-forwarded-host'] = process.gina.PROXY_HOST;
             // X-Forwarded-Proto
             options.headers['x-forwarded-proto'] = process.gina.PROXY_SCHEME;
+        }
+
+        // #QI — propagate Inspector profiling to the target bundle so it
+        // captures queries and timeline entries for cross-bundle propagation.
+        if (_isDev && process.gina._inspectorActive) {
+            options.headers['x-gina-inspector'] = 'true';
         }
 
         if ( ctx.gina.config.envConf[ctx.bundle][ctx.env].server.resolvers.length > 0 ) {

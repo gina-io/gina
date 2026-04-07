@@ -98,13 +98,28 @@ function Couchbase(conn, infos) {
      * extracted indexes. Patches `queryEntry.indexes` in-place once
      * the EXPLAIN result is available.
      *
-     * @param {object} conn - The Couchbase connection object (with `_cluster`)
+     * @param {object} conn - The Couchbase connection object. May have `_cluster`
+     *   directly (entity query path) or nested at `_scope._bucket._cluster` (bulk insert path).
      * @param {string} statement - The original N1QL statement (without EXPLAIN prefix)
      * @param {object} queryEntry - The QI entry to patch with index info
      * @param {object} queryOptions - Query options (for parameters)
      * @private
      */
     var explainForIndexes = function(conn, statement, queryEntry, queryOptions) {
+        // Resolve cluster from whichever conn shape we received:
+        // - entity query path: conn._cluster exists directly
+        // - bulk insert path: conn is a scope object, cluster is at conn._scope._bucket._cluster
+        var cluster = (conn._cluster)
+            ? conn._cluster
+            : (conn._scope && conn._scope._bucket && conn._scope._bucket._cluster)
+                ? conn._scope._bucket._cluster
+                : null;
+
+        if (!cluster || typeof(cluster.query) !== 'function') {
+            console.warn('[explainForIndexes] Cannot resolve cluster from conn — skipping EXPLAIN for: ' + statement.substring(0, 80));
+            return;
+        }
+
         // Mark as pending so we don't fire multiple EXPLAINs for the same statement
         _explainCache.set(statement, null);
 
@@ -113,18 +128,23 @@ function Couchbase(conn, infos) {
             parameters: queryOptions.parameters || []
         };
 
-        conn._cluster.query('EXPLAIN ' + statement, explainOpts)
-            .then(function(data) {
-                var plan = (data && data.rows && data.rows[0]) ? data.rows[0].plan || data.rows[0] : null;
-                var indexes = extractIndexes(plan);
-                _explainCache.set(statement, indexes);
-                // Patch the current query entry in-place (it's already in _devLog)
-                queryEntry.indexes = indexes;
-            })
-            .catch(function() {
-                // EXPLAIN failed — leave indexes as null (N/A badge)
-                _explainCache.set(statement, null);
-            });
+        try {
+            cluster.query('EXPLAIN ' + statement, explainOpts)
+                .then(function(data) {
+                    var plan = (data && data.rows && data.rows[0]) ? data.rows[0].plan || data.rows[0] : null;
+                    var indexes = extractIndexes(plan);
+                    _explainCache.set(statement, indexes);
+                    // Patch the current query entry in-place (it's already in _devLog)
+                    queryEntry.indexes = indexes;
+                })
+                .catch(function() {
+                    // EXPLAIN failed — leave indexes as null (N/A badge)
+                    _explainCache.set(statement, null);
+                });
+        } catch (_explainErr) {
+            console.warn('[explainForIndexes] ' + _explainErr.message);
+            _explainCache.set(statement, null);
+        }
     };
 
     /**
