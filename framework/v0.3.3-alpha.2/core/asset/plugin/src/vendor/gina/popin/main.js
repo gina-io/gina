@@ -2,12 +2,24 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/merge', 'utils/events' ], f
 
     // TODO - Integrate dialog-polyfill : https://github.com/GoogleChrome/dialog-polyfill/blob/master/dist/dialog-polyfill.js
     // removed: jquery dependency
-    // removed: uuid dependency (replaced by crypto.randomUUID())
+    // removed: uuid dependency (replaced by crypto.randomUUID(), then by _nextId())
     var Domain          = require('lib/domain');
     var domainInstance  = null;
     var merge           = require('lib/merge');
 
     require('utils/events'); // events
+
+    /** @type {number} Auto-incrementing ID counter for internal popin identifiers */
+    var _uid = 0;
+    /**
+     * Generates a lightweight unique ID for internal use (event names, DOM element IDs).
+     * Replaces crypto.randomUUID() to avoid unnecessary crypto overhead.
+     *
+     * @inner
+     * @param {string} [prefix='gp'] - Optional prefix
+     * @returns {string} Unique ID string
+     */
+    function _nextId(prefix) { return (prefix || 'gp') + '-' + (++_uid); }
 
     /**
      * Gina Popin Handler
@@ -35,7 +47,7 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/merge', 'utils/events' ], f
 
         var instance        = {
             plugin          : this.plugin,
-            id              : 'gina-popins-' + crypto.randomUUID(),
+            id              : 'gina-popins-' + _nextId(),
             on              : on,
             eventData       : {},
 
@@ -74,6 +86,9 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/merge', 'utils/events' ], f
         var xhr = null;
 
         var registeredPopins = [];
+
+        // Cached regex — avoids repeated RegExp construction in click handlers
+        var _rePopinClick = new RegExp('^popin\\.click\\.gina-popin-' + instance.id);
 
 
         /**
@@ -165,7 +180,7 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/merge', 'utils/events' ], f
             isRouting = ( typeof(isRouting) != 'undefined' ) ? isRouting : false;
 
             var attr    = 'data-gina-popin-name';
-            var $els    = getElementsByAttribute(attr);
+            var $els    = document.querySelectorAll('[' + attr + ']');
             var $el     = null, name = null, id = null;
             var url     = null;
             var proceed = null, evt = null;
@@ -201,7 +216,7 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/merge', 'utils/events' ], f
                 if (name == $popin.name) {
                     id = $el.id || $el.getAttribute('id') || null;
                     // By default
-                    evt = 'popin.click.'+ 'gina-popin-' + instance.id +'-'+ crypto.randomUUID() +'-'+ name;
+                    evt = 'popin.click.'+ 'gina-popin-' + instance.id +'-'+ _nextId() +'-'+ name;
                     // console.debug("[POPIN CLICK #1]", id, " VS ", evt);
                     // Retrieving existing event
                     if ( id && new RegExp( '^popin.click.gina-popin-').test(id) ) {
@@ -280,7 +295,7 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/merge', 'utils/events' ], f
                 }
 
                 if ( typeof(event.target.id) == 'undefined' ) {
-                    event.target.setAttribute('id', evt +'.'+ crypto.randomUUID() );
+                    event.target.setAttribute('id', evt +'.'+ _nextId() );
                     event.target.id = event.target.getAttribute('id')
                 }
 
@@ -296,7 +311,7 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/merge', 'utils/events' ], f
                     //console.log('popin.click !! ', event.target);
                     var _evt = event.target.id;
 
-                    if ( new RegExp( '^popin.click.gina-popin-' + instance.id).test(_evt) ) {
+                    if ( _rePopinClick.test(_evt) ) {
                         triggerEvent(gina, event.target, _evt, event.detail);
                     }
 
@@ -390,7 +405,7 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/merge', 'utils/events' ], f
                     }*/ else { // close
 
                         if ( typeof(event.target.id) == 'undefined' ) {
-                            event.target.setAttribute('id', evt +'.'+ crypto.randomUUID() );
+                            event.target.setAttribute('id', evt +'.'+ _nextId() );
                             event.target.id = event.target.getAttribute('id')
                         }
 
@@ -405,7 +420,7 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/merge', 'utils/events' ], f
                             cancelEvent(event);
                             var _evt = event.target.id;
 
-                            if ( new RegExp( '^popin.click.gina-popin-' + instance.id).test(_evt) ) {
+                            if ( _rePopinClick.test(_evt) ) {
                                 triggerEvent(gina, event.target, _evt, event.detail);
                             }
 
@@ -436,43 +451,7 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/merge', 'utils/events' ], f
                         removeListener(gina, event.target, 'mousedown');
 
                         // binding popin close
-                        var $close          = []
-                            , $buttonsTMP   = []
-                        ;
-
-                        i = 0;
-                        $buttonsTMP = $el.getElementsByTagName('button');
-                        b = 0; len = $buttonsTMP.length;
-                        if ( len > 0 ) {
-                            for(; b < len; ++b) {
-                                if ( /gina-popin-close/.test($buttonsTMP[b].className) ) {
-                                    $close[i] = $buttonsTMP[b];
-                                    ++i;
-                                }
-                            }
-                        }
-
-                        $buttonsTMP = $el.getElementsByTagName('div');
-                        b = 0; len = $buttonsTMP.length;
-                        if ( len > 0 ) {
-                            for(; b < len; ++b) {
-                                if ( /gina-popin-close/.test($buttonsTMP[b].className) ) {
-                                    $close[i] = $buttonsTMP[b];
-                                    ++i
-                                }
-                            }
-                        }
-
-                        $buttonsTMP = $el.getElementsByTagName('a');
-                        b = 0; len = $buttonsTMP.length;
-                        if ( len > 0 ) {
-                            for(; b < len; ++b) {
-                                if ( /gina-popin-close/.test($buttonsTMP[b].className) ) {
-                                    $close[i] = $buttonsTMP[b];
-                                    ++i
-                                }
-                            }
-                        }
+                        var $close = Array.prototype.slice.call($el.querySelectorAll('.gina-popin-close'));
 
                         b = 0; len = $close.length;
                         for (; b < len; ++b) {
@@ -528,54 +507,29 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/merge', 'utils/events' ], f
             }
 
             // binding popin close & links (& its target attributes)
-            var $close          = []
-                , $buttonsTMP   = []
-                , $link         = []
-            ;
+            var $close = Array.prototype.slice.call($el.querySelectorAll('.gina-popin-close'));
+            var $link  = [];
 
-            $buttonsTMP = $el.getElementsByTagName('button');
-            i = 0; b = 0; len = $buttonsTMP.length;
-            if ( $buttonsTMP.length > 0 ) {
-                for(; b < len; ++b) {
-                    if ( /gina-popin-close/.test($buttonsTMP[b].className) ) {
-                        $close[i] = $buttonsTMP[b];
-                        ++i
-                    }
-                }
-            }
-
-            $buttonsTMP = $el.getElementsByTagName('div');
-            b = 0; len = $buttonsTMP.length;
+            // Collect non-close <a> links
+            var $aTags = $el.getElementsByTagName('a');
+            b = 0; len = $aTags.length;
             if ( len > 0 ) {
                 for(; b < len; ++b) {
-                    if ( /gina-popin-close/.test($buttonsTMP[b].className) ) {
-                        $close[i] = $buttonsTMP[b];
-                        ++i;
-                    }
-                }
-            }
-
-            $buttonsTMP = $el.getElementsByTagName('a');
-            b = 0; len = $buttonsTMP.length;
-            if ( len > 0 ) {
-                for(; b < len; ++b) {
-                    if ( /gina-popin-close/.test($buttonsTMP[b].className) ) {
-                        $close[i] = $buttonsTMP[b];
-                        ++i;
+                    if ( $aTags[b].classList.contains('gina-popin-close') ) {
                         continue
                     }
 
                     if (
-                        typeof($buttonsTMP[b]) != 'undefined'
-                        && !/(\#|\#.*)$/.test($buttonsTMP[b].href) // ignore href="#"
+                        typeof($aTags[b]) != 'undefined'
+                        && !/(\#|\#.*)$/.test($aTags[b].href) // ignore href="#"
                         // ignore href already bindded byr formValidator or the user
-                        && !$buttonsTMP[b].id
+                        && !$aTags[b].id
                         ||
-                        typeof($buttonsTMP[b]) != 'undefined'
-                        && !/(\#|\#.*)$/.test($buttonsTMP[b].href) // ignore href="#"
-                        && !/^(click\.|popin\.link)/.test($buttonsTMP[b].id)
+                        typeof($aTags[b]) != 'undefined'
+                        && !/(\#|\#.*)$/.test($aTags[b].href) // ignore href="#"
+                        && !/^(click\.|popin\.link)/.test($aTags[b].id)
                     ) {
-                        $link.push($buttonsTMP[b]);
+                        $link.push($aTags[b]);
                         continue
                     }
                 }
@@ -601,7 +555,7 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/merge', 'utils/events' ], f
 
                 if (!$close[b]['id']) {
 
-                    evt = 'popin.close.'+ crypto.randomUUID();
+                    evt = 'popin.close.'+ _nextId();
                     $close[b]['id'] = evt;
                     $close[b].setAttribute( 'id', evt);
 
@@ -647,10 +601,10 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/merge', 'utils/events' ], f
                     // link or action ?
                     if (/^null$/i.test($link[i]['id'])) {
                         if ( isLink ) {
-                            evt = 'popin.link.' + crypto.randomUUID();
+                            evt = 'popin.link.' + _nextId();
                             $link[i].setAttribute('data-gina-popin-is-link', true);
                         } else {
-                            evt = 'popin.click.' + crypto.randomUUID();
+                            evt = 'popin.click.' + _nextId();
                             $link[i].setAttribute('data-gina-popin-is-link', false);
                         }
                     } else {
@@ -723,7 +677,7 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/merge', 'utils/events' ], f
                 for(; i < len; ++i) {
 
                     if ( !$forms[i]['id'] || typeof($forms[i]) != 'string' ) {
-                        _id = $forms[i].getAttribute('id') || 'form.' + crypto.randomUUID();
+                        _id = $forms[i].getAttribute('id') || 'form.' + _nextId();
                         $forms[i].setAttribute('id', _id);// just in case
                         $forms[i]['id'] = _id
                     } else {
@@ -985,6 +939,16 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/merge', 'utils/events' ], f
             $popin.options  = merge(options, $popin.options);
 
             var result = null;
+
+            // Fresh XHR per load — prevents concurrent popins from sharing state
+            var xhr = null;
+            if (window.XMLHttpRequest) {
+                xhr = new XMLHttpRequest();
+            } else if (window.ActiveXObject) {
+                try { xhr = new ActiveXObject("Msxml2.XMLHTTP"); }
+                catch (e) { try { xhr = new ActiveXObject("Microsoft.XMLHTTP"); } catch (e) {} }
+            }
+
             if ( options.withCredentials ) { // Preflighted requests
                 if ('withCredentials' in xhr) {
                     // XHR for Chrome/Firefox/Opera/Safari.
@@ -1364,28 +1328,35 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/merge', 'utils/events' ], f
             }
         }
 
-        function getScript(source) {
-            // then trigger scripts load
-            //var xhr = new XMLHttpRequest();
-            var xhr = setupXhr();
-            xhr.open('GET', source, true);
-            xhr.setRequestHeader("Content-Type", "text/javascript");
-            xhr.onload = function () {
-                eval(xhr.response);
-            };
-            xhr.send();
+        /**
+         * Loads an external script by injecting a <script> element into the document head.
+         * Browser handles loading in parallel — no sequential XHR or eval().
+         *
+         * @param {string} source - Script URL
+         * @param {object} [$popin] - Popin object for tracking injected headers (cleaned up on close)
+         */
+        function getScript(source, $popin) {
+            var s = document.createElement('script');
+            s.src = source;
+            s.id = 'popin-script-' + _nextId();
+            if ($popin) { $popin.$headers.push({ id: s.id }); }
+            document.head.appendChild(s);
         }
 
-        function getStyle(source) {
-            // then trigger scripts load
-            //var xhr = new XMLHttpRequest();
-            var xhr = setupXhr();
-            xhr.open('GET', source, true);
-            xhr.setRequestHeader("Content-Type", "text/css");
-            xhr.onload = function () {
-                eval(xhr.response);
-            };
-            xhr.send();
+        /**
+         * Loads an external stylesheet by injecting a <link> element into the document head.
+         * Browser handles loading in parallel — no sequential XHR or eval().
+         *
+         * @param {string} source - Stylesheet URL
+         * @param {object} [$popin] - Popin object for tracking injected headers (cleaned up on close)
+         */
+        function getStyle(source, $popin) {
+            var link = document.createElement('link');
+            link.rel = 'stylesheet';
+            link.href = source;
+            link.id = 'popin-style-' + _nextId();
+            if ($popin) { $popin.$headers.push({ id: link.id }); }
+            document.head.appendChild(link);
         }
 
         function refreshCSS() {
@@ -1469,7 +1440,7 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/merge', 'utils/events' ], f
                 if ( globalScriptsList.indexOf(filename) > -1 )
                     continue;
 
-                getScript(scripts[i].src);
+                getScript(scripts[i].src, $popin);
             }
 
             // Styles
@@ -1486,21 +1457,22 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/merge', 'utils/events' ], f
                 if ( globalStylesList.indexOf(filename) > -1 )
                     continue;
 
-                getStyle(styles[i].href);
+                getStyle(styles[i].href, $popin);
             }
 
-            popinBind({ target: $el, type: 'loaded.' + $popin.id }, $popin);
+            // Skip if already bound by the loaded listener — avoids double DOM scanning
+            if (!gina.popinIsBinded) {
+                popinBind({ target: $el, type: 'loaded.' + $popin.id }, $popin);
+            }
 
 
-            if ( !/gina-popin-is-active/.test($el.className) )
-                $el.className += ' gina-popin-is-active';
+            $el.classList.add('gina-popin-is-active');
 
             if ( !self.options.useDialogMode || gina.config.envIsDev ) {
                 // overlay
-                if ( !/gina-popin-is-active/.test(instance.target.firstChild.className) )
-                    instance.target.firstChild.className += ' gina-popin-is-active';
+                instance.target.firstChild.classList.add('gina-popin-is-active');
                 // overlay
-                if ( /gina-popin-is-active/.test(instance.target.firstChild.className) ) {
+                if ( instance.target.firstChild.classList.contains('gina-popin-is-active') ) {
                     removeListener(gina, instance.target, 'open.'+ $popin.id)
                 }
             }
@@ -1558,10 +1530,10 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/merge', 'utils/events' ], f
 
                 isRouting = ( typeof(isRouting) != 'undefined' ) ? isRouting : false;
 
-                if ( $el != null && /gina-popin-is-active/.test($el.className) ) {
+                if ( $el != null && $el.classList.contains('gina-popin-is-active') ) {
                     if (!isRouting) {
-                        instance.target.firstChild.className    = instance.target.firstChild.className.replace(/\sgina-popin-is-active|gina-popin-is-active|gina-popin-is-active\s/, '');
-                        $el.className                           = $el.className.replace(/\sgina-popin-is-active|gina-popin-is-active|gina-popin-is-active\s/, '');
+                        instance.target.firstChild.classList.remove('gina-popin-is-active');
+                        $el.classList.remove('gina-popin-is-active');
                         $el.innerHTML                           = '';
                     }
                     // Fixed: clear loading state on reset — defensive cleanup for navigation
@@ -1643,7 +1615,7 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/merge', 'utils/events' ], f
                     $popin.hasForm = false;
                 }
 
-                if ( $el != null && /gina-popin-is-active/.test($el.className) ) {
+                if ( $el != null && $el.classList.contains('gina-popin-is-active') ) {
 
                     popinUnbind(name);
                     $popin.isOpen           = false;
@@ -1687,11 +1659,11 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/merge', 'utils/events' ], f
         /**
          * popinDestroy
          *
-         * Destroyes a popin by name
+         * Destroys a popin by name: closes it if open, removes event listeners,
+         * removes the DOM element, and cleans up the internal registry.
          *
-         * @parama {string} name
-         *
-         * */
+         * @param {string} [name] - Popin name. If omitted, destroys the active popin.
+         */
         function popinDestroy(name) {
 
             var $popin = ( typeof(name) != 'undefined') ? getPopinByName(name) : getActivePopin();
@@ -1699,8 +1671,42 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/merge', 'utils/events' ], f
             if ( !$popin && typeof(name) != 'undefined' ) {
                 throw new Error('Popin `'+name+'` not found !');
             }
+            if ( !$popin ) return;
 
             id = $popin.id;
+            name = $popin.name;
+
+            // Close first if still open (handles listener cleanup, form unbinding, header removal)
+            if ( $popin.isOpen ) {
+                $popin.isRedirecting = false;
+                popinClose(name);
+            }
+
+            // Remove the DOM element
+            $el = document.getElementById(id);
+            if ( $el ) {
+                $el.remove();
+            }
+
+            // Remove remaining listeners
+            removeListener(gina, $popin.target, 'loaded.' + id);
+            removeListener(gina, $popin.target, 'ready.' + id);
+            removeListener(gina, $popin.target, 'open.' + id);
+            removeListener(gina, $popin.target, 'close.' + id);
+
+            // Clean up registry
+            delete instance.$popins[id];
+            var regIdx = registeredPopins.indexOf(name);
+            if ( regIdx > -1 ) {
+                registeredPopins.splice(regIdx, 1);
+            }
+
+            // Reset active if this was the active popin
+            if ( instance.activePopinId === id ) {
+                instance.activePopinId = null;
+            }
+
+            triggerEvent(gina, instance.target, 'destroy.' + id, { name: name, id: id });
         }
 
         function registerPopin($popin, options) {
@@ -1721,6 +1727,7 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/merge', 'utils/events' ], f
                 if ( registeredPopins.indexOf($popin.options['name']) > -1 ) {
                     throw new Error('`popin '+$popin.options['name']+'` already exists !')
                 }
+                registeredPopins.push($popin.options['name']);
 
                 // import over plugins
                 if ( typeof($popin.options['validator']) != 'undefined' ) {
@@ -1773,21 +1780,7 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/merge', 'utils/events' ], f
 
                 instance.$popins[$popin.id] = $popin;
 
-                // setting up AJAX
-                if (window.XMLHttpRequest) { // Mozilla, Safari, ...
-                    xhr = new XMLHttpRequest();
-                } else if (window.ActiveXObject) { // IE
-                    try {
-                        xhr = new ActiveXObject("Msxml2.XMLHTTP");
-                    } catch (e) {
-                        try {
-                            xhr = new ActiveXObject("Microsoft.XMLHTTP");
-                        }
-                        catch (e) {}
-                    }
-                }
-
-
+                // XHR is now created per popinLoad() call — no shared instance needed
 
                 bindOpen($popin);
             }
@@ -1829,6 +1822,7 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/merge', 'utils/events' ], f
             instance.getActivePopin = getActivePopin;
             instance.open           = popinOpen;
             instance.close          = popinClose;
+            instance.destroy        = popinDestroy;
         }
 
 

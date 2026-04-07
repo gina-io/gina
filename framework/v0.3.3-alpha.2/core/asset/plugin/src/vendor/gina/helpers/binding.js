@@ -78,7 +78,7 @@ function BindingHelper(handlerContext) {
             //restore
             handleObject.call = hCall;
         } catch (err) {
-            console.error('BindingHelper encountered error while trying to execute `'+ hCall +'`' + err.stack || err);
+            console.error('BindingHelper encountered error while trying to execute `'+ hCall +'`' + (err.stack || err));
         }
         
         self.process(bindings, len, i+1)

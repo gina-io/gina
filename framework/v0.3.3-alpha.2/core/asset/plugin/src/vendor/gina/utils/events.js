@@ -210,14 +210,14 @@ function setupXhr(options) {
         }
 
         // setting up headers -    all but Content-Type ; it will be set right before .send() is called
-        for (var hearder in options.headers) {
-             //if ( hearder == 'Content-Type' && typeof (enctype) != 'undefined' && enctype != null && enctype != '') {
-             //    options.headers[hearder] = enctype
+        for (var header in options.headers) {
+             //if ( header == 'Content-Type' && typeof (enctype) != 'undefined' && enctype != null && enctype != '') {
+             //    options.headers[header] = enctype
              //}
-            if (hearder == 'Content-Type' && typeof (enctype) != 'undefined' && enctype != null && enctype != '')
+            if (header == 'Content-Type' && typeof (enctype) != 'undefined' && enctype != null && enctype != '')
                 continue;
 
-            xhr.setRequestHeader(hearder, options.headers[hearder]);
+            xhr.setRequestHeader(header, options.headers[header]);
         }
     }
     return xhr;
@@ -287,14 +287,14 @@ function handleXhr(xhr, $el, options, require) {
     var enctype = $el.getAttribute('enctype') || options.headers['Content-Type'];
 
     // setting up headers -    all but Content-Type ; it will be set right before .send() is called
-    for (var hearder in options.headers) {
-        //if ( hearder == 'Content-Type' && typeof (enctype) != 'undefined' && enctype != null && enctype != '') {
-        //    options.headers[hearder] = enctype
+    for (var header in options.headers) {
+        //if ( header == 'Content-Type' && typeof (enctype) != 'undefined' && enctype != null && enctype != '') {
+        //    options.headers[header] = enctype
         //}
-        if (hearder == 'Content-Type' && typeof (enctype) != 'undefined' && enctype != null && enctype != '')
+        if (header == 'Content-Type' && typeof (enctype) != 'undefined' && enctype != null && enctype != '')
             continue;
 
-        xhr.setRequestHeader(hearder, options.headers[hearder]);
+        xhr.setRequestHeader(header, options.headers[header]);
     }
     xhr.withCredentials = ( typeof(options.withCredentials) != 'undefined' ) ? options.withCredentials : false;
 
@@ -616,7 +616,7 @@ function handleXhr(xhr, $el, options, require) {
 
                 } else { // normal case
 
-                    if ( /^(\{|\[).test( xhr.responseText ) /) {
+                    if ( /^(\{|\[)/.test( xhr.responseText ) ) {
 
                         try {
                             result = merge( result, JSON.parse(xhr.responseText) )

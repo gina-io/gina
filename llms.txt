@@ -541,6 +541,25 @@ Dev-mode query instrumentation captures every database query tied to the current
 
 ---
 
+## Client-side plugins (`core/asset/plugin/`)
+
+**Source:** `src/vendor/gina/` — AMD modules bundled into `dist/vendor/gina/js/gina.min.js` via RequireJS + Closure Compiler.
+
+**Popin** (`src/vendor/gina/popin/main.js`) — client-side dialog/modal component. Manages popup lifecycle (register, load, open, close, destroy), XHR content loading, event wiring, and `<dialog>` element support.
+
+- **Performance:** `_nextId()` counter replaces `crypto.randomUUID()`; `querySelectorAll` replaces `getElementsByAttribute`/`getElementsByTagName` for DOM scanning; `classList` API replaces `className` string manipulation; cached `RegExp` for click handlers; DOM-injected `<script>`/`<link>` elements replace XHR+`eval()` for asset loading; per-load XHR creation prevents concurrent state sharing; `popinBind` dedup guard avoids redundant binding.
+- **`popinDestroy(name)`** — full teardown: closes if open, removes DOM element, removes all event listeners (loaded/ready/open/close), cleans up `instance.$popins` and `registeredPopins`, resets `activePopinId`, fires `destroy` event.
+- **`$popin.$headers`** — tracks injected `<script>` and `<link>` element IDs. Cleaned up in `popinClose`.
+- **`ginaToolbar` integration** — 13 refs; `popinClose` is the only `restore()` call site. `update()` calls sync XHR overlay data to the Inspector.
+
+**Events** (`src/vendor/gina/utils/events.js`) — core event system with XHR lifecycle management (`setupXhr`, `handleXhr`). Bundled into `gina.min.js`.
+
+**Binding** (`src/vendor/gina/helpers/binding.js`) — processes binding descriptor arrays (call/handler/payload). AMD module.
+
+**Unit tests:** `test/core/popin.test.js` (37 tests — perf optimizations, DOM injection, dedup guard, per-load XHR, popinDestroy, registeredPopins, events.js regex/typo, binding.js precedence, dist verification).
+
+---
+
 ## Home directory (~/.gina/)
 
 ```

@@ -1,0 +1,3 @@
+kind: Fixed
+body: Fixed malformed regex in events.js XHR error handler, operator precedence bug in binding.js error logging, typo in events.js header loop variable, implemented popinDestroy (was a stub), and fixed registeredPopins duplicate-check array never being populated
+time: 2026-04-08T00:06:56.044929+01:00
