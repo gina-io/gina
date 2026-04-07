@@ -279,7 +279,8 @@ Gina's built-in per-bundle inspector. Phases 1–2 ship as an embedded SPA at `/
 | Status | Feature | Version | Target |
 | --- | --- | --- | --- |
 | 🔨 | **`services/src/inspector/` standalone bundle** — ~~Rename `services/src/toolbar/` to `services/src/inspector/`~~ (done). Inspector SPA as a standalone gina bundle on port 4101. Connects to bundles via authenticated WebSocket. The embedded SPA at `/_gina/inspector/` remains for quick dev-mode access. | `0.5.0` | Q1 2027 |
-| 🔨 | **Agent endpoint (`/_gina/agent`)** — ~~Dev-mode SSE endpoint — combined data + log stream, CORS, HTTP/2 support, Inspector SPA `tryAgent()` with `?target=` param~~ (done). Remaining: upgrade to authenticated WebSocket, API key gating, production-safe toggle. | `0.5.0` | Q1 2027 |
+| ✅ | **Agent endpoint — dev-mode SSE (`/_gina/agent`)** — Combined data + log SSE stream. CORS, server.js + server.isaac.js (HTTP/2), Inspector SPA `tryAgent()` with `?target=` param. Named events (`event: data`, `event: log`). Manual connect form on "No source" overlay. | `0.3.0` | 2026-04-05 |
+| 📋 | **Agent endpoint — production auth** — Upgrade `/_gina/agent` to authenticated WebSocket. API key gating (`inspector.agent_key` in `settings.json`), production-safe toggle. | `0.5.0` | Q1 2027 |
 | 📋 | **Toggleable instrumentation** — Runtime toggle for query instrumentation independent of `NODE_ENV_IS_DEV`. Enable in production for a time window without full dev mode. Minimal overhead when disabled. | `0.5.0` | Q1 2027 |
 | 📋 | **Multi-bundle dashboard** — Discover all running bundles via `ports.json`, connect to each agent. Full-stack request tracing across bundle boundaries. | post-1.0.0 | — |
 | 📋 | **Browser extension companion** — Chrome/Firefox DevTools panel. Thin UI shell connecting to the standalone Inspector via WebSocket. Optional — not a replacement. | post-1.0.0 | — |
