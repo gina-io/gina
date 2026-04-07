@@ -37,12 +37,14 @@ gina bundle:start api @myproject
 open https://localhost:3100
 ```
 
-## What's in 0.3.1
+## What's in 0.3.2
 
-- **Dependency reduction** — `ssl-checker`, `colors`, and `uuid` removed; engine.io is now the sole runtime dependency
-- **HTTP/2 direct stream for HTML** — `render-swig.js` uses `stream.respond()` + `stream.end()` directly, bypassing the HTTP/1.1 compat layer
-- **SQL index reporting** — MySQL, PostgreSQL, and SQLite connectors read `indexes.sql` at startup; Inspector Query tab shows index badges per query
-- **Release workflow fixes** — auto-delete publish branch; stable docs merge to main
+- **JSON Schema for config files** — 7 schemas published at `gina.io/schema/*` (app, connectors, manifest, routing, settings, watchers, crons)
+- **Model loading without `onInitialize`** — entities load correctly when the model has no `onInitialize` hook
+- **Entity short-name aliases** — use `self.getEntity('user')` instead of the full `self.getEntity('user/user')`
+- **`getConfig()` proxy override fix** — guards against undefined `PROXY_HOSTNAME` on same-origin POST requests
+- **Inspector polish** — tab layout presets (Balanced/Backend/Frontend/Custom with drag-to-reorder), query performance banners, missing-index banners, cross-bundle QI propagation, `render-json` Inspector data feed
+- **CLI stability fixes** — `bundle:start` crash on unregistered bundle, install path edge cases
 
 See the full [Changelog](./CHANGELOG.md) and [Roadmap](./ROADMAP.md).
 
