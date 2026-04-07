@@ -798,6 +798,68 @@ function ServerEngineClass(options) {
                 return;
             }
 
+            // ── Live index introspection — JSON at /_gina/indexes in dev mode ──
+            // #QI2 — triggers inspector#indexes event; each SQL connector responds
+            // with its live index data. Collector aggregates responses.
+            if (
+                isCacheless
+                && request.method.toUpperCase() === 'GET'
+                && /\/_gina\/indexes$/.test(request.url)
+            ) {
+                if (!process.gina._inspectorActive) process.gina._inspectorActive = true;
+
+                var _ixListenerCount = process.listenerCount('inspector#indexes');
+                var _ixHeaders = {
+                    'content-type': 'application/json; charset=utf8',
+                    'cache-control': 'no-cache, no-store',
+                    'access-control-allow-origin': '*',
+                    'X-Powered-By': 'Gina/' + GINA_VERSION
+                };
+
+                if (_ixListenerCount === 0) {
+                    var _ixEmpty = JSON.stringify({ connectors: {} });
+                    if (response.stream) {
+                        response.stream.respond({ ':status': 200, ..._ixHeaders });
+                        return response.stream.end(_ixEmpty);
+                    }
+                    response.writeHead(200, _ixHeaders);
+                    console.info(request.method + ' [200] ' + request.url);
+                    return response.end(_ixEmpty);
+                }
+
+                var _ixResults   = {};
+                var _ixRemaining = _ixListenerCount;
+                var _ixResponded = false;
+
+                var _ixRespond = function() {
+                    if (_ixResponded) return;
+                    _ixResponded = true;
+                    clearTimeout(_ixTimeout);
+                    var _ixBody = JSON.stringify({ connectors: _ixResults });
+                    if (response.stream) {
+                        if (response.stream.destroyed || response.stream.closed) return;
+                        response.stream.respond({ ':status': 200, ..._ixHeaders });
+                        return response.stream.end(_ixBody);
+                    }
+                    response.writeHead(200, _ixHeaders);
+                    console.info(request.method + ' [200] ' + request.url);
+                    response.end(_ixBody);
+                };
+
+                var _ixCollector = function(err, type, database, indexMap) {
+                    if (_ixResponded) return;
+                    if (!err && indexMap) {
+                        var key = type + ':' + database;
+                        _ixResults[key] = { type: type, database: database, tables: indexMap };
+                    }
+                    if (--_ixRemaining <= 0) _ixRespond();
+                };
+
+                var _ixTimeout = setTimeout(_ixRespond, 2000);
+                process.emit('inspector#indexes', _ixCollector);
+                return;
+            }
+
             // Proxy detection - Needs to be place after /_gina/health/*
             isProxyHost = getContext('isProxyHost') || false;
             requestHost = request.headers.host || request.headers[':authority'];

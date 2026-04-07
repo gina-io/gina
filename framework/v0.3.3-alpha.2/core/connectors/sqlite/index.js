@@ -68,6 +68,8 @@ function Sqlite(conn, infos) {
     // Keys are lowercase table names; values are [{ name, primary }].
     // null when no indexes.sql exists (grey N/A badge in Inspector).
     var _knownIndexes = null;
+    /** @type {boolean} #QI2 — true after live introspection has populated _knownIndexes */
+    var _liveIntrospected = false;
 
     // -------------------------------------------------------------------------
     // init — load entities + SQL methods
@@ -141,6 +143,49 @@ function Sqlite(conn, infos) {
                     _knownIndexes = {};
                 }
             }
+        }
+
+        // #QI2 — live index introspection listener (dev mode only).
+        // The /_gina/indexes endpoint emits this event; the connector responds
+        // with live index data from PRAGMA index_list, updating _knownIndexes
+        // so all subsequent QI entries benefit automatically.
+        if (envIsDev) {
+            process.on('inspector#indexes', function(_cb) {
+                if (_liveIntrospected) {
+                    return _cb(null, 'sqlite', infos.database, _knownIndexes);
+                }
+                try {
+                    var tables = conn.prepare(
+                        "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+                    ).all();
+                    var map = {};
+                    for (var ti = 0; ti < tables.length; ti++) {
+                        var tbl = tables[ti].name.toLowerCase();
+                        var idxList = conn.prepare(
+                            'PRAGMA index_list("' + tables[ti].name + '")'
+                        ).all();
+                        if (idxList.length > 0) {
+                            map[tbl] = [];
+                            for (var ii = 0; ii < idxList.length; ii++) {
+                                map[tbl].push({
+                                    name: idxList[ii].name,
+                                    primary: idxList[ii].origin === 'pk'
+                                });
+                            }
+                        }
+                    }
+                    // Merge live data into _knownIndexes (live wins)
+                    if (_knownIndexes === null) _knownIndexes = {};
+                    var mapTables = Object.keys(map);
+                    for (var i = 0; i < mapTables.length; i++) {
+                        _knownIndexes[mapTables[i]] = map[mapTables[i]];
+                    }
+                    _liveIntrospected = true;
+                    _cb(null, 'sqlite', infos.database, _knownIndexes);
+                } catch (e) {
+                    _cb(e, 'sqlite', infos.database, _knownIndexes);
+                }
+            });
         }
 
         return entities;
@@ -329,6 +374,7 @@ function Sqlite(conn, infos) {
                         resultCount : 0,
                         resultSize  : 0,
                         indexes     : _indexes,
+                        table       : _tbl || null,
                         error       : null,
                         source      : source || '',
                         origin      : infos.bundle,

@@ -1756,6 +1756,14 @@
     var QUERY_PAGE_SIZE = 20;
     /** @type {boolean} Whether all query cards should be shown (pagination override) */
     var _queryShowAll = false;
+    /**
+     * #QI2 — Cached live index data from /_gina/indexes endpoint.
+     * null = not yet fetched; object = fetched (may be empty).
+     * @type {?{connectors: Object.<string, {type: string, database: string, tables: Object}>}}
+     */
+    var _liveIndexes = null;
+    /** @type {boolean} Whether a /_gina/indexes fetch is in progress */
+    var _liveIndexesFetching = false;
 
     /**
      * Format a byte size into a human-readable string.
@@ -1767,6 +1775,85 @@
         if (bytes < 1024) return bytes + ' B';
         if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
         return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    }
+
+    /**
+     * #QI2 — Fetch live index data from the /_gina/indexes endpoint.
+     * Called when the Query tab renders queries with N/A index badges.
+     * On success, caches the result and re-renders the Query tab.
+     *
+     * @inner
+     */
+    function fetchLiveIndexes() {
+        if (_liveIndexes !== null || _liveIndexesFetching) return;
+        _liveIndexesFetching = true;
+        var base = window.location.pathname.replace(/\/_gina\/inspector.*$/, '');
+        var url  = base + '/_gina/indexes';
+        try {
+            var xhr = new XMLHttpRequest();
+            xhr.open('GET', url, true);
+            xhr.onload = function() {
+                _liveIndexesFetching = false;
+                if (xhr.status === 200) {
+                    try {
+                        _liveIndexes = JSON.parse(xhr.responseText);
+                        // Re-render query tab if we have queries
+                        if (_lastQueries) {
+                            var el = document.getElementById('tab-query');
+                            if (el) {
+                                var content = el.querySelector('.bm-scroll-area');
+                                if (content) content.innerHTML = renderQueryContent(_lastQueries);
+                            }
+                        }
+                    } catch (e) { _liveIndexes = { connectors: {} }; }
+                }
+            };
+            xhr.onerror = function() { _liveIndexesFetching = false; };
+            xhr.send();
+        } catch (e) { _liveIndexesFetching = false; }
+    }
+
+    /**
+     * #QI2 — Resolve live index data for a query entry that has null indexes.
+     * Looks up the connector:database key in _liveIndexes, then resolves by
+     * extracting the target table from the statement.
+     *
+     * @inner
+     * @param {object} q - Query entry with `q.indexes === null`
+     * @returns {?Array<{name: string, primary: boolean}>} Resolved indexes, or null
+     */
+    function resolveLiveIndexes(q) {
+        if (!_liveIndexes || !_liveIndexes.connectors) return null;
+        // Try connector:database key; fall back to first matching connector type
+        var connKey = null;
+        var keys = Object.keys(_liveIndexes.connectors);
+        for (var k = 0; k < keys.length; k++) {
+            if (_liveIndexes.connectors[keys[k]].type === q.connector) {
+                connKey = keys[k];
+                break;
+            }
+        }
+        if (!connKey) return null;
+        var tables = _liveIndexes.connectors[connKey].tables;
+        if (!tables) return null;
+        // Use the table field if available; otherwise extract from statement
+        var tbl = q.table || extractTableFromStatement(q.statement);
+        if (!tbl) return null;
+        return tables[tbl] || [];
+    }
+
+    /**
+     * #QI2 — Simple client-side table name extraction from SQL statements.
+     * @inner
+     * @param {string} stmt - SQL or N1QL statement
+     * @returns {?string} Lowercase table name, or null
+     */
+    function extractTableFromStatement(stmt) {
+        if (!stmt) return null;
+        var m = stmt.match(/\bFROM\s+[`"']?(\w+)[`"']?/i)
+            || stmt.match(/\bINTO\s+[`"']?(\w+)[`"']?/i)
+            || stmt.match(/\bUPDATE\s+[`"']?(\w+)[`"']?/i);
+        return m ? m[1].toLowerCase() : null;
     }
 
     /**
@@ -2203,6 +2290,12 @@
             if (q.statement) {
                 var compiled = compileQuery(q.statement, q.params);
 
+                // #QI2 — resolve live indexes for N/A entries
+                if ((q.indexes === null || q.indexes === undefined) && _liveIndexes) {
+                    var _resolved = resolveLiveIndexes(q);
+                    if (_resolved !== null) q.indexes = _resolved;
+                }
+
                 // Index badges (inline in stmt meta bar, left of rows count)
                 var indexHtml = '';
                 if (q.indexes !== null && q.indexes !== undefined) {
@@ -2309,6 +2402,16 @@
             }
             pbanner += '</ul></div></div>';
             h = pbanner + h;
+        }
+
+        // #QI2 — trigger live index fetch if any queries still show N/A
+        if (_liveIndexes === null && !_liveIndexesFetching) {
+            for (var na = 0; na < filtered.length; na++) {
+                if (filtered[na].indexes === null || filtered[na].indexes === undefined) {
+                    fetchLiveIndexes();
+                    break;
+                }
+            }
         }
 
         return h;

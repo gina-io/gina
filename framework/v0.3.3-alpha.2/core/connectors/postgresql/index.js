@@ -65,6 +65,8 @@ function Postgresql(conn, infos) {
     // Keys are lowercase table names; values are [{ name, primary }].
     // null when no indexes.sql exists (grey N/A badge in Inspector).
     var _knownIndexes = null;
+    /** @type {boolean} #QI2 — true after live introspection has populated _knownIndexes */
+    var _liveIntrospected = false;
 
     // -------------------------------------------------------------------------
     // init — load entities + SQL methods
@@ -138,6 +140,48 @@ function Postgresql(conn, infos) {
                     _knownIndexes = {};
                 }
             }
+        }
+
+        // #QI2 — live index introspection listener (dev mode only).
+        // The /_gina/indexes endpoint emits this event; the connector responds
+        // with live index data from pg_indexes, updating _knownIndexes
+        // so all subsequent QI entries benefit automatically.
+        if (envIsDev) {
+            process.on('inspector#indexes', function(_cb) {
+                if (_liveIntrospected) {
+                    return _cb(null, 'postgresql', infos.database, _knownIndexes);
+                }
+                try {
+                    conn.query(
+                        "SELECT tablename, indexname, indexdef FROM pg_indexes WHERE schemaname = 'public'",
+                        function(err, result) {
+                            if (err) return _cb(err, 'postgresql', infos.database, _knownIndexes);
+                            var map = {};
+                            var rows = result.rows;
+                            for (var r = 0, rLen = rows.length; r < rLen; r++) {
+                                var tbl = rows[r].tablename.toLowerCase();
+                                var idx = rows[r].indexname;
+                                var def = rows[r].indexdef || '';
+                                if (!map[tbl]) map[tbl] = [];
+                                map[tbl].push({
+                                    name: idx,
+                                    primary: /_pkey$/.test(idx) || /PRIMARY KEY/.test(def)
+                                });
+                            }
+                            // Merge live data into _knownIndexes (live wins)
+                            if (_knownIndexes === null) _knownIndexes = {};
+                            var tables = Object.keys(map);
+                            for (var i = 0; i < tables.length; i++) {
+                                _knownIndexes[tables[i]] = map[tables[i]];
+                            }
+                            _liveIntrospected = true;
+                            _cb(null, 'postgresql', infos.database, _knownIndexes);
+                        }
+                    );
+                } catch (e) {
+                    _cb(e, 'postgresql', infos.database, _knownIndexes);
+                }
+            });
         }
 
         return entities;
@@ -295,6 +339,7 @@ function Postgresql(conn, infos) {
                         resultCount : 0,
                         resultSize  : 0,
                         indexes     : _indexes,
+                        table       : _tbl || null,
                         error       : null,
                         source      : source || '',
                         origin      : infos.bundle,

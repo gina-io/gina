@@ -2483,6 +2483,56 @@ function Server(options) {
                 return;
             }
 
+            // ── Live index introspection — JSON at /_gina/indexes in dev mode ──
+            // #QI2 — triggers inspector#indexes event; each SQL connector responds
+            // with its live index data. Collector aggregates responses from all
+            // active connectors and returns a single JSON payload.
+            if (
+                process.env.NODE_ENV_IS_DEV && process.env.NODE_ENV_IS_DEV.toLowerCase() === 'true'
+                && request.method.toUpperCase() === 'GET'
+                && /\/_gina\/indexes$/.test(request.url)
+            ) {
+                if (!process.gina._inspectorActive) process.gina._inspectorActive = true;
+
+                var _ixListenerCount = process.listenerCount('inspector#indexes');
+                if (_ixListenerCount === 0) {
+                    response.setHeader('content-type', 'application/json; charset=utf8');
+                    response.setHeader('cache-control', 'no-cache, no-store');
+                    response.setHeader('access-control-allow-origin', '*');
+                    console.info(request.method + ' [200] ' + request.url);
+                    return response.end(JSON.stringify({ connectors: {} }));
+                }
+
+                var _ixResults   = {};
+                var _ixRemaining = _ixListenerCount;
+                var _ixResponded = false;
+
+                var _ixRespond = function() {
+                    if (_ixResponded) return;
+                    _ixResponded = true;
+                    clearTimeout(_ixTimeout);
+                    var _ixBody = JSON.stringify({ connectors: _ixResults });
+                    response.setHeader('content-type', 'application/json; charset=utf8');
+                    response.setHeader('cache-control', 'no-cache, no-store');
+                    response.setHeader('access-control-allow-origin', '*');
+                    console.info(request.method + ' [200] ' + request.url);
+                    response.end(_ixBody);
+                };
+
+                var _ixCollector = function(err, type, database, indexMap) {
+                    if (_ixResponded) return;
+                    if (!err && indexMap) {
+                        var key = type + ':' + database;
+                        _ixResults[key] = { type: type, database: database, tables: indexMap };
+                    }
+                    if (--_ixRemaining <= 0) _ixRespond();
+                };
+
+                var _ixTimeout = setTimeout(_ixRespond, 2000);
+                process.emit('inspector#indexes', _ixCollector);
+                return;
+            }
+
             // Fixing an express js bug :(
             // express is trying to force : /path/dir => /path/dir/
             // which causes : /path/dir/path/dir/  <---- by trying to add a slash in the end

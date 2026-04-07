@@ -3419,7 +3419,7 @@ describe('31 - Query: renderQueryContent index badge rendering in Inspector', fu
     it('index badges are rendered inside the stmt-meta container', function() {
         var js = getInsp31();
         var idx = js.indexOf('function renderQueryContent');
-        var block = js.substring(idx, idx + 6000);
+        var block = js.substring(idx, idx + 8000);
         // Index badges and rows count are wrapped in bm-query-stmt-meta
         assert.ok(block.indexOf('bm-query-stmt-meta') > -1, 'expected bm-query-stmt-meta container');
         assert.ok(block.indexOf('bm-query-idx') > -1, 'expected bm-query-idx in render');
@@ -5591,4 +5591,274 @@ describe('47 - render-json.js emits inspector#data for JSON API responses', func
         );
     });
 
+});
+
+
+// ── 48 — Phase B: live index introspection (#QI2) ──────────────────────────
+
+describe('48 - Live index introspection (#QI2)', function() {
+
+    var MYSQL_SRC = path.join(FW, 'core/connectors/mysql/index.js');
+    var PG_SRC    = path.join(FW, 'core/connectors/postgresql/index.js');
+    var SQLITE_SRC = path.join(FW, 'core/connectors/sqlite/index.js');
+    var _mysqlSrc, _pgSrc, _sqliteSrc, _isaacSrc2, _inspJs48;
+
+    function getMysqlSrc()  { return _mysqlSrc  || (_mysqlSrc  = fs.readFileSync(MYSQL_SRC, 'utf8')); }
+    function getPgSrc()     { return _pgSrc     || (_pgSrc     = fs.readFileSync(PG_SRC, 'utf8')); }
+    function getSqliteSrc() { return _sqliteSrc || (_sqliteSrc = fs.readFileSync(SQLITE_SRC, 'utf8')); }
+    function getIsaacSrc()  { return _isaacSrc2 || (_isaacSrc2 = fs.readFileSync(ISAAC_SOURCE, 'utf8')); }
+    function getInspJs()    { return _inspJs48  || (_inspJs48  = fs.readFileSync(path.join(BM_DIR, 'inspector.js'), 'utf8')); }
+
+    // ── Connector listeners ────────────────────────────────────────────────
+
+    it('MySQL connector registers inspector#indexes listener', function() {
+        assert.ok(
+            getMysqlSrc().indexOf("process.on('inspector#indexes'") > -1,
+            'expected process.on(inspector#indexes) in MySQL connector'
+        );
+    });
+
+    it('MySQL connector uses INFORMATION_SCHEMA.STATISTICS', function() {
+        assert.ok(
+            getMysqlSrc().indexOf('INFORMATION_SCHEMA.STATISTICS') > -1,
+            'expected INFORMATION_SCHEMA.STATISTICS query in MySQL connector'
+        );
+    });
+
+    it('MySQL connector detects PRIMARY index name', function() {
+        // PRIMARY is MySQL's convention for primary key index
+        var src = getMysqlSrc();
+        assert.ok(
+            /idx\s*===\s*'PRIMARY'/.test(src),
+            'expected PRIMARY key detection in MySQL introspection'
+        );
+    });
+
+    it('PostgreSQL connector registers inspector#indexes listener', function() {
+        assert.ok(
+            getPgSrc().indexOf("process.on('inspector#indexes'") > -1,
+            'expected process.on(inspector#indexes) in PostgreSQL connector'
+        );
+    });
+
+    it('PostgreSQL connector queries pg_indexes', function() {
+        assert.ok(
+            getPgSrc().indexOf('pg_indexes') > -1,
+            'expected pg_indexes query in PostgreSQL connector'
+        );
+    });
+
+    it('PostgreSQL connector detects primary keys', function() {
+        var src = getPgSrc();
+        assert.ok(
+            src.indexOf('_pkey') > -1 || src.indexOf('PRIMARY KEY') > -1,
+            'expected primary key detection in PostgreSQL introspection'
+        );
+    });
+
+    it('SQLite connector registers inspector#indexes listener', function() {
+        assert.ok(
+            getSqliteSrc().indexOf("process.on('inspector#indexes'") > -1,
+            'expected process.on(inspector#indexes) in SQLite connector'
+        );
+    });
+
+    it('SQLite connector uses PRAGMA index_list', function() {
+        assert.ok(
+            getSqliteSrc().indexOf('PRAGMA index_list') > -1,
+            'expected PRAGMA index_list query in SQLite connector'
+        );
+    });
+
+    it('SQLite connector reads sqlite_master for table discovery', function() {
+        assert.ok(
+            getSqliteSrc().indexOf('sqlite_master') > -1,
+            'expected sqlite_master query for table discovery'
+        );
+    });
+
+    // ── Listener dev-mode guard ────────────────────────────────────────────
+
+    it('all connector listeners are gated on envIsDev', function() {
+        // The inspector#indexes listener must be inside an if (envIsDev) block
+        var connectors = [
+            { name: 'MySQL', src: getMysqlSrc() },
+            { name: 'PostgreSQL', src: getPgSrc() },
+            { name: 'SQLite', src: getSqliteSrc() }
+        ];
+        for (var c = 0; c < connectors.length; c++) {
+            var src = connectors[c].src;
+            var listenerIdx = src.indexOf("process.on('inspector#indexes'");
+            // Walk backwards to find the nearest if (envIsDev) guard
+            var beforeListener = src.substring(Math.max(0, listenerIdx - 200), listenerIdx);
+            assert.ok(
+                /if\s*\(\s*envIsDev\s*\)/.test(beforeListener),
+                connectors[c].name + ' inspector#indexes listener must be inside envIsDev guard'
+            );
+        }
+    });
+
+    // ── _liveIntrospected flag ─────────────────────────────────────────────
+
+    it('all connectors declare _liveIntrospected flag', function() {
+        assert.ok(getMysqlSrc().indexOf('_liveIntrospected') > -1, 'MySQL needs _liveIntrospected');
+        assert.ok(getPgSrc().indexOf('_liveIntrospected') > -1, 'PostgreSQL needs _liveIntrospected');
+        assert.ok(getSqliteSrc().indexOf('_liveIntrospected') > -1, 'SQLite needs _liveIntrospected');
+    });
+
+    it('listeners check _liveIntrospected before querying', function() {
+        var connectors = [getMysqlSrc(), getPgSrc(), getSqliteSrc()];
+        for (var c = 0; c < connectors.length; c++) {
+            var src = connectors[c];
+            var listenerIdx = src.indexOf("process.on('inspector#indexes'");
+            var block = src.substring(listenerIdx, listenerIdx + 300);
+            assert.ok(
+                block.indexOf('_liveIntrospected') > -1,
+                'listener must check _liveIntrospected flag (connector ' + c + ')'
+            );
+        }
+    });
+
+    // ── _queryEntry.table field ────────────────────────────────────────────
+
+    it('MySQL _queryEntry includes table field', function() {
+        var src = getMysqlSrc();
+        var entryIdx = src.indexOf("type        : 'MySQL'");
+        var entryBlock = src.substring(entryIdx, entryIdx + 500);
+        assert.ok(entryBlock.indexOf('table') > -1, 'expected table field in MySQL _queryEntry');
+    });
+
+    it('PostgreSQL _queryEntry includes table field', function() {
+        var src = getPgSrc();
+        var entryIdx = src.indexOf("type        : 'PG'");
+        var entryBlock = src.substring(entryIdx, entryIdx + 500);
+        assert.ok(entryBlock.indexOf('table') > -1, 'expected table field in PostgreSQL _queryEntry');
+    });
+
+    it('SQLite _queryEntry includes table field', function() {
+        var src = getSqliteSrc();
+        var entryIdx = src.indexOf("type        : 'SQL'");
+        var entryBlock = src.substring(entryIdx, entryIdx + 500);
+        assert.ok(entryBlock.indexOf('table') > -1, 'expected table field in SQLite _queryEntry');
+    });
+
+    // ── server.js endpoint ─────────────────────────────────────────────────
+
+    it('server.js has /_gina/indexes endpoint', function() {
+        assert.ok(
+            getServerSrc().indexOf('/_gina\\/indexes') > -1,
+            'expected /_gina/indexes regex in server.js'
+        );
+    });
+
+    it('server.js endpoint uses collector pattern with listenerCount', function() {
+        var src = getServerSrc();
+        var idx = src.indexOf('/_gina\\/indexes');
+        var block = src.substring(idx, idx + 1500);
+        assert.ok(
+            block.indexOf("listenerCount('inspector#indexes')") > -1,
+            'expected listenerCount check in server.js indexes endpoint'
+        );
+    });
+
+    it('server.js endpoint emits inspector#indexes event', function() {
+        var src = getServerSrc();
+        var idx = src.indexOf('/_gina\\/indexes');
+        var block = src.substring(idx, idx + 2500);
+        assert.ok(
+            block.indexOf("process.emit('inspector#indexes'") > -1,
+            'expected process.emit in server.js indexes endpoint'
+        );
+    });
+
+    it('server.js endpoint has 2-second timeout safety net', function() {
+        var src = getServerSrc();
+        var idx = src.indexOf('/_gina\\/indexes');
+        var block = src.substring(idx, idx + 2500);
+        assert.ok(
+            /setTimeout\(\s*_ixRespond\s*,\s*2000\s*\)/.test(block),
+            'expected 2000ms timeout in server.js indexes endpoint'
+        );
+    });
+
+    it('server.js endpoint sets access-control-allow-origin for CORS', function() {
+        var src = getServerSrc();
+        var idx = src.indexOf('/_gina\\/indexes');
+        var block = src.substring(idx, idx + 1500);
+        assert.ok(
+            block.indexOf('access-control-allow-origin') > -1,
+            'expected CORS header in indexes endpoint'
+        );
+    });
+
+    // ── server.isaac.js endpoint ───────────────────────────────────────────
+
+    it('server.isaac.js has /_gina/indexes endpoint', function() {
+        assert.ok(
+            getIsaacSrc().indexOf('/_gina\\/indexes') > -1,
+            'expected /_gina/indexes regex in server.isaac.js'
+        );
+    });
+
+    it('server.isaac.js endpoint supports HTTP/2 streams', function() {
+        var src = getIsaacSrc();
+        var idx = src.indexOf('/_gina\\/indexes');
+        var block = src.substring(idx, idx + 2000);
+        assert.ok(
+            block.indexOf('response.stream') > -1,
+            'expected HTTP/2 stream support in server.isaac.js indexes endpoint'
+        );
+    });
+
+    // ── Inspector UI ───────────────────────────────────────────────────────
+
+    it('Inspector JS has fetchLiveIndexes function', function() {
+        assert.ok(
+            getInspJs().indexOf('fetchLiveIndexes') > -1,
+            'expected fetchLiveIndexes in inspector.js'
+        );
+    });
+
+    it('Inspector JS fetches /_gina/indexes', function() {
+        assert.ok(
+            getInspJs().indexOf('/_gina/indexes') > -1,
+            'expected /_gina/indexes URL in inspector.js'
+        );
+    });
+
+    it('Inspector JS has resolveLiveIndexes function', function() {
+        assert.ok(
+            getInspJs().indexOf('resolveLiveIndexes') > -1,
+            'expected resolveLiveIndexes in inspector.js'
+        );
+    });
+
+    it('Inspector JS has extractTableFromStatement function', function() {
+        assert.ok(
+            getInspJs().indexOf('extractTableFromStatement') > -1,
+            'expected extractTableFromStatement in inspector.js'
+        );
+    });
+
+    it('renderQueryContent resolves live indexes before rendering badges', function() {
+        var src = getInspJs();
+        var resolveIdx = src.indexOf('resolveLiveIndexes(q)');
+        var badgeIdx = src.indexOf('bm-idx-none');
+        assert.ok(
+            resolveIdx > -1 && badgeIdx > -1 && resolveIdx < badgeIdx,
+            'live index resolution must happen before badge rendering'
+        );
+    });
+
+    it('renderQueryContent triggers fetchLiveIndexes for N/A queries', function() {
+        var src = getInspJs();
+        var renderIdx = src.indexOf('function renderQueryContent');
+        var endIdx = src.indexOf('function', renderIdx + 30);
+        // Find fetchLiveIndexes() call within the function
+        var fnBlock = src.substring(renderIdx, endIdx > renderIdx ? endIdx : renderIdx + 10000);
+        assert.ok(
+            fnBlock.indexOf('fetchLiveIndexes()') > -1,
+            'expected fetchLiveIndexes() call in renderQueryContent'
+        );
+    });
 });
