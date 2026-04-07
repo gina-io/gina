@@ -2338,27 +2338,32 @@ function Server(options) {
                 && request.method.toUpperCase() === 'GET'
                 && /\/_gina\/inspector(\/.*)?$/.test(request.url)
             ) {
-                // Activate profiling on first Inspector access
+                // Activate profiling on first Inspector access — one-way flag,
+                // stays true until bundle restart. QI (controller.js:257) gates
+                // on this; it must be true before any request is processed.
                 if (!process.gina._inspectorActive) process.gina._inspectorActive = true;
                 var _bmBase = __dirname + '/asset/plugin/dist/vendor/gina/inspector';
                 var _bmPath = request.url.replace(/^.*\/_gina\/inspector\/?/, '').split('?')[0];
                 if (!_bmPath || _bmPath === '') _bmPath = 'index.html';
 
                 var _bmMime = {
-                    'html': 'text/html; charset=utf8',
-                    'js':   'application/javascript; charset=utf8',
-                    'css':  'text/css; charset=utf8',
-                    'svg':  'image/svg+xml'
+                    'html':  'text/html; charset=utf8',
+                    'js':    'application/javascript; charset=utf8',
+                    'css':   'text/css; charset=utf8',
+                    'svg':   'image/svg+xml',
+                    'woff2': 'font/woff2',
+                    'woff':  'font/woff'
                 };
                 var _bmExt = _bmPath.split('.').pop();
                 var _bmFile = _(_bmBase + '/' + _bmPath, true);
 
                 if (fs.existsSync(_bmFile)) {
+                    var _bmBinary = /^(woff2?|png|ico|gif|jpe?g)$/.test(_bmExt);
                     response.setHeader('content-type', _bmMime[_bmExt] || 'application/octet-stream');
                     response.setHeader('cache-control', 'no-cache, no-store, must-revalidate');
                     response.setHeader('x-content-type-options', 'nosniff');
                     console.info(request.method + ' [200] ' + request.url);
-                    return response.end(fs.readFileSync(_bmFile, 'utf8'));
+                    return response.end(fs.readFileSync(_bmFile, _bmBinary ? undefined : 'utf8'));
                 }
                 // Fall through to 404 if file not found
             }
@@ -2369,7 +2374,6 @@ function Server(options) {
                 && request.method.toUpperCase() === 'GET'
                 && /\/_gina\/logs$/.test(request.url)
             ) {
-                // Activate profiling on SSE connection
                 if (!process.gina._inspectorActive) process.gina._inspectorActive = true;
                 var _ansiRe = /\x1B\[\d+m/g;
 
@@ -2415,7 +2419,6 @@ function Server(options) {
                 && request.method.toUpperCase() === 'GET'
                 && /\/_gina\/agent$/.test(request.url)
             ) {
-                // Activate profiling on SSE connection
                 if (!process.gina._inspectorActive) process.gina._inspectorActive = true;
                 var _agAnsiRe = /\x1B\[\d+m/g;
 
@@ -2426,10 +2429,21 @@ function Server(options) {
                 response.setHeader('x-content-type-options', 'nosniff');
                 response.write(':ok\n\n');
 
-                // Send current snapshot immediately if available
+                // Send current snapshot immediately if available; otherwise
+                // send a lightweight "connected" frame so the Inspector shows
+                // the bundle identity without waiting for the first request.
                 if (self.instance && self.instance._lastGinaData) {
                     try {
                         response.write('event: data\ndata: ' + JSON.stringify(self.instance._lastGinaData) + '\n\n');
+                    } catch (e) {}
+                } else {
+                    try {
+                        var _initEnv = {
+                            bundle : self.appName || '',
+                            env    : self.env || ''
+                        };
+                        var _initPayload = { gina: { environment: _initEnv }, user: { environment: _initEnv } };
+                        response.write('event: data\ndata: ' + JSON.stringify(_initPayload) + '\n\n');
                     } catch (e) {}
                 }
 

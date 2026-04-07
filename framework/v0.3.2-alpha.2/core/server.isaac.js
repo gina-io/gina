@@ -608,39 +608,45 @@ function ServerEngineClass(options) {
                 && request.method.toUpperCase() === 'GET'
                 && /\/_gina\/inspector(\/.*)?$/.test(request.url)
             ) {
-                // Activate profiling on first Inspector access
+                // Activate profiling on first Inspector access — one-way flag,
+                // stays true until bundle restart. QI (controller.js:257) gates
+                // on this; it must be true before any request is processed.
                 if (!process.gina._inspectorActive) process.gina._inspectorActive = true;
                 var _inspBase = __dirname + '/asset/plugin/dist/vendor/gina/inspector';
                 var _inspPath = request.url.replace(/^.*\/_gina\/inspector\/?/, '').split('?')[0];
                 if (!_inspPath || _inspPath === '') _inspPath = 'index.html';
 
                 var _inspMime = {
-                    'html': 'text/html; charset=utf8',
-                    'js':   'application/javascript; charset=utf8',
-                    'css':  'text/css; charset=utf8',
-                    'svg':  'image/svg+xml'
+                    'html':  'text/html; charset=utf8',
+                    'js':    'application/javascript; charset=utf8',
+                    'css':   'text/css; charset=utf8',
+                    'svg':   'image/svg+xml',
+                    'woff2': 'font/woff2',
+                    'woff':  'font/woff'
                 };
                 var _inspExt  = _inspPath.split('.').pop();
                 var _inspFile = _(_inspBase + '/' + _inspPath, true);
 
                 if (fs.existsSync(_inspFile)) {
+                    var _inspBinary = /^(woff2?|png|ico|gif|jpe?g)$/.test(_inspExt);
                     var _inspHeaders = {
                         'content-type': _inspMime[_inspExt] || 'application/octet-stream',
                         'cache-control': 'no-cache, no-store, must-revalidate',
                         'x-content-type-options': 'nosniff',
                         'X-Powered-By': 'Gina/' + GINA_VERSION
                     };
+                    var _inspData = fs.readFileSync(_inspFile, _inspBinary ? undefined : 'utf8');
 
                     // HTTP/2
                     if (response.stream) {
                         response.stream.respond({ ':status': 200, ..._inspHeaders });
-                        return response.stream.end(fs.readFileSync(_inspFile, 'utf8'));
+                        return response.stream.end(_inspData);
                     }
 
                     // HTTP/1.1
                     response.writeHead(200, _inspHeaders);
                     console.info(request.method + ' [200] ' + request.url);
-                    return response.end(fs.readFileSync(_inspFile, 'utf8'));
+                    return response.end(_inspData);
                 }
                 // Fall through to 404 if file not found
             }
@@ -651,7 +657,6 @@ function ServerEngineClass(options) {
                 && request.method.toUpperCase() === 'GET'
                 && /\/_gina\/logs$/.test(request.url)
             ) {
-                // Activate profiling on SSE connection
                 if (!process.gina._inspectorActive) process.gina._inspectorActive = true;
                 var _ansiRe = /\x1B\[\d+m/g;
 
@@ -711,7 +716,6 @@ function ServerEngineClass(options) {
                 && request.method.toUpperCase() === 'GET'
                 && /\/_gina\/agent$/.test(request.url)
             ) {
-                // Activate profiling on SSE connection
                 if (!process.gina._inspectorActive) process.gina._inspectorActive = true;
                 var _agAnsiRe = /\x1B\[\d+m/g;
 
@@ -740,10 +744,21 @@ function ServerEngineClass(options) {
 
                 _agWrite(':ok\n\n');
 
-                // Send current snapshot immediately if available
+                // Send current snapshot immediately if available; otherwise
+                // send a lightweight "connected" frame so the Inspector shows
+                // the bundle identity without waiting for the first request.
                 if (server._lastGinaData) {
                     try {
                         _agWrite('event: data\ndata: ' + JSON.stringify(server._lastGinaData) + '\n\n');
+                    } catch (e) {}
+                } else {
+                    try {
+                        var _initEnv = {
+                            bundle : options.bundle || '',
+                            env    : env || ''
+                        };
+                        var _initPayload = { gina: { environment: _initEnv }, user: { environment: _initEnv } };
+                        _agWrite('event: data\ndata: ' + JSON.stringify(_initPayload) + '\n\n');
                     } catch (e) {}
                 }
 
