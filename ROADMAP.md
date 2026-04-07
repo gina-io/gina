@@ -14,6 +14,7 @@ This roadmap covers planned features, architectural improvements, new connectors
 | **Q2 2026** | `0.2.0` ✅ | Stability · WatcherService · Redis & SQLite connectors · K8s session storage · Startup cache · Pointer compression · Couchbase v2 deprecation · Couchbase security & critical bug fixes · HTTP/2 security hardening |
 | **Q3 2026** | `0.3.0` ✅ | Async/await · Dev hot-reload · MySQL & PostgreSQL connectors · AI Phase 2 · Tutorials · Mobile backend guide · Route radix tree · Connector peerDependencies · 103 Early Hints · HTTP/2 observability · Security & CVE page · Couchbase connector hardening · Inspector Phase 1 + Phase 2 · CLI Tier 1 (project lifecycle, port:set, framework:get) |
 | **Q3 2026** | `0.3.1` ✅ | Release workflow fixes · SQL index reporting Phase A · HTTP/2 direct stream for HTML · Dependency reduction (`ssl-checker`, `colors`, `uuid` removed — engine.io sole runtime dep) |
+| **Q3 2026** | `0.3.2` | Publish JSON Schema files for config files · Model loading fixes · Entity short-name aliases |
 | **Q4 2026** | `0.4.0` | TypeScript declarations · AI agents (OpenAPI, MCP) · ScyllaDB connector · PWA scaffold · Prometheus metrics · Advanced tutorial · Website redesign · Docs offline ZIP · Bun investigation · Couchbase v2 removal · HTTP/2 hardening · Trailer support · CLI Tier 2 (bundle/project status, rename, copy, protocol:remove, minions) |
 | **Q1 2027** | `0.5.0` | ESM support · Template engine migration · Structured logging · Alt-Svc · HTTP/2 priorities · WebSocket over HTTP/2 · Inspector Production · CLI Tier 3 (project:move, framework:update, backup/restore, man pages) |
 | **Q3 2027** | `1.0.0` | First stable release — Windows alpha compatibility is a hard gate |
@@ -206,6 +207,7 @@ A cold audit of the Couchbase connector identified two critical security vulnera
 | Status | Feature | Version | Target |
 | --- | --- | --- | --- |
 | ✅ | **JSON Schemas for config files** — Machine-readable schemas for `routing.json`, `connectors.json`, `app.json`, `settings.json`, `app.crons.json`. Adds `"$schema"` references to generated scaffold files. Gives editors free validation and autocomplete; gives AI assistants authoritative field names so generated config is correct on the first attempt. | `0.2.0` | Q2 2026 |
+| ✅ | **Publish JSON Schema files at `gina.io/schema/*`** — 7 JSON Schema files published: `app.json`, `app.crons.json`, `connectors.json`, `manifest.json`, `routing.json`, `settings.json`, `watchers.json`. IDEs can now download and validate config files automatically. | `0.3.2` | Q3 2026 |
 | 📋 | **TypeScript declaration files** — Cross-listed with Modernisation Phase 4. Essential for AI code generation accuracy. | `0.4.0` | Q4 2026 |
 
 ### Phase 2 — Gina apps can use AI

@@ -1,0 +1,29 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://gina.io/schema/watchers.json",
+  "title": "Gina watchers.json",
+  "description": "File watcher declarations for a Gina bundle. Each key is a config file name to watch (relative to the bundle config directory); the value defines the fs.watch options. Watched files trigger callbacks registered via gna.watcher.on(name, cb).",
+  "type": "object",
+  "additionalProperties": {
+    "$ref": "#/definitions/watcherEntry"
+  },
+  "definitions": {
+    "watcherEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "event": {
+          "type": "string",
+          "description": "The fs.watch event type to listen for.",
+          "enum": ["change", "rename"],
+          "default": "change"
+        },
+        "persistent": {
+          "type": "boolean",
+          "description": "Whether the watcher should keep the Node.js process alive. Defaults to false.",
+          "default": false
+        }
+      }
+    }
+  }
+}

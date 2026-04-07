@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://gina.io/schema/connectors.json",
   "title": "Gina connectors.json",
-  "description": "Database connector declarations for a Gina bundle. Each key is a logical connector name (e.g. \"couchbase\", \"session\"); the value describes the connection parameters. Acquired at runtime via getConnection().",
+  "description": "Database and service connector declarations for a Gina bundle. Each key is a logical connector name; the value describes the connection parameters. Acquired at runtime via getConnection(). The required fields depend on the connector type.",
   "type": "object",
   "additionalProperties": {
     "$ref": "#/definitions/connector"
@@ -10,27 +10,31 @@
   "definitions": {
     "connector": {
       "type": "object",
-      "required": ["protocol", "host", "database"],
       "additionalProperties": true,
       "properties": {
         "connector": {
           "type": "string",
-          "description": "Connector type override. Required when the key does not match a built-in connector name.",
-          "examples": ["couchbase"]
+          "description": "Connector driver type. Required when the key name does not match a built-in connector name (e.g. key \"session\" with connector \"redis\").",
+          "enum": ["couchbase", "mysql", "postgresql", "sqlite", "redis", "ai"]
         },
         "protocol": {
           "type": "string",
-          "description": "Connection protocol URI scheme.",
-          "examples": ["couchbase://", "redis://", "sqlite://", "mysql://", "postgres://"]
+          "description": "Connection protocol URI scheme. Required for Couchbase and AI connectors.",
+          "examples": ["couchbase://", "mysql://", "postgres://", "redis://", "anthropic://", "openai://"]
         },
         "host": {
           "type": "string",
-          "description": "Hostname or IP address of the database server. Supports comma-separated values for clusters and ${variable} interpolation.",
+          "description": "Hostname or IP address. Supports comma-separated values for clusters and ${variable} interpolation. Required for Couchbase, MySQL, PostgreSQL, Redis.",
           "examples": ["127.0.0.1", "db1.example.com,db2.example.com"]
+        },
+        "port": {
+          "type": ["number", "string"],
+          "description": "Server port. Defaults: MySQL 3306, PostgreSQL 5432, Redis 6379.",
+          "examples": [3306, 5432, 6379]
         },
         "database": {
           "type": "string",
-          "description": "Database or bucket name."
+          "description": "Database, bucket, or keyspace name. Also used as the model directory name under models/. Required for Couchbase, MySQL, PostgreSQL, SQLite."
         },
         "username": {
           "type": "string",
@@ -45,17 +49,100 @@
           "description": "Data isolation scope stamped on every document at insert time and used to filter queries. Falls back to NODE_SCOPE env var when omitted.",
           "enum": ["local", "beta", "production", "testing"]
         },
-        "ping": {
+        "connectionLimit": {
+          "type": "number",
+          "description": "Maximum connections in the pool. MySQL and PostgreSQL only. Defaults to 10.",
+          "default": 10
+        },
+        "ssl": {
+          "type": ["object", "boolean"],
+          "description": "TLS/SSL configuration. Passed through to the underlying driver (mysql2, pg). Set to true for default TLS.",
+          "additionalProperties": true
+        },
+        "file": {
           "type": "string",
-          "description": "Interval to ping the cluster and verify connectivity (e.g. \"2m\", \"30s\")."
+          "description": "SQLite only. Database file path. Defaults to ~/.gina/{version}/{database}.sqlite. Use \":memory:\" for in-memory databases.",
+          "examples": [":memory:", "/data/app.sqlite"]
+        },
+        "idleTimeout": {
+          "type": "number",
+          "description": "PostgreSQL only. Idle client timeout in milliseconds. Defaults to 30000.",
+          "default": 30000
+        },
+        "connectionTimeout": {
+          "type": "number",
+          "description": "PostgreSQL only. Connection timeout in milliseconds. Defaults to 2000.",
+          "default": 2000
+        },
+        "db": {
+          "type": "number",
+          "description": "Redis only. Database index (0-15). Defaults to 0.",
+          "default": 0
+        },
+        "tls": {
+          "type": "boolean",
+          "description": "Redis only. Enable TLS for the connection."
+        },
+        "prefix": {
+          "type": "string",
+          "description": "Redis only. Key prefix for session store entries. Defaults to \"sess:\".",
+          "default": "sess:"
+        },
+        "ttl": {
+          "type": "number",
+          "description": "Redis only. Default TTL in seconds for session entries. Defaults to 86400.",
+          "default": 86400
+        },
+        "cluster": {
+          "type": "array",
+          "description": "Redis Cluster only. Array of cluster node endpoints.",
+          "items": {
+            "type": "object",
+            "required": ["host", "port"],
+            "properties": {
+              "host": { "type": "string" },
+              "port": { "type": "number" }
+            }
+          }
+        },
+        "keepAlive": {
+          "type": "boolean",
+          "description": "Couchbase only. Enable TCP keep-alive. Defaults to true.",
+          "default": true
         },
         "pingInterval": {
           "type": "string",
-          "description": "Alias for ping. Interval to keep the connection alive (e.g. \"2m\", \"30s\")."
+          "description": "Couchbase only. Interval to keep the connection alive (e.g. \"2m\", \"30s\").",
+          "examples": ["2m", "30s", "1h"]
+        },
+        "useScopeAndCollections": {
+          "type": "boolean",
+          "description": "Couchbase only. Enable scope and collection support (SDK v3+). Defaults to true.",
+          "default": true
+        },
+        "timeouts": {
+          "type": "object",
+          "description": "Couchbase only. Timeout overrides passed to the SDK.",
+          "additionalProperties": { "type": "number" },
+          "examples": [{ "kvTimeout": 10000 }]
         },
         "detailed_errcodes": {
           "type": "boolean",
-          "description": "When true, exposes detailed Couchbase error codes in error objects instead of generic messages."
+          "description": "Couchbase only. Expose detailed error codes instead of generic messages."
+        },
+        "apiKey": {
+          "type": "string",
+          "description": "AI connector only. API key for the provider. Supports ${ENV_VAR} interpolation.",
+          "examples": ["${ANTHROPIC_API_KEY}", "${OPENAI_API_KEY}"]
+        },
+        "model": {
+          "type": "string",
+          "description": "AI connector only. Default model identifier.",
+          "examples": ["claude-sonnet-4-20250514", "gpt-4o", "deepseek-chat"]
+        },
+        "baseURL": {
+          "type": "string",
+          "description": "AI connector only. Override the default API base URL (OpenAI-compatible providers)."
         }
       }
     }

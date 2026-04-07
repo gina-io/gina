@@ -15,23 +15,24 @@
       "properties": {
         "namespace": {
           "type": "string",
-          "description": "Groups routes under a shared URL prefix and controller namespace (e.g. \"account\" maps to AccountController)."
+          "description": "Controller namespace. Maps to controller.<namespace>.js. Groups related routes under the same controller file."
         },
         "url": {
           "type": "string",
-          "description": "URL pattern. Use :param for named segments. Multiple patterns can be comma-separated (e.g. \"/item/:id, /item/:id/:slug\")."
+          "description": "URL pattern. Use :param for named segments. Multiple patterns can be comma-separated (e.g. \"/item/:id, /item/:id/:slug\"). The webroot is prepended automatically unless param.ignoreWebRoot is set."
         },
         "method": {
           "type": "string",
           "description": "Accepted HTTP method(s), comma-separated. Case-insensitive.",
-          "examples": ["GET", "POST", "PUT", "DELETE", "GET, POST", "GET, POST, PUT"]
+          "examples": ["GET", "POST", "PUT", "DELETE", "GET, POST", "GET, POST, PUT, DELETE"]
         },
         "requirements": {
           "type": "object",
-          "description": "Regex validation patterns for URL parameters. Keys match :param names. Values are regex strings (e.g. \"/^[0-9a-f]{8}-/i\").",
+          "description": "Validation patterns for URL parameters. Keys match :param names. Values are regex strings (prefixed with \"/\") or validator references (prefixed with \"validator::\").",
           "additionalProperties": {
             "type": "string"
-          }
+          },
+          "examples": [{ "id": "/^[0-9a-f]{8}-/i" }, { "slug": "/^[a-z0-9-]+$/" }]
         },
         "param": {
           "type": "object",
@@ -45,7 +46,24 @@
             },
             "file": {
               "type": "string",
-              "description": "Template file path relative to the bundle views directory (without extension)."
+              "description": "Template file path relative to the bundle views directory (without extension). Defaults to the route name."
+            },
+            "path": {
+              "type": "string",
+              "description": "Redirect target path. Used with control: \"redirect\"."
+            },
+            "code": {
+              "type": "number",
+              "description": "HTTP status code for redirects (e.g. 301, 302).",
+              "examples": [301, 302]
+            },
+            "ignoreWebRoot": {
+              "type": "boolean",
+              "description": "When true, the bundle webroot prefix is not prepended to the URL."
+            },
+            "title": {
+              "type": "string",
+              "description": "Page title passed to the template."
             },
             "isPopinContext": {
               "type": "boolean",
@@ -61,9 +79,77 @@
             "examples": ["middlewares.passport.jwtLogin", "middlewares.global.requirePasswordCheck"]
           }
         },
+        "middlewareIgnored": {
+          "type": "array",
+          "description": "Middleware names to skip for this route (overrides global middleware).",
+          "items": {
+            "type": "string"
+          }
+        },
+        "bundle": {
+          "type": "string",
+          "description": "Target bundle name for cross-bundle routing. The request is proxied to the named bundle."
+        },
+        "hostname": {
+          "type": "string",
+          "description": "Override target hostname for cross-bundle or external routing."
+        },
+        "scopes": {
+          "type": "array",
+          "description": "Allowed scopes for this route. Defaults to the current bundle scope.",
+          "items": {
+            "type": "string",
+            "enum": ["local", "beta", "production", "testing"]
+          }
+        },
+        "cache": {
+          "description": "Response caching configuration. Use a string for the cache type shorthand, or an object for full control.",
+          "oneOf": [
+            {
+              "type": "string",
+              "enum": ["memory", "fs"],
+              "description": "Cache type shorthand."
+            },
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": ["memory", "fs"],
+                  "description": "Cache backend."
+                },
+                "ttl": {
+                  "type": "number",
+                  "description": "Time-to-live in seconds."
+                },
+                "visibility": {
+                  "type": "string",
+                  "enum": ["public", "private"],
+                  "description": "Cache-Control visibility directive. Defaults to \"private\".",
+                  "default": "private"
+                },
+                "sliding": {
+                  "type": "boolean",
+                  "description": "Enable sliding window eviction. Defaults to false.",
+                  "default": false
+                },
+                "maxAge": {
+                  "type": "number",
+                  "description": "Absolute ceiling in seconds when sliding is enabled."
+                },
+                "invalidateOnEvents": {
+                  "type": "array",
+                  "description": "Event names that invalidate the cached response.",
+                  "items": { "type": "string" }
+                }
+              },
+              "additionalProperties": false
+            }
+          ]
+        },
         "_comment": {
           "type": "string",
-          "description": "Internal documentation comment. Ignored at runtime."
+          "description": "Internal documentation comment. Stripped at server init."
         },
         "_sample": {
           "type": "string",
