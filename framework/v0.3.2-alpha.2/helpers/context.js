@@ -204,6 +204,7 @@ function ContextHelper(contexts) {
         var frameworkPath = getEnvVar('GINA_FRAMEWORK_DIR');
         setPath('framework', frameworkPath);
         setPath('gina.core', getEnvVar('GINA_CORE'));
+        setPath('gina.home', getEnvVar('GINA_HOMEDIR'));
         setPath('gina.lib', _(frameworkPath +'/lib'));
         setPath('gina.helpers', _(frameworkPath +'/helpers'));
         setPath( 'node', _(process.argv[0]), true);

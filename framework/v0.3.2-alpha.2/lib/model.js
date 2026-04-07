@@ -158,6 +158,14 @@ function ModelUtil() {
 
         self.models[bundle][model][name] =  entityObject;
 
+        // Register a short-name alias (without the "Entity" suffix) so
+        // controllers can use `db.link` instead of `db.linkEntity`.
+        if (/Entity$/.test(name)) {
+            var _shortName = name.replace(/Entity$/, '');
+            if (_shortName && !self.models[bundle][model][_shortName]) {
+                self.models[bundle][model][_shortName] = entityObject;
+            }
+        }
 
         ModelUtil.instance.models = self.models;
         setContext('modelUtil.models', self.models, true);
@@ -237,6 +245,14 @@ function ModelUtil() {
                     console.warn('no models attached to connector '+ connector);
                 }
 
+                // Count only actual connector entries (skip annotations like $schema)
+                var _connectorCount = 0;
+                for (var _ck in models) {
+                    if (models.hasOwnProperty(_ck) && typeof(models[_ck]) == 'object' && models[_ck] !== null) {
+                        ++_connectorCount;
+                    }
+                }
+
                 var t = 0;
 
                 var done = function(connector, modelConnectors) {
@@ -246,7 +262,7 @@ function ModelUtil() {
                         console.error('connector '+ connector +' not found in configuration')
                     }
 
-                    if ( t == models.count() ) {
+                    if ( t == _connectorCount ) {
                         setContext('modelConnectors', modelConnectors);
 
                         var conn                = null
@@ -299,6 +315,9 @@ function ModelUtil() {
                 }
 
                 for (var c in models) {//c as connector name
+                    // skip non-connector entries (e.g. $schema annotations in connectors.json)
+                    if (typeof(models[c]) != 'object' || models[c] === null) continue;
+
                     if ( modelObject && typeof(modelObject[c]) != 'undefined' ) {
                         done(connector, modelConnectors)
                     } else {
@@ -551,7 +570,12 @@ function ModelUtil() {
         // ) {
 
         // } else {
-            self.models = ModelUtil.instance.models
+            // Dev-mode cache bust: ModelUtil.instance may reference a stale
+            // constructor function. Fall back to getContext for the live singleton.
+            var _modelUtilRef = ModelUtil.instance || getContext('modelUtil');
+            if (_modelUtilRef) {
+                self.models = _modelUtilRef.models;
+            }
         // }
 
         if ( typeof(model) != 'undefined' && typeof(self.models[bundle]) != 'undefined' ) {
@@ -570,7 +594,7 @@ function ModelUtil() {
                 return undefined
             }
         } else {
-            throw new Error('[ MODEL ][ '+ name +' ][ '+ bundle +'] No model found !');
+            throw new Error('[ MODEL ][ '+ model +' ][ '+ bundle +'] No model found !');
         }
     }
 

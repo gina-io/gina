@@ -131,6 +131,7 @@ lib.cmd.load = function(opt){
     setPath('gina.root', _(opt.ginaPath));
     setPath('framework', _(opt.frameworkPath));
     setPath('gina.core', _(opt.frameworkPath +'/core'));
+    setPath('gina.home', opt.homedir);
     setPath('gina.lib', _(opt.frameworkPath +'/lib'));
     setPath('gina.helpers', _(opt.frameworkPath +'/helpers'));
 

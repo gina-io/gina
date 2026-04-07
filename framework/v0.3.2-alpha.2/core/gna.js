@@ -237,6 +237,11 @@ try {
     ginaPath = getPath('gina').core;
 }
 
+// Ensure gina.home is always registered (SQLite connector, session store)
+if ( !getPath('gina').home && typeof(getEnvVar) != 'undefined' ) {
+    setPath('gina.home', getEnvVar('GINA_HOMEDIR'));
+}
+
 if ( typeof(getEnvVar) == 'undefined') {
     console.debug('[ FRAMEWORK ][PROCESS ARGV] Process ARGV error ' + process.argv);
 }
@@ -1337,7 +1342,36 @@ isBundleMounted(projects, bundlesPath, getContext('bundle'), function onBundleMo
                         e.emit('init', instance, middleware, conf);
                         //In case there is no user init.
                         if (!gna.initialized) {
-                            e.emit('complete', instance);
+                            // No onInitialize handler — still need to load models
+                            // before starting the server.
+                            try {
+                            var configuration = config.getInstance();
+                            modelUtil.loadAllModels(
+                                conf.bundles,
+                                configuration,
+                                env,
+                                function() {
+                                    joinContext(conf.contexts);
+                                    gna.getConfig = function(name){
+                                        var tmp = null;
+                                        if ( typeof(name) != 'undefined' ) {
+                                            try {
+                                                tmp = JSON.clone(conf.content[name])
+                                            } catch (err) {
+                                                console.error('[ FRAMEWORK ] ', err.stack);
+                                                return undefined
+                                            }
+                                        } else {
+                                            tmp = JSON.clone(conf)
+                                        }
+                                        return tmp
+                                    };
+                                    e.emit('complete', instance);
+                                });
+                            } catch(loadErr) {
+                                console.error('[ FRAMEWORK ] Model loading failed: ' + (loadErr.stack||loadErr.message));
+                                e.emit('complete', instance);
+                            }
                         }
                         // -- EO
 
