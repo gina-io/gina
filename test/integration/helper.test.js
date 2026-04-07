@@ -331,6 +331,72 @@ describe('08 - setContext / getContext', function () {
 });
 
 
+// 08b — setContext / getContext: dot-key asymmetry
+// Recommendation: Use flat keys (no dots) for setContext/getContext round-trip.
+// setContext('a.b', val) splits on dots and creates nested structure { a: { b: val } },
+// but getContext('a.b') does a flat lookup on self.contexts['a.b'] — returns undefined.
+// Keys must NOT contain dots.
+describe('08b - setContext / getContext: dot-key asymmetry', function () {
+
+    it('source: setContext has dot-splitting logic (regex /\\./ test)', function () {
+        var src = fs.readFileSync(CONTEXT_SOURCE, 'utf8');
+        // setContext splits dotted names: if (/\./.test(name))
+        assert.ok(
+            /if\s*\(\s*\/\\\.\/\.test\(\s*name\s*\)/.test(src),
+            'expected setContext to contain dot-detection regex /\\./.test(name)'
+        );
+    });
+
+    it('source: getContext does flat lookup — no dot-splitting', function () {
+        var src = fs.readFileSync(CONTEXT_SOURCE, 'utf8');
+        // Extract the getContext function body
+        var getCtxMatch = src.match(/getContext\s*=\s*function\s*\(name\)\s*\{([\s\S]*?)\n    \}/);
+        assert.ok(getCtxMatch, 'expected to find getContext function body');
+        var getCtxBody = getCtxMatch[1];
+        // getContext does NOT split on dots — no /\./ test in its body
+        assert.ok(
+            !/\/\\\.\//.test(getCtxBody),
+            'getContext must NOT contain dot-splitting logic — it does a flat lookup'
+        );
+    });
+
+    it('dotted key: setContext("dotted.key", val) then getContext("dotted.key") returns undefined', function () {
+        // This documents the asymmetry — setContext splits on dots,
+        // getContext does a flat lookup. The round-trip fails.
+        var uniqueVal = 'asymmetry-test-' + Date.now();
+        setContext('_test_dotted.key', uniqueVal);
+        var result = getContext('_test_dotted.key');
+        assert.equal(result, undefined, 'dotted key round-trip must return undefined (asymmetry)');
+    });
+
+    it('flat key: setContext("flatKey", val) then getContext("flatKey") works correctly', function () {
+        var uniqueVal = 'flat-test-' + Date.now();
+        setContext('_test_flat_key', uniqueVal);
+        var result = getContext('_test_flat_key');
+        assert.equal(result, uniqueVal);
+    });
+
+    it('nested value from dotted set IS accessible via getContext() with no args', function () {
+        // setContext('a.b', val) creates { a: { b: val } } in contexts.
+        // getContext('a.b') fails, but getContext() returns all contexts,
+        // so the nested value is reachable by drilling into the object.
+        var uniqueVal = 'nested-drill-' + Date.now();
+        setContext('_test_drill.nested', uniqueVal);
+        var allContexts = getContext();
+        assert.equal(typeof allContexts._test_drill, 'object', 'dotted set must create nested object');
+        assert.equal(allContexts._test_drill.nested, uniqueVal, 'nested value must be accessible by drilling into getContext()');
+    });
+
+    it('getContext with the top-level segment of a dotted key returns the nested object', function () {
+        var uniqueVal = 'toplevel-' + Date.now();
+        setContext('_test_top.child', uniqueVal);
+        var topLevel = getContext('_test_top');
+        assert.equal(typeof topLevel, 'object');
+        assert.equal(topLevel.child, uniqueVal);
+    });
+});
+
+
 // 09 — setPath / getPath
 describe('09 - setPath / getPath', function () {
 
