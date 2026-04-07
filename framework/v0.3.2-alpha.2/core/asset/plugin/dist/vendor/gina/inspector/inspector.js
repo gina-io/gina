@@ -100,6 +100,8 @@
     var TAB_LAYOUT_KEY = '__gina_inspector_tab_layout';
     /** @constant {string} localStorage key — user-defined custom tab order */
     var CUSTOM_ORDER_KEY = '__gina_inspector_tab_layout_custom';
+    /** @constant {string} localStorage key — hidden tabs in custom layout (JSON array of tab names) */
+    var HIDDEN_TABS_KEY = '__gina_inspector_tab_layout_hidden';
 
     /**
      * Tab order definitions for each layout preset.
@@ -949,6 +951,22 @@
         var keys = Object.keys(view);
         keys.sort();
 
+        // Empty state — no view data and no page metrics (JSON-only API)
+        var _emptyMetrics = true;
+        try {
+            if (source && source !== 'localStorage' && source.performance) {
+                _emptyMetrics = false;
+            }
+        } catch (e) {}
+        if (keys.length === 0 && _emptyMetrics) {
+            return '<div class="bm-tab-empty">'
+                + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="bm-tab-empty-icon">'
+                + '<rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>'
+                + '<p>No views attached to this response</p>'
+                + '<span class="bm-tab-empty-hint">This tab shows DOM properties, page metrics, and template data for HTML responses.</span>'
+                + '</div>';
+        }
+
         var objectSections = [];
         var propKeys = {};
         var ginaPropKeys = {};
@@ -1136,6 +1154,17 @@
         var formKeys = Object.keys(formsData);
 
         if (pageForms.length === 0 && formKeys.length === 0) {
+            // Richer empty state when no opener page exists (JSON-only API)
+            var _hasOpener = false;
+            try { _hasOpener = !!(source && source !== 'localStorage' && source.document); } catch (e) {}
+            if (!_hasOpener) {
+                return '<div class="bm-tab-empty">'
+                    + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="bm-tab-empty-icon">'
+                    + '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>'
+                    + '<p>No forms in this response</p>'
+                    + '<span class="bm-tab-empty-hint">This tab shows form fields, validation state, and submitted data for HTML pages with forms.</span>'
+                    + '</div>';
+            }
             return '<span class="bm-empty">No forms detected on this page</span>';
         }
 
@@ -1314,8 +1343,10 @@
         var order;
         var nav = qs('.bm-tabs');
         if (!nav) return;
+        var hidden = [];
         if (layout === 'custom') {
             order = getCustomOrder();
+            hidden = getHiddenTabs();
             // Only enable drag-mode when settings panel is open
             var _panel = qs('#bm-settings');
             if (_panel && !_panel.classList.contains('hidden')) {
@@ -1328,9 +1359,25 @@
             nav.classList.remove('bm-drag-mode');
         }
         if (!order) return;
+        // Reorder visible tabs and append hidden ones at the end
+        var allTabs = nav.querySelectorAll('.bm-tab');
         for (var i = 0; i < order.length; i++) {
             var btn = qs('.bm-tab[data-tab="' + order[i] + '"]');
             if (btn) nav.appendChild(btn);
+        }
+        // Show/hide based on hidden list
+        for (var j = 0; j < allTabs.length; j++) {
+            var name = allTabs[j].dataset.tab;
+            if (layout === 'custom' && hidden.indexOf(name) !== -1) {
+                allTabs[j].style.display = 'none';
+            } else {
+                allTabs[j].style.display = '';
+            }
+        }
+        // Toggle × close buttons visibility
+        var closeBtns = nav.querySelectorAll('.bm-tab-close');
+        for (var c = 0; c < closeBtns.length; c++) {
+            closeBtns[c].style.display = (layout === 'custom') ? '' : 'none';
         }
     }
 
@@ -1346,14 +1393,16 @@
             var raw = localStorage.getItem(CUSTOM_ORDER_KEY);
             if (raw) {
                 var arr = JSON.parse(raw);
-                if (Array.isArray(arr) && arr.length === 6) return arr;
+                // Accept arrays of 1-6 known tab names (tabs may be hidden)
+                if (Array.isArray(arr) && arr.length >= 1 && arr.length <= 6) return arr;
             }
         } catch (e) {}
         return null;
     }
 
     /**
-     * Save the current DOM tab order as the custom layout in localStorage.
+     * Save the current visible DOM tab order as the custom layout in localStorage.
+     * Only saves tabs that are not hidden (display !== 'none').
      * @inner
      */
     function saveCustomOrder() {
@@ -1362,9 +1411,90 @@
         var order = [];
         var tabs = nav.querySelectorAll('.bm-tab');
         for (var i = 0; i < tabs.length; i++) {
-            order.push(tabs[i].dataset.tab);
+            if (tabs[i].style.display !== 'none') {
+                order.push(tabs[i].dataset.tab);
+            }
         }
         try { localStorage.setItem(CUSTOM_ORDER_KEY, JSON.stringify(order)); } catch (e) {}
+    }
+
+    /**
+     * Read the list of hidden tab names from localStorage.
+     * @inner
+     * @returns {string[]} Array of hidden tab names (empty if none)
+     */
+    function getHiddenTabs() {
+        try {
+            var raw = localStorage.getItem(HIDDEN_TABS_KEY);
+            if (raw) {
+                var arr = JSON.parse(raw);
+                if (Array.isArray(arr)) return arr;
+            }
+        } catch (e) {}
+        return [];
+    }
+
+    /**
+     * Save the list of hidden tab names to localStorage.
+     * @inner
+     * @param {string[]} hidden - Array of tab names to hide
+     */
+    function saveHiddenTabs(hidden) {
+        try { localStorage.setItem(HIDDEN_TABS_KEY, JSON.stringify(hidden)); } catch (e) {}
+    }
+
+    /**
+     * Hide a tab in custom layout mode. Hides the tab button, persists the
+     * hidden list, updates the custom order, and switches to the first
+     * visible tab if the hidden tab was active.
+     * @inner
+     * @param {string} tabName - Tab name to hide (e.g. 'view', 'forms')
+     */
+    function hideTab(tabName) {
+        var btn = qs('.bm-tab[data-tab="' + tabName + '"]');
+        if (!btn) return;
+        btn.style.display = 'none';
+
+        // Persist
+        var hidden = getHiddenTabs();
+        if (hidden.indexOf(tabName) === -1) hidden.push(tabName);
+        saveHiddenTabs(hidden);
+        saveCustomOrder();
+        renderLayoutPreview('custom');
+
+        // Show the reset button (fade in)
+        var resetBtn = qs('#bm-layout-reset');
+        if (resetBtn) resetBtn.classList.remove('fade-out');
+
+        // If the hidden tab was active, switch to first visible
+        if (btn.classList.contains('active')) {
+            var nav = qs('.bm-tabs');
+            var visible = nav ? nav.querySelectorAll('.bm-tab') : [];
+            for (var i = 0; i < visible.length; i++) {
+                if (visible[i].style.display !== 'none') {
+                    switchTab(visible[i].dataset.tab);
+                    return;
+                }
+            }
+        }
+    }
+
+    /**
+     * Restore all hidden tabs in custom layout mode. Shows all tab buttons,
+     * clears the hidden list from localStorage, and rebuilds the custom order
+     * to include all tabs.
+     * @inner
+     */
+    function restoreAllTabs() {
+        var nav = qs('.bm-tabs');
+        if (!nav) return;
+        var tabs = nav.querySelectorAll('.bm-tab');
+        for (var i = 0; i < tabs.length; i++) {
+            tabs[i].style.display = '';
+        }
+        saveHiddenTabs([]);
+        saveCustomOrder();
+        renderLayoutPreview('custom');
     }
 
     /**
@@ -1381,6 +1511,33 @@
             order.push(tabs[i].dataset.tab);
         }
         return order;
+    }
+
+    /**
+     * Briefly animate visible tab buttons to indicate they can be dragged
+     * or hidden. Applied when entering custom mode. Each tab gets a staggered
+     * nudge animation (subtle horizontal wiggle).
+     * @inner
+     */
+    function nudgeTabs() {
+        var nav = qs('.bm-tabs');
+        if (!nav) return;
+        var tabs = nav.querySelectorAll('.bm-tab');
+        for (var i = 0; i < tabs.length; i++) {
+            if (tabs[i].style.display === 'none') continue;
+            (function (tab, delay) {
+                tab.classList.remove('bm-tab-nudge');
+                // Force reflow so re-adding the class triggers the animation
+                void tab.offsetWidth;
+                setTimeout(function () {
+                    tab.classList.add('bm-tab-nudge');
+                    tab.addEventListener('animationend', function _h() {
+                        tab.classList.remove('bm-tab-nudge');
+                        tab.removeEventListener('animationend', _h);
+                    });
+                }, delay);
+            })(tabs[i], i * 60);
+        }
     }
 
     /**
@@ -1425,14 +1582,31 @@
             ? (getCustomOrder() || getCurrentTabOrder())
             : TAB_LAYOUTS[layout];
         if (!order) { el.innerHTML = ''; return; }
+        var hidden = (layout === 'custom') ? getHiddenTabs() : [];
         var html = '';
+        // Show visible tabs, then hidden ones as dimmed
+        var visibleFirst = true;
         for (var i = 0; i < order.length; i++) {
             var tab = order[i];
-            if (i > 0) html += '<span class="bm-lp-arrow">\u203A</span>';
-            html += '<span class="bm-lp-pill" style="--pill-color:' + TAB_PREVIEW_COLORS[tab] + '">'
-                  + TAB_PREVIEW_LABELS[tab] + '</span>';
+            var isHidden = hidden.indexOf(tab) !== -1;
+            if (!isHidden) {
+                if (!visibleFirst) html += '<span class="bm-lp-arrow">\u203A</span>';
+                html += '<span class="bm-lp-pill" style="--pill-color:' + TAB_PREVIEW_COLORS[tab] + '">'
+                      + TAB_PREVIEW_LABELS[tab] + '</span>';
+                visibleFirst = false;
+            }
+        }
+        // Append hidden tabs as dimmed pills
+        for (var h = 0; h < hidden.length; h++) {
+            if (!visibleFirst) html += '<span class="bm-lp-arrow bm-lp-arrow-dim">\u203A</span>';
+            html += '<span class="bm-lp-pill bm-lp-pill-hidden" style="--pill-color:' + TAB_PREVIEW_COLORS[hidden[h]] + '">'
+                  + TAB_PREVIEW_LABELS[hidden[h]] + '</span>';
+            visibleFirst = false;
         }
         el.innerHTML = html;
+        // Fade reset button in/out based on active layout
+        var resetEl = qs('#bm-layout-reset');
+        if (resetEl) resetEl.classList.toggle('fade-out', layout !== 'custom');
     }
 
     /**
@@ -1443,6 +1617,18 @@
      * @param {string} name - Tab name to activate
      */
     function switchTab(name) {
+        // Guard: if the tab is hidden, fall back to the first visible tab
+        var targetBtn = qs('.bm-tab[data-tab="' + name + '"]');
+        if (targetBtn && targetBtn.style.display === 'none') {
+            var nav = qs('.bm-tabs');
+            var tabs = nav ? nav.querySelectorAll('.bm-tab') : [];
+            for (var _fi = 0; _fi < tabs.length; _fi++) {
+                if (tabs[_fi].style.display !== 'none') {
+                    name = tabs[_fi].dataset.tab;
+                    break;
+                }
+            }
+        }
         qsa('.bm-tab').forEach(function (t) { t.classList.toggle('active', t.dataset.tab === name); });
         qsa('.bm-panel').forEach(function (p) { p.classList.toggle('active', p.id === 'tab-' + name); });
         if (name !== 'logs') renderTab(name);
@@ -2726,7 +2912,8 @@
         // Footer version
         var verEl = qs('#bm-footer-version');
         if (verEl && env['gina']) {
-            verEl.innerHTML = '<span class="bm-footer-brand">Gina</span> v' + env['gina'].replace(/</g, '&lt;');
+            verEl.innerHTML = '<span class="bm-footer-brand">Gina</span>'
+                + '<span class="bm-footer-ver">v' + env['gina'].replace(/</g, '&lt;') + '</span>';
         }
     }
 
@@ -3411,6 +3598,20 @@
             });
         }
 
+        // Inject × close buttons into each tab (hidden by default, shown in custom mode)
+        qsa('.bm-tab').forEach(function (tab) {
+            var closeBtn = document.createElement('span');
+            closeBtn.className = 'bm-tab-close';
+            closeBtn.innerHTML = '\u00d7';
+            closeBtn.title = 'Hide this tab';
+            closeBtn.style.display = 'none';
+            closeBtn.addEventListener('click', function (e) {
+                e.stopPropagation(); // Don't trigger tab switch
+                hideTab(tab.dataset.tab);
+            });
+            tab.appendChild(closeBtn);
+        });
+
         // Tab layout segmented control — restore persisted layout, wire click
         var layoutBtns = qsa('.bm-layout-btn');
         if (layoutBtns.length) {
@@ -3436,8 +3637,16 @@
                     applyTabLayout(layout);
                     renderLayoutPreview(layout);
                     try { localStorage.setItem(TAB_LAYOUT_KEY, layout); } catch (e) {}
+                    // Animate tabs when entering custom mode
+                    if (layout === 'custom') nudgeTabs();
                 });
             });
+        }
+
+        // Reset link — restore all hidden tabs in custom mode
+        var resetBtn = qs('#bm-layout-reset');
+        if (resetBtn) {
+            resetBtn.addEventListener('click', function () { restoreAllTabs(); });
         }
 
         // ── Tab drag-to-reorder (custom layout mode) ──────────────────────
@@ -3592,6 +3801,39 @@
                     localStorage.setItem(ENV_HEIGHT_STORAGE_KEY, parseInt(wrap.style.maxHeight, 10));
                 } catch (e) {}
             }
+        });
+    }
+
+    /**
+     * Wire the copy button on the environment info panel. Copies all
+     * key-value pairs as plain text (one per line, "key: value" format).
+     * Shows a brief "Copied" visual feedback on the button.
+     * @inner
+     */
+    function setupEnvCopy() {
+        var btn = qs('#bm-env-copy');
+        if (!btn) return;
+        btn.addEventListener('click', function () {
+            if (!ginaData || !ginaData.user || !ginaData.user.environment) return;
+            var env = ginaData.user.environment;
+            var skip = { routing: 1, reverseRouting: 1, forms: 1 };
+            var lines = [];
+            var keys = Object.keys(env);
+            for (var i = 0; i < keys.length; i++) {
+                var k = keys[i];
+                if (skip[k]) continue;
+                var v = env[k];
+                if (typeof v === 'object' && v !== null) continue;
+                lines.push(k + ': ' + String(v));
+            }
+            var text = lines.join('\n');
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text).catch(function () { fallbackCopy(text); });
+            } else {
+                fallbackCopy(text);
+            }
+            btn.classList.add('copied');
+            setTimeout(function () { btn.classList.remove('copied'); }, 900);
         });
     }
 
@@ -4084,6 +4326,7 @@
 
         setupSettings();
         setupEnvResize();
+        setupEnvCopy();
         setupFlowResize();
         setupScrollToTop();
 

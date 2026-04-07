@@ -1,8 +1,7 @@
 /* ── Font ─────────────────────────────────────────────────────────────────── */
 @font-face {
     font-family: 'have_heart_oneregular';
-    src: url('https://gina.io/css/fonts/have_heart_one-webfont.woff2') format('woff2'),
-         url('https://gina.io/css/fonts/have_heart_one-webfont.woff') format('woff');
+    src: url('have_heart_one-webfont.woff2') format('woff2');
     font-weight: normal;
     font-style: normal;
     font-display: swap;
@@ -472,11 +471,35 @@ html, body {
     letter-spacing: .02em;
 }
 
+.bm-lp-pill-hidden {
+    opacity: .35;
+    text-decoration: line-through;
+}
+
 .bm-lp-arrow {
     color: var(--text-dim);
     font-size: 10px;
     opacity: .5;
     margin: 0 1px;
+}
+.bm-lp-arrow-dim { opacity: .25; }
+
+/* Reset — .bm-btn sized for the settings row, fade in/out with Custom */
+.bm-layout-reset {
+    height: 22px;
+    font-size: 10px;
+    line-height: 22px;
+    padding: 0 8px;
+    opacity: 1;
+    visibility: visible;
+    transition: color .15s, border-color .15s, background .15s,
+                opacity .25s ease, visibility .25s ease;
+
+    &.fade-out {
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+    }
 }
 
 /* Light theme adjustments */
@@ -519,6 +542,39 @@ html, body {
 }
 .bm-tabs .bm-tab { position: relative; }
 
+/* ── Tab close button (custom mode — hide tabs) ────────────────────── */
+.bm-tab-close {
+    display: none;
+    font-size: 13px;
+    line-height: 1;
+    color: var(--text-dim);
+    opacity: 0;
+    margin-left: 4px;
+    padding: 0 2px;
+    cursor: pointer;
+    transition: opacity .15s, color .15s;
+    vertical-align: middle;
+}
+.bm-tabs.bm-drag-mode .bm-tab-close { display: inline; }
+.bm-tabs.bm-drag-mode .bm-tab:hover .bm-tab-close { opacity: .6; }
+.bm-tab-close:hover {
+    opacity: 1 !important;
+    color: var(--err);
+}
+
+/* Nudge animation — staggered wiggle when entering custom mode */
+@keyframes bm-nudge {
+    0%   { transform: translateX(0); }
+    20%  { transform: translateX(-3px); }
+    40%  { transform: translateX(3px); }
+    60%  { transform: translateX(-2px); }
+    80%  { transform: translateX(1px); }
+    100% { transform: translateX(0); }
+}
+.bm-tab-nudge {
+    animation: bm-nudge .35s ease-in-out;
+}
+
 /* ── Footer ─────────────────────────────────────────────────────────── */
 .bm-footer {
     display: flex;
@@ -532,17 +588,24 @@ html, body {
 }
 
 .bm-footer-version {
-    color: var(--text-dim);
-    font: 10px var(--sans);
-    white-space: nowrap;
-    opacity: .7;
+    display: flex;
+    align-items: baseline;
+    gap: 5px;
     flex-shrink: 0;
+    white-space: nowrap;
 }
 .bm-footer-brand {
     font-family: 'have_heart_oneregular';
     font-weight: 400;
-    font-size: 13px;
-    vertical-align: baseline;
+    font-size: 18px;
+    color: var(--text-dim);
+    opacity: .5;
+    letter-spacing: .02em;
+}
+.bm-footer-ver {
+    font: 9px var(--mono);
+    color: var(--text-dim);
+    opacity: .5;
 }
 
 /* Memory gauge (inside footer) */
@@ -616,6 +679,35 @@ html, body {
 .bm-env-val {
     color: var(--text);
     word-break: break-all;
+}
+
+/* Copy env button */
+.bm-env-copy {
+    position: absolute;
+    top: 6px;
+    right: 8px;
+    z-index: 2;
+    background: none;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    padding: 3px;
+    cursor: pointer;
+    color: var(--text-dim);
+    opacity: .4;
+    transition: opacity .15s, color .15s, border-color .15s;
+
+    svg { width: 13px; height: 13px; display: block; }
+
+    &:hover {
+        opacity: 1;
+        color: var(--accent);
+        border-color: var(--border);
+    }
+    &.copied {
+        opacity: 1;
+        color: var(--ok);
+        border-color: var(--ok);
+    }
 }
 
 /* Resize handle */
@@ -1099,6 +1191,37 @@ details[open] > summary.bm-summary::before { transform: rotate(90deg); }
 .bm-num   { color: var(--num); }
 .bm-str   { color: var(--str); word-break: break-all; }
 .bm-empty { color: var(--text-dim); font-style: italic; }
+
+/* ── Tab empty state (JSON-only APIs — no view/forms) ──────────────── */
+.bm-tab-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 48px 24px;
+    text-align: center;
+    min-height: 200px;
+}
+.bm-tab-empty-icon {
+    width: 40px;
+    height: 40px;
+    color: var(--text-dim);
+    opacity: .35;
+    margin-bottom: 16px;
+}
+.bm-tab-empty p {
+    font-size: 14px;
+    color: var(--text-dim);
+    margin: 0 0 8px;
+}
+.bm-tab-empty-hint {
+    font-size: 11px;
+    color: var(--text-dim);
+    opacity: .6;
+    max-width: 280px;
+    line-height: 1.5;
+}
+
 .bm-hint  { color: var(--text-dim); font: 12px var(--sans); font-style: italic; }
 .bm-error { color: var(--err); font: 12px var(--sans); }
 
@@ -2578,8 +2701,9 @@ details[open] > summary.bm-summary::before { transform: rotate(90deg); }
     .bm-footer-sep { display: none; }
     .bm-mem-label { display: none; }
     .bm-mem-text { min-width: 60px; font-size: 9px; }
-    .bm-footer-version { font-size: 9px; padding-left: 4px; }
-    .bm-footer-brand { font-size: 11px; }
+    .bm-footer-version { padding-left: 4px; }
+    .bm-footer-brand { font-size: 15px; }
+    .bm-footer-ver { font-size: 8px; }
 
     /* Scroll area: tighter padding */
     .bm-scroll-area { padding: 8px 10px 12px; }
