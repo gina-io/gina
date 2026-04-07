@@ -190,6 +190,14 @@ function PostPublish() {
             return done();
         }
 
+        // Alpha releases must not touch the docs site. publishAlpha() triggers
+        // a second npm publish lifecycle — if syncDocs runs again it overwrites
+        // the stable ginaVersion that was just written by the first (stable) run.
+        if (self.isAlpha) {
+            console.info('[syncDocs] Alpha release — skipping docs sync');
+            return done();
+        }
+
         var os = require('os');
         var docsConfigPath = _(os.homedir() + '/Sites/gina/docs/repo/docusaurus.config.js', true);
 
