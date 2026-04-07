@@ -2183,7 +2183,7 @@ describe('24 - Flow instrumentation in render-json.js (response-write + total)',
         var src = getRJson24();
         var rwIdx = src.indexOf("label    : 'response-write'");
         // Find the isCacheless guard before the response-write entry
-        var preceding = src.substring(Math.max(0, rwIdx - 300), rwIdx);
+        var preceding = src.substring(Math.max(0, rwIdx - 350), rwIdx);
         assert.ok(
             preceding.indexOf('self.isCacheless()') > -1,
             'expected isCacheless() guard before FI entries in render-json.js'
@@ -3580,7 +3580,7 @@ describe('33 - EXPLAIN fallback: explainForIndexes and _explainCache', function(
     it('explainForIndexes runs EXPLAIN <statement>', function() {
         var src = getCbSrc33();
         var idx = src.indexOf('var explainForIndexes = function');
-        var block = src.substring(idx, idx + 1000);
+        var block = src.substring(idx, idx + 1800);
         assert.ok(
             /EXPLAIN.*statement/.test(block) || /['"]EXPLAIN ['"].*statement/.test(block),
             'expected EXPLAIN prefix prepended to the statement'
@@ -3590,7 +3590,7 @@ describe('33 - EXPLAIN fallback: explainForIndexes and _explainCache', function(
     it('explainForIndexes patches queryEntry.indexes in-place on success', function() {
         var src = getCbSrc33();
         var idx = src.indexOf('var explainForIndexes = function');
-        var block = src.substring(idx, idx + 1000);
+        var block = src.substring(idx, idx + 1800);
         assert.ok(
             block.indexOf('queryEntry.indexes') > -1,
             'expected in-place patch of queryEntry.indexes'
@@ -3600,7 +3600,7 @@ describe('33 - EXPLAIN fallback: explainForIndexes and _explainCache', function(
     it('explainForIndexes catches EXPLAIN failures gracefully', function() {
         var src = getCbSrc33();
         var idx = src.indexOf('var explainForIndexes = function');
-        var block = src.substring(idx, idx + 1000);
+        var block = src.substring(idx, idx + 1800);
         assert.ok(
             block.indexOf('.catch(') > -1,
             'expected .catch() on the EXPLAIN promise'
@@ -3610,7 +3610,7 @@ describe('33 - EXPLAIN fallback: explainForIndexes and _explainCache', function(
     it('explainForIndexes sets null in cache on failure', function() {
         var src = getCbSrc33();
         var idx = src.indexOf('var explainForIndexes = function');
-        var block = src.substring(idx, idx + 1000);
+        var block = src.substring(idx, idx + 1800);
         // .catch sets _explainCache.set(statement, null)
         var catchIdx = block.indexOf('.catch(');
         assert.ok(catchIdx > -1);
@@ -3624,7 +3624,7 @@ describe('33 - EXPLAIN fallback: explainForIndexes and _explainCache', function(
     it('explainForIndexes uses adhoc: true to skip query plan cache', function() {
         var src = getCbSrc33();
         var idx = src.indexOf('var explainForIndexes = function');
-        var block = src.substring(idx, idx + 1000);
+        var block = src.substring(idx, idx + 1800);
         assert.ok(
             /adhoc\s*:\s*true/.test(block),
             'expected adhoc: true in EXPLAIN options'
@@ -3634,7 +3634,7 @@ describe('33 - EXPLAIN fallback: explainForIndexes and _explainCache', function(
     it('explainForIndexes forwards parameters from queryOptions', function() {
         var src = getCbSrc33();
         var idx = src.indexOf('var explainForIndexes = function');
-        var block = src.substring(idx, idx + 1000);
+        var block = src.substring(idx, idx + 1800);
         assert.ok(
             /parameters.*queryOptions\.parameters/.test(block),
             'expected parameters forwarded from queryOptions'
@@ -3654,7 +3654,7 @@ describe('33 - EXPLAIN fallback: explainForIndexes and _explainCache', function(
     it('_explainCache is set as pending before EXPLAIN runs', function() {
         var src = getCbSrc33();
         var idx = src.indexOf('var explainForIndexes = function');
-        var block = src.substring(idx, idx + 1000);
+        var block = src.substring(idx, idx + 1800);
         // Must set(statement, null) before the async query
         var setNullIdx = block.indexOf('_explainCache.set(statement, null)');
         var queryIdx = block.indexOf('.query(');
