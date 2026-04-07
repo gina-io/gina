@@ -99,7 +99,16 @@ function Restart(opt, cmd) {
                 console.debug('out => ', out);
                 // TODO - retrieve running bundles with its options & restart
             } catch (err) {
-                throw err;
+                // gina start may exit non-zero when Node.js writes benign
+                // warnings (e.g., ExperimentalWarning) to stderr while the
+                // daemon actually started in the background.
+                // Check for the PID file before treating this as a failure.
+                var pidFile = _(GINA_RUNDIR + '/gina-v' + self.version + '.pid', true);
+                if ( fs.existsSync(pidFile) ) {
+                    console.debug('Framework v'+ self.version +' restarted successfully');
+                } else {
+                    throw err;
+                }
             }
         }, 100);
 

@@ -121,6 +121,10 @@ function runAsSubProcess() {
     var error = null;
     child.stderr.on('data', function(err) {
         error = err.toString();
+        // Skip Node.js ExperimentalWarning messages (benign — e.g., SQLite on Node 25+)
+        if (/ExperimentalWarning/.test(error)) {
+            return;
+        }
         if (/Debugger listening|Debugger attached|Warning|address already in use/i.test(error)) {
             console.warn(error);
             return process.exit(1);

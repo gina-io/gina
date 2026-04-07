@@ -345,7 +345,6 @@ function Add(opt, cmd) {
             "_comment"    : "Your comment goes here.",
             "version"     : version,
             "tag"         : ( version.split('.') ).join(''),
-            "gina_version": getEnvVar('GINA_VERSION'),
             "src"         : "src/" + local.bundle,
             "link"        : "bundles/"+ local.bundle,
             "releases"    : {}

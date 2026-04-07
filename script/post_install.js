@@ -732,7 +732,11 @@ function PostInstall() {
             cmd = ginaBinanry + ' framework:set --global-mode='+ self.isGlobalInstall;
             console.info('Running: '+ cmd);
             console.debug(execSync(cmd));
-            cmd = ginaBinanry + ' framework:set --prefix='+ self.prefix;
+            // Always use defaultPrefix (npm config get prefix) for the global
+            // settings — self.prefix gets overridden to INIT_CWD for local
+            // installs (line 154), which would corrupt ~/.gina/*/settings.json
+            // with the project directory instead of the npm global prefix.
+            cmd = ginaBinanry + ' framework:set --prefix='+ self.defaultPrefix;
             console.info('Running: '+ cmd);
             console.debug(execSync(cmd));
         } catch (err) {

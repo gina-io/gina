@@ -304,6 +304,7 @@ async function onExec() {
         'cache:',
         'dev:',
         'env:',
+        'inspector:',
         'scope:',
         'framework:',
         'minion:',

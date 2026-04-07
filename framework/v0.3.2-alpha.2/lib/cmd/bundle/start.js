@@ -144,7 +144,7 @@ function Start(opt, cmd) {
             nodeModulesPathObj.existsSync()
             && nodeModulesContentArr.length == 1
             && nodeModulesContentArr[0] == 'gina'
-            && typeof(pack.dependencies) != 'object'
+            && typeof(pack.dependencies) == 'object'
             && pack.dependencies.count() > 0
         ) {
             if (scope == "local")
