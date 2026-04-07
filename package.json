@@ -1,112 +1,112 @@
 {
-    "name": "gina",
-    "version": "0.3.2",
-    "description": "Node.js MVC framework with built-in HTTP/2, multi-bundle architecture, and scope-based data isolation — no Express dependency",
-    "keywords": [
-        "nodejs",
-        "framework",
-        "mvc",
-        "http2",
-        "rest-api",
-        "full-stack",
-        "server-side-rendering",
-        "event-driven",
-        "multi-bundle",
-        "couchbase",
-        "mongodb",
-        "typescript",
-        "gina",
-        "ginajs"
-    ],
-    "homepage": "https://gina.io",
-    "repository": {
-        "type": "git",
-        "url": "git+https://github.com/gina-io/gina.git"
+  "name": "gina",
+  "version": "0.3.3-alpha.1",
+  "description": "Node.js MVC framework with built-in HTTP/2, multi-bundle architecture, and scope-based data isolation — no Express dependency",
+  "keywords": [
+    "nodejs",
+    "framework",
+    "mvc",
+    "http2",
+    "rest-api",
+    "full-stack",
+    "server-side-rendering",
+    "event-driven",
+    "multi-bundle",
+    "couchbase",
+    "mongodb",
+    "typescript",
+    "gina",
+    "ginajs"
+  ],
+  "homepage": "https://gina.io",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gina-io/gina.git"
+  },
+  "bugs": {
+    "url": "https://github.com/gina-io/gina/issues",
+    "email": "bugs@gina.io"
+  },
+  "author": {
+    "name": "Martin-Luther ETOUMAN",
+    "email": "martin-luther.etouman@gina.io"
+  },
+  "contributors": [
+    {
+      "name": "Martin-Luther ETOUMAN",
+      "email": "martin-luther.etouman@gina.io"
     },
-    "bugs": {
-        "url": "https://github.com/gina-io/gina/issues",
-        "email": "bugs@gina.io"
-    },
-    "author": {
-        "name": "Martin-Luther ETOUMAN",
-        "email": "martin-luther.etouman@gina.io"
-    },
-    "contributors": [
-        {
-            "name": "Martin-Luther ETOUMAN",
-            "email": "martin-luther.etouman@gina.io"
-        },
-        {
-            "name": "Fabrice DELANEAU",
-            "email": "fabrice.delaneau@gina.io",
-            "url": "https://fdelaneau.com"
-        }
-    ],
-    "copyright": "Copyright (c) 2009-2026 Rhinostone <contact@gina.io>",
-    "engine": {
-        "node": ">= 22 <26"
-    },
-    "config": {
-        "optionalPrefix": "~/.npm-global",
-        "prefix": "~/.npm-global",
-        "globalMode": true
-    },
-    "bin": {
-        "gina": "bin/gina",
-        "gina-container": "bin/gina-container",
-        "gina-init": "bin/gina-init"
-    },
-    "main": "./framework/v0.3.2/core/gna",
-    "scripts": {
-        "test": "node --test test*.test.js",
-        "prepare": "node script/prepare_version.js",
-        "postpublish": "node script/post_publish.js",
-        "preinstall": "node script/pre_install.js",
-        "postinstall": "node script/post_install.js"
-    },
-    "license": "MIT",
-    "readmeFilename": "README.md",
-    "dependencies": {
-        "engine.io": "^6.0.0"
-    },
-    "devDependencies": {
-        "engine.io-client": "^6.6.3",
-        "requirejs": "^2.3.7"
-    },
-    "peerDependencies": {
-        "@anthropic-ai/sdk": ">=0.27.0",
-        "@scylladb/scylla-driver": ">=1.0.0",
-        "couchbase": ">=3.0.0",
-        "ioredis": ">=5.0.0",
-        "mongodb": ">=5.0.0",
-        "mysql2": ">=2.0.0",
-        "openai": ">=4.0.0",
-        "pg": ">=8.0.0"
-    },
-    "peerDependenciesMeta": {
-        "couchbase": {
-            "optional": true
-        },
-        "ioredis": {
-            "optional": true
-        },
-        "mysql2": {
-            "optional": true
-        },
-        "pg": {
-            "optional": true
-        },
-        "mongodb": {
-            "optional": true
-        },
-        "@scylladb/scylla-driver": {
-            "optional": true
-        },
-        "openai": {
-            "optional": true
-        },
-        "@anthropic-ai/sdk": {
-            "optional": true
-        }
+    {
+      "name": "Fabrice DELANEAU",
+      "email": "fabrice.delaneau@gina.io",
+      "url": "https://fdelaneau.com"
     }
+  ],
+  "copyright": "Copyright (c) 2009-2026 Rhinostone <contact@gina.io>",
+  "engine": {
+    "node": ">= 22 <26"
+  },
+  "config": {
+    "optionalPrefix": "~/.npm-global",
+    "prefix": "~/.npm-global",
+    "globalMode": true
+  },
+  "bin": {
+    "gina": "bin/gina",
+    "gina-container": "bin/gina-container",
+    "gina-init": "bin/gina-init"
+  },
+  "main": "./framework/v0.3.3-alpha.1/core/gna",
+  "scripts": {
+    "test": "node --test test*.test.js",
+    "prepare": "node script/prepare_version.js",
+    "postpublish": "node script/post_publish.js",
+    "preinstall": "node script/pre_install.js",
+    "postinstall": "node script/post_install.js"
+  },
+  "license": "MIT",
+  "readmeFilename": "README.md",
+  "dependencies": {
+    "engine.io": "^6.0.0"
+  },
+  "devDependencies": {
+    "engine.io-client": "^6.6.3",
+    "requirejs": "^2.3.7"
+  },
+  "peerDependencies": {
+    "@anthropic-ai/sdk": ">=0.27.0",
+    "@scylladb/scylla-driver": ">=1.0.0",
+    "couchbase": ">=3.0.0",
+    "ioredis": ">=5.0.0",
+    "mongodb": ">=5.0.0",
+    "mysql2": ">=2.0.0",
+    "openai": ">=4.0.0",
+    "pg": ">=8.0.0"
+  },
+  "peerDependenciesMeta": {
+    "couchbase": {
+      "optional": true
+    },
+    "ioredis": {
+      "optional": true
+    },
+    "mysql2": {
+      "optional": true
+    },
+    "pg": {
+      "optional": true
+    },
+    "mongodb": {
+      "optional": true
+    },
+    "@scylladb/scylla-driver": {
+      "optional": true
+    },
+    "openai": {
+      "optional": true
+    },
+    "@anthropic-ai/sdk": {
+      "optional": true
+    }
+  }
 }
