@@ -1,0 +1,28 @@
+
+  Usage: gina inspector:<action> [options]
+
+  Actions:
+
+    open [bundle] [@project]    Open the Inspector SPA in a chromeless browser window
+
+  Options:
+
+    --browser=<name>            Override the default browser
+                                Available: chrome, chromium, edge, brave,
+                                           vivaldi, opera, firefox, safari
+
+    --port=<number>             Override the bundle port (skip config lookup)
+
+  Examples:
+
+    gina inspector:open                         Open for default bundle on port 3100
+    gina inspector:open demo @myproject         Open for bundle "demo"
+    gina inspector:open --port=3200             Open for a specific port
+    gina inspector:open --browser=chrome        Force Chrome (app mode)
+    gina inspector:open --browser=firefox       Force Firefox (normal window)
+
+  App mode support (chromeless window — no address bar, no tabs):
+
+    Supported:    chrome, chromium, edge, brave, vivaldi, opera
+    Not supported: firefox, safari (opens in a normal browser window)
+

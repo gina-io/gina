@@ -5502,3 +5502,93 @@ describe('46 - sql-parser: parseCreateIndexes and extractTargetTable (#QI1)', fu
     });
 
 });
+
+
+// ── 47 — render-json.js Inspector data feed (#INS) ──────────────────────────
+
+describe('47 - render-json.js emits inspector#data for JSON API responses', function() {
+
+    var RENDER_JSON_47 = path.join(FW, 'core/controller/controller.render-json.js');
+    var _rJsonSrc47;
+    function getRJsonSrc47() { return _rJsonSrc47 || (_rJsonSrc47 = fs.readFileSync(RENDER_JSON_47, 'utf8')); }
+
+    it('render-json.js emits process.emit(inspector#data)', function() {
+        assert.ok(
+            getRJsonSrc47().indexOf("process.emit('inspector#data'") > -1,
+            'expected process.emit(inspector#data) in render-json.js'
+        );
+    });
+
+    it('render-json.js stores _lastGinaData on serverInstance', function() {
+        assert.ok(
+            getRJsonSrc47().indexOf('_lastGinaData') > -1,
+            'expected _lastGinaData reference in render-json.js'
+        );
+    });
+
+    it('inspector#data emit and _lastGinaData are near each other', function() {
+        var src = getRJsonSrc47();
+        var emitIdx = src.indexOf("process.emit('inspector#data'");
+        var lastGdIdx = src.indexOf('self.serverInstance._lastGinaData');
+        assert.ok(emitIdx > -1 && lastGdIdx > -1, 'both must exist');
+        assert.ok(
+            Math.abs(emitIdx - lastGdIdx) < 200,
+            'inspector#data emit should be near _lastGinaData assignment (got ' + Math.abs(emitIdx - lastGdIdx) + ')'
+        );
+    });
+
+    it('is gated on _inspectorActive', function() {
+        var src = getRJsonSrc47();
+        // The emit must be inside a block that checks _inspectorActive
+        var activeIdx = src.indexOf('process.gina._inspectorActive');
+        var emitIdx = src.indexOf("process.emit('inspector#data'");
+        assert.ok(activeIdx > -1, 'expected _inspectorActive guard');
+        assert.ok(activeIdx < emitIdx, '_inspectorActive check must come before emit');
+    });
+
+    it('builds environment from getContext and local.options.conf', function() {
+        var src = getRJsonSrc47();
+        assert.ok(src.indexOf("getContext('gina')") > -1, 'expected getContext(gina) for version info');
+        assert.ok(src.indexOf("_conf.bundle") > -1 || src.indexOf("_conf.server") > -1, 'expected local.options.conf usage');
+    });
+
+    it('includes environment keys matching render-swig.js pattern', function() {
+        var src = getRJsonSrc47();
+        var requiredKeys = ['gina', 'gina pid', 'nodejs', 'engine', 'env', 'bundle', 'protocol', 'memory heap'];
+        requiredKeys.forEach(function(key) {
+            assert.ok(
+                src.indexOf("'" + key + "'") > -1,
+                'expected environment key: ' + key
+            );
+        });
+    });
+
+    it('builds __gdPayload with gina and user sections', function() {
+        var src = getRJsonSrc47();
+        assert.ok(
+            /\{\s*gina\s*:.*user\s*:/.test(src),
+            'expected __gdPayload = { gina: ..., user: ... } structure'
+        );
+    });
+
+    it('includes queries and flow in user section when available', function() {
+        var src = getRJsonSrc47();
+        assert.ok(src.indexOf('_gdUser.queries') > -1, 'expected queries assignment');
+        assert.ok(src.indexOf('_gdUser.flow') > -1, 'expected flow assignment');
+    });
+
+    it('does not modify jsonObj for the Inspector payload', function() {
+        var src = getRJsonSrc47();
+        // The Inspector payload uses _gdUser.data = jsonObj (reference, not mutation)
+        // and is emitted via process.emit, not embedded in the response
+        assert.ok(src.indexOf('_gdUser') > -1, 'expected _gdUser intermediate object');
+        // Verify the emit happens BEFORE JSON.stringify(jsonObj)
+        var emitIdx = src.indexOf("process.emit('inspector#data'");
+        var stringifyIdx = src.indexOf('JSON.stringify(jsonObj)');
+        assert.ok(
+            emitIdx < stringifyIdx,
+            'Inspector emit must happen before JSON.stringify(jsonObj)'
+        );
+    });
+
+});

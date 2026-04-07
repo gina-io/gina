@@ -497,9 +497,13 @@ The Inspector is a dev-mode SPA embedded in every bundle at `/_gina/inspector/`.
 - **Server-side (SSE agent):** `/_gina/agent` endpoint `event: log` — combined stream in standalone mode. Same log format as `/_gina/logs`.
 - **Server-side (engine.io):** `{ type: 'log', data: {...} }` WebSocket messages pushed from the `ioServer` connection handler when engine.io is configured.
 
+**Lazy activation** — `process.gina._inspectorActive` is `false` at startup. Set to `true` when the Inspector SPA, `/_gina/logs`, or `/_gina/agent` is first accessed. All profiling infrastructure (timeline init, query log wiring, Inspector payload emission) is gated on this flag. JSON responses stay clean until a developer actually opens the Inspector.
+
 **Dev mode injections** (both added to user pages in dev mode, before `</body>`):
 - **`__logsScript`** — patches `console.log/info/warn/error/debug` to push `{ t, l, b, s }` entries to `window.__ginaLogs`. The Inspector reads this via `window.opener.__ginaLogs`.
 - **`__gdScript`** — `window.__ginaData = { gina: {...}, user: {...} }`. `__gdPayload` also stored on `self.serverInstance._lastGinaData` for engine.io. Also emits `process.emit('inspector#data', __gdPayload)` for `/_gina/agent` SSE clients.
+
+**JSON API coverage** — `render-json.js` emits the same `process.emit('inspector#data')` event and stores `_lastGinaData` when `_inspectorActive` is true. Environment is built from `getContext('gina')` + `local.options.conf` (since `data.page` doesn't exist in the JSON path). The JSON response body itself is NOT modified — Inspector data travels only via the SSE/engine.io channel.
 
 **`statusbar.html` link** — simple relative `/_gina/inspector/` (opens in new tab, same origin).
 

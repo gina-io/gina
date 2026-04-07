@@ -500,6 +500,48 @@ All planned releases should stay in the `0.1.x` series (see roadmap) to avoid th
 
 ---
 
+## 17. Comma-First Object Literals (JS only)
+
+**Current practice:** Multi-line object and array literals use comma-first style with colon alignment. This applies to JavaScript source files only — JSON config files (`routing.json`, `settings.json`, `env.json`, etc.) use standard trailing-comma JSON syntax.
+
+```js
+// correct — comma-first with colon alignment
+var note = {
+    id        : store.nextId++
+  , text      : text
+  , createdAt : new Date().toISOString()
+};
+
+var options = {
+    hostname : target.hostname
+  , port     : target.port
+  , path     : target.path
+  , method   : 'GET'
+  , headers  : headers
+};
+
+// also applies to arrays when elements are on separate lines
+var bundles = [
+    'api'
+  , 'dashboard'
+  , 'public'
+];
+```
+
+**Rules:**
+- First property on the opening `{` / `[` line (no leading comma)
+- Subsequent properties prefixed with `, ` (comma + space) at the same indentation level as the first property's key, minus 2 characters
+- Colons aligned with spaces (matching §7 alignment conventions)
+- **JS only** — JSON files cannot use comma-first (JSON syntax requires trailing commas between values, and the last value must have no trailing comma)
+- Do not mix comma-first and comma-last in the same file
+
+**Why:**
+- Cleaner diffs — adding or removing a property touches exactly one line
+- Missing commas are immediately visible (they line up vertically)
+- Aligns naturally with Gina's colon-alignment style
+
+---
+
 ## Known Anti-Patterns
 
 | Anti-pattern | Location | Risk | Roadmap item |
