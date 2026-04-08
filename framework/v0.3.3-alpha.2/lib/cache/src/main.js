@@ -53,7 +53,7 @@ function Cache(options) {
     // LRU cap: 0 means unlimited. Overridden by from() if the shared Map carries _maxEntries.
     var maxEntries      = (options && options.maxEntries > 0) ? ~~(options.maxEntries) : 0;
     var merge           = (isGFFCtx) ? require('lib/merge') : require('../../../lib/merge');
-    var uuid            = { v4: function() { return crypto.randomUUID(); } };
+    var uuid            = (isGFFCtx) ? require('lib/uuid') : require('../../../lib/uuid');
     var Collection      = (isGFFCtx) ? require('lib/collection') : require('../../../lib/collection');
     // var EventEmitter    = (isGFFCtx) ? EventTarget : require('events').EventEmitter;
 
@@ -453,7 +453,7 @@ function Cache(options) {
 
             if ( !cache._events.setSearchOption('cacheKey', 'skipEval', true).findOne({cacheKey: cacheKey, event: cacheEvents[i]}) ) {
                 cache._events.insert({
-                    id: uuid.v4(),
+                    id: uuid(),
                     cacheKey: cacheKey,
                     event: cacheEvents[i]
                 });

@@ -69,6 +69,7 @@ function Lib() {
         SessionStore    : _require('./session-store'),
         SwigFilters     : _require('./swig-filters'),
         Cache           : _require('./cache'),
+        uuid            : _require('./uuid'),
         // #R1 — WatcherService: fs.watch-based file-change registry. Class is hot-reloadable;
         // instantiated once per bundle in gna.js:onStarted and stored as gna.watcher.
         Watcher         : _require('./watcher'),

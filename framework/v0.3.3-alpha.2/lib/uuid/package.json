@@ -1,0 +1,7 @@
+{
+    "name": "gina-lib-uuid",
+    "version": "1.0.0",
+    "description": "Lightweight uuid generator (base-62, zero dependencies)",
+    "main": "src/main",
+    "license": "MIT"
+}

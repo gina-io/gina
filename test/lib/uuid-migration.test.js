@@ -1,19 +1,20 @@
 /**
  * uuid-migration.test.js
  *
- * Tests for the uuid → crypto.randomUUID() migration.
+ * Tests for the uuid → lib/uuid migration.
  *
  * Server-side modules (cache, collection, storage, validator) replaced
- * require('vendor/uuid') with inline shims that call crypto.randomUUID().
- * Frontend AMD modules removed 'vendor/uuid' from their RequireJS dependency
- * arrays and call crypto.randomUUID() directly.
+ * require('vendor/uuid') / crypto.randomUUID() inline shims with
+ * require('lib/uuid') — a lightweight, zero-dependency ID generator
+ * using crypto.getRandomValues with bitmask bias avoidance.
+ * Frontend AMD modules use require('lib/uuid') via RequireJS.
  *
  * This file validates:
- *   - Source inspection: no residual require('vendor/uuid') in migrated files
- *   - Functional: uuid shims produce valid v4 UUIDs
- *   - Functional: cache, collection use uuid.v4() correctly at runtime
- *   - Build config: vendor/uuid removed from RequireJS build configs
- *   - Frontend: vendor/uuid removed from AMD define() dependency arrays
+ *   - Source inspection: no residual uuid shims or crypto.randomUUID() in migrated files
+ *   - Functional: lib/uuid produces valid base-62 IDs of the correct length
+ *   - Functional: cache, collection use uuid() correctly at runtime
+ *   - Build config: lib/uuid registered in RequireJS build configs
+ *   - Frontend: lib/uuid in AMD define() dependency arrays
  */
 
 var { describe, it } = require('node:test');
@@ -41,13 +42,15 @@ var TOOLBAR_JS     = path.join(PLUGIN_SRC, 'toolbar/main.js');
 var BUILD_JSON     = path.join(PLUGIN_SRC, 'build.json');
 var BUILD_DEV_JSON = path.join(PLUGIN_SRC, 'build.dev.json');
 
-// UUID v4 regex (8-4-4-4-12 hex with version nibble = 4, variant = 8/9/a/b)
-var UUID_V4_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+// uuid base-62 regex: only chars from 0-9 A-Z a-z, default length 4
+var UUID_RE = /^[0-9A-Za-z]{4}$/;
+
+var UUID_SRC = path.join(FW, 'lib/uuid/src/main.js');
 
 
-// ── 01 — Source inspection: server-side files ────────────────────────────────
+// ── 01 — Source inspection: server-side files use lib/uuid ─────────────────
 
-describe('01 - Source: no residual require(vendor/uuid) in server-side files', function() {
+describe('01 - Source: server-side files use lib/uuid (no uuid shims)', function() {
 
     var files = [
         { name: 'cache/src/main.js',     path: CACHE_SRC },
@@ -58,19 +61,27 @@ describe('01 - Source: no residual require(vendor/uuid) in server-side files', f
 
     for (var i = 0; i < files.length; i++) {
         (function(f) {
-            it(f.name + ' does not require vendor/uuid', function() {
+            it(f.name + ' does not contain a uuid inline shim (uuid.v4)', function() {
                 var src = fs.readFileSync(f.path, 'utf8');
                 assert.ok(
-                    src.indexOf("require('vendor/uuid')") === -1,
-                    f.name + ' still contains require(\'vendor/uuid\')'
+                    src.indexOf("uuid.v4") === -1,
+                    f.name + ' still contains a uuid.v4 shim call'
                 );
             });
 
-            it(f.name + ' uses crypto.randomUUID()', function() {
+            it(f.name + ' requires lib/uuid', function() {
                 var src = fs.readFileSync(f.path, 'utf8');
                 assert.ok(
-                    src.indexOf('crypto.randomUUID()') > -1,
-                    f.name + ' does not reference crypto.randomUUID()'
+                    src.indexOf("lib/uuid") > -1,
+                    f.name + ' does not require lib/uuid'
+                );
+            });
+
+            it(f.name + ' does not call crypto.randomUUID()', function() {
+                var src = fs.readFileSync(f.path, 'utf8');
+                assert.ok(
+                    src.indexOf('crypto.randomUUID()') === -1,
+                    f.name + ' still calls crypto.randomUUID()'
                 );
             });
         })(files[i]);
@@ -78,155 +89,149 @@ describe('01 - Source: no residual require(vendor/uuid) in server-side files', f
 });
 
 
-// ── 02 — Source inspection: frontend AMD modules ─────────────────────────────
+// ── 02 — Source inspection: frontend AMD modules use lib/uuid ──────────────
 
-describe('02 - Source: vendor/uuid removed from frontend AMD modules', function() {
+describe('02 - Source: frontend AMD modules use lib/uuid', function() {
 
-    var amdFiles = [
-        { name: 'core.js',         path: CORE_JS },
-        { name: 'main.js',         path: MAIN_JS },
-        { name: 'link/main.js',    path: LINK_JS },
-        { name: 'popin/main.js',   path: POPIN_JS },
-        { name: 'toolbar/main.js', path: TOOLBAR_JS }
-    ];
-
-    for (var i = 0; i < amdFiles.length; i++) {
-        (function(f) {
-            it(f.name + ' does not list vendor/uuid in define() deps', function() {
-                var src = fs.readFileSync(f.path, 'utf8');
-                // Check the define() call's dependency array
-                assert.ok(
-                    src.indexOf("'vendor/uuid'") === -1,
-                    f.name + ' still lists vendor/uuid in define() dependencies'
-                );
-            });
-
-            it(f.name + ' does not require vendor/uuid', function() {
-                var src = fs.readFileSync(f.path, 'utf8');
-                assert.ok(
-                    src.indexOf("require('vendor/uuid')") === -1,
-                    f.name + ' still contains require(\'vendor/uuid\')'
-                );
-            });
-        })(amdFiles[i]);
-    }
-
-    // Files that use uuid directly should call crypto.randomUUID()
-    var uuidCallers = [
+    var uuidConsumers = [
         { name: 'main.js',      path: MAIN_JS },
-        { name: 'link/main.js', path: LINK_JS },
-        { name: 'popin/main.js', path: POPIN_JS }
+        { name: 'link/main.js', path: LINK_JS }
     ];
 
-    for (var j = 0; j < uuidCallers.length; j++) {
+    for (var i = 0; i < uuidConsumers.length; i++) {
         (function(f) {
-            it(f.name + ' uses crypto.randomUUID() for ID generation', function() {
+            it(f.name + ' lists lib/uuid in define() deps', function() {
                 var src = fs.readFileSync(f.path, 'utf8');
                 assert.ok(
-                    src.indexOf('crypto.randomUUID()') > -1,
-                    f.name + ' does not call crypto.randomUUID()'
+                    src.indexOf("'lib/uuid'") > -1,
+                    f.name + ' does not list lib/uuid in define() dependencies'
                 );
             });
-        })(uuidCallers[j]);
+
+            it(f.name + ' requires lib/uuid', function() {
+                var src = fs.readFileSync(f.path, 'utf8');
+                assert.ok(
+                    src.indexOf("require('lib/uuid')") > -1,
+                    f.name + ' does not require lib/uuid'
+                );
+            });
+
+            it(f.name + ' does not call crypto.randomUUID()', function() {
+                var src = fs.readFileSync(f.path, 'utf8');
+                assert.ok(
+                    src.indexOf('crypto.randomUUID()') === -1,
+                    f.name + ' still calls crypto.randomUUID()'
+                );
+            });
+        })(uuidConsumers[i]);
     }
 });
 
 
 // ── 03 — Source inspection: RequireJS build configs ──────────────────────────
 
-describe('03 - Source: vendor/uuid removed from RequireJS build configs', function() {
+describe('03 - Source: lib/uuid registered in RequireJS build configs', function() {
 
-    it('build.json does not reference vendor/uuid path', function() {
+    it('build.json maps lib/uuid', function() {
         var src = fs.readFileSync(BUILD_JSON, 'utf8');
         assert.ok(
-            src.indexOf('"vendor/uuid"') === -1,
-            'build.json still maps vendor/uuid to a file path'
+            src.indexOf('"lib/uuid"') > -1,
+            'build.json does not map lib/uuid'
         );
     });
 
-    it('build.dev.json does not reference vendor/uuid path', function() {
+    it('build.dev.json maps lib/uuid', function() {
         var src = fs.readFileSync(BUILD_DEV_JSON, 'utf8');
         assert.ok(
-            src.indexOf('"vendor/uuid"') === -1,
-            'build.dev.json still maps vendor/uuid to a file path'
+            src.indexOf('"lib/uuid"') > -1,
+            'build.dev.json does not map lib/uuid'
         );
     });
+
+    it('build configs do not reference vendor/uuid', function() {
+        var src = fs.readFileSync(BUILD_JSON, 'utf8');
+        var srcDev = fs.readFileSync(BUILD_DEV_JSON, 'utf8');
+        assert.ok(src.indexOf('"vendor/uuid"') === -1, 'build.json still maps vendor/uuid');
+        assert.ok(srcDev.indexOf('"vendor/uuid"') === -1, 'build.dev.json still maps vendor/uuid');
+    });
 });
 
 
-// ── 04 — Functional: uuid.v4() shim produces valid UUIDs ───────────────────
+// ── 04 — Functional: lib/uuid produces valid base-62 IDs ──────────────────
 
-describe('04 - Functional: uuid.v4() shim produces valid v4 UUIDs', function() {
+describe('04 - Functional: lib/uuid produces valid base-62 IDs', function() {
 
-    // Replicate the exact shim used in cache and collection
-    var uuidShimV4Only = { v4: function() { return crypto.randomUUID(); } };
+    var uuid = require(UUID_SRC);
 
-    it('uuid.v4() returns a string', function() {
-        var id = uuidShimV4Only.v4();
+    it('uuid() returns a string', function() {
+        var id = uuid();
         assert.equal(typeof id, 'string');
     });
 
-    it('uuid.v4() matches the UUID v4 format', function() {
-        var id = uuidShimV4Only.v4();
-        assert.ok(UUID_V4_RE.test(id), 'Expected UUID v4 format, got: ' + id);
+    it('uuid() returns 4 characters by default', function() {
+        var id = uuid();
+        assert.equal(id.length, 4, 'Expected length 4, got: ' + id.length);
     });
 
-    it('uuid.v4() produces unique values across 100 calls', function() {
+    it('uuid() only contains base-62 characters', function() {
+        var id = uuid();
+        assert.ok(UUID_RE.test(id), 'Expected base-62 chars only, got: ' + id);
+    });
+
+    it('uuid(8) returns 8 characters', function() {
+        var id = uuid(8);
+        assert.equal(id.length, 8);
+        assert.ok(/^[0-9A-Za-z]{8}$/.test(id), 'Expected 8 base-62 chars, got: ' + id);
+    });
+
+    it('uuid() produces unique values across 1000 calls', function() {
         var seen = new Set();
-        for (var i = 0; i < 100; i++) {
-            seen.add(uuidShimV4Only.v4());
+        for (var i = 0; i < 1000; i++) {
+            seen.add(uuid());
         }
-        assert.equal(seen.size, 100, 'Expected 100 unique UUIDs');
+        // With 62^4 = ~14.7M possibilities, 1000 calls should have zero collisions
+        assert.equal(seen.size, 1000, 'Expected 1000 unique IDs, got: ' + seen.size);
+    });
+
+    it('uuid module exports a function (not an object)', function() {
+        assert.equal(typeof uuid, 'function');
     });
 });
 
 
-// ── 05 — Functional: uuid.v1() shim (storage) produces valid IDs ────────────
+// ── 05 — Functional: storage time-prefixed ID pattern ───────────────────────
 
-describe('05 - Functional: uuid.v1() shim produces valid time-prefixed UUIDs', function() {
+describe('05 - Functional: storage time-prefixed ID pattern (Date.now + uuid)', function() {
 
-    // Replicate the exact shim used in storage
-    var uuidShimFull = {
-        v1: function() { return Date.now().toString(36) + '-' + crypto.randomUUID(); },
-        v4: function() { return crypto.randomUUID(); }
-    };
+    var uuid = require(UUID_SRC);
 
-    it('uuid.v1() returns a string', function() {
-        var id = uuidShimFull.v1();
+    it('time-prefixed ID returns a string', function() {
+        var id = Date.now().toString(36) + '-' + uuid();
         assert.equal(typeof id, 'string');
     });
 
-    it('uuid.v1() contains a base36 timestamp prefix and a hyphen separator', function() {
-        var id = uuidShimFull.v1();
+    it('time-prefixed ID contains a base36 timestamp prefix and a hyphen separator', function() {
+        var id = Date.now().toString(36) + '-' + uuid();
         var parts = id.split('-');
-        // base36 timestamp is the first segment before the first hyphen
-        assert.ok(parts.length >= 2, 'Expected at least 2 segments separated by hyphens');
-        // First segment should be a valid base36 number
+        assert.ok(parts.length === 2, 'Expected 2 segments separated by a hyphen');
         var ts = parseInt(parts[0], 36);
         assert.ok(!isNaN(ts) && ts > 0, 'First segment should be a base36 timestamp, got: ' + parts[0]);
+        assert.ok(UUID_RE.test(parts[1]), 'Second segment should be a uuid, got: ' + parts[1]);
     });
 
-    it('uuid.v1() produces unique values across 100 calls', function() {
+    it('time-prefixed IDs are unique across 100 calls', function() {
         var seen = new Set();
         for (var i = 0; i < 100; i++) {
-            seen.add(uuidShimFull.v1());
+            seen.add(Date.now().toString(36) + '-' + uuid());
         }
-        assert.equal(seen.size, 100, 'Expected 100 unique UUIDs');
-    });
-
-    it('uuid.v1() timestamp prefix is monotonically non-decreasing', function() {
-        var id1 = uuidShimFull.v1();
-        var id2 = uuidShimFull.v1();
-        var ts1 = parseInt(id1.split('-')[0], 36);
-        var ts2 = parseInt(id2.split('-')[0], 36);
-        assert.ok(ts2 >= ts1, 'Second timestamp should be >= first');
+        assert.equal(seen.size, 100, 'Expected 100 unique IDs');
     });
 });
 
 
-// ── 06 — Functional: Cache uses uuid.v4() for entry IDs ─────────────────────
+// ── 06 — Functional: Cache uses uuid() for entry IDs ──────────────────────
 
-describe('06 - Functional: Cache generates valid IDs via crypto.randomUUID()', function() {
+describe('06 - Functional: Cache generates valid IDs via uuid()', function() {
 
     var helpers = require(path.join(FW, 'helpers'));
     var Cache = require(CACHE_SRC);
@@ -247,7 +252,7 @@ describe('06 - Functional: Cache generates valid IDs via crypto.randomUUID()', f
 // We test _uuid by: (a) accessing entries directly (before toRaw), and
 // (b) verifying entries with pre-existing _uuid are preserved through toRaw.
 
-describe('07 - Functional: Collection generates valid _uuid via crypto.randomUUID()', function() {
+describe('07 - Functional: Collection generates valid _uuid via uuid()', function() {
 
     var helpers = require(path.join(FW, 'helpers'));
     var Collection = require(COLLECTION_SRC);
@@ -255,19 +260,18 @@ describe('07 - Functional: Collection generates valid _uuid via crypto.randomUUI
     it('Collection assigns _uuid internally during construction', function() {
         var data = [{ name: 'Alice' }, { name: 'Bob' }];
         var col = new Collection(data);
-        // Access entries directly (col is array-like) — _uuid exists before toRaw strips it
         for (var i = 0; i < col.length; i++) {
             assert.ok(col[i]._uuid, 'Entry ' + i + ' should have a _uuid field');
             assert.equal(typeof col[i]._uuid, 'string');
         }
     });
 
-    it('Collection _uuid fields match UUID v4 format (pre-toRaw)', function() {
+    it('Collection _uuid fields match uuid base-62 format (pre-toRaw)', function() {
         var data = [{ name: 'Test' }];
         var col = new Collection(data);
         assert.ok(
-            UUID_V4_RE.test(col[0]._uuid),
-            'Expected UUID v4 format, got: ' + col[0]._uuid
+            UUID_RE.test(col[0]._uuid),
+            'Expected 4-char base-62 uuid, got: ' + col[0]._uuid
         );
     });
 
@@ -289,9 +293,7 @@ describe('07 - Functional: Collection generates valid _uuid via crypto.randomUUI
         ];
         var col = new Collection(data);
         var raw = col.toRaw();
-        // Generated _uuid should be stripped
         assert.equal(raw[0]._uuid, undefined, 'Generated _uuid should be stripped by toRaw()');
-        // Pre-existing _uuid should be preserved
         assert.equal(raw[1]._uuid, 'my-custom-uuid', 'Pre-existing _uuid should survive toRaw()');
     });
 });
