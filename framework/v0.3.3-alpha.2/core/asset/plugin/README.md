@@ -202,14 +202,13 @@ socket.on('open', function(){
 ### uuid
 
 ```javascript
-var uuid = require('uuid');
-console.log('id -> ', uuid.v4() )
+var uuid = require('lib/uuid');
+uuid();    // 'aB3x'  (4 chars, base-62 default)
+uuid(8);   // 'kQ7mZp2R'
+
+// Custom alphabet
+var hex = uuid.customAlphabet('0123456789abcdef', 8);
+hex();     // 'f47ac10b'
 ```
 
-Sample output
-
-```tty
-id ->  f66f698f-9e17-41f9-a3f2-a25b38d6e379
-```
-
-Reference: visite the official [repository](https://github.com/broofa/node-uuid)
+Lightweight, zero-dependency ID generator using `crypto.getRandomValues` with bitmask bias avoidance.
