@@ -1,8 +1,9 @@
-define('gina/link', [ 'require', 'lib/domain', 'lib/merge', 'utils/events' ], function (require) {
+define('gina/link', [ 'require', 'lib/domain', 'lib/merge', 'lib/uuid', 'utils/events' ], function (require) {
 
     var Domain          = require('lib/domain');
     var domainInstance  = null;
     var merge           = require('lib/merge');
+    var uuid            = require('lib/uuid');
 
     require('utils/events'); // events
 
@@ -32,7 +33,7 @@ define('gina/link', [ 'require', 'lib/domain', 'lib/merge', 'utils/events' ], fu
 
         var instance        = {
             plugin          : this.plugin,
-            id              : 'gina-links-' + crypto.randomUUID(),
+            id              : 'gina-links-' + uuid(),
             on              : on,
             eventData       : {},
 
@@ -375,7 +376,7 @@ define('gina/link', [ 'require', 'lib/domain', 'lib/merge', 'utils/events' ], fu
 
                     // }
 
-                    elId = 'link.click.'+ 'gina-link-' + instance.id +'-'+ crypto.randomUUID();
+                    elId = 'link.click.'+ 'gina-link-' + instance.id +'-'+ uuid();
                 }
                 $el['id']   = elId;
                 props.id    = elId;
@@ -436,7 +437,7 @@ define('gina/link', [ 'require', 'lib/domain', 'lib/merge', 'utils/events' ], fu
                 addListener(gina, instance.target, evt, function(event) {
 
                     if ( typeof(event.target.id) == 'undefined' ) {
-                        event.target.setAttribute('id', evt +'.'+ crypto.randomUUID() );
+                        event.target.setAttribute('id', evt +'.'+ uuid() );
                         event.target.id = event.target.getAttribute('id')
                     }
 

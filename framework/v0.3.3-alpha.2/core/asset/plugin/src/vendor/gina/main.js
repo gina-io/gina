@@ -1,10 +1,11 @@
-define('gina', [ 'require', 'lib/merge', 'lib/routing', 'utils/events', 'helpers/prototypes', 'helpers/dateFormat' ], function (require) {
+define('gina', [ 'require', 'lib/merge', 'lib/uuid', 'lib/routing', 'utils/events', 'helpers/prototypes', 'helpers/dateFormat' ], function (require) {
 
     /**
      * Imports & definitions
      * */
     var eventsHandler   = require('utils/events'); // events handler
     var merge           = require('lib/merge');
+    var uuid            = require('lib/uuid');
     var routing         = require('lib/routing');
     var dateFormat      = require('helpers/dateFormat')();
     var prototypes      = require('helpers/prototypes')({ dateFormat: dateFormat });
@@ -61,7 +62,7 @@ define('gina', [ 'require', 'lib/merge', 'lib/routing', 'utils/events', 'helpers
 
         // instance proto
         var proto           = {
-            'id'                : 'gina-' + crypto.randomUUID(),
+            'id'                : 'gina-' + uuid(),
 
             'plugin'            : this.plugin,
             'on'                : on,

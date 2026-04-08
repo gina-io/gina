@@ -3,7 +3,7 @@
 const fs      = require('fs');
 // const util                = require('util');
 const net     = require('net');
-const { randomUUID } = require('crypto');
+var uuid = require('../../../../uuid');
 
 function MQListener(opt, cb) {
     var self = {
@@ -154,7 +154,7 @@ function MQListener(opt, cb) {
         var host = opt.hostV4;
         var server = net.createServer( function(conn) {//'connection' listener
 
-            conn.sessionId = randomUUID();
+            conn.sessionId = uuid();
             // conn.request = 'report'; // by default
             sessions[conn.sessionId] = conn;
             conn.write(JSON.stringify({ sessionId: conn.sessionId }) +'\r\n' );

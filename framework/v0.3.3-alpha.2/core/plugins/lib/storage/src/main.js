@@ -9,7 +9,7 @@ function StoragePlugin(options) {
 
     var merge       = merge || require('lib/merge');;
     var Collection  = Collection || require('lib/collection');
-    var uuid        = { v1: function() { return Date.now().toString(36) + '-' + crypto.randomUUID(); }, v4: function() { return crypto.randomUUID(); } };
+    var uuid        = uuid || require('lib/uuid');
     var dateFormat  = dateFormat || require('helpers/dateFormat');
 
 
@@ -224,7 +224,7 @@ function StoragePlugin(options) {
     function collectionInsert(content) {
 
         // TODO - add uuid
-        content['_id']         = uuid.v1();
+        content['_id']         = Date.now().toString(36) + '-' + uuid();
         content['_createdAt']  = new Date().format("isoDateTime");
         content['_updatedAt']  = new Date().format("isoDateTime");
 
@@ -418,7 +418,7 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
     // Publish as node.js module
     var merge       = require('lib/merge'); //require('../../../../../lib/merge');
     var Collection  = require('lib/collection'); //require('../../../../../lib/collection');
-    var uuid        = { v1: function() { return Date.now().toString(36) + '-' + crypto.randomUUID(); }, v4: function() { return crypto.randomUUID(); } };
+    var uuid        = require('lib/uuid');
 
     module.exports = StoragePlugin
 

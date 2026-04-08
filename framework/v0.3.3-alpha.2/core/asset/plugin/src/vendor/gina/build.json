@@ -21,6 +21,7 @@
     "lib/domain"          : "../../../../lib/domain/src/main",
     "lib/merge"           : "../../../../lib/merge/src/main",
     "lib/inherits"        : "../../../../lib/inherits/src/main",
+    "lib/uuid"            : "../../../../lib/uuid/src/main",
     "lib/routing"         : "../../../../lib/routing/src/main",
     "lib/form-validator"  : "../../../../core/plugins/lib/validator/src/form-validator",
 

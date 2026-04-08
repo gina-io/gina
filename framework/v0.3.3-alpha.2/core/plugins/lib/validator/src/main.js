@@ -6,7 +6,7 @@
  *  - lib/merge
  *  - utils/events
  *  - utils/data
- *  - vendor/uuid
+ *  - lib/uuid
  *
  * Additional helpers for the backend are located in framwework/v{version}/helpers/plugins/validator-*.js
  *
@@ -92,7 +92,7 @@ function ValidatorPlugin(rules, data, formId) {
         require('../../../../../helpers/data');
     }
 
-    var uuid            = { v1: function() { return Date.now().toString(36) + '-' + crypto.randomUUID(); }, v4: function() { return crypto.randomUUID(); } };
+    var uuid            = (isGFFCtx) ? require('lib/uuid') : require('../../../../../lib/uuid');
     var merge           = (isGFFCtx) ? require('lib/merge') : require('../../../../../lib/merge');
     var inherits        = (isGFFCtx) ? require('lib/inherits') : require('../../../../../lib/inherits');
     var FormValidator   = (isGFFCtx) ? require('lib/form-validator') : require('./form-validator');
@@ -102,7 +102,7 @@ function ValidatorPlugin(rules, data, formId) {
 
     /** definitions */
     var instance    = {
-        'id'                : 'validator-' + uuid.v4(),
+        'id'                : 'validator-' + uuid(),
 
         'plugin'            : this.plugin,
         'on'                : (isGFFCtx) ? on : null,
@@ -351,7 +351,7 @@ function ValidatorPlugin(rules, data, formId) {
         } else if ( typeof(_id) == 'object' && !Array.isArray(_id) ) { // weird exception
 
             $target = _id.form;
-            _id = $target.getAttribute('id') || 'form.'+uuid.v4();
+            _id = $target.getAttribute('id') || 'form.'+uuid();
 
             $target.setAttribute('id', _id);// just in case
 
@@ -1686,7 +1686,7 @@ function ValidatorPlugin(rules, data, formId) {
                         if (hasBinaries && binaries.length > 0) {
 
                             // We need a separator to define each part of the request
-                            var boundary = '--ginaWKBoundary' + uuid.v4().replace(/\-/g, '');
+                            var boundary = '--ginaWKBoundary' + uuid();
 
 
                             return processFiles(binaries, boundary, '', 0, function onComplete(err, data, done) {
@@ -2354,7 +2354,7 @@ function ValidatorPlugin(rules, data, formId) {
             _id = _id.replace(/\#/, '')
         } else if ( typeof(_id) == 'object' && !Array.isArray(_id) ) { // weird exception
             var $target = _id.form;
-            _id = $target.getAttribute('id') || 'form.'+uuid.v4();
+            _id = $target.getAttribute('id') || 'form.'+uuid();
 
             $target.setAttribute('id', _id);// just in case
 
@@ -2578,12 +2578,12 @@ function ValidatorPlugin(rules, data, formId) {
                     // preparing prototype (need at least an ID for this)
 
                     if ($allForms[f].getAttribute) {
-                        id = $allForms[f].getAttribute('id') || 'form.' + uuid.v4();
+                        id = $allForms[f].getAttribute('id') || 'form.' + uuid();
                         if ( id !== $allForms[f].getAttribute('id') ) {
                             $allForms[f].setAttribute('id', id)
                         }
                     } else {
-                        id = 'form.' + uuid.v4();
+                        id = 'form.' + uuid();
                         $allForms[f].setAttribute('id', id)
                     }
 
@@ -2632,7 +2632,7 @@ function ValidatorPlugin(rules, data, formId) {
                             if ( typeof($allForms[f].id) == 'object' ) {
                                 delete instance.$forms[$allForms[f].id];
 
-                                var _id = $allForms[f].attributes.getNamedItem('id').nodeValue || 'form.'+uuid.v4();
+                                var _id = $allForms[f].attributes.getNamedItem('id').nodeValue || 'form.'+uuid();
 
                                 $allForms[f].setAttribute('id', _id);
                                 $allForms[f]['id'] = _id;
@@ -2696,12 +2696,12 @@ function ValidatorPlugin(rules, data, formId) {
         ;
 
         if ($form.getAttribute) {
-            id = $form.getAttribute('id') || 'form.' + uuid.v4();
+            id = $form.getAttribute('id') || 'form.' + uuid();
             if (id !== $form.getAttribute('id')) {
                 $form.setAttribute('id', id)
             }
         } else {
-            id = 'form.' + uuid.v4();
+            id = 'form.' + uuid();
             $form.setAttribute('id', id)
         }
 
@@ -2738,7 +2738,7 @@ function ValidatorPlugin(rules, data, formId) {
                 if (typeof ($form.id) == 'object') {
                     delete instance.$forms[$form.id];
 
-                    var _id = $form.attributes.getNamedItem('id').nodeValue || 'form.' + uuid.v4();
+                    var _id = $form.attributes.getNamedItem('id').nodeValue || 'form.' + uuid();
 
                     $form.setAttribute('id', _id);
                     $form.id = _id;
@@ -4256,7 +4256,7 @@ function ValidatorPlugin(rules, data, formId) {
         //         if ( $target.isPopinContext ) {
         //             elId = ( isPopinClick ) ? 'popin.click.' : 'popin.link.';
         //         }
-        //         elId += uuid.v4();
+        //         elId += uuid();
         //         $a[f].setAttribute('id', elId)
         //     }
         // }
@@ -4267,7 +4267,7 @@ function ValidatorPlugin(rules, data, formId) {
             checkForRuleAlias($form.rules, $textareas[f]);
             elId = $textareas[f].getAttribute('id');
             if (!elId || elId == '') {
-                elId = 'textareas.' + uuid.v4();
+                elId = 'textareas.' + uuid();
                 $textareas[f].setAttribute('id', elId)
             }
             if (!$form.fieldsSet[ elId ]) {
@@ -4299,7 +4299,7 @@ function ValidatorPlugin(rules, data, formId) {
             checkForRuleAlias($form.rules, $inputs[f]);
             elId = $inputs[f].getAttribute('id');
             if (!elId || elId == '') {
-                elId = 'input.' + uuid.v4();
+                elId = 'input.' + uuid();
                 $inputs[f].setAttribute('id', elId)
             }
 
@@ -4685,7 +4685,7 @@ function ValidatorPlugin(rules, data, formId) {
                                             // create input & add it to the form
                                             $newVirtualField = document.createElement('input');
                                             $newVirtualField.type = 'hidden';
-                                            $newVirtualField.id = 'input.' + uuid.v4();
+                                            $newVirtualField.id = 'input.' + uuid();
                                             $newVirtualField.name = _name;
                                             $newVirtualField.value = '';
 
@@ -4885,7 +4885,7 @@ function ValidatorPlugin(rules, data, formId) {
             if (elId && /^gina\-toolbar/.test(elId)) continue;
 
             if (!elId || elId == '') {
-                elId = 'select.' + uuid.v4();
+                elId = 'select.' + uuid();
                 $select[s].setAttribute('id', elId)
             }
 
@@ -5269,7 +5269,7 @@ function ValidatorPlugin(rules, data, formId) {
             type    = $inputs[i].getAttribute('type');
 
             if ( typeof($inputs[i].id) == 'undefined' || $inputs[i].id == '' ) {
-                $inputs[i].id = type +'-'+ uuid.v4();
+                $inputs[i].id = type +'-'+ uuid();
                 $inputs[i].setAttribute('id', $inputs[i].id)
             }
 
@@ -5612,7 +5612,7 @@ function ValidatorPlugin(rules, data, formId) {
                     }
                     // safety checking
                     if ( typeof($el.id) == 'undefined' || !$el.getAttribute('id') ) {
-                        $el.setAttribute('id', 'click.' + uuid.v4() );
+                        $el.setAttribute('id', 'click.' + uuid() );
                         $el.id = $el.getAttribute('id')
                     } else {
                         $el.id = $el.getAttribute('id')
@@ -5818,7 +5818,7 @@ function ValidatorPlugin(rules, data, formId) {
                     && !gina.popinIsBinded
                     && !/gina\-link/.test($buttonsTMP[b].className)
                 ) { // will not be binded but will receive an id if not existing
-                    linkId = 'link.'+ uuid.v4();
+                    linkId = 'link.'+ uuid();
                     $buttonsTMP[b].id = linkId;
                 }
             }
@@ -5848,7 +5848,7 @@ function ValidatorPlugin(rules, data, formId) {
                 }
 
                 if ( typeof($submit.id) == 'undefined' || typeof($submit.id) != 'undefined' && $submit.id == "" ) {
-                    $submit.id = 'click.'+uuid.v4();
+                    $submit.id = 'click.'+uuid();
                     $submit.setAttribute('id', $submit.id);
                 }
 
@@ -5891,7 +5891,7 @@ function ValidatorPlugin(rules, data, formId) {
             }
 
             if (!$submit['id']) {
-                evt             = 'click.'+ uuid.v4();
+                evt             = 'click.'+ uuid();
                 $submit['id']   = evt;
                 $submit.setAttribute( 'id', evt);
             } else {

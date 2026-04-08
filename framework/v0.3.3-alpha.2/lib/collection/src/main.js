@@ -12,7 +12,7 @@ if ( typeof(module) !== 'undefined' && module.exports ) {
  * `Collection.length` returns entry count — do not use `.count()` as it
  * includes function properties in the count.
  *
- * Dependencies: `lib/merge`, `uuid`
+ * Dependencies: `lib/merge`, `lib/uuid`
  */
 
 /**
@@ -53,7 +53,7 @@ if ( typeof(module) !== 'undefined' && module.exports ) {
 function Collection(content, options) {
 
     var isGFFCtx        = ( ( typeof(module) !== 'undefined' ) && module.exports ) ? false : true;
-    var uuid            = { v4: function() { return crypto.randomUUID(); } };
+    var uuid            = (isGFFCtx) ? require('lib/uuid') : require('../../../lib/uuid');
     var merge           = (isGFFCtx) ? require('lib/merge') : require('../../../lib/merge');
 
     // defined search option rules
@@ -110,7 +110,7 @@ function Collection(content, options) {
         if ( typeof(content[entry]._uuid) != 'undefined' ) {
             content[entry]._hasItsOwnUuid = true;
         } else {
-            content[entry]._uuid = uuid.v4();
+            content[entry]._uuid = uuid();
         }
 
         // To avoid duplicate entries
@@ -871,7 +871,7 @@ function Collection(content, options) {
             var tmpContent = Array.isArray(this) ? this : content;
 
             // Indexing;
-            set._uuid = uuid.v4();
+            set._uuid = uuid();
             tmpContent.push(set);
 
             result = tmpContent;
