@@ -5862,3 +5862,159 @@ describe('48 - Live index introspection (#QI2)', function() {
         );
     });
 });
+
+
+// ── 49 — explainForIndexes: dual conn shape resolution and error safety ──────
+
+describe('49 - explainForIndexes: dual conn shape and error safety', function() {
+
+    var CB_SRC_49 = path.join(FW, 'core/connectors/couchbase/index.js');
+    var _cbSrc49;
+    function getCbSrc49() { return _cbSrc49 || (_cbSrc49 = fs.readFileSync(CB_SRC_49, 'utf8')); }
+
+    function getExplainBlock() {
+        var src = getCbSrc49();
+        var idx = src.indexOf('var explainForIndexes = function');
+        return src.substring(idx, idx + 2000);
+    }
+
+    // ── cluster resolution from two conn shapes ──
+
+    it('resolves cluster from conn._cluster (entity query path)', function() {
+        var block = getExplainBlock();
+        assert.ok(
+            /conn\._cluster/.test(block),
+            'expected conn._cluster probe for entity query path'
+        );
+    });
+
+    it('resolves cluster from conn._scope._bucket._cluster (bulk insert path)', function() {
+        var block = getExplainBlock();
+        assert.ok(
+            /conn\._scope.*\._bucket.*\._cluster/.test(block),
+            'expected conn._scope._bucket._cluster probe for bulk insert path'
+        );
+    });
+
+    it('checks conn._cluster first (direct path takes priority)', function() {
+        var block = getExplainBlock();
+        var directIdx = block.indexOf('conn._cluster');
+        var nestedIdx = block.indexOf('conn._scope');
+        assert.ok(directIdx > -1 && nestedIdx > -1);
+        assert.ok(
+            directIdx < nestedIdx,
+            'conn._cluster must be checked before conn._scope._bucket._cluster'
+        );
+    });
+
+    // ── graceful fallback when cluster cannot be resolved ──
+
+    it('returns early with a warning when cluster is null', function() {
+        var block = getExplainBlock();
+        assert.ok(
+            /!cluster/.test(block),
+            'expected null cluster guard'
+        );
+        assert.ok(
+            block.indexOf('console.warn') > -1,
+            'expected console.warn for unresolvable cluster'
+        );
+        // Must return before setting cache or calling query
+        var guardIdx = block.indexOf('!cluster');
+        var returnIdx = block.indexOf('return;', guardIdx);
+        var cacheSetIdx = block.indexOf('_explainCache.set(statement, null)', guardIdx);
+        assert.ok(
+            returnIdx > -1 && returnIdx < cacheSetIdx,
+            'must return before marking cache as pending'
+        );
+    });
+
+    it('validates cluster.query is a function', function() {
+        var block = getExplainBlock();
+        assert.ok(
+            /typeof.*cluster\.query.*!==?\s*'function'/.test(block) ||
+            /typeof\(cluster\.query\)\s*!==?\s*'function'/.test(block),
+            'expected typeof cluster.query check'
+        );
+    });
+
+    // ── try/catch wraps the cluster.query() call ──
+
+    it('wraps cluster.query() in try/catch for synchronous error safety', function() {
+        var block = getExplainBlock();
+        var queryIdx = block.indexOf('cluster.query(');
+        assert.ok(queryIdx > -1, 'expected cluster.query() call');
+        // try must appear before the query call
+        var tryIdx = block.lastIndexOf('try {', queryIdx);
+        assert.ok(tryIdx > -1, 'expected try block before cluster.query()');
+        // catch must appear after
+        var catchIdx = block.indexOf('catch (_explainErr)', queryIdx);
+        assert.ok(catchIdx > -1, 'expected catch (_explainErr) after cluster.query()');
+    });
+
+    it('try/catch sets cache to null on synchronous error', function() {
+        var block = getExplainBlock();
+        var catchIdx = block.indexOf('catch (_explainErr)');
+        assert.ok(catchIdx > -1);
+        var catchBlock = block.substring(catchIdx, catchIdx + 200);
+        assert.ok(
+            catchBlock.indexOf('_explainCache.set(statement, null)') > -1,
+            'expected cache set to null in catch block'
+        );
+    });
+
+    it('try/catch logs the error message', function() {
+        var block = getExplainBlock();
+        var catchIdx = block.indexOf('catch (_explainErr)');
+        assert.ok(catchIdx > -1);
+        var catchBlock = block.substring(catchIdx, catchIdx + 200);
+        assert.ok(
+            catchBlock.indexOf('console.warn') > -1,
+            'expected console.warn in catch block'
+        );
+    });
+
+    // ── both call sites are safe ──
+
+    it('entity query call site (onQueryCallback) calls explainForIndexes without external try/catch', function() {
+        var src = getCbSrc49();
+        // Find the first call site (onQueryCallback path) — not inside a try/catch wrapper
+        var firstCallIdx = src.indexOf('explainForIndexes(conn,');
+        assert.ok(firstCallIdx > -1, 'expected first call site');
+        // Should NOT have "try {" wrapping it — the function handles errors internally
+        var preceding = src.substring(Math.max(0, firstCallIdx - 80), firstCallIdx);
+        assert.ok(
+            preceding.indexOf('try {') === -1 || preceding.indexOf('try {') < preceding.indexOf('\n'),
+            'entity query call site should not need external try/catch'
+        );
+    });
+
+    it('bulk insert call site calls explainForIndexes without external try/catch', function() {
+        var src = getCbSrc49();
+        // Find the second call site (bulkInsert path)
+        var firstCallIdx = src.indexOf('explainForIndexes(conn,');
+        var secondCallIdx = src.indexOf('explainForIndexes(conn,', firstCallIdx + 1);
+        assert.ok(secondCallIdx > -1, 'expected second call site in bulkInsert');
+        // Should NOT have external try/catch — internal handling is sufficient
+        var preceding = src.substring(Math.max(0, secondCallIdx - 80), secondCallIdx);
+        assert.ok(
+            preceding.indexOf('try {') === -1 || preceding.indexOf('try {') < preceding.indexOf('\n'),
+            'bulk insert call site should not need external try/catch'
+        );
+    });
+
+    // ── uses resolved cluster variable, not conn._cluster directly ──
+
+    it('calls cluster.query() not conn._cluster.query()', function() {
+        var block = getExplainBlock();
+        // After the resolution block, the actual query call should use the resolved `cluster` var
+        var queryCallIdx = block.indexOf('cluster.query(');
+        assert.ok(queryCallIdx > -1, 'expected cluster.query() call');
+        // There should be no conn._cluster.query() after the resolution
+        var directCallIdx = block.indexOf('conn._cluster.query(');
+        assert.ok(
+            directCallIdx === -1,
+            'should use resolved cluster variable, not conn._cluster.query() directly'
+        );
+    });
+});
