@@ -43,8 +43,8 @@ Stub commands confirmed in source — handler files exist but are empty or comme
 | Status | Feature | Version | Target |
 | --- | --- | --- | --- |
 | ✅ | **`project:start` / `project:stop` / `project:restart`** — Start, stop, or restart all bundles in a project with one command. Each delegates to `gina bundle:start/stop/restart @<project>` (bulk mode). `start` and `restart` accept `--env`, `--scope`, `--inspect-brk` (flags forwarded). 41 unit tests. | `0.3.0-alpha.1` | 2026-04-02 |
-| 📋 | **`framework:get`** — Read one or all keys from `~/.gina/settings.json`. Completes the `gina set` / `gina get` pair. Handler is 0 lines; workaround is `env:get`. | `0.3.0` | Q3 2026 |
-| 📋 | **`port:set`** — Set or update a specific port for a bundle/env/protocol/scheme combination without a full `port:reset`. Syntax: `gina port:set <protocol>:<port> <bundle> @<project>/<env>`. Handler is 0 lines despite being documented in `port/help.txt`. | `0.3.0` | Q3 2026 |
+| ✅ | **`framework:get`** — Read one or all keys from `~/.gina/settings.json`. Completes the `gina set` / `gina get` pair. Supports `--flag`, bare key names, and `all` keyword. | `0.3.3-alpha.2` | 2026-04-08 |
+| ✅ | **`port:set`** — Set or update a specific port for a bundle/env/protocol/scheme combination without a full `port:reset`. Positional syntax: `gina port:set <protocol>:<port> <bundle> @<project>/<env>`. Flag syntax: `--protocol=`, `--scheme=`, `--port=`, `--env=`. Prompts interactively for missing values. | `0.3.3-alpha.2` | 2026-04-08 |
 
 ### Tier 2 — `0.4.0`
 

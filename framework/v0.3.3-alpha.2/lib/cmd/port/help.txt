@@ -49,8 +49,13 @@
     or
 
     $ gina port:set <protocol>:<port_number> <bundle_name> @<project_name>/<environment>
-    
-        
+
+    Flag syntax (equivalent):
+
+    $ gina port:set <bundle_name> @<project_name> --protocol=<protocol> --scheme=<scheme> --port=<port_number> --env=<environment>
+
+    Ports 4100-4199 are reserved for Gina infrastructure and will be rejected.
+
 [ Listing port numbers ]
 
     $ gina port:list <bundle_name> @<project_name>

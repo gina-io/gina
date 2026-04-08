@@ -1,0 +1,3 @@
+kind: Added
+body: "Implement `port:set` CLI command — set or update a port number for a bundle/environment/protocol/scheme combination. Supports both positional syntax (`gina port:set http/1.1:3200 frontend @myproject/dev`) and flag syntax (`--protocol=`, `--scheme=`, `--port=`, `--env=`), with interactive prompts for missing values."
+time: 2026-04-08T12:00:01.000000+01:00

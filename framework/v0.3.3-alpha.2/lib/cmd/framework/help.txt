@@ -21,11 +21,16 @@ $ gina service:man
 
 
 *
-* Settings - Modifies ~/home/.gina/settings.json
+* Settings - Reads/Modifies ~/home/.gina/settings.json
 *
 
 $ gina set --key=value ( eg: gina set --defaultEnv=dev )
-$ gina get --key | key ( eg: gina get defaultEnv)
-$ gina get --all | all ( eg: gina get all)
+
+$ gina get --key | key ( eg: gina get defaultEnv )
+$ gina get --key1 --key2 ( eg: gina get --port --env )
+$ gina get --all | all ( eg: gina get all )
+
+    Shorthand `gina get` is equivalent to `gina framework:get`.
+    Shorthand `gina set` is equivalent to `gina framework:set`.
 
 $ gina <service|bundle>:<action> <arguments>
