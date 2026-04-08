@@ -11,9 +11,13 @@
  *
  * @example
  * var uuid = require('lib/uuid');
- * uuid();    // 'aB3x'  (4 chars, default)
+ * uuid();    // 'aB3x'  (4 chars, base-62 default)
  * uuid(8);   // 'kQ7mZp2R'
- * uuid(21);  // 'V1StGXR8_Z5jdHi6B-myT'
+ *
+ * // Custom alphabet
+ * var hex = uuid.customAlphabet('0123456789abcdef', 8);
+ * hex();     // 'f47ac10b'  (8 chars, hex)
+ * hex(4);    // 'a3f1'      (override length)
  *
  * @param {number} [size=4] - Length of the generated ID
  * @returns {string} Random string of `size` characters from the base-62 alphabet
@@ -43,6 +47,38 @@ function uuid(size) {
         }
     }
 }
+
+/**
+ * Create a generator function for a custom alphabet and default size.
+ *
+ * @param {string} alphabet - Characters to use (e.g. '0123456789abcdef')
+ * @param {number} [defaultSize=4] - Default length when the returned function is called without arguments
+ * @returns {function(number=): string} Generator function
+ */
+uuid.customAlphabet = function(alphabet, defaultSize) {
+    defaultSize = defaultSize || 4;
+    // Compute bitmask: smallest (2^n - 1) >= alphabet.length - 1
+    var mask = 1;
+    while (mask < alphabet.length - 1) mask = (mask << 1) | 1;
+    // Step: enough random bytes per iteration to fill `defaultSize` with ~60% overhead
+    var step = Math.ceil(1.6 * (mask + 1) * defaultSize / alphabet.length);
+    if (step < 5) step = 5;
+
+    return function(size) {
+        size = size || defaultSize;
+        var id = '';
+        while (true) {
+            var bytes = crypto.getRandomValues(new Uint8Array(step));
+            for (var j = 0; j < step; j++) {
+                var idx = bytes[j] & mask;
+                if (idx < alphabet.length) {
+                    id += alphabet[idx];
+                    if (id.length === size) return id;
+                }
+            }
+        }
+    };
+};
 
 
 if ( ( typeof(module) !== 'undefined' ) && module.exports ) {

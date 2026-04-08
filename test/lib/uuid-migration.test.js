@@ -196,6 +196,68 @@ describe('04 - Functional: lib/uuid produces valid base-62 IDs', function() {
     it('uuid module exports a function (not an object)', function() {
         assert.equal(typeof uuid, 'function');
     });
+
+    it('uuid.customAlphabet is a function', function() {
+        assert.equal(typeof uuid.customAlphabet, 'function');
+    });
+});
+
+
+// ── 04b — Functional: uuid.customAlphabet ──────────────────────────────────
+
+describe('04b - Functional: uuid.customAlphabet', function() {
+
+    var uuid = require(UUID_SRC);
+
+    it('customAlphabet returns a function', function() {
+        var gen = uuid.customAlphabet('abc', 6);
+        assert.equal(typeof gen, 'function');
+    });
+
+    it('hex generator produces only hex characters', function() {
+        var hex = uuid.customAlphabet('0123456789abcdef', 8);
+        for (var i = 0; i < 100; i++) {
+            var id = hex();
+            assert.equal(id.length, 8, 'Expected length 8, got: ' + id.length);
+            assert.ok(/^[0-9a-f]{8}$/.test(id), 'Expected hex chars only, got: ' + id);
+        }
+    });
+
+    it('custom generator respects default size', function() {
+        var gen = uuid.customAlphabet('ABCDEF', 12);
+        var id = gen();
+        assert.equal(id.length, 12);
+    });
+
+    it('custom generator allows size override', function() {
+        var gen = uuid.customAlphabet('ABCDEF', 4);
+        var id = gen(20);
+        assert.equal(id.length, 20);
+    });
+
+    it('custom generator produces unique values across 1000 calls', function() {
+        var gen = uuid.customAlphabet('0123456789abcdef', 8);
+        var seen = new Set();
+        for (var i = 0; i < 1000; i++) {
+            seen.add(gen());
+        }
+        assert.equal(seen.size, 1000, 'Expected 1000 unique IDs, got: ' + seen.size);
+    });
+
+    it('binary alphabet (2 chars) works without bias', function() {
+        var bin = uuid.customAlphabet('01', 16);
+        var id = bin();
+        assert.equal(id.length, 16);
+        assert.ok(/^[01]{16}$/.test(id), 'Expected binary chars only, got: ' + id);
+    });
+
+    it('large alphabet (64 chars) works', function() {
+        var alpha = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+        var gen = uuid.customAlphabet(alpha, 6);
+        var id = gen();
+        assert.equal(id.length, 6);
+        assert.ok(/^[A-Za-z0-9+/]{6}$/.test(id), 'Unexpected chars in: ' + id);
+    });
 });
 
 
