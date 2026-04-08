@@ -13,7 +13,7 @@
  * Instructions for closure compiler: https://github.com/google/closure-compiler/wiki/@suppress-annotations
  * */
 
-window['originalContext']   = null; // removed: jquery dependency
+window['originalContext']   = null;
 
 /**
  * onGinaLoaded
