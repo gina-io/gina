@@ -12,5 +12,8 @@
         "-ln" : "link",
         "--link" : "link",
         "--link-node-modules": "link-node-modules"
+    },
+    "bundle" : {
+        "oas" : "openapi"
     }
 }

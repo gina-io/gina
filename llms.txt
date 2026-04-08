@@ -363,6 +363,31 @@ Counters are live — no restart required. `activeSessions` is bounded by ≥ 0.
 
 ---
 
+## OpenAPI spec generation
+
+`gina bundle:openapi <bundle> @<project>` reads `routing.json` and emits an OpenAPI 3.1.0 `openapi.json` in the bundle's `config/` directory. No manual spec writing required.
+
+Mapping from routing.json to OpenAPI:
+
+| routing.json field | OpenAPI equivalent |
+| --- | --- |
+| `url` (`:param` syntax) | `paths` (`{param}` syntax) |
+| `method` | HTTP operations under each path |
+| `param.control` | `operationId` |
+| `namespace` | `tags` |
+| `requirements` (regex) | `parameters[].schema.pattern` |
+| `requirements` (pipe-separated) | `parameters[].schema.enum` |
+| `_comment` | operation `description` |
+| `_sample` | `x-sample-url` extension |
+| `param.title` | operation `summary` |
+| `middleware` | `x-middleware` extension |
+| `cache` | `Cache-Control` response header docs |
+| `param.code` + `param.path` (redirects) | 3xx response with `Location` header |
+
+To enrich the generated spec, add `_comment` (description) and `_sample` (example URL) fields to your routes. The `namespace` field groups operations into tags.
+
+---
+
 ## Project config files
 
 | File | Location | Purpose |
@@ -420,6 +445,9 @@ gina bundle:add <bundle> @<project>     # Scaffold a new bundle (overwrites exis
 gina bundle:add <bundle> @<project> --import  # Register existing bundle (preserves src)
 gina bundle:remove <bundle> @<project>  # Remove a bundle
 gina bundle:list @<project>             # List bundles
+gina bundle:openapi <bundle> @<project> # Generate OpenAPI 3.1.0 spec from routing.json
+gina bundle:oas <bundle> @<project>     # Alias for bundle:openapi
+gina bundle:openapi @<project> --output=/path/to/spec.json  # Custom output path
 gina view:add <bundle> @<project>       # Add HTML templates to a bundle
 gina tail --follow                      # Follow logs
 gina framework:set --env=dev            # Set framework setting
@@ -594,7 +622,7 @@ Dev-mode query instrumentation captures every database query tied to the current
 15. **Sidebar icon key = `sidebar_label.toLowerCase()`** — `Root.js` `NAV_ICONS` map in the Docusaurus site uses the **lowercase** value of the page's `sidebar_label` frontmatter as the map key. If an icon doesn't render, verify the key matches exactly (e.g. `sidebar_label: Security` → key `'security'`).
 16. **Post-merge state check required after every `git merge --ff-only`** — `post_install.js` does NOT run on a git pull/merge; it only runs on `npm install`. When the version changes (especially a `shortVersion` bump like `0.2 → 0.3`), three state stores go stale simultaneously: `~/.gina/main.json` (`def_framework`, `frameworks["${shortVersion}"]`, all metadata keys), `~/.gina/${shortVersion}/settings.json` (missing entirely), and `gina.db` `kv_store` (`main` + `settings/${shortVersion}` keys). Running `npm install` from inside the repo also fails (symlink error — `node_modules/.bin/` does not exist in the worktree layout); patch the state files directly instead. See `.claude/git.md § Post-merge state check` for the full checklist.
 17. **Merge frequency** — merge `dev/wip` → `develop` after every feature/fix (frequent is good). Exception: hold at version boundaries (`0.3.x → 0.4.x`, `0.x → 1.x`) until the full release is prepared, because `git mv framework/v*/` during merge is a live deployment of the globally-installed CLI. See `.claude/architecture/git-workflow.md` for the full decision framework.
-18. **CLI stubs** — several CLI commands appear in help.txt or docs but have empty/missing handler files and do NOT work: `bundle:status/rename/copy`, `project:status/move/backup/restore`, `protocol:remove`, `minion:kill/list`, `framework:update`, `gina --status/-t`. Never suggest these to users. Full inventory in `.claude/cli-reference.md`. Note: `port:set` and `framework:get` were implemented in `0.3.3-alpha.2`.
+18. **CLI stubs** — several CLI commands appear in help.txt or docs but have empty/missing handler files and do NOT work: `bundle:status/rename/copy`, `project:status/move/backup/restore`, `protocol:remove`, `minion:kill/list`, `framework:update`, `gina --status/-t`. Never suggest these to users. Full inventory in `.claude/cli-reference.md`. Note: `port:set`, `framework:get`, and `bundle:openapi` were implemented in `0.3.3-alpha.2`.
 19. **`namespace` is required to target a namespace controller** — omitting `"namespace": "content"` from a routing rule makes the router look in `controller.js` instead of `controller.content.js`. The error surface is "control not found: `list`" pointing at `controller.js`, which is confusing. Always set `namespace` when your action lives in a namespace controller file.
 20. **URL params need `"id": ":id"` in `param` to reach `req.params`** — declaring `"url": "/notes/:id"` is not enough. You must also add `"id": ":id"` inside the `param` block so the router binds the segment to `req.params.id`. `requirements` are optional (any non-empty segment is accepted when omitted); the `param` binding is not.
 21. **`throwError(res, code, stringMsg)` preserves the status code** — calling `self.throwError(res, 404, 'Not found')` sends 404. Previously the string-message branch unconditionally replaced `code` with `res.status || 500`. Fixed in `core/controller/controller.js`. If you previously worked around this by wrapping your message in `new Error(...)`, that still works unchanged.

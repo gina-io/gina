@@ -15,7 +15,7 @@ This roadmap covers planned features, architectural improvements, new connectors
 | **Q3 2026** | `0.3.0` ✅ | Async/await · Dev hot-reload · MySQL & PostgreSQL connectors · AI Phase 2 · Tutorials · Mobile backend guide · Route radix tree · Connector peerDependencies · 103 Early Hints · HTTP/2 observability · Security & CVE page · Couchbase connector hardening · Inspector Phase 1 + Phase 2 · CLI Tier 1 (project lifecycle, port:set, framework:get) |
 | **Q3 2026** | `0.3.1` ✅ | Release workflow fixes · SQL index reporting Phase A · HTTP/2 direct stream for HTML · Dependency reduction (`ssl-checker`, `colors`, `uuid` removed — engine.io sole runtime dep) |
 | **Q3 2026** | `0.3.2` | Publish JSON Schema files for config files · Model loading fixes · Entity short-name aliases |
-| **Q4 2026** | `0.4.0` | TypeScript declarations · AI agents (OpenAPI, MCP) · ScyllaDB connector · PWA scaffold · Prometheus metrics · Advanced tutorial · Website redesign · Docs offline ZIP · Bun investigation · Couchbase v2 removal · HTTP/2 hardening · Trailer support · CLI Tier 2 (bundle/project status, rename, copy, protocol:remove, minions) |
+| **Q4 2026** | `0.4.0` | TypeScript declarations · AI agents (MCP) · ScyllaDB connector · PWA scaffold · Prometheus metrics · Advanced tutorial · Website redesign · Docs offline ZIP · Bun investigation · Couchbase v2 removal · HTTP/2 hardening · Trailer support · CLI Tier 2 (bundle/project status, rename, copy, protocol:remove, minions) |
 | **Q1 2027** | `0.5.0` | ESM support · Template engine migration · Structured logging · Alt-Svc · HTTP/2 priorities · WebSocket over HTTP/2 · Inspector Production · CLI Tier 3 (project:move, framework:update, backup/restore, man pages) |
 | **Q3 2027** | `1.0.0` | First stable release — Windows alpha compatibility is a hard gate |
 
@@ -222,7 +222,7 @@ A cold audit of the Couchbase connector identified two critical security vulnera
 
 | Status | Feature | Version | Target |
 | --- | --- | --- | --- |
-| 📋 | **OpenAPI spec generation** — `gina bundle:openapi @myproject` emits `openapi.json` from `routing.json`. Zero manual spec writing — route annotations become `description` fields. Makes any Gina app consumable by AI agents, API gateways, and testing tools. | `0.4.0` | Q4 2026 |
+| ✅ | **OpenAPI spec generation** — `gina bundle:openapi @myproject` emits `openapi.json` from `routing.json`. Zero manual spec writing — route annotations become `description` fields. Makes any Gina app consumable by AI agents, API gateways, and testing tools. Alias: `bundle:oas`. Supports `--output` flag for custom path. | `0.3.3-alpha.2` | 2026-04-08 |
 | 📋 | **MCP server wrapper** — `gina bundle:mcp @myproject` exposes `routing.json` routes as MCP (Model Context Protocol) tools. Makes any Gina app a native MCP server discoverable by AI agents. | `0.4.0` | Q4 2026 |
 
 ---
