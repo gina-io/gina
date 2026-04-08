@@ -14,13 +14,7 @@ run.
 
 ## plugins.js
 
-This file can be used to contain all your plugins, such as jQuery plugins and
-other 3rd party scripts.
-
-One approach is to put jQuery plugins inside of a `(function($){ ...
-})(jQuery);` closure to make sure they're in the jQuery namespace safety
-blanket. Read more about [jQuery plugin
-authoring](https://learn.jquery.com/plugins/#Getting_Started).
+This file can be used to contain all your plugins and other 3rd party scripts.
 
 By default the `plugins.js` file contains a small script to avoid `console`
 errors in browsers that lack a `console`. The script will make sure that, if
@@ -31,7 +25,3 @@ function, thus, preventing the browser from throwing an error.
 ## vendor
 
 This directory can be used to contain all 3rd party library code.
-
-Minified versions of the latest jQuery and Modernizr libraries are included by
-default. You may wish to create your own [custom Modernizr
-build](http://www.modernizr.com/download/).

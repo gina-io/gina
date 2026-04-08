@@ -1,7 +1,5 @@
 define('gina/link', [ 'require', 'lib/domain', 'lib/merge', 'utils/events' ], function (require) {
 
-    // removed: jquery dependency
-    // removed: uuid dependency (replaced by crypto.randomUUID())
     var Domain          = require('lib/domain');
     var domainInstance  = null;
     var merge           = require('lib/merge');

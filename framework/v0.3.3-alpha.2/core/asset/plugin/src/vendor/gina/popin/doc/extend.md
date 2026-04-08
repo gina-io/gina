@@ -158,25 +158,6 @@ ga('set', 'anonymizeIp', true);
 ga('send', 'pageview');
 ```
 
-### Track jQuery AJAX requests in Google Analytics
-
-An article by @JangoSteve explains how to [track jQuery AJAX requests in Google
-Analytics](http://www.alfajango.com/blog/track-jquery-ajax-requests-in-google-analytics/).
-
-Add this to `plugins.js`:
-
-```js
-/*
- * Log all jQuery AJAX requests to Google Analytics
- * See: http://www.alfajango.com/blog/track-jquery-ajax-requests-in-google-analytics/
- */
-if (typeof ga !== "undefined" && ga !== null) {
-    $(document).ajaxSend(function(event, xhr, settings){
-        ga('send', 'pageview', settings.url);
-    });
-}
-```
-
 ### Track JavaScript errors in Google Analytics
 
 Add this function after `ga` is defined:
@@ -207,23 +188,20 @@ Add this function after `ga` is defined:
 Add this function after `ga` is defined:
 
 ```js
-$(function(){
+(function(){
     var isDuplicateScrollEvent,
-        scrollTimeStart = new Date,
-        $window = $(window),
-        $document = $(document),
-        scrollPercent;
+        scrollTimeStart = new Date;
 
-    $window.scroll(function() {
-        scrollPercent = Math.round(100 * ($window.height() + $window.scrollTop())/$document.height());
-        if (scrollPercent > 90 && !isDuplicateScrollEvent) { //page scrolled to 90%
+    window.addEventListener('scroll', function() {
+        var scrollPercent = Math.round(100 * (window.innerHeight + window.scrollY) / document.documentElement.scrollHeight);
+        if (scrollPercent > 90 && !isDuplicateScrollEvent) {
             isDuplicateScrollEvent = 1;
             ga('send', 'event', 'scroll',
-                'Window: ' + $window.height() + 'px; Document: ' + $document.height() + 'px; Time: ' + Math.round((new Date - scrollTimeStart )/1000,1) + 's'
+                'Window: ' + window.innerHeight + 'px; Document: ' + document.documentElement.scrollHeight + 'px; Time: ' + Math.round((new Date - scrollTimeStart) / 1000, 1) + 's'
             );
         }
     });
-});
+})();
 ```
 
 ## Internet Explorer

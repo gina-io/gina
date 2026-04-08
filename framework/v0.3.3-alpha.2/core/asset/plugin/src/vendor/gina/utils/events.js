@@ -74,7 +74,6 @@ function addListener(target, element, name, callback) {
 function triggerEvent (target, element, name, args, proxiedEvent) {
     if (typeof(element) != 'undefined' && element != null) {
         var evt = null, isDefaultPrevented = false, isAttachedToDOM = false, merge  = null;
-        // removed: jquery event bridge (users should use addEventListener instead of $().on())
 
         if (window.CustomEvent || document.createEvent) {
 

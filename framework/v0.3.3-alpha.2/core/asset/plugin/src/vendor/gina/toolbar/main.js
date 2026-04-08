@@ -1,13 +1,12 @@
 define('gina/toolbar', ['require'/**, 'lib/merge'*/, 'lib/collection', 'lib/routing', 'gina/storage', 'gina/validator' ], function (require) {
 
-    // removed: jquery dependency
     //var merge       = require('lib/merge');
     var routing     = require('lib/routing');
     var Collection  = require('lib/collection');
     var Storage     = require('gina/storage');
     //var Validator   = require('gina/validator');
 
-    // Vanilla DOM helpers — replace jQuery API
+    // Vanilla DOM helpers
     var qs  = function(sel, ctx) { return (ctx || document).querySelector(sel); };
     var qsa = function(sel, ctx) { return Array.from((ctx || document).querySelectorAll(sel)); };
     var slideToggle = function(el) {
@@ -37,7 +36,7 @@ define('gina/toolbar', ['require'/**, 'lib/merge'*/, 'lib/collection', 'lib/rout
     /**
      * Toolbar plugin
      *
-     * TODO - search using `datatables` plugin (https://stackoverflow.com/questions/10400033/is-there-a-jquery-plugin-like-datatables-for-a-ul)
+     * TODO - search using a datatables-style plugin
      */
     function Toolbar() {
 

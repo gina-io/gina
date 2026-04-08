@@ -73,7 +73,6 @@ function ready() {
                     }, 50, i, readyList);
 
                 } else { // onEachHandlerReady
-                    // removed: jquery / $ context passthrough
                     readyList[i].ctx = window.originalContext || null;
                     readyList[i].fn.call(window, readyList[i].ctx, window.require);
                     ++i;
@@ -153,7 +152,7 @@ if ( typeof(window['gina']) == 'undefined' ) { // could have be defined by loade
         /**
          * ready
          * This is the one public interface use to wrap `handlers`
-         * It is an equivalent of jQuery(document).ready(cb)
+         * It is an equivalent of document.addEventListener('DOMContentLoaded', cb)
          *
          * No need to use it for `handlers`, it is automatically applied for each `handler`
          *

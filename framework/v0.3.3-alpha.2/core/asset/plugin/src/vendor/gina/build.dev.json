@@ -2,8 +2,6 @@
   "baseUrl": "./../../../src",
   "paths": {
     "requireLib"            : "../../../../../../node_modules/requirejs/require",
-    // removed: jquery dependency (no AMD module requires it anymore)
-    // removed: uuid dependency (replaced by crypto.randomUUID())
 
     "vendor/engine.io"      : "../../../../../../node_modules/engine.io-client/dist/engine.io.min",
 

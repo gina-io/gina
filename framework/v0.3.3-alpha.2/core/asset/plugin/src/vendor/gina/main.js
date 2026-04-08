@@ -8,9 +8,6 @@ define('gina', [ 'require', 'lib/merge', 'lib/routing', 'utils/events', 'helpers
     var routing         = require('lib/routing');
     var dateFormat      = require('helpers/dateFormat')();
     var prototypes      = require('helpers/prototypes')({ dateFormat: dateFormat });
-    // removed: uuid dependency (replaced by crypto.randomUUID())
-    // removed: jquery dependency
-
     if (!window.process ) {
         (function(window, nextTick, process, prefixes, i, p, fnc) {
             p = window[process] || (window[process] = {});
