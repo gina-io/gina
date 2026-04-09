@@ -171,6 +171,20 @@ if (process.argv.length >= 3 /**&& /gina$/.test(process.argv[1])*/ ) {
 
         require(ctxObj.paths.gina.root + '/utils/helper');
 
+        // Make require('lib/<name>') resolve to ${frameworkPath}/lib/<name>/
+        // so bundle entities and controllers can use the same bare-module
+        // convention that the frontend AMD build uses via RequireJS path aliases.
+        if ( ctxObj.paths.framework ) {
+            var _nodePath = process.env.NODE_PATH || '';
+            var _fwPath   = ctxObj.paths.framework;
+            if ( _nodePath.indexOf(_fwPath) < 0 ) {
+                process.env.NODE_PATH = _nodePath
+                    ? (_nodePath + require('path').delimiter + _fwPath)
+                    : _fwPath;
+                require('module').Module._initPaths();
+            }
+        }
+
         setContext('paths', ctxObj.paths);//And so on if you need to.
 
         setContext('processList', ctxObj.processList);
