@@ -16,7 +16,7 @@ This roadmap covers planned features, architectural improvements, new connectors
 | **Q3 2026** | `0.3.1` ✅ | Release workflow fixes · SQL index reporting Phase A · HTTP/2 direct stream for HTML · Dependency reduction (`ssl-checker`, `colors`, `uuid` removed — engine.io sole runtime dep) |
 | **Q3 2026** | `0.3.2` ✅ | JSON Schema for config files · Entity short-name aliases · Model loading fix · getConfig() proxy fix · Inspector tab presets & QI propagation |
 | **Q3 2026** | `0.3.3` | OpenAPI spec generation · CLI port:set & framework:get · TypeScript declarations · Explicit exports |
-| **Q4 2026** | `0.4.0` | TypeScript declarations · AI agents (MCP) · ScyllaDB connector · PWA scaffold · Prometheus metrics · Advanced tutorial · Website redesign · Docs offline ZIP · Bun investigation · Couchbase v2 removal · HTTP/2 hardening · Trailer support · CLI Tier 2 (bundle/project status, rename, copy, protocol:remove, minions) |
+| **Q4 2026** | `0.4.0` | AI agents (MCP) · ScyllaDB connector · PWA scaffold · Prometheus metrics · Advanced tutorial · Website redesign · Docs offline ZIP · Bun investigation · Couchbase v2 removal · HTTP/2 hardening · Trailer support · CLI Tier 2 (bundle/project status, rename, copy, protocol:remove, minions) |
 | **Q1 2027** | `0.5.0` | ESM support · Template engine migration · Structured logging · Alt-Svc · HTTP/2 priorities · WebSocket over HTTP/2 · Inspector Production · CLI Tier 3 (project:move, framework:update, backup/restore, man pages) |
 | **Q3 2027** | `1.0.0` | First stable release — Windows alpha compatibility is a hard gate |
 
