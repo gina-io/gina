@@ -42,6 +42,18 @@ framework/v${version}/
 
 ---
 
+## TypeScript declarations & explicit exports
+
+**TypeScript declarations** — `types/index.d.ts`, `types/globals.d.ts`, `types/gna.d.ts`. Covers `SuperController`, `EntitySuper`, all global helpers, `PathObject`, `uuid`, `ApiError`, config file interfaces (`RoutingConfig`, `ConnectorsConfig`, `AppConfig`, `SettingsConfig`, `ManifestConfig`, `WatchersConfig`, `CronsConfig`), `GinaRequest`/`GinaResponse`, and the `Gna` lifecycle module. `package.json` has `"types": "./types/index.d.ts"` and `"typesVersions"` for `gina/gna`.
+
+**Explicit exports** — `require('gina/gna')` returns an object with all global helpers as named properties:
+```javascript
+const { getContext, _, onCompleteCall, uuid, SuperController } = require('gina/gna');
+```
+Uses lazy getters — symbols resolve at access time (after framework boot). The globals are still injected as before; this adds an importable path for IDE navigation and static analysis. Entry point: `gna.js` at package root.
+
+---
+
 ## Global helpers (injected by gna.js — no require needed)
 
 ```javascript
