@@ -454,8 +454,11 @@ function Start(opt, cmd) {
                             // kill the bundle starting process first
                             child.kill('SIGKILL');
 
+                            // Surface the emerg message so it is visible in docker logs
+                            // and CLI output — not just routed to the daemon's MQ logger.
+                            var _emergMsg = data.toString().replace(/\x1B\[\d+m/g, '').trim();
                             opt.notStarted.push(bundle + '@' + self.projectName);
-                            opt.client.write('  [ ' + bundle + '@' + self.projectName + ' ] aborted :( \n  => Check your logs to see why.');
+                            opt.client.write('  [ ' + bundle + '@' + self.projectName + ' ] aborted :( \n  ' + _emergMsg);
 
                             ++opt.onlineCount;
                             end(opt, cmd, isBulkStart, bundleIndex);
