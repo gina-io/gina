@@ -1,0 +1,3 @@
+kind: Fixed
+body: Vendoring streamsearch-1.1.0 to fix busboy MODULE_NOT_FOUND crash in Docker containers after framework directory rename
+time: 2026-04-10T22:57:24.542888+01:00
