@@ -1,0 +1,3 @@
+kind: Fixed
+body: Validator global validation pass no longer displays errors for untouched fields. On every field blur, the validator runs a full-form validation to determine submit button state (isFormValid). Previously, the global pass displayed errors for ALL invalid fields — untouched fields would suddenly show errors when the user interacted with a different field. Now only the field the user actually touched (event.target.name) shows errors. Two call sites fixed in validator/src/main.js (~line 3337 and ~line 4865).
+time: 2026-04-10T17:49:44.451731+01:00

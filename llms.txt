@@ -95,7 +95,7 @@ var merge   = require('lib/merge');    // → framework/v<version>/lib/merge/
 var routing = require('lib/routing');  // → framework/v<version>/lib/routing/
 ```
 
-`gna.js` injects the framework path into `process.env.NODE_PATH` and calls `require('module').Module._initPaths()` at bootstrap. This mirrors the frontend RequireJS path alias convention and removes the need for relative paths like `require('../../../../framework/v0.3.3-alpha.2/lib/uuid')`.
+`gna.js` injects the framework path into `process.env.NODE_PATH` and calls `require('module').Module._initPaths()` at bootstrap. This mirrors the frontend RequireJS path alias convention and removes the need for relative paths like `require('../../../../framework/v0.3.3-alpha.3/lib/uuid')`.
 
 Every `lib/<name>/` directory must have a `package.json` with `"main": "src/main"` (see `lib/merge/package.json` for the canonical pattern).
 
