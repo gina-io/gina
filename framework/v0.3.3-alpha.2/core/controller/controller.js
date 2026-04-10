@@ -53,7 +53,7 @@ var routingLib      = lib.routing;
 // removed: Domain import + domainLib instantiation — domainLib was never used in active code
 // (only usage at line 508 is commented out); re-instantiating Domain on every dev-mode request
 // via refreshCoreDependencies() caused [DOMAIN] PSL Loaded ×2 noise per request
-var swig            = require('./../deps/swig-1.4.2');
+var swig            = require('@rhinostone/swig');
 const { type }      = require('node:os');
 var SwigFilters     = lib.SwigFilters;
 var statusCodes     = requireJSON( _( getPath('gina').core + '/status.codes') );

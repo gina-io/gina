@@ -339,34 +339,28 @@ fi
 echo -e "Running: ${cmd}"
 eval $cmd
 
-# Compiling & minifying swig
+# Compiling & minifying swig (@rhinostone/swig — npm dep, replaces vendored core/deps/swig-1.4.2)
 echo -e "\n[ Compiling & minifying swig ]"
 echo -e "\nPlease, wait ..."
-if [ ! -d "$SCRIPT_PATH/../../deps/swig-1.4.2/dist" ]; then
-    mkdir -p $SCRIPT_PATH/../../deps/swig-1.4.2/dist
+SWIG_PATH="$SCRIPT_PATH/../../../node_modules/@rhinostone/swig"
+if [ ! -d "$SWIG_PATH" ]; then
+    echo -e "\nERROR: @rhinostone/swig not found at $SWIG_PATH"
+    echo -e "Run: cd $(dirname $SCRIPT_PATH)/../../.. && npm install"
+    exit 1
 fi
-if [ -f "$SCRIPT_PATH/../../deps/swig-1.4.2/dist/swig.min.js.map" ]; then
-    rm $SCRIPT_PATH/../../deps/swig-1.4.2/dist/swig.min.js.map
+if [ ! -d "$SWIG_PATH/dist" ]; then
+    mkdir -p $SWIG_PATH/dist
 fi
-if [ -f "$SCRIPT_PATH/../../deps/swig-1.4.2/dist/swig.min.js" ]; then
-    rm $SCRIPT_PATH/../../deps/swig-1.4.2/dist/swig.min.js
+if [ -f "$SWIG_PATH/dist/swig.min.js.map" ]; then
+    rm $SWIG_PATH/dist/swig.min.js.map
 fi
-if [ -f "$SCRIPT_PATH/../../deps/swig-1.4.2/dist/swig.js" ]; then
-    rm $SCRIPT_PATH/../../deps/swig-1.4.2/dist/swig.js
+if [ -f "$SWIG_PATH/dist/swig.min.js" ]; then
+    rm $SWIG_PATH/dist/swig.min.js
 fi
-if [ -f "$SCRIPT_PATH/../../deps/swig-1.4.2/docs/js/swig.js" ] || [ -L "$SCRIPT_PATH/../../deps/swig-1.4.2/docs/js/swig.js" ] ; then
-    rm $SCRIPT_PATH/../../deps/swig-1.4.2/docs/js/swig.js
-fi
-if [ -f "$SCRIPT_PATH/../../deps/swig-1.4.2/docs/js/swig.min.js" ] || [ -L "$SCRIPT_PATH/../../deps/swig-1.4.2/docs/js/swig.min.js" ]; then
-    rm $SCRIPT_PATH/../../deps/swig-1.4.2/docs/js/swig.min.js
-fi
-# java -jar ./../../asset/plugin/lib/js/compiler.jar --formatting=SINGLE_QUOTES --compilation_level SIMPLE_OPTIMIZATIONS --jscomp_warning=es5Strict --js ./bin/swig.js --create_source_map ./dist/swig.min.js.map --js_output_file ./dist/swig.min.js
-cmd="$java_bin -jar $SCRIPT_PATH/lib/js/compiler.jar --formatting=SINGLE_QUOTES --compilation_level SIMPLE_OPTIMIZATIONS --jscomp_warning=es5Strict --js $SCRIPT_PATH/../../deps/swig-1.4.2/bin/swig.js --create_source_map $SCRIPT_PATH/../../deps/swig-1.4.2/dist/swig.min.js.map --js_output_file $SCRIPT_PATH/../../deps/swig-1.4.2/dist/swig.min.js"
+cmd="$java_bin -jar $SCRIPT_PATH/lib/js/compiler.jar --formatting=SINGLE_QUOTES --compilation_level SIMPLE_OPTIMIZATIONS --jscomp_warning=es5Strict --js $SWIG_PATH/bin/swig.js --create_source_map $SWIG_PATH/dist/swig.min.js.map --js_output_file $SWIG_PATH/dist/swig.min.js"
 
 echo -e "Running: ${cmd}"
 eval $cmd
-ln -s $SCRIPT_PATH/../../deps/swig-1.4.2/bin/swig.js $SCRIPT_PATH/../../deps/swig-1.4.2/docs/js/swig.js
-ln -s $SCRIPT_PATH/../../deps/swig-1.4.2/dist/swig.min.js $SCRIPT_PATH/../../deps/swig-1.4.2/docs/js/swig.min.js
 
 
 echo -e "\n[ Compressing assets: brotli & gzip ]"

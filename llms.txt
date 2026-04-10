@@ -42,6 +42,22 @@ framework/v${version}/
 
 ---
 
+## Vendored dependencies (`core/deps/`)
+
+| Package | Version | Notes |
+|---|---|---|
+| `optimist` | 0.6.1 | CLI arg parsing. Uses `minimist ~1.2.8` and `wordwrap ~1.0.0`. |
+| `busboy` | 1.6.0 | Multipart form parsing. Uses `streamsearch ^1.1.0`. |
+| `swig-client` | custom | Client-side Swig for browser template rendering. |
+
+### Swig — `@rhinostone/swig` (npm dependency)
+
+Maintained fork of the abandoned swig 1.4.2 template engine. Published to npm as `@rhinostone/swig@1.4.4` (npm org: `rhinostone`, maintainer: `beemaster`). Repo: `https://github.com/gina-io/swig`. Declared in `framework/v*/package.json` — installed via `npm install` inside the framework directory. Requires `npm install` after clone, merge, or worktree switch (the framework `node_modules/` is gitignored).
+
+Previously vendored at `core/deps/swig-1.4.2/` — removed in the migration to the npm dep. CVE-2023-25345 parse-time blocklist (`__proto__`/`constructor`/`prototype`) is patched in the fork's `parser.js` and `tags/set.js`. The path traversal boundary check in `controller.render-swig.js` is Gina's own code and is unaffected by this migration.
+
+---
+
 ## Global helpers (injected by gna.js — no require needed)
 
 ```javascript
@@ -663,4 +679,5 @@ Dev-mode query instrumentation captures every database query tied to the current
 39. **`getAssets()` warns on inline `<script>` tags** — `server.js:811` regex matches all `<script>...</script>` tags in the rendered HTML, including inline ones. Inline scripts have no `src` attribute, so the `urlArr` match at line 927 returns `null`, causing `urlArr.length` to throw into the catch block that prints `"Problem with this asset"`. Fix: skip `<script>` tags without `\ssrc\s*=` after the tag detection block. The `\s` before `src` prevents false matches on `data-src`. Inline scripts are not external assets — they have no URL to catalog.
 40. **`queryParams` vs `queryOptions` at `conn._cluster.query()`** — the Couchbase connector's `conn._cluster.query()` must receive the full `queryOptions` object (which includes `parameters: queryParams`, `profile`, `scanConsistency`, `adhoc`), NOT the raw `queryParams` array. Passing `queryParams` silently drops all non-parameter options because the SDK only reads named properties from the options object. This bug existed at lines 892 and 934 for years, invisibly disabling `profile: 'timings'`, `scanConsistency`, and `adhoc: false` on every SDK v3+ query.
 41. **Option B is the active dispatch path in the Couchbase connector** — `register()` in `readSource()` has two paths: Option A (`self._isRegisteredFromProto === true`) and Option B (`!self._isRegisteredFromProto`). Option B is always active for all connector-generated entity methods. When adding debug logging or QI instrumentation to the query execution path, place it in Option B — Option A is dead code.
+42. **Validator touched-field-only error display** — the validator runs a global validation pass on every field blur to determine submit button state (`isFormValid`). The global pass must NOT display errors for untouched fields — only for `event.target.name` (the field the user actually touched). Two call sites in `validator/src/main.js`: ~line 3337 (within the `isFormValid && gResult.error` block) and ~line 4865 (same pattern in the second validation path). The global pass still correctly disables/enables the submit button.
 42. **Docker `node_modules` isolation** — Docker containers using `node_modules` anonymous volumes have their own copy of all npm packages. Edits to `node_modules/` on the host are invisible inside the container. To debug SDK-level behaviour, either `docker exec` and edit inside the container, or add logging to the framework connector code (which IS bind-mounted) rather than the SDK itself.
