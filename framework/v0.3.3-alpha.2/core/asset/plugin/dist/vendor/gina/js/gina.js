@@ -13000,10 +13000,14 @@ function ValidatorPlugin(rules, data, formId) {
                                     if ( !isFormValid && gResult.error ) {
                                         // Fixed on 2025-03-16 - we need past and live errors
                                         instance.$forms[ $el.form.getAttribute('id') ].errors = merge(result.error, gResult.error);
-                                        // Fixed on 2025-03-16
-                                        for (let eField in gResult.error) {
-                                            refreshWarning($gFields[eField]);
-                                            handleErrorsDisplay($gForm, gResult.error, gResult.data, eField);
+                                        // Fixed on 2026-04-09 - only display errors for the touched field,
+                                        // not all fields from the global pass. The global pass determines
+                                        // submit button state; untouched fields should not show errors
+                                        // until the user interacts with them or submits.
+                                        var _touchedField = event.target.name;
+                                        if ( typeof(gResult.error[_touchedField]) != 'undefined' ) {
+                                            refreshWarning($gFields[_touchedField]);
+                                            handleErrorsDisplay($gForm, gResult.error, gResult.data, _touchedField);
                                         }
                                     }
                                     // Fixed on 2025-03-16
@@ -14528,9 +14532,10 @@ function ValidatorPlugin(rules, data, formId) {
                         var isFormValid = gResult.isValid();
                         if (!isFormValid) {
                             instance.$forms[formId].errors = gResult.error;
-                            for (let eField in gResult.error) {
-                                // refreshWarning($gFields[eField]);
-                                handleErrorsDisplay($gForm, gResult.error, gResult.data, eField);
+                            // Fixed on 2026-04-09 - only display errors for the touched field
+                            var _touchedField = event.target.name;
+                            if ( typeof(gResult.error[_touchedField]) != 'undefined' ) {
+                                handleErrorsDisplay($gForm, gResult.error, gResult.data, _touchedField);
                             }
                         }
 
