@@ -4,6 +4,13 @@ var utils = require('./utils'),
 var _t = lexer.types,
   _reserved = ['break', 'case', 'catch', 'continue', 'debugger', 'default', 'delete', 'do', 'else', 'finally', 'for', 'function', 'if', 'in', 'instanceof', 'new', 'return', 'switch', 'this', 'throw', 'try', 'typeof', 'var', 'void', 'while', 'with'];
 
+// CVE-2023-25345: prototype-chain properties that must never appear as
+// variable identifiers or dot-access keys in templates. Allowing these
+// gives compiled template code access to Object.prototype (__proto__),
+// Object (constructor), or Function (constructor.constructor), which
+// enables arbitrary code execution inside the new Function(...) body.
+var _dangerousProps = ['__proto__', 'constructor', 'prototype'];
+
 
 /**
  * Filters are simply functions that perform transformations on their first input argument.
@@ -347,6 +354,10 @@ TokenParser.prototype = {
         )) {
         utils.throwError('Unexpected key "' + match + '"', self.line, self.filename);
       }
+      // CVE-2023-25345: block prototype-chain traversal via dot notation
+      if (_dangerousProps.indexOf(match) !== -1) {
+        utils.throwError('Unsafe access to "' + match + '" is not allowed in templates (CVE-2023-25345)', self.line, self.filename);
+      }
       self.out.push('.' + match);
       break;
 
@@ -373,6 +384,13 @@ TokenParser.prototype = {
     if (_reserved.indexOf(match[0]) !== -1) {
       utils.throwError('Reserved keyword "' + match[0] + '" attempted to be used as a variable', self.line, self.filename);
     }
+
+    // CVE-2023-25345: block prototype-chain property access
+    utils.each(match, function (segment) {
+      if (_dangerousProps.indexOf(segment) !== -1) {
+        utils.throwError('Unsafe access to "' + segment + '" is not allowed in templates (CVE-2023-25345)', self.line, self.filename);
+      }
+    });
 
     self.filterApplyIdx.push(self.out.length);
     if (lastState === _t.CURLYOPEN) {

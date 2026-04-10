@@ -35,6 +35,9 @@ exports.compile = function (compiler, args) {
   return args.join(' ') + ';\n';
 };
 
+// CVE-2023-25345: prototype-chain properties that must not be assignable.
+var _dangerousProps = ['__proto__', 'constructor', 'prototype'];
+
 exports.parse = function (str, line, parser, types) {
   var nameSet = '',
     propertyName;
@@ -47,6 +50,15 @@ exports.parse = function (str, line, parser, types) {
     }
 
     if (!parser.out.length) {
+      // CVE-2023-25345: block prototype-chain property assignment.
+      // The LHS VAR token may contain dot-separated segments (the lexer
+      // captures foo.__proto__ as a single VAR match), so check each one.
+      var segments = token.match.split('.');
+      for (var i = 0; i < segments.length; i++) {
+        if (_dangerousProps.indexOf(segments[i]) !== -1) {
+          throw new Error('Unsafe assignment to "' + segments[i] + '" is not allowed (CVE-2023-25345) on line ' + line + '.');
+        }
+      }
       nameSet += token.match;
       return;
     }
@@ -85,6 +97,10 @@ exports.parse = function (str, line, parser, types) {
   parser.on(types.DOTKEY, function (token) {
     if (!propertyName && !nameSet) {
       return true;
+    }
+    // CVE-2023-25345: block prototype-chain property assignment via dot notation
+    if (_dangerousProps.indexOf(token.match) !== -1) {
+      throw new Error('Unsafe assignment to "' + token.match + '" is not allowed (CVE-2023-25345) on line ' + line + '.');
     }
     nameSet += '.' + token.match;
     return;
