@@ -2,7 +2,8 @@
 
 const { Readable, Writable } = require('stream');
 
-const StreamSearch = require('streamsearch');
+// replaced: vendored streamsearch alongside busboy in core/deps/
+const StreamSearch = require('../../../streamsearch-1.1.0');
 
 const {
   basename,

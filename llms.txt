@@ -47,7 +47,8 @@ framework/v${version}/
 | Package | Version | Notes |
 |---|---|---|
 | `optimist` | 0.6.1 | CLI arg parsing. Uses `minimist ~1.2.8` and `wordwrap ~1.0.0`. |
-| `busboy` | 1.6.0 | Multipart form parsing. Uses `streamsearch ^1.1.0`. |
+| `busboy` | 1.6.0 | Multipart form parsing. Requires `streamsearch` (vendored alongside). |
+| `streamsearch` | 1.1.0 | Boyer-Moore-Horspool stream searching. Dependency of `busboy`. |
 | `swig-client` | custom | Client-side Swig for browser template rendering. |
 
 ### Swig — `@rhinostone/swig` (npm dependency)
