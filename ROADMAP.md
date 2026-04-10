@@ -14,8 +14,9 @@ This roadmap covers planned features, architectural improvements, new connectors
 | **Q2 2026** | `0.2.0` ✅ | Stability · WatcherService · Redis & SQLite connectors · K8s session storage · Startup cache · Pointer compression · Couchbase v2 deprecation · Couchbase security & critical bug fixes · HTTP/2 security hardening |
 | **Q3 2026** | `0.3.0` ✅ | Async/await · Dev hot-reload · MySQL & PostgreSQL connectors · AI Phase 2 · Tutorials · Mobile backend guide · Route radix tree · Connector peerDependencies · 103 Early Hints · HTTP/2 observability · Security & CVE page · Couchbase connector hardening · Inspector Phase 1 + Phase 2 · CLI Tier 1 (project lifecycle, port:set, framework:get) |
 | **Q3 2026** | `0.3.1` ✅ | Release workflow fixes · SQL index reporting Phase A · HTTP/2 direct stream for HTML · Dependency reduction (`ssl-checker`, `colors`, `uuid` removed — engine.io sole runtime dep) |
-| **Q3 2026** | `0.3.2` | Publish JSON Schema files for config files · Model loading fixes · Entity short-name aliases |
-| **Q4 2026** | `0.4.0` | TypeScript declarations · AI agents (MCP) · ScyllaDB connector · PWA scaffold · Prometheus metrics · Advanced tutorial · Website redesign · Docs offline ZIP · Bun investigation · Couchbase v2 removal · HTTP/2 hardening · Trailer support · CLI Tier 2 (bundle/project status, rename, copy, protocol:remove, minions) |
+| **Q3 2026** | `0.3.2` ✅ | JSON Schema for config files · Entity short-name aliases · Model loading fix · getConfig() proxy fix · Inspector tab presets & QI propagation |
+| **Q3 2026** | `0.3.3` | OpenAPI spec generation · CLI port:set & framework:get · TypeScript declarations · Explicit exports |
+| **Q4 2026** | `0.4.0` | AI agents (MCP) · ScyllaDB connector · PWA scaffold · Prometheus metrics · Advanced tutorial · Website redesign · Docs offline ZIP · Bun investigation · Couchbase v2 removal · HTTP/2 hardening · Trailer support · CLI Tier 2 (bundle/project status, rename, copy, protocol:remove, minions) |
 | **Q1 2027** | `0.5.0` | ESM support · Template engine migration · Structured logging · Alt-Svc · HTTP/2 priorities · WebSocket over HTTP/2 · Inspector Production · CLI Tier 3 (project:move, framework:update, backup/restore, man pages) |
 | **Q3 2027** | `1.0.0` | First stable release — Windows alpha compatibility is a hard gate |
 
@@ -97,8 +98,8 @@ Stub commands confirmed in source — handler files exist but are empty or comme
 
 | Status | Feature | Version | Target |
 | --- | --- | --- | --- |
-| 📋 | **Explicit exports for global helpers** — `getContext`, `setContext`, `_`, `requireJSON` etc. available as explicit `require('gina/gna').getContext` imports alongside the existing global injection. Enables IDE navigation and static analysis. | `0.4.0` | Q4 2026 |
-| 📋 | **TypeScript declaration files** — `.d.ts` declarations for the public surface: `SuperController`, `EntitySuper`, connector config shapes, `routing.json` schema. No TS migration of internals — just declarations for consumer projects. | `0.4.0` | Q4 2026 |
+| ✅ | **Explicit exports for global helpers** — `getContext`, `setContext`, `_`, `requireJSON` etc. available as explicit `require('gina/gna').getContext` imports alongside the existing global injection. Enables IDE navigation and static analysis. | `0.3.3-alpha.3` | 2026-04-09 |
+| ✅ | **TypeScript declaration files** — `.d.ts` declarations for the public surface: `SuperController`, `EntitySuper`, connector config shapes, `routing.json` schema, `PathObject`, `uuid`, all config file interfaces, `GinaRequest`/`GinaResponse`. No TS migration of internals — just declarations for consumer projects. `package.json` wired with `"types"` and `"typesVersions"`. | `0.3.3-alpha.3` | 2026-04-09 |
 | 📋 | **`gina connector:audit [@project]`** — reads `connectors.json`, maps each declared connector to its npm peer package (`mysql2`, `pg`, `ioredis`, `couchbase`, `openai`, `@anthropic-ai/sdk`, etc.), and runs `npm audit --json` scoped to those packages in the project's `node_modules`. Reports CVEs with severity and fix availability. If `socket` is installed in the project, delegates to it for supply-chain analysis (malware, typosquatting, protestware) instead of `npm audit`. Exit code 1 on any high/critical finding — CI-friendly. Only audits packages actually declared in `connectors.json`, not the full dependency tree. | `0.4.0` | Q4 2026 |
 
 ### Phase 5 — Future
@@ -208,7 +209,7 @@ A cold audit of the Couchbase connector identified two critical security vulnera
 | --- | --- | --- | --- |
 | ✅ | **JSON Schemas for config files** — Machine-readable schemas for `routing.json`, `connectors.json`, `app.json`, `settings.json`, `app.crons.json`. Adds `"$schema"` references to generated scaffold files. Gives editors free validation and autocomplete; gives AI assistants authoritative field names so generated config is correct on the first attempt. | `0.2.0` | Q2 2026 |
 | ✅ | **Publish JSON Schema files at `gina.io/schema/*`** — 7 JSON Schema files published: `app.json`, `app.crons.json`, `connectors.json`, `manifest.json`, `routing.json`, `settings.json`, `watchers.json`. IDEs can now download and validate config files automatically. | `0.3.2` | Q3 2026 |
-| 📋 | **TypeScript declaration files** — Cross-listed with Modernisation Phase 4. Essential for AI code generation accuracy. | `0.4.0` | Q4 2026 |
+| ✅ | **TypeScript declaration files** — Cross-listed with Modernisation Phase 4. Essential for AI code generation accuracy. | `0.3.3-alpha.3` | 2026-04-09 |
 
 ### Phase 2 — Gina apps can use AI
 
@@ -309,4 +310,4 @@ Gina's built-in per-bundle inspector. Phases 1–2 ship as an embedded SPA at `/
 
 ---
 
-*Last updated: 2026-04-04 (Inspector Phase 2 polish — drag-to-select log rows, copy badge fade-out, left accent selection styling, logo watermark, window geometry and env panel persistence; HTTP/2 client retry with backoff and pre-flight PING validation) · To suggest a feature, [open an issue](https://github.com/gina-io/gina/issues).*
+*Last updated: 2026-04-09 (0.3.3-alpha.3 — TypeScript declarations, explicit exports via require('gina/gna')) · To suggest a feature, [open an issue](https://github.com/gina-io/gina/issues).*

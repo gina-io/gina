@@ -4,7 +4,7 @@
  * Unit tests for lib/cmd/port/inc/scan.js
  *
  * Run with:
- *   node --test framework/v0.3.0-alpha.1/test/unit/port-scan.test.js
+ *   node --test framework/v*/test/unit/port-scan.test.js
  *
  * These tests use node:test (built-in, Node 22.5+) and mock net.Socket so
  * no real TCP connections are made — tests are fast and deterministic.
