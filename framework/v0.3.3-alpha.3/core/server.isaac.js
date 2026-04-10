@@ -26,19 +26,6 @@ const env               = process.env.NODE_ENV
     , isProductionScope = process.env.NODE_SCOPE_IS_PRODUCTION && process.env.NODE_SCOPE_IS_PRODUCTION.toLowerCase() === 'true'
 ;
 
-var _isDebugLog = function() {
-    return process.env.LOG_LEVEL === 'debug' || process.env.LOG_LEVEL === 'trace';
-};
-var _debugLog = function(msg) {
-    if (!_isDebugLog()) return;
-    var d = new Date()
-        , _m = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
-        , p2 = function(n) { return (n < 10 ? '0' : '') + n; };
-    fs.writeSync(2, '\u001b[90m[' + d.getFullYear() +' '+ _m[d.getMonth()] +' '+ p2(d.getDate())
-        +' '+ p2(d.getHours()) +':'+ p2(d.getMinutes()) +':'+ p2(d.getSeconds())
-        + '] [debug  ][gina:isaac] ' + msg + '\u001b[39m\n');
-};
-
 /**
  * Reloads all core and lib modules from disk by replacing their require.cache
  * entries with fresh exports. Excludes gna.js itself. Also refreshes the

@@ -27,18 +27,6 @@
  */
 //Imports.
 const fs            = require('fs');
-var _isDebugLog = function() {
-    return process.env.LOG_LEVEL === 'debug' || process.env.LOG_LEVEL === 'trace';
-};
-var _debugLog = function(msg) {
-    if (!_isDebugLog()) return;
-    var d = new Date()
-        , _m = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
-        , p2 = function(n) { return (n < 10 ? '0' : '') + n; };
-    fs.writeSync(2, '\u001b[90m[' + d.getFullYear() +' '+ _m[d.getMonth()] +' '+ p2(d.getDate())
-        +' '+ p2(d.getHours()) +':'+ p2(d.getMinutes()) +':'+ p2(d.getSeconds())
-        + '] [debug  ][gina:server] ' + msg + '\u001b[39m\n');
-};
 const os            = require('os');
 const path          = require('path');
 const EventEmitter  = require('events').EventEmitter;
@@ -228,15 +216,11 @@ function Server(options) {
                 serverOpt.ioServer = ioServerOpt
             }
 
-            _debugLog('checkpoint I1: requiring engine ' + ((typeof (serverOpt.engine) != 'undefined' && serverOpt.engine != '') ? serverOpt.engine : 'express'));
             Engine = require('./server.' + ((typeof (serverOpt.engine) != 'undefined' && serverOpt.engine != '') ? serverOpt.engine : 'express'));
-            _debugLog('checkpoint I2: engine required, instantiating; scheme=' + serverOpt.scheme + ' protocol=' + serverOpt.protocol + ' cachePath=' + serverOpt.cachePath + ' hasCredentials=' + (typeof(serverOpt.credentials) != 'undefined') + ' hasAllRoutes=' + (typeof(options.conf.routing) != 'undefined'));
             var engine = new Engine(serverOpt);
-            _debugLog('checkpoint I3: engine instantiated');
 
             // swigEngine to render thrown HTML errors
             if ( hasViews(self.appName) ) {
-                _debugLog('checkpoint I4: initSwigEngine');
                 initSwigEngine(self.conf[self.appName][self.env]);
             }
 
@@ -249,7 +233,6 @@ function Server(options) {
                 process.env.TZ = options.conf[self.appName][self.env].content.settings.region.timeZone;
             }
 
-            _debugLog('checkpoint I5: emitting configured');
             self.emit('configured', false, engine.instance, engine.middleware, self.conf[self.appName][self.env]);
 
         } catch (err) {
