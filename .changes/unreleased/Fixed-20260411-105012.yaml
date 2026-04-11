@@ -1,0 +1,3 @@
+kind: Fixed
+body: Config loader checks MIDDLEWARE file existence before reading — prevents crash in containers or environments where the file is absent
+time: 2026-04-11T10:50:12.339959+01:00

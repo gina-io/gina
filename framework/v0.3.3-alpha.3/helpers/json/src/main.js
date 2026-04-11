@@ -79,7 +79,20 @@ module.exports = function(){
 
         try {
             return JSON.parse(jsonStr)
-        } catch (err) {
+        } catch (firstErr) {
+            // Trailing comma tolerance: strip ,} and ,] patterns and retry
+            var _stripped = jsonStr.replace(/,(\s*[\}\]])/g, '$1');
+            if (_stripped !== jsonStr) {
+                try {
+                    var _result = JSON.parse(_stripped);
+                    console.warn('[ requireJSON ] trailing comma in `'+ filename +'` — parsed successfully but please fix the file');
+                    return _result;
+                } catch (_retryErr) {
+                    // fall through to the original error reporting below
+                }
+            }
+
+            var err = firstErr;
             var pos     = null
                 , msg   = null
                 , error = null

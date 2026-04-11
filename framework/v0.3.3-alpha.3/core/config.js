@@ -688,7 +688,12 @@ function Config(opt, contextResetNeeded) {
             // even in environments where the MIDDLEWARE file is absent (e.g. containers).
             setContext('gina.version', version);
 
-            self.middleware = middleware = fs.readFileSync(_( getEnvVar('GINA_FRAMEWORK_DIR') + '/MIDDLEWARE')).toString() || 'none';
+            var _middlewarePath = _( getEnvVar('GINA_FRAMEWORK_DIR') + '/MIDDLEWARE', true);
+            if ( fs.existsSync(_middlewarePath) ) {
+                self.middleware = middleware = fs.readFileSync(_middlewarePath).toString() || 'none';
+            } else {
+                self.middleware = middleware = 'none';
+            }
             setContext('gina.middleware', middleware);
 
         } catch (err) {
