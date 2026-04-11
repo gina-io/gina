@@ -286,13 +286,12 @@ function PostPublish() {
         try {
             var changelogPath = self.gina + '/.changes/' + self.publishedVersion + '.md';
             if (fs.existsSync(changelogPath)) {
-                var notes = fs.readFileSync(changelogPath, 'utf8');
                 execSync(
                     '$(which gh) release create ' + tag +
                     ' --repo gina-io/gina' +
                     ' --title ' + tag +
                     ' --latest' +
-                    ' --notes ' + JSON.stringify(notes)
+                    ' --notes-file ' + changelogPath
                 );
                 console.info('[tagAndMerge] GitHub release ' + tag + ' created');
             } else {
