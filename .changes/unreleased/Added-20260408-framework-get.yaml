@@ -1,3 +1,0 @@
-kind: Added
-body: "Implement `framework:get` CLI command — read one or all keys from ~/.gina/settings.json (`gina get --key`, `gina get all`). Completes the `gina set` / `gina get` pair."
-time: 2026-04-08T12:00:00.000000+01:00

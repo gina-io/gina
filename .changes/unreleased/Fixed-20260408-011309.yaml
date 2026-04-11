@@ -1,3 +1,0 @@
-kind: Fixed
-body: explainForIndexes crashes on bulkInsert path where conn._cluster is undefined (conn is a scope object, cluster lives at conn._scope._bucket._cluster). The crash occurs before self.emit(trigger), silently hanging the entity callback and causing a 504 timeout with no error in logs. Fixed by resolving the cluster from either conn shape, with early-return guard and internal try/catch so dev-mode instrumentation never blocks the emit path.
-time: 2026-04-08T01:13:09.174992+01:00

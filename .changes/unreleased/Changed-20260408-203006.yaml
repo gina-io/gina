@@ -1,3 +1,0 @@
-kind: Changed
-body: Replacing uuid/crypto.randomUUID() with internal lib/uuid — lightweight base-62 ID generator using crypto.getRandomValues with bitmask bias avoidance, zero external dependencies
-time: 2026-04-08T20:30:06.046553+01:00

@@ -1,3 +1,0 @@
-kind: Changed
-body: 'Improved popin loading and opening performance: parallel resource loading via DOM injection (replaces sequential XHR + eval), eliminated redundant DOM binding on open, reduced DOM scans with querySelectorAll, classList API, cached RegExp, lightweight ID counter, per-load XHR for concurrent popins'
-time: 2026-04-08T00:06:50.65997+01:00

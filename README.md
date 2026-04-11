@@ -37,14 +37,17 @@ gina bundle:start api @myproject
 open https://localhost:3100
 ```
 
-## What's in 0.3.2
+## What's in 0.3.3
 
-- **JSON Schema for config files** — 7 schemas published at `gina.io/schema/*` (app, connectors, manifest, routing, settings, watchers, crons)
-- **Model loading without `onInitialize`** — entities load correctly when the model has no `onInitialize` hook
-- **Entity short-name aliases** — use `self.getEntity('user')` instead of the full `self.getEntity('user/user')`
-- **`getConfig()` proxy override fix** — guards against undefined `PROXY_HOSTNAME` on same-origin POST requests
-- **Inspector polish** — tab layout presets (Balanced/Backend/Frontend/Custom with drag-to-reorder), query performance banners, missing-index banners, cross-bundle QI propagation, `render-json` Inspector data feed
-- **CLI stability fixes** — `bundle:start` crash on unregistered bundle, install path edge cases
+- **Live database index introspection** — Inspector Query tab now queries actual database indexes (MySQL, PostgreSQL, SQLite) without requiring manual `indexes.sql` files
+- **`bundle:openapi`** — generate an OpenAPI 3.1.0 spec from `routing.json` with `gina bundle:openapi @myproject`
+- **`framework:get` and `port:set` CLI commands** — read settings and set individual bundle ports without a full reset
+- **Swig migration** — vendored `swig-1.4.2` replaced with `@rhinostone/swig` npm dependency (maintained fork with CVE-2023-25345 patched)
+- **Internal `lib/uuid`** — lightweight base-62 ID generator replaces external uuid dependency
+- **Popin performance** — parallel DOM-injected resource loading, `popinDestroy()`, `classList` API, cached RegExp
+- **Validator fix** — global validation pass no longer shows errors for untouched fields
+- **Docker fixes** — vendored `streamsearch` for busboy, emerg forwarding to CLI output and docker logs
+- **requireJSON resilience** — trailing commas in config files now produce a warning instead of aborting the bundle
 
 See the full [Changelog](./CHANGELOG.md) and [Roadmap](./ROADMAP.md).
 
