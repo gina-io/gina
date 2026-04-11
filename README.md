@@ -58,6 +58,13 @@ Full installation guide, tutorials, configuration reference, and API docs at **[
 - [Configuration reference](https://gina.io/docs/reference/)
 - [Security & CVE compliance](https://gina.io/docs/security)
 
+## Ecosystem
+
+| Package | Description |
+| --- | --- |
+| [@rhinostone/swig](https://github.com/gina-io/swig) | Maintained fork of the Swig template engine (upstream abandoned since 2015). CVE-2023-25345 patched. |
+| [gina-starter](https://github.com/gina-io/gina-starter) | Minimal starter project — one bundle, one route, Docker Compose included |
+
 ## Governance
 
 Gina is co-authored by **Martin Luther** ([Rhinostone](https://rhinostone.com)) and **Fabrice Delaneau** ([fdelaneau.com](https://fdelaneau.com)). Final decisions on direction, API design, and releases rest with Martin Luther. Community contributions and RFCs are welcome and taken seriously. See [GOVERNANCE.md](./GOVERNANCE.md) for details.
