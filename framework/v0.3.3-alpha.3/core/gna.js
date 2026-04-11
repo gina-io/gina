@@ -52,6 +52,22 @@ if (!process.env.NODE_COMPILE_CACHE) {
 }());
 
 const { promisify } = require('util');
+
+// Lightweight debug logger — gated on LOG_LEVEL so zero cost in production.
+// Format mirrors lib/logger template: [date] [debug  ][gina:gna] message
+var _isDebugLog = function() {
+    return process.env.LOG_LEVEL === 'debug' || process.env.LOG_LEVEL === 'trace';
+};
+var _debugLog = function(msg) {
+    if (!_isDebugLog()) return;
+    var _m = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    var p2 = function(n) { return (n < 10 ? '0' : '') + n; };
+    var d = new Date();
+    var ts = d.getFullYear() + ' ' + _m[d.getMonth()] + ' ' + p2(d.getDate())
+        + ' ' + p2(d.getHours()) + ':' + p2(d.getMinutes()) + ':' + p2(d.getSeconds());
+    process.stderr.write('\u001b[90m[' + ts + '] [debug  ][gina:gna] ' + msg + '\u001b[39m\n');
+};
+
 var EventEmitter    = require('events').EventEmitter;
 var e               = new EventEmitter();
 // TODO - Get from config/security:defaultMaxListeners
