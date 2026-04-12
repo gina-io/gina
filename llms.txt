@@ -53,7 +53,7 @@ framework/v${version}/
 
 ### Swig — `@rhinostone/swig` (npm dependency)
 
-Maintained fork of the abandoned swig 1.4.2 template engine. Published to npm as `@rhinostone/swig@1.4.4` (npm org: `rhinostone`, maintainer: `beemaster`). Repo: `https://github.com/gina-io/swig`. Declared in `framework/v*/package.json` — installed via `npm install` inside the framework directory. Requires `npm install` after clone, merge, or worktree switch (the framework `node_modules/` is gitignored).
+Maintained fork of the abandoned swig 1.4.2 template engine. Published to npm as `@rhinostone/swig@1.5.0` (npm org: `rhinostone`, maintainer: `beemaster`). Repo: `https://github.com/gina-io/swig`. Declared in `framework/v*/package.json` — installed via `npm install` inside the framework directory. Requires `npm install` after clone, merge, or worktree switch (the framework `node_modules/` is gitignored).
 
 Previously vendored at `core/deps/swig-1.4.2/` — removed in the migration to the npm dep. CVE-2023-25345 parse-time blocklist (`__proto__`/`constructor`/`prototype`) is patched in the fork's `parser.js` and `tags/set.js`. The path traversal boundary check in `controller.render-swig.js` is Gina's own code and is unaffected by this migration.
 
