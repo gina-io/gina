@@ -307,7 +307,7 @@ describe('04 - Swig require path: @rhinostone/swig npm dependency', function() {
         );
     });
 
-    it('@rhinostone/swig resolves from the framework directory', function() {
+    it('@rhinostone/swig resolves from the framework directory', { skip: !fs.existsSync(path.join(FW, 'node_modules')) }, function() {
         var resolved = null;
         try {
             resolved = require.resolve('@rhinostone/swig', {

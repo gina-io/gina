@@ -1,0 +1,3 @@
+kind: Fixed
+body: Swig resolution test now skips on CI where framework/v*/node_modules does not exist (framework/package.json is gitignored)
+time: 2026-04-12T02:20:09.527178+01:00

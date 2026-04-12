@@ -357,6 +357,22 @@ function PostPublish() {
         new _(pack, true).rmSync();
         lib.generator.createFileFromDataSync(JSON.stringify(packObj, null, 2), pack);
 
+        // Update gna.js — replace all framework version path references
+        var gnaJsPath = _(self.gina + '/gna.js', true);
+        try {
+            var gnaJsSrc = fs.readFileSync(gnaJsPath, 'utf8');
+            var updatedGnaJs = gnaJsSrc.replace(
+                new RegExp('framework/v' + currentVersion.replace(/\./g, '\\.'), 'g'),
+                'framework/v' + newVersion
+            );
+            if (updatedGnaJs !== gnaJsSrc) {
+                fs.writeFileSync(gnaJsPath, updatedGnaJs);
+                console.info('[bumpVersion] Updated gna.js framework paths: v' + currentVersion + ' -> v' + newVersion);
+            }
+        } catch (gnaErr) {
+            console.warn('[bumpVersion] Could not update gna.js: ' + (gnaErr.message || gnaErr));
+        }
+
         // Update ~/.gina/main.json and ~/.gina/{shortVersion}/settings.json
         var shortVersion = newVersion.split('.');
         shortVersion.splice(2);
