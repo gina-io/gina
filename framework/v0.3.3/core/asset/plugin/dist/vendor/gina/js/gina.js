@@ -2740,6 +2740,106 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
     // Publish as AMD module
     define( 'lib/merge',[],function() { return Merge() })
 };
+
+/**
+ * @module lib/uuid
+ * @description Lightweight, cryptographically secure ID generator.
+ * Produces short random strings from a base-62 alphabet (0-9 A-Z a-z).
+ * Uses `crypto.getRandomValues` (available in Node.js >= 15 and all modern browsers).
+ * Bitmask technique avoids modulo bias — identical to the approach used by the
+ * `nanoid` npm package, but with zero external dependencies.
+ *
+ * Works in Node.js (CommonJS) and browser (AMD / GFF) contexts.
+ *
+ * @example
+ * var uuid = require('lib/uuid');
+ * uuid();    // 'aB3x'  (4 chars, base-62 default)
+ * uuid(8);   // 'kQ7mZp2R'
+ *
+ * // Custom alphabet
+ * var hex = uuid.customAlphabet('0123456789abcdef', 8);
+ * hex();     // 'f47ac10b'  (8 chars, hex)
+ * hex(4);    // 'a3f1'      (override length)
+ *
+ * @param {number} [size=4] - Length of the generated ID
+ * @returns {string} Random string of `size` characters from the base-62 alphabet
+ */
+
+var _alphabet = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+var _mask = 63;  // smallest (2^n - 1) >= 62 — rejects 62,63 (~3% waste, no bias)
+var _step = 7;   // ceil(1.6 * 63 * 4 / 62) — enough random bytes per iteration
+
+/**
+ * Generate a cryptographically secure random ID.
+ *
+ * @param {number} [size=4] - Desired ID length
+ * @returns {string} Random base-62 string
+ */
+function uuid(size) {
+    size = size || 4;
+    var id = '';
+    while (true) {
+        var bytes = crypto.getRandomValues(new Uint8Array(_step));
+        for (var j = 0; j < _step; j++) {
+            var idx = bytes[j] & _mask;
+            if (idx < 62) {
+                id += _alphabet[idx];
+                if (id.length === size) return id;
+            }
+        }
+    }
+}
+
+/**
+ * Create a generator function for a custom alphabet and default size.
+ *
+ * @param {string} alphabet - Characters to use (e.g. '0123456789abcdef')
+ * @param {number} [defaultSize=4] - Default length when the returned function is called without arguments
+ * @returns {function(number=): string} Generator function
+ */
+uuid.customAlphabet = function(alphabet, defaultSize) {
+    defaultSize = defaultSize || 4;
+    // Compute bitmask: smallest (2^n - 1) >= alphabet.length - 1
+    var mask = 1;
+    while (mask < alphabet.length - 1) mask = (mask << 1) | 1;
+    // Step: enough random bytes per iteration to fill `defaultSize` with ~60% overhead
+    var step = Math.ceil(1.6 * (mask + 1) * defaultSize / alphabet.length);
+    if (step < 5) step = 5;
+
+    return function(size) {
+        size = size || defaultSize;
+        var id = '';
+        while (true) {
+            var bytes = crypto.getRandomValues(new Uint8Array(step));
+            for (var j = 0; j < step; j++) {
+                var idx = bytes[j] & mask;
+                if (idx < alphabet.length) {
+                    id += alphabet[idx];
+                    if (id.length === size) return id;
+                }
+            }
+        }
+    };
+};
+
+
+if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
+    // Server-side: ensure crypto.getRandomValues is available (Node < 19 polyfill)
+    if ( typeof(crypto) === 'undefined' || typeof(crypto.getRandomValues) !== 'function' ) {
+        var _webcrypto = require('crypto').webcrypto || require('crypto');
+        if (typeof(globalThis) !== 'undefined') {
+            globalThis.crypto = _webcrypto;
+        } else {
+            crypto = _webcrypto;
+        }
+    }
+    // Publish as node.js module
+    module.exports = uuid
+} else if ( typeof(define) === 'function' && define.amd) {
+    // Publish as AMD module
+    define( 'lib/uuid',[],function() { return uuid })
+}
+;
 /**
  * FormValidatorUtil
  *
@@ -6422,7 +6522,6 @@ function addListener(target, element, name, callback) {
 function triggerEvent (target, element, name, args, proxiedEvent) {
     if (typeof(element) != 'undefined' && element != null) {
         var evt = null, isDefaultPrevented = false, isAttachedToDOM = false, merge  = null;
-        // removed: jquery event bridge (users should use addEventListener instead of $().on())
 
         if (window.CustomEvent || document.createEvent) {
 
@@ -6558,14 +6657,14 @@ function setupXhr(options) {
         }
 
         // setting up headers -    all but Content-Type ; it will be set right before .send() is called
-        for (var hearder in options.headers) {
-             //if ( hearder == 'Content-Type' && typeof (enctype) != 'undefined' && enctype != null && enctype != '') {
-             //    options.headers[hearder] = enctype
+        for (var header in options.headers) {
+             //if ( header == 'Content-Type' && typeof (enctype) != 'undefined' && enctype != null && enctype != '') {
+             //    options.headers[header] = enctype
              //}
-            if (hearder == 'Content-Type' && typeof (enctype) != 'undefined' && enctype != null && enctype != '')
+            if (header == 'Content-Type' && typeof (enctype) != 'undefined' && enctype != null && enctype != '')
                 continue;
 
-            xhr.setRequestHeader(hearder, options.headers[hearder]);
+            xhr.setRequestHeader(header, options.headers[header]);
         }
     }
     return xhr;
@@ -6635,14 +6734,14 @@ function handleXhr(xhr, $el, options, require) {
     var enctype = $el.getAttribute('enctype') || options.headers['Content-Type'];
 
     // setting up headers -    all but Content-Type ; it will be set right before .send() is called
-    for (var hearder in options.headers) {
-        //if ( hearder == 'Content-Type' && typeof (enctype) != 'undefined' && enctype != null && enctype != '') {
-        //    options.headers[hearder] = enctype
+    for (var header in options.headers) {
+        //if ( header == 'Content-Type' && typeof (enctype) != 'undefined' && enctype != null && enctype != '') {
+        //    options.headers[header] = enctype
         //}
-        if (hearder == 'Content-Type' && typeof (enctype) != 'undefined' && enctype != null && enctype != '')
+        if (header == 'Content-Type' && typeof (enctype) != 'undefined' && enctype != null && enctype != '')
             continue;
 
-        xhr.setRequestHeader(hearder, options.headers[hearder]);
+        xhr.setRequestHeader(header, options.headers[header]);
     }
     xhr.withCredentials = ( typeof(options.withCredentials) != 'undefined' ) ? options.withCredentials : false;
 
@@ -6964,7 +7063,7 @@ function handleXhr(xhr, $el, options, require) {
 
                 } else { // normal case
 
-                    if ( /^(\{|\[).test( xhr.responseText ) /) {
+                    if ( /^(\{|\[)/.test( xhr.responseText ) ) {
 
                         try {
                             result = merge( result, JSON.parse(xhr.responseText) )
@@ -7996,19 +8095,17 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
     // Publish as AMD module
     define( 'helpers/dateFormat',[],function() { return DateFormatHelper })
 };
-define('gina', [ 'require', 'lib/merge', 'lib/routing', 'utils/events', 'helpers/prototypes', 'helpers/dateFormat' ], function (require) {
+define('gina', [ 'require', 'lib/merge', 'lib/uuid', 'lib/routing', 'utils/events', 'helpers/prototypes', 'helpers/dateFormat' ], function (require) {
 
     /**
      * Imports & definitions
      * */
     var eventsHandler   = require('utils/events'); // events handler
     var merge           = require('lib/merge');
+    var uuid            = require('lib/uuid');
     var routing         = require('lib/routing');
     var dateFormat      = require('helpers/dateFormat')();
     var prototypes      = require('helpers/prototypes')({ dateFormat: dateFormat });
-    // removed: uuid dependency (replaced by crypto.randomUUID())
-    // removed: jquery dependency
-
     if (!window.process ) {
         (function(window, nextTick, process, prefixes, i, p, fnc) {
             p = window[process] || (window[process] = {});
@@ -8062,7 +8159,7 @@ define('gina', [ 'require', 'lib/merge', 'lib/routing', 'utils/events', 'helpers
 
         // instance proto
         var proto           = {
-            'id'                : 'gina-' + crypto.randomUUID(),
+            'id'                : 'gina-' + uuid(),
 
             'plugin'            : this.plugin,
             'on'                : on,
@@ -8187,7 +8284,7 @@ function BindingHelper(handlerContext) {
             //restore
             handleObject.call = hCall;
         } catch (err) {
-            console.error('BindingHelper encountered error while trying to execute `'+ hCall +'`' + err.stack || err);
+            console.error('BindingHelper encountered error while trying to execute `'+ hCall +'`' + (err.stack || err));
         }
         
         self.process(bindings, len, i+1)
@@ -8766,13 +8863,12 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
     define( 'lib/domain',[],function() { return Domain })
 }
 ;
-define('gina/link', [ 'require', 'lib/domain', 'lib/merge', 'utils/events' ], function (require) {
+define('gina/link', [ 'require', 'lib/domain', 'lib/merge', 'lib/uuid', 'utils/events' ], function (require) {
 
-    // removed: jquery dependency
-    // removed: uuid dependency (replaced by crypto.randomUUID())
     var Domain          = require('lib/domain');
     var domainInstance  = null;
     var merge           = require('lib/merge');
+    var uuid            = require('lib/uuid');
 
     require('utils/events'); // events
 
@@ -8802,7 +8898,7 @@ define('gina/link', [ 'require', 'lib/domain', 'lib/merge', 'utils/events' ], fu
 
         var instance        = {
             plugin          : this.plugin,
-            id              : 'gina-links-' + crypto.randomUUID(),
+            id              : 'gina-links-' + uuid(),
             on              : on,
             eventData       : {},
 
@@ -9145,7 +9241,7 @@ define('gina/link', [ 'require', 'lib/domain', 'lib/merge', 'utils/events' ], fu
 
                     // }
 
-                    elId = 'link.click.'+ 'gina-link-' + instance.id +'-'+ crypto.randomUUID();
+                    elId = 'link.click.'+ 'gina-link-' + instance.id +'-'+ uuid();
                 }
                 $el['id']   = elId;
                 props.id    = elId;
@@ -9206,7 +9302,7 @@ define('gina/link', [ 'require', 'lib/domain', 'lib/merge', 'utils/events' ], fu
                 addListener(gina, instance.target, evt, function(event) {
 
                     if ( typeof(event.target.id) == 'undefined' ) {
-                        event.target.setAttribute('id', evt +'.'+ crypto.randomUUID() );
+                        event.target.setAttribute('id', evt +'.'+ uuid() );
                         event.target.id = event.target.getAttribute('id')
                     }
 
@@ -9672,7 +9768,7 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
  *  - lib/merge
  *  - utils/events
  *  - utils/data
- *  - vendor/uuid
+ *  - lib/uuid
  *
  * Additional helpers for the backend are located in framwework/v{version}/helpers/plugins/validator-*.js
  *
@@ -9758,7 +9854,7 @@ function ValidatorPlugin(rules, data, formId) {
         require('../../../../../helpers/data');
     }
 
-    var uuid            = { v1: function() { return Date.now().toString(36) + '-' + crypto.randomUUID(); }, v4: function() { return crypto.randomUUID(); } };
+    var uuid            = (isGFFCtx) ? require('lib/uuid') : require('../../../../../lib/uuid');
     var merge           = (isGFFCtx) ? require('lib/merge') : require('../../../../../lib/merge');
     var inherits        = (isGFFCtx) ? require('lib/inherits') : require('../../../../../lib/inherits');
     var FormValidator   = (isGFFCtx) ? require('lib/form-validator') : require('./form-validator');
@@ -9768,7 +9864,7 @@ function ValidatorPlugin(rules, data, formId) {
 
     /** definitions */
     var instance    = {
-        'id'                : 'validator-' + uuid.v4(),
+        'id'                : 'validator-' + uuid(),
 
         'plugin'            : this.plugin,
         'on'                : (isGFFCtx) ? on : null,
@@ -10017,7 +10113,7 @@ function ValidatorPlugin(rules, data, formId) {
         } else if ( typeof(_id) == 'object' && !Array.isArray(_id) ) { // weird exception
 
             $target = _id.form;
-            _id = $target.getAttribute('id') || 'form.'+uuid.v4();
+            _id = $target.getAttribute('id') || 'form.'+uuid();
 
             $target.setAttribute('id', _id);// just in case
 
@@ -11352,7 +11448,7 @@ function ValidatorPlugin(rules, data, formId) {
                         if (hasBinaries && binaries.length > 0) {
 
                             // We need a separator to define each part of the request
-                            var boundary = '--ginaWKBoundary' + uuid.v4().replace(/\-/g, '');
+                            var boundary = '--ginaWKBoundary' + uuid();
 
 
                             return processFiles(binaries, boundary, '', 0, function onComplete(err, data, done) {
@@ -12020,7 +12116,7 @@ function ValidatorPlugin(rules, data, formId) {
             _id = _id.replace(/\#/, '')
         } else if ( typeof(_id) == 'object' && !Array.isArray(_id) ) { // weird exception
             var $target = _id.form;
-            _id = $target.getAttribute('id') || 'form.'+uuid.v4();
+            _id = $target.getAttribute('id') || 'form.'+uuid();
 
             $target.setAttribute('id', _id);// just in case
 
@@ -12244,12 +12340,12 @@ function ValidatorPlugin(rules, data, formId) {
                     // preparing prototype (need at least an ID for this)
 
                     if ($allForms[f].getAttribute) {
-                        id = $allForms[f].getAttribute('id') || 'form.' + uuid.v4();
+                        id = $allForms[f].getAttribute('id') || 'form.' + uuid();
                         if ( id !== $allForms[f].getAttribute('id') ) {
                             $allForms[f].setAttribute('id', id)
                         }
                     } else {
-                        id = 'form.' + uuid.v4();
+                        id = 'form.' + uuid();
                         $allForms[f].setAttribute('id', id)
                     }
 
@@ -12298,7 +12394,7 @@ function ValidatorPlugin(rules, data, formId) {
                             if ( typeof($allForms[f].id) == 'object' ) {
                                 delete instance.$forms[$allForms[f].id];
 
-                                var _id = $allForms[f].attributes.getNamedItem('id').nodeValue || 'form.'+uuid.v4();
+                                var _id = $allForms[f].attributes.getNamedItem('id').nodeValue || 'form.'+uuid();
 
                                 $allForms[f].setAttribute('id', _id);
                                 $allForms[f]['id'] = _id;
@@ -12362,12 +12458,12 @@ function ValidatorPlugin(rules, data, formId) {
         ;
 
         if ($form.getAttribute) {
-            id = $form.getAttribute('id') || 'form.' + uuid.v4();
+            id = $form.getAttribute('id') || 'form.' + uuid();
             if (id !== $form.getAttribute('id')) {
                 $form.setAttribute('id', id)
             }
         } else {
-            id = 'form.' + uuid.v4();
+            id = 'form.' + uuid();
             $form.setAttribute('id', id)
         }
 
@@ -12404,7 +12500,7 @@ function ValidatorPlugin(rules, data, formId) {
                 if (typeof ($form.id) == 'object') {
                     delete instance.$forms[$form.id];
 
-                    var _id = $form.attributes.getNamedItem('id').nodeValue || 'form.' + uuid.v4();
+                    var _id = $form.attributes.getNamedItem('id').nodeValue || 'form.' + uuid();
 
                     $form.setAttribute('id', _id);
                     $form.id = _id;
@@ -13926,7 +14022,7 @@ function ValidatorPlugin(rules, data, formId) {
         //         if ( $target.isPopinContext ) {
         //             elId = ( isPopinClick ) ? 'popin.click.' : 'popin.link.';
         //         }
-        //         elId += uuid.v4();
+        //         elId += uuid();
         //         $a[f].setAttribute('id', elId)
         //     }
         // }
@@ -13937,7 +14033,7 @@ function ValidatorPlugin(rules, data, formId) {
             checkForRuleAlias($form.rules, $textareas[f]);
             elId = $textareas[f].getAttribute('id');
             if (!elId || elId == '') {
-                elId = 'textareas.' + uuid.v4();
+                elId = 'textareas.' + uuid();
                 $textareas[f].setAttribute('id', elId)
             }
             if (!$form.fieldsSet[ elId ]) {
@@ -13969,7 +14065,7 @@ function ValidatorPlugin(rules, data, formId) {
             checkForRuleAlias($form.rules, $inputs[f]);
             elId = $inputs[f].getAttribute('id');
             if (!elId || elId == '') {
-                elId = 'input.' + uuid.v4();
+                elId = 'input.' + uuid();
                 $inputs[f].setAttribute('id', elId)
             }
 
@@ -14355,7 +14451,7 @@ function ValidatorPlugin(rules, data, formId) {
                                             // create input & add it to the form
                                             $newVirtualField = document.createElement('input');
                                             $newVirtualField.type = 'hidden';
-                                            $newVirtualField.id = 'input.' + uuid.v4();
+                                            $newVirtualField.id = 'input.' + uuid();
                                             $newVirtualField.name = _name;
                                             $newVirtualField.value = '';
 
@@ -14556,7 +14652,7 @@ function ValidatorPlugin(rules, data, formId) {
             if (elId && /^gina\-toolbar/.test(elId)) continue;
 
             if (!elId || elId == '') {
-                elId = 'select.' + uuid.v4();
+                elId = 'select.' + uuid();
                 $select[s].setAttribute('id', elId)
             }
 
@@ -14940,7 +15036,7 @@ function ValidatorPlugin(rules, data, formId) {
             type    = $inputs[i].getAttribute('type');
 
             if ( typeof($inputs[i].id) == 'undefined' || $inputs[i].id == '' ) {
-                $inputs[i].id = type +'-'+ uuid.v4();
+                $inputs[i].id = type +'-'+ uuid();
                 $inputs[i].setAttribute('id', $inputs[i].id)
             }
 
@@ -15283,7 +15379,7 @@ function ValidatorPlugin(rules, data, formId) {
                     }
                     // safety checking
                     if ( typeof($el.id) == 'undefined' || !$el.getAttribute('id') ) {
-                        $el.setAttribute('id', 'click.' + uuid.v4() );
+                        $el.setAttribute('id', 'click.' + uuid() );
                         $el.id = $el.getAttribute('id')
                     } else {
                         $el.id = $el.getAttribute('id')
@@ -15489,7 +15585,7 @@ function ValidatorPlugin(rules, data, formId) {
                     && !gina.popinIsBinded
                     && !/gina\-link/.test($buttonsTMP[b].className)
                 ) { // will not be binded but will receive an id if not existing
-                    linkId = 'link.'+ uuid.v4();
+                    linkId = 'link.'+ uuid();
                     $buttonsTMP[b].id = linkId;
                 }
             }
@@ -15519,7 +15615,7 @@ function ValidatorPlugin(rules, data, formId) {
                 }
 
                 if ( typeof($submit.id) == 'undefined' || typeof($submit.id) != 'undefined' && $submit.id == "" ) {
-                    $submit.id = 'click.'+uuid.v4();
+                    $submit.id = 'click.'+uuid();
                     $submit.setAttribute('id', $submit.id);
                 }
 
@@ -15562,7 +15658,7 @@ function ValidatorPlugin(rules, data, formId) {
             }
 
             if (!$submit['id']) {
-                evt             = 'click.'+ uuid.v4();
+                evt             = 'click.'+ uuid();
                 $submit['id']   = evt;
                 $submit.setAttribute( 'id', evt);
             } else {
@@ -17037,13 +17133,23 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
 define('gina/popin', [ 'require', 'lib/domain', 'lib/merge', 'utils/events' ], function (require) {
 
     // TODO - Integrate dialog-polyfill : https://github.com/GoogleChrome/dialog-polyfill/blob/master/dist/dialog-polyfill.js
-    // removed: jquery dependency
-    // removed: uuid dependency (replaced by crypto.randomUUID())
     var Domain          = require('lib/domain');
     var domainInstance  = null;
     var merge           = require('lib/merge');
 
     require('utils/events'); // events
+
+    /** @type {number} Auto-incrementing ID counter for internal popin identifiers */
+    var _uid = 0;
+    /**
+     * Generates a lightweight unique ID for internal use (event names, DOM element IDs).
+     * Replaces crypto.randomUUID() to avoid unnecessary crypto overhead.
+     *
+     * @inner
+     * @param {string} [prefix='gp'] - Optional prefix
+     * @returns {string} Unique ID string
+     */
+    function _nextId(prefix) { return (prefix || 'gp') + '-' + (++_uid); }
 
     /**
      * Gina Popin Handler
@@ -17071,7 +17177,7 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/merge', 'utils/events' ], f
 
         var instance        = {
             plugin          : this.plugin,
-            id              : 'gina-popins-' + crypto.randomUUID(),
+            id              : 'gina-popins-' + _nextId(),
             on              : on,
             eventData       : {},
 
@@ -17110,6 +17216,9 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/merge', 'utils/events' ], f
         var xhr = null;
 
         var registeredPopins = [];
+
+        // Cached regex — avoids repeated RegExp construction in click handlers
+        var _rePopinClick = new RegExp('^popin\\.click\\.gina-popin-' + instance.id);
 
 
         /**
@@ -17201,7 +17310,7 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/merge', 'utils/events' ], f
             isRouting = ( typeof(isRouting) != 'undefined' ) ? isRouting : false;
 
             var attr    = 'data-gina-popin-name';
-            var $els    = getElementsByAttribute(attr);
+            var $els    = document.querySelectorAll('[' + attr + ']');
             var $el     = null, name = null, id = null;
             var url     = null;
             var proceed = null, evt = null;
@@ -17237,7 +17346,7 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/merge', 'utils/events' ], f
                 if (name == $popin.name) {
                     id = $el.id || $el.getAttribute('id') || null;
                     // By default
-                    evt = 'popin.click.'+ 'gina-popin-' + instance.id +'-'+ crypto.randomUUID() +'-'+ name;
+                    evt = 'popin.click.'+ 'gina-popin-' + instance.id +'-'+ _nextId() +'-'+ name;
                     // console.debug("[POPIN CLICK #1]", id, " VS ", evt);
                     // Retrieving existing event
                     if ( id && new RegExp( '^popin.click.gina-popin-').test(id) ) {
@@ -17316,7 +17425,7 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/merge', 'utils/events' ], f
                 }
 
                 if ( typeof(event.target.id) == 'undefined' ) {
-                    event.target.setAttribute('id', evt +'.'+ crypto.randomUUID() );
+                    event.target.setAttribute('id', evt +'.'+ _nextId() );
                     event.target.id = event.target.getAttribute('id')
                 }
 
@@ -17332,7 +17441,7 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/merge', 'utils/events' ], f
                     //console.log('popin.click !! ', event.target);
                     var _evt = event.target.id;
 
-                    if ( new RegExp( '^popin.click.gina-popin-' + instance.id).test(_evt) ) {
+                    if ( _rePopinClick.test(_evt) ) {
                         triggerEvent(gina, event.target, _evt, event.detail);
                     }
 
@@ -17426,7 +17535,7 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/merge', 'utils/events' ], f
                     }*/ else { // close
 
                         if ( typeof(event.target.id) == 'undefined' ) {
-                            event.target.setAttribute('id', evt +'.'+ crypto.randomUUID() );
+                            event.target.setAttribute('id', evt +'.'+ _nextId() );
                             event.target.id = event.target.getAttribute('id')
                         }
 
@@ -17441,7 +17550,7 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/merge', 'utils/events' ], f
                             cancelEvent(event);
                             var _evt = event.target.id;
 
-                            if ( new RegExp( '^popin.click.gina-popin-' + instance.id).test(_evt) ) {
+                            if ( _rePopinClick.test(_evt) ) {
                                 triggerEvent(gina, event.target, _evt, event.detail);
                             }
 
@@ -17472,43 +17581,7 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/merge', 'utils/events' ], f
                         removeListener(gina, event.target, 'mousedown');
 
                         // binding popin close
-                        var $close          = []
-                            , $buttonsTMP   = []
-                        ;
-
-                        i = 0;
-                        $buttonsTMP = $el.getElementsByTagName('button');
-                        b = 0; len = $buttonsTMP.length;
-                        if ( len > 0 ) {
-                            for(; b < len; ++b) {
-                                if ( /gina-popin-close/.test($buttonsTMP[b].className) ) {
-                                    $close[i] = $buttonsTMP[b];
-                                    ++i;
-                                }
-                            }
-                        }
-
-                        $buttonsTMP = $el.getElementsByTagName('div');
-                        b = 0; len = $buttonsTMP.length;
-                        if ( len > 0 ) {
-                            for(; b < len; ++b) {
-                                if ( /gina-popin-close/.test($buttonsTMP[b].className) ) {
-                                    $close[i] = $buttonsTMP[b];
-                                    ++i
-                                }
-                            }
-                        }
-
-                        $buttonsTMP = $el.getElementsByTagName('a');
-                        b = 0; len = $buttonsTMP.length;
-                        if ( len > 0 ) {
-                            for(; b < len; ++b) {
-                                if ( /gina-popin-close/.test($buttonsTMP[b].className) ) {
-                                    $close[i] = $buttonsTMP[b];
-                                    ++i
-                                }
-                            }
-                        }
+                        var $close = Array.prototype.slice.call($el.querySelectorAll('.gina-popin-close'));
 
                         b = 0; len = $close.length;
                         for (; b < len; ++b) {
@@ -17564,54 +17637,29 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/merge', 'utils/events' ], f
             }
 
             // binding popin close & links (& its target attributes)
-            var $close          = []
-                , $buttonsTMP   = []
-                , $link         = []
-            ;
+            var $close = Array.prototype.slice.call($el.querySelectorAll('.gina-popin-close'));
+            var $link  = [];
 
-            $buttonsTMP = $el.getElementsByTagName('button');
-            i = 0; b = 0; len = $buttonsTMP.length;
-            if ( $buttonsTMP.length > 0 ) {
-                for(; b < len; ++b) {
-                    if ( /gina-popin-close/.test($buttonsTMP[b].className) ) {
-                        $close[i] = $buttonsTMP[b];
-                        ++i
-                    }
-                }
-            }
-
-            $buttonsTMP = $el.getElementsByTagName('div');
-            b = 0; len = $buttonsTMP.length;
+            // Collect non-close <a> links
+            var $aTags = $el.getElementsByTagName('a');
+            b = 0; len = $aTags.length;
             if ( len > 0 ) {
                 for(; b < len; ++b) {
-                    if ( /gina-popin-close/.test($buttonsTMP[b].className) ) {
-                        $close[i] = $buttonsTMP[b];
-                        ++i;
-                    }
-                }
-            }
-
-            $buttonsTMP = $el.getElementsByTagName('a');
-            b = 0; len = $buttonsTMP.length;
-            if ( len > 0 ) {
-                for(; b < len; ++b) {
-                    if ( /gina-popin-close/.test($buttonsTMP[b].className) ) {
-                        $close[i] = $buttonsTMP[b];
-                        ++i;
+                    if ( $aTags[b].classList.contains('gina-popin-close') ) {
                         continue
                     }
 
                     if (
-                        typeof($buttonsTMP[b]) != 'undefined'
-                        && !/(\#|\#.*)$/.test($buttonsTMP[b].href) // ignore href="#"
+                        typeof($aTags[b]) != 'undefined'
+                        && !/(\#|\#.*)$/.test($aTags[b].href) // ignore href="#"
                         // ignore href already bindded byr formValidator or the user
-                        && !$buttonsTMP[b].id
+                        && !$aTags[b].id
                         ||
-                        typeof($buttonsTMP[b]) != 'undefined'
-                        && !/(\#|\#.*)$/.test($buttonsTMP[b].href) // ignore href="#"
-                        && !/^(click\.|popin\.link)/.test($buttonsTMP[b].id)
+                        typeof($aTags[b]) != 'undefined'
+                        && !/(\#|\#.*)$/.test($aTags[b].href) // ignore href="#"
+                        && !/^(click\.|popin\.link)/.test($aTags[b].id)
                     ) {
-                        $link.push($buttonsTMP[b]);
+                        $link.push($aTags[b]);
                         continue
                     }
                 }
@@ -17637,7 +17685,7 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/merge', 'utils/events' ], f
 
                 if (!$close[b]['id']) {
 
-                    evt = 'popin.close.'+ crypto.randomUUID();
+                    evt = 'popin.close.'+ _nextId();
                     $close[b]['id'] = evt;
                     $close[b].setAttribute( 'id', evt);
 
@@ -17683,10 +17731,10 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/merge', 'utils/events' ], f
                     // link or action ?
                     if (/^null$/i.test($link[i]['id'])) {
                         if ( isLink ) {
-                            evt = 'popin.link.' + crypto.randomUUID();
+                            evt = 'popin.link.' + _nextId();
                             $link[i].setAttribute('data-gina-popin-is-link', true);
                         } else {
-                            evt = 'popin.click.' + crypto.randomUUID();
+                            evt = 'popin.click.' + _nextId();
                             $link[i].setAttribute('data-gina-popin-is-link', false);
                         }
                     } else {
@@ -17759,7 +17807,7 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/merge', 'utils/events' ], f
                 for(; i < len; ++i) {
 
                     if ( !$forms[i]['id'] || typeof($forms[i]) != 'string' ) {
-                        _id = $forms[i].getAttribute('id') || 'form.' + crypto.randomUUID();
+                        _id = $forms[i].getAttribute('id') || 'form.' + _nextId();
                         $forms[i].setAttribute('id', _id);// just in case
                         $forms[i]['id'] = _id
                     } else {
@@ -18021,6 +18069,16 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/merge', 'utils/events' ], f
             $popin.options  = merge(options, $popin.options);
 
             var result = null;
+
+            // Fresh XHR per load — prevents concurrent popins from sharing state
+            var xhr = null;
+            if (window.XMLHttpRequest) {
+                xhr = new XMLHttpRequest();
+            } else if (window.ActiveXObject) {
+                try { xhr = new ActiveXObject("Msxml2.XMLHTTP"); }
+                catch (e) { try { xhr = new ActiveXObject("Microsoft.XMLHTTP"); } catch (e) {} }
+            }
+
             if ( options.withCredentials ) { // Preflighted requests
                 if ('withCredentials' in xhr) {
                     // XHR for Chrome/Firefox/Opera/Safari.
@@ -18400,28 +18458,35 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/merge', 'utils/events' ], f
             }
         }
 
-        function getScript(source) {
-            // then trigger scripts load
-            //var xhr = new XMLHttpRequest();
-            var xhr = setupXhr();
-            xhr.open('GET', source, true);
-            xhr.setRequestHeader("Content-Type", "text/javascript");
-            xhr.onload = function () {
-                eval(xhr.response);
-            };
-            xhr.send();
+        /**
+         * Loads an external script by injecting a <script> element into the document head.
+         * Browser handles loading in parallel — no sequential XHR or eval().
+         *
+         * @param {string} source - Script URL
+         * @param {object} [$popin] - Popin object for tracking injected headers (cleaned up on close)
+         */
+        function getScript(source, $popin) {
+            var s = document.createElement('script');
+            s.src = source;
+            s.id = 'popin-script-' + _nextId();
+            if ($popin) { $popin.$headers.push({ id: s.id }); }
+            document.head.appendChild(s);
         }
 
-        function getStyle(source) {
-            // then trigger scripts load
-            //var xhr = new XMLHttpRequest();
-            var xhr = setupXhr();
-            xhr.open('GET', source, true);
-            xhr.setRequestHeader("Content-Type", "text/css");
-            xhr.onload = function () {
-                eval(xhr.response);
-            };
-            xhr.send();
+        /**
+         * Loads an external stylesheet by injecting a <link> element into the document head.
+         * Browser handles loading in parallel — no sequential XHR or eval().
+         *
+         * @param {string} source - Stylesheet URL
+         * @param {object} [$popin] - Popin object for tracking injected headers (cleaned up on close)
+         */
+        function getStyle(source, $popin) {
+            var link = document.createElement('link');
+            link.rel = 'stylesheet';
+            link.href = source;
+            link.id = 'popin-style-' + _nextId();
+            if ($popin) { $popin.$headers.push({ id: link.id }); }
+            document.head.appendChild(link);
         }
 
         function refreshCSS() {
@@ -18505,7 +18570,7 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/merge', 'utils/events' ], f
                 if ( globalScriptsList.indexOf(filename) > -1 )
                     continue;
 
-                getScript(scripts[i].src);
+                getScript(scripts[i].src, $popin);
             }
 
             // Styles
@@ -18522,21 +18587,22 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/merge', 'utils/events' ], f
                 if ( globalStylesList.indexOf(filename) > -1 )
                     continue;
 
-                getStyle(styles[i].href);
+                getStyle(styles[i].href, $popin);
             }
 
-            popinBind({ target: $el, type: 'loaded.' + $popin.id }, $popin);
+            // Skip if already bound by the loaded listener — avoids double DOM scanning
+            if (!gina.popinIsBinded) {
+                popinBind({ target: $el, type: 'loaded.' + $popin.id }, $popin);
+            }
 
 
-            if ( !/gina-popin-is-active/.test($el.className) )
-                $el.className += ' gina-popin-is-active';
+            $el.classList.add('gina-popin-is-active');
 
             if ( !self.options.useDialogMode || gina.config.envIsDev ) {
                 // overlay
-                if ( !/gina-popin-is-active/.test(instance.target.firstChild.className) )
-                    instance.target.firstChild.className += ' gina-popin-is-active';
+                instance.target.firstChild.classList.add('gina-popin-is-active');
                 // overlay
-                if ( /gina-popin-is-active/.test(instance.target.firstChild.className) ) {
+                if ( instance.target.firstChild.classList.contains('gina-popin-is-active') ) {
                     removeListener(gina, instance.target, 'open.'+ $popin.id)
                 }
             }
@@ -18594,10 +18660,10 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/merge', 'utils/events' ], f
 
                 isRouting = ( typeof(isRouting) != 'undefined' ) ? isRouting : false;
 
-                if ( $el != null && /gina-popin-is-active/.test($el.className) ) {
+                if ( $el != null && $el.classList.contains('gina-popin-is-active') ) {
                     if (!isRouting) {
-                        instance.target.firstChild.className    = instance.target.firstChild.className.replace(/\sgina-popin-is-active|gina-popin-is-active|gina-popin-is-active\s/, '');
-                        $el.className                           = $el.className.replace(/\sgina-popin-is-active|gina-popin-is-active|gina-popin-is-active\s/, '');
+                        instance.target.firstChild.classList.remove('gina-popin-is-active');
+                        $el.classList.remove('gina-popin-is-active');
                         $el.innerHTML                           = '';
                     }
                     // Fixed: clear loading state on reset — defensive cleanup for navigation
@@ -18679,7 +18745,7 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/merge', 'utils/events' ], f
                     $popin.hasForm = false;
                 }
 
-                if ( $el != null && /gina-popin-is-active/.test($el.className) ) {
+                if ( $el != null && $el.classList.contains('gina-popin-is-active') ) {
 
                     popinUnbind(name);
                     $popin.isOpen           = false;
@@ -18723,11 +18789,11 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/merge', 'utils/events' ], f
         /**
          * popinDestroy
          *
-         * Destroyes a popin by name
+         * Destroys a popin by name: closes it if open, removes event listeners,
+         * removes the DOM element, and cleans up the internal registry.
          *
-         * @parama {string} name
-         *
-         * */
+         * @param {string} [name] - Popin name. If omitted, destroys the active popin.
+         */
         function popinDestroy(name) {
 
             var $popin = ( typeof(name) != 'undefined') ? getPopinByName(name) : getActivePopin();
@@ -18735,8 +18801,42 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/merge', 'utils/events' ], f
             if ( !$popin && typeof(name) != 'undefined' ) {
                 throw new Error('Popin `'+name+'` not found !');
             }
+            if ( !$popin ) return;
 
             id = $popin.id;
+            name = $popin.name;
+
+            // Close first if still open (handles listener cleanup, form unbinding, header removal)
+            if ( $popin.isOpen ) {
+                $popin.isRedirecting = false;
+                popinClose(name);
+            }
+
+            // Remove the DOM element
+            $el = document.getElementById(id);
+            if ( $el ) {
+                $el.remove();
+            }
+
+            // Remove remaining listeners
+            removeListener(gina, $popin.target, 'loaded.' + id);
+            removeListener(gina, $popin.target, 'ready.' + id);
+            removeListener(gina, $popin.target, 'open.' + id);
+            removeListener(gina, $popin.target, 'close.' + id);
+
+            // Clean up registry
+            delete instance.$popins[id];
+            var regIdx = registeredPopins.indexOf(name);
+            if ( regIdx > -1 ) {
+                registeredPopins.splice(regIdx, 1);
+            }
+
+            // Reset active if this was the active popin
+            if ( instance.activePopinId === id ) {
+                instance.activePopinId = null;
+            }
+
+            triggerEvent(gina, instance.target, 'destroy.' + id, { name: name, id: id });
         }
 
         function registerPopin($popin, options) {
@@ -18757,6 +18857,7 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/merge', 'utils/events' ], f
                 if ( registeredPopins.indexOf($popin.options['name']) > -1 ) {
                     throw new Error('`popin '+$popin.options['name']+'` already exists !')
                 }
+                registeredPopins.push($popin.options['name']);
 
                 // import over plugins
                 if ( typeof($popin.options['validator']) != 'undefined' ) {
@@ -18809,21 +18910,7 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/merge', 'utils/events' ], f
 
                 instance.$popins[$popin.id] = $popin;
 
-                // setting up AJAX
-                if (window.XMLHttpRequest) { // Mozilla, Safari, ...
-                    xhr = new XMLHttpRequest();
-                } else if (window.ActiveXObject) { // IE
-                    try {
-                        xhr = new ActiveXObject("Msxml2.XMLHTTP");
-                    } catch (e) {
-                        try {
-                            xhr = new ActiveXObject("Microsoft.XMLHTTP");
-                        }
-                        catch (e) {}
-                    }
-                }
-
-
+                // XHR is now created per popinLoad() call — no shared instance needed
 
                 bindOpen($popin);
             }
@@ -18865,6 +18952,7 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/merge', 'utils/events' ], f
             instance.getActivePopin = getActivePopin;
             instance.open           = popinOpen;
             instance.close          = popinClose;
+            instance.destroy        = popinDestroy;
         }
 
 
@@ -18900,7 +18988,7 @@ function StoragePlugin(options) {
 
     var merge       = merge || require('lib/merge');;
     var Collection  = Collection || require('lib/collection');
-    var uuid        = { v1: function() { return Date.now().toString(36) + '-' + crypto.randomUUID(); }, v4: function() { return crypto.randomUUID(); } };
+    var uuid        = uuid || require('lib/uuid');
     var dateFormat  = dateFormat || require('helpers/dateFormat');
 
 
@@ -19115,7 +19203,7 @@ function StoragePlugin(options) {
     function collectionInsert(content) {
 
         // TODO - add uuid
-        content['_id']         = uuid.v1();
+        content['_id']         = Date.now().toString(36) + '-' + uuid();
         content['_createdAt']  = new Date().format("isoDateTime");
         content['_updatedAt']  = new Date().format("isoDateTime");
 
@@ -19309,7 +19397,7 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
     // Publish as node.js module
     var merge       = require('lib/merge'); //require('../../../../../lib/merge');
     var Collection  = require('lib/collection'); //require('../../../../../lib/collection');
-    var uuid        = { v1: function() { return Date.now().toString(36) + '-' + crypto.randomUUID(); }, v4: function() { return crypto.randomUUID(); } };
+    var uuid        = require('lib/uuid');
 
     module.exports = StoragePlugin
 
@@ -19562,7 +19650,7 @@ if ( typeof(module) !== 'undefined' && module.exports ) {
  * `Collection.length` returns entry count — do not use `.count()` as it
  * includes function properties in the count.
  *
- * Dependencies: `lib/merge`, `uuid`
+ * Dependencies: `lib/merge`, `lib/uuid`
  */
 
 /**
@@ -19603,7 +19691,7 @@ if ( typeof(module) !== 'undefined' && module.exports ) {
 function Collection(content, options) {
 
     var isGFFCtx        = ( ( typeof(module) !== 'undefined' ) && module.exports ) ? false : true;
-    var uuid            = { v4: function() { return crypto.randomUUID(); } };
+    var uuid            = (isGFFCtx) ? require('lib/uuid') : require('../../../lib/uuid');
     var merge           = (isGFFCtx) ? require('lib/merge') : require('../../../lib/merge');
 
     // defined search option rules
@@ -19660,7 +19748,7 @@ function Collection(content, options) {
         if ( typeof(content[entry]._uuid) != 'undefined' ) {
             content[entry]._hasItsOwnUuid = true;
         } else {
-            content[entry]._uuid = uuid.v4();
+            content[entry]._uuid = uuid();
         }
 
         // To avoid duplicate entries
@@ -20421,7 +20509,7 @@ function Collection(content, options) {
             var tmpContent = Array.isArray(this) ? this : content;
 
             // Indexing;
-            set._uuid = uuid.v4();
+            set._uuid = uuid();
             tmpContent.push(set);
 
             result = tmpContent;
@@ -21129,7 +21217,6 @@ function ready() {
                     }, 50, i, readyList);
 
                 } else { // onEachHandlerReady
-                    // removed: jquery / $ context passthrough
                     readyList[i].ctx = window.originalContext || null;
                     readyList[i].fn.call(window, readyList[i].ctx, window.require);
                     ++i;
@@ -21209,7 +21296,7 @@ if ( typeof(window['gina']) == 'undefined' ) { // could have be defined by loade
         /**
          * ready
          * This is the one public interface use to wrap `handlers`
-         * It is an equivalent of jQuery(document).ready(cb)
+         * It is an equivalent of document.addEventListener('DOMContentLoaded', cb)
          *
          * No need to use it for `handlers`, it is automatically applied for each `handler`
          *
