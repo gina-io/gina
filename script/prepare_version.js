@@ -288,6 +288,22 @@ function PrepareVersion() {
             package.main = './framework/v'+ targetedVersion +'/core/gna';
             new _(pack, true).rmSync();
             lib.generator.createFileFromDataSync(JSON.stringify(package, null, 2), pack);
+
+            // keeping gna.js up to date — replace all framework version path references
+            var gnaJsPath = _(ginaPath + '/gna.js', true);
+            try {
+                var gnaJsSrc = fs.readFileSync(gnaJsPath, 'utf8');
+                var updatedGnaJs = gnaJsSrc.replace(
+                    new RegExp('framework/v' + selectedVersion.replace(/\./g, '\\.'), 'g'),
+                    'framework/v' + targetedVersion
+                );
+                if (updatedGnaJs !== gnaJsSrc) {
+                    fs.writeFileSync(gnaJsPath, updatedGnaJs);
+                    console.info('[prepare] Updated gna.js framework paths: v' + selectedVersion + ' -> v' + targetedVersion);
+                }
+            } catch (gnaErr) {
+                console.warn('[prepare] Could not update gna.js: ' + (gnaErr.message || gnaErr));
+            }
         }
 
         done()
