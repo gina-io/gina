@@ -184,12 +184,12 @@ describe('04 - Functional: lib/uuid produces valid base-62 IDs', function() {
         assert.ok(/^[0-9A-Za-z]{8}$/.test(id), 'Expected 8 base-62 chars, got: ' + id);
     });
 
-    it('uuid() produces unique values across 1000 calls', function() {
+    it('uuid(8) produces unique values across 1000 calls', function() {
         var seen = new Set();
         for (var i = 0; i < 1000; i++) {
-            seen.add(uuid());
+            seen.add(uuid(8));
         }
-        // With 62^4 = ~14.7M possibilities, 1000 calls should have zero collisions
+        // With 62^8 = ~218T possibilities, 1000 calls should have zero collisions
         assert.equal(seen.size, 1000, 'Expected 1000 unique IDs, got: ' + seen.size);
     });
 
