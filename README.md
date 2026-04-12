@@ -37,17 +37,10 @@ gina bundle:start api @myproject
 open https://localhost:3100
 ```
 
-## What's in 0.3.3
+## What's in 0.3.4
 
-- **Live database index introspection** — Inspector Query tab now queries actual database indexes (MySQL, PostgreSQL, SQLite) without requiring manual `indexes.sql` files
-- **`bundle:openapi`** — generate an OpenAPI 3.1.0 spec from `routing.json` with `gina bundle:openapi @myproject`
-- **`framework:get` and `port:set` CLI commands** — read settings and set individual bundle ports without a full reset
-- **Swig migration** — vendored `swig-1.4.2` replaced with `@rhinostone/swig` npm dependency (maintained fork with CVE-2023-25345 patched)
-- **Internal `lib/uuid`** — lightweight base-62 ID generator replaces external uuid dependency
-- **Popin performance** — parallel DOM-injected resource loading, `popinDestroy()`, `classList` API, cached RegExp
-- **Validator fix** — global validation pass no longer shows errors for untouched fields
-- **Docker fixes** — vendored `streamsearch` for busboy, emerg forwarding to CLI output and docker logs
-- **requireJSON resilience** — trailing commas in config files now produce a warning instead of aborting the bundle
+- **Fixed `require('gina/gna')` explicit exports** — v0.3.3 shipped with stale framework paths in `gna.js`, causing `MODULE_NOT_FOUND` errors; release lifecycle scripts now sync `gna.js` automatically on every version change
+- See 0.3.3 for feature additions (live index introspection, `bundle:openapi`, `framework:get`, `port:set`, swig migration, internal `lib/uuid`, popin performance, validator fix, Docker fixes, requireJSON resilience)
 
 See the full [Changelog](./CHANGELOG.md) and [Roadmap](./ROADMAP.md).
 
