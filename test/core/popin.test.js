@@ -7,7 +7,7 @@ var FW = require('../fw');
 var POPIN_SRC    = path.join(FW, 'core/asset/plugin/src/vendor/gina/popin/main.js');
 var EVENTS_SRC   = path.join(FW, 'core/asset/plugin/src/vendor/gina/utils/events.js');
 var BINDING_SRC  = path.join(FW, 'core/asset/plugin/src/vendor/gina/helpers/binding.js');
-var DIST_JS      = path.join(FW, 'core/asset/plugin/dist/vendor/gina/js/gina.min.js');
+var DIST_JS      = path.join(FW, 'core/asset/plugin/dist/vendor/gina/js/gina.js');
 
 var _popinSrc, _eventsSrc, _bindingSrc, _distSrc;
 function getPopinSrc()  { return _popinSrc  || (_popinSrc  = fs.readFileSync(POPIN_SRC, 'utf8')); }
