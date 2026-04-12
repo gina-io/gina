@@ -1,0 +1,3 @@
+kind: Fixed
+body: require('gina/gna') explicit exports now resolve correctly — v0.3.3 shipped with stale framework paths in gna.js that caused MODULE_NOT_FOUND errors
+time: 2026-04-12T03:00:13.034999+01:00
