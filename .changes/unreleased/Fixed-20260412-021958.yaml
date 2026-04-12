@@ -1,3 +1,0 @@
-kind: Fixed
-body: bumpVersion and prepare_version now update gna.js framework paths on version changes — fixes CI test failures where gna.js referenced a stale framework directory
-time: 2026-04-12T02:19:58.892045+01:00
