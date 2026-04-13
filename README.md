@@ -22,7 +22,7 @@ Node.js MVC framework with built-in HTTP/2, multi-bundle architecture, and scope
 | ORM / entities | EventEmitter-based entity system; SQL files auto-wired to entity methods |
 | Connectors | Couchbase, MySQL, PostgreSQL, Redis, SQLite, AI (LLM) — loaded from project `node_modules` |
 | AI connector | Any LLM provider via named protocol (`anthropic://`, `openai://`, `ollama://`, …) |
-| Template engine | Swig 1.4.2 built-in; streaming SSE/chunked via `renderStream()` |
+| Template engine | [`@rhinostone/swig`](https://github.com/gina-io/swig) 1.5.0 — maintained fork with CVE-2023-25345 patched; streaming SSE/chunked via `renderStream()` |
 | Hot reload | WatcherService evicts `require.cache` only on file change — zero per-request overhead in dev |
 | K8s ready | `gina-container`, `gina-init`, SIGTERM drain, JSON stdout logging |
 | Dependency injection | Mockable connectors and config for unit testing |
