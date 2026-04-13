@@ -30,7 +30,7 @@ package-lock.json
 script/post_publish.js
 script/prepare_version.js
 
-# Local-only, not for distribution
+# Local-only — never publish
 .claude/
 .claudeignore
 CLAUDE.md

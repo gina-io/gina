@@ -11,7 +11,9 @@ nbproject
 .svn
 .git
 
-# Claude AI
+# Local-only — never track
+.claude/
+.claudeignore
 CLAUDE.md
 
 # Gina
