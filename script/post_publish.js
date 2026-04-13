@@ -213,24 +213,34 @@ function PostPublish() {
             "const ginaVersion = '" + self.publishedVersion + "';"
         );
 
-        if (updated === content) {
-            console.info('[syncDocs] ginaVersion already up to date — skipping');
-            return done();
+        // Write only if changed — but never short-circuit the function here.
+        // The merge-to-main step below must run on every stable publish, even
+        // when ginaVersion is already current (e.g. user pre-set it manually).
+        if (updated !== content) {
+            fs.writeFileSync(docsConfigPath, updated, 'utf8');
         }
-
-        fs.writeFileSync(docsConfigPath, updated, 'utf8');
 
         var docsRepoPath = _(os.homedir() + '/Sites/gina/docs/repo', true);
         var initialDir = process.cwd();
         process.chdir(docsRepoPath);
         try {
             execSync('$(which git) checkout develop');
-            execSync('$(which git) add docusaurus.config.js');
-            execSync("$(which git) commit -m'Updated gina version to " + self.publishedVersion + "'");
-            execSync('$(which git) push origin develop');
+
+            // Commit + push develop — tolerate "nothing to commit" locally so
+            // the merge-to-main step below still runs when there is no config diff.
+            try {
+                execSync('$(which git) add docusaurus.config.js');
+                execSync("$(which git) commit -m'Updated gina version to " + self.publishedVersion + "'");
+                execSync('$(which git) push origin develop');
+            } catch (commitErr) {
+                var commitOut = commitErr.output ? commitErr.output.toString() : (commitErr.message || '');
+                if (!/nothing to commit/i.test(commitOut)) { throw commitErr; }
+            }
 
             if (!self.isAlpha) {
                 // Stable / beta — merge develop into main and push; GitHub Actions deploys automatically.
+                // Runs whether or not this invocation wrote a new ginaVersion, so that docs content
+                // commits (migration, roadmap, guides) made earlier on develop still reach main.
                 execSync('$(which git) checkout main');
                 execSync('$(which git) merge develop');
                 execSync('$(which git) push origin main');
@@ -240,11 +250,8 @@ function PostPublish() {
                 console.info('[syncDocs] Alpha release — docs committed and pushed to develop');
             }
         } catch (err) {
-            var errOut = err.output ? err.output.toString() : (err.message || '');
-            if (!/nothing to commit/i.test(errOut)) {
-                process.chdir(initialDir);
-                return done(err);
-            }
+            process.chdir(initialDir);
+            return done(err);
         }
         process.chdir(initialDir);
 
