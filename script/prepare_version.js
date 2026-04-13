@@ -129,6 +129,61 @@ function PrepareVersion() {
     }
 
 
+    /**
+     * Fail-closed gate: abort the release if any Claude-related path is
+     * present in the working tree (tracked or untracked-not-ignored).
+     *
+     * `git add --all` runs later in this script (pushChangesToGitIfNeeded)
+     * and sweeps every non-ignored path into the release commit. Without
+     * this gate, a local `.claude/` or `CLAUDE.md` that slips past
+     * `.gitignore` (e.g. force-added, or an unignored rename) lands in the
+     * release commit and — via the subsequent push — ends up on the public
+     * remote.
+     *
+     * Runs first because it inspects filesystem state only; no dependency
+     * on framework helpers or ~/.gina config.
+     */
+    self.checkNoClaudeLeakage = function(done) {
+        console.debug('[prepare] Checking for Claude-related file leakage ...');
+
+        var PATTERN = /(^|\/)(CLAUDE\.md|\.claude[a-z]*)/i;
+        var matches = [];
+
+        var scan = function(label, cmd) {
+            var out;
+            try {
+                out = execSync(cmd).toString();
+            } catch (err) {
+                throw new Error('[prepare] `' + cmd + '` failed: ' + (err.message || err));
+            }
+            var lines = out.split('\n');
+            for (var i = 0; i < lines.length; i++) {
+                if (lines[i] && PATTERN.test(lines[i])) {
+                    matches.push(label + ': ' + lines[i]);
+                }
+            }
+        };
+
+        try {
+            scan('tracked',   'git ls-files');
+            scan('untracked', 'git ls-files --others --exclude-standard');
+        } catch (err) {
+            return done(err);
+        }
+
+        if (matches.length > 0) {
+            console.error('[prepare] ERROR: Claude-related paths detected — aborting to prevent leak:');
+            for (var i = 0; i < matches.length; i++) {
+                console.error('  ' + matches[i]);
+            }
+            console.error('[prepare] Remove or re-ignore these paths before publishing.');
+            return done(new Error('Claude-related file leakage detected'));
+        }
+
+        console.debug('[prepare] OK: no Claude-related paths detected.');
+        done();
+    };
+
     self.getSelectedVersion = async function(done) {
         var homeDir = getUserHome() || null;
         var frameworkPath = null;

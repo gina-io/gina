@@ -30,8 +30,9 @@ package-lock.json
 script/post_publish.js
 script/prepare_version.js
 
-# AI / internal development notes
+# Local-only — never publish
 .claude/
+.claudeignore
 CLAUDE.md
 
 # Secrets

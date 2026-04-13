@@ -24,8 +24,6 @@
  *
  * **Tabs:** Data, View, Forms, Query, Logs
  *
- * @see .claude/plugins/inspector/index.md — full architecture documentation
- *
  * @typedef {Object} LogEntry
  * @property {number}  t    - Timestamp (ms since epoch)
  * @property {string}  l    - Level string (error|warn|info|log|debug for client;
