@@ -68,6 +68,7 @@
   "scripts": {
     "test": "node --test test*.test.js",
     "prepare": "node script/prepare_version.js",
+    "prepack": "node script/check_no_claude_leak.js",
     "postpublish": "node script/post_publish.js",
     "preinstall": "node script/pre_install.js",
     "postinstall": "node script/post_install.js"
