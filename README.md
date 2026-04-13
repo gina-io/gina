@@ -37,10 +37,11 @@ gina bundle:start api @myproject
 open https://localhost:3100
 ```
 
-## What's in 0.3.4
+## What's in 0.3.5
 
-- **Fixed `require('gina/gna')` explicit exports** — v0.3.3 shipped with stale framework paths in `gna.js`, causing `MODULE_NOT_FOUND` errors; release lifecycle scripts now sync `gna.js` automatically on every version change
-- See 0.3.3 for feature additions (live index introspection, `bundle:openapi`, `framework:get`, `port:set`, swig migration, internal `lib/uuid`, popin performance, validator fix, Docker fixes, requireJSON resilience)
+- **Security (CVE-2023-25345 extension)** — bumped `@rhinostone/swig` to 1.5.0, extending path-traversal guards to bracket-notation access, set-bracket assignment, for-loop variables, macro names, and import aliases
+- **Client-side parity** — updated vendored browser swig (`core/deps/swig-client/`) to the 1.5.0 build; browser-side templating now matches the server-side `__proto__`/`constructor`/`prototype` blocklist
+- See 0.3.4 for the `require('gina/gna')` stale-path fix, and 0.3.3 for feature additions (live index introspection, `bundle:openapi`, `framework:get`, `port:set`, swig migration, internal `lib/uuid`, popin performance, validator fix, Docker fixes, requireJSON resilience)
 
 See the full [Changelog](./CHANGELOG.md) and [Roadmap](./ROADMAP.md).
 
