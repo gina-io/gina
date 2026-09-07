@@ -1247,8 +1247,16 @@ function Couchbase(conn, infos) {
                                     var error;
                                     if ( err && err.cause && typeof(err.cause.first_error_message) != 'undefined' && err.cause.first_error_message !== '' ) {
                                         error = new Error(err.cause.first_error_message);
-                                        error.stack = trigger +'\n'+ err.cause.http_body;
-                                        error.cause = err.cause;
+                                        // #B509 — the envelope carries the failing statement's own RESULT
+                                        // ROWS (a RETURNING DML losing a CAS race, a SELECT timing out
+                                        // part-way); verbatim on `.stack` and `.cause.http_body` it wrote
+                                        // application records into every log that printed the error.
+                                        // Redact the rows, keep every diagnostic field, and COPY `cause`
+                                        // rather than mutate the SDK's object — the classifier reads only
+                                        // `first_error_code` / `retry`, both preserved by the shallow copy.
+                                        var _redactedBody = paramRedact.redactResultRows(err.cause.http_body);
+                                        error.stack = trigger +'\n'+ _redactedBody;
+                                        error.cause = Object.assign({}, err.cause, { http_body: _redactedBody });
                                     } else {
                                         error = (err instanceof Error) ? err : new Error(String(err));
                                     }
@@ -1656,8 +1664,11 @@ function Couchbase(conn, infos) {
                             var error;
                             if ( err && err.cause && typeof(err.cause.first_error_message) != 'undefined' && err.cause.first_error_message !== '' ) {
                                 error = new Error(err.cause.first_error_message);
-                                error.stack = trigger +'\n'+ err.cause.http_body;
-                                error.cause = err.cause;
+                                // #B509 — see the register() onError site: the envelope's result
+                                // rows are redacted out of `.stack` and `.cause.http_body`.
+                                var _redactedBody = paramRedact.redactResultRows(err.cause.http_body);
+                                error.stack = trigger +'\n'+ _redactedBody;
+                                error.cause = Object.assign({}, err.cause, { http_body: _redactedBody });
                             } else {
                                 error = (err instanceof Error) ? err : new Error(String(err));
                             }

@@ -168,10 +168,62 @@ function redactValuesDeep(value, depth, seen) {
     return out;
 }
 
+/**
+ * Redact the result rows out of a query-service response envelope before it
+ * reaches an error's `.stack` / `.cause` (#B509).
+ *
+ * A failed N1QL statement comes back with its WHOLE envelope — `requestID`,
+ * `signature`, `results`, `errors`, `status`, … — and `results` is non-empty
+ * whenever the statement had already produced rows (a `RETURNING` DML losing a
+ * CAS race, a SELECT timing out part-way). The connector used to concatenate
+ * that body verbatim into `error.stack` and keep it on `error.cause.http_body`,
+ * so whatever printed the error — the controller's error path, or any
+ * `console.error(err)` (`util.inspect` renders enumerable `cause`) — wrote the
+ * application's own records into the log.
+ *
+ * Keeps every diagnostic field (`errors`, `requestID`, `status`, `signature`,
+ * metrics) and replaces `results` with a shape marker carrying the row count.
+ * Fail-CLOSED: a non-string or unparseable body yields a marker, never the raw
+ * text — a redaction must not leak on the one path it could not understand.
+ * Never throws; this runs on the error path.
+ *
+ * @memberof module:param-redact
+ * @param {*} httpBody - the envelope as the SDK hands it (`err.cause.http_body`, a JSON string)
+ * @returns {string} the redacted envelope as a JSON string, or a bracketed marker
+ *
+ * @example
+ * redactResultRows('{"requestID":"r1","results":[{"id":1}],"errors":[{"code":12009,"msg":"CAS mismatch"}],"status":"errors"}')
+ * // -> '{"requestID":"r1","results":"[1 result row redacted]","errors":[{"code":12009,"msg":"CAS mismatch"}],"status":"errors"}'
+ * @example
+ * redactResultRows('not json')   // -> '[unparseable query envelope, 8 B redacted]'
+ * @example
+ * redactResultRows(undefined)    // -> '[query envelope of type undefined redacted]'
+ */
+function redactResultRows(httpBody) {
+    if (typeof httpBody !== 'string') {
+        return '[query envelope of type ' + typeMarker(httpBody).slice(1, -1) + ' redacted]';
+    }
+    var envelope;
+    try {
+        envelope = JSON.parse(httpBody);
+    } catch (_e) {
+        return '[unparseable query envelope, ' + Buffer.byteLength(httpBody) + ' B redacted]';
+    }
+    if (envelope === null || typeof envelope !== 'object' || Array.isArray(envelope)) {
+        return '[non-object query envelope, ' + Buffer.byteLength(httpBody) + ' B redacted]';
+    }
+    if (Object.prototype.hasOwnProperty.call(envelope, 'results')) {
+        var n = Array.isArray(envelope.results) ? envelope.results.length : 1;
+        envelope.results = '[' + n + ' result row' + (n === 1 ? '' : 's') + ' redacted]';
+    }
+    return JSON.stringify(envelope);
+}
+
 module.exports = {
     typeMarker       : typeMarker,
     captureValues    : captureValues,
     summarize        : summarize,
     describeParams   : describeParams,
-    redactValuesDeep : redactValuesDeep
+    redactValuesDeep : redactValuesDeep,
+    redactResultRows : redactResultRows
 };
