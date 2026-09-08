@@ -1,0 +1,22 @@
+[
+  "--env",
+  "--scope",
+  "--force",
+  "--import",
+  "--replace",
+  "--start-port-from",
+  "--ignore-ports",
+  "--gina-version",
+  "--output",
+  "--timeout-ms",
+  "--transport",
+  "--http-host",
+  "--http-port",
+  "--max-in-flight",
+  "--auth-token",
+  "--cors-origin",
+  "--allow-insecure",
+  "--dry-run",
+  "--format",
+  "--skip-unchanged"
+]

@@ -25,6 +25,9 @@ var CONNECTOR = path.join(FW, 'core/connectors/couchbase/index.js');
 // #B153 residual (§08b): the real classifier, so the end-to-end replicas assert
 // the CLASSIFICATION outcome rather than merely the forwarded error shape.
 var ce        = require(path.join(FW, 'lib/connector-error/src/main.js'));
+// #B509 — the result-row redaction the FIXED replica (§08) now routes through,
+// realigned with the shipped site.
+var paramRedact = require(path.join(FW, 'core/connectors/param-redact.js'));
 
 
 // ─── 01 — shared resolveCluster() helper present, dual-shape, named throw ────
@@ -444,8 +447,10 @@ describe('08 - #B153: onError guards err.cause so the query always settles', fun
         var error;
         if ( err && err.cause && typeof(err.cause.first_error_message) != 'undefined' && err.cause.first_error_message !== '' ) {
             error = new Error(err.cause.first_error_message);
-            error.stack = 'trigger\n' + err.cause.http_body;
-            error.cause = err.cause;
+            // #B509 — realigned with the shipped site: result rows redacted, cause shallow-copied.
+            var _redactedBody = paramRedact.redactResultRows(err.cause.http_body);
+            error.stack = 'trigger\n' + _redactedBody;
+            error.cause = Object.assign({}, err.cause, { http_body: _redactedBody });
         } else {
             error = (err instanceof Error) ? err : new Error(String(err));
         }
