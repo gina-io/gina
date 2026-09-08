@@ -17,5 +17,6 @@
   "--cors-origin",
   "--allow-insecure",
   "--dry-run",
-  "--format"
+  "--format",
+  "--skip-unchanged"
 ]

@@ -96,6 +96,12 @@
 
     $ gina project:build @<project_name> --scope=local --env=prod
 
+    Builds every bundle of the project (the project's dev env excluded; a bundle
+    restricted to other scopes is skipped with a notice). Same flags as
+    bundle:build — --skip-unchanged, --force, --dry-run, --format=json — and the
+    same GINA_BUILD_SKIPPED_BUNDLES / GINA_BUILD_SKIPPED_ALL postbuild signal:
+    see `gina bundle:man`, section [ Building a bundle ].
+
 [ Backup project ]
 
     Archives the project source tree (excluding node_modules) into a .zip.

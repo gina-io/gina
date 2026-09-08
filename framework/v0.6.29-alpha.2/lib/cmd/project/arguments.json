@@ -9,5 +9,8 @@
   "--more",
   "--with-bundles",
   "--with-envs",
-  "--start-port-from"
+  "--start-port-from",
+  "--skip-unchanged",
+  "--dry-run",
+  "--format"
 ]

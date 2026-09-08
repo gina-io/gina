@@ -12,6 +12,8 @@ var console     = lib.logger;
  *
  * Usage:
  *  gina project:build @<project> --env=prod --scope=local
+ *  gina project:build @<project> --env=prod --scope=local --skip-unchanged
+ *  gina project:build @<project> --env=prod --scope=local --skip-unchanged --dry-run [--format=json]
  *  gina project:build @<project> --env=prod --scope=local --inspect-gina
  *
  * @class Build
@@ -80,11 +82,24 @@ function Build(opt, cmd) {
         // Getting manifest
         local.manifest = JSON.clone(self.projectData);
 
+        // --skip-unchanged (opt-in): flag surface. `--force` keeps the
+        // signature + marker machinery on but always rebuilds; `--dry-run`
+        // resolves every release's decision without touching the tree, the
+        // manifest or the hooks; `--format=json` prints ONE envelope.
+        var p = self.params || {};
+        local.skipUnchanged = !!p['skip-unchanged'];
+        local.force         = !!p['force'];
+        local.dryRun        = !!p['dry-run'];
+        local.format        = p['format'] || null;
+        local.signatures    = {};   // bundle → buildSignature() result, once per bundle
+        local.decisions     = [];   // one record per (bundle, env) release this run resolved
+
         globalBuildScripts = ( typeof(local.manifest.buildScripts) != 'undefined' ) ? local.manifest.buildScripts : null;
 
         // User Pre build
         if (
-            globalBuildScripts
+            !local.dryRun
+            && globalBuildScripts
             && typeof(globalBuildScripts.prepare) != 'undefined'
             && fs.existsSync( self.projectLocation +'/'+ globalBuildScripts.prepare.split(' ').slice(-1)[0])
         ) {
@@ -212,13 +227,34 @@ function Build(opt, cmd) {
             }
 
             self.projectData = local.manifest;
-            lib.generator.createFileFromDataSync(
-                self.projectData,
-                self.projectManifestPath
-            );
+            if ( !local.dryRun ) {
+                lib.generator.createFileFromDataSync(
+                    self.projectData,
+                    self.projectManifestPath
+                );
+            }
 
         } catch(err) {
             return end(err)
+        }
+
+        // --skip-unchanged: ONE content signature per bundle (the source is the
+        // same for every env). The first readable marker among this bundle's
+        // release records seeds the stat fast path; none just means every file
+        // is read once. Never fatal: with no signature every env rebuilds.
+        local.signatures[bundle] = null;
+        if ( local.skipUnchanged ) {
+            try {
+                local.signatures[bundle] = lib.releaseWatch.buildSignature(
+                    _(self.bundlesLocation +'/'+ bundle, true),
+                    { prior: findPriorMarker(bundle) }
+                );
+                if ( local.signatures[bundle] ) {
+                    console.info('[build] --skip-unchanged: signed `'+ bundle +'` — '+ local.signatures[bundle].fileCount +' entries, '+ local.signatures[bundle].read +' read, '+ local.signatures[bundle].reused +' reused from the prior marker');
+                }
+            } catch (sigErr) {
+                console.warn('[build] could not evaluate --skip-unchanged for `'+ bundle +'`: '+ (sigErr.stack || sigErr.message || sigErr) +' — rebuilding');
+            }
         }
 
         console.debug('[build] Building bundle `'+ bundle + '@'+ self.projectName + '`');
@@ -260,6 +296,30 @@ function Build(opt, cmd) {
 
         console.debug('[build] Building bundle env `'+ env +'` for `'+ bundle + '@'+ self.projectName + '`');
 
+        // --skip-unchanged: decide BEFORE the wipe. Every input but the one
+        // verified match rebuilds (lib/release-watch decideBuildAction); the
+        // record feeds both the dry-run report and the postbuild signal.
+        var target   = manifest.bundles[bundle].releases[scope][env].target;
+        var decision = decideRelease(bundle, release, releasePath);
+        local.decisions.push({
+            bundle    : bundle,
+            env       : env,
+            target    : target,
+            action    : decision.action,
+            reason    : decision.reason,
+            changed   : decision.changed || [],
+            fileCount : ( typeof(decision.fileCount) != 'undefined' ) ? decision.fileCount : null,
+            builtAt   : decision.builtAt || null
+        });
+        if ( local.dryRun ) {
+            return buildEnv(scope, b, e+1);
+        }
+        if ( decision.action === 'skip' ) {
+            console.info('[build] release `'+ target +'` unchanged since '+ decision.builtAt +' ('+ decision.fileCount +' files) — copy skipped');
+            ensureNodeModulesLink(releasePath);
+            return buildEnv(scope, b, e+1);
+        }
+
         // cleanup
         if (release.existsSync()) {
             release.rmSync()
@@ -277,9 +337,184 @@ function Build(opt, cmd) {
             }
             internalNodeModulesPathObj = null;
 
+            // --skip-unchanged: record what was just copied — AFTER the link,
+            // BEFORE the next env. A copy killed mid-way leaves NO marker (the
+            // wipe removed the old one), so a partial release always rebuilds.
+            if ( local.skipUnchanged && local.signatures[bundle] ) {
+                try {
+                    lib.releaseWatch.writeBuildMarker(destination, local.signatures[bundle], { ginaVersion: GINA_VERSION });
+                } catch (markerErr) {
+                    console.warn('[build] could not write the build marker for `'+ target +'`: '+ (markerErr.stack || markerErr.message || markerErr));
+                }
+            }
+
             buildEnv(scope, b, e+1);
         })
     }
+
+    /**
+     * Finds the fast-path prior for a bundle: the first readable build marker
+     * among its release records under the built scope. `null` when none —
+     * the signature then reads every file once.
+     *
+     * @inner
+     * @private
+     * @param {string} bundle - Bundle name
+     * @returns {object|null} A marker as returned by lib.releaseWatch.readBuildMarker()
+     */
+    var findPriorMarker = function(bundle) {
+        var records = ( typeof(local.manifest.bundles[bundle].releases[self.defaultScope]) != 'undefined' )
+            ? local.manifest.bundles[bundle].releases[self.defaultScope]
+            : {};
+        for (let f = 0, fLen = local.envs.length; f < fLen; f++) {
+            let record = records[local.envs[f]];
+            if ( !record || !record.target ) {
+                continue;
+            }
+            let marker = lib.releaseWatch.readBuildMarker(self.projectLocation +'/'+ record.target);
+            if ( marker ) {
+                return marker;
+            }
+        }
+        return null;
+    };
+
+    /**
+     * Resolves one release's action. Without the flag every release rebuilds
+     * (and nothing is logged about it). With it, the decision is the pure
+     * lib.releaseWatch.decideBuildAction() over this env's marker, the
+     * release's presence and the bundle's signature; any exception on the
+     * way is a warn + rebuild, never a skip and never fatal.
+     *
+     * @inner
+     * @private
+     * @param {string} bundle - Bundle name
+     * @param {object} release - PathObject of the release directory
+     * @param {string} releasePath - Absolute release path
+     * @returns {{action: string, reason: string, changed: string[], builtAt: (string|null), fileCount: (number|null)}}
+     */
+    var decideRelease = function(bundle, release, releasePath) {
+        if ( !local.skipUnchanged ) {
+            return { action: 'rebuild', reason: '--skip-unchanged not given' };
+        }
+        try {
+            return lib.releaseWatch.decideBuildAction({
+                force         : local.force,
+                marker        : lib.releaseWatch.readBuildMarker(releasePath),
+                releaseExists : release.existsSync(),
+                signature     : local.signatures[bundle]
+            });
+        } catch (decideErr) {
+            console.warn('[build] could not evaluate --skip-unchanged for `'+ bundle +'`: '+ (decideErr.stack || decideErr.message || decideErr) +' — rebuilding');
+            return { action: 'rebuild', reason: 'evaluation failed' };
+        }
+    };
+
+    /**
+     * Skip path: the release keeps the node_modules link from the build it
+     * was copied by; re-create it only when it is absent. Never a blind
+     * symlinkSync — that throws EEXIST on the link the skip preserves.
+     *
+     * @inner
+     * @private
+     * @param {string} releasePath - Absolute release path
+     */
+    var ensureNodeModulesLink = function(releasePath) {
+        var internalNodeModulesPathObj = new _( self.projectLocation +'/node_modules', true);
+        if ( !internalNodeModulesPathObj.existsSync() ) {
+            return;
+        }
+        var linkPath = _(releasePath +'/node_modules', true);
+        var present  = true;
+        try {
+            fs.lstatSync(linkPath);
+        } catch (absentErr) {
+            present = false;
+        }
+        if ( !present ) {
+            console.debug('[build] Linking node_modules from `'+ internalNodeModulesPathObj.toString() +'` to `'+ linkPath +'`');
+            internalNodeModulesPathObj.symlinkSync(linkPath);
+        }
+    };
+
+    /**
+     * Postbuild hook signal: the bundles whose EVERY resolved env was skipped,
+     * and whether that is every bundle that had a release to resolve.
+     *
+     * @inner
+     * @private
+     * @returns {{bundles: string[], all: boolean}}
+     */
+    var skippedBundles = function() {
+        var verdict = {};
+        for (let i = 0, len = local.decisions.length; i < len; i++) {
+            let d = local.decisions[i];
+            if ( typeof(verdict[d.bundle]) == 'undefined' ) {
+                verdict[d.bundle] = true;
+            }
+            if ( d.action !== 'skip' ) {
+                verdict[d.bundle] = false;
+            }
+        }
+        var resolved = Object.keys(verdict);
+        var bundles  = self.bundles.filter(function(name) { return verdict[name] === true; });
+        return {
+            bundles : bundles,
+            all     : ( resolved.length > 0 && bundles.length === resolved.length )
+        };
+    };
+
+    /**
+     * Whether `--format=json` was given.
+     *
+     * @inner
+     * @private
+     * @returns {boolean}
+     */
+    var isJsonFormat = function() {
+        return /^json$/i.test(String(local.format || ''));
+    };
+
+    /**
+     * Prints the per-release resolution and exits 0: ONE
+     * `{ project, scope, dryRun, skipUnchanged, releases }` envelope under
+     * `--format=json` (a sync write — the process exits right after), else
+     * the `[ dry-run ] would skip | would rebuild …` lines. Both read the
+     * same `local.decisions` the build itself acted on. The text form is
+     * only reached under `--dry-run`; a real text run ends through end().
+     *
+     * @inner
+     * @private
+     */
+    var report = function() {
+        if ( isJsonFormat() ) {
+            var envelope = {
+                project       : self.projectName,
+                scope         : self.defaultScope,
+                dryRun        : local.dryRun,
+                skipUnchanged : local.skipUnchanged,
+                releases      : local.decisions
+            };
+            fs.writeSync(1, JSON.stringify(envelope) + '\n');
+            return process.exit(0);
+        }
+        for (let i = 0, len = local.decisions.length; i < len; i++) {
+            let d = local.decisions[i];
+            if ( d.action === 'skip' ) {
+                console.log('[ dry-run ] would skip '+ d.target +' (unchanged since '+ d.builtAt +', '+ d.fileCount +' files)');
+                continue;
+            }
+            console.log('[ dry-run ] would rebuild '+ d.target +': '+ d.reason);
+            for (let c = 0; c < d.changed.length && c < 10; c++) {
+                console.log('    - '+ d.changed[c]);
+            }
+            if ( d.changed.length > 10 ) {
+                console.log('    … and '+ (d.changed.length - 10) +' more');
+            }
+        }
+        console.log('[ dry-run ] nothing written');
+        return process.exit(0);
+    };
 
     /**
      * Runs the optional postbuild hook script and exits the process.
@@ -291,9 +526,10 @@ function Build(opt, cmd) {
      */
     var end = async function(err) {
 
-        // User Post build
+        // User Post build (never under --dry-run: nothing was built)
         if (
-            globalBuildScripts
+            !local.dryRun
+            && globalBuildScripts
             && typeof(globalBuildScripts.postbuild) != 'undefined'
             && fs.existsSync( self.projectLocation +'/'+ globalBuildScripts.postbuild.split(' ').slice(-1)[0])
         ) {
@@ -302,6 +538,14 @@ function Build(opt, cmd) {
                 // cloning it
                 let currentEnv = { ...process.env };
                 currentEnv['NODE_OPTIONS'] = self.nodeParams.join(' ');
+                // --skip-unchanged hook signal: the bundles whose EVERY built
+                // env was skipped, and whether that is all of them — so a
+                // postbuild that bakes its own outputs can skip its own work.
+                if ( local.skipUnchanged ) {
+                    let skipSignal = skippedBundles();
+                    currentEnv['GINA_BUILD_SKIPPED_BUNDLES'] = skipSignal.bundles.join(',');
+                    currentEnv['GINA_BUILD_SKIPPED_ALL']     = skipSignal.all ? '1' : '0';
+                }
                 let execOptions = {
                     cwd: self.projectLocation,
                     // Inherit stdio to see the debug prompt in the console
@@ -324,6 +568,10 @@ function Build(opt, cmd) {
             }
 
             return process.exit(1);
+        }
+
+        if ( local.dryRun || isJsonFormat() ) {
+            return report();
         }
 
         console.log('Project [ '+ self.projectName+' ] built with success');
