@@ -8,6 +8,34 @@ const lib = require('./../../lib') || require.cache[require.resolve('./../../lib
 var console = lib.logger;
 // Inherited from controller
 var self, local, SuperController, getData, hasViews, setResources, SwigFilters, headersSent;
+
+/**
+ * Lazily construct the process-wide render-context AsyncLocalStorage, parked on
+ * `process.gina` so it survives dev-mode `require.cache` eviction of this
+ * delegate (mirrors `process.gina._reqALS` / `_queryALS`). This is the SAME
+ * store the async delegates enter with `.run()`, and the same one the
+ * context-bearing gina filters read in `getRenderCtx()`.
+ *
+ * #B514 — this DEFAULT delegate is `async` and awaits between the per-request
+ * `SwigFilters({...})` call (which stamps the process-wide
+ * `SwigFilters.instance._options` singleton) and the `compiledTemplate(data)`
+ * invocations that run the context-bearing filters. A concurrent request's
+ * stamp lands inside that window, so the resumed render's getUrl / getWebroot /
+ * t / tIcu resolve the OTHER request's context. #TPL1 Tier-2 (#B25) closed this
+ * for the two `-async` delegates only and left the default path — the one every
+ * bundle takes unless it opts into `settings.template.swig.loader` — on the
+ * raced singleton.
+ *
+ * @inner
+ * @returns {AsyncLocalStorage} the shared render-context store
+ */
+function getRenderALS() {
+    if (!process.gina._renderALS) {
+        var AsyncLocalStorage = require('async_hooks').AsyncLocalStorage;
+        process.gina._renderALS = new AsyncLocalStorage();
+    }
+    return process.gina._renderALS;
+}
 /**
  * Render HTML templates : Swig is the default template engine
  *
@@ -363,13 +391,27 @@ module.exports = async function render(userData, displayInspector, errOptions, d
 
 
         // setup swig default filters
-        var filters = SwigFilters({
+        var _renderCtx = {
             options     : JSON.clone(localOptions),
             isProxyHost : isProxyHost,
             throwError  : self.throwError,
             req         : local.req,
             res         : local.res
-        });
+        };
+        var filters = SwigFilters(_renderCtx);
+        // #B514 — enter the render-context store for THIS request, so the
+        // context-bearing filters resolve it from the ALS instead of the
+        // process-wide singleton stamped just above. `enterWith` rather than
+        // `.run()`: render() is a single ~1,900-line async body (the try at
+        // ~:705 spans to ~:2069) whose every `return` would have to move inside
+        // a callback; enterWith propagates the store to every continuation of
+        // the current async context, which is exactly the awaited span between
+        // here and compiledTemplate(data). getRenderCtx() reads the store FIRST
+        // (`_store || SwigFilters.instance._options || self.options`), so the
+        // singleton survives only as the fallback for non-request callers — a
+        // bundle's own mail/cron renderer calling SwigFilters() outside any
+        // render still resolves its own context.
+        getRenderALS().enterWith(_renderCtx);
 
         try {
 
