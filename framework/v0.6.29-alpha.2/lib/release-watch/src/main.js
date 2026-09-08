@@ -30,6 +30,15 @@ var crypto  = require('crypto');
  *     so a boot-time recompute that differs from the stamp reads as stale.
  *     Stamping at start is deliberate: an edit racing the src → release copy
  *     changes the recompute, never the stamp — fail-safe toward "stale".
+ *   - `buildSignature()` / `readBuildMarker()` / `writeBuildMarker()` /
+ *     `decideBuildAction()` — the `bundle:build --skip-unchanged` primitives:
+ *     a CONTENT signature of the source tree (`BUILD_SIG_SPEC` 1: sha1 of
+ *     bytes + symlink targets, mtime-insensitive, with a stat fast path off
+ *     the previous marker) recorded as `.gina-build.json` at the release
+ *     root, and the pure decision that rebuilds on every input but the one
+ *     verified match. Deliberately distinct from the mtime fingerprint
+ *     above: that spec is fail-safe toward "stale"; a skip decision needs
+ *     the opposite direction, so it signs bytes.
  *   - `classify()` / `classifyBatch()` — split changed paths into the
  *     `assets` class (disk-served statics, refreshed by a rebuild alone) and
  *     the `restart` class (server code / templates / config — server-cached
@@ -257,6 +266,389 @@ var diffListings = function(prev, next) {
         }
     }
     return changed;
+};
+
+/**
+ * Build-signature spec version for the `--skip-unchanged` build marker. Bump
+ * when the signature algorithm or the per-file record changes, so a marker
+ * written by an older spec is never compared against a newer recompute (the
+ * decision names a foreign spec and rebuilds).
+ * Spec 1: sha1 over the sorted lines of every regular file
+ * (`relpath|size|sha1(content)`) and every symlink (`relpath|symlink|target`)
+ * in the tree, ignored segments pruned. Per-file record: `size|mtime|sha1`
+ * for a regular file, `symlink|target` for a link.
+ * @constant {number}
+ */
+var BUILD_SIG_SPEC = 1;
+
+/**
+ * Name of the build marker `bundle:build --skip-unchanged` writes at the
+ * ROOT of a built release (never under `public/`). It dies with the wipe, so
+ * it can never describe a tree other than the one it sits in.
+ * @constant {string}
+ */
+var BUILD_MARKER_FILE = '.gina-build.json';
+
+/**
+ * Racy window, in ms, for the stat fast path. A prior record whose mtime is
+ * not older than `signedAt - BUILD_SIG_RACY_MS` cannot vouch for its file:
+ * on a coarse-mtime filesystem an edit landing in the same granule as the
+ * recorded stat keeps size AND mtime identical while the bytes moved (git's
+ * "racily clean" case). Such entries are re-read — fail-safe toward reading.
+ * @constant {number}
+ */
+var BUILD_SIG_RACY_MS = 2000;
+
+/**
+ * Computes the content signature of a bundle source tree for the
+ * `--skip-unchanged` decision (spec `BUILD_SIG_SPEC`).
+ *
+ * Same walk as `fingerprintTree` (`readdir` with file types, `DEFAULT_IGNORE`
+ * segments pruned) but the identity is the CONTENT: a regular file
+ * contributes `relpath|size|sha1(bytes)`, a symlink `relpath|symlink|target`
+ * (`fingerprintTree` skips links; the copy recreates them, so a retargeted
+ * link must invalidate). An mtime-only touch — a fresh checkout, a `cp`
+ * without `-p` — leaves the signature unchanged, which is the property the
+ * skip needs and the mtime spec lacks.
+ *
+ * Stat fast path (git's index trick): given a prior marker (`opts.prior`,
+ * spec-current, carrying `files` + `signedAt`), a file whose recorded `size`
+ * and `floor(mtimeMs)` both match reuses the recorded sha1 with NO read —
+ * unless its mtime falls inside the racy window before the prior's
+ * `signedAt` (`BUILD_SIG_RACY_MS`), in which case it is read. A prior of a
+ * foreign spec, or without a parseable `signedAt`, seeds nothing: every file
+ * is read once, and the marker written from this result makes the NEXT
+ * build stat-only. Cost model: stable mtimes ⇒ stats only; rewritten mtimes
+ * ⇒ one full read, then stat-only.
+ *
+ * Fail-safe direction: a file the walk cannot stat or read is dropped from
+ * the signature (it then differs from any marker that recorded it), never
+ * guessed.
+ *
+ * @function buildSignature
+ * @param {string} root - Absolute path of the bundle source tree
+ * @param {object} [opts]
+ * @param {string[]} [opts.ignore] - Segment names to prune (defaults to DEFAULT_IGNORE)
+ * @param {object|null} [opts.prior] - A build marker read by `readBuildMarker()`, for the fast path
+ * @returns {{spec: number, hash: string, fileCount: number, files: Object<string,string>, signedAt: string, read: number, reused: number}|null}
+ *          The signature, or `null` when the root is missing or not a directory
+ * @example
+ *  var marker = lib.releaseWatch.readBuildMarker(releasePath);         // null when absent
+ *  var sig    = lib.releaseWatch.buildSignature(srcPath, { prior: marker });
+ *  if (sig && marker && marker.srcSignature === sig.hash) {
+ *      // the release is current — see decideBuildAction() for the full gate
+ *  }
+ */
+var buildSignature = function(root, opts) {
+    opts = opts || {};
+    var ignore = Array.isArray(opts.ignore) ? opts.ignore : DEFAULT_IGNORE;
+
+    if (!root || typeof root !== 'string') return null;
+    var rootStat = null;
+    try {
+        rootStat = fs.statSync(root);
+    } catch (statErr) {
+        return null;
+    }
+    if (!rootStat.isDirectory()) return null;
+
+    // Fast-path prior: only a spec-current marker with a parseable signing
+    // time can vouch for a record; anything else means "read everything".
+    var prior      = opts.prior;
+    var priorFiles = null;
+    var racyCutoff = 0;
+    if (
+        prior && typeof prior === 'object'
+        && prior.spec === BUILD_SIG_SPEC
+        && prior.files && typeof prior.files === 'object'
+    ) {
+        var priorSignedAt = Date.parse(prior.signedAt);
+        if (!isNaN(priorSignedAt)) {
+            priorFiles = prior.files;
+            racyCutoff = priorSignedAt - BUILD_SIG_RACY_MS;
+        }
+    }
+
+    var signedAt = Date.now(); // BEFORE the walk: every stat below is at or after this instant
+    var lines    = [];
+    var files    = {};
+    var read     = 0;
+    var reused   = 0;
+
+    /**
+     * Depth-first tree walk collecting the signature lines and per-file records.
+     * @inner
+     * @private
+     * @param {string} abs - Absolute directory path
+     * @param {string} rel - `/`-separated path relative to the root ('' at the root)
+     * @returns {void}
+     */
+    var walk = function(abs, rel) {
+        var entries = null;
+        try {
+            entries = fs.readdirSync(abs, { withFileTypes: true });
+        } catch (readErr) {
+            return; // directory vanished mid-walk — its files simply drop out
+        }
+        for (var i = 0, len = entries.length; i < len; i++) {
+            var name = entries[i].name;
+            if (ignore.indexOf(name) > -1) continue;
+            var childAbs = abs + '/' + name;
+            var childRel = rel ? (rel + '/' + name) : name;
+            if (entries[i].isSymbolicLink()) {
+                var target = null;
+                try {
+                    target = fs.readlinkSync(childAbs);
+                } catch (linkErr) {
+                    continue; // link vanished mid-walk
+                }
+                lines.push(childRel + '|symlink|' + target);
+                files[childRel] = 'symlink|' + target;
+                continue;
+            }
+            if (entries[i].isDirectory()) {
+                walk(childAbs, childRel);
+                continue;
+            }
+            if (!entries[i].isFile()) continue; // specials skipped by design
+            var st = null;
+            try {
+                st = fs.statSync(childAbs);
+            } catch (fileErr) {
+                continue; // file vanished mid-walk
+            }
+            var size  = st.size;
+            var mtime = Math.floor(st.mtimeMs);
+            var sha   = null;
+            if (priorFiles && typeof priorFiles[childRel] === 'string') {
+                var rec = priorFiles[childRel].split('|');
+                if (
+                    rec.length === 3
+                    && rec[0] === String(size)
+                    && rec[1] === String(mtime)
+                    && /^[0-9a-f]{40}$/.test(rec[2])
+                    && mtime < racyCutoff
+                ) {
+                    sha = rec[2];
+                    reused++;
+                }
+            }
+            if (sha === null) {
+                try {
+                    sha = crypto.createHash('sha1').update(fs.readFileSync(childAbs)).digest('hex');
+                } catch (contentErr) {
+                    continue; // unreadable mid-walk — dropped, so it can never match a marker
+                }
+                read++;
+            }
+            lines.push(childRel + '|' + size + '|' + sha);
+            files[childRel] = size + '|' + mtime + '|' + sha;
+        }
+    };
+
+    walk(root, '');
+    lines.sort();
+
+    return {
+        spec      : BUILD_SIG_SPEC,
+        hash      : crypto.createHash('sha1').update(lines.join('\n')).digest('hex'),
+        fileCount : lines.length,
+        files     : files,
+        signedAt  : new Date(signedAt).toISOString(),
+        read      : read,
+        reused    : reused
+    };
+};
+
+/**
+ * Reads the build marker of a built release.
+ *
+ * @function readBuildMarker
+ * @param {string} releaseDir - Absolute path of the release directory
+ * @returns {object|null} The parsed marker (`{spec, srcSignature, fileCount, signedAt, builtAt, ginaVersion, files}`),
+ *          or `null` when it is missing, unreadable, not JSON, or not marker-shaped.
+ *          A marker of a FOREIGN spec is returned as-is so `decideBuildAction()` can name it.
+ * @example
+ *  var marker = lib.releaseWatch.readBuildMarker('/srv/app/releases/web/local/prod/1.0.0');
+ *  if (marker) { console.log(marker.builtAt, marker.fileCount); }
+ */
+var readBuildMarker = function(releaseDir) {
+    if (!releaseDir || typeof releaseDir !== 'string') return null;
+    var raw = null;
+    try {
+        raw = fs.readFileSync(releaseDir + '/' + BUILD_MARKER_FILE, 'utf8');
+    } catch (readErr) {
+        return null;
+    }
+    var marker = null;
+    try {
+        marker = JSON.parse(raw);
+    } catch (parseErr) {
+        return null;
+    }
+    if (
+        !marker || typeof marker !== 'object' || Array.isArray(marker)
+        || typeof marker.spec !== 'number'
+        || typeof marker.srcSignature !== 'string'
+        || !marker.files || typeof marker.files !== 'object' || Array.isArray(marker.files)
+    ) {
+        return null;
+    }
+    return marker;
+};
+
+/**
+ * Writes the build marker of a release that was just copied — atomically
+ * (temp file + rename in the same directory), at the release ROOT.
+ *
+ * Call it AFTER the copy and its `node_modules` link and BEFORE moving on:
+ * a copy killed mid-way then leaves NO marker (the wipe removed the old
+ * one), so a partial release always rebuilds. Throws on a write failure —
+ * the caller warns and carries on; a missing marker only costs a rebuild.
+ *
+ * @function writeBuildMarker
+ * @param {string} releaseDir - Absolute path of the release directory (must exist)
+ * @param {object} signature - A `buildSignature()` result for the SOURCE the release was copied from
+ * @param {object} [extra]
+ * @param {string} [extra.ginaVersion] - Recorded for diagnostics only; never compared
+ * @returns {object} The marker written
+ * @throws {Error} When the signature is not a `buildSignature()` result, or the write/rename fails
+ * @example
+ *  new _(srcPath).cp(releasePath, function(err, destination) {
+ *      lib.releaseWatch.writeBuildMarker(destination, sig, { ginaVersion: GINA_VERSION });
+ *  });
+ */
+var writeBuildMarker = function(releaseDir, signature, extra) {
+    if (!releaseDir || typeof releaseDir !== 'string') {
+        throw new Error('writeBuildMarker: releaseDir must be a path');
+    }
+    if (!signature || typeof signature !== 'object' || typeof signature.hash !== 'string' || !signature.files) {
+        throw new Error('writeBuildMarker: signature must be a buildSignature() result');
+    }
+    extra = extra || {};
+    var marker = {
+        spec         : BUILD_SIG_SPEC,
+        srcSignature : signature.hash,
+        fileCount    : signature.fileCount,
+        signedAt     : signature.signedAt,
+        builtAt      : new Date().toISOString(),
+        ginaVersion  : (typeof extra.ginaVersion !== 'undefined' && extra.ginaVersion !== null) ? String(extra.ginaVersion) : null,
+        files        : signature.files
+    };
+    var finalPath = releaseDir + '/' + BUILD_MARKER_FILE;
+    var tmpPath   = finalPath + '.tmp-' + process.pid;
+    fs.writeFileSync(tmpPath, JSON.stringify(marker, null, 2));
+    fs.renameSync(tmpPath, finalPath);
+    return marker;
+};
+
+/**
+ * Diffs two build-marker `files` maps by CONTENT identity: a regular file's
+ * `size|sha1` (its mtime is fast-path metadata, not identity) and a
+ * symlink's target.
+ *
+ * @function diffBuildFiles
+ * @param {Object<string,string>} prev - Previous `files` map (`relpath → size|mtime|sha1` or `symlink|target`)
+ * @param {Object<string,string>} next - Current `files` map
+ * @returns {string[]} Sorted relative paths added, removed or changed
+ * @example
+ *  lib.releaseWatch.diffBuildFiles(marker.files, sig.files);   // → [ 'controllers/controller.js' ]
+ */
+var diffBuildFiles = function(prev, next) {
+    prev = (prev && typeof prev === 'object') ? prev : {};
+    next = (next && typeof next === 'object') ? next : {};
+    /**
+     * Content identity of a per-file record.
+     * @inner
+     * @private
+     * @param {string} rec
+     * @returns {string|null}
+     */
+    var identity = function(rec) {
+        if (typeof rec !== 'string') return null;
+        if (rec.indexOf('symlink|') === 0) return rec;
+        var parts = rec.split('|');
+        return (parts.length === 3) ? (parts[0] + '|' + parts[2]) : rec;
+    };
+    var changed = [];
+    var p = null;
+    for (p in next) {
+        if (typeof prev[p] === 'undefined' || identity(prev[p]) !== identity(next[p])) {
+            changed.push(p); // added or modified
+        }
+    }
+    for (p in prev) {
+        if (typeof next[p] === 'undefined') {
+            changed.push(p); // removed
+        }
+    }
+    changed.sort();
+    return changed;
+};
+
+/**
+ * Decides whether a `(bundle, scope, env)` release can keep its current copy.
+ *
+ * The ONLY skip: `--force` not given, a marker present and of the current
+ * spec, the release directory present, and the marker's `srcSignature` equal
+ * to the fresh `buildSignature()` hash. Every other input rebuilds, with a
+ * reason the dry-run report prints verbatim: `signature unavailable` ·
+ * `--force` · `no marker` · `marker spec <s> ≠ <BUILD_SIG_SPEC>` ·
+ * `release missing` · `<k> file(s) changed` (plus the sorted `changed` list)
+ * · `signature mismatch` (hashes differ, per-file records do not). Pure and
+ * total: never throws, never skips on doubt.
+ *
+ * @function decideBuildAction
+ * @param {object} input
+ * @param {boolean} [input.force] - `--force` given
+ * @param {object|null} [input.marker] - `readBuildMarker()` result for this release
+ * @param {boolean} [input.releaseExists] - The release directory exists
+ * @param {object|null} [input.signature] - `buildSignature()` result for the bundle source
+ * @returns {{action: string, reason: string, changed: string[], builtAt: (string|null), fileCount: (number|null)}}
+ *          `action` is `'skip'` or `'rebuild'`; `builtAt` / `fileCount` come from the marker when there is one
+ * @example
+ *  var d = lib.releaseWatch.decideBuildAction({ force: false, marker: marker, releaseExists: true, signature: sig });
+ *  if (d.action === 'skip') { console.log('unchanged since ' + d.builtAt + ' (' + d.fileCount + ' files)'); }
+ */
+var decideBuildAction = function(input) {
+    input = (input && typeof input === 'object') ? input : {};
+    var marker    = (input.marker && typeof input.marker === 'object') ? input.marker : null;
+    var signature = (input.signature && typeof input.signature === 'object' && typeof input.signature.hash === 'string') ? input.signature : null;
+    var out = {
+        action    : 'rebuild',
+        reason    : '',
+        changed   : [],
+        builtAt   : (marker && typeof marker.builtAt === 'string') ? marker.builtAt : null,
+        fileCount : (marker && typeof marker.fileCount === 'number') ? marker.fileCount : null
+    };
+    if (!signature) {
+        out.reason = 'signature unavailable';
+        return out;
+    }
+    if (input.force === true) {
+        out.reason = '--force';
+        return out;
+    }
+    if (!marker) {
+        out.reason = 'no marker';
+        return out;
+    }
+    if (marker.spec !== BUILD_SIG_SPEC) {
+        out.reason = 'marker spec ' + marker.spec + ' ≠ ' + BUILD_SIG_SPEC;
+        return out;
+    }
+    if (input.releaseExists !== true) {
+        out.reason = 'release missing';
+        return out;
+    }
+    if (marker.srcSignature !== signature.hash) {
+        out.changed = diffBuildFiles(marker.files, signature.files);
+        out.reason  = out.changed.length ? (out.changed.length + ' file(s) changed') : 'signature mismatch';
+        return out;
+    }
+    out.action = 'skip';
+    out.reason = 'unchanged';
+    return out;
 };
 
 /**
@@ -1868,6 +2260,15 @@ module.exports = {
     DEFAULT_DEBOUNCE_MS   : DEFAULT_DEBOUNCE_MS,
     fingerprintTree       : fingerprintTree,
     diffListings          : diffListings,
+    // --skip-unchanged (bundle:build / project:build)
+    BUILD_SIG_SPEC        : BUILD_SIG_SPEC,
+    BUILD_MARKER_FILE     : BUILD_MARKER_FILE,
+    BUILD_SIG_RACY_MS     : BUILD_SIG_RACY_MS,
+    buildSignature        : buildSignature,
+    readBuildMarker       : readBuildMarker,
+    writeBuildMarker      : writeBuildMarker,
+    decideBuildAction     : decideBuildAction,
+    diffBuildFiles        : diffBuildFiles,
     classify              : classify,
     classifyBatch         : classifyBatch,
     createTreeWatcher     : createTreeWatcher,

@@ -615,3 +615,190 @@ describe('release-watch §08 — stamp-record loop replica (pure logic)', functi
         assert.strictEqual(typeof mb.releases.local.prod.fingerprint, 'undefined');
     });
 });
+
+
+describe('release-watch §09 — buildSignature / build marker (the --skip-unchanged primitives)', function() {
+
+    var tmpDirs = [];
+    after(function() {
+        tmpDirs.forEach(function(d) { fs.rmSync(d, { recursive: true, force: true }); });
+    });
+
+    /**
+     * sha1 hex of a string — the reference the fast-path arms compare against.
+     * @param {string} s
+     * @returns {string}
+     */
+    function sha1(s) { return require('crypto').createHash('sha1').update(s).digest('hex'); }
+
+    it('09.01 — exports: BUILD_SIG_SPEC is 1, the marker name is fixed, the primitives are functions, FP_SPEC untouched', function() {
+        assert.strictEqual(rw.BUILD_SIG_SPEC, 1);
+        assert.strictEqual(rw.BUILD_MARKER_FILE, '.gina-build.json');
+        assert.strictEqual(typeof rw.BUILD_SIG_RACY_MS, 'number');
+        assert.strictEqual(typeof rw.buildSignature, 'function');
+        assert.strictEqual(typeof rw.readBuildMarker, 'function');
+        assert.strictEqual(typeof rw.writeBuildMarker, 'function');
+        assert.strictEqual(typeof rw.decideBuildAction, 'function');
+        assert.strictEqual(typeof rw.diffBuildFiles, 'function');
+        assert.strictEqual(rw.FP_SPEC, 1, 'this slice must not bump the #RW1 fingerprint spec');
+    });
+
+    it('09.02 — deterministic: two signatures of an unchanged tree are identical, sha1-shaped, and count files', function() {
+        var root = mkTmp(tmpDirs);
+        writeFile(root, 'controllers/controller.js', 'a');
+        writeFile(root, 'public/css/app.css', 'bb');
+        var s1 = rw.buildSignature(root);
+        var s2 = rw.buildSignature(root);
+        assert.ok(s1 && /^[0-9a-f]{40}$/.test(s1.hash), 'sha1 hex expected');
+        assert.strictEqual(s1.hash, s2.hash);
+        assert.strictEqual(s1.spec, rw.BUILD_SIG_SPEC);
+        assert.strictEqual(s1.fileCount, 2);
+        assert.deepStrictEqual(Object.keys(s1.files).sort(), ['controllers/controller.js', 'public/css/app.css']);
+        assert.match(s1.files['controllers/controller.js'], /^1\|\d+\|[0-9a-f]{40}$/, 'per-file record is size|mtime|sha1');
+        assert.strictEqual(s1.files['controllers/controller.js'].split('|')[2], sha1('a'));
+        assert.ok(!isNaN(Date.parse(s1.signedAt)), 'signedAt is an ISO instant');
+        assert.strictEqual(s1.read, 2);
+        assert.strictEqual(s1.reused, 0);
+    });
+
+    it('09.03 — a content change of the SAME size and mtime flips the hash (bytes are what is signed)', function() {
+        var root = mkTmp(tmpDirs);
+        var f = writeFile(root, 'models/m.js', 'aaa');
+        fs.utimesSync(f, FIXED_TIME, FIXED_TIME);
+        var before = rw.buildSignature(root).hash;
+        fs.writeFileSync(f, 'aab');                 // same size, different bytes
+        fs.utimesSync(f, FIXED_TIME, FIXED_TIME);   // pin size AND mtime: only the bytes moved
+        assert.strictEqual(rw.fingerprintTree(root).hash, rw.fingerprintTree(root).hash);
+        assert.notStrictEqual(before, rw.buildSignature(root).hash);
+    });
+
+    it('09.04 — DISCRIMINATING ARM: an mtime-only touch yields the SAME hash — the property fingerprintTree lacks', function() {
+        var root = mkTmp(tmpDirs);
+        var f = writeFile(root, 'config/settings.json', '{}');
+        fs.utimesSync(f, FIXED_TIME, FIXED_TIME);
+        var fpBefore  = rw.fingerprintTree(root).hash;
+        var sigBefore = rw.buildSignature(root).hash;
+        fs.utimesSync(f, new Date(1700000005000), new Date(1700000005000));
+        assert.notStrictEqual(fpBefore, rw.fingerprintTree(root).hash, 'control: the mtime spec DOES flip, so the touch landed');
+        assert.strictEqual(sigBefore, rw.buildSignature(root).hash, 'the content spec must not');
+    });
+
+    it('09.05 — a symlink contributes its target: a retarget flips the hash, a dangling link is tolerated, fingerprintTree still skips them', function() {
+        var root = mkTmp(tmpDirs);
+        writeFile(root, 'a.js', 'x');
+        writeFile(root, 'b.js', 'y');
+        fs.symlinkSync(path.join(root, 'a.js'), path.join(root, 'link.js'));
+        var s1 = rw.buildSignature(root);
+        assert.strictEqual(s1.fileCount, 3, 'regular files + symlinks are counted');
+        assert.strictEqual(s1.files['link.js'], 'symlink|' + path.join(root, 'a.js'));
+        assert.strictEqual(rw.fingerprintTree(root).fileCount, 2, 'control: the mtime spec skips symlinks');
+        fs.unlinkSync(path.join(root, 'link.js'));
+        fs.symlinkSync(path.join(root, 'b.js'), path.join(root, 'link.js'));
+        assert.notStrictEqual(s1.hash, rw.buildSignature(root).hash, 'a retargeted link must invalidate');
+        fs.unlinkSync(path.join(root, 'link.js'));
+        fs.symlinkSync(path.join(root, 'nope.js'), path.join(root, 'link.js'));
+        var dangling = rw.buildSignature(root);
+        assert.ok(dangling && dangling.files['link.js'].indexOf('symlink|') === 0, 'a dangling link is signed by its target, not followed');
+    });
+
+    it('09.06 — delete, add and rename each flip the hash; DEFAULT_IGNORE segments never do', function() {
+        var root = mkTmp(tmpDirs);
+        writeFile(root, 'index.js', 'x');
+        writeFile(root, 'lib/a.js', 'y');
+        var base = rw.buildSignature(root).hash;
+        fs.unlinkSync(path.join(root, 'lib/a.js'));
+        assert.notStrictEqual(base, rw.buildSignature(root).hash, 'delete');
+        writeFile(root, 'lib/b.js', 'y');   // the deleted content under a new name = a rename
+        var renamed = rw.buildSignature(root).hash;
+        assert.notStrictEqual(base, renamed, 'rename');
+        writeFile(root, 'node_modules/dep/index.js', 'zzz');
+        writeFile(root, 'tmp/scratch', 'zzz');
+        writeFile(root, 'logs/app.log', 'zzz');
+        assert.strictEqual(rw.buildSignature(root).hash, renamed, 'ignored segments are invisible');
+    });
+
+    it('09.07 — missing root, non-directory root and bad input return null', function() {
+        var root = mkTmp(tmpDirs);
+        var f = writeFile(root, 'file.txt', 'x');
+        assert.strictEqual(rw.buildSignature(path.join(root, 'nope')), null);
+        assert.strictEqual(rw.buildSignature(f), null);
+        assert.strictEqual(rw.buildSignature(null), null);
+        assert.strictEqual(rw.buildSignature(42), null);
+    });
+
+    it('09.08 — FAST-PATH POSITIVE CONTROL: a prior entry whose size+mtime match is reused with NO read — a deliberately WRONG sha1 surfaces in the aggregate; a bumped mtime forces the read back', function() {
+        var root = mkTmp(tmpDirs);
+        var f = writeFile(root, 'x.js', 'hello');
+        fs.utimesSync(f, FIXED_TIME, FIXED_TIME);
+        var honest   = rw.buildSignature(root);
+        var st       = fs.statSync(f);
+        var wrongSha = sha1('not the content');
+        var prior = {
+            spec     : rw.BUILD_SIG_SPEC,
+            signedAt : new Date(FIXED_TIME.getTime() + 3600000).toISOString(),   // signed an hour AFTER the file's mtime: outside the racy window
+            files    : { 'x.js': st.size + '|' + Math.floor(st.mtimeMs) + '|' + wrongSha }
+        };
+        var fast = rw.buildSignature(root, { prior: prior });
+        assert.strictEqual(fast.files['x.js'].split('|')[2], wrongSha, 'the prior sha1 was reused verbatim — proof that no read happened');
+        assert.notStrictEqual(fast.hash, honest.hash, 'and it reaches the aggregate');
+        assert.strictEqual(fast.reused, 1);
+        assert.strictEqual(fast.read, 0);
+        // bump the mtime: the entry no longer matches → re-read → honest sha1, honest aggregate
+        fs.utimesSync(f, new Date(FIXED_TIME.getTime() + 1000), new Date(FIXED_TIME.getTime() + 1000));
+        var reread = rw.buildSignature(root, { prior: prior });
+        assert.strictEqual(reread.files['x.js'].split('|')[2], sha1('hello'));
+        assert.strictEqual(reread.hash, honest.hash, 'the content spec ignores the mtime move');
+        assert.strictEqual(reread.read, 1);
+        assert.strictEqual(reread.reused, 0);
+    });
+
+    it('09.09 — RACY GUARD: a prior entry whose mtime falls inside the signing window is re-read even when size+mtime match; no signedAt or a foreign spec disables the fast path entirely', function() {
+        var root = mkTmp(tmpDirs);
+        var f = writeFile(root, 'x.js', 'hello');
+        fs.utimesSync(f, FIXED_TIME, FIXED_TIME);
+        var st       = fs.statSync(f);
+        var wrongSha = sha1('not the content');
+        var entry    = { 'x.js': st.size + '|' + Math.floor(st.mtimeMs) + '|' + wrongSha };
+        // signed 1s after the file's mtime — inside BUILD_SIG_RACY_MS: the prior cannot vouch, so read
+        var racy = rw.buildSignature(root, { prior: { spec: rw.BUILD_SIG_SPEC, signedAt: new Date(FIXED_TIME.getTime() + 1000).toISOString(), files: entry } });
+        assert.strictEqual(racy.files['x.js'].split('|')[2], sha1('hello'), 'racy entry re-read');
+        assert.strictEqual(racy.read, 1);
+        // control: signed well after the window → the fast path (09.08's shape) — so the GUARD made the difference, not the matcher
+        var safe = rw.buildSignature(root, { prior: { spec: rw.BUILD_SIG_SPEC, signedAt: new Date(FIXED_TIME.getTime() + rw.BUILD_SIG_RACY_MS + 1000).toISOString(), files: entry } });
+        assert.strictEqual(safe.files['x.js'].split('|')[2], wrongSha, 'control: outside the window the prior is trusted');
+        assert.strictEqual(safe.reused, 1);
+        // a prior with no usable signedAt cannot be trusted at all
+        var noTime = rw.buildSignature(root, { prior: { spec: rw.BUILD_SIG_SPEC, files: entry } });
+        assert.strictEqual(noTime.read, 1);
+        assert.strictEqual(noTime.files['x.js'].split('|')[2], sha1('hello'));
+        // a foreign spec's per-file records are never reused
+        var foreign = rw.buildSignature(root, { prior: { spec: 99, signedAt: new Date(FIXED_TIME.getTime() + 3600000).toISOString(), files: entry } });
+        assert.strictEqual(foreign.read, 1);
+    });
+
+    it('09.10 — marker round-trip: written atomically at the release ROOT, read back equal; missing / malformed / wrong-shape → null; a foreign spec is returned so the decision can name it', function() {
+        var release = mkTmp(tmpDirs);
+        var src     = mkTmp(tmpDirs);
+        writeFile(src, 'index.js', 'x');
+        var sig     = rw.buildSignature(src);
+        var written = rw.writeBuildMarker(release, sig, { ginaVersion: '0.0.0-test' });
+        assert.strictEqual(written.spec, rw.BUILD_SIG_SPEC);
+        assert.strictEqual(written.srcSignature, sig.hash);
+        assert.strictEqual(written.fileCount, 1);
+        assert.strictEqual(written.ginaVersion, '0.0.0-test');
+        assert.ok(!isNaN(Date.parse(written.builtAt)), 'builtAt is an ISO instant');
+        assert.strictEqual(written.signedAt, sig.signedAt);
+        assert.deepStrictEqual(written.files, sig.files);
+        assert.deepStrictEqual(fs.readdirSync(release), [rw.BUILD_MARKER_FILE], 'exactly the marker at the root — no temp file left behind');
+        var back = rw.readBuildMarker(release);
+        assert.deepStrictEqual(back, written);
+        assert.strictEqual(rw.readBuildMarker(path.join(release, 'nope')), null, 'missing → null');
+        fs.writeFileSync(path.join(release, rw.BUILD_MARKER_FILE), '{not json');
+        assert.strictEqual(rw.readBuildMarker(release), null, 'malformed → null');
+        fs.writeFileSync(path.join(release, rw.BUILD_MARKER_FILE), '[1,2]');
+        assert.strictEqual(rw.readBuildMarker(release), null, 'valid JSON, wrong shape → null');
+        fs.writeFileSync(path.join(release, rw.BUILD_MARKER_FILE), JSON.stringify({ spec: 99, srcSignature: 'x', files: {} }));
+        assert.strictEqual(rw.readBuildMarker(release).spec, 99, 'a foreign spec is handed back for the decision to name');
+        assert.strictEqual(rw.readBuildMarker(null), null);
+    });
+});
