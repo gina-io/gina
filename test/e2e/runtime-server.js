@@ -57,6 +57,13 @@
  *                                         control pairs whose hidden twin comes first;
  *                                         /hidden-first-sink answers 422 { error, fields })
  *   GET /js/gina.onload.b510.js        -> built onload with the b510form rules whisper
+ *   GET /upload-preview                -> fixtures/validator-upload-preview.html (#B459
+ *                                         staged-upload preview-fields harness: two file
+ *                                         inputs, one form declaring [preview][...] hidden
+ *                                         inputs and one not; POST /upload-stage answers a
+ *                                         nested-preview JSON, /upload-save and /upload-unstage
+ *                                         acknowledge, /upload-tmp/*.png serves a 1x1 PNG)
+ *   GET /js/gina.onload.b459.js        -> built onload with the b459 rules whisper
  *   GET /link-gate                     -> fixtures/link-disabled-gate.html (#B310
  *                                         link disabled-gate harness; same sink)
  *   GET /link-shared                   -> fixtures/link-same-url.html (#B287
@@ -224,6 +231,26 @@ const B510_FORMS_JSON = JSON.stringify({ rules: {
     // whole-form (3-argument) call instead of the per-field XHR one (spec arm 08)
     b510form2: { wf: { exclude: false, isString: [50, 90] } }
 } });
+
+// #B459 — a non-empty forms whisper for the staged-upload preview-fields fixture. Same
+// reason as AC_FORMS_JSON: core.js only scans + binds forms when gina.forms.rules is
+// non-empty, and the upload layer binds as part of form binding. One pre-filled rule per
+// form keeps the save trigger open.
+const B459_FORMS_JSON = JSON.stringify({ rules: {
+    b459form:     { title: { isRequired: true } },
+    b459declared: { title: { isRequired: true } }
+} });
+// The staging answer the client consumes (guide: `files[]` entries; the NESTED
+// `preview` object is the app-provided variant the client renders from `preview.tmpUri`).
+const B459_STAGE_JSON = JSON.stringify({ files: [{
+    name: 'staged-me.png', group: 'untagged', originalFilename: 'me.png', ext: 'png', encoding: '7bit',
+    size: 69, width: 1, height: 1, location: '/tmp/uploads/staged-me.png', mime: 'image/png',
+    tmpUri: '/upload-tmp/staged-me.png',
+    preview: { location: '/tmp/uploads/staged-me-preview.png', uri: '/media/previews/staged-me-preview.png',
+               tmpUri: '/upload-tmp/staged-me-preview.png', width: 1, height: 1 }
+}] });
+// a 1x1 transparent PNG, so preview <img> loads answer 200 and the console stays clean
+const PNG_1X1 = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64');
 
 // #SPA1 Tier 1 — the routing table gina/nav matches clicks against. Shape mirrors the
 // served map: `param` must be present (getCompiled skips paramless routes), `bundle`
@@ -407,6 +434,29 @@ const server = http.createServer(function (req, res) {
         if (url === '/hidden-first' || url === '/hidden-first.html') {
             return send(res, 200, 'text/html; charset=utf-8',
                 fs.readFileSync(path.join(FIXTURES, 'validator-hidden-first.html')));
+        }
+        // #B459 — the staged-upload preview-fields fixture and its three endpoints.
+        if (url === '/js/gina.onload.b459.js') {
+            return send(res, 200, 'application/javascript; charset=utf-8', renderOnload(B459_FORMS_JSON));
+        }
+        if (url === '/upload-preview' || url === '/upload-preview.html') {
+            return send(res, 200, 'text/html; charset=utf-8',
+                fs.readFileSync(path.join(FIXTURES, 'validator-upload-preview.html')));
+        }
+        if (url === '/upload-stage') {
+            // drain the multipart body, then answer the nested-preview JSON
+            req.on('data', function () {});
+            req.on('end', function () { send(res, 200, 'application/json; charset=utf-8', B459_STAGE_JSON); });
+            return;
+        }
+        if (url === '/upload-save' || url === '/upload-unstage') {
+            req.on('data', function () {});
+            req.on('end', function () { send(res, 200, 'application/json; charset=utf-8', '{}'); });
+            return;
+        }
+        if (/^\/upload-tmp\/[\w.-]+\.png$/.test(url)) {
+            res.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'no-store' });
+            return res.end(PNG_1X1);
         }
         if (url === '/hidden-first-sink') {
             return send(res, 422, 'application/json; charset=utf-8', JSON.stringify({

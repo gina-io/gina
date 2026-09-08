@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>gina staged-upload preview fields e2e harness</title>
+    <!-- Empty data-URI icon: suppress the favicon.ico request for a clean console. -->
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="/css/vendor/gina/gina.min.css">
+
+    <!--
+        RUNTIME harness for #B459 - the hidden metadata fields the staged-upload layer
+        writes into the real form when the staging response carries a NESTED `preview`
+        object. Boots the REAL built gina bundle with a NON-EMPTY forms whisper
+        (/js/gina.onload.b459.js) so core.js scans + binds both forms.
+
+        Two forms, one variable: form A declares NO `[preview][...]` hidden inputs
+        (the reported scene); form B declares four. The staging route (/upload-stage)
+        answers the same JSON to both, with `preview: { location, uri, tmpUri, width,
+        height }`; the save route (/upload-save) acknowledges the real form's submit.
+
+        Every upload action is declared explicitly (no default-route resolution in a
+        harness with an empty routing table).
+    -->
+    <script src="/js/gina.onload.b459.js"></script>
+    <script src="/js/gina.min.js"></script>
+    <script>
+        (function () {
+            var tries = 0;
+            function kick() {
+                try {
+                    if (
+                        window.gina
+                        && window.gina.config
+                        && typeof window.onGinaLoaded === 'function'
+                        && !window.gina.isFrameworkLoaded
+                    ) {
+                        window.onGinaLoaded(window.gina);
+                    }
+                } catch (e) {
+                    if (window.console && console.error) {
+                        console.error('[harness] onGinaLoaded threw', e && e.stack || e);
+                    }
+                }
+                if ((!window.gina || !window.gina.isFrameworkLoaded) && tries++ < 100) {
+                    setTimeout(kick, 50);
+                }
+            }
+            kick();
+        }());
+    </script>
+    <style>
+        body { margin: 0; padding: 1rem; font-family: system-ui, sans-serif; }
+        form { margin: 0 0 1.5rem; padding: .5rem; border: 1px solid #ccc; }
+        ul.preview { list-style: none; padding: 0; min-height: 12px; }
+    </style>
+</head>
+<body>
+    <h1>gina staged-upload preview fields harness</h1>
+
+    <!-- form A: the reported scene - NO [preview][...] hidden inputs declared -->
+    <form id="b459form" data-gina-form-rule="b459form" action="/upload-save" method="post">
+        <p><label>Title <input id="titleA" type="text" name="title" value="undeclared"></label></p>
+        <p><label>Document
+            <input id="docA" type="file" name="doc"
+                   data-gina-form-upload-action="/upload-stage"
+                   data-gina-form-upload-reset-action="/upload-unstage"
+                   data-gina-form-upload-preview="docA-preview"
+                   data-gina-form-upload-error="docA-error">
+        </label></p>
+        <ul id="docA-preview" class="preview"></ul>
+        <p id="docA-error" hidden></p>
+        <button id="b459form-submit" type="submit">Save A</button>
+    </form>
+
+    <!-- form B: the control - the four preview sub-fields declared by hand -->
+    <form id="b459declared" data-gina-form-rule="b459declared" action="/upload-save" method="post">
+        <p><label>Title <input id="titleB" type="text" name="title" value="declared"></label></p>
+        <p><label>Document
+            <input id="docB" type="file" name="doc"
+                   data-gina-form-upload-action="/upload-stage"
+                   data-gina-form-upload-reset-action="/upload-unstage"
+                   data-gina-form-upload-preview="docB-preview"
+                   data-gina-form-upload-error="docB-error">
+        </label></p>
+        <input type="hidden" name="doc[0][preview][location]" id="docB-preview-location">
+        <input type="hidden" name="doc[0][preview][uri]" id="docB-preview-uri">
+        <input type="hidden" name="doc[0][preview][width]" id="docB-preview-width">
+        <input type="hidden" name="doc[0][preview][height]" id="docB-preview-height">
+        <ul id="docB-preview" class="preview"></ul>
+        <p id="docB-error" hidden></p>
+        <button id="b459declared-submit" type="submit">Save B</button>
+    </form>
+</body>
+</html>

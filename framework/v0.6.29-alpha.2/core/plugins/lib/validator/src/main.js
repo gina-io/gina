@@ -3704,7 +3704,12 @@ function ValidatorPlugin(rules, data, formId, culture) {
                         continue;
                     }
                     //fieldsObjectList[key].value = (/object/i.test(typeof(files[f][key])) ) ? JSON.stringify( files[f][key] ) : files[f][key];
-                    fieldsObjectList[key].value = files[f][key];
+                    // #B459 — the preview slot is a sub-field map, never an input (see the
+                    // auto-create loop at bind time): its object is delivered key by key by
+                    // the `handle preview` block below, never through `.value`.
+                    if ( key != 'preview' ) {
+                        fieldsObjectList[key].value = files[f][key];
+                    }
                     // update submited $fields ??
 
                     // handle preview
@@ -7309,6 +7314,18 @@ function ValidatorPlugin(rules, data, formId, culture) {
                                             hiddenFields[_f] = {};
 
                                         if ( typeof(hiddenFields[_f][ mandatoryFields[m] ]) == 'undefined' ) {
+                                            // #B459 — `preview` is the one slot that is never a flat input:
+                                            // its value is an OBJECT (`{location, uri, tmpUri, width, height}`),
+                                            // which an input's `.value` can only hold as "[object Object]".
+                                            // A form that declares no `[preview][...]` sub-fields gets an
+                                            // EMPTY sub-field map instead, so the fill loop still visits the
+                                            // key (the nested thumbnail is rendered from there) and posts
+                                            // nothing for it — the documented field set. Declaring the
+                                            // sub-fields stays the opt-in for persisting the preview.
+                                            if ( mandatoryFields[m] == 'preview' ) {
+                                                hiddenFields[_f].preview = {};
+                                                continue;
+                                            }
 
                                             _name = fieldPrefix +'['+ _f +']['+ mandatoryFields[m] +']';
                                             // create input & add it to the form
