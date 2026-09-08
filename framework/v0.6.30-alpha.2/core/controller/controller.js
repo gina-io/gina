@@ -119,6 +119,57 @@ var routingLib      = lib.routing;
 // already-loaded instance without re-running the resolver. Falls back to
 // require('@rhinostone/swig') when no bundle has loaded yet (tests, etc).
 var swig            = lib.swigResolver.get();
+
+/**
+ * Per-bundle swig ENGINE for the DEFAULT render path, keyed on the bundle
+ * template root. Mirrors `controller.render-swig-async.js`'s `_swigEngines`
+ * registry, for the same reason and with the same owner guard.
+ *
+ * #B514 sibling limb — `swig.setDefaults({ loader })` below stamps a loader on
+ * the PROCESS SINGLETON once per render, and the delegates then await before
+ * compiling. In merged-process mode (several bundles, one process) a concurrent
+ * bundle's stamp lands in that window and `{% include %}` / `{% extends %}`
+ * resolve against the OTHER bundle's templates root — or trip swig-core's
+ * outside-root refusal. A per-call `loader` handed to `swig.compile()` cannot
+ * fix it: swig-core merges per-call options into a local that never escapes
+ * `self.parse` (engine.js:477), while `getParentsInternal` (:321) and
+ * `parseFile` (:490) read `self.options.loader` unconditionally, and the
+ * `{% include %}` codegen emits only `resolveFrom` (backend.js:420). An engine
+ * INSTANCE per template root is the only shape the engine actually honours.
+ *
+ * Note this is structural rather than an invariant about who awaits when: the
+ * narrower alternative (re-stamping the loader immediately before each compile)
+ * would re-create exactly the "nothing awaits in between" assumption that
+ * silently became false and produced #B514 in the first place.
+ *
+ * `engine.install` gives every instance FRESH tag and filter maps, so the gina
+ * filters register per request through the delegates' existing `setFilter` loop
+ * (they read per-request context from `process.gina._renderALS`, so a shared
+ * engine cannot bleed), and a bundle's own `controllers/setup.js` filters land
+ * here too because `self.engine` points at this instance before setup runs
+ * (`router.js:944` hands `controller.engine` to the setup module).
+ *
+ * @inner
+ * @param {*}      swigMod      - The resolved swig module (exposes `.Swig`)
+ * @param {string} templateRoot - Registry key: the bundle templates root
+ * @param {object} opts         - `{ autoescape, cache, loader }` for this bundle
+ * @returns {*} the cached-or-built per-bundle engine
+ */
+function getDefaultSwigEngine(swigMod, templateRoot, opts) {
+    if (!process.gina._swigDefaultEngines) {
+        process.gina._swigDefaultEngines = Object.create(null);
+    }
+    // Instances are bound to the module that built them — drop the whole
+    // registry on a dev-mode swig hot-swap (mirrors _swigEnginesOwner).
+    if (process.gina._swigDefaultEnginesOwner !== swigMod) {
+        process.gina._swigDefaultEngines      = Object.create(null);
+        process.gina._swigDefaultEnginesOwner = swigMod;
+    }
+    if (!process.gina._swigDefaultEngines[templateRoot]) {
+        process.gina._swigDefaultEngines[templateRoot] = new swigMod.Swig(opts);
+    }
+    return process.gina._swigDefaultEngines[templateRoot];
+}
 const { type }      = require('node:os');
 var SwigFilters     = lib.SwigFilters;
 var statusCodes     = requireJSON( _( getPath('gina').core + '/status.codes') );
@@ -1318,7 +1369,21 @@ function SuperController(options) {
             defaultTZOffset = null;
 
 
-            self.engine = swig;
+            // #B514 sibling limb — render through a per-bundle ENGINE instead of the
+            // process singleton, so a concurrent bundle's loader stamp cannot reach
+            // this render's include/extends resolution. The setDefaults call above is
+            // deliberately KEPT: core/server.js still compiles inline strings through
+            // the module with swig.getOptions(), and leaving the module's defaults
+            // alone keeps that path byte-identical. Nothing renders a bundle template
+            // through the module any more, so the stamp it races is now inert.
+            // Falls back to the module when there is no template root, or when the
+            // resolved swig exposes no `.Swig` constructor (older forks / test doubles).
+            local._swigEngine = ( dir && typeof(swig.Swig) === 'function' )
+                ? getDefaultSwigEngine(swig, dir, swigOptions)
+                : swig;
+            // Must precede controllers/setup.js: router.js hands `controller.engine`
+            // to the setup module, so a bundle's own filters register HERE.
+            self.engine = local._swigEngine;
 
             dir = null;
             swigOptions = null;
@@ -2048,7 +2113,7 @@ function SuperController(options) {
             getData     : getData,
             hasViews    : hasViews,
             setResources: setResources,
-            swig        : swig,
+            swig        : (local._swigEngine || swig),
             SwigFilters : SwigFilters,
             headersSent : headersSent
         }); //(userData, displayInspector, errOptions)

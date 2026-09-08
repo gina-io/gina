@@ -1262,6 +1262,43 @@ describe('03k - #TPL1 Tier-2 compiled-template cache + #B25 ALS render-context i
         assert.equal(v1All, v1Ctx, 'render-v1: every live SwigFilters( call must pass _renderCtx');
     });
 
+    // (e-ter) #B514 sibling limb — the DEFAULT path renders through a PER-BUNDLE
+    //         swig ENGINE, not the process singleton ------------------------
+    //
+    // swig.setDefaults({loader}) stamps the process singleton once per render and
+    // the delegates then await before compiling, so in merged-process mode a
+    // concurrent bundle's stamp reaches this render's include/extends resolution.
+    // A per-call loader cannot fix it (swig-core reads self.options.loader in
+    // getParentsInternal/parseFile regardless of per-call options), so the fix is
+    // an engine INSTANCE per template root. Live-verified that a bundle's own
+    // controllers/setup.js filters still register: baseline and post-change both
+    // rendered STAMP<x> through a real prod boot.
+
+    it('controller.js builds a per-bundle swig engine keyed on the template root (#B514 limb)', function () {
+        assert.match(CONTROLLER_SRC, /function\s+getDefaultSwigEngine\(swigMod,\s*templateRoot,\s*opts\)/);
+        assert.match(CONTROLLER_SRC, /process\.gina\._swigDefaultEngines\[templateRoot\]\s*=\s*new\s+swigMod\.Swig\(opts\)/);
+    });
+
+    it('the per-bundle engine registry is owner-guarded against a swig hot-swap', function () {
+        assert.match(CONTROLLER_SRC, /process\.gina\._swigDefaultEnginesOwner\s*!==\s*swigMod/);
+    });
+
+    it('self.engine points at the per-bundle engine (so controllers/setup.js filters land there)', function () {
+        assert.match(CONTROLLER_SRC, /local\._swigEngine\s*=\s*\(\s*dir\s*&&\s*typeof\(swig\.Swig\)\s*===\s*'function'\s*\)/);
+        assert.match(CONTROLLER_SRC, /self\.engine\s*=\s*local\._swigEngine/);
+    });
+
+    it('the render delegates receive the per-bundle engine as deps.swig', function () {
+        assert.match(CONTROLLER_SRC, /swig\s*:\s*\(local\._swigEngine\s*\|\|\s*swig\)/);
+    });
+
+    it('the module-level setDefaults is KEPT (core/server.js still compiles inline strings through it)', function () {
+        // Removing it would change the two swig.compile(str, swig.getOptions())
+        // sites in core/server.js, which are outside this fix's scope.
+        assert.match(CONTROLLER_SRC, /swig\.setDefaults\(swigOptions\)/);
+        assert.match(CONTROLLER_SRC, /swig\.getOptions\s*=\s*function/);
+    });
+
     // (f) BEHAVIOURAL — pure-logic ALS replica (#M12b shape; always runs) -----
 
     it('replica: two interleaved _renderALS.run() contexts stay isolated, while a shared singleton bleeds (#B25 mechanism)', async function () {
