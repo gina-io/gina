@@ -1191,6 +1191,38 @@ function ValidatorPlugin(rules, data, formId, culture) {
     };
 
     /**
+     * hasPaintableTwin — does another control of the same name exist that CAN receive
+     * the error paint? (#B510)
+     *
+     * A BARE hidden control (`type=hidden`, not sitting in a `form-item-wrapper`) can never
+     * receive the error-message node nor the `aria-invalid` state: every paint gate in
+     * `handleErrorsDisplay` skips it. When the same name is also carried by a control that
+     * can be painted — the recommended shape for a control that must render disabled yet
+     * still post, i.e. a visible control plus a hidden twin with rule `"exclude": false` —
+     * the bare hidden one must not consume the error, or the visible twin is never reached.
+     * A bare hidden twin does not count as paintable; a wrapped hidden one does (its message
+     * is inserted after the wrapper).
+     *
+     * @param {object} $form - the HTMLFormElement being walked
+     * @param {object} $el - the bare hidden control under consideration
+     * @returns {boolean} true when at least one other same-named control can be painted
+     *
+     * @inner
+     */
+    var hasPaintableTwin = function($form, $el) {
+        var name = $el.name;
+        if (!name) return false;
+        for (var t = 0, tLen = $form.length; t<tLen; ++t) {
+            var $other = $form[t];
+            if ( $other === $el || $other.name != name ) continue;
+            // a bare hidden twin cannot be painted either
+            if ( $other.type == 'hidden' && !/form\-item\-wrapper$/.test($other.parentNode.className) ) continue;
+            return true;
+        }
+        return false;
+    };
+
+    /**
      * handleErrorsDisplay
      * Attention: if you are going to handle errors display by hand, set data to `null` to prevent Toolbar refresh with empty data
      *
@@ -1198,10 +1230,13 @@ function ValidatorPlugin(rules, data, formId, culture) {
      * this reflects each managed field's committed validity into `aria-invalid` ("true" on a
      * committed error, "false" when valid — mirroring the native ValidityState where the field has
      * native HTML constraints so it agrees with `:user-invalid`). Soft live-check warnings are not asserted.
+     *
+     * #B510 — a bare hidden control (no `form-item-wrapper`) is not a paint target when another
+     * control of the same name can be painted; see `hasPaintableTwin`.
      * @param {object} $form - Target (HTMLFormElement)
      * @param {object} errors
      * @param {object|null} data
-     * @param {string|null} [fileName]
+     * @param {string|null} [fieldName] - restricts the pass to one field (the per-field / live-check path)
      */
     var liveCheckErrors = {}; // Per Form & Per Element
     var handleErrorsDisplay = function($form, errors, data, fieldName) {
@@ -1327,6 +1362,18 @@ function ValidatorPlugin(rules, data, formId, culture) {
             errAttr = $el.getAttribute('data-gina-form-errors');
 
             if (!name) continue;
+
+            // #B510 — a BARE hidden control (no form-item-wrapper) can never receive the
+            // message node nor the aria state below (every paint gate skips `type=hidden`),
+            // yet it used to consume the error: it took the box's error class and, on the
+            // per-field path, the name-match exit at the end of this loop stopped the walk
+            // on it — so a visible twin listed AFTER it (the disabled-control + hidden-twin
+            // pattern) was never painted, and on a shared box the pre-marked class blocked
+            // the twin's first-error branch too. Skip it when a paintable same-named control
+            // exists; a LONE bare hidden keeps the former behaviour (box class, no message).
+            if ( $target === $el && $el.type == 'hidden' && hasPaintableTwin($form, $el) ) {
+                continue;
+            }
 
             // #A11Y1 (slice 2) — detect a consumer-provided aria-errormessage association. When
             // present, the field already references its own error element, so we must NOT inject a

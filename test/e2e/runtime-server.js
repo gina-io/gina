@@ -52,6 +52,11 @@
  *                                         `gina-autofill-start` keyframe through a
  *                                         harness class; /af-sink answers {})
  *   GET /js/gina.onload.autofill.js    -> built onload with the afform rules whisper
+ *   GET /hidden-first                  -> fixtures/validator-hidden-first.html (#B510
+ *                                         hidden-first error paint harness: same-name
+ *                                         control pairs whose hidden twin comes first;
+ *                                         /hidden-first-sink answers 422 { error, fields })
+ *   GET /js/gina.onload.b510.js        -> built onload with the b510form rules whisper
  *   GET /link-gate                     -> fixtures/link-disabled-gate.html (#B310
  *                                         link disabled-gate harness; same sink)
  *   GET /link-shared                   -> fixtures/link-same-url.html (#B287
@@ -203,6 +208,22 @@ const AF_FORMS_JSON = JSON.stringify({ rules: { afform: { email: { isRequired: t
 // validation and blocks the submit CLIENT-SIDE, so without a filled field the XHR
 // never fires and the arm would read "no hform event" for the wrong reason.
 const HFORM_FORMS_JSON = JSON.stringify({ rules: { hformform: { ref: { isRequired: true } } } });
+
+// #B510 — a non-empty forms whisper for the hidden-first error-paint fixture. Same reason
+// as AC_FORMS_JSON: core.js only scans + binds forms when gina.forms.rules is non-empty.
+// `lone` carries the one real rule (pre-filled, so the bind-time pass leaves the trigger
+// open and the click POSTs); the shared-name pairs carry `exclude: false`, the directive the
+// plugin's own source recommends for a hidden twin of a disabled control. The sink, not a
+// client rule, is what puts every field in error.
+const B510_FORMS_JSON = JSON.stringify({ rules: {
+    b510form: {
+        lone: { isRequired: true },
+        shared: { exclude: false }, plain: { exclude: false }, split: { exclude: false }, visfirst: { exclude: false }
+    },
+    // the second form's pair fails a CLIENT rule, so its refused submit paints through the
+    // whole-form (3-argument) call instead of the per-field XHR one (spec arm 08)
+    b510form2: { wf: { exclude: false, isString: [50, 90] } }
+} });
 
 // #SPA1 Tier 1 — the routing table gina/nav matches clicks against. Shape mirrors the
 // served map: `param` must be present (getCompiled skips paramless routes), `bundle`
@@ -376,6 +397,26 @@ const server = http.createServer(function (req, res) {
         }
         if (url === '/hform-sink') {
             return send(res, 200, 'application/json; charset=utf-8', '{}');
+        }
+        // #B510 — the hidden-first error-paint fixture. The sink answers the validator's
+        // XHR with the `{ error, fields }` shape a server-side field-validation failure
+        // produces; the client forwards each `fields` entry to handleErrorsDisplay.
+        if (url === '/js/gina.onload.b510.js') {
+            return send(res, 200, 'application/javascript; charset=utf-8', renderOnload(B510_FORMS_JSON));
+        }
+        if (url === '/hidden-first' || url === '/hidden-first.html') {
+            return send(res, 200, 'text/html; charset=utf-8',
+                fs.readFileSync(path.join(FIXTURES, 'validator-hidden-first.html')));
+        }
+        if (url === '/hidden-first-sink') {
+            return send(res, 422, 'application/json; charset=utf-8', JSON.stringify({
+                error: 'validation failed',
+                fields: {
+                    shared: 'shared error', plain: 'plain error', split: 'split error',
+                    visfirst: 'visfirst error', lone: 'lone error',
+                    hidonly: 'hidonly error', wrapped: 'wrapped error'
+                }
+            }));
         }
         if (url === '/upload' || url === '/upload.html') {
             return send(res, 200, 'text/html; charset=utf-8',

@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>gina hidden-first error paint e2e harness</title>
+    <!-- Empty data-URI icon: suppress the favicon.ico request for a clean console. -->
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="/css/vendor/gina/gina.min.css">
+
+    <!--
+        RUNTIME harness for #B510 - a server-side field error on a name shared by
+        two controls when the HIDDEN one comes first in document order. Boots the
+        REAL built gina bundle with a NON-EMPTY forms whisper
+        (/js/gina.onload.b510.js) so core.js scans + binds the rule-bound form
+        below; the submit goes out as the validator's always-XHR POST and the
+        sink answers 422 with `{ error, fields }`, which is the shape the client
+        forwards to handleErrorsDisplay one field at a time.
+
+        The pairs mirror the pattern the plugin's own source recommends for a
+        control that must render disabled yet still post: an <input type=hidden>
+        twin carrying the value, with validator rule `"exclude": false`.
+
+        Load order matches a real gina render: the onload defines onGinaLoaded +
+        __ginaWebroot, THEN the gina bundle boots.
+    -->
+    <script src="/js/gina.onload.b510.js"></script>
+    <script src="/js/gina.min.js"></script>
+    <script>
+        // Minimal page: invoke onGinaLoaded once the bundle is up (the loader's
+        // guard makes a duplicate call a no-op). core.js then scans forms and
+        // publishes gina.validator.
+        (function () {
+            var tries = 0;
+            function kick() {
+                try {
+                    if (
+                        window.gina
+                        && window.gina.config
+                        && typeof window.onGinaLoaded === 'function'
+                        && !window.gina.isFrameworkLoaded
+                    ) {
+                        window.onGinaLoaded(window.gina);
+                    }
+                } catch (e) {
+                    if (window.console && console.error) {
+                        console.error('[harness] onGinaLoaded threw', e && e.stack || e);
+                    }
+                }
+                if ((!window.gina || !window.gina.isFrameworkLoaded) && tries++ < 100) {
+                    setTimeout(kick, 50);
+                }
+            }
+            kick();
+        }());
+    </script>
+    <style>
+        body { margin: 0; padding: 1rem; font-family: system-ui, sans-serif; }
+        .form-item { margin: 0 0 .75rem; padding: .25rem; border: 1px solid #ccc; }
+        .form-item-error { border-color: #c00; }
+    </style>
+</head>
+<body>
+    <h1>gina hidden-first error paint harness</h1>
+
+    <!--
+        Every field sits in its own `.form-item` box so a probe can scope its
+        reads to the box (`closest('.form-item')`). Each shape is a control for
+        the others:
+          shared   - hidden FIRST, same box, DISABLED visible twin  (the reported scene)
+          plain    - hidden FIRST, same box, ENABLED visible twin   (drops the disabled dimension)
+          split    - hidden FIRST, twins in SEPARATE boxes          (drops the shared-parent dimension)
+          visfirst - VISIBLE first, hidden second, same box         (document-order control)
+          lone     - a single visible control                       (paint-chain control)
+          hidonly  - a single bare hidden control                   (characterisation: never paintable)
+          wrapped  - a hidden control inside a form-item-wrapper    (the wrapper contract: paintable)
+    -->
+    <form id="b510form" data-gina-form-rule="b510form" action="/hidden-first-sink" method="post">
+        <div class="form-item" id="fi-shared">
+            <label for="shared-v">Shared</label>
+            <input id="shared-h" type="hidden" name="shared" value="x">
+            <input id="shared-v" type="text" name="shared" value="x" disabled>
+        </div>
+        <div class="form-item" id="fi-plain">
+            <label for="plain-v">Plain</label>
+            <input id="plain-h" type="hidden" name="plain" value="x">
+            <input id="plain-v" type="text" name="plain" value="x">
+        </div>
+        <div class="form-item" id="fi-split-h">
+            <input id="split-h" type="hidden" name="split" value="x">
+        </div>
+        <div class="form-item" id="fi-split-v">
+            <label for="split-v">Split</label>
+            <input id="split-v" type="text" name="split" value="x" disabled>
+        </div>
+        <div class="form-item" id="fi-visfirst">
+            <label for="visfirst-v">Visible first</label>
+            <input id="visfirst-v" type="text" name="visfirst" value="x" disabled>
+            <input id="visfirst-h" type="hidden" name="visfirst" value="x">
+        </div>
+        <div class="form-item" id="fi-lone">
+            <label for="lone-v">Lone</label>
+            <input id="lone-v" type="text" name="lone" value="x">
+        </div>
+        <div class="form-item" id="fi-hidonly">
+            <input id="hidonly-h" type="hidden" name="hidonly" value="x">
+        </div>
+        <div class="form-item" id="fi-wrapped">
+            <div class="form-item-wrapper" id="wrapped-w">
+                <input id="wrapped-h" type="hidden" name="wrapped" value="x">
+            </div>
+        </div>
+        <button id="b510form-submit" type="submit">Submit</button>
+    </form>
+
+    <!--
+        Arm 08 - the WHOLE-FORM path. This form's same-name pair fails a CLIENT rule
+        (isString[50,90] against the value 'x'), so the refused submit paints through the
+        3-argument whole-form call rather than the per-field XHR one. Live check is OFF so
+        the click reaches the submit-time validation (an enabled trigger, refused).
+    -->
+    <form id="b510form2" data-gina-form-rule="b510form2" data-gina-form-live-check-enabled="false" action="/hidden-first-sink" method="post">
+        <div class="form-item" id="fi-wf">
+            <label for="wf-v">Whole-form pair</label>
+            <input id="wf-h" type="hidden" name="wf" value="x">
+            <input id="wf-v" type="text" name="wf" value="x">
+        </div>
+        <button id="b510form2-submit" type="submit">Submit 2</button>
+    </form>
+</body>
+</html>
