@@ -251,7 +251,14 @@ function SwigFilters(conf) {
         }
 
         config = {};
-        if (/\@/.test(route) && typeof(base) == 'undefined') {
+        // #B511 — a route with a leading `/` is a PATH, never a rule reference, so it
+        // must not enter the `rule@bundle` split: `'/assets/img/common/header@2x.png'`
+        // used to be cut into rule `/assets/img/common/header` @ bundle `2x.png`, fail the
+        // bundle lookup below and render a 500 mid-template (throwError renders, and
+        // this site sits outside the routing try). A path that needs another bundle's
+        // host passes it as the `base` argument; an in-string `@bundle` on a path is not
+        // a supported form.
+        if (!/^\//.test(route) && /\@/.test(route) && typeof(base) == 'undefined') {
             var r = route.split(/\@/);
             route = r[0].toLowerCase();
             base = config.bundle = r[1];
