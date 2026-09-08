@@ -148,6 +148,7 @@ Stub commands confirmed in source — handler files exist but are empty or comme
 
 ### Tier 3 — `0.5.x`
 
+
 | Status | Feature | Version | Target |
 | --- | --- | --- | --- |
 | ✅ | **`project:move`** — Relocate a project's source directory (atomic `renameSync`) and rewrite the `~/.gina/` registry `path`. Refuses while a bundle is running or across filesystems; `--to=/new/path`. | `0.5.5-alpha.2` | 2026-06-19 |
@@ -164,6 +165,12 @@ Stub commands confirmed in source — handler files exist but are empty or comme
 | ✅ | **`controller:add`** — Scaffold a namespace controller into a bundle and print the paste-ready `routing.json` rules to wire it. `controller:add <name> <bundle> @<project> [--controls=a,b,c]` writes `controllers/controller.<name>.js` with one JSDoc'd action stub per `--controls` entry (a single `default` action when omitted) — `render()` stubs plus per-action templates (`templates/html/<name>/<action>.html`) in a view bundle, `renderJSON()` stubs in an API-only bundle (auto-detected, `--views` / `--api` to override) — and prints the routing rules with an explanation. The hand-maintained, comment-bearing routing file is **never** edited (an opt-in `--with-route` writer is deferred on-demand); refuses to overwrite an existing controller. | `0.5.25-alpha.2` | 2026-07-23 |
 | ✅ | **`controller:remove` / `controller:rm`** — Remove a namespace controller from a bundle, reference-aware and refuse-unless-clean: scans the bundle's `routing.json` `namespace` keys (rule-level and `param.namespace`), `requireController('<name>')` call sites, and the namespace template tree, lists every blocking reference, and deletes the controller file + `templates/html/<name>/` tree only after interactive confirmation. `--dry-run` previews, `--force` deletes the file only (never editing `routing.json`, listing what remains to clean), `--format=json` emits a machine-readable envelope; the default `controller.js` is never removable. | `0.5.25-alpha.2` | 2026-07-23 |
 | ✅ | **`controller:rename`** — Rename a namespace controller and rewrite the references that point at it: moves the controller file, moves its `templates/html/<old>/` tree, and rewrites the `routing.json` `namespace` values + `requireController('<old>')` literals with comment-preserving string ops. Reports (does not rewrite) anything a static rewrite cannot resolve — a `param.namespace` `:variable`, a non-literal `requireController()` argument, the cosmetic class name. Shows the full plan then confirms interactively; `--dry-run` previews, `--force` applies non-interactively, `--format=json` emits the plan envelope. | `0.5.25-alpha.2` | 2026-07-23 |
+
+### Tier 4 — `0.6.x`
+
+| Status | Feature | Version | Target |
+| --- | --- | --- | --- |
+| ✅ | **`bundle:build` / `project:build` `--skip-unchanged`** — Opt-in: skip the wipe-and-copy of a release whose source is byte-identical to what it was built from — a content signature (sha1 of every file's bytes + every symlink's target, timestamp-insensitive, with a stat fast path off the previous marker) recorded as `.gina-build.json` at the release root; the manifest update, fingerprint stamp, `node_modules` link and hooks still run, and any doubt rebuilds. `--force` / `--dry-run` / `--format=json`, plus a `GINA_BUILD_SKIPPED_BUNDLES` / `GINA_BUILD_SKIPPED_ALL` signal for the `postbuild` hook. | `0.6.29-alpha.2` | 2026-09-08 |
 
 ---
 
