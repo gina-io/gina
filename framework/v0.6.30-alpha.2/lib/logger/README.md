@@ -26,7 +26,11 @@ Two env vars select JSON:
 
 - `GINA_LOG_FORMAT=json` — emit JSON instead of the coloured text, in any environment.
 - `GINA_LOG_STDOUT=true` — container preset: implies JSON **and** skips the MQ
-  transport (no MQ listener runs inside a container).
+  transport (no MQ listener runs inside a container). `gina-container` applies this
+  preset itself when the variable is unset (0.6.30); `GINA_LOG_STDOUT=false` keeps the
+  transport, and `GINA_LOG_FORMAT=text` keeps the coloured text while the dial stays
+  skipped. It is not the switch for a bundle started through a framework daemon —
+  there the MQ transport is what `gina tail` reads.
 
 Both the level methods (`console.info`, `console.debug`, …) and plain `console.log`
 honour the mode, so the stream stays uniformly parseable.

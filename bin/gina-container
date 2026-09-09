@@ -25,6 +25,11 @@
  *   GINA_SHUTDOWN_TIMEOUT — graceful drain window in ms (default: 10000)
  *   NODE_ENV              — override project def_env
  *   NODE_SCOPE            — override project def_scope
+ *   GINA_LOG_STDOUT       — container logging preset. Applied as `true` by this
+ *                           launcher when unset (JSON lines, MQ transport skipped —
+ *                           see step 0b). Set it to `false` to keep the transport.
+ *   GINA_LOG_FORMAT       — json|text — the explicit output-format override; it
+ *                           wins over the preset for the format only
  */
 
 var fs    = require('fs');
@@ -54,6 +59,24 @@ var ginaPath = binPath.replace(/\/bin$/, '');
  */
 function out(msg) {
     try { fs.writeSync(1, msg); } catch (e) { /* stdout gone — nothing better to do */ }
+}
+
+// ── 0b. Container logging preset (#B524) ─────────────────────────────────────
+// This launcher runs a topology with NO framework daemon by construction (see the
+// header), so the logger's default `mq` flow would dial an MQ listener that cannot
+// exist — once from this process, once from the bundle — and the `default` flow
+// would write ANSI-coloured text into a log collector's pipe. `GINA_LOG_STDOUT=true`
+// is the documented container preset (JSON lines, MQ transport skipped): apply it
+// here unless the operator set the variable explicitly. It MUST be a raw
+// `process.env` write — the logger reads `process.env` at init, while `setEnvVar()`
+// populates `process.gina`, which the logger never reads — and it MUST precede the
+// utils/helper require below, which initialises this process's own logger; the
+// bundle child inherits `process.env` through the spawn in step 8. `GINA_LOG_FORMAT`
+// is deliberately untouched: it is the independent format override
+// (`GINA_LOG_FORMAT=text` keeps the coloured text while the dial stays skipped), and
+// `GINA_LOG_STDOUT=false` restores the pre-0.6.30 behaviour in full.
+if (typeof(process.env.GINA_LOG_STDOUT) == 'undefined') {
+    process.env.GINA_LOG_STDOUT = 'true';
 }
 
 // ── 1. Bootstrap utils/helper ─────────────────────────────────────────────────

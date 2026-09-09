@@ -394,3 +394,64 @@ describe('05 - gina-container: def_framework sync block (§3b)', function() {
     });
 
 });
+
+
+// ---------------------------------------------------------------------------
+// 06 — Container logging preset (#B524)
+// ---------------------------------------------------------------------------
+
+/**
+ * Replica of the preset block in gina-container (step 0b). The launcher runs a
+ * topology with no MQ listener by construction, so it applies the documented
+ * container preset itself — unless the operator set the variable explicitly.
+ * Mirrors bin/gina-container:
+ *   if (typeof(process.env.GINA_LOG_STDOUT) == 'undefined') {
+ *       process.env.GINA_LOG_STDOUT = 'true';
+ *   }
+ */
+function applyContainerLoggingPreset(env) {
+    if (typeof(env.GINA_LOG_STDOUT) == 'undefined') {
+        env.GINA_LOG_STDOUT = 'true';
+    }
+    return env;
+}
+
+describe('06 - gina-container: container logging preset (#B524)', function() {
+    var src = fs.readFileSync(CONTAINER_SOURCE, 'utf8');
+
+    it('applies the preset with a raw process.env write (setEnvVar populates process.gina, which the logger never reads)', function() {
+        assert.match(src, /if \(typeof\(process\.env\.GINA_LOG_STDOUT\) == 'undefined'\) \{\s*\n\s*process\.env\.GINA_LOG_STDOUT = 'true';/);
+    });
+
+    it('the preset write sits ABOVE the utils/helper require — that require initialises the launcher\'s own logger', function() {
+        var preset = src.indexOf("process.env.GINA_LOG_STDOUT = 'true'");
+        var helper = src.indexOf("require(ginaPath + '/utils/helper')");
+        assert.ok(preset > -1, 'preset write present');
+        assert.ok(helper > -1, 'helper require present');
+        assert.ok(preset < helper, 'preset must precede the helper require (preset@' + preset + ', helper@' + helper + ')');
+    });
+
+    it('never writes GINA_LOG_FORMAT — the explicit format override stays the operator\'s', function() {
+        assert.equal(src.indexOf('process.env.GINA_LOG_FORMAT ='), -1);
+    });
+
+    it('pure logic: an unset variable receives the preset', function() {
+        assert.deepEqual(applyContainerLoggingPreset({}), { GINA_LOG_STDOUT: 'true' });
+    });
+
+    it('pure logic: an explicit "false" is left alone — the operator keeps the MQ transport', function() {
+        assert.deepEqual(applyContainerLoggingPreset({ GINA_LOG_STDOUT: 'false' }), { GINA_LOG_STDOUT: 'false' });
+    });
+
+    it('pure logic: an explicit "true" is left alone', function() {
+        assert.deepEqual(applyContainerLoggingPreset({ GINA_LOG_STDOUT: 'true' }), { GINA_LOG_STDOUT: 'true' });
+    });
+
+    it('pure logic: an explicit GINA_LOG_FORMAT=text does not block the preset — coloured text, MQ transport still skipped', function() {
+        assert.deepEqual(applyContainerLoggingPreset({ GINA_LOG_FORMAT: 'text' }), { GINA_LOG_FORMAT: 'text', GINA_LOG_STDOUT: 'true' });
+    });
+
+    it('pure logic: an empty string counts as set — the operator wrote it — and is left alone', function() {
+        assert.deepEqual(applyContainerLoggingPreset({ GINA_LOG_STDOUT: '' }), { GINA_LOG_STDOUT: '' });
+    });
+});
