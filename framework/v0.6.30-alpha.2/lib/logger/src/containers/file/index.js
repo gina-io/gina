@@ -113,10 +113,14 @@ function FileContainer(opt, loggers) {
         var user = ( opt.rotate && typeof(opt.rotate) == 'object' && !Array.isArray(opt.rotate) )
                     ? opt.rotate : {};
         // OWN properties only — a `typeof(user.<key>) != 'undefined'` guard is
-        // WRONG here, and silently so. `helpers/prototypes.js:169` defines
-        // `Object.prototype.count` (the own-property counter behind idioms like
-        // `forwardList.count()` in the MQ listener), so ANY object — `{}`
-        // included — answers `typeof user.count === 'function'`. A typeof guard
+        // WRONG here, and silently so. Gina extends the built-in prototypes from two
+        // files — `helpers/prototypes.js` (guarded) and the root `utils/prototypes.js`
+        // (unguarded) — and the installed union is `Object.prototype.count` +
+        // `functionCount` and `Array.prototype.clone` + `inArray`. (`count` is the
+        // own-property counter behind idioms like `forwardList.count()` in the MQ
+        // listener; a fifth, `Array.prototype.from`, is declared but never installs,
+        // its guard being false on any post-ES6 runtime.) So ANY object, `{}`
+        // included, answers `typeof user.count === 'function'`. A typeof guard
         // therefore hands the inherited METHOD back as the configured value;
         // `~~(function)` is 0, and rotation refuses itself with "keeps no files"
         // on a perfectly valid default. It is defined `enumerable: false`, so
