@@ -38,16 +38,22 @@ before(function () {
 });
 
 describe('01 - Object.prototype.count makes a typeof guard unsafe for config objects', function () {
-    it('the framework defines a non-enumerable `count` on Object.prototype', function () {
-        require(path.join(FW_DIR, 'helpers/prototypes.js'));
-        // Loading the helper is not enough on its own in every context, so assert
-        // the property descriptor directly rather than a side effect of it.
-        const src = fs.readFileSync(path.join(FW_DIR, 'helpers/prototypes.js'), 'utf8');
+    it('the repo-root utils/prototypes.js is the actual installer, unguarded', function () {
+        // NOT `helpers/prototypes.js`. That file declares `count` too, but its guard
+        // is `typeof(Object.count) == 'undefined'` — and `Object` inherits through
+        // Function.prototype to Object.prototype, so once utils/ has defined
+        // Object.prototype.count the guard reads 'function' and the declaration is
+        // SKIPPED. The trap defeats its own guard, which makes helpers:169 dead code
+        // and makes it the wrong file to cite or to aim a fix at. Measured: the live
+        // `({}).count.toString()` matches utils/, not helpers/.
+        const src = fs.readFileSync(path.join(__dirname, '..', '..', 'utils', 'prototypes.js'), 'utf8');
         assert.ok(src.indexOf("Object.defineProperty( Object.prototype, 'count'") > -1,
-            'helpers/prototypes.js must still define Object.prototype.count — if this moved, ' +
+            'utils/prototypes.js must still define Object.prototype.count — if this moved, ' +
             'the rationale for the hasOwnProperty guard below needs rechecking');
+        assert.ok(src.indexOf("Object.defineProperty( Object.prototype, 'functionCount'") > -1,
+            'functionCount is declared ONLY here, which is what proves the attribution');
         assert.ok(src.indexOf('enumerable: false') > -1,
-            'the extension is non-enumerable, which is why Object.keys() hides it from a probe');
+            'the extensions are non-enumerable, which is why Object.keys() hides them from a probe');
     });
 
     it('config resolution uses hasOwnProperty, never a typeof guard', function () {

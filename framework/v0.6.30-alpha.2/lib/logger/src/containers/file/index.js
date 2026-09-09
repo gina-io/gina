@@ -113,14 +113,16 @@ function FileContainer(opt, loggers) {
         var user = ( opt.rotate && typeof(opt.rotate) == 'object' && !Array.isArray(opt.rotate) )
                     ? opt.rotate : {};
         // OWN properties only — a `typeof(user.<key>) != 'undefined'` guard is
-        // WRONG here, and silently so. Gina extends the built-in prototypes from two
-        // files — `helpers/prototypes.js` (guarded) and the root `utils/prototypes.js`
-        // (unguarded) — and the installed union is `Object.prototype.count` +
-        // `functionCount` and `Array.prototype.clone` + `inArray`. (`count` is the
+        // WRONG here, and silently so. The repo-root `utils/prototypes.js` installs
+        // `Object.prototype.count` + `functionCount` and `Array.prototype.clone` +
+        // `inArray` the moment it is REQUIRED — unguarded — so ANY object, `{}`
+        // included, answers `typeof user.count === 'function'`. (`count` is the
         // own-property counter behind idioms like `forwardList.count()` in the MQ
-        // listener; a fifth, `Array.prototype.from`, is declared but never installs,
-        // its guard being false on any post-ES6 runtime.) So ANY object, `{}`
-        // included, answers `typeof user.count === 'function'`. A typeof guard
+        // listener.) Do NOT cite or patch `helpers/prototypes.js`: it declares the
+        // same names, but its guard is `typeof(Object.count) == 'undefined'`, and
+        // `Object` inherits through Function.prototype to Object.prototype — so once
+        // utils/ has run, the guard reads 'function' and every declaration there is
+        // skipped. The trap defeats its own guard. A typeof guard
         // therefore hands the inherited METHOD back as the configured value;
         // `~~(function)` is 0, and rotation refuses itself with "keeps no files"
         // on a perfectly valid default. It is defined `enumerable: false`, so
