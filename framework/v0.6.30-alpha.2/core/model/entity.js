@@ -47,8 +47,9 @@ var _callALS = (function () {
  *   queue — or, when that call has already settled (bounded wait, Promise path),
  *   DROP the late completion: it is never handed to whoever is at the head.
  * - No active store, or a store for another trigger: arrival order (`shift()`), the
- *   pre-#B440 pairing, logged at debug so a consumer can see the fallback happen in
- *   their own logs.
+ *   pre-#B440 pairing. The `DISPATCH:NO_CONTEXT` debug line that reports this fallback
+ *   is emitted by the entity's `emit` override (#B441), which every completion passes
+ *   whether or not a dispatcher is attached — this function only pairs.
  *
  * @private
  * @param {Array<function>} q - the trigger's FIFO of pending resolvers
@@ -61,21 +62,27 @@ var _dequeueByIdentity = function (q, e) {
         var idx = q ? q.indexOf(st.r) : -1;
         return idx > -1 ? q.splice(idx, 1)[0] : null;
     }
-    if (q && q.length) { console.debug('[ MODEL ][ ENTITY ] DISPATCH:NO_CONTEXT ' + e + ' (completion reached the entity outside the call\'s async context; pairing by arrival order)'); }
+    // (#B441) the DISPATCH:NO_CONTEXT line is emitted at emit time — see the emit override — so it
+    // fires whether or not anything is pending; arrival-order pairing below is unchanged.
     return q ? q.shift() : null;
 };
 
 /**
  * Removes a settled call's resolver from its trigger's queue, so a completion that
- * arrives after the call settled cannot be paired with it (#B440).
+ * arrives after the call settled cannot be paired with it (#B440), and stamps the
+ * resolver `_settled` (#B441). Every settle path of both call forms — the identity
+ * dispatch, a returned Promise, the bounded `model.emitTimeout` wait — passes through
+ * here, so the stamp is how the entity's `emit` override recognises a completion that
+ * arrives AFTER its call settled (a surplus completion) without consulting the queue.
  *
  * @private
  * @param {EntitySuper} entity - the entity carrying the `_callbacks` queues
  * @param {string} e - trigger name
- * @param {function} r - the resolver to forget
+ * @param {function} r - the resolver to forget; gains a truthy `_settled` property
  * @returns {void}
  */
 var _forget = function (entity, e, r) {
+    if (typeof r === 'function') { r._settled = true; }   // #B441 — read by the emit override
     var q = entity._callbacks[e]; if (!Array.isArray(q)) return;
     var i = q.indexOf(r); if (i > -1) q.splice(i, 1);
 };
@@ -754,18 +761,71 @@ function EntitySuper(conn, caller, injected) {
     }
 
     /**
-     * custom emit based on node.js emit source
-     * Added on 2016-02-09
-     * */
+     * Custom `emit`, based on the node.js EventEmitter emit source (added 2016-02-09).
+     *
+     * Beyond native dispatch it (1) routes a registered trigger with no attached
+     * listener through `setListener`, which buffers the emit into `_arguments` for the
+     * next caller (the historical "emit before the listener is ready" idiom, and the
+     * numbered `<trigger>1`, `<trigger>2` loop variants), (2) bridges whitelisted
+     * triggers onto the Inspector event signal (#EVTBUS), and (3) accounts for
+     * completion signals per call (#B441):
+     *
+     * - The active per-call store (#B440) names this trigger and its resolver is already
+     *   `_settled` ⇒ a SURPLUS completion. It is never buffered — measured before the fix,
+     *   the next detached (`util.promisify`) caller of the method received it as its own
+     *   result, every later caller too, and `_arguments` grew by one entry per surplus
+     *   emit. The second completion of one call logs `DISPATCH:REPEAT_EMIT` once at debug
+     *   level; a single late completion after a Promise or timeout settle stays silent.
+     * - No store, or another trigger's store ⇒ `DISPATCH:NO_CONTEXT` at debug level,
+     *   pending or not: the pre-#B440 arrival-order boundary, now visible even when the
+     *   completion arrives with nothing pending.
+     * - A numbered variant of the store's own trigger is the documented loop idiom and
+     *   is not a completion: silent.
+     *
+     * @param {string} type - event name; for a completion, the `<shortName>#<method>` trigger
+     * @param {...*} args - forwarded to the listeners
+     * @returns {boolean} `true` when at least one listener received the event
+     * @example
+     * // inside an entity method, once per call:
+     * self.emit('user#insert', false, record);
+     */
     this.emit = function emit(type) {
+        // #B441 — completion-signal accounting at EMIT time, for registered triggers only
+        // (numbered loop variants are not in _triggers and are the documented multi-emit idiom).
+        // Both dispatch listeners remove themselves once their queue drains, so a completion of a
+        // call that already settled reaches no dispatcher — the emit is the one place every
+        // completion passes. A SURPLUS completion (this call's resolver already settled: by an
+        // earlier emit, a returned Promise or the bounded wait) must never take the setListener
+        // buffering path below: measured, it was buffered into _arguments and the next detached
+        // (promisify) caller of the method received it as its own result.
+        var _b441Surplus = false;
+        if ( type !== 'error' && self._triggers && self._triggers.indexOf(type) > -1 ) {
+            var _b441St = _callALS.getStore();
+            if ( _b441St && _b441St.e === type ) {
+                _b441St._emits = (_b441St._emits || 0) + 1;
+                if ( _b441St.r && _b441St.r._settled ) {
+                    _b441Surplus = true;
+                    if ( _b441St._emits === 2 ) {
+                        console.debug('[ MODEL ][ ENTITY ] DISPATCH:REPEAT_EMIT ' + type + ' (this method emitted its completion a second time within one call — the caller was settled by the first; this and any later completion are discarded, never buffered for the next caller)');
+                    }
+                }
+            } else if ( _b441St && _b441St.e === type.replace(/[0-9]/g, '') ) {
+                // a numbered variant of this call's own trigger — the documented loop idiom
+                // (`<trigger>1`, `<trigger>2`, …); not a completion, nothing to report
+            } else {
+                // no call context, or another trigger's — the pre-#B440 pairing boundary, now
+                // reported whether or not anything is pending (#B441 limb b)
+                console.debug('[ MODEL ][ ENTITY ] DISPATCH:NO_CONTEXT ' + type + ' (completion reached the entity outside any call\'s async context: paired by arrival order if a call is pending, otherwise buffered for a following promisify-style call)');
+            }
+        }
         // BO Added to handle trigger with increment when `emit occurs whithin a loop or recursive function
-        if (
+        if ( !_b441Surplus && (
             self._triggers && self._triggers.indexOf(type) == -1 && self._triggers.indexOf(type.replace(/[0-9]/g, '')) > -1
             || self._triggers && self._triggers.indexOf(type) > -1 && typeof(self._callbacks[type]) == 'undefined' && typeof(self._events[type]) == 'undefined'
             // #M2 — skip DISPATCH:CALLBACK_FLUSH for queue mode (_callbacks is an array);
             // the persistent .on dispatch listener handles routing in that case.
             || self._triggers && self._triggers.indexOf(type) > -1 && typeof(self._callbacks[type]) != 'undefined' && !Array.isArray(self._callbacks[type])
-        ) {
+        ) ) {
             setListener(arguments)
         }
         // EO Added to handle trigger with increment
