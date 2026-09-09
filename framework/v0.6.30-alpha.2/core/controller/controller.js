@@ -7117,21 +7117,52 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
     /**
      * Get config
      *
-     * @param {string} [name] - Conf name without extension.
-     * @returns {object} config
+     * Returns the bundle configuration — the whole per-request conf, or one
+     * config file's content by name. Since #P40 the result is a per-call
+     * COPY-ON-WRITE VIEW (`lib/conf-view`) rather than a deep clone: reads pass
+     * through to the shared configuration at no copy cost, a write lands in the
+     * view's private overlay (never in the live configuration, never visible to
+     * another call), and the first enumeration of a node (`Object.keys`,
+     * `JSON.stringify`, `for…in`, spread, `JSON.clone`) materialises that
+     * subtree once into a private plain copy. Three things a deep clone allowed
+     * do not work on an un-enumerated view: `structuredClone(result)` throws a
+     * `DataCloneError`, `Object.freeze` / `seal` on a node you have not
+     * enumerated throws a `TypeError`, and `console.log` / `util.inspect` show
+     * the shared values rather than your writes (property reads and
+     * `JSON.stringify` are truthful). `settings.json > controller.getConfig.mode`
+     * set to `"clone"` restores the deep clone for the bundle. Both forms
+     * resolve `hostname` / `host` against this request's proxy classification
+     * (#B66) — a write that lands in the overlay too.
      *
+     * @param {string} [name] - Conf name without extension (`'app'`, `'settings'`, …); omit for the whole conf.
+     * @returns {object|undefined} the view (or clone) — `undefined` for an unknown `name`
+     *
+     * @example
+     * var app = self.getConfig('app');   // a private view of config/app.json
+     * app.proxy.api.port = 8443;         // your write; the live configuration is untouched
+     * var conf = self.getConfig();       // the whole conf: conf.settings === conf.content.settings
+     * @example
+     * // settings.json — the opt-out, per bundle
+     * { "controller": { "getConfig": { "mode": "clone" } } }
      * */
     this.getConfig = function(name) {
         var tmp = null;
+        // #P40 — `view` (the default) is a per-call copy-on-write view over the
+        // per-request conf; `clone` (settings.json > controller.getConfig.mode) is
+        // the deep copy this method used to hand back, kept as the opt-out for the
+        // three shapes a view cannot serve (structuredClone, freeze before
+        // enumerating, inspect). Read per call: the conf is per request and the
+        // check is a few property reads.
+        var _cSettings  = ( local.options && local.options.conf && local.options.conf.content ) ? local.options.conf.content.settings : null;
+        var _cloneMode  = ( _cSettings && _cSettings.controller && _cSettings.controller.getConfig && _cSettings.controller.getConfig.mode == 'clone' ) ? true : false;
         if ( typeof(name) != 'undefined' ) {
             try {
-                // Needs to be read only
-                tmp = JSON.clone(local.options.conf.content[name]);
+                tmp = ( _cloneMode ) ? JSON.clone(local.options.conf.content[name]) : lib.confView.create(local.options.conf.content[name]);
             } catch (err) {
                 return undefined;
             }
         } else {
-            tmp = JSON.clone(local.options.conf);
+            tmp = ( _cloneMode ) ? JSON.clone(local.options.conf) : lib.confView.create(local.options.conf);
         }
 
         // #B66 S2b — prefer THIS request's per-request proxy classification (the

@@ -1,0 +1,17 @@
+{
+  "name": "gina-lib-conf-view",
+  "version": "1.0.0",
+  "description": "per-call copy-on-write view over a shared configuration tree: reads pass through, writes land in a private overlay, enumeration materialises the touched subtree once",
+
+  "author": {
+    "name": "Martin Luther ETOUMAN NDAMBWE",
+    "email": "contact@gina.io"
+  },
+  "copyright": "Copyright (c) 2009-2026 Rhinostone <contact@gina.io>",
+  "engines": {
+    "node": ">=22"
+  },
+  "main": "src/main",
+  "license": "MIT",
+  "readmeFilename": "README.md"
+}

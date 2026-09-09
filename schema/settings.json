@@ -1090,6 +1090,27 @@
         }
       }
     },
+    "controller": {
+      "type": "object",
+      "description": "Controller-layer settings for this bundle.",
+      "additionalProperties": false,
+      "properties": {
+        "getConfig": {
+          "type": "object",
+          "description": "How `self.getConfig()` hands configuration to application code.",
+          "additionalProperties": false,
+          "properties": {
+            "mode": {
+              "type": "string",
+              "enum": ["view", "clone"],
+              "default": "view",
+              "description": "`view` (the default): each call returns a private copy-on-write view over the live configuration — reads copy nothing, a write lands in the view's own overlay and never reaches the live configuration or another call, and the first enumeration of a node (Object.keys, JSON.stringify, for…in, spread) copies that subtree once. Three things a deep clone allowed do not work on a node you have not enumerated: structuredClone() throws a DataCloneError, Object.freeze() / seal() throw a TypeError, and console.log() / util.inspect() show the live values instead of your writes (property reads and JSON.stringify are truthful). `clone`: every call deep-copies the requested configuration — the behaviour before this setting existed, and the opt-out for code that relies on one of those three. Read on every call, so a change applies on the next request in development and at the next restart in production.",
+              "examples": ["clone"]
+            }
+          }
+        }
+      }
+    },
     "nunjucks": {
       "type": "object",
       "description": "Configuration for the nunjucks template engine (when render.engine is \"nunjucks\"). The package is never framework-bundled — it must exist in the project's node_modules.",

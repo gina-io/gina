@@ -817,6 +817,19 @@ declare namespace gina {
         Cache: any;
         Collection: any;
         Config: any;
+        /**
+         * Per-call copy-on-write view over a shared configuration tree (#P40) —
+         * what `self.getConfig()` returns in its default `view` mode: reads pass
+         * through, writes land in a private overlay, enumeration materialises the
+         * touched subtree once. Plain objects and arrays only; anything else comes
+         * back as-is. Server-side only.
+         */
+        confView: {
+            /** Build a view over `root`; a non-plain root (or `undefined`) comes back unchanged, a frozen root as a plain deep copy. Never throws. */
+            create<T>(root: T): T;
+            /** `true` for a value produced by `create()` (a materialised node's plain children are not views). */
+            isView(value: unknown): boolean;
+        };
         Domain: any;
         /** Job persistence dispatcher (`app.json > jobs.store`). */
         JobStore: any;

@@ -44,6 +44,10 @@ function Lib() {
 
     var self = {
         Config          : _require('./config'),
+        // #P40 — per-call copy-on-write view over the shared conf (what getConfig()
+        // returns in view mode). Pure stateless functions, no singleton, no adopted
+        // fds: _require so a dev-mode edit hot-reloads like money/multipart.
+        confView        : _require('./conf-view'),
         //dev     : require('./lib/dev'),//must be at the same level than gina.lib => gina.dev
         inherits        : _require('./inherits'),
         helpers         : _require('./../helpers'),
