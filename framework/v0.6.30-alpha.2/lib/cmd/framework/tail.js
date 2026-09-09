@@ -113,6 +113,40 @@ function Tail(opt, cmd) {
         var loggers         = console.getLoggers();
         var loggerHelper    = LoggerHelper(loggerOptions, loggers);
         var format          = loggerHelper.format;
+        // #B524 — honour the render mode this process's logger resolved. `loggerOptions.format`
+        // is the logger's ONE precedence rule (`GINA_LOG_FORMAT=json|text` > `GINA_LOG_STDOUT`
+        // truthy ⇒ json > text), resolved once at logger init, so `GINA_LOG_FORMAT=json` on the
+        // `gina tail` process turns the relay into one JSON object per line — the answer for a
+        // container that runs a framework daemon: the daemon discards the bundle's own stdout
+        // once it has started (bundle/start.js, `if (isStarting) return;`), so this relay is
+        // the only path a runtime line has to `kubectl logs`, and it must stay on. Same shape
+        // as the default container's line; the relay payload carries no request context, so
+        // `requestId`/`durationMs` are absent here.
+        var isJsonMode = (loggerOptions && loggerOptions.format === 'json');
+        /**
+         * Renders one relayed payload for stdout in the resolved mode.
+         *
+         * @inner
+         * @param {object} pl - A relayed payload (`group`, `level`, `content`).
+         * @returns {string} The line to write — a newline-terminated JSON object in
+         *  json mode, the coloured `format()` text otherwise.
+         *
+         * @example
+         * process.stdout.write( renderLine({ group: 'api@shop', level: 'info', content: 'ready' }) );
+         */
+        var renderLine = function(pl) {
+            if (isJsonMode) {
+                return JSON.stringify({
+                    ts     : new Date().toISOString(),
+                    level  : pl.level,
+                    bundle : pl.group,
+                    message: pl.content,
+                    group  : pl.group,
+                    msg    : pl.content
+                }) + '\n';
+            }
+            return format(pl.group, pl.level, pl.content);
+        };
 
         var delayedMessages = [];
 
@@ -121,7 +155,7 @@ function Tail(opt, cmd) {
             var i = 0;
             while (i < delayedMessages.length) {
                 let pl = delayedMessages[i];
-                process.stdout.write( format(pl.group, pl.level, pl.content) );
+                process.stdout.write( renderLine(pl) );
                 i++;
             }
             delayedMessages = []
@@ -232,7 +266,7 @@ function Tail(opt, cmd) {
 
                         try {
                             // Main output
-                            process.stdout.write( format(pl.group, pl.level, pl.content) );
+                            process.stdout.write( renderLine(pl) );
 
 
                             if (

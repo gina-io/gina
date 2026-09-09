@@ -30,7 +30,8 @@ Two env vars select JSON:
   preset itself when the variable is unset (0.6.30); `GINA_LOG_STDOUT=false` keeps the
   transport, and `GINA_LOG_FORMAT=text` keeps the coloured text while the dial stays
   skipped. It is not the switch for a bundle started through a framework daemon —
-  there the MQ transport is what `gina tail` reads.
+  there the MQ transport is what `gina tail` reads, and `gina tail` itself renders
+  JSON when `GINA_LOG_FORMAT=json` is set on its process (0.6.30).
 
 Both the level methods (`console.info`, `console.debug`, …) and plain `console.log`
 honour the mode, so the stream stays uniformly parseable.
