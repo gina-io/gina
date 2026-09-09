@@ -1,11 +1,10 @@
 {
     "template": "%d [%s][%a] %m",
-    "file": "%h.log",
-    "prepend": false,
-    "logrotator": {
-        "schedule": "5m",
-        "size": "10m",
-        "compress": true,
-        "count": 3
+    "rotate": {
+        "enabled": true,
+        "when": "daily",
+        "size": "10MB",
+        "count": 5,
+        "maxAge": null
     }
 }
