@@ -121,6 +121,69 @@ var routingLib      = lib.routing;
 var swig            = lib.swigResolver.get();
 
 /**
+ * #B535 — bridge a per-bundle engine's registration setters to the module.
+ *
+ * swig-core's `install()` gives every `new Swig()` instance FRESH filter, tag
+ * and extension maps — copied from the frontend's built-in library, NOT from
+ * the module's runtime registrations — and keeps them closure-private
+ * afterwards (measured: a filter registered on the module before OR after
+ * construction never reaches an instance, and vice versa). So once #B514
+ * pointed `self.engine` at a per-bundle instance, every filter a bundle's
+ * `controllers/setup.js` registered through `this.engine.setFilter()` — and
+ * every gina filter the render delegates register per request — stopped
+ * reaching any compile made through the MODULE: an application's own
+ * `require('@rhinostone/swig').compile()` (an entity compiling a message
+ * outside any request), and gina's own `core/server.js` asset-URL compile.
+ * On 0.6.29 they all landed on the module because `self.engine` WAS the module.
+ *
+ * The maps cannot be copied out later, so the reach is restored where it is
+ * lost: each setter registers on the instance first (its own validation throws
+ * before the module is touched), then on the module. The instance keeps its
+ * OWN options — in particular its loader — so #B514's include/extends
+ * isolation is untouched; only the registration maps are shared again, which
+ * is exactly the state every released version had. The reverse direction
+ * (module → instance) is not bridged: registering anywhere other than through
+ * `this.engine` in `setup.js` is documented as unsupported.
+ *
+ * Idempotent per (instance, module): a second call is a no-op, and the
+ * owner-guard rebuild in `getDefaultSwigEngine` bridges each fresh instance.
+ *
+ * @inner
+ * @param {*} engine  - A per-bundle `new swigMod.Swig()` instance
+ * @param {*} swigMod - The resolved swig module the instance was built from
+ * @returns {*} the same instance, its three setters bridged
+ *
+ * @example
+ * var engine = bridgeRegistrationsToModule(new swig.Swig(opts), swig);
+ * engine.setFilter('stamp', fn);   // visible to engine.compile() AND swig.compile()
+ */
+function bridgeRegistrationsToModule(engine, swigMod) {
+    if (engine._ginaModuleBridge === swigMod) {
+        return engine;
+    }
+    var _setFilter    = engine.setFilter;
+    var _setTag       = engine.setTag;
+    var _setExtension = engine.setExtension;
+    engine.setFilter = function (name, method) {
+        var result = _setFilter.apply(engine, arguments);
+        swigMod.setFilter(name, method);
+        return result;
+    };
+    engine.setTag = function (name, parse, compile, ends, blockLevel) {
+        var result = _setTag.apply(engine, arguments);
+        swigMod.setTag(name, parse, compile, ends, blockLevel);
+        return result;
+    };
+    engine.setExtension = function (name, object) {
+        var result = _setExtension.apply(engine, arguments);
+        swigMod.setExtension(name, object);
+        return result;
+    };
+    engine._ginaModuleBridge = swigMod;
+    return engine;
+}
+
+/**
  * Per-bundle swig ENGINE for the DEFAULT render path, keyed on the bundle
  * template root. Mirrors `controller.render-swig-async.js`'s `_swigEngines`
  * registry, for the same reason and with the same owner guard.
@@ -167,6 +230,8 @@ function getDefaultSwigEngine(swigMod, templateRoot, opts) {
     }
     if (!process.gina._swigDefaultEngines[templateRoot]) {
         process.gina._swigDefaultEngines[templateRoot] = new swigMod.Swig(opts);
+        // #B535 — registrations made on this instance must still reach the module.
+        bridgeRegistrationsToModule(process.gina._swigDefaultEngines[templateRoot], swigMod);
     }
     return process.gina._swigDefaultEngines[templateRoot];
 }
