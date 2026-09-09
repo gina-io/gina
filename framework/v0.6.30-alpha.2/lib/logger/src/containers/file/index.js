@@ -232,9 +232,13 @@ function FileContainer(opt, loggers) {
         // `~~(function)` is 0, and rotation refuses itself with "keeps no files"
         // on a perfectly valid default. It is defined `enumerable: false`, so
         // `Object.keys(user)` still reports `[]` and `JSON.stringify` drops the
-        // function — which is why the failure reads as "count is undefined" and
-        // why an isolated repro outside the framework cannot reproduce it at all.
-        // Measured on a live boot, not reasoned from the source.
+        // function — which is why the failure reads as "count is undefined".
+        // Measured on a live boot, not reasoned from the source; and cheaply
+        // reproducible outside the framework too, since utils/ self-executes:
+        // `node -e "require('./utils/prototypes.js'); console.log(typeof({}).count)"`
+        // prints `function`. Requiring helpers/prototypes.js instead installs
+        // nothing — its export is a constructor that must be CALLED — so that
+        // probe reads every key absent and looks like a valid measurement.
         var has = function (o, k) { return Object.prototype.hasOwnProperty.call(o, k); };
         var cfg = {};
         cfg.enabled = has(user, 'enabled') ? user.enabled : DEFAULT_ROTATE.enabled;
