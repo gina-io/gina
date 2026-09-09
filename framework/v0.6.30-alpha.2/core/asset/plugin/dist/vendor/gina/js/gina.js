@@ -4110,7 +4110,16 @@ function FormValidatorUtil(data, $fields, xhrOptions, fieldsSet, culture) {
             try {
                 if (config.bundle !== bundle) { // ignore if same bundle
                     // getting proxy conf when available
-                    opt = getConfig( currentBundle, 'app' ).proxy[bundle];
+                    // #B522 — clone. The GLOBAL two-argument getConfig() hands back the
+                    // bundle's `app` conf BY REFERENCE, so the `opt.method` / `opt.path`
+                    // writes further down — and the `requestTimeout` controller.query()
+                    // adds to the caller's object before its own defensive copy — used to
+                    // persist on the shared content.app.proxy[<bundle>] for the whole
+                    // process lifetime. `path` and `requestTimeout` are documented
+                    // proxyTarget properties, so that clobbered configured values for
+                    // every other reader of this conf, not merely added stray keys.
+                    // opt = getConfig( currentBundle, 'app' ).proxy[bundle];
+                    opt = JSON.clone( getConfig( currentBundle, 'app' ).proxy[bundle] );
                 }
             } catch (proxyError) {
                 throw new Error('Could not retrieve `proxy` configuration for bundle `'+ bundle +'`. Please check your `/config/app.json`.\n'+proxyError.stack);
