@@ -17,7 +17,6 @@ function MQListener(opt, cb) {
     var sharedConfig    = { loggers: {}};
     var homedir         = getEnvVar('GINA_HOMEDIR');// jshint ignore:line
     var isLoggedByFile  = false; // by default
-    var fileLogsList    = {};
 
 
     function init(opt, cb) {
@@ -35,77 +34,6 @@ function MQListener(opt, cb) {
         if ( mainConfig.flows.indexOf('file') > -1 ) {
             isLoggedByFile = true;
         }
-    }
-
-    /**
-     * startLogRotator
-     *
-     * @param {string} name - `project name` or `hostname`
-     *
-     * @returns {void}
-     */
-    function startLogRotator(name) {
-
-        if ( typeof(fileLogsList[name]) == 'undefined' ) {
-
-            fileLogsList[name] = {
-                started: false
-            }
-        }
-
-        if (fileLogsList[name].started) {
-            return;
-        }
-
-        //homedir
-        var file = name; // by default, it should be hostname
-        if ( !/^gina$/.test(name) && /\@/.test(name) ) {
-            name     = opt.name.split(/\@/)[1];
-            file = name;
-        }
-        file += '.log';
-        var filename = _(GINA_LOGDIR +'/'+ file);// jshint ignore:line
-        var filenameObj = new _(filename);// jshint ignore:line
-        if ( !filenameObj.existsSync() ) {
-            // create an empty file
-            try {
-                fs.openSync(filename, 'w')
-            } catch (fileErr) {
-                throw fileErr
-            }
-        }
-        // default options
-        var rotatorOptions = {
-            schedule: '5m',
-            size: '10m',
-            compress: true,
-            count: 3
-        };
-        var rotatorOptionsPath = _(homedir +'/user/extensions/logger/file/config.json', true);// jshint ignore:line
-        if ( new _(rotatorOptionsPath).existsSync() ) {// jshint ignore:line
-            try {
-                rotatorOptions = merge( requireJSON(rotatorOptionsPath).logrotator, rotatorOptions );// jshint ignore:line
-            } catch (userConfigErr) {
-                throw userConfigErr
-            }
-        }
-
-
-        var rotator = require(__dirname + './../lib/logrotator').rotator;
-        // check file rotation every 5 minutes, and rotate the file if its size exceeds 10 mb.
-        // keep only 3 rotated files and compress (gzip) them.
-        rotator.register(filename, rotatorOptions);
-
-        rotator.on('error', function(err) {
-            console.error('[MQListener] log rotation failed: '+ err.stack);
-        });
-
-        // 'rotate' event is invoked whenever a registered file gets rotated
-        rotator.on('rotate', function(file) {
-            console.debug('[MQListener] file ' + file + ' was rotated!');
-        });
-
-        fileLogsList[name].started = true;
     }
 
     self.report = function(sessionId, payload) {

@@ -31,6 +31,28 @@ Two env vars select JSON:
 Both the level methods (`console.info`, `console.debug`, …) and plain `console.log`
 honour the mode, so the stream stays uniformly parseable.
 
+## File transport and rotation
+
+The opt-in `file` container appends to `<logdir>/<webroot><host>.log` — one file
+per host, shared by every bundle on that host. It receives its lines over the MQ
+socket, so it **only writes while the framework daemon is running**; inside a
+container there is no daemon, and stdout with platform-side rotation is the
+supported path there.
+
+Rotation is on by default at 10MB with 5 files kept (the same shape as the
+kubelet's `containerLogMaxSize` / `containerLogMaxFiles`) and is configured under
+`rotate` in `~/.gina/user/extensions/logger/file/config.json` — the same file that
+enables the container:
+
+```json
+{ "rotate": { "when": "daily", "size": "10MB", "count": 5, "maxAge": "30d" } }
+```
+
+The live file is renamed and reopened rather than copied and truncated, so no
+line is lost while rotating. A size or age without an explicit unit is refused
+rather than guessed, and any invalid value disables rotation for that group with
+a loud message on stdout while logging itself continues.
+
 Full reference: the [Logging guide](https://gina.io/docs/guides/logging) and the
 [Logger API reference](https://gina.io/docs/api/logger).
 
