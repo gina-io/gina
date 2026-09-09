@@ -127,9 +127,9 @@ describe('02 — eval fallbacks removed from logger sites (#M22)', function () {
         assert.ok(/#M22/.test(LOGGER_SRC), '#M22 tag missing from logger main.js');
     });
 
-    it('logger/containers/file/index.js carries the #M22 provenance tag', function () {
-        assert.ok(/#M22/.test(FILE_SRC), '#M22 tag missing from file/index.js');
-    });
+    // The file container carried this tag for a `lib/merge` require that it no
+    // longer has: as an in-process sink it never merges a peer's logger registry
+    // (#B526/#B527). logger/main.js and mq/index.js keep theirs, below and above.
 
     it('logger/containers/mq/index.js carries the #M22 provenance tag', function () {
         assert.ok(/#M22/.test(MQ_SRC), '#M22 tag missing from mq/index.js');
