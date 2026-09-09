@@ -46,6 +46,7 @@
  *   node script/perf/profile-baseline.js                    # render,upload,ws
  *   node script/perf/profile-baseline.js --arm=ws,ws-bundle # #P36 re-arm pair
  *   node script/perf/profile-baseline.js --arm=render,json   # #P39 slice-2 shape pair
+ *   node script/perf/profile-baseline.js --arm=json,json-mw,json-mw-noconf   # #P39 slice-3 split (clone vs construction)
  *   node script/perf/profile-baseline.js --keep             # keep the temp home
  * Options (defaults): --requests=3000 --concurrency=8 --upload-count=200
  *   --upload-kb=1500 --ws-sessions=8 --ws-frames=1500 --ws-payload=4096
@@ -272,6 +273,11 @@ function fixture() {
         '    var appConf = this.getConfig(\'app\');',
         '',
         '    this.home = function(req, res) {',
+        '        if (!global.__perfConfBytes) {   // one-shot: size of the resolved conf a bare getConfig() deep-clones',
+        '            var _c = self.getConfig();',
+        '            global.__perfConfBytes = JSON.stringify(_c).length;',
+        '            require(\'fs\').writeFileSync(require(\'os\').tmpdir() + \'/gina-perf-conf-bytes.txt\', \'conf=\' + global.__perfConfBytes + \' content=\' + JSON.stringify(_c.content).length + \' routing=\' + JSON.stringify(_c.content.routing).length + \' settings=\' + JSON.stringify(_c.content.settings).length + \' templates=\' + JSON.stringify(_c.content.templates || {}).length + \' topKeys=\' + Object.keys(_c).join(\',\') + \' contentKeys=\' + Object.keys(_c.content).join(\',\') + \'\\n\');',
+        '        }',
         '        self.renderJSON({ msg: appConf.greeting });',
         '    };',
         '',
@@ -363,6 +369,35 @@ function fixture() {
             '    this.tag = function (req, res, next, done) { done(req, res, next); };',
             '}',
             'module.exports = PerfMwShared',
+            ''
+        ].join('\n'));
+    }
+
+    // json-mw-noconf arm fixture — the SPLIT arm for the json-mw conviction: the same
+    // trivial route behind the same local-inherits-shared middleware pair, but with
+    // NEITHER constructor reading `this.getConfig()`. `json-mw-noconf − json` isolates
+    // per-request middleware CONSTRUCTION (class build + inherits() double-constructor)
+    // from the whole-conf clone, which `json-mw − json-mw-noconf` then isolates in turn.
+    if (ARMS.indexOf('json-mw-noconf') > -1) {
+        var mw2RoutingPath = path.join(SRC, 'config', 'routing.json');
+        var mw2Routing = parseConfigJSON(mw2RoutingPath);
+        mw2Routing['perf-json-mw-noconf'] = { namespace: 'content', url: '/mw2', method: 'GET', param: { control: 'home' }, middleware: ['middlewares.perfmw2.pass'] };
+        fs.writeFileSync(mw2RoutingPath, JSON.stringify(mw2Routing, null, 2));
+        fs.mkdirSync(path.join(SRC, 'middlewares', 'perfmw2'), { recursive: true });
+        fs.writeFileSync(path.join(SRC, 'middlewares', 'perfmw2', 'index.js'), [
+            'function PerfMw2Local() {',
+            '    var self = this;   // no getConfig() here: construction cost only',
+            '    this.pass = function (req, res, next, done) { done(req, res, next); };',
+            '}',
+            'module.exports = PerfMw2Local',
+            ''
+        ].join('\n'));
+        fs.mkdirSync(path.join(PROJ_DIR, 'shared', 'middlewares', 'perfmw2'), { recursive: true });
+        fs.writeFileSync(path.join(PROJ_DIR, 'shared', 'middlewares', 'perfmw2', 'index.js'), [
+            'function PerfMw2Shared() {',
+            '    this.tag = function (req, res, next, done) { done(req, res, next); };   // no getConfig() here either',
+            '}',
+            'module.exports = PerfMw2Shared',
             ''
         ].join('\n'));
     }
@@ -601,6 +636,31 @@ async function driveJsonMw(port) {
     var per = Math.ceil(REQUESTS / CONCURRENCY);
     try {
         await Promise.all(clients.map(function (cl) { return seqGet(cl, webroot + '/mw', per, stats); }));
+    } finally {
+        clients.forEach(function (cl) { try { cl.close(); } catch (e) { /* ignore */ } });
+    }
+    stats.wallMs = Date.now() - stats.startMs;
+    return stats;
+}
+
+/**
+ * JSON-MW-NOCONF arm (#P39 slice-3 split, 2026-09-09): the json-mw scene with the
+ * constructor-body `getConfig()` reads REMOVED — same route shape, same
+ * inherits() pair, so `json-mw-noconf − json` is per-request middleware
+ * CONSTRUCTION alone and `json-mw − json-mw-noconf` is the two whole-conf
+ * clones alone. Driven in the same run as both, on one build.
+ *
+ * @param   {number} port
+ * @returns {Promise<object>} driver stats
+ */
+async function driveJsonMwNoconf(port) {
+    var webroot = '/' + BUNDLE;
+    var stats = { arm: 'json-mw-noconf', codes: {}, requests: REQUESTS, startMs: Date.now() };
+    var clients = [];
+    for (var c = 0; c < CONCURRENCY; c++) { clients.push(h2Session(port)); }
+    var per = Math.ceil(REQUESTS / CONCURRENCY);
+    try {
+        await Promise.all(clients.map(function (cl) { return seqGet(cl, webroot + '/mw2', per, stats); }));
     } finally {
         clients.forEach(function (cl) { try { cl.close(); } catch (e) { /* ignore */ } });
     }
@@ -942,8 +1002,8 @@ function teardown() {
 // Main
 // ---------------------------------------------------------------------------
 
-var DRIVERS = { render: driveRender, json: driveJson, 'json-mw': driveJsonMw, upload: driveUpload, ws: driveWs };
-var VALID_ARMS = ['render', 'json', 'json-mw', 'upload', 'ws', 'ws-bundle'];
+var DRIVERS = { render: driveRender, json: driveJson, 'json-mw': driveJsonMw, 'json-mw-noconf': driveJsonMwNoconf, upload: driveUpload, ws: driveWs };
+var VALID_ARMS = ['render', 'json', 'json-mw', 'json-mw-noconf', 'upload', 'ws', 'ws-bundle'];
 
 async function main() {
     var bad = ARMS.filter(function (a) { return VALID_ARMS.indexOf(a) === -1; });
