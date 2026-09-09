@@ -4,9 +4,12 @@
  * The container is constructed inside a closure that needs a live framework
  * context and an MQ socket, so its internals are not directly callable from a
  * unit test — the established style for this container is source inspection
- * (see `logger-container-homedir.test.js`). Every source pin below is validated
- * RED against the pre-fix bytes read from git, so a pin that cannot fail is
- * caught here rather than silently passing forever.
+ * (see `logger-container-homedir.test.js`). Every source pin below was validated
+ * RED against the pre-fix bytes at authoring time — the parent of the commit that
+ * introduced them, `a1356ab54`. That validation is deliberately NOT shipped as an
+ * assertion: a test that reads `git show HEAD:` inverts the moment the fix is
+ * committed, which is exactly how these three pins passed locally and then failed
+ * on CI. Re-validate by hand against that parent if a pin is ever reworked.
  *
  * The one genuinely functional test is §01: the framework's own
  * `Object.prototype.count` extension, which is what made the first
@@ -18,7 +21,6 @@ const { describe, it, before } = require('node:test');
 const assert = require('node:assert/strict');
 const fs     = require('fs');
 const path   = require('path');
-const { execSync } = require('child_process');
 
 const FW_DIR = require('../fw');
 const REL  = 'lib/logger/src/containers/file/index.js';
@@ -30,17 +32,9 @@ function stripComments(src) {
 }
 
 let CURRENT = '';
-let PREFIX  = '';   // pre-fix bytes, for red-first validation
 
 before(function () {
     CURRENT = stripComments(fs.readFileSync(FILE, 'utf8'));
-    try {
-        PREFIX = stripComments(
-            execSync('git show HEAD:' + path.posix.join('framework', path.basename(FW_DIR), REL), {
-                cwd: path.join(__dirname, '..', '..'), encoding: 'utf8', maxBuffer: 8 * 1024 * 1024
-            })
-        );
-    } catch (e) { PREFIX = ''; }
 });
 
 describe('01 - Object.prototype.count makes a typeof guard unsafe for config objects', function () {
@@ -73,11 +67,6 @@ describe('02 - rotation renames, it does not copy-and-truncate', function () {
         assert.equal(CURRENT.indexOf('createReadStream'), -1, 'no copy step');
         assert.equal(CURRENT.indexOf('fs.truncate'), -1, 'no truncate step');
     });
-    it('RED-FIRST: these pins fail against the pre-fix source', function () {
-        if (!PREFIX) return; // git unavailable — skip rather than pass vacuously
-        assert.equal(PREFIX.indexOf('renameSync'), -1,
-            'pre-fix source already renamed — this pin cannot fail and proves nothing');
-    });
 });
 
 describe('03 - the sink holds one descriptor instead of reopening per line', function () {
@@ -90,11 +79,6 @@ describe('03 - the sink holds one descriptor instead of reopening per line', fun
             'per-line writeFile reopened the file for every record and gave concurrent ' +
             'callbacks no ordering guarantee');
     });
-    it('RED-FIRST: the pre-fix source did write per line', function () {
-        if (!PREFIX) return;
-        assert.ok(PREFIX.indexOf('fs.writeFile(') > -1,
-            'pre-fix source lacked the per-line writeFile — the pin above cannot fail');
-    });
 });
 
 describe('04 - the filename is resolved without the argv-derived bundle list', function () {
@@ -102,11 +86,6 @@ describe('04 - the filename is resolved without the argv-derived bundle list', f
         assert.ok(CURRENT.indexOf('setup(opt.name, filenames, processProperties)') > -1,
             'core/gna.js splices process.argv to [node, appPath], so the argv-derived ' +
             'bundles[] is always empty in a bundle process and no filename was ever set');
-    });
-    it('RED-FIRST: the pre-fix source had no such fallback', function () {
-        if (!PREFIX) return;
-        assert.equal(PREFIX.indexOf('setup(opt.name, filenames, processProperties)'), -1,
-            'pre-fix source already had the fallback — this pin cannot fail');
     });
 });
 
