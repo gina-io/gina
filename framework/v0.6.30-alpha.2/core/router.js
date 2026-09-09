@@ -776,7 +776,15 @@ function Router(env, scope) {
         // options.conf = JSON.clone(conf); // pre-#B52-residual: whole-conf deep clone per request
         options.conf = Object.assign({}, conf);
         options.conf.content = Object.assign({}, conf.content);
-        options.conf.content.routing = JSON.clone(conf.content.routing);
+        // #P40 S3b — a per-rule SHALLOW copy replaces the deep clone of the whole routing
+        // map: the only per-request write below is the [rule].param REPLACEMENT on the
+        // matched rule (a whole-property assignment), and `params.middleware` — the array
+        // processMiddlewares splices — is already this request's own copy from the matcher
+        // (server.js / lib/routing build params with a cloned middleware array). Every other
+        // rule stays shared by reference; the deep clone cost 5 µs at 8 routes and ~290 µs at
+        // 380 on this host, on every matched request, for a map nothing else mutates.
+        options.conf.content.routing = Object.assign({}, conf.content.routing);
+        options.conf.content.routing[options.rule] = Object.assign({}, conf.content.routing[options.rule]);
         // inheriting from _common
         if (
             options.template
