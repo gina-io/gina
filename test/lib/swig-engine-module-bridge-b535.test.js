@@ -20,6 +20,10 @@ var assert = require('node:assert/strict');
 var fs     = require('fs');
 var path   = require('path');
 
+// #B538 — getDefaultSwigEngine's mint branch now calls gina's JSON.clone (a global the framework installs via
+// helpers/prototypes); install it exactly as the framework does so the extracted function can run here.
+JSON.clone = require('../../utils/prototypes.json_clone');
+
 var FW   = require('../fw');
 var SRC  = fs.readFileSync(path.join(FW, 'core/controller/controller.js'), 'utf8');
 var swig = require('@rhinostone/swig');
@@ -69,6 +73,7 @@ function compiles(engine, tpl) {
 
 var getDefaultSrc = extractFunction(SRC, 'getDefaultSwigEngine');
 var bridgeSrc     = extractFunction(SRC, 'bridgeRegistrationsToModule');
+var exposeSrc     = extractFunction(SRC, 'exposeOptionsOnEngine');   // #B538 — the mint branch now calls it
 
 describe('01 - source pins', function () {
     it('defines bridgeRegistrationsToModule(engine, swigMod)', function () {
@@ -107,7 +112,7 @@ describe('03 - the shipped functions bridge registrations to the module', functi
 
     it('a filter registered on the per-bundle instance is compiled by the module (and still by the instance)', function () {
         var mod = moduleStandIn();
-        var shipped = load([bridgeSrc, getDefaultSrc]);
+        var shipped = load([bridgeSrc, exposeSrc, getDefaultSrc]);
         var engine = shipped.api.getDefaultSwigEngine(mod, '/tpl/a', {});
         engine.setFilter('b535f', function () { return 'F'; });
         assert.equal(compiles(mod, '{{ ""|b535f }}'), 'F');
@@ -117,7 +122,7 @@ describe('03 - the shipped functions bridge registrations to the module', functi
 
     it('a tag and an extension registered on the instance reach the module too', function () {
         var mod = moduleStandIn();
-        var shipped = load([bridgeSrc, getDefaultSrc]);
+        var shipped = load([bridgeSrc, exposeSrc, getDefaultSrc]);
         var engine = shipped.api.getDefaultSwigEngine(mod, '/tpl/a', {});
         engine.setTag('b535tag', function () { return true; }, function () { return '_output += "TAGOUT";'; }, false, false);
         engine.setExtension('b535ext', { v: 41 });
@@ -127,7 +132,7 @@ describe('03 - the shipped functions bridge registrations to the module', functi
 
     it('an invalid registration throws from the instance and leaves the module untouched', function () {
         var mod = moduleStandIn();
-        var shipped = load([bridgeSrc, getDefaultSrc]);
+        var shipped = load([bridgeSrc, exposeSrc, getDefaultSrc]);
         var engine = shipped.api.getDefaultSwigEngine(mod, '/tpl/a', {});
         assert.throws(function () { engine.setFilter('b535bad', 'not a function'); }, /not a valid function/);
         assert.match(compiles(mod, '{{ ""|b535bad }}'), /Invalid filter "b535bad"/);
@@ -136,7 +141,7 @@ describe('03 - the shipped functions bridge registrations to the module', functi
     it('minting the same template root twice returns the same bridged instance, and one registration writes the module once', function () {
         var mod = moduleStandIn(), writes = 0, orig = mod.setFilter;
         mod.setFilter = function () { writes++; return orig.apply(mod, arguments); };
-        var shipped = load([bridgeSrc, getDefaultSrc]);
+        var shipped = load([bridgeSrc, exposeSrc, getDefaultSrc]);
         var a = shipped.api.getDefaultSwigEngine(mod, '/tpl/a', {});
         var b = shipped.api.getDefaultSwigEngine(mod, '/tpl/a', {});
         assert.equal(a, b);
@@ -147,7 +152,7 @@ describe('03 - the shipped functions bridge registrations to the module', functi
 
     it('the owner-guard rebuild on a module swap mints a FRESH instance and bridges it to the new module', function () {
         var mod1 = moduleStandIn(), mod2 = moduleStandIn();
-        var shipped = load([bridgeSrc, getDefaultSrc]);
+        var shipped = load([bridgeSrc, exposeSrc, getDefaultSrc]);
         var e1 = shipped.api.getDefaultSwigEngine(mod1, '/tpl/a', {});
         var e2 = shipped.api.getDefaultSwigEngine(mod2, '/tpl/a', {});
         assert.notEqual(e1, e2);
@@ -159,7 +164,7 @@ describe('03 - the shipped functions bridge registrations to the module', functi
     it('the instance keeps its OWN loader — #B514 include/extends isolation is untouched', function () {
         var mod = moduleStandIn();
         var loader = swig.loaders.fs('/tpl/a');
-        var shipped = load([bridgeSrc, getDefaultSrc]);
+        var shipped = load([bridgeSrc, exposeSrc, getDefaultSrc]);
         var engine = shipped.api.getDefaultSwigEngine(mod, '/tpl/a', { loader: loader });
         engine.setFilter('b535l', function () { return 'L'; });
         assert.equal(engine.options.loader, loader);
@@ -168,7 +173,7 @@ describe('03 - the shipped functions bridge registrations to the module', functi
 
     it('the reverse direction is NOT bridged: a later module registration stays invisible to the instance (documented)', function () {
         var mod = moduleStandIn();
-        var shipped = load([bridgeSrc, getDefaultSrc]);
+        var shipped = load([bridgeSrc, exposeSrc, getDefaultSrc]);
         var engine = shipped.api.getDefaultSwigEngine(mod, '/tpl/a', {});
         mod.setFilter('b535rev', function () { return 'R'; });
         assert.equal(compiles(mod, '{{ ""|b535rev }}'), 'R', 'control: the module resolves its own');
@@ -176,7 +181,7 @@ describe('03 - the shipped functions bridge registrations to the module', functi
     });
 
     it('on the REAL module: a bundle-style registration on the bridged instance is compiled through require("@rhinostone/swig")', function () {
-        var shipped = load([bridgeSrc, getDefaultSrc]);
+        var shipped = load([bridgeSrc, exposeSrc, getDefaultSrc]);
         var engine = shipped.api.getDefaultSwigEngine(swig, '/tpl/real-b535', {});
         engine.setFilter('b535_real', function () { return 'REAL'; });
         assert.equal(compiles(swig, '{{ ""|b535_real }}'), 'REAL');

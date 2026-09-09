@@ -184,6 +184,63 @@ function bridgeRegistrationsToModule(engine, swigMod) {
 }
 
 /**
+ * #B538 — give a per-bundle engine the `getOptions()` accessor the module
+ * carries, so `self.engine.getOptions()` keeps working now that `self.engine`
+ * is the instance.
+ *
+ * The constructor below installs `swig.getOptions` on the MODULE once per
+ * request — a closure over that request's `local._swigOptions` — and until
+ * #B514 `self.engine` WAS the module, so the documented call shape
+ * `self.engine.compile(tpl, self.engine.getOptions())(data)` resolved. #B514
+ * pointed `self.engine` at a per-bundle instance, which never received the
+ * accessor, and the #B535 bridge carries registrations, not methods. That is
+ * the whole defect: `TypeError: self.engine.getOptions is not a function`,
+ * thrown on the accessor before any compile — and inside an async controller
+ * callback it surfaces as an unhandled rejection that leaves the request
+ * unanswered until the caller's own stream timeout, which reads as a proxy
+ * fault rather than a render fault.
+ *
+ * The accessor cannot simply be copied from the module: that closure is
+ * per-REQUEST and the instance is per-BUNDLE, shared by every request to the
+ * bundle, so assigning it here would be the cross-request-bleed shape. The
+ * instance instead reports what IT was built with: `opts` is snapshotted ONCE
+ * at mint (per-bundle lifetime, matching the instance — measured: neither
+ * `new Swig(opts)` nor `setDefaults(opts)` mutates the object handed in, so
+ * the snapshot equals the pre-`setDefaults` clone every released version
+ * returned), and every call hands back a fresh `JSON.clone` of it. The
+ * per-call copy is a strict hardening over 0.6.29, which returned the same
+ * object by reference on every call: a caller can no longer corrupt the
+ * engine, or the next caller, by mutating the result. `JSON.clone` is gina's
+ * own deep copy and preserves the loader's functions — the copy is a working
+ * loader — which matters because swig-core validates a per-call loader and
+ * refuses a bare `{}`. Handing the result back to `compile()` is a no-op
+ * relative to calling `compile()` with no options (measured: identical
+ * output, with a differing option as the control), so the round-trip is
+ * supported for compatibility, never required.
+ *
+ * Not touched: the module-side `swig.getOptions` (still assigned per request
+ * below; `core/server.js` reads it for its inline routing/asset compiles),
+ * and the no-template-root fallback, where `self.engine` is the module and
+ * the accessor was never lost.
+ *
+ * @inner
+ * @param {*}      engine - A per-bundle `new swigMod.Swig()` instance
+ * @param {object} opts   - The options it was built with (`{ autoescape, cache, loader }`)
+ * @returns {*} the same instance, `getOptions()` attached
+ *
+ * @example
+ * var engine = exposeOptionsOnEngine(new swig.Swig(opts), opts);
+ * engine.compile(tpl, engine.getOptions())(data);   // the documented call shape
+ */
+function exposeOptionsOnEngine(engine, opts) {
+    var snapshot = JSON.clone(opts);
+    engine.getOptions = function () {
+        return JSON.clone(snapshot);
+    };
+    return engine;
+}
+
+/**
  * Per-bundle swig ENGINE for the DEFAULT render path, keyed on the bundle
  * template root. Mirrors `controller.render-swig-async.js`'s `_swigEngines`
  * registry, for the same reason and with the same owner guard.
@@ -210,7 +267,11 @@ function bridgeRegistrationsToModule(engine, swigMod) {
  * (they read per-request context from `process.gina._renderALS`, so a shared
  * engine cannot bleed), and a bundle's own `controllers/setup.js` filters land
  * here too because `self.engine` points at this instance before setup runs
- * (`router.js:944` hands `controller.engine` to the setup module).
+ * (`router.js:944` hands `controller.engine` to the setup module). Two things
+ * the move off the module lost are restored per instance at mint: #B535
+ * bridges the three registration setters back to the module, and #B538 gives
+ * the instance its own `getOptions()` accessor (`exposeOptionsOnEngine`) —
+ * the module's per-request one never reaches an instance.
  *
  * @inner
  * @param {*}      swigMod      - The resolved swig module (exposes `.Swig`)
@@ -232,6 +293,8 @@ function getDefaultSwigEngine(swigMod, templateRoot, opts) {
         process.gina._swigDefaultEngines[templateRoot] = new swigMod.Swig(opts);
         // #B535 — registrations made on this instance must still reach the module.
         bridgeRegistrationsToModule(process.gina._swigDefaultEngines[templateRoot], swigMod);
+        // #B538 — the module's getOptions() accessor must exist on the instance too.
+        exposeOptionsOnEngine(process.gina._swigDefaultEngines[templateRoot], opts);
     }
     return process.gina._swigDefaultEngines[templateRoot];
 }
