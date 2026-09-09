@@ -8,8 +8,28 @@
 var fs              = require('fs');
 var os              = require('os');
 const {execSync}    = require('child_process');
+var crypto          = require('crypto');
 //var merge   = require('./../lib/merge');
 //var console = require('./../lib/logger');
+
+/**
+ * #ERRREF — mints the incident ref that an error response returns to the
+ * client and the server-side pairing line is keyed by (#B533 brought this
+ * third `throwError` twin into the contract). Honours a relay-safe
+ * caller-supplied ref (1-32 word chars, dots or dashes), otherwise returns a
+ * fresh mint. Kept byte-identical with the two other copies
+ * (core/server.js + core/controller/controller.js) — test-pinned.
+ *
+ * @private
+ * @param {string} [supplied] - caller/producer-provided ref candidate
+ * @returns {string} the supplied value when relay-safe, else 6 fresh uppercase hex chars
+ */
+var _mintErrorRef = function(supplied) {
+    if ( typeof(supplied) == 'string' && /^[\w.\-]{1,32}$/.test(supplied) ) {
+        return supplied;
+    }
+    return crypto.randomBytes(3).toString('hex').toUpperCase();
+};
 
 /**
  * ContextHelper
@@ -294,20 +314,40 @@ function ContextHelper(contexts) {
 
         // Live HTTP request we can still write an error response to.
         if ( res && !res.headersSent ) {
-            var hasViews          = router.hasViews
-                , isUsingTemplate = isUsingTemplate // pre-existing: resolves to `undefined` -> JSON branch
-            ;
-
-            if ( !hasViews || !isUsingTemplate ) {
-                res.writeHead(code, { 'Content-Type': 'application/json'} );
-                res.end(JSON.stringify({
-                    status: code,
-                    error: 'Error '+ code +'. '+ err.stack
-                }))
-            } else {
-                res.writeHead(code, { 'Content-Type': 'text/html'} );
-                res.end('<h1>Error '+ code +'.</h1><pre>'+ err.stack + '</pre>')
+            // #ERRREF / #B533 — this twin used to answer with the raw stack in EVERY
+            // scope and record nothing server-side: the client received the
+            // framework's install path, version dir and frames, the operator got no
+            // line at all. It now does what core/server.js and
+            // core/controller/controller.js do: mint a relay-safe incident ref, emit
+            // ONE full-detail pairing line (message + stack + cause, keyed by the
+            // ref) BEFORE the wire write, and shape the wire copy by scope — local
+            // keeps the stack (the dev toolbar reads it; the `error` string is
+            // unchanged there for an Error without a cause), every other scope gets
+            // the message line only, fail-closed on an unset NODE_SCOPE_IS_LOCAL
+            // (the same read as server.js's isLocalScope()). A relay-safe
+            // caller-supplied `err.ref` is honoured, as the twins do.
+            var ref         = _mintErrorRef( ( err && typeof(err) == 'object' && err.ref ) ? err.ref : undefined );
+            var _isLocal    = /^true$/i.test(process.env.NODE_SCOPE_IS_LOCAL);
+            var _isErrObj   = ( err && typeof(err) == 'object' ) ? true : false;
+            var _errDetail  = _isErrObj ? ( err.stack || err.message || String(err) ) : String(err);
+            if ( _isErrObj && err.cause ) {
+                _errDetail += '\ncaused by: '+ ( err.cause.stack || err.cause.message || err.cause );
             }
+            // node's http / http2-compat responses expose their request as `res.req`;
+            // the router slot itself carries no request (the slot is #B534's subject).
+            var _req        = ( res.req ) ? res.req : null;
+            console.error('[ CONTEXT ][ '+ ( getContext('bundle') || '-' ) +' ][ ref '+ ref +' ][ req '+ ( ( _req && _req._ginaReqId ) || '-' ) +' ] '+ ( ( _req && _req.method ) || '-' ) +' [ '+ code +' ] '+ ( ( _req && _req.url ) || '-' ) +'\n'+ _errDetail);
+            var _wireDetail = _isLocal ? _errDetail : ( ( _isErrObj && err.message ) ? err.message : String(err) );
+            // #B254 — the former HTML arm of this branch was unreachable (its guard
+            // read a self-assigned, always-undefined local), so this path has only
+            // ever answered JSON; the dead arm is removed rather than made live,
+            // which would have been a behaviour change nobody asked for.
+            res.writeHead(code, { 'Content-Type': 'application/json'} );
+            res.end(JSON.stringify({
+                status  : code,
+                error   : 'Error '+ code +'. '+ _wireDetail,
+                ref     : ref
+            }));
             return;
         }
 
