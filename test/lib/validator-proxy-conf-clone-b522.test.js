@@ -179,7 +179,8 @@ describe('validator-proxy-conf-clone — the `query` rule must not mutate the sh
 
         var world = {
             server: server, seen: seen, appConf: appConf, proxyTarget: proxyTarget,
-            sessKey: 'http2session:http://127.0.0.1:' + PORT,
+            // No sessKey: the pooled key is derived from the proxy conf's `hostname`
+            // and carries no port, so recording a guess here only invites its reuse.
             maps: [ envConf[BUNDLE][ENV].content.server, envConf[TARGET][ENV].content.server ]
         };
         worlds.push(world);
@@ -200,20 +201,40 @@ describe('validator-proxy-conf-clone — the `query` rule must not mutate the sh
         );
     }
 
+    // Teardown must not GUESS the pooled-session key. MEASURED: on the proxy branch the
+    // conf supplies `hostname` and `port` as separate keys, so the session lands under
+    // `http2session:http://127.0.0.1` with NO port — a key lookup finds nothing and the
+    // live session survives teardown. On node 22 the file then never finishes: the runner
+    // reports `cancelled` / `testTimeoutFailure`, which is NOT a failing assertion and is
+    // how this first surfaced (CI, 120s). Reproduced deliberately on node 22 with the
+    // pre-fix teardown, and green on 22/24/26 with the sweep below.
+    // ⚠️ Node 25 TOLERATES the leak — both `server.close()` and the event-loop drain
+    // complete there — so a local-only run on a newer node CANNOT see this. An earlier
+    // draft of this comment blamed `server.close()` never calling back; that was measured
+    // FALSE on node 25 (it returned in 2ms with the session still live) and is not the
+    // mechanism. Sweep every entry instead of naming a key.
     afterEach(async function () {
         for (var w; (w = worlds.pop()); ) {
             w.maps.forEach(function (dict) {
                 var m = dict && dict._cached;
                 if (!m) { return; }
                 try {
-                    var entry = m.get(w.sessKey);
-                    if (entry && entry.value && entry.value.destroy && !entry.value.destroyed) {
-                        entry.value.destroy();
-                    }
+                    m.forEach(function (entry) {
+                        var v = entry && entry.value;
+                        if (v && typeof v.destroy === 'function' && !v.destroyed) { v.destroy(); }
+                    });
                 } catch (e) {}
                 try { new RenderCache().from(m).clear(); } catch (e) {}
             });
-            await new Promise(function (r) { w.server.close(r); });
+            // Bounded: if anything still held the server open, fail fast rather than
+            // hanging the whole file until the runner's timeout.
+            await new Promise(function (r) {
+                var settled = false;
+                var fin = function () { if (!settled) { settled = true; r(); } };
+                try { if (w.server.closeAllConnections) { w.server.closeAllConnections(); } } catch (e) {}
+                w.server.close(fin);
+                setTimeout(fin, 3000).unref();
+            });
         }
         if (process.gina) { delete process.gina._serverInstance; }
     });
