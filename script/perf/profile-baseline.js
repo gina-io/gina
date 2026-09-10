@@ -46,6 +46,7 @@
  *   node script/perf/profile-baseline.js                    # render,upload,ws
  *   node script/perf/profile-baseline.js --arm=ws,ws-bundle # #P36 re-arm pair
  *   node script/perf/profile-baseline.js --arm=render,json   # #P39 slice-2 shape pair
+ *   node script/perf/profile-baseline.js --arm=json,json-mw,json-mw-noconf   # #P39 slice-3 split (clone vs construction)
  *   node script/perf/profile-baseline.js --keep             # keep the temp home
  * Options (defaults): --requests=3000 --concurrency=8 --upload-count=200
  *   --upload-kb=1500 --ws-sessions=8 --ws-frames=1500 --ws-payload=4096
@@ -242,7 +243,13 @@ function fixture() {
     settings.server = Object.assign({}, settings.server, {
         protocol     : 'http/2.0',
         scheme       : 'https',
-        http2Options : Object.assign({}, (settings.server || {}).http2Options, { enableConnectProtocol: true })
+        // maxStreamsPerSecond: the #H9 rapid-reset limiter (default 200 streams/s per
+        // session) tears a session down with GOAWAY(ENHANCE_YOUR_CALM) once the trivial
+        // routes got fast enough for ONE sequential h2 client to exceed it (measured
+        // 2026-09-09: both json arms failed at the first drive). Raised for the scene —
+        // the harness measures CPU per request, not the limiter; record the raise in
+        // any numbers derived from this run.
+        http2Options : Object.assign({}, (settings.server || {}).http2Options, { enableConnectProtocol: true, maxStreamsPerSecond: 5000 })
     });
     fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 4));
 
@@ -266,6 +273,11 @@ function fixture() {
         '    var appConf = this.getConfig(\'app\');',
         '',
         '    this.home = function(req, res) {',
+        '        if (!global.__perfConfBytes) {   // one-shot: size of the resolved conf a bare getConfig() deep-clones',
+        '            var _c = self.getConfig();',
+        '            global.__perfConfBytes = JSON.stringify(_c).length;',
+        '            require(\'fs\').writeFileSync(require(\'os\').tmpdir() + \'/gina-perf-conf-bytes.txt\', \'conf=\' + global.__perfConfBytes + \' content=\' + JSON.stringify(_c.content).length + \' routing=\' + JSON.stringify(_c.content.routing).length + \' settings=\' + JSON.stringify(_c.content.settings).length + \' templates=\' + JSON.stringify(_c.content.templates || {}).length + \' topKeys=\' + Object.keys(_c).join(\',\') + \' contentKeys=\' + Object.keys(_c.content).join(\',\') + \'\\n\');',
+        '        }',
         '        self.renderJSON({ msg: appConf.greeting });',
         '    };',
         '',
@@ -325,6 +337,67 @@ function fixture() {
             '        session.send(\'echo: \' + data);',
             '    });',
             '};',
+            ''
+        ].join('\n'));
+    }
+
+    // json-mw arm fixture — gated on the arm being requested so every other
+    // arm's scene stays byte-identical. The route is the json arm's controller
+    // action behind ONE declared middleware whose bundle-local file inherits a
+    // shared twin (router.js composes both with inherits() when both exist), and
+    // BOTH constructors read `this.getConfig()` — the whole-conf clone in a
+    // constructor body, twice per request, which is the shape under test.
+    if (ARMS.indexOf('json-mw') > -1) {
+        var mwRoutingPath = path.join(SRC, 'config', 'routing.json');
+        var mwRouting = parseConfigJSON(mwRoutingPath);
+        mwRouting['perf-json-mw'] = { namespace: 'content', url: '/mw', method: 'GET', param: { control: 'home' }, middleware: ['middlewares.perfmw.pass'] };
+        fs.writeFileSync(mwRoutingPath, JSON.stringify(mwRouting, null, 2));
+        fs.mkdirSync(path.join(SRC, 'middlewares', 'perfmw'), { recursive: true });
+        fs.writeFileSync(path.join(SRC, 'middlewares', 'perfmw', 'index.js'), [
+            'function PerfMwLocal() {',
+            '    var self = this;',
+            '    var conf = this.getConfig();   // constructor-body whole-conf read: the convicted shape',
+            '    this.pass = function (req, res, next, done) { done(req, res, next); };',
+            '}',
+            'module.exports = PerfMwLocal',
+            ''
+        ].join('\n'));
+        fs.mkdirSync(path.join(PROJ_DIR, 'shared', 'middlewares', 'perfmw'), { recursive: true });
+        fs.writeFileSync(path.join(PROJ_DIR, 'shared', 'middlewares', 'perfmw', 'index.js'), [
+            'function PerfMwShared() {',
+            '    var conf = this.getConfig();   // second whole-conf read per request, via inherits()',
+            '    this.tag = function (req, res, next, done) { done(req, res, next); };',
+            '}',
+            'module.exports = PerfMwShared',
+            ''
+        ].join('\n'));
+    }
+
+    // json-mw-noconf arm fixture — the SPLIT arm for the json-mw conviction: the same
+    // trivial route behind the same local-inherits-shared middleware pair, but with
+    // NEITHER constructor reading `this.getConfig()`. `json-mw-noconf − json` isolates
+    // per-request middleware CONSTRUCTION (class build + inherits() double-constructor)
+    // from the whole-conf clone, which `json-mw − json-mw-noconf` then isolates in turn.
+    if (ARMS.indexOf('json-mw-noconf') > -1) {
+        var mw2RoutingPath = path.join(SRC, 'config', 'routing.json');
+        var mw2Routing = parseConfigJSON(mw2RoutingPath);
+        mw2Routing['perf-json-mw-noconf'] = { namespace: 'content', url: '/mw2', method: 'GET', param: { control: 'home' }, middleware: ['middlewares.perfmw2.pass'] };
+        fs.writeFileSync(mw2RoutingPath, JSON.stringify(mw2Routing, null, 2));
+        fs.mkdirSync(path.join(SRC, 'middlewares', 'perfmw2'), { recursive: true });
+        fs.writeFileSync(path.join(SRC, 'middlewares', 'perfmw2', 'index.js'), [
+            'function PerfMw2Local() {',
+            '    var self = this;   // no getConfig() here: construction cost only',
+            '    this.pass = function (req, res, next, done) { done(req, res, next); };',
+            '}',
+            'module.exports = PerfMw2Local',
+            ''
+        ].join('\n'));
+        fs.mkdirSync(path.join(PROJ_DIR, 'shared', 'middlewares', 'perfmw2'), { recursive: true });
+        fs.writeFileSync(path.join(PROJ_DIR, 'shared', 'middlewares', 'perfmw2', 'index.js'), [
+            'function PerfMw2Shared() {',
+            '    this.tag = function (req, res, next, done) { done(req, res, next); };   // no getConfig() here either',
+            '}',
+            'module.exports = PerfMw2Shared',
             ''
         ].join('\n'));
     }
@@ -533,6 +606,61 @@ async function driveJson(port) {
     var per = Math.ceil(REQUESTS / CONCURRENCY);
     try {
         await Promise.all(clients.map(function (cl) { return seqGet(cl, webroot + '/', per, stats); }));
+    } finally {
+        clients.forEach(function (cl) { try { cl.close(); } catch (e) { /* ignore */ } });
+    }
+    stats.wallMs = Date.now() - stats.startMs;
+    return stats;
+}
+
+/**
+ * JSON-MW arm (#P39 slice-2 sizing for the CONSUMER-CONVICTED shape, 2026-09-09):
+ * the SAME trivial `renderJSON` route as the json arm, behind a two-file
+ * middleware pair — a shared middleware and a bundle-local one that inherits
+ * from it — whose CONSTRUCTORS each read `this.getConfig()`. That is the
+ * per-request shape a consumer production profile convicted (§10 of the
+ * rust-acceleration audit): per-request middleware construction ×
+ * `inherits()` double-constructor × a whole-conf clone per constructor body.
+ * Driven in the SAME run as `json`, so `json-mw − json` isolates that cost on
+ * one build and one scene. The json arm alone cannot see it: its route has
+ * no middleware at all, which is why §11 read `getConfig()` at 2.7 ms there.
+ *
+ * @param   {number} port
+ * @returns {Promise<object>} driver stats
+ */
+async function driveJsonMw(port) {
+    var webroot = '/' + BUNDLE;
+    var stats = { arm: 'json-mw', codes: {}, requests: REQUESTS, startMs: Date.now() };
+    var clients = [];
+    for (var c = 0; c < CONCURRENCY; c++) { clients.push(h2Session(port)); }
+    var per = Math.ceil(REQUESTS / CONCURRENCY);
+    try {
+        await Promise.all(clients.map(function (cl) { return seqGet(cl, webroot + '/mw', per, stats); }));
+    } finally {
+        clients.forEach(function (cl) { try { cl.close(); } catch (e) { /* ignore */ } });
+    }
+    stats.wallMs = Date.now() - stats.startMs;
+    return stats;
+}
+
+/**
+ * JSON-MW-NOCONF arm (#P39 slice-3 split, 2026-09-09): the json-mw scene with the
+ * constructor-body `getConfig()` reads REMOVED — same route shape, same
+ * inherits() pair, so `json-mw-noconf − json` is per-request middleware
+ * CONSTRUCTION alone and `json-mw − json-mw-noconf` is the two whole-conf
+ * clones alone. Driven in the same run as both, on one build.
+ *
+ * @param   {number} port
+ * @returns {Promise<object>} driver stats
+ */
+async function driveJsonMwNoconf(port) {
+    var webroot = '/' + BUNDLE;
+    var stats = { arm: 'json-mw-noconf', codes: {}, requests: REQUESTS, startMs: Date.now() };
+    var clients = [];
+    for (var c = 0; c < CONCURRENCY; c++) { clients.push(h2Session(port)); }
+    var per = Math.ceil(REQUESTS / CONCURRENCY);
+    try {
+        await Promise.all(clients.map(function (cl) { return seqGet(cl, webroot + '/mw2', per, stats); }));
     } finally {
         clients.forEach(function (cl) { try { cl.close(); } catch (e) { /* ignore */ } });
     }
@@ -874,8 +1002,8 @@ function teardown() {
 // Main
 // ---------------------------------------------------------------------------
 
-var DRIVERS = { render: driveRender, json: driveJson, upload: driveUpload, ws: driveWs };
-var VALID_ARMS = ['render', 'json', 'upload', 'ws', 'ws-bundle'];
+var DRIVERS = { render: driveRender, json: driveJson, 'json-mw': driveJsonMw, 'json-mw-noconf': driveJsonMwNoconf, upload: driveUpload, ws: driveWs };
+var VALID_ARMS = ['render', 'json', 'json-mw', 'json-mw-noconf', 'upload', 'ws', 'ws-bundle'];
 
 async function main() {
     var bad = ARMS.filter(function (a) { return VALID_ARMS.indexOf(a) === -1; });

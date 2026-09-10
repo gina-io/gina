@@ -38,6 +38,22 @@ var SERVER_SRC      = fs.readFileSync(path.join(FW, 'core/server.js'), 'utf8');
 var LIB_INDEX_SRC   = fs.readFileSync(path.join(FW, 'lib/index.js'), 'utf8');
 var SWIG_FILTERS_SRC = fs.readFileSync(path.join(FW, 'lib/swig-filters/src/main.js'), 'utf8');
 var NJ_FILTERS_SRC   = fs.readFileSync(path.join(FW, 'lib/nunjucks-filters/src/main.js'), 'utf8');
+var RENDER_SWIG_SRC  = fs.readFileSync(path.join(FW, 'core/controller/controller.render-swig.js'), 'utf8');
+var RENDER_V1_SRC    = fs.readFileSync(path.join(FW, 'core/controller/controller.render-v1.js'), 'utf8');
+
+/**
+ * Strips block comments then line comments, for pins that must not trip on
+ * prose mentions of the very token they count (the own-JSDoc trap). Mirrors
+ * test/core/validator-upload-progress.test.js:69.
+ *
+ * @param {string} src
+ * @returns {string}
+ */
+function stripComments(src) {
+    return src
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/^\s*\/\/.*$/mg, '');
+}
 var SCHEMA_SETTINGS = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'schema/settings.json'), 'utf8'));
 
 
@@ -1016,17 +1032,32 @@ describe('03j - #TPL1 nunjucks async adapter (behavioural, gated on nunjucks ins
 // Reuse needs a SHARED engine/env, which means a SHARED filter table — and the
 // context-bearing gina filters (getUrl / getWebroot / t / tIcu) previously read
 // a process-global singleton (SwigFilters.instance._options / NunjucksFilters.
-// instance._options) that every per-request factory call overwrote. On a
-// synchronous render that's safe (no other request runs between the factory call
-// and the render); on an ASYNC render it is NOT — a concurrent request stomps the
-// singleton across an await, bleeding one request's host/webroot into another's
-// output (#B25). KEY FINDING: this race is NOT swig-only — BOTH async delegates
-// hit it through the same singleton, and a per-request nunjucks Environment does
-// NOT fix it (the env isolates the name->fn TABLE, not the singleton the fns
-// read). The fix: the gina filters are context-free (read per-request context
-// from process.gina._renderALS at CALL time) and the render is wrapped in an
-// UNCONDITIONAL _renderALS.run() so interleaved async renders each read their own
-// context — independent of whether the compiled cache is opted in.
+// instance._options) that every per-request factory call overwrote. ANY render
+// that AWAITS between the factory call and the template invocation races that
+// singleton: a concurrent request stomps it across the await, bleeding one
+// request's host / webroot / culture into another's output (#B25). KEY FINDING:
+// the race is NOT swig-only — BOTH async delegates hit it through the same
+// singleton, and a per-request nunjucks Environment does NOT fix it (the env
+// isolates the name->fn TABLE, not the singleton the fns read). The fix: the
+// gina filters are context-free (read per-request context from
+// process.gina._renderALS at CALL time) and the render ENTERS that store —
+// `.run()` in the two `-async` delegates, `enterWith()` in the two DEFAULT
+// delegates (#B514) — so interleaved renders each read their own context,
+// independent of whether the compiled cache is opted in.
+//
+// CORRECTED (#B514, 2026-09-08): this header used to assert "On a synchronous
+// render that's safe (no other request runs between the factory call and the
+// render)". That premise was FALSE, and it is why the default path stayed
+// unprotected for two releases. controller.render-swig.js has been `async` since
+// 64b19b7b2 (2026-03-06) — three months BEFORE the #B25 fix — and awaits the
+// layout read (:1048, unconditional) between its SwigFilters() stamp and
+// compiledTemplate(data). Measured on a prod build (NODE_ENV_IS_DEV=false, so
+// lib/index.js's _require does not cache-bust the module): 50 of 50 concurrent
+// request pairs rendered one response carrying the other request's culture
+// pre-fix; 0 of 100 post-fix, same harness, same host, the fix the only
+// variable. controller.render-nunjucks.js is the one delegate genuinely free of
+// the window — its singleton write (registerGinaFilters, :1176) and its
+// env.render (:1298) sit in ONE synchronous run with no await between them.
 //
 // Source pins lock the shape; the behavioural tests prove the isolation through a
 // real shared engine/env (and a pure-logic replica proves the mechanism + the
@@ -1175,6 +1206,97 @@ describe('03k - #TPL1 Tier-2 compiled-template cache + #B25 ALS render-context i
         assert.match(RENDER_NJ_ASYNC_SRC, /return\s+await\s+new\s+Promise/);
         assert.match(RENDER_NJ_ASYNC_SRC, /isProxyHost:\s*computeIsProxyHost\(req,\s*localOptions\)/);
         assert.match(RENDER_NJ_ASYNC_SRC, /function\s+computeIsProxyHost\(req,\s*localOptions\)/);
+    });
+
+    // (e-bis) #B514 — the DEFAULT delegates enter the SAME store ------------
+    //
+    // #TPL1 Tier-2 closed the singleton race for the two `-async` delegates only.
+    // The DEFAULT delegates — the path every bundle takes unless it opts into
+    // settings.template.swig.loader — are themselves `async` and await between
+    // the per-request SwigFilters({...}) stamp and the template invocation, so a
+    // concurrent request's stamp lands inside that window. These pins lock the
+    // fix shape; the end-to-end evidence is the live prod-boot harness (50/50
+    // concurrent pairs bled pre-fix, 0/100 post-fix, 0/3 on a reused connection).
+
+    it('render-swig (default delegate) lazily builds the render-context ALS on process.gina._renderALS (#B514)', function () {
+        assert.match(RENDER_SWIG_SRC, /function\s+getRenderALS\s*\(\s*\)/);
+        assert.match(RENDER_SWIG_SRC, /process\.gina\._renderALS\s*=\s*new\s+AsyncLocalStorage\(\)/);
+    });
+
+    it('render-swig hands the SAME _renderCtx object to SwigFilters() and enterWith() (#B514)', function () {
+        assert.match(RENDER_SWIG_SRC, /var\s+_renderCtx\s*=\s*\{/);
+        assert.match(RENDER_SWIG_SRC, /var\s+filters\s*=\s*SwigFilters\(_renderCtx\)/);
+        assert.match(RENDER_SWIG_SRC, /getRenderALS\(\)\.enterWith\(_renderCtx\)/);
+    });
+
+    it('render-swig enterWith FOLLOWS the SwigFilters() stamp it overrides (#B514)', function () {
+        var f = RENDER_SWIG_SRC.indexOf('var filters = SwigFilters(_renderCtx)');
+        var e = RENDER_SWIG_SRC.indexOf('getRenderALS().enterWith(_renderCtx)');
+        assert.ok(f > 0, 'factory call site present');
+        assert.ok(e > 0, 'enterWith call site present');
+        assert.ok(e > f, 'enterWith must follow the factory call');
+    });
+
+    it('render-v1 (default delegate) enters the same store with its own _renderCtx (#B514)', function () {
+        assert.match(RENDER_V1_SRC, /function\s+getRenderALS\s*\(\s*\)/);
+        assert.match(RENDER_V1_SRC, /var\s+filters\s*=\s*SwigFilters\(_renderCtx\)/);
+        assert.match(RENDER_V1_SRC, /getRenderALS\(\)\.enterWith\(_renderCtx\)/);
+    });
+
+    it('#B514 negative invariant — every SwigFilters( call in each default delegate passes _renderCtx', function () {
+        // Comments are stripped first: the fix's own JSDoc quotes `SwigFilters({...})`
+        // in prose, and a raw count would count that too (the own-JSDoc trap).
+        // The raw-text assertions below prove the strip did not silently empty
+        // the corpus, so a broken stripper cannot make this pin pass vacuously.
+        assert.ok(RENDER_SWIG_SRC.indexOf('SwigFilters(') > -1, 'raw swig source mentions SwigFilters(');
+        assert.ok(RENDER_V1_SRC.indexOf('SwigFilters(')   > -1, 'raw v1 source mentions SwigFilters(');
+        var swigCode = stripComments(RENDER_SWIG_SRC);
+        var v1Code   = stripComments(RENDER_V1_SRC);
+        var swigAll  = (swigCode.match(/SwigFilters\(/g) || []).length;
+        var swigCtx  = (swigCode.match(/SwigFilters\(_renderCtx\)/g) || []).length;
+        assert.ok(swigAll > 0, 'render-swig: at least one live SwigFilters( call survives the strip');
+        assert.equal(swigAll, swigCtx, 'render-swig: every live SwigFilters( call must pass _renderCtx');
+        var v1All = (v1Code.match(/SwigFilters\(/g) || []).length;
+        var v1Ctx = (v1Code.match(/SwigFilters\(_renderCtx\)/g) || []).length;
+        assert.ok(v1All > 0, 'render-v1: at least one live SwigFilters( call survives the strip');
+        assert.equal(v1All, v1Ctx, 'render-v1: every live SwigFilters( call must pass _renderCtx');
+    });
+
+    // (e-ter) #B514 sibling limb — the DEFAULT path renders through a PER-BUNDLE
+    //         swig ENGINE, not the process singleton ------------------------
+    //
+    // swig.setDefaults({loader}) stamps the process singleton once per render and
+    // the delegates then await before compiling, so in merged-process mode a
+    // concurrent bundle's stamp reaches this render's include/extends resolution.
+    // A per-call loader cannot fix it (swig-core reads self.options.loader in
+    // getParentsInternal/parseFile regardless of per-call options), so the fix is
+    // an engine INSTANCE per template root. Live-verified that a bundle's own
+    // controllers/setup.js filters still register: baseline and post-change both
+    // rendered STAMP<x> through a real prod boot.
+
+    it('controller.js builds a per-bundle swig engine keyed on the template root (#B514 limb)', function () {
+        assert.match(CONTROLLER_SRC, /function\s+getDefaultSwigEngine\(swigMod,\s*templateRoot,\s*opts\)/);
+        assert.match(CONTROLLER_SRC, /process\.gina\._swigDefaultEngines\[templateRoot\]\s*=\s*new\s+swigMod\.Swig\(opts\)/);
+    });
+
+    it('the per-bundle engine registry is owner-guarded against a swig hot-swap', function () {
+        assert.match(CONTROLLER_SRC, /process\.gina\._swigDefaultEnginesOwner\s*!==\s*swigMod/);
+    });
+
+    it('self.engine points at the per-bundle engine (so controllers/setup.js filters land there)', function () {
+        assert.match(CONTROLLER_SRC, /local\._swigEngine\s*=\s*\(\s*dir\s*&&\s*typeof\(swig\.Swig\)\s*===\s*'function'\s*\)/);
+        assert.match(CONTROLLER_SRC, /self\.engine\s*=\s*local\._swigEngine/);
+    });
+
+    it('the render delegates receive the per-bundle engine as deps.swig', function () {
+        assert.match(CONTROLLER_SRC, /swig\s*:\s*\(local\._swigEngine\s*\|\|\s*swig\)/);
+    });
+
+    it('the module-level setDefaults is KEPT (core/server.js still compiles inline strings through it)', function () {
+        // Removing it would change the two swig.compile(str, swig.getOptions())
+        // sites in core/server.js, which are outside this fix's scope.
+        assert.match(CONTROLLER_SRC, /swig\.setDefaults\(swigOptions\)/);
+        assert.match(CONTROLLER_SRC, /swig\.getOptions\s*=\s*function/);
     });
 
     // (f) BEHAVIOURAL — pure-logic ALS replica (#M12b shape; always runs) -----

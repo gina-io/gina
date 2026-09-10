@@ -44,14 +44,12 @@ var GINA_ROOT   = path.resolve(__dirname, '..', '..');
 var CLI_SOURCE  = path.join(GINA_ROOT, 'bin', 'cli');
 var GINA_INIT   = path.join(GINA_ROOT, 'bin', 'gina-init');
 var SPEAKER     = path.join(FW, 'lib/logger/src/containers/mq/speaker.js');
-var FILE_CONT   = path.join(FW, 'lib/logger/src/containers/file/index.js');
 var TAIL        = path.join(FW, 'lib/cmd/framework/tail.js');
 var INIT        = path.join(FW, 'lib/cmd/framework/init.js');
 
 var cliSrc     = fs.readFileSync(CLI_SOURCE, 'utf8');
 var ginaInitSrc = fs.readFileSync(GINA_INIT, 'utf8');
 var speakerSrc = fs.readFileSync(SPEAKER, 'utf8');
-var fileSrc    = fs.readFileSync(FILE_CONT, 'utf8');
 var tailSrc    = fs.readFileSync(TAIL, 'utf8');
 var initSrc    = fs.readFileSync(INIT, 'utf8');
 
@@ -181,35 +179,15 @@ describe('02 - the MQ speaker dials through the locality resolver', function () 
 });
 
 // ---------------------------------------------------------------------------
-// 03. MQ file container (#B160 site 3)
+// 03. (retired) MQ file container — the file container no longer dials.
+//
+// It became an in-process sink (#B526/#B527): it consumes the `logger#file`
+// event `emit()` raises and opens no socket at all, so there is no dial left
+// for the #B160/#B320 host-resolution contract to constrain. That contract is
+// still pinned for every site that DOES dial — the MQ speaker in 02 and gina
+// tail in 04 below, both unchanged. `test/lib/logger-file-rotation.test.js`
+// now pins the absence of the dial from the other side.
 // ---------------------------------------------------------------------------
-
-describe('03 - the MQ file container dials through the locality resolver', function () {
-
-    it('requires lib/net-locality by relative path', function () {
-        assert.match(fileSrc, /var netLocality = require\(__dirname \+ '\/\.\.\/\.\.\/\.\.\/\.\.\/net-locality'\);/);
-    });
-
-    it('threads the settings bind_host onto opt for the dial', function () {
-        assert.match(fileSrc, /opt\.bindHost = settings\.bind_host;/);
-    });
-
-    it('resolves the dial host from the bind side ONLY, env first (#B320 — host_v4/GINA_HOST_V4 are not inputs)', function () {
-        assert.match(fileSrc,
-            /netLocality\.resolveLocalDialHost\(\s*\(\(typeof getEnvVar === 'function' && getEnvVar\('GINA_BIND_HOST'\)\) \|\| process\.env\.GINA_BIND_HOST \|\| null\)\s*\|\| opt\.bindHost\s*\)/);
-    });
-
-    it('the host_v4-consulting resolver call is gone from the file container (whole file)', function () {
-        // #B320 inverse pin — same contract as the speaker's: this covers the
-        // `gina#bundle-logging` event path too, whose hostV4 argument flows
-        // into the same dial line.
-        assert.equal(fileSrc.indexOf('netLocality.resolveDialHost('), -1);
-    });
-
-    it('the raw host_v4 dial assignment is gone', function () {
-        assert.equal(fileSrc.indexOf("var host = opt.hostV4 || getEnvVar('GINA_HOST_V4') || '127.0.0.1';"), -1);
-    });
-});
 
 // ---------------------------------------------------------------------------
 // 04. gina tail (#B160 site 4 — the consumer-visible [MQTail] emitter)

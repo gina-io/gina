@@ -98,11 +98,19 @@ describe('#P39 §01 — the per-render clones are gone at every touched site', f
         assert.match(RSWIG_SRC, /options\s*:\s*localOptions\s*,/,
             'the SwigFilters call must hand local.options through un-cloned');
         var block = stripComments(RSWIG_SRC);
-        var at  = block.indexOf('var filters = SwigFilters({');
-        var end = block.indexOf('});', at);
-        assert.ok(at > -1 && end > at, 'the factory call block must resolve in comment-stripped code');
+        // #B514 re-anchor: the factory options moved out of the call into a
+        // named `_renderCtx`, so the SAME object reaches SwigFilters() and
+        // _renderALS.enterWith() and the two cannot drift apart. The #P39
+        // contract is unchanged — no per-render clone in the factory options —
+        // so this scans the literal that now carries them, and additionally
+        // proves the factory receives that very object.
+        var at  = block.indexOf('var _renderCtx = {');
+        var end = block.indexOf('};', at);
+        assert.ok(at > -1 && end > at, 'the render-context literal must resolve in comment-stripped code');
         assert.equal(block.slice(at, end).indexOf('JSON.clone'), -1,
             'no clone may sit in the factory call');
+        assert.match(block, /var\s+filters\s*=\s*SwigFilters\(_renderCtx\)/,
+            'the factory must receive that very object');
     });
 
     it('render-nunjucks passes the filter factory options by REFERENCE', function () {

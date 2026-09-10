@@ -36,9 +36,12 @@ var assert = require('node:assert/strict');
 var FW = require('../fw');
 
 /** The two containers that resolve the settings file this way. */
+// The file container was the second entry here until it became an in-process
+// sink (#B526/#B527): it no longer reads the settings file, because it no
+// longer dials the MQ port those settings carry. The speaker still does, and
+// keeps every assertion below, the double-`.gina` negative included.
 var CONTAINERS = [
-    { name: 'mq/speaker.js',  file: 'lib/logger/src/containers/mq/speaker.js' },
-    { name: 'file/index.js',  file: 'lib/logger/src/containers/file/index.js' }
+    { name: 'mq/speaker.js',  file: 'lib/logger/src/containers/mq/speaker.js' }
 ];
 
 /** Strip block + line comments so negative code-absence pins don't trip on the
