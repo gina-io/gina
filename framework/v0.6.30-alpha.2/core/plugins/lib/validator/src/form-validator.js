@@ -1085,7 +1085,6 @@ function FormValidatorUtil(data, $fields, xhrOptions, fieldsSet, culture) {
             var attr = options.url.split(/@/);
             rule = attr[0];
             bundle = attr[1];
-            var proxyConf = getConfig( currentBundle, 'app' ).proxy;
             try {
                 if (config.bundle !== bundle) { // ignore if same bundle
                     // getting proxy conf when available

@@ -4106,7 +4106,6 @@ function FormValidatorUtil(data, $fields, xhrOptions, fieldsSet, culture) {
             var attr = options.url.split(/@/);
             rule = attr[0];
             bundle = attr[1];
-            var proxyConf = getConfig( currentBundle, 'app' ).proxy;
             try {
                 if (config.bundle !== bundle) { // ignore if same bundle
                     // getting proxy conf when available
@@ -7087,7 +7086,9 @@ function Routing() {
      * store that server.js handle() establishes for every request, so a direct
      * request builds direct URLs even after a port-less-Host request has written
      * the worker global. Only a req-less caller (boot, CLI, cron — no store) falls
-     * back to the getContext('isProxyHost') latch and the worker global with an
+     * back to the getContext('isProxyHost') latch — read as `false` when the latch
+     * was never set (#B537), so route.isProxyHost is always a boolean — and the
+     * worker global with an
      * envConf fallback; when neither holds a value the route degrades to its direct
      * hostname (route.isProxyHost is flipped false) instead of failing, and a
      * once-per-process warning is emitted.
@@ -7126,7 +7127,13 @@ function Routing() {
             // from another request's host.
             var _reqStore = ( process.gina && process.gina._reqALS ) ? process.gina._reqALS.getStore() : null;
             _stProxy    = ( _reqStore && _reqStore.proxy ) ? _reqStore.proxy : null;
-            isProxyHost = ( _stProxy ) ? _stProxy.isProxyHost : getContext('isProxyHost');
+            // #B537 — a req-less caller on a process that never set the latch (the
+            // boot-time writer runs only when the proxy configuration resolved a
+            // record for the running scope and env) read `undefined` here, so the
+            // route carried a non-boolean isProxyHost that JSON.clone then flagged
+            // as an authoring error on every clone. Coerce with the `|| false` idiom
+            // the sibling readers of this latch use: the flag is always a boolean.
+            isProxyHost = ( _stProxy ) ? _stProxy.isProxyHost : ( getContext('isProxyHost') || false );
         }
 
         var env         = config.env || GINA_ENV  // by default, takes the current bundle
