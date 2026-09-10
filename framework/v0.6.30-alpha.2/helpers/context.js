@@ -307,9 +307,25 @@ function ContextHelper(contexts) {
             code    = 500
         }
 
+        // #B534 — the `router` context slot (core/router.js) is process-wide and is
+        // never cleared, so it holds whichever request was routed LAST rather than
+        // the one whose call failed. A callback resumed after an await could
+        // therefore answer a stranger's response — writing this error to their
+        // client and leaving its own caller hanging until the server timeout.
+        // Prefer THIS request's AsyncLocalStorage store, which server.js handle()
+        // establishes for every request on both engines and which propagates across
+        // await; fall back to the slot only for a caller that has no store at all
+        // (boot, CLI, cron, worker), which is what the slot was there for.
+        // `process` is guarded because the egress harness stubs it without `.gina`.
+        var _reqStore = ( typeof(process) != 'undefined' && process.gina && process.gina._reqALS )
+            ? process.gina._reqALS.getStore()
+            : null;
+        // `res` and `next` must come from the SAME source: pairing a store response
+        // with the slot's `next` would hand the middleware chain a stale callback.
+        var _fromStore = ( _reqStore && _reqStore.res ) ? true : false;
         var router  = getContext('router')
-            , res   = ( router ) ? router.response : null
-            , next  = ( router ) ? router.next : null
+            , res   = ( _fromStore ) ? _reqStore.res  : ( ( router ) ? router.response : null )
+            , next  = ( _fromStore ) ? _reqStore.next : ( ( router ) ? router.next : null )
         ;
 
         // Live HTTP request we can still write an error response to.
@@ -333,9 +349,13 @@ function ContextHelper(contexts) {
             if ( _isErrObj && err.cause ) {
                 _errDetail += '\ncaused by: '+ ( err.cause.stack || err.cause.message || err.cause );
             }
-            // node's http / http2-compat responses expose their request as `res.req`;
-            // the router slot itself carries no request (the slot is #B534's subject).
-            var _req        = ( res.req ) ? res.req : null;
+            // #B534 — the pairing line must name the request that `res` belongs to. The
+            // router slot carries no request at all, so this used to read `res.req`;
+            // under the slot's concurrency defect that named the WRONG request beside
+            // this error's ref, which is worse than naming none — the ref exists so an
+            // operator can correlate. Prefer the store's request when the store is
+            // what supplied `res`, and keep `res.req` for the fallback path.
+            var _req        = ( _fromStore && _reqStore.req ) ? _reqStore.req : ( ( res.req ) ? res.req : null );
             console.error('[ CONTEXT ][ '+ ( getContext('bundle') || '-' ) +' ][ ref '+ ref +' ][ req '+ ( ( _req && _req._ginaReqId ) || '-' ) +' ] '+ ( ( _req && _req.method ) || '-' ) +' [ '+ code +' ] '+ ( ( _req && _req.url ) || '-' ) +'\n'+ _errDetail);
             var _wireDetail = _isLocal ? _errDetail : ( ( _isErrObj && err.message ) ? err.message : String(err) );
             // #B254 — the former HTML arm of this branch was unreachable (its guard

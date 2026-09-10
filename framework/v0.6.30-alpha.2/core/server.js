@@ -7739,7 +7739,15 @@ function Server(options) {
         var _reqStore = {
             requestId : req._ginaReqId || _resolveRequestId(req),
             startMs   : (typeof req._ginaReqStartMs === 'number') ? req._ginaReqStartMs : Date.now(),
-            proxy     : null
+            proxy     : null,
+            // #B534 — carry THIS request's trio so a detached callback can answer the
+            // request whose call failed, rather than whichever one the process-wide
+            // `router` context slot happened to see last. The slot (core/router.js) is
+            // never cleared, so under concurrency it is the wrong request as often as
+            // the right one; helpers/context.js's throwError prefers these.
+            req       : req,
+            res       : res,
+            next      : next
         };
         return process.gina._reqALS.run(_reqStore, function() {
             return _handleDispatch(req, res, next, bundle, pathname, config);
