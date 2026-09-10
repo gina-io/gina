@@ -66,29 +66,38 @@ open https://localhost:3100
 
 > **npm 12+** blocks install scripts by default, and gina's post-install bootstraps `~/.gina` and the framework dependencies. Install with `npm install -g gina@latest --allow-scripts=gina`, or allow it once for all global installs with `npm config set allow-scripts=gina --location=user`. (Not needed on npm ≤ 11.)
 
-## What's in 0.6.29
+## What's in 0.6.30
 
-> **Restart your bundles *and* rebuild them.** Two of the fixes are
-> browser-bundled — the field-error painter and the staged-upload preview slot —
-> so `gina.min.js` changed and `gina bundle:restart` alone leaves the old client
-> running. Rebuild each consuming bundle, then restart.
+> **Restart your bundles *and* rebuild them.** `lib/routing` and the validator's
+> client half both ship in the browser bundle, so `gina.min.js` changed and
+> `gina bundle:restart` alone leaves the old client running. Rebuild each
+> consuming bundle, then restart.
 
-> **No settings reset.** `0.6.29` is a patch — the `shortVersion` stays `0.6`,
+> **No settings reset.** `0.6.30` is a patch — the `shortVersion` stays `0.6`,
 > so your `~/.gina/0.6/settings.json` is untouched. (`0.6.0` was the reset.)
 
-**The right-destination release.** Four of the five changes are a value arriving
-somewhere it should not, or failing to arrive where it should: a failed query
-carrying its own result rows into every log that printed the error, a field
-error stopping on a control that could never display it, a staged upload posting
-the literal `[object Object]`, and a retina asset path cut in half at its `@`.
-The fifth is the opposite kind of change — `bundle:build` learns to do nothing
-at all when there is nothing to do. Full detail in [CHANGELOG.md](./CHANGELOG.md).
+**The isolation release.** Most of what changed here is one piece of in-flight
+work seeing another's state: a response rendered with a concurrent request's
+language and webroot, a framework error answered to whichever request was routed
+most recently, a later caller of an entity method handed an earlier call's
+record, and one bundle's templates resolving against another bundle's root. Each
+was invisible in development, because dev mode rebuilds per request what
+production shares. Alongside them, `self.getConfig()` stops deep-copying the
+resolved configuration on every call. Full detail in [CHANGELOG.md](./CHANGELOG.md).
 
-- **Security — a failed N1QL statement no longer carries its own result rows (#B509).** The couchbase connector placed the query service's whole response envelope — result documents included — on `error.stack` and `error.cause.http_body`, so a `RETURNING` statement that lost a CAS race, or a SELECT that timed out part-way, wrote the records it had already produced into any log that printed the error. The controller error path prints the stack in every scope, and a bare `console.error(err)` renders the cause, so there was no interception point for a bundle. Both now carry the envelope with `results` replaced by a row-count marker; `errors`, `requestID`, `status`, `signature` and the classifier's `first_error_code`/`retry` are unchanged, the SDK's own error object is copied rather than mutated, and a body the connector cannot parse is dropped rather than forwarded.
-- **Added — `bundle:build` and `project:build` gain `--skip-unchanged`.** A release whose bundle source is byte-identical to what it was built from keeps its copy. The build signs the source — the sha1 of every file's bytes and every symlink's target, so timestamps do not count and a fresh checkout or a plain `cp` does not invalidate — records that signature at the release root as `.gina-build.json`, and skips the wipe-and-copy when it matches. Everything else still runs: the manifest update, the fingerprint stamp, the `node_modules` link and both hooks. Any doubt rebuilds, and nothing changes without the flag. `--force` rebuilds anyway and still records the marker, `--dry-run` prints each release's decision and its reason without touching anything, and the `postbuild` hook receives `GINA_BUILD_SKIPPED_BUNDLES` / `GINA_BUILD_SKIPPED_ALL` so a hook that bakes its own outputs can skip its own work.
-- **Fixed — a server-side field error reaches the visible control (#B510).** The client-side painter walked the form in document order and stopped on the first control whose name matched, whether or not it could paint it — and a bare `type="hidden"` control never can. So with the recommended shape for a control that must render disabled yet still post (a visible control plus a hidden twin carrying rule `"exclude": false`), a hidden twin listed first consumed the error: no message, no `aria-invalid`, and on a shared wrapper the error class was set with nothing inside it. A bare hidden control is now skipped when another control of the same name can be painted; a lone hidden one keeps the former behaviour, and one inside a `form-item-wrapper` is still painted after its wrapper.
-- **Fixed — a path-form `getUrl` route containing `@` no longer renders a 500 (#B511).** Both the swig and the nunjucks filter split every `@`-bearing route as `rule@bundle` before checking whether it was a path, so the retina-asset idiom the filter's own comment cites — `'/assets/img/common/header@2x.png' | getUrl` — was cut at the `@`, failed the bundle lookup on the remainder and called `throwError(500)` mid-template, returning a 500 while the action's own render was discarded. A route with a leading `/` now bypasses the split on both engines. One consequence to know: a path-form route cannot name a bundle in-string (`'/x.png@web'`) — pass it as the filter's base argument (`| getUrl(null, 'web')`), which was already the working form and is unchanged.
-- **Fixed — a staged upload no longer posts `[object Object]` (#B459).** The client writes one hidden input per metadata field into the real form, auto-creating any the form did not declare — and `preview`, whose value is an object rather than a string, was auto-created like the others, so a form declaring no `[preview][...]` sub-fields got a flat input that the fill loop string-coerced. Such a form now posts no `preview` field at all, matching the documented field set; the thumbnail still renders, and a form that declares the `[preview][location|uri|width|height]` sub-fields is unchanged — declaring them remains the way to persist the preview. Server code that keyed on the *presence* of a `preview` field for such forms should key on its value: it was garbage before and is absent now.
+- **Security — a rendered response no longer carries a concurrent request's context (#B514).** The `getUrl`, `getWebroot`, `t` and `tIcu` filters resolved per-request context through a process-wide singleton on the default render path, and both delegates await between stamping it and invoking the template. Measured on a built release: 50 of 50 concurrent pairs served one response carrying the other's negotiated culture and webroot before the fix, 0 of 100 after.
+- **Security — a later caller no longer receives an earlier call's record (#B441).** An entity method that emitted its completion more than once per call buffered every surplus emit, and the next `util.promisify`-style caller consumed it as its own result. Where such a method reads a user-scoped record, an ownership check could pass on another principal's row. Development mode masked it entirely.
+- **Security — a failed `getConfig()` / `getLib()` no longer writes its stack to the response (#B533).** The helper behind the implicit globals answered in every scope with the raw stack — install path, application file paths and line numbers — and logged nothing. It now mints an incident `ref`, logs one full-detail line, and sends the message alone outside local scope.
+- **Changed — `self.getConfig()` returns a copy-on-write view (#P40).** Reads pass through to the shared configuration at no copy cost and writes land in the call's own overlay. A route behind two middlewares reading `this.getConfig()` went from 14,719 ms to 1,884 ms per 3,000 requests. `structuredClone`, `Object.freeze` and `util.inspect` behave differently on a node you have not enumerated; `controller.getConfig.mode: "clone"` opts back out.
+- **Added — log rotation for the logger's opt-in `file` container.** On by default at 10MB with 5 files kept, the same shape as the kubelet's own limits. The live file is renamed and reopened rather than copied and truncated, so no line is lost while rotating.
+- **Added — `gina tail` honours the logger's JSON render mode (#B524).** With `GINA_LOG_FORMAT=json` on the tail process, every relayed line is written as one JSON object — the JSON answer for a container running a framework daemon, where the tail relay is the only path a runtime line has to `kubectl logs`.
+- **Fixed — the default swig path renders through a per-bundle engine (#B514).** One bundle's template root can no longer reach another's `include` / `extends` resolution, and `self.engine` now points at the engine that actually renders the bundle.
+- **Fixed — a framework error is answered to the request that raised it (#B534).** The response came from a process-wide slot the router fills on every routed request and never clears, so a callback resuming after an `await` wrote its failure to a later request's client while its own caller hung until timeout.
+- **Fixed — the `query` validation rule no longer writes into shared proxy config (#B522).** A rule targeting another bundle set `method`, `path` and a route-derived `requestTimeout` on the process-wide proxy target, so a later live-check from a different route silently ran on the earlier route's deadline — and on HTTP/2 the timeout destroys the pooled session shared with every other request to that authority.
+- **Fixed — the logger's `file` container writes (#B523).** It connected to the MQ, received every line and wrote nothing; it is now an in-process transport writing only its own process's lines, needing no daemon.
+- **Fixed — `gina-container` applies the container logging preset itself (#B524).** A bundle it runs emits JSON and skips the MQ transport, instead of writing coloured text while two processes dial a listener that cannot exist in that topology. Explicit values still win.
+- **Fixed — a req-less `getRoute()` returns a boolean `isProxyHost` (#B537).** Cloning such a route no longer logs a warning, with a stack, for a value that was legitimately unset.
+
 
 ## Documentation
 
