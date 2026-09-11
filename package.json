@@ -129,7 +129,7 @@
     "jsdom": "^30.0.1",
     "nunjucks": "^3.2.4",
     "requirejs": "^2.3.7",
-    "sass": "1.103.1",
+    "sass": "1.104.0",
     "typescript": "^7.0.2"
   },
   "overrides": {
