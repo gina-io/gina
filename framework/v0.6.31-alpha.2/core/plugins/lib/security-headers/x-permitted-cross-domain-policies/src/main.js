@@ -51,7 +51,7 @@
  * at factory call time to fail fast.
  *
  * Reference:
- * https://docs.adobe.com/content/dam/acom/en/devnet/articles/crossdomain_policy_file_spec/crossdomain_policy_file_specification.pdf
+ * https://www.adobe.com/devnet-docs/acrobatetk/tools/AppSec/CrossDomain_PolicyFile_Specification.pdf
  *
  * @module plugins/security-headers/x-permitted-cross-domain-policies
  */

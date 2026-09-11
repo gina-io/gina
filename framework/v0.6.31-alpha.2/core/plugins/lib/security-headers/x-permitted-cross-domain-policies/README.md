@@ -116,7 +116,7 @@ explicitly.
 
 ## Reference
 
-[Adobe — Cross-Domain Policy File Specification](https://docs.adobe.com/content/dam/acom/en/devnet/articles/crossdomain_policy_file_spec/crossdomain_policy_file_specification.pdf)
+[Adobe — Cross-Domain Policy File Specification](https://www.adobe.com/devnet-docs/acrobatetk/tools/AppSec/CrossDomain_PolicyFile_Specification.pdf)
 
 ## Failure modes
 

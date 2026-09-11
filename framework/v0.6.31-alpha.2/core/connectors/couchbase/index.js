@@ -818,7 +818,7 @@ function Couchbase(conn, infos) {
                     //
                     // For more, visit :
                     // - https://blog.couchbase.com/high-performance-consistency/
-                    // - https://developer.couchbase.com/documentation/server/current/architecture/querying-data-with-n1ql.html
+                    // - https://docs.couchbase.com/server/current/learn/services-and-indexes/services/query-service.html
                     // Query options values by default
                     var queryOptions = {
                         // Do not turn off the adhoc flag for each query since

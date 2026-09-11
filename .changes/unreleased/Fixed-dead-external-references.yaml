@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'Refreshed two external references that had gone dead. The X-Permitted-Cross-Domain-Policies plugin cited an Adobe specification URL that now redirects to a generic documentation portal instead of serving the document; the plugin README and the module JSDoc both carried it, and both now name the current, live Adobe copy of the same specification. The Couchbase connector cited an N1QL architecture page that returns 404 with no migration redirect; it now points at the Query Service page that Couchbase itself redirects that path to. Documentation only; no runtime or API change.'
+time: 2026-09-11T02:33:45.433318+01:00
