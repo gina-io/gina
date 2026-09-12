@@ -24,6 +24,10 @@ var modelUtil       = new lib.Model();
  *      `1m` will set the ping interval to 1 minute
  *      `1h` will set the ping interval to 1 hour
  *      `1d` will set the ping interval to 1 day
+ *  - readyTimeout (default: 50000)
+ *      milliseconds to wait for the connector to become ready at boot before
+ *      failing loudly. Values at or above the CLI's ~64s bundle-start budget
+ *      (`lib/cmd/bundle/start.js`) cannot take effect.
  *
  * @class
  * */
@@ -39,6 +43,8 @@ function Connector(dbString) {
                 collection: '_default', // by default
                 keepAlive: true,
                 pingInterval : "2m",
+                // #B541 — boot readiness deadline, in milliseconds.
+                readyTimeout: 50000,
                 configProfile: "wan"
             }
         }
@@ -46,6 +52,38 @@ function Connector(dbString) {
             version: 3
         }
     ;
+
+    // #B541 — boot readiness state. `_markSettled()` records that `ready` has
+    // been settled and disarms the boot deadline armed in init(); it does NOT
+    // gate `self.emit('ready', …)`. Repeat emits are load-bearing:
+    // `core/model/index.js` attaches a persistent `.on('ready')` that surfaces
+    // reconnect churn on the Inspector event signal, and both `onReady`
+    // consumers register `once`, which already drops a late delivery.
+    var _settled        = false
+        , _deadlineId   = null
+    ;
+
+    /**
+     * Record that `ready` has been settled and disarm the boot deadline.
+     *
+     * Idempotent — a reconnect calls it again, by which point the timer is
+     * already `null`.
+     *
+     * @memberof Connector
+     * @inner
+     * @returns {void}
+     *
+     * @example
+     * _markSettled();
+     * self.emit('ready', false, self.instance);
+     */
+    var _markSettled = function() {
+        _settled = true;
+        if (_deadlineId) {
+            clearTimeout(_deadlineId);
+            _deadlineId = null;
+        }
+    };
 
     /**
      * arrayToValues
@@ -239,6 +277,8 @@ function Connector(dbString) {
             // setTimeout(() => {
             //     self.emit('ready', false, self.instance);
             // }, 300);
+            // #B541 — disarm the boot deadline; the emit itself stays ungated.
+            _markSettled();
             self.emit('ready', false, self.instance);
         }
 
@@ -392,6 +432,40 @@ function Connector(dbString) {
             dbString        = merge(dbString, local.options);
             local.options   = dbString;
 
+            // #B541 — arm the boot readiness deadline.
+            //
+            // Every failure path in connect() routes to onError(), which only
+            // re-arms a retry — it never emits. Without this, a connector that
+            // cannot reach couchbase at boot NEVER settles: lib/model.js's
+            // all-or-nothing ready gate never closes, the bundle never prints
+            // the flags bundle:start watches for, and the CLI SIGKILLs it at
+            // ~64s (lib/cmd/bundle/start.js: maxRetry 15 x maxTimeout 4000ms)
+            // with no terminal error logged anywhere.
+            //
+            // lib/model.js's onModelReady ALREADY handles an error correctly —
+            // console.error + process.exit(1) — and that is how every other
+            // connector reports a dead database. It was simply unreachable
+            // here. So if nothing has settled by the deadline, emit the error
+            // ourselves and let that existing path run.
+            //
+            // NOT a retry cap: onError's uncapped reconnect is untouched, so a
+            // connector that HAS settled still recovers from a later blip.
+            // Deliberately NOT unref'd — were this the only handle holding the
+            // event loop, unref would let node exit 0 silently instead of
+            // reporting, and onError's retry timer already holds the loop.
+            var _readyTimeout = ( typeof(local.options.readyTimeout) == 'number' && local.options.readyTimeout > 0 )
+                ? local.options.readyTimeout
+                : 50000;
+
+            if ( !_settled && !_deadlineId ) {
+                _deadlineId = setTimeout(function onReadyDeadline() {
+                    _deadlineId = null;
+                    if (_settled) return;
+
+                    _markSettled();
+                    self.emit('ready', new Error('[CONNECTOR][' + local.bundle +'][' + dbString.connector +'][' + dbString.database +'] Couchbase did not become ready within '+ (_readyTimeout/1000) +'s @`'+ dbString.protocol + dbString.host +'`\nCheck:\n - if couchbase is running and reachable from this host\n - if bucket `'+ dbString.database +'` exists\n - if the credentials are valid\nRaise `readyTimeout` on this connector entry to wait longer; it must stay under the ~64s bundle-start budget to take effect.'), null);
+                }, _readyTimeout);
+            }
 
             console.info('[CONNECTOR][' + local.bundle +'][' + dbString.connector +'][' + dbString.database +'] authenticating to couchbase cluster @'+ dbString.protocol + dbString.host);
 
@@ -410,6 +484,8 @@ function Connector(dbString) {
 
         } catch (err) {
             console.error(err.stack);
+            // #B541 — a synchronous throw already settles; disarm the deadline.
+            _markSettled();
             self.emit('ready', err, null)
         }
     }

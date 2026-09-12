@@ -147,6 +147,11 @@
           "description": "Couchbase only. Interval to keep the connection alive (e.g. \"2m\", \"30s\").",
           "examples": ["2m", "30s", "1h"]
         },
+        "readyTimeout": {
+          "type": "number",
+          "description": "Couchbase only. Milliseconds to wait for the connector to become ready at boot before it reports the failure and the bundle exits. Defaults to 50000. A non-positive or non-numeric value falls back to the default. Values at or above the CLI's bundle-start budget (~64s) cannot take effect, because the CLI terminates the bundle first.",
+          "default": 50000
+        },
         "useScopeAndCollections": {
           "type": "boolean",
           "description": "Couchbase only. Accepted but currently inert — the connector partitions data via _scope/_collection document fields (one bucket, default collection); named-collection KV access is available per call via entity.getConnection(scope, collection). Reserved for a possible future native scope/collection routing mode.",
