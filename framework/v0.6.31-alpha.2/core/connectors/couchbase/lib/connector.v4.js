@@ -10,6 +10,9 @@ var lib             = gina.lib;
 var console         = lib.logger;
 var merge           = lib.merge;
 var modelUtil       = new lib.Model();
+// #B432 — per-call at-most-once settle guard for a connector outcome
+// (core/connectors/settle-once.js).
+var settleOnce      = require('./../../settle-once');
 
 
 
@@ -124,7 +127,25 @@ function Connector(dbString) {
         // Attention: the connection is lost 5 minutes once the bucket is opened.
         var conn = null, defaultCollection = null;
 
-        var onError = function (err, next) {
+        // #B541 — one outcome per connect attempt.
+        //
+        // On failure the couchbase SDK settles BOTH of its channels: it invokes
+        // the onBucketOpened callback AND rejects the awaited promise. So a
+        // single failed attempt called onError twice, arming TWO retry chains —
+        // and each of those, failing in turn, armed two more (2 -> 4 -> 8 ...) —
+        // while double-counting _reconnectAttempts, so the backoff escalated at
+        // twice the intended rate and reached its 60s cap after five real
+        // attempts instead of ten. The guard is minted PER connect() invocation,
+        // never at module scope, so a later reconnect's own attempt stays
+        // independently reportable.
+        var onError = settleOnce('couchbase-v' + sdk.version + ':connector#connect', function onErrorImpl(err, next) {
+            // The promise channel can run WITHOUT the callback channel having
+            // run first (a rejection that never calls back), and only the
+            // callback channel assigns self.instance — which is not initialised
+            // at construction. Without this guard that ordering throws here,
+            // before any retry is armed, and the throw surfaces only as an
+            // unhandled rejection of the bare self.connect(dbString) call.
+            if (!self.instance) self.instance = {};
             delete self.instance.reconnecting;
             self.instance.reconnected = self.instance.connected = false;
             console.debug('[CONNECTOR][' + local.bundle +'] Scope is: '+ process.env.NODE_SCOPE );
@@ -150,7 +171,7 @@ function Connector(dbString) {
                 }
             }, _backoffDelay)
 
-        };
+        }, console);
 
         // once
         var onConnect = function onConnect(cb){
