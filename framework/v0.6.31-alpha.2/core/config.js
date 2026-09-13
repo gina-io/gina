@@ -242,6 +242,14 @@ function Config(opt, contextResetNeeded) {
                         console.error(_bundlesMsg);
                         // Guarantee the reason survives process.exit() on an async pipe (e.g. bin/gina-container).
                         try { fs.writeSync(2, _bundlesMsg + '\n'); } catch (_e) { /* best-effort */ }
+                        // #B542 — retain the reason. Init is fully SYNCHRONOUS, so this
+                        // branch runs INSIDE `new Config(...)` while the exit below is
+                        // still only scheduled; a caller that chains `.getInstance()` in
+                        // the same statement (helpers/context.js does) gets there first,
+                        // with `Config.initialized` and `Config.instance` both unset.
+                        // Without this, getInstance had nothing to report and invented an
+                        // instance instead — see the guard in getInstance below.
+                        Config.initError = err;
                         setTimeout(() => {
                             process.exit(1);
                         }, 0);
@@ -311,11 +319,34 @@ function Config(opt, contextResetNeeded) {
      * @memberof module:gina/core/config
      * @param {string} [bundle] - Bundle name; omit to return the full envConf
      * @returns {object|undefined} Config instance, envConf slice, or undefined
+     * @throws {Error} If initialisation aborted — the retained reason, named (#B542)
      */
     this.getInstance = function(bundle) {
 
+        // #B542 — refuse rather than fabricate. When init aborted, `Config.instance`
+        // is undefined (it is only assigned on the success branch) and the process is
+        // already scheduled to exit; a caller reaching here in the meantime used to
+        // fall into the merge below and get something that is not a Config back. Say
+        // what actually went wrong, once, instead of a downstream TypeError that names
+        // neither the bundle nor the file.
+        if ( typeof(Config.initialized) == 'undefined' && Config.initError ) {
+            throw new Error('[ CONFIG ] initialisation failed — '
+                + (Config.initError.message || Config.initError));
+        }
+
         if ( typeof(Config.instance) == 'undefined' && typeof(getContext('gina')) != 'undefined' ) {
-            Config.instance = merge( self, getContext('gina').config, true );
+            // #B542 — lib/merge returns a non-object source WHOLESALE, and the worker
+            // branch of helpers/context.js puts the Config CONSTRUCTOR on `gina.config`.
+            // Unguarded, that made `Config.instance === Config`, whose `.Env` is
+            // undefined — the self-sustaining `Cannot set properties of undefined
+            // (setting 'parent')` two lines down, which survives every later call
+            // because this block's own guard then reads as satisfied.
+            var _merged = merge( self, getContext('gina').config, true );
+            if ( typeof(_merged) != 'object' || !_merged ) {
+                throw new Error('[ CONFIG ] cannot resolve an instance: the global context holds no usable `gina.config` (got '
+                    + (_merged === null ? 'null' : typeof(_merged)) + ')');
+            }
+            Config.instance = _merged;
             self.envConf = Config.instance.envConf
         }
 
