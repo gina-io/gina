@@ -917,7 +917,19 @@ function Config(opt, contextResetNeeded) {
                         // reverted: async readdir (#P33) breaks synchronous Config init contract
                         configFiles = fs.readdirSync(_(appSrcPath + '/config'));
                     } catch (srcReadErr) {
-                        return callback(srcReadErr);
+                        // #B542 — the last-chance branch: the release tree had no
+                        // readable config/ and neither does the source tree. Report
+                        // BOTH paths. `appPath` still holds the release link here
+                        // (the `appPath = appSrcPath` reassignment is below), so the
+                        // operator sees exactly what was tried and in what order,
+                        // instead of a bare ENOENT naming only the second attempt.
+                        let _noConfigMsg = '[ ' + app + ' ][ ' + env + ' ] no readable config/ in the release tree ('
+                            + appPath + ') nor in the source tree (' + appSrcPath + ') — '
+                            + (srcReadErr.message || srcReadErr) + '; refusing to start';
+                        console.error(_noConfigMsg);
+                        // Guarantee the reason survives process.exit() on an async pipe (e.g. bin/gina-container).
+                        try { fs.writeSync(2, _noConfigMsg + '\n'); } catch (_e) { /* best-effort */ }
+                        return callback(new Error(_noConfigMsg));
                     }
                     // #B542 — this fallback is PER-APP and must stay per-app. It used to
                     // do two things that outlived the one bundle it was recovering:
@@ -1811,7 +1823,20 @@ function Config(opt, contextResetNeeded) {
         try {
             configFiles = fs.readdirSync(_(appPath + '/config', true));
         } catch (configReadErr) {
-            return callback(configReadErr);
+            // #B542 — name it. This abort ends the SHARED config load for every
+            // bundle in the project, and the bare `callback(err)` it replaces sent
+            // up a raw ENOENT whose only clue was a path — which, when it came from
+            // loadWithTemplate's src fallback, was a path no operator had ever
+            // written down. `bundle`, `env` and `appPath` are all in scope here, so
+            // "which bundle?" costs nothing to answer. Same shape as the #B132
+            // routing.json refusal below, with #B181(b)'s stderr flush.
+            e = '[ ' + bundle + ' ][ ' + env + ' ] config directory not readable at '
+                + appPath + '/config — ' + (configReadErr.message || configReadErr)
+                + '; refusing to start';
+            console.error(e);
+            // Guarantee the reason survives process.exit() on an async pipe (e.g. bin/gina-container).
+            try { fs.writeSync(2, e + '\n'); } catch (_e) { /* best-effort */ }
+            return callback(new Error(e));
         }
 
         if ( sharedConfigPathObj.existsSync() ) {
@@ -1820,7 +1845,17 @@ function Config(opt, contextResetNeeded) {
             try {
                 sharedConfigFiles = fs.readdirSync(sharedconfigPath);
             } catch (sharedReadErr) {
-                return callback(sharedReadErr);
+                // #B542 — same treatment as the bundle config/ refusal above. The
+                // path reached existsSync() one line earlier, so a failure here is a
+                // permissions or race condition, not a typo — say which bundle's load
+                // it killed and which directory it was.
+                e = '[ ' + bundle + ' ][ ' + env + ' ] shared config directory not readable at '
+                    + sharedconfigPath + ' — ' + (sharedReadErr.message || sharedReadErr)
+                    + '; refusing to start';
+                console.error(e);
+                // Guarantee the reason survives process.exit() on an async pipe (e.g. bin/gina-container).
+                try { fs.writeSync(2, e + '\n'); } catch (_e) { /* best-effort */ }
+                return callback(new Error(e));
             }
             for (let i=0, len = sharedConfigFiles.length; i<len; i++) {
                 let file = sharedConfigFiles[i];
