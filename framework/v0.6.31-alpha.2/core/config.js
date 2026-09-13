@@ -8,6 +8,7 @@
  */
 //Imports.
 var fs              = require('fs');
+var path            = require('path');
 var os              = require('os');
 var dns             = require('dns');
 var util            = require('util');
@@ -918,9 +919,36 @@ function Config(opt, contextResetNeeded) {
                     } catch (srcReadErr) {
                         return callback(srcReadErr);
                     }
-                    setPath('bundles', _(appSrcPath, true));
+                    // #B542 — this fallback is PER-APP and must stay per-app. It used to
+                    // do two things that outlived the one bundle it was recovering:
+                    //
+                    //   1. `setPath('bundles', _(appSrcPath, true))` wrote this ONE
+                    //      bundle's own directory into the process-global `bundles`
+                    //      registry, which every other writer (gna.js, helpers/context.js)
+                    //      and reader (this function's own `bundlesPath` initialiser,
+                    //      lib/proc.js's unmount) treats as the CONTAINER of all
+                    //      bundles. Nothing restored it. It is not load-bearing here —
+                    //      `appPath = appSrcPath` on the next line is what makes the
+                    //      src config readable — so it is simply gone.
+                    //   2. `= bundlesPath =` reassigned the function-scoped loop local
+                    //      declared at the top of loadWithTemplate, which the guarded
+                    //      assignment above hands to every LATER app in this same loop.
+                    //      One bundle whose release tree carries no config/ therefore
+                    //      rewrote the config root of every bundle walked after it: in
+                    //      a non-dev env they silently loaded their SRC config instead
+                    //      of their release config, or died on a spliced path with an
+                    //      unnamed ENOENT.
+                    //
+                    // The old value was also computed by stripping `'/'+ app` from the
+                    // path with an UNANCHORED, UNESCAPED RegExp keyed on the manifest
+                    // KEY while the path carries the src DIRNAME — so it silently
+                    // produced a wrong path whenever the two differ, whenever the
+                    // project path contains the bundle's name earlier (`/demo` inside
+                    // `/demo-x` is stripped first), or whenever the name carries a
+                    // regex metacharacter. `path.dirname()` answers the same question
+                    // ("which directory contains this bundle?") without any of that.
                     appPath = appSrcPath;
-                    newContent[app][env].bundlesPath = bundlesPath = appSrcPath.replace( new RegExp('/'+ app), '' );
+                    newContent[app][env].bundlesPath = path.dirname(appSrcPath);
                     console.warn('[CONFIG] Dependency bundle config loaded from '+ appSrcPath);
                 }
 
