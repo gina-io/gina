@@ -3051,7 +3051,7 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
  * shadow, and is the same function body, so every receiver shape counts exactly as before.
  * The null/undefined branch is deliberate rather than defensive: `.call(null)` would bind
  * `this` to the global object and return ITS key count, while the shorthand threw — and the
- * `obj = {}` seeding in the body-parse branches is built on that throw.
+ * empty-object seeding in the body-parse branches is built on that throw.
  *
  * @param   {*} container - Any value the shorthand would have been called on.
  * @returns {number} Own enumerable property count.
