@@ -15,7 +15,7 @@ MVC framework for Node.js and Bun with built-in HTTP/2, multi-bundle architectur
 
 | Feature | Detail |
 | --- | --- |
-| HTTP/2 server | Built-in `isaac` engine — TLS, h2c, ALPN, HTTP/1.1 fallback, 103 Early Hints, CVE-hardened |
+| HTTP/2 server | Built-in `isaac` engine — TLS, h2c, ALPN, HTTP/1.1 fallback, 103 Early Hints, RFC 9218 request priorities, CVE-hardened |
 | Multi-bundle | One project, N independent bundles with shared config and project layer |
 | Scope isolation | `local` / `beta` / `production` — per-request and per-record |
 | MVC routing | `routing.json` — declare routes in config, not code; O(m) radix trie lookup |
