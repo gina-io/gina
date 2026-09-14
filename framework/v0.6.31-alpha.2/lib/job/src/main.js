@@ -42,6 +42,18 @@
  *     inherited from the request that created the job — an action passes it
  *     explicitly (`self.startJob(fn, { urgency: req.priority.urgency })`),
  *     because a client-supplied ordering hint is the application's decision.
+ *   - **Request context (#B543).** A job runs inside a DETACHED copy of the
+ *     request context that created it — `{ requestId, startMs, proxy,
+ *     detached: true }`, captured at `create()` from `process.gina._reqALS`
+ *     and never the request's `req` / `res` / `next` — so its log lines carry
+ *     the creating request's id, `lib/routing` builds its absolute URLs from
+ *     that request's proxy context, and an error inside it never answers any
+ *     client. Without this a job ran under whichever request's settle chain
+ *     freed the worker slot (measured: a job created by request B executed
+ *     seeing request A's store), i.e. another request's host in its URLs and
+ *     another request's response for `throwError`. A job created with no
+ *     request context runs with none, even when the pump that starts it came
+ *     from a request.
  *   - **Pluggable store, memory by default.** Records persist behind a small
  *     callback-shaped store interface (`set / get / remove / list / sweep`).
  *     The in-memory store is the default; a connector-backed store is a
@@ -112,6 +124,52 @@ var uuid = require('../../uuid/src/main');
  * @type {{normalizeUrgency: function(*): number, DEFAULT_URGENCY: number, URGENCY_MIN: number}}
  */
 var priority = require('../../priority/src/main');
+
+/**
+ * Capture a DETACHED copy of the current request context for a job (#B543):
+ * the creating request's identity (`requestId`, `startMs`) and its proxied
+ * classification (`proxy`, a shallow copy of the plain object core/router.js
+ * fills), flagged `detached: true` so readers that need a live response
+ * (helpers/context.js's throwError) know there is none. `req`, `res` and
+ * `next` are deliberately NOT carried: the job runs after the response has
+ * gone out, and a stale response object is exactly what must never be
+ * answered. Returns `null` when no request context is active (boot, CLI, a
+ * cron task) — the job then runs with no store at all.
+ *
+ * @inner
+ * @returns {{requestId:*, startMs:number, proxy:(Object|null), detached:boolean}|null}
+ */
+function captureRequestContext() {
+    var als   = (process.gina && process.gina._reqALS) ? process.gina._reqALS : null;
+    var store = als ? als.getStore() : undefined;
+    if (!store) return null;
+    return {
+        requestId: store.requestId,
+        startMs:   store.startMs,
+        proxy:     (store.proxy && typeof store.proxy === 'object') ? Object.assign({}, store.proxy) : null,
+        detached:  true
+    };
+}
+
+/**
+ * Run `cb` inside a job's own request context (#B543). With a captured context
+ * the job sees exactly that context; with none (`null`) it sees NO store —
+ * `run(undefined)` rather than a plain call, because a plain call would
+ * inherit whatever context the pump that started this job happened to run
+ * in, which is the defect. The store is looked up at RUN time: a job created
+ * before the first request (no `_reqALS` yet) is still isolated once one
+ * exists. With no AsyncLocalStorage in the process at all, `cb` runs plain.
+ *
+ * @inner
+ * @param   {Object|null} context - The entry's captured context, or `null`.
+ * @param   {function}    cb
+ * @returns {*} `cb`'s return value.
+ */
+function runInRequestContext(context, cb) {
+    var als = (process.gina && process.gina._reqALS) ? process.gina._reqALS : null;
+    if (!als) return cb();
+    return als.run(context || undefined, cb);
+}
 
 /**
  * Job lifecycle states. A job moves `PENDING -> RUNNING -> COMPLETED | FAILED`.
@@ -246,7 +304,7 @@ var _running = 0;
  * function lives here (in-process), never in the store.
  *
  * @inner
- * @type {Array<{id:string, fn:function, urgency:number}>}
+ * @type {Array<{id:string, fn:function, urgency:number, context:(Object|null)}>}
  */
 var _queue = [];
 
@@ -483,33 +541,40 @@ function _dequeue() {
  * failure path and settlement is always deferred (no re-entrant {@link drain}).
  *
  * @inner
- * @param   {{id:string, fn:function, urgency:number}} entry
+ * @param   {{id:string, fn:function, urgency:number, context:(Object|null)}} entry
  * @returns {void}
  */
 function runOne(entry) {
-    var id = entry.id;
-    _store.get(id, function(getErr, rec) {
-        if (getErr || !rec) {
-            // Record vanished (swept / removed) before the worker picked it up.
-            _running--;
-            drain();
-            return;
-        }
-        rec.state     = STATES.RUNNING;
-        rec.startedAt = Date.now();
-        rec.updatedAt = rec.startedAt;
-        rec.attempts  = (rec.attempts || 0) + 1;
-        // Carried to settle() so the retry decision needs no extra store read
-        // (the fn itself rides on the entry — it exists only in this process).
-        entry.attempts    = rec.attempts;
-        entry.maxAttempts = rec.maxAttempts || 1;
-        _store.set(id, rec, function() {
-            Promise.resolve().then(function() {
-                return entry.fn();
-            }).then(function(result) {
-                settle(id, result, null, entry);
-            }, function(rejErr) {
-                settle(id, null, rejErr, entry);
+    // #B543 — the WHOLE lifecycle of this job (store reads and writes, the
+    // deferred fn, its settlement, a retry it arms, its webhook) runs inside the
+    // job's OWN detached request context, never in the context of whichever
+    // request's settle chain called drain(). The next job drained from here
+    // re-scopes itself the same way.
+    runInRequestContext(entry.context, function runOneInContext() {
+        var id = entry.id;
+        _store.get(id, function(getErr, rec) {
+            if (getErr || !rec) {
+                // Record vanished (swept / removed) before the worker picked it up.
+                _running--;
+                drain();
+                return;
+            }
+            rec.state     = STATES.RUNNING;
+            rec.startedAt = Date.now();
+            rec.updatedAt = rec.startedAt;
+            rec.attempts  = (rec.attempts || 0) + 1;
+            // Carried to settle() so the retry decision needs no extra store read
+            // (the fn itself rides on the entry — it exists only in this process).
+            entry.attempts    = rec.attempts;
+            entry.maxAttempts = rec.maxAttempts || 1;
+            _store.set(id, rec, function() {
+                Promise.resolve().then(function() {
+                    return entry.fn();
+                }).then(function(result) {
+                    settle(id, result, null, entry);
+                }, function(rejErr) {
+                    settle(id, null, rejErr, entry);
+                });
             });
         });
     });
@@ -528,7 +593,7 @@ function runOne(entry) {
  * @param   {string} id
  * @param   {*}      result - Resolved value on success.
  * @param   {*}      err    - Thrown / rejected value on failure (mutually exclusive with `result`).
- * @param   {{id:string, fn:function, urgency:number, attempts:number, maxAttempts:number}} entry - In-process queue entry (carries the deferred fn and its urgency for a reschedule).
+ * @param   {{id:string, fn:function, urgency:number, context:(Object|null), attempts:number, maxAttempts:number}} entry - In-process queue entry (carries the deferred fn, its urgency and its request context for a reschedule).
  * @returns {void}
  */
 function settle(id, result, err, entry) {
@@ -577,7 +642,7 @@ function settle(id, result, err, entry) {
  * any other job.
  *
  * @inner
- * @param   {{id:string, fn:function, urgency:number}} entry
+ * @param   {{id:string, fn:function, urgency:number, context:(Object|null)}} entry
  * @param   {number} delay - Backoff delay (ms).
  * @returns {void}
  */
@@ -724,7 +789,11 @@ function update(id, patch, cb) {
  *
  * Note: the deferred function runs AFTER the originating request has
  * completed. It must not close over `local.req` / `local.res` (the controller
- * nulls those at response exit) — capture plain values instead.
+ * nulls those at response exit) — capture plain values instead. It does run
+ * inside a DETACHED copy of that request's context (#B543): its log lines
+ * carry the request id, absolute URLs it builds use the request's proxy
+ * context, and an error it raises through the global helpers is logged, never
+ * written to any client.
  *
  * @memberof module:gina/lib/job
  * @param   {function(): (Promise<*>|*)} fn   - The deferred work. May be `async`, return a Promise, or return a value synchronously.
@@ -756,6 +825,7 @@ function create(fn, opts) {
 
     var id      = uuid(_idSize);
     var urgency = priority.normalizeUrgency(opts.urgency); // #H12 — an integer 0-7, else 3
+    var context = captureRequestContext();                 // #B543 — the creator's detached context, or null
     var now = Date.now();
     /** @type {JobRecord} */
     var record = {
@@ -774,7 +844,7 @@ function create(fn, opts) {
         expiresAt:   null
     };
 
-    _queue.push({ id: id, fn: fn, urgency: urgency });
+    _queue.push({ id: id, fn: fn, urgency: urgency, context: context });
     // Defer so create() returns the id before the function starts — and pump
     // only once the store has landed the record: with an async connector store
     // an immediate drain could reach runOne's get() before the set() has

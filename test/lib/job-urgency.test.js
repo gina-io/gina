@@ -73,7 +73,7 @@ describe('job-urgency § 01 — source pins', function() {
     it('create() stamps a normalized urgency on the queue entry, never on the record', function() {
         var create = fnBlock(SRC, 'function create(');
         assert.ok(create.indexOf('priority.normalizeUrgency(opts.urgency)') > -1, 'clamped through lib/priority');
-        assert.ok(create.indexOf('_queue.push({ id: id, fn: fn, urgency: urgency });') > -1, 'entry carries urgency');
+        assert.ok(create.indexOf('_queue.push({ id: id, fn: fn, urgency: urgency, context: context });') > -1, 'entry carries urgency');
         var recordIdx = create.indexOf('var record = {');
         var recordEnd = create.indexOf('};', recordIdx);
         assert.ok(recordIdx > -1 && recordEnd > recordIdx, 'record literal found');

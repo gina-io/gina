@@ -327,6 +327,16 @@ function ContextHelper(contexts) {
             , res   = ( _fromStore ) ? _reqStore.res  : ( ( router ) ? router.response : null )
             , next  = ( _fromStore ) ? _reqStore.next : ( ( router ) ? router.next : null )
         ;
+        // #B543 — a DETACHED store is a job's copy of the request context that
+        // created it (lib/job): the request's identity and proxy context, and
+        // deliberately NO response. It is authoritative: the process-wide slot must
+        // never stand in for the response a job does not have, or the job's error
+        // answers whichever request was routed last. A detached caller falls
+        // through to the emerg-log / throw branches below instead.
+        if ( _reqStore && _reqStore.detached === true && !_fromStore ) {
+            res  = null;
+            next = null;
+        }
 
         // Live HTTP request we can still write an error response to.
         if ( res && !res.headersSent ) {
