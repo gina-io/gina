@@ -101,6 +101,26 @@ declare namespace gina {
         present: boolean;
     }
 
+    /**
+     * Options accepted by `self.startJob(fn, opts)` / `lib.job.create(fn, opts)`
+     * (#AI6, #H12). Unknown keys are dropped.
+     */
+    interface JobOptions {
+        /** Webhook URL notified on completion (best-effort, HMAC-signed when configured). */
+        callbackUrl?: string;
+        /** Opaque metadata stored verbatim on the record. */
+        meta?: object;
+        /** Retry ceiling; above 1 a failed attempt is retried with exponential backoff. Default 1. */
+        maxAttempts?: number;
+        /**
+         * RFC 9218 urgency 0 (most urgent) … 7 (#H12): the worker starts the
+         * lowest-urgency queued job first, FIFO within a class; a value that is
+         * not an integer 0-7 falls back to 3. Never inherited from the request —
+         * pass `req.priority.urgency` explicitly when that is what you want.
+         */
+        urgency?: number;
+    }
+
     type GinaResponse = (ServerResponse | Http2ServerResponse) & {
         /** HTTP/2 stream when available */
         stream?: ServerHttp2Stream;
@@ -400,7 +420,7 @@ declare namespace gina {
          * The job outlives the request — poll `/_gina/jobs/:id` or use
          * `jobStatus()`.
          */
-        startJob(fn: () => any | Promise<any>, opts?: object): string;
+        startJob(fn: () => any | Promise<any>, opts?: JobOptions): string;
 
         /** Read a job's full record by id (node-style callback). */
         jobStatus(id: string, cb: (err: Error | null, record?: object) => void): void;
@@ -416,7 +436,7 @@ declare namespace gina {
          * Start an async model-inference job (wraps
          * `getModel(connector).infer(...)` in `startJob`); returns the job id.
          */
-        inferAsync(messages: Array<{ role: string; content: string }>, options?: { connector?: string; [key: string]: any }, jobOpts?: object): string;
+        inferAsync(messages: Array<{ role: string; content: string }>, options?: { connector?: string; [key: string]: any }, jobOpts?: JobOptions): string;
 
         /**
          * Render/output cache facade for routes configured with

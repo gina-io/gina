@@ -31,6 +31,17 @@
  *     `nextRetryAt` stay visible) until the final attempt — `failed` is
  *     strictly terminal. The deferred fn lives only in the creating process,
  *     so only the origin pod retries; other pods just read records.
+ *   - **Urgency-ordered selection (#H12).** `create(fn, { urgency: 0-7 })`
+ *     stamps an RFC 9218 urgency on the in-process queue entry (default 3;
+ *     anything that is not an integer 0-7 falls back to 3). The worker always
+ *     starts the FIRST entry of the LOWEST urgency class — FIFO within a
+ *     class, so equal urgencies keep the order they always had — and a retried
+ *     attempt re-enters with the urgency it was created with. The urgency lives
+ *     on the queue entry only, never on the record: the fn is per-process and
+ *     lost on restart, so there is nothing durable to order. It is NEVER
+ *     inherited from the request that created the job — an action passes it
+ *     explicitly (`self.startJob(fn, { urgency: req.priority.urgency })`),
+ *     because a client-supplied ordering hint is the application's decision.
  *   - **Pluggable store, memory by default.** Records persist behind a small
  *     callback-shaped store interface (`set / get / remove / list / sweep`).
  *     The in-memory store is the default; a connector-backed store is a
@@ -90,6 +101,17 @@
  * @type {function(number=): string}
  */
 var uuid = require('../../uuid/src/main');
+
+/**
+ * RFC 9218 priority helpers (#H12) — `normalizeUrgency()` clamps
+ * `opts.urgency` to an integer 0-7 (default 3) and the range constants bound
+ * the selection scan. Required relatively for the same reason as `uuid`: no
+ * dependency on registry ordering.
+ *
+ * @inner
+ * @type {{normalizeUrgency: function(*): number, DEFAULT_URGENCY: number, URGENCY_MIN: number}}
+ */
+var priority = require('../../priority/src/main');
 
 /**
  * Job lifecycle states. A job moves `PENDING -> RUNNING -> COMPLETED | FAILED`.
@@ -224,7 +246,7 @@ var _running = 0;
  * function lives here (in-process), never in the store.
  *
  * @inner
- * @type {Array<{id:string, fn:function}>}
+ * @type {Array<{id:string, fn:function, urgency:number}>}
  */
 var _queue = [];
 
@@ -420,10 +442,38 @@ function ensureSweepTimer() {
  */
 function drain() {
     while (_running < _maxConcurrency && _queue.length > 0) {
-        var entry = _queue.shift();
+        var entry = _dequeue(); // #H12 — lowest urgency first, FIFO within a class
         _running++;
         runOne(entry);
     }
+}
+
+/**
+ * Select the next entry to run — the FIRST entry of the LOWEST urgency class
+ * (#H12). Urgency is the RFC 9218 scale (0 = most urgent … 7), stamped on the
+ * entry by {@link create}; ties keep insertion order, so a queue whose entries
+ * all carry the default urgency drains exactly as the plain FIFO did, and a
+ * retried attempt (re-enqueued by {@link scheduleRetry} with its original
+ * entry) competes with the urgency it was created with. A linear scan: the
+ * queue is bounded by process memory and short in practice, and the scan stops
+ * early on the most urgent class. Never called on an empty queue by
+ * {@link drain}; returns `undefined` there rather than throwing.
+ *
+ * @inner
+ * @returns {{id:string, fn:function, urgency:number}|undefined} The removed entry, or `undefined` when the queue is empty.
+ */
+function _dequeue() {
+    var best = -1, bestUrgency = Infinity;
+    for (var i = 0, len = _queue.length; i < len; i++) {
+        var u = (typeof _queue[i].urgency === 'number') ? _queue[i].urgency : priority.DEFAULT_URGENCY;
+        if (u < bestUrgency) {
+            bestUrgency = u;
+            best = i;
+            if (u === priority.URGENCY_MIN) break;
+        }
+    }
+    if (best < 0) return undefined;
+    return _queue.splice(best, 1)[0];
 }
 
 /**
@@ -433,7 +483,7 @@ function drain() {
  * failure path and settlement is always deferred (no re-entrant {@link drain}).
  *
  * @inner
- * @param   {{id:string, fn:function}} entry
+ * @param   {{id:string, fn:function, urgency:number}} entry
  * @returns {void}
  */
 function runOne(entry) {
@@ -478,7 +528,7 @@ function runOne(entry) {
  * @param   {string} id
  * @param   {*}      result - Resolved value on success.
  * @param   {*}      err    - Thrown / rejected value on failure (mutually exclusive with `result`).
- * @param   {{id:string, fn:function, attempts:number, maxAttempts:number}} entry - In-process queue entry (carries the deferred fn for a reschedule).
+ * @param   {{id:string, fn:function, urgency:number, attempts:number, maxAttempts:number}} entry - In-process queue entry (carries the deferred fn and its urgency for a reschedule).
  * @returns {void}
  */
 function settle(id, result, err, entry) {
@@ -527,7 +577,7 @@ function settle(id, result, err, entry) {
  * any other job.
  *
  * @inner
- * @param   {{id:string, fn:function}} entry
+ * @param   {{id:string, fn:function, urgency:number}} entry
  * @param   {number} delay - Backoff delay (ms).
  * @returns {void}
  */
@@ -682,6 +732,7 @@ function update(id, patch, cb) {
  * @param   {string}   [opts.callbackUrl]     - Webhook URL notified on completion (consumed by the webhook slice).
  * @param   {Object}   [opts.meta]            - Opaque metadata stored on the record.
  * @param   {number}   [opts.maxAttempts=1]   - Retry ceiling. Above 1, a failed attempt is retried on the creating process with exponential backoff (`retryBackoffMs`); `failed` is only ever the state after the last attempt.
+ * @param   {number}   [opts.urgency=3]       - RFC 9218 urgency 0-7 (#H12): the worker starts the lowest-urgency queued job first, FIFO within a class; a value that is not an integer 0-7 falls back to 3. Never inherited from the request — pass `req.priority.urgency` explicitly if that is what you want.
  * @returns {string}                          - The job id.
  * @throws  {TypeError}                        - When `fn` is not a function.
  *
@@ -691,6 +742,10 @@ function update(id, patch, cb) {
  *       return getModel('myModel').infer([{ role: 'user', content: prompt }]);
  *   });
  *   self.renderJSON({ jobId: jobId });
+ *
+ * @example
+ *   // Let a page's own request priority order its background work (explicit — never automatic):
+ *   var reportId = self.startJob(buildReport, { urgency: req.priority.urgency });
  */
 function create(fn, opts) {
     if (typeof fn !== 'function') {
@@ -699,7 +754,8 @@ function create(fn, opts) {
     opts = opts || {};
     ensureStarted();
 
-    var id  = uuid(_idSize);
+    var id      = uuid(_idSize);
+    var urgency = priority.normalizeUrgency(opts.urgency); // #H12 — an integer 0-7, else 3
     var now = Date.now();
     /** @type {JobRecord} */
     var record = {
@@ -718,7 +774,7 @@ function create(fn, opts) {
         expiresAt:   null
     };
 
-    _queue.push({ id: id, fn: fn });
+    _queue.push({ id: id, fn: fn, urgency: urgency });
     // Defer so create() returns the id before the function starts — and pump
     // only once the store has landed the record: with an async connector store
     // an immediate drain could reach runOne's get() before the set() has
