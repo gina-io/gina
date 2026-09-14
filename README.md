@@ -15,7 +15,7 @@ MVC framework for Node.js and Bun with built-in HTTP/2, multi-bundle architectur
 
 | Feature | Detail |
 | --- | --- |
-| HTTP/2 server | Built-in `isaac` engine — TLS, h2c, ALPN, HTTP/1.1 fallback, 103 Early Hints, CVE-hardened |
+| HTTP/2 server | Built-in `isaac` engine — TLS, h2c, ALPN, HTTP/1.1 fallback, 103 Early Hints, RFC 9218 request priorities, CVE-hardened |
 | Multi-bundle | One project, N independent bundles with shared config and project layer |
 | Scope isolation | `local` / `beta` / `production` — per-request and per-record |
 | MVC routing | `routing.json` — declare routes in config, not code; O(m) radix trie lookup |
@@ -66,37 +66,32 @@ open https://localhost:3100
 
 > **npm 12+** blocks install scripts by default, and gina's post-install bootstraps `~/.gina` and the framework dependencies. Install with `npm install -g gina@latest --allow-scripts=gina`, or allow it once for all global installs with `npm config set allow-scripts=gina --location=user`. (Not needed on npm ≤ 11.)
 
-## What's in 0.6.30
+## What's in 0.6.31
 
-> **Restart your bundles *and* rebuild them.** `lib/routing` and the validator's
-> client half both ship in the browser bundle, so `gina.min.js` changed and
-> `gina bundle:restart` alone leaves the old client running. Rebuild each
-> consuming bundle, then restart.
+> **Restart your bundles *and* rebuild them.** The validator's shared rule
+> engine ships in the browser bundle and one of this release's security fixes
+> touches it, so `gina.min.js` changed and `gina bundle:restart` alone leaves
+> the old client running. Rebuild each consuming bundle, then restart.
 
-> **No settings reset.** `0.6.30` is a patch — the `shortVersion` stays `0.6`,
+> **No settings reset.** `0.6.31` is a patch — the `shortVersion` stays `0.6`,
 > so your `~/.gina/0.6/settings.json` is untouched. (`0.6.0` was the reset.)
 
-**The isolation release.** Most of what changed here is one piece of in-flight
-work seeing another's state: a response rendered with a concurrent request's
-language and webroot, a framework error answered to whichever request was routed
-most recently, a later caller of an entity method handed an earlier call's
-record, and one bundle's templates resolving against another bundle's root. Each
-was invisible in development, because dev mode rebuilds per request what
-production shares. Alongside them, `self.getConfig()` stops deep-copying the
-resolved configuration on every call. Full detail in [CHANGELOG.md](./CHANGELOG.md).
+**The availability release.** Two security fixes lead: a request carrying a
+top-level field named `count` could terminate the bundle process —
+unauthenticated, one request, on any URL, in every published version — and a
+queued async job could run inside another request's context. Alongside them,
+RFC 9218 request priorities arrive on both engines, a Couchbase connector that
+cannot reach its cluster at boot now says so instead of hanging until the CLI
+kills the bundle, and one bundle without a release `config/` no longer moves
+every other bundle's configuration root. Full detail in
+[CHANGELOG.md](./CHANGELOG.md).
 
-- **Security — a rendered response no longer carries a concurrent request's context (#B514).** The `getUrl`, `getWebroot`, `t` and `tIcu` filters resolved per-request context through a process-wide singleton on the default render path, and both delegates await between stamping it and invoking the template. Measured on a built release: 50 of 50 concurrent pairs served one response carrying the other's negotiated culture and webroot before the fix, 0 of 100 after.
-- **Security — a later caller no longer receives an earlier call's record (#B441).** An entity method that emitted its completion more than once per call buffered every surplus emit, and the next `util.promisify`-style caller consumed it as its own result. Where such a method reads a user-scoped record, an ownership check could pass on another principal's row. Development mode masked it entirely.
-- **Security — a failed `getConfig()` / `getLib()` no longer writes its stack to the response (#B533).** The helper behind the implicit globals answered in every scope with the raw stack — install path, application file paths and line numbers — and logged nothing. It now mints an incident `ref`, logs one full-detail line, and sends the message alone outside local scope.
-- **Changed — `self.getConfig()` returns a copy-on-write view (#P40).** Reads pass through to the shared configuration at no copy cost and writes land in the call's own overlay. A route behind two middlewares reading `this.getConfig()` went from 14,719 ms to 1,884 ms per 3,000 requests. `structuredClone`, `Object.freeze` and `util.inspect` behave differently on a node you have not enumerated; `controller.getConfig.mode: "clone"` opts back out.
-- **Added — log rotation for the logger's opt-in `file` container.** On by default at 10MB with 5 files kept, the same shape as the kubelet's own limits. The live file is renamed and reopened rather than copied and truncated, so no line is lost while rotating.
-- **Added — `gina tail` honours the logger's JSON render mode (#B524).** With `GINA_LOG_FORMAT=json` on the tail process, every relayed line is written as one JSON object — the JSON answer for a container running a framework daemon, where the tail relay is the only path a runtime line has to `kubectl logs`.
-- **Fixed — the default swig path renders through a per-bundle engine (#B514).** One bundle's template root can no longer reach another's `include` / `extends` resolution, and `self.engine` now points at the engine that actually renders the bundle.
-- **Fixed — a framework error is answered to the request that raised it (#B534).** The response came from a process-wide slot the router fills on every routed request and never clears, so a callback resuming after an `await` wrote its failure to a later request's client while its own caller hung until timeout.
-- **Fixed — the `query` validation rule no longer writes into shared proxy config (#B522).** A rule targeting another bundle set `method`, `path` and a route-derived `requestTimeout` on the process-wide proxy target, so a later live-check from a different route silently ran on the earlier route's deadline — and on HTTP/2 the timeout destroys the pooled session shared with every other request to that authority.
-- **Fixed — the logger's `file` container writes (#B523).** It connected to the MQ, received every line and wrote nothing; it is now an in-process transport writing only its own process's lines, needing no daemon.
-- **Fixed — `gina-container` applies the container logging preset itself (#B524).** A bundle it runs emits JSON and skips the MQ transport, instead of writing coloured text while two processes dial a listener that cannot exist in that topology. Explicit values still win.
-- **Fixed — a req-less `getRoute()` returns a boolean `isProxyHost` (#B537).** Cloning such a route no longer logs a warning, with a stack, for a value that was legitimately unset.
+- **Security — a request field named `count` no longer terminates the bundle (#B546).** gina installs a `count()` helper on `Object.prototype`, and the framework reached it as `<container>.count()` on containers whose keys the client chooses — the parsed body, the query bag, route params, uploaded files. An own property of that name shadowed the helper, so the framework called a string: a 500 on the body branches, an `uncaughtException` that exited the process on the query branches, and a request left hanging open on a route param. Every published version was affected. The framework now reaches the helper through a form no own property can shadow; application code calling `x.count()` is untouched.
+- **Security — a queued async job runs inside a detached copy of its creator's context (#B543).** The worker pumps its queue from the settle chain of the job that just finished, so under load a job created by one request ran inside the context of whichever request's job had freed the slot: a URL it built through `getRoute().toUrl()` used the other request's host, a failure it raised through the global `getConfig()` / `getLib()` was written to the other request's response, and its JSON log lines carried the other request's id. A job now captures the creating request's identity and proxy context — never `req`, `res` or `next` — and runs its whole lifecycle inside that copy.
+- **Added — RFC 9218 request priorities (#H12).** `req.priority` is parsed on both engines from the `Priority` header (urgency 0–7, the incremental flag; malformed values ignored as the RFC requires), `self.query()` and `self.forward()` propagate it to the target bundle, `self.setPriority()` emits the response header, and `self.startJob(fn, { urgency })` starts the lowest-urgency queued job first. The header is advisory: the framework carries the signal and never reorders response writes.
+- **Fixed — a Couchbase connector that cannot reach its cluster at boot fails loudly (#B541).** Every failure path in `connect()` re-armed a retry without ever emitting `ready`, so the model layer's ready gate never closed and `bundle:start` killed the bundle after roughly 64 seconds with nothing logged. `init()` now arms its own deadline (`readyTimeout` per `connectors.json` entry, default 50000 ms) and reports the failure itself; a single failed attempt also reports once rather than twice. Both SDK v3 and v4 connectors.
+- **Fixed — a bundle without a release `config/` no longer moves every other bundle's configuration root (#B542).** The source-tree fallback wrote that bundle's own directory into the process-wide `bundles` path and reassigned the shared loop variable, so a later, healthy bundle silently loaded its source config in production, or died on a spliced path. The fallback is now scoped to the bundle it recovers, the three config-directory refusals name the bundle and the environment, and an aborted initialisation reports its retained reason instead of an opaque `TypeError`.
+- **Fixed — two dead external references refreshed.** The X-Permitted-Cross-Domain-Policies plugin and the Couchbase connector each cited a page that no longer serves the document; both now point at the live copy. Documentation only.
 
 
 ## Documentation

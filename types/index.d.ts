@@ -72,6 +72,8 @@ declare namespace gina {
          * Present only when the matched route declares `param.dto`.
          */
         dto?: TDto;
+        /** Parsed RFC 9218 `Priority` header (#H12) — always present on both engines, defaults when the header is absent. */
+        priority?: PriorityInfo;
         /** Routing metadata attached by the router */
         routing?: {
             rule: string;
@@ -84,6 +86,40 @@ declare namespace gina {
         /** Get a single param by name */
         getParam(name: string): any;
     };
+
+    /**
+     * The parsed RFC 9218 `Priority` request header (#H12), attached as
+     * `req.priority` on both engines. Client-supplied and advisory: read it to
+     * yield, never to grant more.
+     */
+    interface PriorityInfo {
+        /** 0 (most urgent) … 7; `3` when the header says nothing. */
+        urgency: number;
+        /** `true` when the response may be served in parts. */
+        incremental: boolean;
+        /** `true` when a header was present and parsed; `false` when absent or malformed (ignored whole). */
+        present: boolean;
+    }
+
+    /**
+     * Options accepted by `self.startJob(fn, opts)` / `lib.job.create(fn, opts)`
+     * (#AI6, #H12). Unknown keys are dropped.
+     */
+    interface JobOptions {
+        /** Webhook URL notified on completion (best-effort, HMAC-signed when configured). */
+        callbackUrl?: string;
+        /** Opaque metadata stored verbatim on the record. */
+        meta?: object;
+        /** Retry ceiling; above 1 a failed attempt is retried with exponential backoff. Default 1. */
+        maxAttempts?: number;
+        /**
+         * RFC 9218 urgency 0 (most urgent) … 7 (#H12): the worker starts the
+         * lowest-urgency queued job first, FIFO within a class; a value that is
+         * not an integer 0-7 falls back to 3. Never inherited from the request —
+         * pass `req.priority.urgency` explicitly when that is what you want.
+         */
+        urgency?: number;
+    }
 
     type GinaResponse = (ServerResponse | Http2ServerResponse) & {
         /** HTTP/2 stream when available */
@@ -316,6 +352,16 @@ declare namespace gina {
         setEarlyHints(links: string | string[]): this;
 
         /**
+         * Emit an RFC 9218 `Priority` response header (#H12) — the origin's own
+         * view of the response's urgency, for intermediaries that honour it.
+         * An explicit urgency is always emitted (only an explicit member
+         * overrides the client's); no-op when there is nothing to say or when
+         * headers were already sent.
+         * @returns `this` for chaining
+         */
+        setPriority(spec: { urgency?: number; incremental?: boolean }): this;
+
+        /**
          * Record HTTP/2 response trailers to send after the body
          * (`:`-prefixed pseudo-headers are stripped; best-effort no-op on
          * HTTP/1.1).
@@ -374,7 +420,7 @@ declare namespace gina {
          * The job outlives the request — poll `/_gina/jobs/:id` or use
          * `jobStatus()`.
          */
-        startJob(fn: () => any | Promise<any>, opts?: object): string;
+        startJob(fn: () => any | Promise<any>, opts?: JobOptions): string;
 
         /** Read a job's full record by id (node-style callback). */
         jobStatus(id: string, cb: (err: Error | null, record?: object) => void): void;
@@ -390,7 +436,7 @@ declare namespace gina {
          * Start an async model-inference job (wraps
          * `getModel(connector).infer(...)` in `startJob`); returns the job id.
          */
-        inferAsync(messages: Array<{ role: string; content: string }>, options?: { connector?: string; [key: string]: any }, jobOpts?: object): string;
+        inferAsync(messages: Array<{ role: string; content: string }>, options?: { connector?: string; [key: string]: any }, jobOpts?: JobOptions): string;
 
         /**
          * Render/output cache facade for routes configured with
@@ -579,6 +625,13 @@ declare namespace gina {
         headers?: Record<string, string>;
         /** When `false`, HTTP/2 errors are swallowed (log-only) instead of propagating */
         critical?: boolean;
+        /**
+         * RFC 9218 `Priority` for this outbound call (#H12). An object or a wire
+         * string (`'u=1, i'`) is sent normalized; `false` sends nothing; omitted,
+         * a present inbound request header propagates as-is. A caller-set
+         * `headers.priority` always wins.
+         */
+        priority?: { urgency?: number; incremental?: boolean } | string | false;
         /**
          * Opt a non-safe HTTP method (POST/PUT/PATCH/DELETE) back into
          * automatic retries on transient transport failures. Default
@@ -992,6 +1045,14 @@ declare namespace gina {
          * `server.response.header` entry always beats the framework default.
          */
         securityHeadersEmitter: any;
+        /**
+         * RFC 9218 Extensible Priorities — the `Priority` header field (#H12):
+         * `parse()` → `PriorityInfo` (defaults `u=3`/`i=false`; a malformed field
+         * is ignored whole, out-of-range or wrong-type members individually),
+         * `serialize()` → `'u=N, i'`, `resolveOutbound()` — the chain `query()`
+         * runs to decide an outbound call's header — and `normalizeUrgency()`.
+         */
+        priority: { parse(value?: string | string[]): PriorityInfo; serialize(spec?: { urgency?: number; incremental?: boolean }): string; resolveOutbound(input: { headers?: object; option?: any; inbound?: PriorityInfo | null }): string | null; normalizeUrgency(value: any): number; DEFAULT_URGENCY: number; URGENCY_MIN: number; URGENCY_MAX: number; HEADER_NAME: string };
         /**
          * Subresource Integrity attribute computation (#OW3, OWASP A08) —
          * opt-in per bundle via `templates.json > "_common" > "sriEnabled"`.

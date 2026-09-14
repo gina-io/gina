@@ -474,7 +474,7 @@ describe('job-store-sqlite § 10 — lib/job source pins', function() {
         var createIdx = SRC.indexOf('function create(');
         assert.ok(createIdx > -1);
         var block   = SRC.substring(createIdx, SRC.indexOf('function get(', createIdx));
-        var pushIdx = block.indexOf('_queue.push({ id: id, fn: fn });');
+        var pushIdx = block.indexOf('_queue.push({ id: id, fn: fn, urgency: urgency, context: context });'); // #H12 — the entry carries its urgency
         var setIdx  = block.indexOf('_store.set(id, record, function');
         var drainIdx = block.indexOf('setImmediate(drain);', setIdx);
         assert.ok(pushIdx > -1, 'queue push present');
