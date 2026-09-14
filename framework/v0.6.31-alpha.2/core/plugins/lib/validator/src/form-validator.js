@@ -16,6 +16,33 @@
  *      `_validator.<rule>` namespace (catalog wins per key, English defaults fill).
  *      A non-string (e.g. the routing-mode rule object) is ignored by the overlay guard.
  * */
+/**
+ * Own-property count, reached WITHOUT the shadowable `<container>.count()` lookup (#B546).
+ *
+ * gina installs a `count()` helper on `Object.prototype` (`utils/prototypes.js`), so the
+ * shorthand is an ordinary property lookup that an OWN property of the same name shadows.
+ * Every container counted through this function is keyed by the CLIENT — a request body, a
+ * query bag, route params, uploaded files, caller-supplied query data — so one field named
+ * `count` made the framework call a string instead of the helper: a 500 on the guarded body
+ * branches, and an uncaughtException that exited the process on the unguarded query ones.
+ *
+ * `ownCount()` reaches the helper itself, which no own property can
+ * shadow, and is the same function body, so every receiver shape counts exactly as before.
+ * The null/undefined branch is deliberate rather than defensive: `.call(null)` would bind
+ * `this` to the global object and return ITS key count, while the shorthand threw — and the
+ * empty-object seeding in the body-parse branches is built on that throw.
+ *
+ * @param   {*} container - Any value the shorthand would have been called on.
+ * @returns {number} Own enumerable property count.
+ * @inner
+ */
+function ownCount(container) {
+    if (container === null || typeof container === 'undefined') {
+        return container.count(); // preserve the exact TypeError the shorthand raised
+    }
+    return Object.prototype.count.call(container);
+}
+
 function FormValidatorUtil(data, $fields, xhrOptions, fieldsSet, culture) {
 
     var isGFFCtx        = ( ( typeof(module) !== 'undefined' ) && module.exports ) ? false : true;
@@ -1229,7 +1256,10 @@ function FormValidatorUtil(data, $fields, xhrOptions, fieldsSet, culture) {
             : serverInstance;
         controller.setOptions(request, response, next, controllerOptions);
 
-        var data = ( typeof(options.data) == 'object' && options.data.count() > 0 )
+        // #B546 — `options.data` carries the rule's declared data merged with the request's
+        // own body/query bag (lib/routing), so its keys are client-chosen; counted through
+        // `Object.prototype.count` so a field named `count` cannot shadow the helper.
+        var data = ( typeof(options.data) == 'object' && ownCount(options.data) > 0 )
                 ? options.data
                 : {};
         // inherited data from current query asking for validation

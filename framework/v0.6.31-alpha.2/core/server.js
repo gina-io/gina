@@ -140,6 +140,33 @@ var _mintErrorRef = function(supplied) {
  * parseByteSize('512KB'); // 524288
  * parseByteSize(2);       // 2097152
  */
+/**
+ * Own-property count, reached WITHOUT the shadowable `<container>.count()` lookup (#B546).
+ *
+ * gina installs a `count()` helper on `Object.prototype` (`utils/prototypes.js`), so the
+ * shorthand is an ordinary property lookup that an OWN property of the same name shadows.
+ * Every container counted through this function is keyed by the CLIENT — a request body, a
+ * query bag, route params, uploaded files, caller-supplied query data — so one field named
+ * `count` made the framework call a string instead of the helper: a 500 on the guarded body
+ * branches, and an uncaughtException that exited the process on the unguarded query ones.
+ *
+ * `ownCount()` reaches the helper itself, which no own property can
+ * shadow, and is the same function body, so every receiver shape counts exactly as before.
+ * The null/undefined branch is deliberate rather than defensive: `.call(null)` would bind
+ * `this` to the global object and return ITS key count, while the shorthand threw — and the
+ * empty-object seeding in the body-parse branches is built on that throw.
+ *
+ * @param   {*} container - Any value the shorthand would have been called on.
+ * @returns {number} Own enumerable property count.
+ * @inner
+ */
+function ownCount(container) {
+    if (container === null || typeof container === 'undefined') {
+        return container.count(); // preserve the exact TypeError the shorthand raised
+    }
+    return Object.prototype.count.call(container);
+}
+
 var parseByteSize = function(value) {
     if ( typeof(value) == 'number' ) { return value * 1024 * 1024; } // bare number = MB
     if ( typeof(value) != 'string' ) { return NaN; }
@@ -6692,6 +6719,19 @@ function Server(options) {
      */
     var processRequestData = function(request, response, next) {
 
+        // #B546 — every own-property count below goes through `ownCount()` rather than
+        // `<container>.count()`. gina installs that helper on
+        // `Object.prototype`, so the shorthand is a normal property lookup that an OWN
+        // property of the same name shadows — and the containers counted here
+        // (`request.body`, `request.query`, the parsed body `obj`) are keyed by the
+        // CLIENT. A request carrying a top-level field literally named `count` made the
+        // framework call a string: on the guarded body branches that surfaced as a 500,
+        // and on the unguarded query branches as an uncaughtException that exited the
+        // bundle process — reachable unauthenticated, on any URL, since this parse runs
+        // before routing resolves. `.call()` reaches the helper itself, which no own
+        // property can shadow, and is the same function body, so every other receiver
+        // shape (string, number, array, plain object) counts exactly as it did.
+
 
 
         var bodyStr = null, obj = null, exception = null;
@@ -6798,8 +6838,8 @@ function Server(options) {
                                 // No error was ever raised; the document was silently truncated.
                                 //
                                 // `obj` must be set to an object rather than left null: the shared
-                                // tail below reads `typeof(obj) == 'object' && obj.count()`, and
-                                // `typeof null === 'object'`, so a null would throw inside that
+                                // tail below reads `typeof(obj) == 'object' && ownCount(obj)`,
+                                // and `typeof null === 'object'`, so a null would throw inside that
                                 // guard and be answered as a 500. An empty object no-ops it.
                                 obj = {};
                             } else {
@@ -6839,7 +6879,7 @@ function Server(options) {
                                 }
                                 if (!isPostSet) {
                                     try {
-                                        if (obj.count() == 0 && bodyStr.length > 1) {
+                                        if (ownCount(obj) == 0 && bodyStr.length > 1) {
                                             request.post = obj;
                                         } else {
                                             request.post = JSON.parse(bodyStr)
@@ -6860,7 +6900,7 @@ function Server(options) {
 
                 } else {
                     // 2016-05-19: fix to handle requests from swagger/express
-                    if (request.body.count() == 0 && typeof(request.query) != 'string' && request.query.count() > 0 ) {
+                    if (ownCount(request.body) == 0 && typeof(request.query) != 'string' && ownCount(request.query) > 0 ) {
                         request.body = request.query
                     }
                     // 2023-01-31: fixed `request.body` might not be an `object`
@@ -6873,7 +6913,7 @@ function Server(options) {
                 }
 
                 try {
-                    if ( typeof(obj) == 'object' && obj.count() > 0 ) {
+                    if ( typeof(obj) == 'object' && ownCount(obj) > 0 ) {
                         // still need this to allow compatibility with express & connect middlewares
                         request.body = request.post = obj;
                     }
@@ -6908,7 +6948,7 @@ function Server(options) {
                 //     bodyStr = request.query.replace(/\"{/g, '{').replace(/}\"/g, '}').replace(/\\/g, '');
                 //     request.query = JSON.parse(bodyStr);
                 // }
-                if ( typeof(request.query) != 'undefined' && request.query.count() > 0 ) {
+                if ( typeof(request.query) != 'undefined' && ownCount(request.query) > 0 ) {
                     var inheritedDataObj = {};
                     if ( typeof(request.query.inheritedData) != 'undefined' ) {
 
@@ -7025,7 +7065,7 @@ function Server(options) {
                                 obj = formatDataFromString(bodyStr);
 
 
-                                if ( typeof(obj) != 'undefined' && obj.count() == 0 && bodyStr.length > 1 ) {
+                                if ( typeof(obj) != 'undefined' && ownCount(obj) == 0 && bodyStr.length > 1 ) {
                                     try {
                                         request.put = merge(request.put, obj);
                                     } catch (err) {
@@ -7043,7 +7083,7 @@ function Server(options) {
 
                 } else {
                     // 2016-05-19: fix to handle requests from swagger/express
-                    if (request.body.count() == 0 && typeof(request.query) != 'string' && request.query.count() > 0 ) {
+                    if (ownCount(request.body) == 0 && typeof(request.query) != 'string' && ownCount(request.query) > 0 ) {
                         request.body = request.query
                     }
                     bodyStr = JSON.stringify(request.body);
@@ -7056,7 +7096,7 @@ function Server(options) {
                     obj = JSON.parse(bodyStr)
                 }
 
-                if ( obj && typeof(obj) != 'undefined' && obj.count() > 0 ) {
+                if ( obj && typeof(obj) != 'undefined' && ownCount(obj) > 0 ) {
                     
 // still need this to allow compatibility with express & connect middlewares
                     request.body = request.put = merge(request.put, obj);
@@ -7074,7 +7114,7 @@ function Server(options) {
 
 
             case 'delete':
-                if ( request.query.count() > 0 ) {
+                if ( ownCount(request.query) > 0 ) {
                     request.delete = request.query;
 
                 }
@@ -7124,7 +7164,7 @@ function Server(options) {
                                 // #FIN1 — verbatim XML body; see the POST branch for the full
                                 // rationale. PATCH shares POST's tail shape, so the empty object
                                 // is load-bearing here too: a null would throw inside
-                                // `typeof(obj) == 'object' && obj.count()` and answer 500.
+                                // `typeof(obj) == 'object' && ownCount(obj)` and answer 500.
                                 obj = {};
                             } else {
                                 if ( /application\/x\-www\-form\-urlencoded/.test(request.headers['content-type']) && /\+/.test(request.body) ) {
@@ -7156,7 +7196,7 @@ function Server(options) {
                                 }
                                 if (!isPatchSet) {
                                     try {
-                                        request.patch = ( obj.count() == 0 && bodyStr.length > 1 ) ? obj : JSON.parse(bodyStr);
+                                        request.patch = ( ownCount(obj) == 0 && bodyStr.length > 1 ) ? obj : JSON.parse(bodyStr);
                                     } catch (err) {
                                         msg = '[ Exception found for PATCH ] '+ request.url +'\n'+ err.stack;
                                         console.warn(msg);
@@ -7169,7 +7209,7 @@ function Server(options) {
                         console.warn(msg);
                     }
                 } else {
-                    if ( request.body.count() == 0 && typeof(request.query) != 'string' && request.query.count() > 0 ) {
+                    if ( ownCount(request.body) == 0 && typeof(request.query) != 'string' && ownCount(request.query) > 0 ) {
                         request.body = request.query;
                     }
                     bodyStr = ( typeof(request.body) == 'object') ? JSON.stringify(request.body) : request.body;
@@ -7180,7 +7220,7 @@ function Server(options) {
                     obj = JSON.parse(bodyStr);
                 }
                 try {
-                    if ( typeof(obj) == 'object' && obj.count() > 0 ) {
+                    if ( typeof(obj) == 'object' && ownCount(obj) > 0 ) {
                         request.body = request.patch = obj;
                     }
                 } catch (err) {
@@ -7207,7 +7247,7 @@ function Server(options) {
                 // in the render layer. Use HEAD to check whether a resource exists and read
                 // its headers (content-type, content-length, cache headers) without downloading
                 // the full body. Routes declared as GET automatically accept HEAD requests.
-                if ( typeof(request.query) != 'undefined' && request.query.count() > 0 ) {
+                if ( typeof(request.query) != 'undefined' && ownCount(request.query) > 0 ) {
                     var headInheritedDataObj = {};
                     if ( typeof(request.query.inheritedData) != 'undefined' ) {
                         if ( typeof(request.query.inheritedData) == 'string' ) {
@@ -8167,12 +8207,16 @@ function Server(options) {
                         }
                     }
 
+                    // #B546 — shadow-proof own-property counts; see the note at the top of
+                    // processRequestData. `req.query` and `req.params` are client-keyed, and a
+                    // route param named `count` left the request hanging on an unhandled
+                    // rejection inside the async dispatch rather than exiting the process.
                     // Handling GET method exception - if no param found
                     var methods = ['get', 'delete'], method = req.method.toLowerCase();
                     var p = null;
                     if (
-                        methods.indexOf(method) > -1 && typeof(req.query) != 'undefined' && req.query.count() == 0
-                        || methods.indexOf(method) > -1 && typeof(req.query) == 'undefined' && typeof(req.params) != 'undefined' && req.params.count() > 1
+                        methods.indexOf(method) > -1 && typeof(req.query) != 'undefined' && ownCount(req.query) == 0
+                        || methods.indexOf(method) > -1 && typeof(req.query) == 'undefined' && typeof(req.params) != 'undefined' && ownCount(req.params) > 1
                     ) {
                         //req.params = parseObject(req.params);
                         p = 0;
@@ -8238,13 +8282,15 @@ function Server(options) {
                 }
             } // EO for (let name in routing) {
 
+        // #B546 — `_origReqMethod` is a shallow copy of the client-keyed `req[method]` bag,
+        // so it inherits the shadow with it; counted through the helper for the same reason.
         // Restore req[method] if deleted during route matching (#fix: routes without URL params)
         if (typeof(req[_reqMethodKey]) == "undefined") {
             req[_reqMethodKey] = _origReqMethod || {};
         } else if (
             _origReqMethod && typeof(_origReqMethod) == "object"
             && ["get", "put", "post", "patch", "delete"].indexOf(_reqMethodKey) > -1
-            && _origReqMethod.count() > 0
+            && ownCount(_origReqMethod) > 0
         ) {
             // compareUrls recreates req[method] with only URL params, discarding
             // body data parsed by processRequestData (or query params for GET). Merge back in.

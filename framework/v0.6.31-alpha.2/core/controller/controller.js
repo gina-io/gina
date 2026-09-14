@@ -17,6 +17,33 @@ var crypto          = require('crypto'); // #ERRREF incident-ref mint
 var promisify       = util.promisify;
 var EventEmitter    = require('events').EventEmitter;
 
+/**
+ * Own-property count, reached WITHOUT the shadowable `<container>.count()` lookup (#B546).
+ *
+ * gina installs a `count()` helper on `Object.prototype` (`utils/prototypes.js`), so the
+ * shorthand is an ordinary property lookup that an OWN property of the same name shadows.
+ * Every container counted through this function is keyed by the CLIENT — a request body, a
+ * query bag, route params, uploaded files, caller-supplied query data — so one field named
+ * `count` made the framework call a string instead of the helper: a 500 on the guarded body
+ * branches, and an uncaughtException that exited the process on the unguarded query ones.
+ *
+ * `ownCount()` reaches the helper itself, which no own property can
+ * shadow, and is the same function body, so every receiver shape counts exactly as before.
+ * The null/undefined branch is deliberate rather than defensive: `.call(null)` would bind
+ * `this` to the global object and return ITS key count, while the shorthand threw — and the
+ * empty-object seeding in the body-parse branches is built on that throw.
+ *
+ * @param   {*} container - Any value the shorthand would have been called on.
+ * @returns {number} Own enumerable property count.
+ * @inner
+ */
+function ownCount(container) {
+    if (container === null || typeof container === 'undefined') {
+        return container.count(); // preserve the exact TypeError the shorthand raised
+    }
+    return Object.prototype.count.call(container);
+}
+
 const { Resolver } = require('node:dns').promises;
 
 var lib             = require('./../../lib') || require.cache[require.resolve('./../../lib')];
@@ -1353,7 +1380,15 @@ function SuperController(options) {
             delete parameters.control;
             delete parameters.title;
 
-            if (parameters.count() > 0)
+            // #B546 — own-property counts in this file go through `Object.prototype.count`
+            // rather than `<container>.count()`. The helper gina installs on
+            // `Object.prototype` is reached by a normal property lookup, which an OWN
+            // property of the same name shadows; the containers counted here descend from
+            // `req.params` / `req[method]` / `req.files` / caller-supplied query data, whose
+            // keys the client chooses. A field named `count` therefore made the framework
+            // call a string. `.call()` is the same function body reached without the
+            // shadowable lookup, so no other receiver shape changes.
+            if (ownCount(parameters) > 0)
                 set('page.view.params', parameters); // view parameters passed through URI or route params
 
             set('page.view.route', rule);
@@ -3547,7 +3582,8 @@ function SuperController(options) {
                 if ( typeof(requestParams.session) != 'undefined' ) {
                     delete requestParams.session;
                 }
-                if ( typeof(requestParams) != 'undefined' && requestParams.count() > 0 ) {
+                // #B546 — shadow-proof own-property count; see the note in setOptions().
+                if ( typeof(requestParams) != 'undefined' && ownCount(requestParams) > 0 ) {
                     //if ( typeof(requestParams.error) != 'undefined' )
 
                     // #B75 — a session-less bundle (no Session plugin mounted) must
@@ -3587,7 +3623,7 @@ function SuperController(options) {
                         } else {
                             redirectObj.location = path;
                         }
-                        if (requestParams.count() > 0)  {
+                        if (ownCount(requestParams) > 0)  {
                             if ( userSession ) {
                                 // consumed by router.js's route dispatch on the next
                                 // routed GET (one-shot merge into `req.get`, then deleted)
@@ -4572,7 +4608,8 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
 
             var uploadedFiles = [];
 
-            if ( typeof(files) == 'undefined' || files.count() == 0 ) {
+            // #B546 — shadow-proof own-property count; see the note in setOptions().
+            if ( typeof(files) == 'undefined' || ownCount(files) == 0 ) {
                 cb(new Error('No file to upload'))
             } else {
                 // saving files
@@ -5199,7 +5236,8 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
             // read by the HTTP/2 request prep (skips the incoming content-type relabel);
             // listed in _NON_HTTP_OPTS so it never becomes a header
             options._rawBody = true;
-        } else if ( typeof(data) != 'undefined' &&  data.count() > 0) {
+        // #B546 — shadow-proof own-property count; see the note in setOptions().
+        } else if ( typeof(data) != 'undefined' &&  ownCount(data) > 0) {
 
             queryData = '?';
             // TODO - if 'application/json' && method == (put|post)
@@ -7937,7 +7975,8 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
             }
             ++i;
         }
-        if (requestParams.count() > 0) {
+        // #B546 — shadow-proof own-property count; see the note in setOptions().
+        if (ownCount(requestParams) > 0) {
             haltedRequest.params = requestParams;
         }
 
@@ -8025,7 +8064,8 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
 
 
         var dataAsParams    = {};
-        if (data.count() > 0) {
+        // #B546 — shadow-proof own-property count; see the note in setOptions().
+        if (ownCount(data) > 0) {
             dataAsParams = JSON.clone(haltedRequest.data);
         }
         // #B215 — replay the byte-exact halted URL (query string included) whenever a
@@ -8075,7 +8115,7 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
             // redirect(), carried it). Consumed by router.js on the replayed GET
             // (one-shot merge into `req.get`). A custom `requestStorage` with no live
             // session degrades exactly as before (data dropped).
-            if ( data.count() > 0 ) {
+            if ( ownCount(data) > 0 ) {
                 if ( typeof(data.session) != 'undefined' ) {
                     delete data.session;
                 }

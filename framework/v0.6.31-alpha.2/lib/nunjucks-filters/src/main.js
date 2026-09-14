@@ -415,8 +415,16 @@ function NunjucksFilters(conf) {
         if ( input == null ) {
             return 0;
         }
-        if ( typeof(input.count) != 'undefined' ) {
+        // #B546 — the `typeof(input.count) != 'undefined'` guard below is itself blind to
+        // the collision it needs to survive: gina installs a `count()` helper on
+        // `Object.prototype`, so the property is ALWAYS defined, and an OWN property of
+        // that name (a request body or query bag carrying a field literally named
+        // `count`) reads as a string rather than the helper — the call then throws and
+        // crashes the render. Take the helper directly when the own value is not callable.
+        if ( typeof(input.count) == 'function' ) {
             return input.count();
+        } else if ( typeof(input.count) != 'undefined' ) {
+            return Object.prototype.count.call(input);
         } else {
             return input.length;
         }

@@ -36,6 +36,27 @@ function sliceBetween(src, startTok, endTok) {
 // text is the REAL shipped source, executed below via new Function (no replica
 // to drift). The extraction itself is control-gated: exactly one occurrence,
 // balance reached, expected content present, boundary content absent.
+/**
+ * The shipped `ownCount` helper (#B546), lifted from controller.js and made callable.
+ * The blocks extracted below now count through it, so they are driven with the real
+ * helper rather than a replica.
+ * @param {string} src
+ * @returns {function(*): number}
+ * @inner
+ */
+function ownCountFrom(src) {
+    var at = src.indexOf('function ownCount(container) {');
+    assert.ok(at > -1, 'controller.js declares the ownCount helper');
+    var depth = 0, end = -1;
+    for (var j = src.indexOf('{', at); j < src.length; j++) {
+        if (src[j] === '{') { depth++; }
+        else if (src[j] === '}') { depth--; if (depth === 0) { end = j; break; } }
+    }
+    assert.ok(end > at, 'the ownCount helper closes');
+    /* eslint-disable no-new-func */
+    return new Function(src.slice(at, end + 1) + '; return ownCount;')();
+}
+
 function extractBlock(src, startToken) {
     var first = src.indexOf(startToken);
     assert.ok(first > -1, 'extraction start token missing: ' + startToken);
@@ -134,7 +155,7 @@ describe('01 - redirect()/resumeRequest() session-default inheritedData carry �
 // session-less × XHR / non-XHR × size cases.
 describe('02 - redirect() count>0 block — extracted-source execution', function() {
 
-    var BLOCK = extractBlock(SRC, "if ( typeof(requestParams) != 'undefined' && requestParams.count() > 0 ) {");
+    var BLOCK = extractBlock(SRC, "if ( typeof(requestParams) != 'undefined' && ownCount(requestParams) > 0 ) {");
 
     it('extraction controls: content present, boundaries + self-containment hold', function() {
         assert.ok(BLOCK.indexOf('userSession.inheritedData = requestParams;') > -1, 'stash inside the block');
@@ -154,12 +175,13 @@ describe('02 - redirect() count>0 block — extracted-source execution', functio
         };
         var fn = new Function(
             'req', 'path', 'requestParams', 'inheritedDataIsNeeded', 'isPopinContext',
-            'self', 'encodeRFC5987ValueChars', 'ApiError', '_applyNoStoreToRedirectJSON',
+            'self', 'encodeRFC5987ValueChars', 'ApiError', '_applyNoStoreToRedirectJSON', 'ownCount',
             BLOCK + '\n;return { path: path };'
         );
         var out = fn(
             opts.req, opts.path, opts.requestParams, !!opts.needed, !!opts.popin,
-            selfStub, encodeURIComponent, FakeApiError, function() { calls.noStore++; }
+            selfStub, encodeURIComponent, FakeApiError, function() { calls.noStore++; },
+            ownCountFrom(SRC)
         );
         return { out: out, calls: calls };
     }
@@ -245,7 +267,7 @@ describe('02 - redirect() count>0 block — extracted-source execution', functio
 // executed. Covers the plain-XHR / non-XHR data-drop fix and its degradations.
 describe('03 - resumeRequest() replay stash — extracted-source execution', function() {
 
-    var BLOCK = extractBlock(SRC, 'if ( data.count() > 0 ) {');
+    var BLOCK = extractBlock(SRC, 'if ( ownCount(data) > 0 ) {');
 
     it('extraction controls: the stash is inside, the flavor split is not', function() {
         assert.ok(BLOCK.indexOf('userSession.inheritedData = data;') > -1);
@@ -254,8 +276,8 @@ describe('03 - resumeRequest() replay stash — extracted-source execution', fun
     });
 
     function drive(req, data) {
-        var fn = new Function('req', 'data', BLOCK);
-        fn(req, data);
+        var fn = new Function('req', 'data', 'ownCount', BLOCK);
+        fn(req, data, ownCountFrom(SRC));
     }
 
     it('live session with user: stash lands on session.user, the session key is stripped', function() {
