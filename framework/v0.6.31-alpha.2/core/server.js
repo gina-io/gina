@@ -4474,6 +4474,21 @@ function Server(options) {
             if (((process.gina && process.gina._inspectorWindowUntil > Date.now()) || (self.isCacheless() && process.gina._inspectorActive)) && !request._devTimeline) {
                 request._devTimeline = { requestStart: Date.now(), entries: [] };
             }
+            // #H12 — RFC 9218 request priority. Parsed ONCE per request into
+            // request.priority ({urgency 0-7, incremental, present} — RFC defaults
+            // when the header is absent or malformed) by lib/priority, which never
+            // throws. Parsed at the top of BOTH engine tops so every traffic class
+            // carries it: isaac's statics, /_gina/* and render-cache hits answer
+            // inside the isaac listener and never reach onInstance, while on Express
+            // all of those run inside onInstance — a parse in onInstance alone would
+            // leave the two engines asymmetric on exactly the traffic RFC 9218
+            // targets (measured). Fill-when-absent (the #B65 typeof shape): under
+            // isaac this same init runs again in onInstance (the listener's cb) and
+            // must not re-parse. Client-supplied and ADVISORY — a consumer reads it
+            // to yield, never to grant more. Keep the two tops in sync.
+            if ( typeof(request.priority) == 'undefined' ) {
+                request.priority = lib.priority.parse(request.headers['priority']);
+            }
             // #OBS1 slice 3 — HTTP request lifecycle hook for Prometheus metrics.
             // Engine-agnostic mirror of the server.isaac.js hook. Gated on
             // lib.metrics.isEnabled() so the listener is only wired when

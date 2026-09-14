@@ -2503,6 +2503,49 @@ function SuperController(options) {
 
 
     /**
+     * Emit an RFC 9218 `Priority` RESPONSE header (#H12).
+     *
+     * An origin uses the response header to state its own view of how the
+     * response should be prioritized (RFC 9218 §5); an intermediary that
+     * honours it merges it with the client's request header (§8). An explicit
+     * `urgency` is always emitted — including `3` — because only an explicit
+     * member overrides the client's value; `incremental` is emitted as `i` when
+     * true. Browsers do not act on a response `Priority`, and the framework
+     * cannot reorder its own writes (no Node API for it): this is signalling
+     * for the path between origin and client, never a scheduling promise.
+     *
+     * Silently no-ops when there is nothing to say, when the response has been
+     * released (#B31) or when headers were already sent. Returns `self` for
+     * chaining.
+     *
+     * @param   {{urgency?: number, incremental?: boolean}} spec
+     * @returns {object} self
+     *
+     * @example
+     *   this.export = function(req, res, next) {
+     *       // a long background export may yield to the page's other fetches
+     *       self.setPriority({ urgency: 6, incremental: true });
+     *       self.renderStream(source);
+     *   };
+     */
+    this.setPriority = function(spec) {
+        var _value = lib.priority.serialize(spec);
+        if ( !_value ) return self;
+
+        var _res = local.res;
+        if ( !_res || typeof(_res.setHeader) != 'function' ) return self;
+        if ( headersSent(_res) ) return self;
+
+        try {
+            _res.setHeader('priority', _value);
+        } catch(e) {
+            // best-effort — a header that cannot be set must never affect the response
+        }
+        return self;
+    };
+
+
+    /**
      * Send a 103 Early Hints informational response (#EH1).
      *
      * Call this at the start of a controller action, before the terminal
@@ -5022,6 +5065,15 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
         var isCritical = typeof options.critical === 'boolean' ? options.critical : true;
         delete options.critical; // not an HTTP option — remove before merge/clean
 
+        // #H12 — outbound priority OPTION, extracted BEFORE the merge/clone below for
+        // the same reason as `critical`: on HTTP/2 every non-pseudo key left on
+        // `options` is folded into the wire headers unless denylisted, so a `priority`
+        // option would ship as a header named `priority` carrying an object. It is
+        // resolved further down — after gina's own header injections — by
+        // lib.priority.resolveOutbound().
+        var _prioOption = options.priority;
+        delete options.priority;
+
         // #B489 — raw-body pass-through: a Buffer or string sent as-is under the caller's
         // own content-type. Extracted HERE, before the clone/merge below, for the same
         // reason `critical` is: JSON.clone() recurses into any object, so a Buffer left on
@@ -5295,6 +5347,25 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
             options.headers['x-forwarded-host'] = ( local.req && local.req._ginaProxyHost ) ? local.req._ginaProxyHost : process.gina.PROXY_HOST;
             // X-Forwarded-Proto
             options.headers['x-forwarded-proto'] = process.gina.PROXY_SCHEME;
+        }
+
+        // #H12 — RFC 9218 Priority on the outbound call. ONE site covers both
+        // transports and every retry (options.headers travels into browser.request()
+        // on HTTP/1 and into the HTTP/2 header fold alike) and self.forward(), which
+        // delegates here. Four rungs, first hit wins: a caller-set header (any casing)
+        // is left alone; `priority: false` sends nothing; an explicit `priority` option
+        // is normalized and never falls through; a PRESENT inbound header propagates —
+        // RFC 9218 is end-to-end, so a sub-request made on behalf of a `u=0` page is
+        // itself `u=0`. local.req is null-guarded like every forward in this function
+        // (a released response, #B31).
+        var _prioHeader = lib.priority.resolveOutbound({
+            headers : options.headers,
+            option  : _prioOption,
+            inbound : ( local.req != null ) ? local.req.priority : null
+        });
+        if ( _prioHeader ) {
+            if ( !options.headers ) { options.headers = {}; }
+            options.headers['priority'] = _prioHeader;
         }
 
         // #QI — propagate Inspector profiling to the target bundle so it

@@ -332,6 +332,16 @@ declare namespace gina {
         setEarlyHints(links: string | string[]): this;
 
         /**
+         * Emit an RFC 9218 `Priority` response header (#H12) — the origin's own
+         * view of the response's urgency, for intermediaries that honour it.
+         * An explicit urgency is always emitted (only an explicit member
+         * overrides the client's); no-op when there is nothing to say or when
+         * headers were already sent.
+         * @returns `this` for chaining
+         */
+        setPriority(spec: { urgency?: number; incremental?: boolean }): this;
+
+        /**
          * Record HTTP/2 response trailers to send after the body
          * (`:`-prefixed pseudo-headers are stripped; best-effort no-op on
          * HTTP/1.1).
@@ -595,6 +605,13 @@ declare namespace gina {
         headers?: Record<string, string>;
         /** When `false`, HTTP/2 errors are swallowed (log-only) instead of propagating */
         critical?: boolean;
+        /**
+         * RFC 9218 `Priority` for this outbound call (#H12). An object or a wire
+         * string (`'u=1, i'`) is sent normalized; `false` sends nothing; omitted,
+         * a present inbound request header propagates as-is. A caller-set
+         * `headers.priority` always wins.
+         */
+        priority?: { urgency?: number; incremental?: boolean } | string | false;
         /**
          * Opt a non-safe HTTP method (POST/PUT/PATCH/DELETE) back into
          * automatic retries on transient transport failures. Default
