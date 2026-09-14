@@ -170,6 +170,13 @@ function Lib() {
         // above: a stateless pure-function leaf with no state to hot-reload, and
         // security-bearing, which keeps it out of the hot-reload path entirely.
         securityHeadersEmitter : require('./security-headers-emitter'),
+        // #H12 — RFC 9218 Extensible Priorities: the `Priority` header parser /
+        // serializer and the outbound-resolution chain query() runs. PLAIN require
+        // (NOT _require): a stateless pure-function leaf that BOTH load-once engines
+        // capture at gen-0 (server.js / server.isaac.js read it at the top of every
+        // request) — the #B32-residual class, where a per-request re-require would
+        // leak the superseded module instances past the prune.
+        priority        : require('./priority'),
         // #OW3 — Subresource Integrity attribute computation (OWASP A08),
         // consumed by the controller's resource builder when a bundle opts in
         // via templates.json `"sriEnabled": true`. PLAIN require (NOT _require):

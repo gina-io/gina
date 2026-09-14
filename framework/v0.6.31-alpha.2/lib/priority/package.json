@@ -1,0 +1,18 @@
+{
+  "name": "gina-lib-priority",
+  "version": "1.0.0",
+  "description": "RFC 9218 Extensible Priorities — the `Priority` header field (#H12)",
+  "authors": [
+    {
+      "name": "Martin Luther ETOUMAN NDAMBWE",
+      "email": "contact@gina.io"
+    }
+  ],
+  "copyright": "Copyright (c) 2009-2026 Rhinostone <contact@gina.io>",
+  "engines": {
+    "node": ">=0.10.22"
+  },
+  "main": "src/main",
+  "license": "MIT",
+  "readmeFilename": "README.md"
+}

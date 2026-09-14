@@ -72,6 +72,8 @@ declare namespace gina {
          * Present only when the matched route declares `param.dto`.
          */
         dto?: TDto;
+        /** Parsed RFC 9218 `Priority` header (#H12) — always present on both engines, defaults when the header is absent. */
+        priority?: PriorityInfo;
         /** Routing metadata attached by the router */
         routing?: {
             rule: string;
@@ -84,6 +86,20 @@ declare namespace gina {
         /** Get a single param by name */
         getParam(name: string): any;
     };
+
+    /**
+     * The parsed RFC 9218 `Priority` request header (#H12), attached as
+     * `req.priority` on both engines. Client-supplied and advisory: read it to
+     * yield, never to grant more.
+     */
+    interface PriorityInfo {
+        /** 0 (most urgent) … 7; `3` when the header says nothing. */
+        urgency: number;
+        /** `true` when the response may be served in parts. */
+        incremental: boolean;
+        /** `true` when a header was present and parsed; `false` when absent or malformed (ignored whole). */
+        present: boolean;
+    }
 
     type GinaResponse = (ServerResponse | Http2ServerResponse) & {
         /** HTTP/2 stream when available */
@@ -992,6 +1008,14 @@ declare namespace gina {
          * `server.response.header` entry always beats the framework default.
          */
         securityHeadersEmitter: any;
+        /**
+         * RFC 9218 Extensible Priorities — the `Priority` header field (#H12):
+         * `parse()` → `PriorityInfo` (defaults `u=3`/`i=false`; a malformed field
+         * is ignored whole, out-of-range or wrong-type members individually),
+         * `serialize()` → `'u=N, i'`, `resolveOutbound()` — the chain `query()`
+         * runs to decide an outbound call's header — and `normalizeUrgency()`.
+         */
+        priority: { parse(value?: string | string[]): PriorityInfo; serialize(spec?: { urgency?: number; incremental?: boolean }): string; resolveOutbound(input: { headers?: object; option?: any; inbound?: PriorityInfo | null }): string | null; normalizeUrgency(value: any): number; DEFAULT_URGENCY: number; URGENCY_MIN: number; URGENCY_MAX: number; HEADER_NAME: string };
         /**
          * Subresource Integrity attribute computation (#OW3, OWASP A08) —
          * opt-in per bundle via `templates.json > "_common" > "sriEnabled"`.
