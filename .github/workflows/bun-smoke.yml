@@ -65,7 +65,7 @@ jobs:
       # ZERO Node legs, so the Bun leg drives the exit code. The image is pinned
       # for reproducibility (bump it as newer Bun releases are validated).
       - name: Bun-only container smoke
-        run: npm run smoke -- --node= --bun --bun-image=oven/bun:1.3.14
+        run: npm run smoke -- --node= --bun --bun-image=oven/bun:1.4.2
 
   node-smoke:
     name: Node container smoke (node:${{ matrix.node }})
