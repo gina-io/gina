@@ -5,7 +5,7 @@ name: Runtime Smoke
 # a clean runtime container, boots the api + frontend + db bundles and asserts
 # HTTP 200 plus a real SQLite INSERT -> SELECT round-trip.
 #
-# Two jobs:
+# Three jobs:
 #   - bun-smoke:  TWO Bun legs (oven/bun). Bun is a SUPPORTED runtime
 #     (package.json `engines.bun`, `>= 1.2`). Images are PINNED for
 #     reproducibility, so a Bun upstream regression surfaces only on a
@@ -18,6 +18,16 @@ name: Runtime Smoke
 #     deliberately unpinned, mirroring test.yml's setup-node major pins.
 #     Before 2026-07-29 the Node legs ran only at cut time; per-push they make
 #     the release-time smoke a re-confirmation instead of a first run.
+#   - ws-smoke:   #H13 WebSocket-over-HTTP/2. The node:test suite covers ws-over-h2
+#     thoroughly but is Node-only BY DESIGN, so nothing exercised it under Bun. This
+#     leg boots a real https/h2 bundle with `enableConnectProtocol`, declares a
+#     `method:"ws"` route and drives a genuine RFC 8441 extended CONNECT plus an
+#     RFC 6455 round-trip. Deliberately SEPARATE from the container smoke above:
+#     that script resolves ONE scheme/protocol for all its bundles, so an https/h2
+#     bundle would force a refactor of the loop gating the existing three.
+#     The `oven/bun:1.3.14` leg asserts the advertisement is correctly ABSENT — a
+#     two-sided expectation, never a skip, so the leg fails if an incapable runtime
+#     gains the capability or a capable one loses it.
 #
 # BLOCKING: a red result here FAILS the workflow and gates develop/master, the
 # same as the Node test legs. The FILE keeps its historical `bun-smoke.yml`
@@ -33,6 +43,7 @@ on:
       - 'utils/**'
       - 'script/smoke_test_tarball.js'
       - 'script/smoke_in_container.js'
+      - 'script/smoke_ws_h2.js'
       - 'package.json'
       - 'package-lock.json'
       - '.github/workflows/bun-smoke.yml'
@@ -44,6 +55,7 @@ on:
       - 'utils/**'
       - 'script/smoke_test_tarball.js'
       - 'script/smoke_in_container.js'
+      - 'script/smoke_ws_h2.js'
       - 'package.json'
       - 'package-lock.json'
       - '.github/workflows/bun-smoke.yml'
@@ -122,3 +134,49 @@ jobs:
       # leg alone drives the exit code.
       - name: Node container smoke
         run: npm run smoke -- --node=${{ matrix.node }}
+
+  ws-smoke:
+    name: ws-over-HTTP/2 (${{ matrix.image }})
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { image: 'node:24-slim',     runtime: 'node' }   # control: must advertise + round-trip
+          - { image: 'oven/bun:1.4.2',   runtime: 'bun'  }   # the gap this leg exists to cover
+          - { image: 'oven/bun:1.3.14',  runtime: 'bun'  }   # must NOT advertise — two-sided expectation
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Use Node.js (pack the candidate)
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Pack the candidate (--ignore-scripts -> no prepare, no commit)
+        run: npm pack --ignore-scripts --pack-destination /tmp
+
+      # Generated on the RUNNER, not in the image: only oven/bun:1.4.2 ships openssl
+      # among the smoke images (node:*-slim and oven/bun:1.3.14 do not, measured
+      # 2026-09-17). isaac's https path reads the triple from the gina home; the
+      # in-container script copies it into place.
+      - name: Generate the localhost cert triple
+        run: |
+          mkdir -p /tmp/gina-cert
+          openssl req -x509 -newkey rsa:2048 -nodes -days 2 \
+            -keyout /tmp/gina-cert/private.key -out /tmp/gina-cert/certificate.crt \
+            -subj "/CN=localhost" -addext "subjectAltName=DNS:localhost,IP:127.0.0.1"
+
+      - name: ws-over-HTTP/2 runtime gate
+        run: |
+          set -e
+          TARBALL=$(ls /tmp/gina-*.tgz | head -1)
+          echo "tarball: $TARBALL"
+          docker run --rm \
+            -v "$TARBALL":/tmp/gina.tgz:ro \
+            -v "$PWD/script/smoke_ws_h2.js":/tmp/ws.js:ro \
+            -v /tmp/gina-cert:/tmp/gina-cert:ro \
+            -e GINA_LOG_STDOUT=true \
+            ${{ matrix.image }} ${{ matrix.runtime }} /tmp/ws.js
