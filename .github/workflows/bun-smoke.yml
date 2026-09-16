@@ -6,10 +6,13 @@ name: Runtime Smoke
 # HTTP 200 plus a real SQLite INSERT -> SELECT round-trip.
 #
 # Two jobs:
-#   - bun-smoke:  the Bun leg (oven/bun). Bun is a SUPPORTED runtime
-#     (package.json `engine.bun`). The image is PINNED for reproducibility, so
-#     a Bun upstream regression surfaces only on a deliberate pin bump — never
-#     as a random CI flake. Bump the pin as newer Bun releases are validated.
+#   - bun-smoke:  TWO Bun legs (oven/bun). Bun is a SUPPORTED runtime
+#     (package.json `engines.bun`, `>= 1.2`). Images are PINNED for
+#     reproducibility, so a Bun upstream regression surfaces only on a
+#     deliberate pin bump — never as a random CI flake. The two legs exist
+#     because the declared range spans two DIFFERENT code paths through
+#     `lib/sqlite-driver`; see the matrix comment for which is which, and
+#     which of the two pins may be bumped.
 #   - node-smoke: one leg per supported Node major (matching the cut-time
 #     `npm run smoke` default set), on the FLOATING `node:NN` major tags —
 #     deliberately unpinned, mirroring test.yml's setup-node major pins.
@@ -48,8 +51,34 @@ on:
 
 jobs:
   bun-smoke:
-    name: Bun container smoke (oven/bun)
+    name: Bun container smoke (${{ matrix.bun }})
     runs-on: ubuntu-latest
+
+    strategy:
+      # Same rationale as node-smoke below: a tooling flake on one leg must not
+      # cancel or obscure the sibling leg's verdict.
+      fail-fast: false
+      matrix:
+        # TWO legs, because `engines.bun` declares `>= 1.2` and the series on
+        # either side of 1.4 take DIFFERENT paths through `lib/sqlite-driver`:
+        #
+        #   oven/bun:1.4.2  — Bun 1.4 ships `node:sqlite`, so the seam resolves
+        #                     it FIRST and the `bun:sqlite` adapter self-retires.
+        #                     The smoke reports `driver DatabaseSync` here.
+        #                     THIS is the leg to bump as newer Bun releases are
+        #                     validated.
+        #
+        #   oven/bun:1.3.14 — the last release BEFORE `node:sqlite` landed, so
+        #                     it is the only leg that drives the real
+        #                     `bun:sqlite` adapter end-to-end (the smoke reports
+        #                     `driver BunDatabaseSync`). A regression there is
+        #                     boot-fatal for a 1.2-1.3 consumer: the session and
+        #                     job stores throw from init when no driver resolves.
+        #                     DELIBERATELY FROZEN — do NOT bump this pin. Moving
+        #                     it past 1.4 silently deletes the only coverage the
+        #                     adapter path has. Retire this leg only by raising
+        #                     the `engines.bun` floor above 1.3.
+        bun: [oven/bun:1.4.2, oven/bun:1.3.14]
 
     steps:
       - uses: actions/checkout@v6
@@ -62,10 +91,9 @@ jobs:
       # ubuntu-latest ships Docker with a running daemon. The orchestrator packs
       # the candidate with `npm pack --ignore-scripts` (no install, no `prepare`
       # commit) and runs it in a disposable oven/bun container. `--node=` selects
-      # ZERO Node legs, so the Bun leg drives the exit code. The image is pinned
-      # for reproducibility (bump it as newer Bun releases are validated).
+      # ZERO Node legs, so the Bun leg drives the exit code.
       - name: Bun-only container smoke
-        run: npm run smoke -- --node= --bun --bun-image=oven/bun:1.4.2
+        run: npm run smoke -- --node= --bun --bun-image=${{ matrix.bun }}
 
   node-smoke:
     name: Node container smoke (node:${{ matrix.node }})
