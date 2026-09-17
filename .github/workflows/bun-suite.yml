@@ -116,13 +116,18 @@ jobs:
       # Root inside the container is deliberate (apt needs it): the one test
       # that locks a file and expects it unreadable therefore fails here and is
       # carried in the expected set as a documented container artifact.
+      # Root also trips git's ownership check on the runner-owned checkout
+      # ("dubious ownership" — the first run of this gate went red on exactly
+      # that, 2026-09-17, and the missing-file check caught it), hence the
+      # container-scoped safe.directory before the run.
       - name: Run the suite under bun test (JUnit + console captured)
         run: |
           mkdir -p /tmp/bun-suite
           docker run --rm \
             -v "$PWD":"$PWD":ro -v /tmp/bun-suite:/out -w "$PWD" \
+            -e DEBIAN_FRONTEND=noninteractive \
             ${{ matrix.bun }} \
-            sh -c 'apt-get update -qq >/dev/null && apt-get install -y -qq --no-install-recommends git >/dev/null; bun test --isolate --timeout 120000 --reporter=junit --reporter-outfile=/out/junit.xml ./test/core/*.test.js ./test/lib/*.test.js > /out/console.txt 2>&1; echo "BUN_EXIT=$?" >> /out/console.txt'
+            sh -c 'apt-get update -qq >/dev/null && apt-get install -y -qq --no-install-recommends git >/dev/null; git config --global --add safe.directory "*"; bun test --isolate --timeout 120000 --reporter=junit --reporter-outfile=/out/junit.xml ./test/core/*.test.js ./test/lib/*.test.js > /out/console.txt 2>&1; echo "BUN_EXIT=$?" >> /out/console.txt'
           echo "--- bun console tail ---"
           tail -n 8 /tmp/bun-suite/console.txt
 
