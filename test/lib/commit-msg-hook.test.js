@@ -44,8 +44,10 @@ var assert = require('node:assert/strict');
 var ROOT = nodePath.join(__dirname, '..', '..');
 var HOOK = nodePath.join(ROOT, '.githooks', 'commit-msg');
 var PRE = nodePath.join(ROOT, '.githooks', 'pre-commit');
+var CI = nodePath.join(ROOT, '.github', 'workflows', 'security.yml');
 var HOOK_SRC = fs.readFileSync(HOOK, 'utf8');
 var PRE_SRC = fs.readFileSync(PRE, 'utf8');
+var CI_SRC = fs.readFileSync(CI, 'utf8');
 
 /** Return the single line declaring `name=` in `src`, or null. */
 function declLine(src, name) {
@@ -53,6 +55,14 @@ function declLine(src, name) {
         return l.indexOf(name + '=') === 0;
     });
     return found.length === 1 ? found[0] : null;
+}
+
+/** Return the single line declaring `name=` in `src`, ignoring indentation. */
+function declLineAnywhere(src, name) {
+    var found = src.split('\n').filter(function (l) {
+        return l.trim().indexOf(name + '=') === 0;
+    });
+    return found.length === 1 ? found[0].trim() : null;
 }
 
 /** Run the hook against a message body; return its exit code. */
@@ -118,6 +128,35 @@ describe('02 - pattern parity with pre-commit (#S7)', function () {
         assert.ok(
             decl.indexOf('test/lib/commit-msg-hook\\.test\\.js') > -1,
             'this test carries the shapes it pins and must be in S7_EXCLUDED_FILES'
+        );
+    });
+
+    // The exclusion list is MIRRORED in the CI workflow. Adding a file to the
+    // hook alone leaves CI red on the very commit that adds it — measured
+    // 2026-09-18, when exactly that happened on f871d0e6d. Pin both copies.
+    it('the CI mirror excludes the same two files', function () {
+        var ci = declLineAnywhere(CI_SRC, 'EXCLUDED');
+        assert.ok(ci, 'security.yml must declare EXCLUDED exactly once');
+        assert.ok(
+            ci.indexOf('\\.githooks/commit-msg') > -1,
+            'security.yml mirrors the content scan and must exclude commit-msg too'
+        );
+        assert.ok(
+            ci.indexOf('test/lib/commit-msg-hook\\.test\\.js') > -1,
+            'security.yml must exclude this test too'
+        );
+    });
+
+    it('the CI mirror carries the same leak and exception patterns', function () {
+        assert.equal(
+            declLineAnywhere(CI_SRC, 'LEAK_RE'),
+            (declLine(PRE_SRC, 'S7_LEAK_RE') || '').replace(/^S7_/, ''),
+            'security.yml LEAK_RE has drifted from the hook S7_LEAK_RE'
+        );
+        assert.equal(
+            declLineAnywhere(CI_SRC, 'EXCEPTION_RE'),
+            (declLine(PRE_SRC, 'S7_EXCEPTION_RE') || '').replace(/^S7_/, ''),
+            'security.yml EXCEPTION_RE has drifted from the hook S7_EXCEPTION_RE'
         );
     });
 });
