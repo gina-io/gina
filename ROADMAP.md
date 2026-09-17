@@ -548,6 +548,7 @@ Gina's built-in per-bundle inspector. Phases 1–2 ship as an embedded SPA at `/
 | ✅ | **Tutorial locale detection** — `LocaleSettings` React component detects the reader's locale and timezone via `navigator.language` + `Intl` APIs and pre-fills the `settings.json` scaffold example. Inserted after the scaffold step in both tutorials. Falls back to `en_US`. | — | `0.3.0` | 2026-04-06 |
 | ✅ | **Intermediate — Link Shortener** — SQLite ORM connector, async controller actions, `render()` + `renderJSON()` in same bundle, HTTP 302 redirect, route `requirements` guard. Includes downloadable project ZIP. | ~30 min | `0.3.0` | 2026-04-01 |
 | ✅ | **Advanced — Going to Production** — Full production project: authentication, per-user data isolation, deny-by-default authorization, sessions, HTTP/2, structured logging, Docker/K8s deployment with `gina-container`. Continues the intermediate tutorial's finished state (downloadable). | ~60 min | `0.6.8` | 2026-08-14 |
+| ✅ | **Advanced — Make It Interactive** — The production shortener made interactive: a rule-bound form replacing hand-rolled `fetch`, a project-defined `isUrl` validation rule (browser-only — the action re-checks), a live hit counter streamed with `self.renderStream()` into an `<x-hits>` client component, and fragment navigation with `negotiate: true` + `data-gina-nav`. Continues the advanced tutorial's finished state (downloadable). | ~45 min | `0.6.32` | 2026-09-17 |
 
 ---
 
