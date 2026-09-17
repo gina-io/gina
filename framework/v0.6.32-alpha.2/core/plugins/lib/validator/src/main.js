@@ -631,6 +631,46 @@ function ValidatorPlugin(rules, data, formId, culture) {
 
 
     /**
+     * #B549 — does the page opt this form into the validator?
+     *
+     * The boot scan binds a `<form>` ONLY when the markup asks for it: a
+     * `data-gina-form-*` attribute (`data-gina-form-rule`, the submit event
+     * handlers, submit-method/action overrides, upload staging…), an EXISTING id
+     * naming a registered rule (`-` read as `.`), or a virtual `gina-upload-*` id.
+     * Anything else is left untouched — no minted id, no `$forms` entry, no submit
+     * proxy — so a plain form on a rules-bearing page keeps its native submit, as
+     * the guide states. Explicit `validateFormById()` / `getFormById()` calls are
+     * not gated: the call is the opt-in.
+     *
+     * @private
+     * @param {HTMLFormElement} $form
+     * @param {object} rules - the registered rule sets, keyed by dotted name
+     * @returns {boolean}
+     * @example
+     * isFormOptedIn(document.querySelector('form[data-gina-form-rule]'), gina.forms.rules); // true
+     * isFormOptedIn(document.querySelector('form[action="/login"]'), gina.forms.rules);     // false — bare
+     */
+    function isFormOptedIn($form, rules) {
+        if ( !$form || typeof($form.getAttribute) != 'function' ) {
+            return false;
+        }
+        var existingId = $form.getAttribute('id');
+        if ( existingId && /^gina\-upload/i.test(existingId) ) {
+            return true;
+        }
+        if ( existingId && rules && typeof(rules[existingId.replace(/\-/g, '.')]) != 'undefined' ) {
+            return true;
+        }
+        var attrs = $form.attributes;
+        for (var a = 0, aLen = (attrs) ? attrs.length : 0; a < aLen; ++a) {
+            if ( /^data-gina-form-/i.test(attrs[a].name) ) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * validateFormById
      *
      * @param {string} formId
@@ -4639,6 +4679,10 @@ function ValidatorPlugin(rules, data, formId, culture) {
                 // form has rule ?
                 for (var f=0, len = $allForms.length; f<len; ++f) {
                     // preparing prototype (need at least an ID for this)
+                    // #B549 — bind only what the page opted in; a bare <form> is left
+                    // untouched (no minted id, no $forms entry, no submit proxy), as the
+                    // guide states. Explicit validateFormById()/getFormById() stay ungated.
+                    if ( !isFormOptedIn($allForms[f], local.rules) ) { continue; }
 
                     if ($allForms[f].getAttribute) {
                         id = $allForms[f].getAttribute('id') || 'form.' + uuid();

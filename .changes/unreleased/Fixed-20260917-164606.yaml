@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'The client validator boot scan now binds only the forms a page opted in - a data-gina-form-* attribute, an id naming a registered rule, or a virtual gina-upload-* id - and leaves any other form untouched, as the forms guide states. Before, declaring a single rule file made every form on every page an always-XHR submit, plain login and signup forms included, which expected a native POST (#B549). Behaviour change: a form that was bound implicitly now submits natively unless it carries a data-gina-form-* attribute or matches a rule; explicit validateFormById() and getFormById() calls are unchanged.'
+time: 2026-09-17T16:46:06.954829+01:00
