@@ -1,0 +1,4 @@
+ 3 pass
+ 1 skip
+ 1 fail
+Ran 4 tests across 2 files. [0.10s]

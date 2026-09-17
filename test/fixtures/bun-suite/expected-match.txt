@@ -1,0 +1,2 @@
+# one line per expected failure: <file> :: <classname> :: <name>
+test/fixtures/bun-suite/files/b.test.js :: suite :: fails deliberately

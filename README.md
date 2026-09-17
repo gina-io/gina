@@ -52,7 +52,7 @@ MVC framework for Node.js and Bun with built-in HTTP/2, multi-bundle architectur
 | K8s ready | `gina-container`, `gina-init`, SIGTERM drain, JSON stdout logging |
 | Container tooling | `image:build` synthesizes an OCI image (buildah), `image:run` / `container:ps` / `container:stop` (podman) — local or over SSH |
 | Dependency injection | Mockable connectors and config for unit testing |
-| Runtime | Node.js 22–26, or **Bun** (`bun add -g gina`) — install + boot validated end-to-end by a CI Bun smoke |
+| Runtime | Node.js 22–26, or **Bun** (`bun add -g gina`) — install + boot validated end-to-end by a CI Bun smoke, and the unit suite runs under `bun test` in CI behind an expected-failures gate |
 
 ## Quick start
 

@@ -1,0 +1,143 @@
+name: Bun Suite
+
+# Runs the node:test unit suite (`test/core`, `test/lib` — the same two globs
+# `npm test` starts with) under `bun test --isolate` on the CI Bun pin, and
+# gates the result on a committed expected-failures set
+# (`test/bun-expected-failures.txt`, maintained by `script/check_bun_suite.js`).
+#
+# Why a set and not "0 fail": measured 2026-09-17 on Bun 1.4.2, 17,9xx of the
+# suite's tests pass; the residual is almost entirely gina's OWN Node-specific
+# pins (V8 error-message text in subtract controls, `runtime.test.js`
+# asserting it runs under Node) plus `bun test`'s NODE_ENV=test injection,
+# which config.js honours. None of that is a gina defect, and rewriting ~40
+# tests for a secondary runtime would only blunt them under Node. So the gate
+# goes RED on a NEW failing test, on any load-time error, on a test file that
+# produced no suite, and on an empty run — never on an expected failure that
+# STARTS passing (that is a warning: update the file).
+#
+# Why the gate reads two artifacts: bun's JUnit reporter is blind to
+# load-time errors (a throwing describe body shows as a smaller suite, a
+# top-level throw omits the FILE), so the console summary's ` N errors` line
+# and an every-file-on-disk-has-a-suite check are load-bearing.
+#
+# ONE Bun leg, deliberately: the frozen `oven/bun:1.3.14` smoke leg in
+# bun-smoke.yml stays the bun:sqlite adapter's only coverage, but its runner
+# lacks node:test's done-callback and mock (502 fail / 234 errors measured), so
+# a suite leg there would gate on the runner, not on gina. This pin follows
+# the bumpable 1.4.x pin in bun-smoke.yml — bump both together, then refresh
+# the expected set with `--update` and review its diff.
+#
+# BLOCKING in the same sense as the Node test legs: no branch protection
+# requires any check on this repository (measured 2026-09-17), but the
+# release checklist reads every workflow on develop AND master before a
+# cut, so a red here holds the next release until it is triaged.
+
+on:
+  push:
+    branches: [develop, master]
+    paths:
+      - 'framework/**'
+      - 'bin/**'
+      - 'utils/**'
+      - 'test/**'
+      - 'script/check_bun_suite.js'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/bun-suite.yml'
+  pull_request:
+    branches: [develop, master]
+    paths:
+      - 'framework/**'
+      - 'bin/**'
+      - 'utils/**'
+      - 'test/**'
+      - 'script/check_bun_suite.js'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/bun-suite.yml'
+  workflow_dispatch:
+
+jobs:
+  bun-suite:
+    name: node:test suite under bun test (${{ matrix.bun }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    strategy:
+      fail-fast: false
+      matrix:
+        # The bumpable 1.4.x pin ONLY — keep it equal to the 1.4.x entry of
+        # bun-smoke.yml's matrix (see the header for why 1.3.14 is absent).
+        bun: [oven/bun:1.4.2]
+
+    steps:
+      - uses: actions/checkout@v6
+
+      # node_modules are installed on the RUNNER (Linux, this uid) exactly as
+      # test.yml does, then bind-mounted into the Bun container at the SAME
+      # absolute path so the node_modules/gina self-symlink resolves inside.
+      - name: Use Node.js (installs dependencies, runs the gate)
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Install dev dependencies
+        run: |
+          npm install --ignore-scripts
+          ln -sf $(pwd) node_modules/gina
+
+      - name: Prepare framework dependencies
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          FW_DIR="framework/v${VERSION}"
+          if [ ! -f "${FW_DIR}/package.json" ]; then
+            cat > "${FW_DIR}/package.json" <<EOF
+          {
+            "name": "gina-framework",
+            "version": "${VERSION}",
+            "dependencies": {
+              "@rhinostone/swig": "^2.7.2"
+            }
+          }
+          EOF
+          fi
+          (cd "${FW_DIR}" && npm install --ignore-scripts)
+
+      # `--isolate`: a fresh global object per test file, matching node --test's
+      # per-file process model (without it, gina's global-mutating tests
+      # contaminate each other and the failure count drifts run to run).
+      # `--timeout 120000` matches the suite's --test-timeout. The repo is
+      # mounted read-only at its OWN path — the suite writes nothing into it and
+      # the node_modules/gina self-symlink resolves inside the container.
+      # `git` is installed first: the oven/bun image ships none, and
+      # framework-generic-source.test.js shells out to it at load — without
+      # it bun omits that file from the report and the gate goes red on
+      # exactly the silent-registration shape it exists to catch.
+      # Root inside the container is deliberate (apt needs it): the one test
+      # that locks a file and expects it unreadable therefore fails here and is
+      # carried in the expected set as a documented container artifact.
+      - name: Run the suite under bun test (JUnit + console captured)
+        run: |
+          mkdir -p /tmp/bun-suite
+          docker run --rm \
+            -v "$PWD":"$PWD":ro -v /tmp/bun-suite:/out -w "$PWD" \
+            ${{ matrix.bun }} \
+            sh -c 'apt-get update -qq >/dev/null && apt-get install -y -qq --no-install-recommends git >/dev/null; bun test --isolate --timeout 120000 --reporter=junit --reporter-outfile=/out/junit.xml ./test/core/*.test.js ./test/lib/*.test.js > /out/console.txt 2>&1; echo "BUN_EXIT=$?" >> /out/console.txt'
+          echo "--- bun console tail ---"
+          tail -n 8 /tmp/bun-suite/console.txt
+
+      - name: Gate on the expected-failures set
+        run: |
+          node script/check_bun_suite.js \
+            --junit /tmp/bun-suite/junit.xml \
+            --console /tmp/bun-suite/console.txt \
+            --expected test/bun-expected-failures.txt
+
+      # A red needs the full console (which failure, what it printed); keep it.
+      - name: Upload the run artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: bun-suite-${{ strategy.job-index }}
+          path: /tmp/bun-suite/
+          retention-days: 7
