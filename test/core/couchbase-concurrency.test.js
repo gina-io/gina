@@ -375,7 +375,7 @@ describe('04 - exactly one trigger emit per completion (observability contract)'
 
     it('the emit reaches lib/inspector-events when the N1QL:* topic is allow-listed', async function () {
         await quiesce();
-        var ie = require('lib/inspector-events');
+        var ie = require(path.join(FW, 'lib/inspector-events'));
         var original = ie.emit;
         var calls = [];
         ie.emit = function (name, meta, source) { calls.push({ name: name, meta: meta, source: source }); };

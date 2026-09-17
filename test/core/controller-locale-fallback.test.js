@@ -102,7 +102,7 @@ describe('02 - behavioural replica — REAL Collection + REAL region data (#B100
             LOCALES.push({ lang: files[f].split(/\./)[0], content: require(path.join(dir, files[f])) });
         }
     }
-    var Collection = require('lib/collection');
+    var Collection = require(path.join(FW, 'lib/collection'));
 
     // Content discriminator — the sets are told apart by the DE row's
     // localized short name ('Germany' → en, 'Allemagne' → fr). Size stopped
@@ -300,7 +300,7 @@ describe('03 - country-locale lookup keys on isoShort (#B101)', function() {
 
     // ---- behavioural replica — REAL Collection + REAL region data ----------
 
-    var Collection = require('lib/collection');
+    var Collection = require(path.join(FW, 'lib/collection'));
     var EN_ROWS    = require(path.join(FW, 'core/locales/dist/region/en.json'));
 
     // #P39 realignment — the lookup executes the EXTRACTED shipped bytes of
