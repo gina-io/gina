@@ -48,6 +48,14 @@ const { Resolver } = require('node:dns').promises;
 
 var lib             = require('./../../lib') || require.cache[require.resolve('./../../lib')];
 
+// #B551 — relative require (not the bare `lib/inspector-redact` form the render
+// delegates use) so this module resolves without depending on the gna.js NODE_PATH
+// bootstrap, matching inspector-window-emit.js. Node caches by resolved path, so it
+// is the same module instance either way.
+var inspectorRedact = require('../../lib/inspector-redact');
+// Compiled once: the pattern set is a module constant.
+var _carryRedactPatterns = inspectorRedact.compile(inspectorRedact.DEFAULT_PATTERNS);
+
 /**
  * #A11Y3 — BCP-47 language tag for a framework-generated document.
  *
@@ -3639,6 +3647,44 @@ function SuperController(options) {
                 if ( typeof(requestParams.session) != 'undefined' ) {
                     delete requestParams.session;
                 }
+                // #B551 — credentials must not ride the redirect. `requestParams` is the
+                // request's own parsed container (for a POST, `req.post` verbatim), and the
+                // merge above does NOT clone — lib/merge's clone block is commented out —
+                // so this is a LIVE reference to that container. Filtering it in place
+                // would strip fields the application's own action may still be reading, so
+                // build a filtered COPY and carry that instead.
+                //
+                // Measured before this guard existed: a login POST put
+                // {"email":..,"password":"<plaintext>"} into the session store, where it
+                // survived the consuming GET on the authenticated path and was copied on
+                // into the halted-request stash on the failed one. A session-less bundle
+                // put the same payload in the redirect URL instead, i.e. into access logs,
+                // proxy logs, browser history and Referer.
+                //
+                // The key list is lib/inspector-redact's — the same maintained, tokenising
+                // matcher the Inspector already uses to mask these very fields in its own
+                // pane, so `apiKey`/`api_key` are covered while metadata keys such as
+                // `passwordRules` are deliberately not. Dropped rather than masked: a
+                // literal '[redacted]' arriving at the target reads like a real value.
+                //
+                // Logged at debug, NOT warn: a login POST always carries a password, so a
+                // warn here would fire on the success path of the commonest flow in the
+                // framework — the #B552 mistake, which this must not repeat.
+                var _carriedParams = {};
+                var _droppedCarry  = [];
+                var _carryKeys     = Object.keys(requestParams);
+                for (var _ck = 0; _ck < _carryKeys.length; _ck++) {
+                    if ( inspectorRedact.keyMatches(_carryKeys[_ck], _carryRedactPatterns) ) {
+                        _droppedCarry.push(_carryKeys[_ck]);
+                        continue;
+                    }
+                    _carriedParams[ _carryKeys[_ck] ] = requestParams[ _carryKeys[_ck] ];
+                }
+                if ( _droppedCarry.length > 0 ) {
+                    // Names only, never values — not carrying them is the whole point.
+                    console.debug('[ Controller ] redirect(): credential-class field(s) not carried across the redirect: '+ _droppedCarry.join(', '));
+                }
+                requestParams = _carriedParams;
                 // #B546 — shadow-proof own-property count; see the note in setOptions().
                 if ( typeof(requestParams) != 'undefined' && ownCount(requestParams) > 0 ) {
 
