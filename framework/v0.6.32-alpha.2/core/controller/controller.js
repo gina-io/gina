@@ -3740,6 +3740,15 @@ function SuperController(options) {
                         }
 
                         _applyNoStoreToRedirectJSON(); // #B75
+                        // #B550 — terminate through the compat response, as this method's
+                        // 303 exit already does (`res.writeHead` + `res.end` further down).
+                        // On HTTP/2 the JSON delegate would otherwise write straight to the
+                        // raw stream, calling neither, so a session rotated immediately
+                        // before the redirect never gets its new cookie to the client and
+                        // the client keeps presenting the old, already-replaced id. The
+                        // HTTP/1.1 path always took this branch, so this only makes the two
+                        // redirect exits agree.
+                        req._ginaForceCompatSend = true;
                         self.renderJSON(redirectObj);
                         return;
                     }
@@ -3758,6 +3767,8 @@ function SuperController(options) {
                 // Popin redirect
                 if ( isPopinContext ) {
                     _applyNoStoreToRedirectJSON(); // #B75
+                    // #B550 — same compat-path termination as the sibling XHR exit above.
+                    req._ginaForceCompatSend = true;
                     return self.renderJSON({
                         isXhrRedirect: true,
                         popin: {

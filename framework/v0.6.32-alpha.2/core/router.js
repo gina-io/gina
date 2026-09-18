@@ -629,6 +629,23 @@ function Router(env, scope) {
 
                 // if not persisted ... means that if you refresh the current page, `inheritedData` will be lost
                 delete userSession.inheritedData;
+
+                // #B550 — persist the consume. The `delete` above mutates the in-memory
+                // session only. On HTTP/2 the render that answers this request writes to
+                // the raw stream and never calls `res.end`, so a session middleware's
+                // save-on-end proxy does not run and the stored record keeps
+                // `inheritedData` for the session's whole lifetime — for a redirect that
+                // carried a credential-bearing body that is exactly the retention this
+                // one-shot delete exists to prevent. Guarded like the `login()` save sites
+                // above, and best-effort: failing to persist the consume must not fail the
+                // request the client actually asked for.
+                if ( typeof(request.session.save) == 'function' ) {
+                    request.session.save(function onInheritedDataConsumePersisted(saveErr) {
+                        if (saveErr) {
+                            console.warn('[ ROUTER ] could not persist the `inheritedData` consume: '+ (saveErr.message || saveErr));
+                        }
+                    });
+                }
             }
         }
 

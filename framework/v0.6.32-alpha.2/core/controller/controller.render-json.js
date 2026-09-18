@@ -176,7 +176,21 @@ module.exports = function renderJSON(jsonObj, deps) {
     var response    = local.res;
     var next        = local.next || null;
     var stream      = null;
-    if ( typeof(local.res.stream) != 'undefined') {
+    // #B550 — a caller may force the compat send path (the HTTP/1.1-shaped branch at the
+    // bottom of this file). On HTTP/2 the raw `stream.respond()` path never calls
+    // `res.writeHead` or `res.end`, so any middleware that installs itself by wrapping
+    // those response methods never runs: a session middleware that sets its cookie from an
+    // `on-headers` hook on `writeHead`, and persists from an `end` proxy, emits neither,
+    // and the `res.getHeaders()` fold further down then has no cookie to carry. Consumed
+    // once off the REQUEST (never the controller's closure — the redirect span it is
+    // set in is extracted and executed closure-free by its own tests), so only the
+    // flagged render is affected and every other
+    // HTTP/2 render stays byte-identical.
+    var _forceCompatSend = !!(local.req && local.req._ginaForceCompatSend === true);
+    if (_forceCompatSend) {
+        delete local.req._ginaForceCompatSend;
+    }
+    if ( typeof(local.res.stream) != 'undefined' && !_forceCompatSend ) {
         stream = local.res.stream
     }
     // #H10 — opt-in HTTP/2 response trailers (registered via self.sendTrailers()).
