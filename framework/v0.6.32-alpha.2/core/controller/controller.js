@@ -3570,11 +3570,35 @@ function SuperController(options) {
                 // backing up oldParams
                 var oldParams = local.req[originalMethod.toLowerCase()];
                 var requestParams = req[req.method.toLowerCase()] || {};
-                if ( typeof(requestParams) != 'undefined' && typeof(requestParams.error) != 'undefined' ) {
-                    var redirectError = requestParams.error;
-                    self.throwError(requestParams.error);
-                    return;
-                }
+                // #B559 — a request parameter must never steer control flow. This spot
+                // used to test the incoming params for a key named `error` and, when it
+                // was present, call throwError() with that raw client value and return
+                // instead of redirecting. `req[method]` is the CLIENT-populated
+                // container (server.js assigns `request.get = request.query`, and
+                // `request.post` from the parsed body), so ANY unauthenticated request
+                // to ANY route whose action redirects could force a 500 just by adding
+                // the key -- on both engines, with no route opt-in. An EMPTY value was
+                // worse: the empty string is falsy, so the #B44 late-call guard in
+                // throwError() mistook it for a call on an already-released response,
+                // logged "ignoring late error:" with nothing after the colon, and
+                // returned without writing anything -- leaving the request unanswered
+                // for as long as the client held the socket. Nothing reaps that:
+                // `server.timeout` defaults to 0, deliberately, so SSE and WebSockets
+                // are not killed by a whole-request clock.
+                //
+                // Deleted rather than hardened, because the key was never a supported
+                // convention: nothing in gina produces it, no test pinned it, and this
+                // method's own JSDoc never mentions it. The published guide teaches the
+                // OPPOSITE -- its canonical "carrying request data across the redirect"
+                // example assigns that key on the request and then redirects, which
+                // this gate turned into a 500. The line's own 2021 ancestor used this
+                // same condition to DELETE the key so it would not ride the target URL;
+                // the throw replaced the delete in 2022 inside an unrelated omnibus
+                // commit, with no comment and no mention in its message.
+                //
+                // With it gone the key is an ordinary parameter: it rides the redirect
+                // in `inheritedData` like every other one, which is what the guide
+                // documents. Nothing downstream treats it specially.
 
                 // #B353 — HEAD is a SAFE method: it is GET without a response body, so a
                 // redirect must treat it exactly as it treats GET. This gate exists to stop
@@ -3617,7 +3641,6 @@ function SuperController(options) {
                 }
                 // #B546 — shadow-proof own-property count; see the note in setOptions().
                 if ( typeof(requestParams) != 'undefined' && ownCount(requestParams) > 0 ) {
-                    //if ( typeof(requestParams.error) != 'undefined' )
 
                     // #B75 — a session-less bundle (no Session plugin mounted) must
                     // not deref req.session.user here (an XHR redirect carrying
