@@ -8557,10 +8557,30 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
         // `res.stack` / `res.message` / `res.fallback` in the errorObject build
         // (every bundle crashes there). So a released response would crash
         // (uncaughtException → SIGTERM) instead of being ignored. Bail up-front
-        // with the same no-op contract as the #B31 guard. The 1-arg shapes keep
-        // a truthy `res` (the Error/errorObj) here, so they are unaffected and
-        // still reach the #B31 guard after `res` is reassigned to `local.res` at
-        // the end of the errorObject build.
+        // with the same no-op contract as the #B31 guard. A 1-arg shape reaches
+        // here with a truthy `res` — either the caller's own Error/errorObj, or
+        // the placeholder substituted just below when the payload was falsy
+        // (#B560) — so 1-arg calls are unaffected and still reach the #B31 guard
+        // after `res` is reassigned to `local.res` at the end of that build.
+        // #B560 — a 1-arg call whose PAYLOAD is falsy is NOT a late call. For the
+        // `throwError(err)` shape the `res` slot holds the caller's payload, not
+        // the response, so '', null, undefined, 0 and false all reached the bail
+        // below and were swallowed: the request was never answered, and the only
+        // trace was a warning claiming the response had been released — it had
+        // not — which then named no error at all, because its interpolation reads
+        // `msg`/`code` and never `res`. Normalise such a payload to a minimal
+        // errorObj so the build below has something to read and a 500 is actually
+        // egressed.
+        //
+        // Deliberately NOT written as `arguments.length !== 1` on the bail itself:
+        // the errorObject build dereferences `res.error` / `res.message` without
+        // guarding, so letting a null payload reach it would turn a silent hang
+        // into a TypeError crash. Genuine 2-arg/3-arg late calls — where `res` IS
+        // an already-released `local.res` — and 0-arg calls are untouched and
+        // still bail below.
+        if ( arguments.length === 1 && !res ) {
+            res = { status: 500 };
+        }
         if ( !res ) {
             self.isProcessingError = true;
             var _b44LateError = msg || code;
