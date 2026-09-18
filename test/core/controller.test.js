@@ -1888,17 +1888,33 @@ describe('13 - throwError HTML branch: stack rendered only in local scope', func
 
     // ── (b) pure logic — inline replicas mirror the controller.js shapes ─────
 
+    // #B554 — mirrors the shipped `_escapeHtml` (controller.js, byte-identical
+    // copies in server.js + render-nunjucks.js). The replicas below must carry
+    // it because the shipped builder does: an unescaped replica would drift
+    // from the bytes it claims to mirror, and every assertion here would keep
+    // passing while the real page had changed. The escaping is transparent to
+    // this section's own claims — each compares two renders of the SAME input
+    // across scopes, which escaping leaves equal.
+    function _escapeHtml(value) {
+        return String(value == null ? '' : value)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
     // Mirrors L5294-5323 (msg-shape branch).
     function renderMsgShape(msg, eCode, isLocalScope) {
         var msgString = '<h1 class="status">Error '+ (msg.status || 500) +'.</h1>';
-        if (msg.title)   msgString += '<pre class="'+ eCode +' title">'+ msg.title +'</pre>';
-        if (msg.error)   msgString += '<pre class="'+ eCode +' message">'+ msg.error +'</pre>';
-        if (msg.message) msgString += '<pre class="'+ eCode +' message">'+ msg.message +'</pre>';
+        if (msg.title)   msgString += '<pre class="'+ eCode +' title">'+ _escapeHtml(msg.title) +'</pre>';
+        if (msg.error)   msgString += '<pre class="'+ eCode +' message">'+ _escapeHtml(msg.error) +'</pre>';
+        if (msg.message) msgString += '<pre class="'+ eCode +' message">'+ _escapeHtml(msg.message) +'</pre>';
         if (msg.stack && isLocalScope) {
             if (msg.error)   msg.stack = msg.stack.replace(msg.error, '');
             if (msg.message) msg.stack = msg.stack.replace(msg.message, '');
             msg.stack = msg.stack.replace('Error:', '').replace(' ', '');
-            msgString += '<pre class="'+ eCode +' stack">'+ msg.stack +'</pre>';
+            msgString += '<pre class="'+ eCode +' stack">'+ _escapeHtml(msg.stack) +'</pre>';
         }
         return msgString;
     }
@@ -1910,10 +1926,10 @@ describe('13 - throwError HTML branch: stack rendered only in local scope', func
         if (errorObject && typeof(errorObject.error)   != 'undefined') title   = errorObject.error;
         if (errorObject && typeof(errorObject.message) != 'undefined') message = errorObject.message;
         if (errorObject && typeof(errorObject.stack)   != 'undefined') stack   = errorObject.stack;
-        if (title)   msgString += '<pre class="'+ eCode +' title">'+ title +'</pre>';
-        if (message) msgString += '<pre class="'+ eCode +' message">'+ message +'</pre>';
+        if (title)   msgString += '<pre class="'+ eCode +' title">'+ _escapeHtml(title) +'</pre>';
+        if (message) msgString += '<pre class="'+ eCode +' message">'+ _escapeHtml(message) +'</pre>';
         if (stack && isLocalScope) {
-            msgString += '<pre class="'+ eCode +' stack">'+ stack +'</pre>';
+            msgString += '<pre class="'+ eCode +' stack">'+ _escapeHtml(stack) +'</pre>';
         }
         return msgString;
     }

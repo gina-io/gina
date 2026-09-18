@@ -386,6 +386,39 @@ var _mintErrorRef = function(supplied) {
 };
 
 /**
+ * #B554 — HTML-escape a value before it is concatenated into an error page.
+ *
+ * The inline fallback error pages are built by string concatenation, and the
+ * values they carry are caller-supplied: `redirect()` hands a request-supplied
+ * `?error=<value>` straight to `throwError`, so a crafted link reflected markup
+ * into the 500 page and executed it in the application's origin. Escaping at
+ * the emission point closes that permanently, wherever the value came from.
+ *
+ * Three byte-identical local copies exist — one each in
+ * `core/controller/controller.js`, `core/server.js` and
+ * `core/controller/controller.render-nunjucks.js` — the same deliberate
+ * duplication as `_mintErrorRef`: controller.js is evicted from require.cache
+ * per request in dev, so a shared home would churn, and the helper is six
+ * lines. `test/core/throwerror-html-escape-b554.test.js` pins the three copies
+ * identical.
+ *
+ * @private
+ * @param {*} value - the text to escape (null/undefined become '')
+ * @returns {string} the value with HTML-significant characters replaced
+ *
+ * @example
+ * _escapeHtml('a<b & "c"'); // 'a&lt;b &amp; &quot;c&quot;'
+ */
+var _escapeHtml = function(value) {
+    return String(value == null ? '' : value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+};
+
+/**
  * #CE1 — resolves the bundle's `server.transientErrors` block into its
  * effective values. Total: never throws, and tolerates any malformed shape
  * by falling back to the documented defaults (the boot-time warn pass in
@@ -8982,15 +9015,21 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
                 if ( typeof(msg) == 'object' ) {
 
                     if (msg.title) {
-                        msgString += '<pre class="'+ eCode +' title">'+ msg.title +'</pre>';
+                        // was: msgString += '<pre class="'+ eCode +' title">'+ msg.title +'</pre>';
+                        // #B554 — escape: this value is caller-supplied and reached the page as markup.
+                        msgString += '<pre class="'+ eCode +' title">'+ _escapeHtml(msg.title) +'</pre>';
                     }
 
                     if (msg.error) {
-                        msgString += '<pre class="'+ eCode +' message">'+ msg.error +'</pre>';
+                        // was: msgString += '<pre class="'+ eCode +' message">'+ msg.error +'</pre>';
+                        // #B554 — escape: this value is caller-supplied and reached the page as markup.
+                        msgString += '<pre class="'+ eCode +' message">'+ _escapeHtml(msg.error) +'</pre>';
                     }
 
                     if (msg.message) {
-                        msgString += '<pre class="'+ eCode +' message">'+ msg.message +'</pre>';
+                        // was: msgString += '<pre class="'+ eCode +' message">'+ msg.message +'</pre>';
+                        // #B554 — escape: this value is caller-supplied and reached the page as markup.
+                        msgString += '<pre class="'+ eCode +' message">'+ _escapeHtml(msg.message) +'</pre>';
                     }
 
                     // Fail-closed: render the stack frame only in local scope
@@ -9009,7 +9048,9 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
                         }
 
                         msg.stack = msg.stack.replace('Error:', '').replace(' ', '');
-                        msgString += '<pre class="'+ eCode +' stack">'+ msg.stack +'</pre>';
+                        // was: msgString += '<pre class="'+ eCode +' stack">'+ msg.stack +'</pre>';
+                        // #B554 — escape: this value is caller-supplied and reached the page as markup.
+                        msgString += '<pre class="'+ eCode +' stack">'+ _escapeHtml(msg.stack) +'</pre>';
                     }
 
                 } else {
@@ -9031,15 +9072,21 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
                     }
 
                     if (title) {
-                        msgString += '<pre class="'+ eCode +' title">'+ title +'</pre>';
+                        // was: msgString += '<pre class="'+ eCode +' title">'+ title +'</pre>';
+                        // #B554 — escape: this value is caller-supplied and reached the page as markup.
+                        msgString += '<pre class="'+ eCode +' title">'+ _escapeHtml(title) +'</pre>';
                     }
                     if (message) {
-                        msgString += '<pre class="'+ eCode +' message">'+ message +'</pre>';
+                        // was: msgString += '<pre class="'+ eCode +' message">'+ message +'</pre>';
+                        // #B554 — escape: this value is caller-supplied and reached the page as markup.
+                        msgString += '<pre class="'+ eCode +' message">'+ _escapeHtml(message) +'</pre>';
                     }
                     // Fail-closed: local scope only — same gate shape as the
                     // msg-shape site above.
                     if (stack && _isLocalScope) {
-                        msgString += '<pre class="'+ eCode +' stack">'+ stack +'</pre>';
+                        // was: msgString += '<pre class="'+ eCode +' stack">'+ stack +'</pre>';
+                        // #B554 — escape: this value is caller-supplied and reached the page as markup.
+                        msgString += '<pre class="'+ eCode +' stack">'+ _escapeHtml(stack) +'</pre>';
                     }
                 }
                 res.writeHead(code, { 'content-type': bundleConf.server.coreConfiguration.mime[ext]+'; charset='+ bundleConf.encoding } );

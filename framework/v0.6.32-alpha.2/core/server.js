@@ -107,6 +107,39 @@ var _mintErrorRef = function(supplied) {
     return crypto.randomBytes(3).toString('hex').toUpperCase();
 };
 
+/**
+ * #B554 — HTML-escape a value before it is concatenated into an error page.
+ *
+ * The inline fallback error pages are built by string concatenation, and the
+ * values they carry are caller-supplied: `redirect()` hands a request-supplied
+ * `?error=<value>` straight to `throwError`, so a crafted link reflected markup
+ * into the 500 page and executed it in the application's origin. Escaping at
+ * the emission point closes that permanently, wherever the value came from.
+ *
+ * Three byte-identical local copies exist — one each in
+ * `core/controller/controller.js`, `core/server.js` and
+ * `core/controller/controller.render-nunjucks.js` — the same deliberate
+ * duplication as `_mintErrorRef`: controller.js is evicted from require.cache
+ * per request in dev, so a shared home would churn, and the helper is six
+ * lines. `test/core/throwerror-html-escape-b554.test.js` pins the three copies
+ * identical.
+ *
+ * @private
+ * @param {*} value - the text to escape (null/undefined become '')
+ * @returns {string} the value with HTML-significant characters replaced
+ *
+ * @example
+ * _escapeHtml('a<b & "c"'); // 'a&lt;b &amp; &quot;c&quot;'
+ */
+var _escapeHtml = function(value) {
+    return String(value == null ? '' : value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+};
+
 
 // Lightweight debug logger — gated on LOG_LEVEL so zero cost in production.
 // Format mirrors lib/logger template: [date] [debug  ][gina:server] message
@@ -8665,7 +8698,13 @@ function Server(options) {
                     if ( isHtmlContent && !hasCustomErrorFile ) {
                         // #A11Y3 — the body previously opened two `<pre>` elements and closed
                         // only one, inside a document with no doctype, head, title or lang.
-                        stream.end(a11yErrorDocument(code, '<h1>Error '+ code +'.</h1><pre>'+ msg + '\n\nref '+ ref +'</pre>', local.request));
+                        // was: stream.end(a11yErrorDocument(code, '<h1>Error '+ code +'.</h1><pre>'+ msg + <ref tail unchanged>, local.request));
+                        // The ref tail is deliberately elided here: `error-ref.test.js` counts that
+                        // literal over RAW source and asserts exactly two occurrences (the two live
+                        // emit sites), so reproducing it in a comment would break that pin.
+                        // #B554 — escape: `msg` carries caller/request-derived text (its 404/403/500
+                        // callers build it from `req.url` / `:path`), previously emitted as markup.
+                        stream.end(a11yErrorDocument(code, '<h1>Error '+ code +'.</h1><pre>'+ _escapeHtml(msg) + '\n\nref '+ ref +'</pre>', local.request));
                     } else {
                         stream.end(JSON.stringify({
                             status  : code,
@@ -8679,7 +8718,13 @@ function Server(options) {
                         // #A11Y3 — this branch additionally closed `<body>` with an OPENING
                         // `<html>` tag, so the document never terminated. Same fix as the
                         // HTTP/2 branch above; both now share one document builder.
-                        res.end(a11yErrorDocument(code, '<h1>Error '+ code +'.</h1><pre>'+ msg + '\n\nref '+ ref +'</pre>', local.request));
+                        // was: res.end(a11yErrorDocument(code, '<h1>Error '+ code +'.</h1><pre>'+ msg + <ref tail unchanged>, local.request));
+                        // The ref tail is deliberately elided here: `error-ref.test.js` counts that
+                        // literal over RAW source and asserts exactly two occurrences (the two live
+                        // emit sites), so reproducing it in a comment would break that pin.
+                        // #B554 — escape: `msg` carries caller/request-derived text (its 404/403/500
+                        // callers build it from `req.url` / `:path`), previously emitted as markup.
+                        res.end(a11yErrorDocument(code, '<h1>Error '+ code +'.</h1><pre>'+ _escapeHtml(msg) + '\n\nref '+ ref +'</pre>', local.request));
                     } else {
                         res.end(JSON.stringify({
                             status  : code,

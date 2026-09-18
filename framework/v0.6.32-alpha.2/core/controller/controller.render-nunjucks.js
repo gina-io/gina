@@ -128,6 +128,40 @@ var inspectorRedact = require('lib/inspector-redact');
 var emitInspectorWindowData = require('./inspector-window-emit');
 // #RWATCH S3 — stale-release banner injector (server-side inline; gated inert).
 var releaseBanner = require('./release-banner');
+
+/**
+ * #B554 — HTML-escape a value before it is concatenated into an error page.
+ *
+ * The inline fallback error pages are built by string concatenation, and the
+ * values they carry are caller-supplied: `redirect()` hands a request-supplied
+ * `?error=<value>` straight to `throwError`, so a crafted link reflected markup
+ * into the 500 page and executed it in the application's origin. Escaping at
+ * the emission point closes that permanently, wherever the value came from.
+ *
+ * Three byte-identical local copies exist — one each in
+ * `core/controller/controller.js`, `core/server.js` and
+ * `core/controller/controller.render-nunjucks.js` — the same deliberate
+ * duplication as `_mintErrorRef`: controller.js is evicted from require.cache
+ * per request in dev, so a shared home would churn, and the helper is six
+ * lines. `test/core/throwerror-html-escape-b554.test.js` pins the three copies
+ * identical.
+ *
+ * @private
+ * @param {*} value - the text to escape (null/undefined become '')
+ * @returns {string} the value with HTML-significant characters replaced
+ *
+ * @example
+ * _escapeHtml('a<b & "c"'); // 'a&lt;b &amp; &quot;c&quot;'
+ */
+var _escapeHtml = function(value) {
+    return String(value == null ? '' : value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+};
+
 // Collection — small data-query helper used to filter the asset list when
 // rendering without a layout (mirrors render-swig.js:494-498). Fetched via
 // the lib registry so the dev-mode hot-reload evictions of `lib/index.js`
@@ -1248,25 +1282,34 @@ module.exports = async function renderNunjucks(userData, displayInspector, errOp
             : 'en';
 
         if (!_absErrTemplate || !fs.existsSync(_absErrTemplate)) {
-            html = '<!doctype html><html lang="' + _errLang + '"><head><title>Error ' + _errStatusCode + '</title></head>'
+            // was: html = '<!doctype html><html lang="' + _errLang + '"><head><title>Error ' + _errStatusCode + '</title></head>'
+            // #B554 — the status and the message text are both escaped in all three of these
+            // fallback documents: the status may be a caller-supplied value (#B466), and the
+            // texts carry a config path and a nunjucks render error that can quote template or
+            // request content. The two comments below are kept to ONE line each on purpose —
+            // `render-engine-dispatch.test.js` pins each message literal within a fixed number
+            // of characters of its anchor, and a longer note here pushes it out of that window.
+            html = '<!doctype html><html lang="' + _errLang + '"><head><title>Error ' + _escapeHtml(_errStatusCode) + '</title></head>'
                  + '<body><pre>[render-nunjucks] error template not found: '
-                 + (_absErrTemplate || '(unset)') + '</pre></body></html>';
+                 + _escapeHtml(_absErrTemplate || '(unset)') + '</pre></body></html>';
         } else {
             var _errSource = null;
             try {
                 _errSource = fs.readFileSync(_absErrTemplate, 'utf8');
             } catch (readErr) {
-                html = '<!doctype html><html lang="' + _errLang + '"><head><title>Error ' + _errStatusCode + '</title></head>'
+                // was: the same raw title + raw text — #B554, both escaped below.
+                html = '<!doctype html><html lang="' + _errLang + '"><head><title>Error ' + _escapeHtml(_errStatusCode) + '</title></head>'
                      + '<body><pre>[render-nunjucks] failed to read error template: '
-                     + (readErr.message || readErr) + '</pre></body></html>';
+                     + _escapeHtml(readErr.message || readErr) + '</pre></body></html>';
             }
             if (typeof _errSource === 'string') {
                 try {
                     html = env.renderString(_errSource, data);
                 } catch (renderErr) {
-                    html = '<!doctype html><html lang="' + _errLang + '"><head><title>Error ' + _errStatusCode + '</title></head>'
+                    // was: the same raw title + raw text — #B554, both escaped below.
+                    html = '<!doctype html><html lang="' + _errLang + '"><head><title>Error ' + _escapeHtml(_errStatusCode) + '</title></head>'
                          + '<body><pre>[render-nunjucks] error template render failed: '
-                         + (renderErr.message || renderErr) + '</pre></body></html>';
+                         + _escapeHtml(renderErr.message || renderErr) + '</pre></body></html>';
                 }
             }
         }
