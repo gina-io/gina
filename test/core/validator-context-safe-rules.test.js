@@ -155,10 +155,9 @@ describe('04 - format: the documented isDate chain works in BOTH contexts', func
         var o = outcome({ isDate: 'yyyy-mm-dd', format: 'isoDateTime' }, '2020-01-02');
         assert.equal(o.threw, false, 'must not throw: ' + (o.message || ''));
         assert.equal(o.isValid, true);
-        // The result payload is serialized (measured: data.f is an ISO string,
-        // not the Date — the Date lives on the ENGINE field's .value); assert
-        // the instant survives the round-trip, timezone-safe.
-        assert.equal(new Date(o.data.f).getTime(), new Date(2020, 0, 2).getTime());
+        // #B558: the payload is a calendar DATE, not an instant — the Date still
+        // lives on the ENGINE field's .value, which is what `format` consumes.
+        assert.equal(o.data.f, '2020-01-02');
     });
 
     it('CONTROL: the fluent idiom returns the formatted string server-side (Date.prototype.format IS installed)', function () {

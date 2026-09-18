@@ -2558,7 +2558,38 @@ function FormValidatorUtil(data, $fields, xhrOptions, fieldsSet, culture) {
                     ) {
                         date = new Date(NaN);
                     }
-                    this.value = local.data[this.name] = date;
+                    // #B558 (2026-09-18) — the FIELD keeps the Date, the PAYLOAD
+                    // takes a date-only string. A Date is the one normalised type
+                    // that does not round-trip through JSON: JSON.stringify calls
+                    // toISOString(), which yields a UTC INSTANT whose date part is
+                    // a day EARLIER for every positive UTC offset, so a client east
+                    // of UTC submitted the previous day (driven: Europe/Paris
+                    // '2026-09-18' -> '2026-09-17T22:00:00.000Z'). Silent, because
+                    // the instant is well-formed — only a reader that slices the
+                    // string sees it.
+                    //
+                    // The Date stays on this.value so `format()` and the #B48
+                    // chaining contract still work; only local.data (the submitted
+                    // payload) changes. The components are read back with the
+                    // Date's LOCAL getters, which the round-trip check above has
+                    // already proven equal to the parsed input, so no timezone
+                    // enters the written value at all.
+                    //
+                    // The shape is always `yyyy-mm-dd` regardless of the input
+                    // mask: gina's own introspection already publishes an isDate
+                    // field as {type:'string', format:'date'} (RFC 3339 full-date,
+                    // NOT date-time), and the mask governs INPUT parsing, not the
+                    // wire. An invalid date is left exactly as it was, so the
+                    // error path below still sees an Invalid Date object.
+                    // was: this.value = local.data[this.name] = date;
+                    this.value = date;
+                    if ( isNaN(date.getTime()) ) {
+                        local.data[this.name] = date;
+                    } else {
+                        local.data[this.name] = date.getFullYear()
+                            + '-' + ('0' + (date.getMonth() + 1)).slice(-2)
+                            + '-' + ('0' + date.getDate()).slice(-2);
+                    }
                 }
 
                 if ( /Invalid Date/i.test(date) || date instanceof Date === false ) {
