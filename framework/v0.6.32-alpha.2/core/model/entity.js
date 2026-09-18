@@ -93,6 +93,39 @@ var merge           = lib.merge;
 var modelUtil       = new lib.Model();
 
 /**
+ * #B555 — build the key an entity's singleton is registered under.
+ *
+ * The registry is a process-wide static bag on the exported constructor
+ * (`EntitySuper[<key>]`). It used to be keyed on the BARE class name, which is
+ * only unique within ONE model: every connector builds its entity classes from
+ * `models/<database>/entities/`, so two connectors of one bundle that produce a
+ * class of the same name — guaranteed when they share a `database`, and equally
+ * possible across two databases that each carry a `user.js` — landed on one
+ * slot. `init()` returns the registered instance when the slot is taken, which
+ * skips `setListeners()`, the only path to `modelUtil.updateModel()`; the model
+ * walked SECOND by the attach loop (connection-ready order) was therefore left
+ * with a bare `{ _connection, getConnection }` and no entities at all, silently
+ * and for the life of the process. Keying on (bundle, model, className) makes
+ * the slot as specific as the class it holds.
+ *
+ * Exposed as `EntitySuper.key` because one caller outside this file needs the
+ * same key: the `.sql`-generated prototype methods in the couchbase connector
+ * recover the singleton from the registry when called detached (#B11).
+ *
+ * @private
+ * @param {string} bundle    - owning bundle
+ * @param {string} model     - the connectors.json entry name (per-connector)
+ * @param {string} className - the entity class name the connector stamped
+ * @returns {string} the registry key
+ *
+ * @example
+ * _registryKey('api', 'main', 'User'); // 'api::main::User'
+ */
+var _registryKey = function(bundle, model, className) {
+    return String(bundle) + '::' + String(model) + '::' + String(className);
+};
+
+/**
  * @class EntitySuper
  * @constructor
  * @this {EntitySuper}
@@ -133,22 +166,37 @@ function EntitySuper(conn, caller, injected) {
     var caller          = caller || undefined;
     var isCacheless     = (process.env.NODE_ENV_IS_DEV == 'false') ? false : true;
 
+    /**
+     * #B555 — this entity's registry key for a class name of its OWN model.
+     *
+     * Every name this closure keys the registry with (`self.name`, `caller`,
+     * `callerName`, `entityName`) denotes a class of the same (bundle, model)
+     * pair, so one prefix covers all of them.
+     *
+     * @inner
+     * @param {string} className - an entity class name of this model
+     * @returns {string} the registry key
+     */
+    var rkey = function(className) {
+        return _registryKey(self.bundle, self.model, className);
+    };
+
     var init = function(conn, caller) {
 
         local.conn = conn;
 
-        if (!EntitySuper[self.name]) {
-            EntitySuper[self.name] = {}
+        if (!EntitySuper[rkey(self.name)]) {
+            EntitySuper[rkey(self.name)] = {}
         }
 
-        if ( !EntitySuper[self.name]._conn ) {
-            EntitySuper[self.name]._conn = conn;
+        if ( !EntitySuper[rkey(self.name)]._conn ) {
+            EntitySuper[rkey(self.name)]._conn = conn;
         }
 
-        if ( !EntitySuper[self.name].instance ) {
+        if ( !EntitySuper[rkey(self.name)].instance ) {
             return setListeners(caller)
         } else {
-            return EntitySuper[self.name].instance
+            return EntitySuper[rkey(self.name)].instance
         }
     }
 
@@ -169,13 +217,13 @@ function EntitySuper(conn, caller, injected) {
 
         var entity      = null;
 
-        if ( EntitySuper[self.name].initialized ) {
+        if ( EntitySuper[rkey(self.name)].initialized ) {
 
-            self.initialized = EntitySuper[self.name].initialized;
+            self.initialized = EntitySuper[rkey(self.name)].initialized;
             entity = self
 
         } else {
-            EntitySuper[self.name].initialized = true;
+            EntitySuper[rkey(self.name)].initialized = true;
             entity = self.getEntity(self.name)
         }
 
@@ -596,32 +644,32 @@ function EntitySuper(conn, caller, injected) {
         }
 
         if (caller) {
-            if ( !EntitySuper[caller].instance ) {
-                EntitySuper[caller].instance = {
+            if ( !EntitySuper[rkey(caller)].instance ) {
+                EntitySuper[rkey(caller)].instance = {
                     _relations: {}
                 }
             }
 
         } else {
-            if ( !EntitySuper[self.name].instance ) {
-                EntitySuper[self.name].instance = {
+            if ( !EntitySuper[rkey(self.name)].instance ) {
+                EntitySuper[rkey(self.name)].instance = {
                     _relations: {}
                 }
             }
         }
 
         if (caller) {
-            EntitySuper[caller].instance._relations[entity.name] = merge(EntitySuper[caller].instance._relations[entity.name], entity);
-            modelUtil.updateModel(self.bundle, self.model, entityName, EntitySuper[caller].instance._relations[entity.name] );
+            EntitySuper[rkey(caller)].instance._relations[entity.name] = merge(EntitySuper[rkey(caller)].instance._relations[entity.name], entity);
+            modelUtil.updateModel(self.bundle, self.model, entityName, EntitySuper[rkey(caller)].instance._relations[entity.name] );
 
-            self._relations[entity.name] = EntitySuper[caller].instance._relations[entity.name];
+            self._relations[entity.name] = EntitySuper[rkey(caller)].instance._relations[entity.name];
 
-            return EntitySuper[caller].instance._relations[entity.name]
+            return EntitySuper[rkey(caller)].instance._relations[entity.name]
         } else {
             modelUtil.updateModel(self.bundle, self.model, entityName, entity);
-            EntitySuper[self.name].instance = entity;
+            EntitySuper[rkey(self.name)].instance = entity;
 
-            return EntitySuper[self.name].instance
+            return EntitySuper[rkey(self.name)].instance
         }
     }
 
@@ -1014,32 +1062,32 @@ function EntitySuper(conn, caller, injected) {
                 throw new Error('no name defined for this Entity !!');
             } else { // imported
                 if ( callerName == entity.replace('Entity', '')) {
-                    if ( !EntitySuper[self.name].instance ) {
+                    if ( !EntitySuper[rkey(self.name)].instance ) {
                         return getModelEntity(self.bundle, self.model, entity, self.getConnection())
                     } else {
-                        return EntitySuper[self.name].instance
+                        return EntitySuper[rkey(self.name)].instance
                     }
 
-                } else if ( typeof(EntitySuper[callerName].instance) != 'undefined' && EntitySuper[callerName].instance._relations[entityName] ) {
-                    return EntitySuper[callerName].instance._relations[entityName]
+                } else if ( typeof(EntitySuper[rkey(callerName)].instance) != 'undefined' && EntitySuper[rkey(callerName)].instance._relations[entityName] ) {
+                    return EntitySuper[rkey(callerName)].instance._relations[entityName]
                 } else {
                     if ( typeof(modelUtil.entities[self.bundle][self.model][entity]) != 'function' ) {
                         throw new Error('Model entity not found: `'+ entity + '` while trying to call '+ callerName +'Entity.getEntity('+ entity +')');
                     }
 
                     // fixed on May 2019, 21st : need for `this.getEntity(...)` inside the model
-                    if (  typeof(EntitySuper[callerName].instance._relations[entityName]) == 'undefined' ) {
+                    if (  typeof(EntitySuper[rkey(callerName)].instance._relations[entityName]) == 'undefined' ) {
 
-                        if ( typeof(EntitySuper[entityName]) != 'undefined' && typeof(EntitySuper[entityName].instance) != 'undefined' ) {
+                        if ( typeof(EntitySuper[rkey(entityName)]) != 'undefined' && typeof(EntitySuper[rkey(entityName)].instance) != 'undefined' ) {
 
-                            EntitySuper[callerName].instance._relations[entityName] = new modelUtil.entities[self.bundle][self.model][entity](self.getConnection(), callerName)
+                            EntitySuper[rkey(callerName)].instance._relations[entityName] = new modelUtil.entities[self.bundle][self.model][entity](self.getConnection(), callerName)
                         } else { // regular case
                             new modelUtil.entities[self.bundle][self.model][entity](self.getConnection(), callerName);
                         }
                     }
 
 
-                    return EntitySuper[callerName].instance._relations[entityName]
+                    return EntitySuper[rkey(callerName)].instance._relations[entityName]
                 }
             }
 
@@ -1049,7 +1097,7 @@ function EntitySuper(conn, caller, injected) {
     }
 
     this.setInstance = function(instance) {
-        EntitySuper[self.name].instance = instance
+        EntitySuper[rkey(self.name)].instance = instance
     }
 
 
@@ -1057,4 +1105,7 @@ function EntitySuper(conn, caller, injected) {
 };
 
 EntitySuper = inherits(EntitySuper, EventEmitter);
+// #B555 — set AFTER inherits(): it returns a NEW composed constructor, so a
+// static assigned to the original would not survive onto module.exports.
+EntitySuper.key = _registryKey;
 module.exports = EntitySuper

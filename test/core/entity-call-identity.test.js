@@ -135,7 +135,8 @@ function build(body, injected) {
         "return function getRecord(key) { var ent = REG['" + tag + "']; var T = '" + tag + "Ent#getRecord'; " + body + " };")(REG, promisify);
     mu.setConnection('bundle_' + name, 'model_' + name, null);
     mu.setModelEntity('bundle_' + name, 'model_' + name, name + 'Entity', E);
-    EntitySuper[name] = { initialized: true };
+    // #B555 — keyed on (bundle, model, className) now, via EntitySuper.key().
+    EntitySuper[EntitySuper.key('bundle_' + name, 'model_' + name, name)] = { initialized: true };
     var inst = new E(null, null, injected || null);
     REG[tag] = inst;
     return { inst: inst, T: tag + 'Ent#getRecord', tag: tag };

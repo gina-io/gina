@@ -42,6 +42,64 @@ var SERVICE_CONNECTOR_TYPES = { ai: true };
  * @author      Rhinostone <contact@gina.io>
  * @api public
  */
+/**
+ * #B555 — the key `updateModel()` writes an entity class under on its model.
+ *
+ * `core/model/entity.js` lowercases the first character of the class name and
+ * appends `Entity` when absent, so class `User` is reachable as
+ * `getModel('<connector>').userEntity` (plus a suffix-less `user` alias).
+ *
+ * @private
+ * @param {string} className - the entity class name the connector stamped
+ * @returns {string} the model key
+ *
+ * @example
+ * _expectedEntityKey('User');       // 'userEntity'
+ * _expectedEntityKey('UserEntity'); // 'userEntity'
+ */
+var _expectedEntityKey = function(className) {
+    var key = className.substring(0, 1).toLowerCase() + className.substring(1);
+    return ( /Entity$/.test(key) ) ? key : key + 'Entity';
+};
+
+/**
+ * #B555 — name every declared entity class that did NOT reach its model.
+ *
+ * Attaching happens as a side effect of constructing the entity: only
+ * `setListeners()` calls `modelUtil.updateModel()`, and the entity registry's
+ * singleton short-circuit skips it. Before #B555 that short-circuit fired
+ * whenever two connectors of one bundle declared a class of the same name, and
+ * the loser's model was served with no entities at all — silently, which is the
+ * part that made it expensive. This turns that silence into a boot failure.
+ *
+ * An entity that sets `hasOwnEvents` opts out of the event wiring, and
+ * `setListeners()` returns before `updateModel()` for it, so it is legitimately
+ * absent and must not be reported. It is identified from the instance rather
+ * than the class because the flag is read off the constructed entity.
+ *
+ * @private
+ * @param {object} modelObject     - `self.models[bundle][connector]`
+ * @param {object} entitiesManager - the connector's class map
+ * @param {object} instances       - className -> constructed instance
+ * @returns {Array<string>} class names with no model entry (empty when healthy)
+ *
+ * @example
+ * _unattachedEntities({ userEntity: {} }, { User: fn, Order: fn }, {}); // ['Order']
+ */
+var _unattachedEntities = function(modelObject, entitiesManager, instances) {
+    var missing = [];
+    for (var className in entitiesManager) {
+        var instance = instances ? instances[className] : null;
+        if ( instance && instance.hasOwnEvents ) {
+            continue;
+        }
+        if ( !modelObject || !modelObject[ _expectedEntityKey(className) ] ) {
+            missing.push(className);
+        }
+    }
+    return missing;
+};
+
 function ModelUtil() {
     var self        = this;
     var cacheless   = (process.env.NODE_ENV_IS_DEV == 'false') ? false : true;
@@ -340,8 +398,35 @@ function ModelUtil() {
                                 }
 
                                 // step 2: creating entities instances
+                                // #B555 — the instances are retained: attaching is a SIDE EFFECT
+                                // of construction, so the only way to know a class reached its
+                                // model is to look afterwards, and `hasOwnEvents` (a legitimate
+                                // opt-out) is readable only off the instance.
+                                var nttInstances = {};
                                 for (var nttClass in entitiesManager) {
-                                    new entitiesManager[nttClass](conn);
+                                    nttInstances[nttClass] = new entitiesManager[nttClass](conn);
+                                }
+
+                                // #B555 — fail fast on a declared-but-unattached entity. This
+                                // used to pass silently: the bundle listened and served, and
+                                // every call on the missing entity failed at request time with a
+                                // TypeError naming nothing. Fail-fast matches #B57 and every
+                                // other model-init failure path.
+                                var nttMissing = _unattachedEntities(self.models[bundle][name], entitiesManager, nttInstances);
+                                if ( nttMissing.length > 0 ) {
+                                    var nttErr = '[ MODEL ][ '+ bundle +' ][ '+ name +' ] '
+                                        + nttMissing.length +' entity class(es) declared but not attached to this model: '
+                                        + nttMissing.join(', ') +' — aborting boot.\n'
+                                        + 'Their classes are registered, but `getModel(\''+ name +'\')` carries no '
+                                        + nttMissing.map(_expectedEntityKey).join(', ') +', so every call on them would '
+                                        + 'fail at request time.\n'
+                                        + 'Most likely another connector in this bundle resolves to the same '
+                                        + '`models/<database>/entities` directory and declares the same class name(s). '
+                                        + 'Give each connector its own entity directory, or rename the colliding class.';
+                                    console.emerg(nttErr);
+                                    // boot-exit flush: process.exit() truncates async stdout on a pipe
+                                    fs.writeSync(2, nttErr + '\n');
+                                    process.exit(1);
                                 }
 
                             }

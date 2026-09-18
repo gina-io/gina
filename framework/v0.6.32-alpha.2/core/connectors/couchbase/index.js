@@ -628,11 +628,17 @@ function Couchbase(conn, infos) {
                     // #B11 fix: recover the entity singleton when called via util.promisify
                     // without .bind(). In strict mode `this` is undefined when a prototype
                     // method is detached from its object. Fall back to the singleton stored
-                    // at EntitySuperClass[CapitalizedName].instance (set by entity.js:427).
+                    // at the entity registry (set by entity.js setListeners).
+                    // #B555 — the registry is keyed on (bundle, model, className), not on the
+                    // bare class name: two connectors of one bundle can declare the same class
+                    // name, and a bare key silently handed the second one the first's instance.
+                    // This method is detached (`this` is undefined), so the pair comes from the
+                    // connector's own `infos` rather than from the instance.
                     // This makes `util.promisify(entity.method)` work transparently without
                     // requiring callers to add .bind(entity) everywhere.
                     var _capitalizedName = entityName.substring(0,1).toUpperCase() + entityName.substring(1);
-                    var self = this || (EntitySuperClass[_capitalizedName] && EntitySuperClass[_capitalizedName].instance) || null;
+                    var _registryKey = EntitySuperClass.key(infos.bundle, infos.model, _capitalizedName);
+                    var self = this || (EntitySuperClass[_registryKey] && EntitySuperClass[_registryKey].instance) || null;
                     var key     = null
                         , index = null
                         , i     = null
@@ -641,7 +647,7 @@ function Couchbase(conn, infos) {
                         , _mainCallback = null;
 
                     if (!self) {
-                        var _ctxErr = new TypeError('[entity] ' + entityName + '#' + name + '() called without context: `this` is undefined and no singleton found at EntitySuperClass[' + _capitalizedName + '].instance');
+                        var _ctxErr = new TypeError('[entity] ' + entityName + '#' + name + '() called without context: `this` is undefined and no singleton found at EntitySuperClass[' + _registryKey + '].instance');
                         var _cbArg = (args.length > 0 && typeof args[args.length - 1] === 'function') ? args[args.length - 1] : null;
                         if (_cbArg) { return _cbArg(_ctxErr); }
                         throw _ctxErr;

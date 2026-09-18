@@ -110,7 +110,8 @@ mu.setConnection('bundle_m2_promise', 'model_m2_promise', null);
 mu.setModelEntity('bundle_m2_promise', 'model_m2_promise', 'M2PromiseEntity', M2PromiseEntity);
 
 // Pre-set so setListeners wraps on self directly, populating _triggers.
-EntitySuper['M2Promise'] = { initialized: true };
+// #B555 — keyed on (bundle, model, className) now, via EntitySuper.key().
+EntitySuper[EntitySuper.key('bundle_m2_promise', 'model_m2_promise', 'M2Promise')] = { initialized: true };
 var instA = new M2PromiseEntity(null, null);
 
 
@@ -131,7 +132,8 @@ M2Firing2AEntity.prototype.findOne = function findOne(id) {
 mu.setConnection('bundle_m2_f2a', 'model_m2_f2a', null);
 mu.setModelEntity('bundle_m2_f2a', 'model_m2_f2a', 'M2Firing2AEntity', M2Firing2AEntity);
 
-EntitySuper['M2Firing2A'] = { initialized: true };
+// #B555 — keyed on (bundle, model, className) now, via EntitySuper.key().
+EntitySuper[EntitySuper.key('bundle_m2_f2a', 'model_m2_f2a', 'M2Firing2A')] = { initialized: true };
 var instB = new M2Firing2AEntity(null, null);
 
 
@@ -152,7 +154,8 @@ M2Firing2BEntity.prototype.findOne = function findOne(id) {
 mu.setConnection('bundle_m2_f2b', 'model_m2_f2b', null);
 mu.setModelEntity('bundle_m2_f2b', 'model_m2_f2b', 'M2Firing2BEntity', M2Firing2BEntity);
 
-EntitySuper['M2Firing2B'] = { initialized: true };
+// #B555 — keyed on (bundle, model, className) now, via EntitySuper.key().
+EntitySuper[EntitySuper.key('bundle_m2_f2b', 'model_m2_f2b', 'M2Firing2B')] = { initialized: true };
 var instC = new M2Firing2BEntity(null, null);
 
 
@@ -179,7 +182,8 @@ M2ConcurrentEntity.prototype.findOne = function findOne(id) {
 mu.setConnection('bundle_m2_concurrent', 'model_m2_concurrent', null);
 mu.setModelEntity('bundle_m2_concurrent', 'model_m2_concurrent', 'M2ConcurrentEntity', M2ConcurrentEntity);
 
-EntitySuper['M2Concurrent'] = { initialized: true };
+// #B555 — keyed on (bundle, model, className) now, via EntitySuper.key().
+EntitySuper[EntitySuper.key('bundle_m2_concurrent', 'model_m2_concurrent', 'M2Concurrent')] = { initialized: true };
 var instD = new M2ConcurrentEntity(null, null);
 
 
