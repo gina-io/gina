@@ -16,13 +16,65 @@
  * @api public
  * */
 
+/**
+ * Strip `/* ... *\/` block comments from a JSON-with-comments source, linearly.
+ *
+ * Three states — default, inside a `"..."` string (honouring `\` escapes), and
+ * inside a block comment. A `/*` inside a string value is data and is kept; a
+ * `/*` anywhere else opens a block wherever it sits — including inside a `//`
+ * line comment, which the regex this replaces also treated as an opener and
+ * which a consumer configuration in the wild relies on. An unterminated block
+ * is kept verbatim, as the regex left it, so a malformed file fails to parse
+ * the way it did. Line comments are not this function's job: `requireJSON`
+ * strips them per line afterwards, unchanged.
+ *
+ * Replaces `/(\/\*([^*]|[\r\n]|(\*+([^*\/]|[\r\n])))*\*+\/)/g` (#B568): its
+ * `[^*]` and `[\r\n]` alternatives both match a newline, so against a `/*`
+ * with no `*\/` after it — a glob or certificate path in a string value — the
+ * match backtracks about 2x per LF line and 4x per CRLF line of tail, and a
+ * bundle whose config carried such a path a few dozen lines from the bottom
+ * hung at boot until the CLI's start-wait killed it. Non-newline characters
+ * are unambiguous to that regex, which is why a short tail never showed it.
+ *
+ * @private
+ * @param {string} s - raw file content
+ * @returns {string} the content with block comments removed
+ *
+ * @example
+ * stripBlockComments('/** doc *\/\n{ "ca": "/x/*.pem" }')
+ * // → '\n{ "ca": "/x/*.pem" }'   (the in-string /* is data)
+ */
+function stripBlockComments(s) {
+    var out = [], i = 0, n = s.length, st = 0, mark = 0; // st: 0 default, 1 string, 2 block
+    while (i < n) {
+        var c = s.charCodeAt(i);
+        if (st === 0) {
+            if (c === 34) { st = 1; i++; }                                                    // "
+            else if (c === 47 && s.charCodeAt(i + 1) === 42) { out.push(s.slice(mark, i)); mark = i; st = 2; i += 2; } // /*
+            else { i++; }
+        } else if (st === 1) {
+            if (c === 92) { i += 2; }                                                         // \x — skip the escaped char
+            else if (c === 34) { st = 0; i++; }
+            else { i++; }
+        } else {
+            if (c === 42 && s.charCodeAt(i + 1) === 47) { st = 0; i += 2; mark = i; }        // */ — drop [mark, i)
+            else { i++; }
+        }
+    }
+    out.push(s.slice(mark)); // trailing text — or an unterminated block, kept verbatim
+    return out.join('');
+}
+
 module.exports = function(){
 
     // `JSON.clone()` is a prototype defined in `GINA_DIR//lib/prototypes.json_clone`
 
     /**
-     * Load a JSON file, stripping JS-style block (`/* ... *\/`) and line (`// ...`)
-     * comments before parsing. Trailing commas before `}`/`]` are tolerated with
+     * Load a JSON file, stripping line (`// ...`) comments and — when the file
+     * carries a `/**` docblock — block (`/* ... *\/`) comments before parsing.
+     * Block stripping is a linear, string-aware scan, so a `/*` inside a string
+     * value is data and survives (#B568). Trailing commas before `}`/`]` are
+     * tolerated with
      * a warning. Line-comment stripping is per-line on the leftmost `//`: when
      * that `//` is preceded by `:` (URL protocol), `"` (inside a string value),
      * or `\` (escape), the entire line is treated as data and left alone — so
@@ -69,9 +121,10 @@ module.exports = function(){
         }
 
 
-        /** block style comments */
+        /** block style comments — a linear, string-aware scan behind the same
+         *  `/**` gate the regex had: a file without a docblock is untouched (#B568) */
         if ( /\/\*\*/.test(jsonStr) ) {
-            jsonStr   = jsonStr.replace(/(\/\*([^*]|[\r\n]|(\*+([^*\/]|[\r\n])))*\*+\/)/g, '');
+            jsonStr = stripBlockComments(jsonStr);
         }
 
         // line style comments — per-line, leftmost `//` only. When the leftmost

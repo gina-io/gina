@@ -79,7 +79,7 @@ Covers context helpers (`setContext`, `getContext`, `joinContext`, `resetContext
 
 ```javascript
 _(path, isAbsolute)          // PathObject — resolves paths, normalises separators
-requireJSON(path)            // JSON require with caching
+requireJSON(path)            // JSON-with-comments loader (// always; /* */ when the file has a /** docblock; linear, string-aware since #B568). No caching: every call re-reads the file
 getPath(name)                // Get named path ('gina', 'bundle', 'project', ...)
 setPath(name, pathObj)       // Register named path
 getContext(key)              // Global key-value store (survives require.cache eviction)

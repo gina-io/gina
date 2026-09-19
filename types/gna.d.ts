@@ -62,8 +62,9 @@ interface GinaExports {
 
     // JSON helper
     /**
-     * Read a JSON file, strip `//` and `/* ... *\/` comments, tolerate trailing commas, and
-     * return the parsed object.
+     * Read a JSON file, strip `//` line comments and — when the file carries a `/**` docblock —
+     * `/* ... *\/` block comments (a linear, string-aware scan: a `/*` inside a string value is
+     * data), tolerate trailing commas, and return the parsed object.
      */
     requireJSON: typeof globalThis.requireJSON;
 
