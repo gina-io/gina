@@ -278,6 +278,7 @@ describe('07 - ETag + Last-Modified are set on production 200 responses', functi
         // Region: from the last X-SourceMap assignment to the completeHeaders call that follows.
         var xSourceMapIdx = src.lastIndexOf("header['X-SourceMap']");
         var regionEnd     = src.indexOf('header  = completeHeaders(header', xSourceMapIdx);
+        assert.ok(regionEnd > -1, 'the completeHeaders end anchor moved - this pin would slice to end of file');
         var region        = src.slice(xSourceMapIdx, regionEnd);
         assert.ok(
             /header\['last-modified'\]\s*=\s*lastModified/.test(region),
@@ -292,6 +293,7 @@ describe('07 - ETag + Last-Modified are set on production 200 responses', functi
     it('HTTP/2 ETag + Last-Modified are in the else branch (not inside isCacheless dev block)', function() {
         var xSourceMapIdx   = src.lastIndexOf("header['X-SourceMap']");
         var regionEnd       = src.indexOf('header  = completeHeaders(header', xSourceMapIdx);
+        assert.ok(regionEnd > -1, 'the completeHeaders end anchor moved - this pin would slice to end of file');
         var region          = src.slice(xSourceMapIdx, regionEnd);
         // The closing } of the inner source-map if must come before last-modified
         var firstBrace      = region.indexOf('}');
@@ -305,6 +307,7 @@ describe('07 - ETag + Last-Modified are set on production 200 responses', functi
     it('HTTP/1.x production writeHead(200) includes last-modified and etag', function() {
         // Locate the HTTP/1.x X-SourceMap setHeader call, then the else branch that follows.
         var xSourceMapH1Idx = src.lastIndexOf('response.setHeader("X-SourceMap"');
+        assert.ok(xSourceMapH1Idx > -1, 'the HTTP/1.x X-SourceMap anchor moved - indexOf would restart at 0 and select the wrong block');
         var elseIdx         = src.indexOf('} else {', xSourceMapH1Idx);
         var regionEnd       = src.indexOf('\n\n', elseIdx + 10);
         var region          = src.slice(elseIdx, regionEnd);
@@ -320,6 +323,7 @@ describe('07 - ETag + Last-Modified are set on production 200 responses', functi
 
     it('HTTP/1.x ETag + Last-Modified are in the else branch (not in the dev writeHead)', function() {
         var xSourceMapH1Idx = src.lastIndexOf('response.setHeader("X-SourceMap"');
+        assert.ok(xSourceMapH1Idx > -1, 'the HTTP/1.x X-SourceMap anchor moved - indexOf would restart at 0 and select the wrong block');
         var devWriteHeadIdx = src.indexOf("'cache-control': 'no-cache, no-store, must-revalidate'", xSourceMapH1Idx);
         var elseIdx         = src.indexOf('} else {', xSourceMapH1Idx);
         // The else branch (with last-modified/etag) must appear after the dev writeHead block
