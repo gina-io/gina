@@ -261,10 +261,10 @@ module.exports = function createEmbeddedMetaStore(dbPath) {
                     // corrupt binary payloads) is refused to NULL.
                     ( meta.data instanceof Uint8Array ) ? meta.data : null
                 );
-                fn(null, meta);
             } catch (err) {
-                fn(err);
+                return fn(err);
             }
+            fn(null, meta);
         },
 
         /**
@@ -314,12 +314,13 @@ module.exports = function createEmbeddedMetaStore(dbPath) {
          */
         remove: function(key, fn) {
             if (typeof fn !== 'function') fn = noop;
+            var res;
             try {
-                var res = stmtDel.run(key);
-                fn(null, res.changes > 0);
+                res = stmtDel.run(key);
             } catch (err) {
-                fn(err);
+                return fn(err);
             }
+            fn(null, res.changes > 0);
         },
 
         /**
@@ -346,11 +347,12 @@ module.exports = function createEmbeddedMetaStore(dbPath) {
         acquireRef: function(key, meta, fn) {
             if (typeof fn !== 'function') fn = noop;
             meta = meta || {};
+            var out;
             try {
                 var r = stmtIncr.run(key);
                 if ( r.changes === 1 ) {
                     var row = stmtRefs.get(key);
-                    return fn(null, {
+                    out = {
                         created : false,
                         refs    : row.refs,
                         meta    : {
@@ -360,23 +362,25 @@ module.exports = function createEmbeddedMetaStore(dbPath) {
                             createdAt    : row.created_at,
                             refs         : row.refs
                         }
-                    });
+                    };
+                } else {
+                    stmtInsRef.run(
+                        key,
+                        (typeof meta.originalName === 'string') ? meta.originalName : null,
+                        (typeof meta.contentType === 'string') ? meta.contentType : null,
+                        (typeof meta.size === 'number') ? meta.size : null,
+                        (typeof meta.createdAt === 'number') ? meta.createdAt : Date.now(),
+                        // same binary-safety rule as set(): a Buffer IS a
+                        // Uint8Array and binds as BLOB; anything else is refused
+                        // to NULL rather than utf8-coerced.
+                        ( meta.data instanceof Uint8Array ) ? meta.data : null
+                    );
+                    out = { created: true, refs: 1, meta: meta };
                 }
-                stmtInsRef.run(
-                    key,
-                    (typeof meta.originalName === 'string') ? meta.originalName : null,
-                    (typeof meta.contentType === 'string') ? meta.contentType : null,
-                    (typeof meta.size === 'number') ? meta.size : null,
-                    (typeof meta.createdAt === 'number') ? meta.createdAt : Date.now(),
-                    // same binary-safety rule as set(): a Buffer IS a
-                    // Uint8Array and binds as BLOB; anything else is refused
-                    // to NULL rather than utf8-coerced.
-                    ( meta.data instanceof Uint8Array ) ? meta.data : null
-                );
-                fn(null, { created: true, refs: 1, meta: meta });
             } catch (err) {
-                fn(err);
+                return fn(err);
             }
+            fn(null, out);
         },
 
         /**
@@ -395,20 +399,23 @@ module.exports = function createEmbeddedMetaStore(dbPath) {
          */
         releaseRef: function(key, fn) {
             if (typeof fn !== 'function') fn = noop;
+            var out;
             try {
                 var row = stmtRefs.get(key);
                 if ( !row || typeof row.refs !== 'number' || row.refs < 1 ) {
-                    return fn(null, { existed: false, refs: ( row && typeof row.refs === 'number' ) ? row.refs : 0 });
+                    out = { existed: false, refs: ( row && typeof row.refs === 'number' ) ? row.refs : 0 };
+                } else {
+                    var next = row.refs - 1;
+                    // zero_at is non-null exactly when refs === 0 (the invariant
+                    // the typedef states) — writing null on a >0 decrement keeps
+                    // it without a second statement.
+                    stmtDecr.run(next, ( next === 0 ) ? Date.now() : null, key);
+                    out = { existed: true, refs: next };
                 }
-                var next = row.refs - 1;
-                // zero_at is non-null exactly when refs === 0 (the invariant
-                // the typedef states) — writing null on a >0 decrement keeps
-                // it without a second statement.
-                stmtDecr.run(next, ( next === 0 ) ? Date.now() : null, key);
-                fn(null, { existed: true, refs: next });
             } catch (err) {
-                fn(err);
+                return fn(err);
             }
+            fn(null, out);
         },
 
         /**
@@ -424,14 +431,14 @@ module.exports = function createEmbeddedMetaStore(dbPath) {
          */
         listZeroRefs: function(olderThanMs, limit, fn) {
             if (typeof fn !== 'function') fn = noop;
+            var keys = [];
             try {
                 var rows = stmtZero.all(olderThanMs, limit);
-                var keys = [];
                 for (var i = 0; i < rows.length; i++) { keys.push(rows[i].key); }
-                fn(null, keys);
             } catch (err) {
-                fn(err);
+                return fn(err);
             }
+            fn(null, keys);
         },
 
         /**
@@ -446,12 +453,13 @@ module.exports = function createEmbeddedMetaStore(dbPath) {
          */
         removeIfZero: function(key, fn) {
             if (typeof fn !== 'function') fn = noop;
+            var res;
             try {
-                var res = stmtRmZ.run(key);
-                fn(null, res.changes > 0);
+                res = stmtRmZ.run(key);
             } catch (err) {
-                fn(err);
+                return fn(err);
             }
+            fn(null, res.changes > 0);
         },
 
         /**
@@ -495,14 +503,14 @@ module.exports = function createEmbeddedMetaStore(dbPath) {
          */
         listKeys: function(afterKey, limit, fn) {
             if (typeof fn !== 'function') fn = noop;
+            var keys = [];
             try {
                 var rows = stmtKeys.all(( typeof afterKey === 'string' ) ? afterKey : '', limit);
-                var keys = [];
                 for (var i = 0; i < rows.length; i++) { keys.push(rows[i].key); }
-                fn(null, keys);
             } catch (err) {
-                fn(err);
+                return fn(err);
             }
+            fn(null, keys);
         },
 
         /**

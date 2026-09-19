@@ -470,7 +470,13 @@ describe('08 - verify (both classes, age gates, fix asymmetry)', function () {
 
     it('reports an AGED row-without-file with refs; a FRESH row is age-gated out (the acquire→rename window)', function (t, done) {
         var root = mkRoot();
-        var driver = freshCas(root, { sweepGrace: 60 });
+        // #B565 — the grace is in MILLISECONDS (`sweepGraceMs = conf.sweepGrace`
+        // verbatim), and it gates r2's freshness against wall-clock time elapsed
+        // between its put() and verify(). At 60 ms that margin measured ~6-21 ms
+        // on an idle machine and vanished under load, so verify() CORRECTLY
+        // reported both rows and the assertion below failed intermittently.
+        // r1 is backdated 10 s, so it stays aged for any grace below that.
+        var driver = freshCas(root, { sweepGrace: 5000 });
         put(driver, Buffer.alloc(64, 71), function (e1, r1) {
             assert.ifError(e1);
             fs.unlinkSync(nodePath.join(root, r1.key));
