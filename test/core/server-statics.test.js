@@ -22,10 +22,11 @@ describe('01 - HTTP/2 dev path: cache headers cover all static types', function(
     before(function() {
         src = fs.readFileSync(SOURCE, 'utf8');
 
-        // There are two HTTP/2 isCacheless blocks that contain header['X-SourceMap']:
-        //  1. onHttp2Stream push-stream path (~line 1630)
-        //  2. handleStatics direct-response path (~line 2046)
-        // Both had the same bug; both were fixed. Test the handleStatics path (last occurrence).
+        // One HTTP/2 isCacheless block contains header['X-SourceMap']: the handleStatics
+        // direct-response path. The onHttp2Stream push-stream block that also carried it
+        // was removed with the listener in 14359ee6a (#B566), so the literal now occurs
+        // exactly once. lastIndexOf is kept deliberately: it is a no-op on one occurrence
+        // and still selects handleStatics if an earlier one is ever reintroduced.
         // The HTTP/1.x paths use response.setHeader("X-SourceMap") — different syntax, excluded.
         var xSourceMapIdx  = src.lastIndexOf("header['X-SourceMap']");
         var isCachelessIdx = src.lastIndexOf('if (isCacheless)', xSourceMapIdx);
