@@ -532,6 +532,22 @@ describe('09 - engine wiring: both engines, and the gate is placed correctly', f
         });
     });
 
+    it('the status payload names the process that answered: pid + hostname, on both engines', function () {
+        // The override is per process — it lives on engine.instance._maintenance and
+        // is never written or broadcast — so an operator fanning the POST out over
+        // replicas needs to read back WHICH process applied it. Pin both fields on
+        // both engines inside the _mtStatus builder; the hasBypassKey check proves
+        // the slice reaches the end of the payload rather than passing on a stub.
+        [['server.js', server], ['server.isaac.js', isaac]].forEach(function (pair) {
+            var at  = pair[1].indexOf('var _mtStatus = function()');
+            assert.ok(at > -1, pair[0] + ' must build the status payload in _mtStatus');
+            var seg = pair[1].slice(at, at + 1500);
+            assert.ok(/pid\s*:\s*process\.pid/.test(seg),          pair[0] + ' payload must carry pid');
+            assert.ok(/hostname\s*:\s*os\.hostname\(\)/.test(seg), pair[0] + ' payload must carry hostname');
+            assert.ok(seg.indexOf('hasBypassKey') > -1,           pair[0] + ' the slice must reach the end of the payload');
+        });
+    });
+
     it('server.js boot-resolves the state onto the engine instance (one server = one bundle)', function () {
         assert.ok(server.indexOf('engine.instance._maintenance') > -1);
         assert.ok(server.indexOf('lib.maintenance.resolveConf') > -1);

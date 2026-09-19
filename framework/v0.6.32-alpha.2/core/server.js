@@ -4999,6 +4999,13 @@ function Server(options) {
                     var _rtLive = !!( _rt && !( typeof(_rt.until) == 'number' && _rt.until <= _now ) );
                     return {
                         bundle       : self.appName,
+                        // Per PROCESS: this payload describes the process that answered, never
+                        // a deployment. The runtime override lives in this process's memory —
+                        // neither written nor broadcast — so with replicas a POST closes the one
+                        // it reached. pid + hostname (the pod name under k8s) let an operator
+                        // fanning the POST out read back which processes applied it.
+                        pid          : process.pid,
+                        hostname     : os.hostname(),
                         active       : lib.maintenance.isActive(_mtCtl, _now),
                         source       : _rtLive ? 'runtime' : 'config',
                         retryAfter   : _eff.retryAfter,

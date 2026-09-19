@@ -5,6 +5,7 @@
 const fs                    = require('fs');
 const crypto                = require('crypto');
 const nodePath              = require('path'); // #B179: used for path-traversal boundary enforcement
+const os                    = require('os');   // maintenance status payload: pid + hostname (per-process identity)
 const { execSync, exec }    = require('child_process');
 const {EventEmitter}        = require('events');
 // #B10 fix: engine.io is only needed when options.ioServer is configured (WebSocket support).
@@ -1680,6 +1681,13 @@ function ServerEngineClass(options) {
                     var _rtLive = !!( _rt && !( typeof(_rt.until) == 'number' && _rt.until <= _now ) );
                     return {
                         bundle       : server._wsBundle || (typeof getContext === 'function' ? getContext('bundle') : null),
+                        // Per PROCESS: this payload describes the process that answered, never
+                        // a deployment. The runtime override lives in this process's memory —
+                        // neither written nor broadcast — so with replicas a POST closes the one
+                        // it reached. pid + hostname (the pod name under k8s) let an operator
+                        // fanning the POST out read back which processes applied it.
+                        pid          : process.pid,
+                        hostname     : os.hostname(),
                         active       : lib.maintenance.isActive(_mtCtl, _now),
                         source       : _rtLive ? 'runtime' : 'config',
                         retryAfter   : _eff.retryAfter,
