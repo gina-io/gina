@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'An HTML file served from a bundle''s public directory over a dev boot no longer answers 500 when that bundle has no templates configuration (#B567). In dev the static handler injects the gina loader into an HTML static and read the bundle''s `content.templates._common` block to do so; a bundle that never ran `view:add` — any API-only bundle — has no such block, so the read threw and the request answered 500 with a `TypeError`. The loader is now injected only when the bundle carries one; otherwise the page is served exactly as it is on disk, which is also what production always did. Pickup: a bundle restart; no rebuild.'
+time: 2026-09-19T15:05:00+01:00

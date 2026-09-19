@@ -3958,11 +3958,17 @@ function Server(options) {
                         // adding gina loader
                         if ( /text\/html/i.test(contentType) && self.isCacheless() ) {
                             isBinary = false;
-                            // javascriptsDeferEnabled
-                            if  (bundleConf.content.templates._common.javascriptsDeferEnabled ) {
-                                file = file.replace(/\<\/head\>/i, '\t'+ bundleConf.content.templates._common.ginaLoader +'\n</head>');
-                            } else {
-                                file = file.replace(/\<\/body\>/i, '\t'+ bundleConf.content.templates._common.ginaLoader +'\n</body>');
+                            // #B567 — a bundle that never ran `view:add` (any API-only bundle) has no
+                            // `content.templates`, so there is no loader to inject: serve the page as it
+                            // is on disk instead of throwing on the read (which answered 500).
+                            var _tplCommon = ( bundleConf.content && bundleConf.content.templates && typeof(bundleConf.content.templates._common) == 'object' ) ? bundleConf.content.templates._common : null;
+                            if ( _tplCommon && _tplCommon.ginaLoader ) {
+                                // javascriptsDeferEnabled
+                                if  (_tplCommon.javascriptsDeferEnabled ) {
+                                    file = file.replace(/\<\/head\>/i, '\t'+ _tplCommon.ginaLoader +'\n</head>');
+                                } else {
+                                    file = file.replace(/\<\/body\>/i, '\t'+ _tplCommon.ginaLoader +'\n</body>');
+                                }
                             }
 
                         } else {
