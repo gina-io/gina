@@ -177,7 +177,6 @@ function Router(env, scope) {
     }
 
     this.setServerInstance = function(serverInstance) {
-        serverInstance._http2streamEventInitalized = false;
         self.serverInstance = serverInstance;
     }
 

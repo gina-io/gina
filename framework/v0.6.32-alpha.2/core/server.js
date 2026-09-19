@@ -3710,244 +3710,6 @@ function Server(options) {
     }
 
     /**
-     * HTTP/2 server-push handler. Resolves asset paths for the current request
-     * and pushes static files to the client over open HTTP/2 streams.
-     * Attached to the server instance by the Isaac engine.
-     *
-     * @memberof module:gina/core/server
-     * @param {object} stream - Node.js `Http2ServerRequest` stream
-     * @param {object} headers - HTTP/2 request headers object
-     * @param {object} response - HTTP/2 response object
-     */
-    this.onHttp2Stream = function(stream, headers, response) {
-        var header          = null
-            , isWebroot     = false
-            , pathname      = null
-            , asset         = null
-            , assets        = this._options.template.assets
-            , conf          = this._options.conf
-            , isCacheless   = conf.isCacheless
-        ;
-
-
-        if (
-            headers[':path'] == '/'
-            || headers[':path'] == this._options.conf.server.webroot
-        ) {
-
-            if (
-                this._options.conf.server.webroot != headers[':path']
-                && this._options.conf.server.webrootAutoredirect
-                || headers[':path'] == this._options.conf.server.webroot
-                    && this._options.conf.server.webrootAutoredirect
-            ) {
-                isWebroot = true
-            }
-        }
-
-        var url = (isWebroot) ? this._referrer : headers[':path'];
-
-        var hanlersPath     = conf.handlersPath
-            , isHandler     = (
-                                typeof(assets[ url ]) != 'undefined'
-                                && typeof(assets[ url ].filename) != 'undefined'
-                                && new RegExp('^'+ hanlersPath).test(assets[ url ].filename)
-                            ) ? true: false
-        ;
-
-        if (!stream.pushAllowed ) {
-
-            // Fix added for static sites
-            if (
-                !assets[ url ]
-                ||
-                !assets[ url ].isBinary && !assets[ url ].isHandler
-            ) {
-                return;
-            }
-
-            asset = {
-                url         : url,
-                filename    : assets[ url ].filename,
-                file        : null,
-                isAvailable : assets[ url ].isAvailable,
-                mime        : assets[ url ].mime,
-                encoding    : conf.encoding,
-                isBinary    : assets[ url ].isBinary,
-                isHandler   : assets[ url ].isHandler
-            };
-            header = merge({ ':status': 200 }, response.getHeaders());
-            header['content-type'] = ( !/charset/.test(asset.mime ) ) ? asset.mime + '; charset='+ asset.encoding : asset.mime;
-            header = completeHeaders(header, local.request, response);
-            if (asset.isBinary || asset.isHandler ) {
-
-
-                if (asset.isHandler) {
-                    // adding handler `gina.ready(...)` wrapper
-                    var file = null;
-                    if ( !fs.existsSync(asset.filename) ) {
-                        throwError({stream: stream}, 404, 'Page not found: \n' + headers[':path']);
-                        return;
-                    }
-
-                    if (!assets[ url ].file) {
-                        file      = fs.readFileSync(asset.filename, asset.encoding).toString();
-                        file      = '(gina.ready(function onGinaReady($){\n'+ file + '\n},window["originalContext"]));';
-                        this._options.template.assets[ headers[':path'] ].file = file;
-                    } else {
-                        file = assets[ url ].file;
-                    }
-
-                    // header['content-length'] = fs.statSync(file).size;
-                    stream.respond(header);
-                    stream.end(file);
-
-                    return;
-                }
-
-                header['content-length'] = fs.statSync(asset.filename).size;
-                stream.respondWithFile(
-                    asset.filename
-                    , header
-                    //, { onError }
-                );
-
-            } else {
-                stream.respond(header);
-                stream.end();
-            }
-
-            return;
-        }
-
-        if (stream.headersSent) return;
-
-        if ( !this._options.template ) {
-            throwError({stream: stream}, 500, 'Internal server error\n' + headers[':path'] + '\nNo template found');
-            return;
-        }
-
-        if (
-            // headers[':path'] == '/'
-            // || headers[':path'] == this._options.conf.server.webroot
-            /^true$/i.test(isWebroot)
-        ) {
-            header = {
-                ':status': 301
-            };
-
-            if (isCacheless) {
-                header['cache-control'] = 'no-cache, no-store, must-revalidate';
-                header['pragma'] = 'no-cache';
-                header['expires'] = '0';
-            }
-            header['location'] = this._options.conf.server.webroot;
-
-            stream.respond(header);
-            stream.end();
-            return;
-        }
-
-        if (
-            typeof(this._options.template.assets) != 'undefined'
-            && typeof(this._options.template.assets[ headers[':path'] ]) != 'undefined'
-            && this._options.template.assets[ headers[':path'] ].isAvailable
-            || isWebroot
-        ) {
-            // by default
-            header = {
-                ':status': 200
-            };
-            var responseHeaders = ( typeof(this._responseHeaders) != 'undefined') ? this._responseHeaders : null;
-            asset = {
-                url         : url,
-                filename    : assets[ url ].filename,
-                file        : null,
-                isAvailable : assets[ url ].isAvailable,
-                mime        : assets[ url ].mime,
-                encoding    : conf.encoding,
-                isHandler   : isHandler
-            };
-
-            console.debug('h2 pushing: '+ headers[':path'] + ' -> '+ asset.filename);
-
-            // Adding handler `gina.ready(...)` wrapper
-            if ( new RegExp('^'+ conf.handlersPath).test(asset.filename) ) {
-
-                if ( !fs.existsSync(asset.filename) ) {
-                    throwError({stream: stream}, 404, 'Page not found: \n' + headers[':path']);
-                    return;
-                }
-
-                asset.isHandler = this._options.template.assets[ headers[':path'] ].isHandler  = true;
-                asset.file      = fs.readFileSync(asset.filename, asset.encoding).toString();
-                asset.file      = '(gina.ready(function onGinaReady($){\n'+ asset.file + '\n},window["originalContext"]));';
-
-                stream.respond(header);
-                stream.end(asset.file);
-
-                return;
-            }
-
-            stream.pushStream({ ':path': headers[':path'] }, function onPushStream(err, pushStream, headers){
-
-
-                if ( err ) {
-                    header[':status'] = 500;
-                    if (err.code === 'ENOENT' || !asset.isAvailable ) {
-                        header[':status'] = 404;
-                    }
-                    //console.info(headers[':method'] +' ['+ header[':status'] +'] '+ headers[':path'] + '\n' + (err.stack||err.message||err));
-                    var msg = ( header[':status'] == 404 ) ? 'Page not found: \n' + asset.url :  'Internal server error\n' + (err.stack||err.message||err)
-                    throwError({stream: pushStream}, header[':status'], msg);
-                    return;
-                }
-
-
-                header['content-type'] = ( !/charset/.test(asset.mime ) ) ? asset.mime + '; charset='+ asset.encoding : asset.mime;
-                if (assets[ url ].isBinary) {
-                    header['content-length'] = fs.statSync(assets[ url ].filename).size;
-                }
-
-                if (isCacheless) {
-                    // source maps integration for javascript & css
-                    if ( /(.js|.css)$/.test(asset.filename) && fs.existsSync(asset.filename +'.map') ) {
-                        //pathname = asset.filename +'.map';
-                        pathname = headers[':path'] +'.map';
-                        header['X-SourceMap'] = pathname;
-                    }
-                    // replaced: cache-control was only set for source-mapped .js/.css —
-                    // same bug as the handleStatics HTTP/2 path. Apply to all pushed assets.
-                    header['cache-control'] = 'no-cache, no-store, must-revalidate';
-                    header['pragma'] = 'no-cache';
-                    header['expires'] = '0';
-                }
-
-                if (responseHeaders) {
-                    header = merge(header, responseHeaders);
-                }
-                header = completeHeaders(header, local.request, response);
-                var pushedFile = (/index.html$/.test(headers[':path']) && /\/$/.test(asset.filename) ) ? asset.filename +'index.html': asset.filename;
-                pushStream.respondWithFile(
-                    pushedFile
-                    , header
-                    //, { onError }
-                );
-
-            });
-        } else {
-            var status = 404;
-            if ( /\/$/.test(headers[':path']) && this._options.template.assets[ headers[':path'] +'index.html' ].isAvailable   ) { // preview of directory is forbidden
-                status = 403;
-                headers[':status'] = status;
-            }
-            return throwError({stream: stream}, status, 'Page not found: \n' + headers[':path']);
-        }
-    }
-
-
-
-    /**
      * Returns the negotiated response protocol string (e.g. `'http/1.1'` or
      * `'http/2'`). Upgrades to `'http/2'` when the bundle is configured for
      * HTTP/2 and the response has an open stream.
@@ -3970,10 +3732,17 @@ function Server(options) {
     }
 
     /**
-     * Default HTTP/1.x static file handler. Resolves the filename from the URL,
-     * streams the file to the response with the correct MIME type, or calls
+     * Static file handler for BOTH protocols. Resolves the filename from the URL
+     * (`statics.json` mappings first, then the bundle's public path), confines it
+     * to its base directory (#B64), answers a directory URL with a 301 to its
+     * index, honours conditional GETs outside dev (ETag / Last-Modified → 304),
+     * and sends the file: over HTTP/1.x by piping (binaries) or writing (text);
+     * over HTTP/2 on the request's OWN stream (`response.stream`) via
+     * `respondWithFile` (binaries) or `respond` + `end` (text). The per-request
+     * `response` is the only response object this path ever touches — the former
+     * once-per-instance `'stream'` listener that served later HTTP/2 statics with
+     * the FIRST static request's captured response was removed (#B566). Calls
      * `next` when the file is not found or falls through to routing.
-     * For HTTP/2.x statics, see `SuperController`.
      *
      * @inner
      * @private
@@ -4002,17 +3771,6 @@ function Server(options) {
         if ( /http\/2/.test(protocol) ) {
 
             stream = response.stream;
-
-            if ( typeof(self._options) == 'undefined') {
-                self._options       = {
-                    template: {
-                        assets: {}
-                    },
-                    conf: bundleConf
-                }
-            }
-
-            self._options.conf = bundleConf
         }
 
         var isCacheless       = bundleConf.isCacheless;
@@ -4157,7 +3915,7 @@ function Server(options) {
             }
 
             if (response.headersSent) {
-                // May be sent by http/2 push
+                // already answered upstream (a gate or a middleware) — never double-send
                 return
             }
             fs.readFile(filename, bundleConf.encoding, function onStaticFileRead(err, file) {
@@ -4236,170 +3994,6 @@ function Server(options) {
                         }
 
                         if ( /http\/2/.test(protocol) ) {
-                            self._isStatic      = true;
-                            self._referrer      = request.url;
-                            var ext = request.url.match(/\.([A-Za-z0-9]+)$/);
-                            request.url = ( ext != null && typeof(ext[0]) != 'undefined' ) ? request.url : request.url + 'index.html';
-
-                            self._responseHeaders         = response.getHeaders();
-                            if (
-                                !isBinary
-                                && typeof(self._options.template.assets[request.url]) == 'undefined'
-                            ) {
-                                // #assets-guard — getAssets() returns the assets map SERIALIZED as a
-                                // string (its render-path consumers in controller.render-swig.js /
-                                // controller.render-v1.js embed it verbatim). `template.assets` must
-                                // stay an OBJECT here: assigning the raw string and then writing
-                                // `template.assets[request.url]` below throws under 'use strict'
-                                // (TypeError: Cannot create property '<url>' on string '{}'), killing the
-                                // bundle under concurrent static requests (Chrome HTTP/2 favicon/manifest
-                                // prefetch). Parse it back into the object form it represents.
-                                try {
-                                    self._options.template.assets = JSON.parse( getAssets(bundleConf, file) || '{}' );
-                                } catch (e) {
-                                    self._options.template.assets = {};
-                                }
-                            }
-
-                            // #assets-guard — defense-in-depth: never write a property on a non-object
-                            // assets map (binary requests skip the coercion above).
-                            if ( typeof(self._options.template.assets) != 'object' || self._options.template.assets == null ) {
-                                self._options.template.assets = {};
-                            }
-
-                            if (
-                                typeof(self._options.template.assets[request.url]) == 'undefined'
-                                || isBinary
-                            ) {
-
-                                self._options.template.assets[request.url] = {
-                                    ext: ( ext != null && typeof(ext[0]) != 'undefined' ) ? ext[0] : null,
-                                    isAvailable: true,
-                                    mime: contentType,
-                                    url: request.url,
-                                    filename: filename,
-                                    isBinary: isBinary,
-                                    isHandler: isHandler
-                                }
-                            }
-
-                            self.instance._isXMLRequest    = request.isXMLRequest;
-                            self.instance._getAssetFilenameFromUrl = getAssetFilenameFromUrl;
-
-                            var isPathMatchingUrl = null;
-                            if ( !self.instance._http2streamEventInitalized ) {
-                                self.instance._http2streamEventInitalized = true;
-                                self.instance.on('stream', function onHttp2Strem(stream, headers) {
-
-                                    if (!self._isStatic) return;
-
-                                    if (!this._isXMLRequest) {
-                                        isPathMatchingUrl = true;
-                                        if (headers[':path'] != request.url) {
-                                            request.url         = headers[':path'];
-                                            isPathMatchingUrl   = false;
-                                        }
-
-                                        // for new requests
-                                        if (!isPathMatchingUrl) {
-                                            pathname        = ( webroot.length > 1 && re.test(request.url) ) ? request.url.replace(re, '/') : request.url;
-                                            isFilenameDir   = (webroot == request.url) ? true: false;
-
-                                            if ( !isFilenameDir && !/404\.html/.test(filename) && fs.existsSync(filename) )
-                                                isFilenameDir = fs.statSync(filename).isDirectory();
-                                            if (!isFilenameDir) {
-                                                filename = this._getAssetFilenameFromUrl(bundleConf, pathname);
-                                            }
-
-                                            if ( !isFilenameDir && !fs.existsSync(filename) ) {
-                                                throwError(response, 404, 'Page not found: \n' + pathname, next);
-                                                return;
-                                            }
-
-
-                                            if ( isFilenameDir ) {
-                                                dirname = bundleConf.publicPath + pathname;
-                                                filename =  dirname + 'index.html';
-                                                request.url += 'index.html';
-                                                if ( !fs.existsSync(filename) ) {
-                                                    throwError(response, 403, 'Forbidden: \n' + pathname, next);
-                                                    return;
-                                                } else {
-                                                    header = {
-                                                        ':status': 301,
-                                                        'location': request.url
-                                                    };
-
-                                                    if (isCacheless) {
-                                                        header['cache-control'] = 'no-cache, no-store, must-revalidate';
-                                                        header['pragma'] = 'no-cache';
-                                                        header['expires'] = '0';
-                                                    }
-
-
-                                                    stream.respond(header);
-                                                    stream.end();
-                                                }
-                                            }
-                                        }
-
-                                        contentType = getContentTypeByFilename(filename);
-                                        contentType = contentType +'; charset='+ bundleConf.encoding;
-                                        ext = request.url.match(/\.([A-Za-z0-9]+)$/);
-                                        request.url = ( ext != null && typeof(ext[0]) != 'undefined' ) ? request.url : request.url + 'index.html';
-                                        // #assets-guard — defense-in-depth before the property writes below.
-                                        if ( typeof(self._options.template.assets) != 'object' || self._options.template.assets == null ) {
-                                            self._options.template.assets = {};
-                                        }
-                                        if (
-                                            !isPathMatchingUrl
-                                            && typeof(self._options.template.assets[request.url]) == 'undefined'
-                                        ) {
-
-                                            self._options.template.assets[request.url] = {
-                                                ext: ( ext != null && typeof(ext[0]) != 'undefined' ) ? ext[0] : null,
-                                                //isAvailable: true,
-                                                isAvailable: (!/404\.html/.test(filename)) ? true : false,
-                                                mime: contentType,
-                                                url: request.url,
-                                                filename: filename,
-                                                isBinary: isBinary,
-                                                isHandler: isHandler
-                                            }
-                                        }
-
-                                        if (!fs.existsSync(filename)) return;
-                                        isBinary    = ( /text\/html/i.test(contentType) ) ? false : true;
-                                        isHandler   = ( new RegExp('^'+ bundleConf.handlersPath).test(filename) ) ? true : false;
-                                        if ( isBinary ) {
-                                            // override
-                                            self._options.template.assets[request.url] = {
-                                                ext: ( ext != null && typeof(ext[0]) != 'undefined' ) ? ext[0] : null,
-                                                isAvailable: true,
-                                                mime: contentType,
-                                                url: request.url,
-                                                filename: filename,
-                                                isBinary: isBinary,
-                                                isHandler: isHandler
-                                            }
-                                        }
-
-                                        if ( isHandler ) {
-                                            // adding handler `gina.ready(...)` wrapper
-                                            var file = null;
-                                            if (!self._options.template.assets[request.url].file) {
-                                                file      = fs.readFileSync(filename, bundleConf.encoding).toString();
-                                                file      = '(gina.ready(function onGinaReady($){\n'+ file + '\n},window["originalContext"]));';
-                                                self._options.template.assets[request.url].file = file;
-                                            }
-                                        }
-                                        self.onHttp2Stream(stream, headers, response);
-                                    }
-
-                                }); // EO self.instance.on('stream' ..
-                            }
-
-
                             header = {
                                 ':status': 200,
                                 'content-type': contentType + '; charset='+ bundleConf.encoding
@@ -4432,9 +4026,6 @@ function Server(options) {
                                 stream.respond(header);
                                 stream.end(file);
                             }
-                            // Fixed on march 15 2021 by removing the return
-                            // Could be the cause why the push is pending
-                            //return;
                         } else {
 
                             completeHeaders(null, request, response);
@@ -5825,20 +5416,16 @@ function Server(options) {
             //
             // ⚠️ #B383 — THIS GATE MUST STAY SYNCHRONOUS. Anything added here that
             // defers its decision (await, a callback, a promise, setImmediate)
-            // becomes BYPASSABLE, and silently so. Under HTTP/2 node's compat
-            // layer registers its own 'stream' listener when a 'request' listener
-            // attaches; gina's byte-serving onHttp2Strem (registered lazily from
-            // inside the first h2 static request, ~:3900) therefore lands SECOND
-            // on the same emitter. EventEmitter dispatches synchronously in
-            // registration order, so a synchronous gate completes its 503 while
-            // the compat listener still holds the stack — before gina's listener
-            // ever runs. An ASYNC gate returns control to the emitter first, and
-            // the raw listener then serves the asset underneath it: MEASURED as a
-            // 200 bypass in a 6-arm micro-replica whose synchronous arm held at
-            // 503, with a positive control that served 200. The live h2 boot also
-            // logs one harmless ERR_HTTP2_HEADERS_SENT here — gina's listener
-            // losing the race it was always going to lose — which lib/proc
-            // downgrades to a warn; the bundle stays up.
+            // becomes BYPASSABLE, and silently so: an ASYNC gate returns control to
+            // the emitter before it has answered, and whatever else listens on the
+            // server serves the request underneath it. MEASURED as a 200 bypass in
+            // a 6-arm micro-replica whose synchronous arm held at 503, back when
+            // gina's own byte-serving 'stream' listener was that other listener.
+            // #B566 removed that listener (registered once per instance from the
+            // FIRST h2 static request, it served every later static with that
+            // request's response headers), so node's compat 'request' listener is
+            // now the only one on the emitter — the constraint is kept regardless:
+            // it binds any listener a future change registers, not the one measured.
             //
             // The constraint is GENERAL: it binds any future pre-routing gate
             // placed in onRequest(), not just this one.
@@ -5973,9 +5560,6 @@ function Server(options) {
                 || staticProps.isStaticFilename && new RegExp('^'+ staticProps.firstLevel).test(request.url)
                 || /\/$/.test(request.url) && !isWebrootHandledByRouting && !/\/engine\.io\//.test(request.url)
             ) {
-                self._isStatic  = true;
-
-                self._referrer  = request.url;
                 // by default - used in `composeHeadersMiddleware`: see Default Global Middlewares (gna.js)
                 request.routing = {
                     'url'       : request.url,
@@ -6012,7 +5596,6 @@ function Server(options) {
                 }
 
             } else { // not a static request
-                self._isStatic  = false;
                 // init content
                 request.body    = ( typeof(request.body) != 'undefined' ) ? request.body : {};
                 request.get     = {};
@@ -7613,7 +7196,6 @@ function Server(options) {
                     router._server = self.instance;
                     router.route(nextMiddleware._request, nextMiddleware._response, nextMiddleware._next, nextMiddleware._request.routing);
                 } else { // handle statics
-                    self._responseHeaders = nextMiddleware._response.getHeaders();
                     handleStatics(nextMiddleware._staticProps, nextMiddleware._request, nextMiddleware._response, nextMiddleware._next);
                 }
             } else {

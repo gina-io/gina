@@ -364,63 +364,7 @@ describe('07 - ETag + Last-Modified are set on production 200 responses', functi
 });
 
 
-// ─── 08 — static-asset map is never poisoned with a string ───────────────────
-//
-// Regression for: `TypeError: Cannot create property '<url>' on string '{}'`
-// crashing the bundle under concurrent HTTP/2 static requests (Chrome favicon/
-// manifest/og-image prefetch). Root cause: getAssets() returns the assets map
-// SERIALIZED as a string (its render-path consumers embed it verbatim), and the
-// dev static-serve path assigned that string straight onto _options.template.assets
-// — an object map — so the next `template.assets[request.url] = {...}` write threw
-// under 'use strict'. Fix: parse the serialized map back to an object at the call
-// site + coerce to an object before the property writes (defense-in-depth).
-
-describe('08 - static-asset template.assets stays an object (never the string from getAssets)', function() {
-
-    var src;
-    before(function() { src = fs.readFileSync(SOURCE, 'utf8'); });
-
-    it('does NOT assign the raw getAssets() string straight onto template.assets', function() {
-        assert.ok(
-            !/_options\.template\.assets\s*=\s*getAssets\s*\(/.test(src),
-            'template.assets must not be assigned the raw getAssets() return (it is a serialized string) — wrap it in JSON.parse'
-        );
-    });
-
-    it('parses the serialized getAssets() output back into the object map', function() {
-        assert.ok(
-            /_options\.template\.assets\s*=\s*JSON\.parse\(\s*getAssets\s*\(/.test(src),
-            'the static-serve path must do template.assets = JSON.parse( getAssets(...) )'
-        );
-    });
-
-    it('coerces template.assets to an object before the property writes (defense-in-depth)', function() {
-        var coercions = src.match(/typeof\(self\._options\.template\.assets\)\s*!=\s*'object'/g) || [];
-        assert.ok(
-            coercions.length >= 2,
-            'an object-coercion guard must precede the assets-map writes on both the onStaticFileRead and onHttp2Strem paths (found ' + coercions.length + ')'
-        );
-    });
-
-    it('every assets-map property write is preceded by an object guard or parse', function() {
-        // Each `self._options.template.assets[<url>] = {` write must sit AFTER a
-        // coercion/parse that guarantees the map is an object. Cheap proxy: the
-        // first such write must appear after the first JSON.parse(getAssets()) /
-        // coercion in the source.
-        var firstGuard = src.search(/_options\.template\.assets\s*=\s*JSON\.parse\(\s*getAssets|typeof\(self\._options\.template\.assets\)\s*!=\s*'object'/);
-        var firstWrite = src.search(/self\._options\.template\.assets\[request\.url\]\s*=\s*\{/);
-        assert.ok(firstGuard > -1, 'a guard/parse for template.assets must exist');
-        assert.ok(firstWrite > -1, 'a template.assets[request.url] write must exist');
-        assert.ok(firstGuard < firstWrite, 'the first template.assets object-guard must precede the first property write');
-    });
-
-    it('carries the #assets-guard markers for traceability', function() {
-        var markers = src.match(/#assets-guard/g) || [];
-        assert.ok(markers.length >= 3, 'expected the #assets-guard markers at the parse + both write-path coercions (found ' + markers.length + ')');
-    });
-
-});
-
+// (§08 — the template.assets registry it guarded was removed with the HTTP/2 stream listener, #B566)
 
 // ─── 09 — directory→index redirect sends 301 on BOTH protocols, dev or not ───
 //
