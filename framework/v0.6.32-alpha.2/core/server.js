@@ -347,6 +347,16 @@ var installH2SendShim = function(res) {
     res._ginaSendShim = true;
     res._ginaRawSend  = null;
     res._ginaBuf      = [];
+    // ExpressJS modules + HTTP2 fix — the same forcing `core/router.js` applies before it
+    // dispatches. An express plugin written against HTTP/1 calls `res._implicitHeader()`, which
+    // `Http2ServerResponse` does not implement. The router installs it on the ROUTED path only,
+    // and the middleware chain terminates in EITHER `router.route` OR `handleStatics`, so a
+    // statics-terminated request reached a middleware-wrapped `end()` without it and took the
+    // process down with an uncaughtException. Forcing it here covers both termini, since this
+    // shim is what makes such middleware wrap our methods in the first place.
+    if (!res._implicitHeader) {
+        res._implicitHeader = function(){ return; }; // we need to force it
+    }
     var _oWriteHead = res.writeHead, _oWrite = res.write, _oEnd = res.end;
     res.writeHead = function() {
         if (res._ginaRawSend) return res;
@@ -8598,12 +8608,30 @@ function Server(options) {
                 // object passed to stream.respond).
                 header = completeHeaders(header, local.request, res);
                 if ( /http\/2/.test(protocol) && stream) {
-                    stream.respond(header);
-                    stream.end(JSON.stringify({
+                    // #B562 — defer the raw send into the shim's base end() when one is installed,
+                    // so a session middleware's on-headers cookie and save-on-end proxy both fire
+                    // on an error response. The body is the closure's PARAMETER, never the
+                    // captured variable: a middleware may have transformed the bytes.
+                    var __ginaSendErrJSON = function(errBody) {
+                        var _pendingEJ = res.getHeaders ? res.getHeaders() : {};
+                        for (var _ejk in _pendingEJ) {
+                            if (!(_ejk in header)) header[_ejk] = _pendingEJ[_ejk];
+                        }
+                        stream.respond(header);
+                        stream.end(errBody);
+                    };
+                    var _errJSONBody = JSON.stringify({
                         status: code,
                         error: msg,
                         ref: ref
-                    }));
+                    });
+                    if (res._ginaSendShim) {
+                        res._ginaRawSend = __ginaSendErrJSON;
+                        res.writeHead(code);
+                        res.end(_errJSONBody);
+                    } else {
+                        __ginaSendErrJSON(_errJSONBody);
+                    }
 
                 } else {
                     res.writeHead(code, { 'content-type': _h1ContentType } );
@@ -8743,7 +8771,17 @@ function Server(options) {
                 if ( /http\/2/.test(protocol) && stream ) {
                     // #H2 — guard against writing to a stream that was already closed/destroyed
                     if (stream.destroyed || stream.closed) { return; }
-                    stream.respond(header);
+                    // #B562 — same deferral as the JSON sibling above; the body is built first
+                    // so one closure covers both the HTML and the JSON fallback shapes.
+                    var __ginaSendErrHTML = function(errBody) {
+                        var _pendingEH = res.getHeaders ? res.getHeaders() : {};
+                        for (var _ehk in _pendingEH) {
+                            if (!(_ehk in header)) header[_ehk] = _pendingEH[_ehk];
+                        }
+                        stream.respond(header);
+                        stream.end(errBody);
+                    };
+                    var _errHTMLBody = null;
                     if ( isHtmlContent && !hasCustomErrorFile ) {
                         // #A11Y3 — the body previously opened two `<pre>` elements and closed
                         // only one, inside a document with no doctype, head, title or lang.
@@ -8753,13 +8791,20 @@ function Server(options) {
                         // emit sites), so reproducing it in a comment would break that pin.
                         // #B554 — escape: `msg` carries caller/request-derived text (its 404/403/500
                         // callers build it from `req.url` / `:path`), previously emitted as markup.
-                        stream.end(a11yErrorDocument(code, '<h1>Error '+ code +'.</h1><pre>'+ _escapeHtml(msg) + '\n\nref '+ ref +'</pre>', local.request));
+                        _errHTMLBody = a11yErrorDocument(code, '<h1>Error '+ code +'.</h1><pre>'+ _escapeHtml(msg) + '\n\nref '+ ref +'</pre>', local.request);
                     } else {
-                        stream.end(JSON.stringify({
+                        _errHTMLBody = JSON.stringify({
                             status  : code,
                             error   : msg,
                             ref     : ref
-                        }));
+                        });
+                    }
+                    if (res._ginaSendShim) {
+                        res._ginaRawSend = __ginaSendErrHTML;
+                        res.writeHead(code);
+                        res.end(_errHTMLBody);
+                    } else {
+                        __ginaSendErrHTML(_errHTMLBody);
                     }
                 } else {
                     res.writeHead(code, { 'content-type': _h1ContentType } );
