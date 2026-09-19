@@ -31,6 +31,10 @@ describe('01 - HTTP/2 dev path: cache headers cover all static types', function(
         var xSourceMapIdx  = src.lastIndexOf("header['X-SourceMap']");
         var isCachelessIdx = src.lastIndexOf('if (isCacheless)', xSourceMapIdx);
         var regionEnd      = src.indexOf('header  = completeHeaders(header', xSourceMapIdx);
+        // indexOf returning -1 is not an error, and slice(start, -1) does not throw - it
+        // slices to end of file, inflating this 1,433-byte region to ~262 kB and leaving
+        // every assertion below satisfiable by unrelated code. Fail by name instead.
+        assert.ok(regionEnd > -1, 'the completeHeaders end anchor moved - this pin would slice to end of file');
         region = src.slice(isCachelessIdx, regionEnd);
     });
 
