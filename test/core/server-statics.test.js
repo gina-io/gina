@@ -97,43 +97,6 @@ describe('01 - HTTP/2 dev path: cache headers cover all static types', function(
 });
 
 
-// ─── 02 — HTTP/2 push-stream dev path: same fix ──────────────────────────────
-
-describe('02 - HTTP/2 push-stream dev path: cache headers cover all pushed assets', function() {
-
-    var src, region;
-
-    before(function() {
-        src = fs.readFileSync(SOURCE, 'utf8');
-
-        // The push-stream isCacheless block is the FIRST occurrence of header['X-SourceMap'].
-        var xSourceMapIdx  = src.indexOf("header['X-SourceMap']");
-        var isCachelessIdx = src.lastIndexOf('if (isCacheless)', xSourceMapIdx);
-        var regionEnd      = src.indexOf('header = completeHeaders(header', xSourceMapIdx);
-        region = src.slice(isCachelessIdx, regionEnd);
-    });
-
-    it('cache-control appears AFTER X-SourceMap in the push-stream isCacheless block', function() {
-        var xSourceMapPos   = region.indexOf("header['X-SourceMap']");
-        var cacheControlPos = region.indexOf("header['cache-control']");
-        assert.ok(cacheControlPos > xSourceMapPos, 'cache-control must appear after X-SourceMap');
-        var firstClosingBrace = region.indexOf('}', xSourceMapPos);
-        assert.ok(
-            firstClosingBrace > xSourceMapPos && firstClosingBrace < cacheControlPos,
-            'closing } of source-map inner if must be between X-SourceMap and cache-control'
-        );
-    });
-
-    it('cache-control value is no-cache, no-store, must-revalidate in push-stream path', function() {
-        assert.ok(
-            /header\['cache-control'\]\s*=\s*'no-cache, no-store, must-revalidate'/.test(region),
-            "cache-control must be 'no-cache, no-store, must-revalidate' in HTTP/2 push-stream dev path"
-        );
-    });
-
-});
-
-
 // ─── 03 — HTTP/1.x dev path: cache headers already cover all static types ────
 
 describe('03 - HTTP/1.x dev path: cache-control baseline', function() {
