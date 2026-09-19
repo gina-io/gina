@@ -8,8 +8,6 @@ body: 'An XHR redirect over HTTP/2 now delivers the session cookie it just rotat
   The router''s one-shot `inheritedData` consume likewise persists itself instead of relying on
   that same save-on-end proxy, so a redirect that carried a credential-bearing body no longer
   leaves it in the stored session record for the rest of the session. HTTP/1.1 was never
-  affected on either engine. Unchanged and worth knowing: on an ordinary HTTP/2 render a
-  `rolling` cookie still does not roll, and session mutations made while rendering are still
-  not persisted — call `req.session.save()` yourself if you mutate the session during a
-  rendered response.'
+  affected on either engine. The ordinary render path — a `rolling` cookie that did not roll, and
+  session mutations dropped during a render — is addressed by #B562 in this same release.'
 time: 2026-09-18T19:55:37+01:00

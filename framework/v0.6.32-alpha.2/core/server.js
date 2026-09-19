@@ -320,6 +320,53 @@ var _debugLog = function(msg) {
     process.stderr.write('\u001b[90m[' + ts + '] [debug  ][gina:server] ' + msg + '\u001b[39m\n');
 };
 
+/**
+ * Installs a base `writeHead`/`write`/`end` on an HTTP/2 compat response BEFORE the
+ * bundle middleware chain runs, so middleware that installs itself by wrapping those
+ * two methods wraps OURS. The render delegates terminate on the raw HTTP/2 stream and
+ * call neither, which is why such middleware is inert on a rendered response (#B562).
+ *
+ * The shim is TRANSPARENT: unless a delegate has registered `res._ginaRawSend`, every
+ * call forwards to the original method, so redirects, statics, error pages and the
+ * `/_gina/*` handlers keep their current behaviour untouched. When a delegate HAS
+ * registered one, the body is buffered and the raw send runs inside the base `end()`
+ * — which a session middleware invokes only after its store write has completed, so
+ * the response cannot reach the client ahead of the record it depends on.
+ *
+ * @inner
+ * @private
+ * @param {object} res - HTTP/2 compat response (`Http2ServerResponse`)
+ * @returns {void}
+ * @example
+ * installH2SendShim(response); // immediately before middleware index 0 is dispatched
+ */
+var installH2SendShim = function(res) {
+    if ( !res || typeof(res.stream) == 'undefined' || res._ginaSendShim ) {
+        return;
+    }
+    res._ginaSendShim = true;
+    res._ginaRawSend  = null;
+    res._ginaBuf      = [];
+    var _oWriteHead = res.writeHead, _oWrite = res.write, _oEnd = res.end;
+    res.writeHead = function() {
+        if (res._ginaRawSend) return res;
+        return _oWriteHead.apply(res, arguments);
+    };
+    res.write = function(chunk) {
+        if (!res._ginaRawSend) return _oWrite.apply(res, arguments);
+        if (chunk) res._ginaBuf.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+        return true;
+    };
+    res.end = function(chunk) {
+        if (!res._ginaRawSend) return _oEnd.apply(res, arguments);
+        if (chunk) res._ginaBuf.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+        var send = res._ginaRawSend;
+        res._ginaRawSend = null;
+        send(Buffer.concat(res._ginaBuf));
+        return res;
+    };
+};
+
 var Config          = require('./config');
 var Router          = require('./router');
 var lib             = require('./../lib');
@@ -5937,6 +5984,7 @@ function Server(options) {
                     && self.instance._expressMiddlewares.length > 0
                 ) {
 
+                    installH2SendShim(response); // #B562
                     // FRAMEWORK PATCH: Bug I — per-request dispatcher
                     var nextMiddleware = createNextMiddleware();
                     nextMiddleware._index        = 0;
@@ -8363,6 +8411,7 @@ function Server(options) {
             }
 
             if ( /^isaac/.test(self.engine) && self.instance._expressMiddlewares.length > 0) {
+                installH2SendShim(res); // #B562
                 // FRAMEWORK PATCH: Bug I — per-request dispatcher
                 var nextMiddleware = createNextMiddleware();
                 nextMiddleware._index        = 0;

@@ -590,6 +590,8 @@ function sendHtmlResponse(local, html, req, res) {
                 try { console.warn('[render-nunjucks] stream already destroyed on HEAD — client disconnected ('+ req.url +')'); } catch (e) {}
                 return;
             }
+            // #B562 — defer the raw send into the shim's base end() when one is installed
+            var __ginaSend1 = function() {
             if (!stream.headersSent) {
                 var _headH2 = {
                     'content-type':   res.getHeader('content-type'),
@@ -603,6 +605,14 @@ function sendHtmlResponse(local, html, req, res) {
                 stream.respond(_headH2);
             }
             stream.end();
+            };
+            if (res._ginaSendShim) {
+                res._ginaRawSend = __ginaSend1;
+                res.writeHead(res.statusCode || 200);
+                res.end();
+            } else {
+                __ginaSend1();
+            }
             res.headersSent = true;
         } else {
             // Case 2: HEAD + HTTP/1.1
@@ -619,6 +629,8 @@ function sendHtmlResponse(local, html, req, res) {
             try { console.warn('[render-nunjucks] stream already destroyed — client disconnected before response ('+ req.url +')'); } catch (e) {}
             return;
         }
+        // #B562 — defer the raw send into the shim's base end() when one is installed
+        var __ginaSend2 = function(html) {
         if (!stream.headersSent) {
             var _streamHeaders = {
                 'content-type': res.getHeader('content-type'),
@@ -640,6 +652,14 @@ function sendHtmlResponse(local, html, req, res) {
             stream.respond(_streamHeaders, _trailers ? { waitForTrailers: true } : undefined);
         }
         stream.end(html);
+        };
+        if (res._ginaSendShim) {
+            res._ginaRawSend = __ginaSend2;
+            res.writeHead(res.statusCode || 200);
+            res.end(html);
+        } else {
+            __ginaSend2(html);
+        }
         res.headersSent = true;
         return;
     }

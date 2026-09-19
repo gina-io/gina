@@ -127,6 +127,8 @@ module.exports = function renderXML(xmlContent, contentType, deps) {
         if ( /^HEAD$/i.test(request.method) ) {
             var headLen = Buffer.byteLength(data, 'utf8');
             if ( stream ) {
+                // #B562 — defer the raw send into the shim's base end() when one is installed
+                var __ginaSend1 = function() {
                 if ( !stream.headersSent ) {
                     var _headH = {
                         'content-type'   : _contentType,
@@ -140,6 +142,14 @@ module.exports = function renderXML(xmlContent, contentType, deps) {
                     stream.respond(_headH);
                 }
                 stream.end();
+                };
+                if (response._ginaSendShim) {
+                    response._ginaRawSend = __ginaSend1;
+                    response.writeHead(response.statusCode || 200);
+                    response.end();
+                } else {
+                    __ginaSend1();
+                }
             } else if ( !headersSent(response) ) {
                 response.setHeader('content-type', _contentType);
                 response.setHeader('content-length', headLen);
@@ -161,6 +171,8 @@ module.exports = function renderXML(xmlContent, contentType, deps) {
                 local.next = null;
                 return;
             }
+            // #B562 — defer the raw send into the shim's base end() when one is installed
+            var __ginaSend2 = function(data) {
             if (!stream.headersSent) {
                 var _streamHeaders = {
                     'content-type' : _contentType,
@@ -187,6 +199,14 @@ module.exports = function renderXML(xmlContent, contentType, deps) {
             }
 
             stream.end(data);
+            };
+            if (response._ginaSendShim) {
+                response._ginaRawSend = __ginaSend2;
+                response.writeHead(response.statusCode || 200);
+                response.end(data);
+            } else {
+                __ginaSend2(data);
+            }
             response.headersSent = true;
             local.req = null;
             local.res = null;

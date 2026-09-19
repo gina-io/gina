@@ -454,6 +454,8 @@ module.exports = function renderJSON(jsonObj, deps) {
         if ( /^HEAD$/i.test(request.method) ) {
             var headLen = Buffer.byteLength(data, 'utf8');
             if ( stream ) {
+                // #B562 — defer the raw send into the shim's base end() when one is installed
+                var __ginaSendHead = function() {
                 if ( !stream.headersSent ) {
                     var _headH = {
                         'content-type'   : local.options.conf.server.coreConfiguration.mime['json'] + '; charset='+ local.options.conf.encoding,
@@ -467,6 +469,14 @@ module.exports = function renderJSON(jsonObj, deps) {
                     stream.respond(_headH);
                 }
                 stream.end();
+                };
+                if (response._ginaSendShim) {
+                    response._ginaRawSend = __ginaSendHead;
+                    response.writeHead(response.statusCode || 200);
+                    response.end();
+                } else {
+                    __ginaSendHead();
+                }
             } else if ( !headersSent(response) ) {
                 response.setHeader('content-type', local.options.conf.server.coreConfiguration.mime['json'] + '; charset='+ local.options.conf.encoding);
                 response.setHeader('content-length', headLen);
@@ -553,6 +563,8 @@ module.exports = function renderJSON(jsonObj, deps) {
                 local.next = null;
                 return;
             }
+            // #B562 — defer the raw send into the shim's base end() when one is installed
+            var __ginaSendBody = function(data) {
             if (!stream.headersSent) {
                 var _streamHeaders = {
                     'content-type': local.options.conf.server.coreConfiguration.mime['json'] + '; charset='+ local.options.conf.encoding,
@@ -586,6 +598,14 @@ module.exports = function renderJSON(jsonObj, deps) {
 
 
             stream.end(data);
+            };
+            if (response._ginaSendShim) {
+                response._ginaRawSend = __ginaSendBody;
+                response.writeHead(response.statusCode || 200);
+                response.end(data);
+            } else {
+                __ginaSendBody(data);
+            }
             response.headersSent = true;
             local.req = null;
             local.res = null;

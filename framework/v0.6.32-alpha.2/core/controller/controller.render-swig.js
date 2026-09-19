@@ -1335,6 +1335,8 @@ module.exports = async function render(userData, displayInspector, errOptions, d
                 if ( /^HEAD$/i.test(req.method) ) {
                     if ( stream ) {
                         // #H8 — HTTP/2 HEAD: stream.respond() with content-length, no body.
+                        // #B562 — defer the raw send into the shim's base end() when one is installed
+                        var __ginaSend1 = function() {
                         if ( !stream.headersSent ) {
                             var _headH = {
                                 'content-type'   : localOptions.conf.server.coreConfiguration.mime['html'] + '; charset='+ localOptions.conf.encoding,
@@ -1348,6 +1350,14 @@ module.exports = async function render(userData, displayInspector, errOptions, d
                             stream.respond(_headH);
                         }
                         stream.end();
+                        };
+                        if (res._ginaSendShim) {
+                            res._ginaRawSend = __ginaSend1;
+                            res.writeHead(res.statusCode || 200);
+                            res.end();
+                        } else {
+                            __ginaSend1();
+                        }
                         res.headersSent = true;
                     } else {
                         res.setHeader('content-type', localOptions.conf.server.coreConfiguration.mime['html'] + '; charset='+ localOptions.conf.encoding);
@@ -1362,6 +1372,8 @@ module.exports = async function render(userData, displayInspector, errOptions, d
                     if (stream.destroyed || stream.closed) {
                         console.warn('[render-swig] Stream already destroyed — client disconnected before response was sent ('+ req.url +')');
                     } else {
+                        // #B562 — defer the raw send into the shim's base end() when one is installed
+                        var __ginaSend2 = function(htmlContent) {
                         if ( !stream.headersSent ) {
                             var _streamHeaders = {
                                 'content-type' : localOptions.conf.server.coreConfiguration.mime['html'] + '; charset='+ localOptions.conf.encoding,
@@ -1384,6 +1396,14 @@ module.exports = async function render(userData, displayInspector, errOptions, d
                             stream.respond(_streamHeaders, _trailers ? { waitForTrailers: true } : undefined);
                         }
                         stream.end(htmlContent);
+                        };
+                        if (res._ginaSendShim) {
+                            res._ginaRawSend = __ginaSend2;
+                            res.writeHead(res.statusCode || 200);
+                            res.end(htmlContent);
+                        } else {
+                            __ginaSend2(htmlContent);
+                        }
                         res.headersSent = true;
                     }
                 } else {
@@ -2013,6 +2033,8 @@ module.exports = async function render(userData, displayInspector, errOptions, d
                 if ( /^HEAD$/i.test(req.method) ) {
                     if ( stream ) {
                         // #H8 — HTTP/2 HEAD: stream.respond() with content-length, no body.
+                        // #B562 — defer the raw send into the shim's base end() when one is installed
+                        var __ginaSend3 = function() {
                         if ( !stream.headersSent ) {
                             var _headH2 = {
                                 'content-type'   : localOptions.conf.server.coreConfiguration.mime['html'] + '; charset='+ localOptions.conf.encoding,
@@ -2026,6 +2048,14 @@ module.exports = async function render(userData, displayInspector, errOptions, d
                             stream.respond(_headH2);
                         }
                         stream.end();
+                        };
+                        if (res._ginaSendShim) {
+                            res._ginaRawSend = __ginaSend3;
+                            res.writeHead(res.statusCode || 200);
+                            res.end();
+                        } else {
+                            __ginaSend3();
+                        }
                         res.headersSent = true;
                     } else {
                         res.setHeader('content-type', localOptions.conf.server.coreConfiguration.mime['html'] + '; charset='+ localOptions.conf.encoding);
@@ -2037,6 +2067,8 @@ module.exports = async function render(userData, displayInspector, errOptions, d
                     if (stream.destroyed || stream.closed) {
                         console.warn('[render-swig] Stream already destroyed — client disconnected before response was sent ('+ req.url +')');
                     } else {
+                        // #B562 — defer the raw send into the shim's base end() when one is installed
+                        var __ginaSend4 = function(htmlContent) {
                         if ( !stream.headersSent ) {
                             var _streamHeaders2 = {
                                 'content-type' : localOptions.conf.server.coreConfiguration.mime['html'] + '; charset='+ localOptions.conf.encoding,
@@ -2056,6 +2088,14 @@ module.exports = async function render(userData, displayInspector, errOptions, d
                             stream.respond(_streamHeaders2, _trailers ? { waitForTrailers: true } : undefined);
                         }
                         stream.end(htmlContent);
+                        };
+                        if (res._ginaSendShim) {
+                            res._ginaRawSend = __ginaSend4;
+                            res.writeHead(res.statusCode || 200);
+                            res.end(htmlContent);
+                        } else {
+                            __ginaSend4(htmlContent);
+                        }
                         res.headersSent = true;
                     }
                 } else {
