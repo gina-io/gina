@@ -260,6 +260,13 @@ function Lib() {
         // PLAIN require, like rate-limit/idempotency: router-bound, load-once, and
         // its registry lives on process.gina (survives refreshCore, dies on restart).
         messageValidator : require('./message-validator'),
+        // Per-bundle login session cookie lifetimes declared in security.json
+        // (`session.expires` / `session.remember`), applied by core/router.js at
+        // req.login(). PLAIN require, like the router-bound gates above: load-once,
+        // no per-request require() (#B32-residual), and core/router.js captures a
+        // gen-0 binding of it — a _require here would leave that binding behind on
+        // a dev-mode reload while the registry moved on.
+        sessionLifetime : require('./session-lifetime'),
         // #COMPLY3 — authentication hardening primitives (password hashing +
         // verification, password policy, lockout, TOTP). require() — NOT _require —
         // for the authzGate reason above: a security primitive stays out of the

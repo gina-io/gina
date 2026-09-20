@@ -25,6 +25,7 @@ var Collection      = lib.Collection;
 var modelUtil       = new lib.Model();
 var secrets         = lib.secrets;
 var i18n            = lib.i18n;
+var sessionLifetime = lib.sessionLifetime;
 
 
 /**
@@ -3330,6 +3331,30 @@ function Config(opt, contextResetNeeded) {
             console.warn(
                 '[CONFIG][loadBundleConfig] i18n catalog load skipped for `'
                 + bundle +'/'+ env +'`: '+ i18nErr.message
+            );
+        }
+
+        // Per-bundle login session cookie lifetimes — `security.json >
+        // session.expires` / `session.remember`, derived once here and read by
+        // core/router.js at req.login(). `null` when the bundle declares neither,
+        // which is the case the router's band short-circuits on, so a bundle that
+        // never opted in costs nothing per request.
+        //
+        // Warned, never fatal — same disposition as the i18n block above and for
+        // the same reason: both keys were documented but uninterpreted before this
+        // release, so a value already sitting in one was never a statement about
+        // this contract. Refusing the boot would turn an upgrade into an outage
+        // for a key that did nothing yesterday; an unusable value is reported and
+        // the bundle keeps the cookie lifetime it already had.
+        try {
+            conf[bundle][env].sessionLifetime = sessionLifetime.fromConfig(
+                conf[bundle][env].content.security, bundle, env
+            );
+        } catch (sessionLifetimeErr) {
+            conf[bundle][env].sessionLifetime = null;
+            console.warn(
+                '[CONFIG][loadBundleConfig] login session lifetime skipped for `'
+                + bundle +'/'+ env +'`: '+ sessionLifetimeErr.message
             );
         }
 

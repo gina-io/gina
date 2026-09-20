@@ -29,6 +29,11 @@ var fs                  = require('fs')
     // its band siblings above: router-bound, load-once, registry state on
     // process.gina.
     , messageValidator  = lib.messageValidator
+    // Per-bundle login session cookie lifetimes (security.json >
+    // session.expires / session.remember), applied at req.login(). Plain lib
+    // access like its band siblings above: router-bound and load-once, so this
+    // gen-0 binding IS the live module.
+    , sessionLifetime   = lib.sessionLifetime
     , SuperController   = require('./controller')
     , Config            = require('./config')
 ;
@@ -442,6 +447,20 @@ function Router(env, scope) {
         //     };
         // }
 
+        // Per-bundle login session cookie lifetime. `conf.sessionLifetime` is
+        // null for every bundle that declares neither key in security.json, so
+        // this is a single falsy check on the hot path for everyone else.
+        //
+        // The policy is stamped on the REQUEST rather than read from a module
+        // binding inside the shim below: the shim is extracted and executed in
+        // isolation by its tests, and a request without the property never
+        // evaluates the identifier. wrapLogin() covers the other direction — a
+        // passport-installed req.logIn that this shim will therefore not create.
+        if ( conf.sessionLifetime && request.session && typeof(request.session) == 'object' ) {
+            request._ginaLoginLifetime = conf.sessionLifetime;
+            sessionLifetime.wrapLogin(request, conf.sessionLifetime);
+        }
+
         if (
             typeof(request._passport) != 'undefined'
             && typeof(request.logIn) == 'undefined'
@@ -514,6 +533,9 @@ function Router(env, scope) {
                             req.session.user = user;
                             // absolute-timeout anchor — the clock starts at login
                             req.session._ginaCreatedAt = Date.now();
+                            if ( req._ginaLoginLifetime ) {
+                                sessionLifetime.apply(req, sessionLifetime.isRemembered(req, options), req._ginaLoginLifetime);
+                            }
                             if ( typeof(req.session.save) == 'function' ) {
                                 return req.session.save(function onLoginSessionSaved(saveErr) {
                                     done(saveErr || null);
@@ -528,6 +550,9 @@ function Router(env, scope) {
                     console.warn('[ ROUTER ] login(): session provider exposes no regenerate() — user bound WITHOUT session-id rotation');
                     req.session.user = user;
                     req.session._ginaCreatedAt = Date.now();
+                    if ( req._ginaLoginLifetime ) {
+                        sessionLifetime.apply(req, sessionLifetime.isRemembered(req, options), req._ginaLoginLifetime);
+                    }
                     if ( typeof(req.session.save) == 'function' ) {
                         return req.session.save(function onLoginSessionSavedNoRotation(saveErr) {
                             done(saveErr || null);
@@ -544,6 +569,9 @@ function Router(env, scope) {
                     if (err) {
                         self[property] = null;
                         return done(err);
+                    }
+                    if ( self._ginaLoginLifetime ) {
+                        sessionLifetime.apply(self, sessionLifetime.isRemembered(self, options), self._ginaLoginLifetime);
                     }
                     done();
                 });

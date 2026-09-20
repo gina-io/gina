@@ -1047,6 +1047,28 @@ declare namespace gina {
         /** `${secret:KEY}` config placeholder resolver. */
         secrets: any;
         /**
+         * Per-bundle login session cookie lifetimes declared in `security.json`
+         * (`session.expires` / `session.remember`, unit-suffixed duration strings),
+         * applied by the router at `req.login()`. An unusable value is warned and
+         * treated as undeclared — never a boot failure.
+         */
+        sessionLifetime: {
+            /** Derive a bundle's policy at boot; `null` when neither key is declared. */
+            fromConfig(security: any, bundle: string, env: string): { expires: number | null, remember: number | null } | null;
+            /** Coerce a raw request field to a remember-me boolean (`'on'`, `'1'`, `'true'`, `'yes'`). */
+            coerceField(value: any): boolean;
+            /** Read the remember-me field off `req.post`, falling back to `req.body`. */
+            readField(req: any): any;
+            /** An explicit boolean in the login options wins over the request field. */
+            isRemembered(req: any, options?: { remember?: boolean }): boolean;
+            /** Resolve the lifetime in ms; a remembered login falls back to `expires`. */
+            resolveMs(policy: { expires: number | null, remember: number | null } | null, remembered: boolean): number | null;
+            /** Set `req.session.cookie.maxAge`; returns the ms applied, or `null`. */
+            apply(req: any, remembered: boolean, policy: any): number | null;
+            /** Wrap an installed `req.logIn` (the passport path) so the lifetime lands after it. */
+            wrapLogin(req: any, policy: any): boolean;
+        };
+        /**
          * Engine-agnostic security-header emission (#OW1, OWASP A02) —
          * `settings.json > server.securityHeaders`. Exists at the framework
          * layer because the `#HDR1-14` plugins are express middleware and the

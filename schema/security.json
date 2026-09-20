@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "$id": "https://gina.io/schema/security.json",
+  "title": "Gina security.json",
+  "description": "Per-bundle internal security settings (tokens, session secrets, signing keys). The file belongs to the application: the framework reads only the keys documented here and carries everything else through untouched, so an application is free to keep its own conventions alongside them. Merged shared-config-first, then the bundle's own copy, then the `security.<env>.json` overlay — each layer overriding the one before it.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "session": {
+      "type": "object",
+      "description": "Session settings. The framework interprets `expires` and `remember`; every other key here is the application's own.",
+      "additionalProperties": true,
+      "properties": {
+        "expires": {
+          "$ref": "#/definitions/duration",
+          "description": "Cookie lifetime applied at `req.login()` for an ordinary login. Omit it to leave the cookie exactly as the session factory made it (a browser-session cookie, unless the application set a maxAge of its own).",
+          "examples": ["15m", "3h", "1d"]
+        },
+        "remember": {
+          "$ref": "#/definitions/duration",
+          "description": "Cookie lifetime applied at `req.login()` when the login is remembered — the caller passed `{ remember: true }`, or the login request carried a truthy `remember` field. Falls back to `expires` when omitted.",
+          "examples": ["15d", "30d"]
+        }
+      }
+    }
+  },
+  "definitions": {
+    "duration": {
+      "type": "string",
+      "description": "A unit-suffixed duration string. The unit is REQUIRED — a bare number is refused rather than guessed. Accepted units: ms, s, m, h, d (case-insensitive). A value that cannot be parsed, or that is not positive, is reported at boot and then ignored: the bundle keeps the cookie lifetime it already had, and the boot is never refused.",
+      "pattern": "^[0-9]*\\.?[0-9]+\\s*([mM][sS]|[sS]|[mM]|[hH]|[dD])$",
+      "examples": ["500ms", "30s", "15m", "3h", "15d"]
+    }
+  }
+}
