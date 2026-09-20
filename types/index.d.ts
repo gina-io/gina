@@ -943,6 +943,16 @@ declare namespace gina {
         dtoPipe: any;
         /** The DTO → `.d.ts` emitter behind `gina bundle:types`. */
         dtoTypes: any;
+        /**
+         * Unit-suffixed duration strings → milliseconds (`"500ms"`, `"30s"`, `"15m"`,
+         * `"3h"`, `"15d"`; unit REQUIRED — a bare number is refused with `NaN`, `"0s"`
+         * is legal). The one dialect shared by `security.json`'s login session
+         * lifetimes and `lib/storage`'s interval keys.
+         */
+        duration: {
+            /** Milliseconds, or `NaN` when the value is not a unit-suffixed string. Never throws. */
+            parse(value: string): number;
+        };
         generator: any;
         helpers: any;
         /** i18n core (`t()`, catalog loading, culture negotiation). */

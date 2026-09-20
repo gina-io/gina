@@ -79,6 +79,12 @@ function Lib() {
         // module eviction, and Logger() returns the existing instance anyway. Use plain require (cache hit).
         logger          : require('./logger'),
         math            : _require('./math'),
+        // Unit-suffixed duration strings to milliseconds (`"30s"`, `"15m"`, `"3h"`,
+        // `"15d"`; unit REQUIRED, a bare number is refused with NaN) — the ONE dialect
+        // shared by security.json's login session lifetimes (lib/session-lifetime)
+        // and lib/storage's interval keys (which delegate here). Pure stateless
+        // function, no singleton, no adopted fds: _require like money/multipart.
+        duration        : _require('./duration'),
         // #FIN5 — exact-money primitive (ISO 4217 minor-unit BigInt arithmetic).
         // Pure stateless functions, no singleton, no adopted fds: _require so a
         // dev-mode edit hot-reloads like math/routing.

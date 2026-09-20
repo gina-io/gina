@@ -14,12 +14,14 @@
  *
  * They live in their own module rather than in `src/main` so the adapter can
  * use them without requiring the core back (a cycle), and so each can be
- * unit-tested in isolation. Everything here is pure: no I/O, no globals, no
- * framework imports.
+ * unit-tested in isolation. Everything here is pure: no I/O, no globals, and the
+ * only framework import is the sibling `lib/duration` parser this module's
+ * `parseDuration` delegates to.
  */
 
 var nodePath = require('path');
 var crypto   = require('crypto');
+var duration = require('../../duration');
 
 /**
  * Crockford base32 alphabet (ULID) — excludes I, L, O and U so a transcribed
@@ -167,6 +169,9 @@ function parseSize(value) {
  * from context, which is the exact bug the unit requirement exists to
  * prevent.
  *
+ * Since 2026-09-20 this is `lib/duration`'s `parse` itself (same function object,
+ * same contract) — promoted so `security.json`'s session lifetimes share the dialect.
+ *
  * @memberof module:lib/storage/util
  * @param {string} value - e.g. `'500ms'`, `'30s'`, `'15m'`, `'1h'`, `'7d'`.
  * @returns {number} Milliseconds, or `NaN` when the value is not a unit-suffixed string.
@@ -177,25 +182,7 @@ function parseSize(value) {
  * parseDuration('15');   // => NaN (no unit — refused, never assumed)
  * parseDuration(15);     // => NaN (bare number — refused)
  */
-function parseDuration(value) {
-    if ( typeof(value) != 'string' ) { return NaN; }
-    var m = value.trim().match(/^([0-9]*\.?[0-9]+)\s*(ms|s|m|h|d)$/i);
-    if ( !m ) { return NaN; }
-    var n = parseFloat(m[1]);
-    switch ( m[2].toLowerCase() ) {
-        case 'ms':
-            return n;
-        case 's':
-            return n * 1000;
-        case 'h':
-            return n * 60 * 60 * 1000;
-        case 'd':
-            return n * 24 * 60 * 60 * 1000;
-        case 'm':
-        default:
-            return n * 60 * 1000;
-    }
-}
+var parseDuration = duration.parse;   // the shared parser — ONE dialect (see lib/duration)
 
 /**
  * Whether any segment of `key` names driver-internal state.
