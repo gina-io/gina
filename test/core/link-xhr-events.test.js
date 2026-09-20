@@ -71,9 +71,12 @@ describe('01 - link-xhr-events: listenToXhrEvents is a top-level global in event
         assert.ok(defIdx > onIdx, 'listenToXhrEvents must be declared after on()');
     });
 
-    it('handleXhr .hlink triggers use the per-link element and id (1 success + 5 error)', function() {
+    it('handleXhr .hlink triggers use the per-link element and id (2 success + 5 error)', function() {
         var src = read(EVENTS_SRC);
-        assert.equal(countOf(src, NEW_SUCCESS_TRIGGER), 1, 'retargeted success.hlink trigger');
+        // 2 success sites since #B571: the shared success tail, and the popin branch — which
+        // used to return before the tail, so a link answering into a popin never saw its
+        // declared callback. Both address $link.target + $link.id.
+        assert.equal(countOf(src, NEW_SUCCESS_TRIGGER), 2, 'retargeted success.hlink triggers: the shared tail + the popin branch (#B571)');
         assert.equal(countOf(src, NEW_ERROR_TRIGGER), 5, 'retargeted error.hlink triggers');
     });
 
@@ -126,7 +129,7 @@ describe('03 - link-xhr-events: dist bundle fidelity', function() {
 
     it('dist carries the retargeted .hlink triggers and none of the old shape', function() {
         var dist = read(DIST_JS);
-        assert.equal(countOf(dist, NEW_SUCCESS_TRIGGER), 1);
+        assert.equal(countOf(dist, NEW_SUCCESS_TRIGGER), 2, 'the shared tail + the popin branch (#B571)');
         assert.equal(countOf(dist, NEW_ERROR_TRIGGER), 5);
         assert.equal(dist.indexOf(OLD_SUCCESS_TRIGGER), -1);
         assert.equal(dist.indexOf(OLD_ERROR_TRIGGER), -1);

@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'A form or link whose `text/html` answer is loaded into a popin now gets its DECLARED callback: `data-gina-form-event-on-submit-success` and `data-gina-link-event-on-success` are bound to the `.hform` / `.hlink` companion channels, and the popin branch of both XHR handlers returned after the bare `success.<id>` event, so a form inside a popin never saw its declared success callback run (only a programmatic `success.<id>` listener did). The companion now fires there too, with the parsed xhr-data as its payload, and `$form.eventData.success` is set as on every other path (#B571)'
+time: 2026-09-20T15:57:56+01:00

@@ -1139,7 +1139,9 @@ describe('21 - Popin: applyContent full vs partial', function () {
         // The FINAL guard clause must directly close the if-condition and gate the
         // popinLoadContent diversion (structural + indentation-tolerant — robust vs a char count).
         var lastGuard = src.slice(src.lastIndexOf('!$popin.partialTarget'));
-        assert.ok(/^!\$popin\.partialTarget\s*\)\s*\{[\s\S]{0,160}?popinLoadContent\(/.test(lastGuard),
+        // #gh76: the diversion is `popinLoadContent.call($popin, result, …)` — it loads into
+        // THIS popin instead of re-resolving the active one — so both call forms are accepted.
+        assert.ok(/^!\$popin\.partialTarget\s*\)\s*\{[\s\S]{0,160}?popinLoadContent(?:\.call\(\$popin,\s*|\()result/.test(lastGuard),
             'the final !$popin.partialTarget guard clause must directly gate the popinLoadContent call');
     });
 });

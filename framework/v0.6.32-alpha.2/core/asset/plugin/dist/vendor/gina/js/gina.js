@@ -8842,8 +8842,17 @@ function handleXhr(xhr, $el, options, require) {
                         // if hasPopinHandler & popinIsBinded
                         if ( typeof(gina.popin) != 'undefined' && gina.hasPopinHandler ) {
 
-                            // select popin by id
-                            var $popin = gina.popin.getActivePopin();
+                            // #gh76 — the popin the clicked ANCHOR lives in ($el — never
+                            // $target, which is the link plugin's container on this path),
+                            // and only while it is open; a page link's HTML answer stays
+                            // with its own handler instead of being loaded into whichever
+                            // popin happened to be open.
+                            var $popin = ( typeof(gina.popin.getPopinContaining) == 'function' )
+                                ? gina.popin.getPopinContaining($el)
+                                : null;
+                            if ( $popin && !$popin.isOpen ) {
+                                $popin = null;
+                            }
 
                             if ($popin) {
 
@@ -8875,6 +8884,13 @@ function handleXhr(xhr, $el, options, require) {
 
                                 result = XHRData;
                                 triggerEvent(gina, $target, 'success.' + id, result);
+                                // #B571 — this branch returned before the tail that emits the
+                                // declared-callback companion, so a link's
+                                // `data-gina-link-event-on-success` never ran when its HTML
+                                // answer was loaded into a popin. `.hlink` only: the `.hform`
+                                // half of this handler is dead (no caller passes `$form`).
+                                if (hLinkIsRequired)
+                                    triggerEvent(gina, $link.target, 'success.' + $link.id + '.hlink', result);
 
                                 return;
                             }
@@ -12784,6 +12800,72 @@ function ValidatorPlugin(rules, data, formId, culture) {
         return isPopinInUse;
     }
 
+    /**
+     * popinStillContaining
+     *
+     * #gh76 — the settle-time half of the containment rule: the popin captured at
+     * submit, if it is still open and its element still contains the form (a close +
+     * reopen in flight wipes and refetches the content, so the captured form is detached
+     * and the answer must not land in content the user has since navigated to).
+     *
+     * @param {object|null} $captured - the popin captured at submit (`sendCtx.popin`)
+     * @param {HTMLElement} $formEl - the form element
+     *
+     * @returns {object|null} $popin
+     *
+     * @example
+     * var $popin = popinStillContaining(sendCtx.popin, $target); // null => legacy payload
+     */
+    var popinStillContaining = function($captured, $formEl) {
+        var $dialog = null;
+        if ( !$captured || !$captured.isOpen ) {
+            return null;
+        }
+        $dialog = ( $captured.id ) ? document.getElementById($captured.id) : null;
+        return ( $dialog && $dialog.contains($formEl) ) ? $captured : null;
+    }
+
+    /**
+     * warnIfOldRuleRouted
+     *
+     * #gh76 — dev-only notice when the retired "active popin" rule would have routed a
+     * PAGE form's answer or redirect into a popin the form is not inside. The one
+     * conceivable reliance on that routing is a non-modal popin deliberately updated by a
+     * page form; the notice is how such a page finds out. Two messages: the popin was
+     * open (its content would have been replaced) vs loading, not open (a false 422
+     * would have been raised).
+     *
+     * @param {object|null} $captured - the popin captured at submit
+     * @param {object|null} $routed - the popin the answer is actually routed to
+     * @param {HTMLElement} $formEl - the form element
+     * @param {string} what - `answer` or `redirect`, for the message
+     *
+     * @returns {undefined}
+     *
+     * @example
+     * warnIfOldRuleRouted(sendCtx.popin, $popin, $target, 'answer');
+     */
+    var warnIfOldRuleRouted = function($captured, $routed, $formEl, what) {
+        var $old = null, $popins = null, activeId = null;
+        if ( !envIsDev || $routed || $captured || typeof(gina.popin) == 'undefined' || !gina.popin ) {
+            return;
+        }
+        // what getActivePopin() resolved before #gh76: the first open popin, else the
+        // popin `activePopinId` names in ANY state
+        $old = gina.popin.getActivePopin();
+        if ( !$old ) {
+            $popins  = gina.popin.$popins || {};
+            activeId = gina.popin.activePopinId;
+            $old     = ( activeId && $popins[activeId] ) ? $popins[activeId] : null;
+        }
+        if ( !$old ) {
+            return;
+        }
+        try {
+            console.warn('[FormValidator][popin] the HTML '+ what +' of form `#'+ $formEl.id +'` is delivered to its own handler: the form is not inside popin `'+ $old.name +'`, which is '+ ( $old.isOpen ? 'open (the former routing rule would have replaced its content)' : 'loading, not open (the former routing rule would have raised a false 422 error)' ) +'.');
+        } catch (e) {}
+    }
+
 
     /**
      * #B549 — does the page opt this form into the validator?
@@ -14322,6 +14404,11 @@ function ValidatorPlugin(rules, data, formId, culture) {
         var XHRData = null;
         var isAttachment = null; // handle download
         var hFormIsRequired = null;
+        // #gh76 — per-send capture of the popin the SUBMITTING form lives in (or null),
+        // read at the settle below. `$form.eventData` is per form and a second send would
+        // overwrite it; this closure is per send (#B175 made the XHR per send).
+        /** @type {{ popin: (object|null) }} */
+        var sendCtx = { popin: null };
 
         options = (typeof (options) != 'undefined') ? merge(options, xhrOptions) : xhrOptions;
 
@@ -14368,16 +14455,23 @@ function ValidatorPlugin(rules, data, formId, culture) {
             options.headers['X-Gina-Form-Rule'] = $form.target.dataset.ginaFormRule +'@'+ gina.config.bundle;
         }
 
-        if (isPopinContext()) {
-            // select popin current active popin
-            $activePopin = gina.popin.getActivePopin();
-            if ( $activePopin.isOpen ) {
-                if ( typeof($activePopin.id) != 'undefined' )
-                    options.headers['X-Gina-Popin-Id'] = $activePopin.id;
+        // #gh76 — the popin context a request carries is the popin the SUBMITTING form is
+        // rendered in, resolved by containment, never "some popin is open" (the former
+        // isPopinContext() gate): a page form submitted while a non-modal popin was open
+        // told the server it came from that popin — `self.isPopinContext()` read true and
+        // the redirect came back as a popin redirect — the request-side half of the same
+        // defect. Gated on the popin handler existing, as the settle site always was.
+        sendCtx.popin = (
+            typeof(gina.popin) != 'undefined'
+            && gina.popin
+            && typeof(gina.popin.getPopinContaining) == 'function'
+        ) ? gina.popin.getPopinContaining($target) : null;
+        if ( sendCtx.popin && sendCtx.popin.isOpen ) {
+            if ( typeof(sendCtx.popin.id) != 'undefined' )
+                options.headers['X-Gina-Popin-Id'] = sendCtx.popin.id;
 
-                if ( typeof($activePopin.name) != 'undefined' )
-                    options.headers['X-Gina-Popin-Name'] = $activePopin.name;
-            }
+            if ( typeof(sendCtx.popin.name) != 'undefined' )
+                options.headers['X-Gina-Popin-Name'] = sendCtx.popin.name;
         }
 
 
@@ -14676,8 +14770,15 @@ function ValidatorPlugin(rules, data, formId, culture) {
 
                                 // if hasPopinHandler & popinIsBinded
                                 if ( typeof(gina.popin) != 'undefined' && gina.hasPopinHandler ) {
-                                    // select popin current active popin
-                                    $popin = gina.popin.getActivePopin();
+                                    // #gh76 — the answer goes to the popin the form was captured
+                                    // in at submit, while it is still open and still contains the
+                                    // form; anything else is the legacy handler-only payload.
+                                    // Never "the active popin": that routed a PAGE form's answer
+                                    // into an open popin (content replaced) or a loading one (a
+                                    // false 422, `Popin x is not open !`), and with two popins
+                                    // open picked the first registered one.
+                                    $popin = popinStillContaining(sendCtx.popin, $target);
+                                    warnIfOldRuleRouted(sendCtx.popin, $popin, $target, 'answer');
 
                                     if ($popin) {
 
@@ -14710,7 +14811,15 @@ function ValidatorPlugin(rules, data, formId, culture) {
                                         $popin.loadContent(result.content);
 
                                         result = XHRData;
+                                        // #B571 — this branch returned after the bare event, so the
+                                        // DECLARED success callback (bound to the `.hform` channel by
+                                        // listenToXhrEvents) never ran for a form answering into a
+                                        // popin; mirror the shared tail below, eventData included.
+                                        $form.eventData.success = result;
                                         triggerEvent(gina, $target, 'success.' + id, result);
+
+                                        if (hFormIsRequired)
+                                            triggerEvent(gina, $target, 'success.' + id + '.hform', result);
 
                                         return;
                                     }
@@ -14755,14 +14864,34 @@ function ValidatorPlugin(rules, data, formId, culture) {
                                 && typeof(result.location) != 'undefined'
                                 && isXhrRedirect
                             ) {
-                                $popin = gina.popin.getActivePopin();
+                                // #gh76 — route by the SUBMITTING form's popin, never by "the
+                                // active popin". A name-less `result.popin` directive (`close`,
+                                // `url`) is the one case where the server addresses "the open
+                                // popin" explicitly — only a route the app declared as popin
+                                // context produces it — so it keeps the open-only fallback; a
+                                // plain `location` redirect was chosen by the server BECAUSE it
+                                // saw no popin context, so from a page form it falls through to
+                                // the page redirect below instead of loading into a popin the
+                                // form is not inside.
+                                $popin = sendCtx.popin
+                                      || ( ( typeof(result.popin) != 'undefined' ) ? gina.popin.getActivePopin() : null );
+                                if ( !$popin && typeof(result.popin) == 'undefined' ) {
+                                    warnIfOldRuleRouted(sendCtx.popin, $popin, $target, 'redirect');
+                                }
                                 if ( !$popin && typeof(result.popin) != 'undefined' ) {
-                                    if ( typeof(result.popin) != 'undefined' && typeof(result.popin.name) == 'undefined' ) {
-                                        throw new Error('To get a `$popin` instance, you need at list a `popin.name`.');
-                                    }
-                                    $popin = gina.popin.getPopinByName(result.popin.name);
-                                    if ( !$popin ) {
-                                        throw new Error('Popin with name: `'+ result.popin.name +'` not found.')
+                                    if ( typeof(result.popin.name) == 'undefined' ) {
+                                        // a name-less `close` with nothing open to close is a no-op,
+                                        // not an error: getActivePopin() no longer resolves a not-open
+                                        // popin for that close() to no-op on (#gh76 §8(a)); only an
+                                        // actual resolve still throws
+                                        if ( typeof(result.popin.close) == 'undefined' ) {
+                                            throw new Error('To get a `$popin` instance, you need at list a `popin.name`.');
+                                        }
+                                    } else {
+                                        $popin = gina.popin.getPopinByName(result.popin.name);
+                                        if ( !$popin ) {
+                                            throw new Error('Popin with name: `'+ result.popin.name +'` not found.')
+                                        }
                                     }
                                 }
 
@@ -14770,8 +14899,11 @@ function ValidatorPlugin(rules, data, formId, culture) {
                                     typeof(result.popin) != 'undefined'
                                     && typeof(result.popin.close) != 'undefined'
                                 ) {
-                                    $popin.isRedirecting = false;
-                                    $popin.close();
+                                    // #gh76 — `$popin` is null when nothing is open to close
+                                    if ($popin) {
+                                        $popin.isRedirecting = false;
+                                        $popin.close();
+                                    }
                                     var _reload = (result.popin.reload) ? result.popin.reload : false;
                                     if ( !result.popin.location && !result.popin.url) {
                                        delete result.popin;
@@ -23781,6 +23913,7 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/loading-state', 'lib/merge'
             '$popins'       : _sharedPopins, // #B90 — module-shared registry (one object for all instances)
             activePopinId   : null,
             getActivePopin  : null, // returns the active $popin
+            getPopinContaining : null, // the popin whose element contains a given element (#gh76)
             target          : document, // by default
             isReady         : false,
             initialized     : false
@@ -23908,21 +24041,78 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/loading-state', 'lib/merge'
             return $popin;
         }
 
+        /**
+         * getActivePopin
+         *
+         * The popin the framework considers active: the one `activePopinId` names WHEN IT
+         * IS OPEN, else the first open popin in registration order, else `null`.
+         *
+         * #gh76 §8(a) — a registered-but-not-open popin is never returned. The former
+         * any-registered fallback on `activePopinId` returned a popin during its own
+         * click-time load window (`popinLoad` sets the id before the content lands), which
+         * routed a page form's HTML answer into a popin the framework itself considered
+         * closed, and `popinLoadContent` then threw on it. With two popins open the id —
+         * the most recently opened one — now wins over registration order.
+         *
+         * @returns {object|null} $popin
+         *
+         * @example
+         * var $popin = gina.popin.getActivePopin();
+         * if ($popin) { $popin.close(); }
+         */
         function getActivePopin() {
-            var $popin = null;
+            var $popins = gina.popin.$popins, activeId = gina.popin.activePopinId;
 
-            for (var p in gina.popin.$popins) {
-                if ( typeof(gina.popin.$popins[p].isOpen) != 'undefined' && gina.popin.$popins[p].isOpen ) {
-                    $popin = gina.popin.$popins[p];
-                    break;
+            if ( activeId && $popins[activeId] && $popins[activeId].isOpen ) {
+                return $popins[activeId];
+            }
+            for (var p in $popins) {
+                if ( typeof($popins[p].isOpen) != 'undefined' && $popins[p].isOpen ) {
+                    return $popins[p];
                 }
             }
+            return null;
+        }
 
-            if (!$popin && gina.popin.activePopinId) {
-                $popin = gina.popin.$popins[gina.popin.activePopinId]
+        /**
+         * getPopinContaining
+         *
+         * The registered popin whose dialog element contains `$el`, or `null` when `$el`
+         * is not inside any popin. Innermost wins when popins nest (an in-page dialog
+         * registered from inside another popin's loaded content).
+         *
+         * #gh76 — the routing test for a form's or a link's HTML answer: the answer goes
+         * to the popin the SUBMITTING element lives in, never to "the active popin". The
+         * element id is the popin id on every flavour (dialog, div, in-page), so the walk
+         * is one `getElementById` + `contains` per registered popin — measured at 0.2 µs
+         * worst case per submit.
+         *
+         * @param {HTMLElement} $el - the form, anchor or any element to locate
+         *
+         * @returns {object|null} $popin
+         *
+         * @example
+         * var $popin = gina.popin.getPopinContaining(document.getElementById('my-form'));
+         * // -> the popin the form is rendered in, or null for a page form
+         */
+        function getPopinContaining($el) {
+            var $popins = gina.popin.$popins, $found = null, $foundEl = null, $dialog = null;
+
+            if ( !$el || typeof($el.nodeType) == 'undefined' ) {
+                return null;
             }
-
-            return $popin;
+            for (var p in $popins) {
+                $dialog = ( $popins[p].id ) ? document.getElementById($popins[p].id) : null;
+                if ( !$dialog || !$dialog.contains($el) ) {
+                    continue;
+                }
+                // innermost wins: take the candidate the previous one contains
+                if ( !$found || $foundEl.contains($dialog) ) {
+                    $found   = $popins[p];
+                    $foundEl = $dialog;
+                }
+            }
+            return $found;
         }
 
 
@@ -25059,7 +25249,7 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/loading-state', 'lib/merge'
 
                                 if (!fired) {
                                     fired = true;
-                                    popinLoadContent(e.detail);
+                                    popinLoadContent.call($popin, e.detail);
                                 }
                             });
                         }
@@ -25940,7 +26130,7 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/loading-state', 'lib/merge'
                                     !isJsonContent && $popin.isOpen && isRedirecting && !$popin.partialTarget
                                 ) {
                                     // console.debug('Popin now redirecting [1]');
-                                    popinLoadContent(result, isRedirecting);
+                                    popinLoadContent.call($popin, result, isRedirecting);
                                 } else {
 
                                     if (
@@ -26164,12 +26354,28 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/loading-state', 'lib/merge'
         /**
          * popinLoadContent
          *
-         * @param {string} html - plain/text
-         * @param {boolean} [isRedirecting] - to handle link inside popin without form
+         * Replaces the popin's content with `stringContent` and re-binds it. Called as a
+         * METHOD (`$popin.loadContent(html)`, or the internal `.call($popin, …)` sites) it
+         * loads into THAT popin; called on the manager (`gina.popin.loadContent(html)`) it
+         * loads into the active popin. Throws when the resolved popin is not open.
+         *
+         * #gh76 precision 4 — the former unconditional `getActivePopin()` re-resolve landed
+         * a form's answer in whichever open popin was registered first when two were open
+         * (measured); honouring `this` is what lets the validator load into the popin it
+         * captured at submit.
+         *
+         * @this {object} [$popin] - when a registry entry, the popin to load into
+         * @param {string} stringContent - the HTML to inject (plain text)
+         * @param {boolean} [isRedirecting] - to handle a link inside a popin without a form
+         *
+         * @example
+         * gina.popin.getPopinByName('details').loadContent('<p>updated</p>');
          */
         function popinLoadContent(stringContent, isRedirecting) {
 
-            var $popin = getActivePopin();
+            var $popin = ( this && this.id && instance.$popins[this.id] === this )
+                ? this
+                : getActivePopin();
             if ( !$popin ) {
                 return;
             }
@@ -26839,6 +27045,7 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/loading-state', 'lib/merge'
             instance.load           = popinLoad;
             instance.loadContent    = popinLoadContent;
             instance.getActivePopin = getActivePopin;
+            instance.getPopinContaining = getPopinContaining;
             instance.open           = popinOpen;
             instance.close          = popinClose;
             instance.destroy        = popinDestroy;

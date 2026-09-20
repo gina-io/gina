@@ -126,12 +126,19 @@ describe('01 - Popin registry (#B90): source pins', function () {
             'getPopinByName must still walk instance.$popins (which aliases the shared registry)');
     });
 
-    it('getActivePopin still walks the published registry with the id-fallback', function () {
+    it('getActivePopin still walks the published registry, preferring the OPEN activePopinId (#gh76 realigned)', function () {
         var src = getSrc();
-        assert.match(src, /for \(var p in gina\.popin\.\$popins\) \{/,
-            'getActivePopin walks gina.popin.$popins');
-        assert.match(src, /\$popin = gina\.popin\.\$popins\[gina\.popin\.activePopinId\]/,
-            'getActivePopin keeps the activePopinId fallback (now live thanks to the write-through)');
+        // #gh76 §8(a): the walk reads the published registry through a local alias, and the
+        // activePopinId write-through is still load-bearing — as the PREFERRED popin when it
+        // is open, no longer as an any-state fallback (a not-open popin is never returned).
+        assert.match(src, /var \$popins = gina\.popin\.\$popins, activeId = gina\.popin\.activePopinId;/,
+            'getActivePopin reads gina.popin.$popins and gina.popin.activePopinId');
+        assert.match(src, /for \(var p in \$popins\) \{/,
+            'getActivePopin walks the (aliased) published registry');
+        assert.match(src, /activeId && \$popins\[activeId\] && \$popins\[activeId\]\.isOpen/,
+            'getActivePopin prefers the activePopinId popin only when it is open (the write-through stays live)');
+        assert.doesNotMatch(src, /\$popin = gina\.popin\.\$popins\[gina\.popin\.activePopinId\]/,
+            'the any-state activePopinId fallback is gone (#gh76 §8(a))');
     });
 });
 
@@ -194,19 +201,20 @@ function publishOnce(gina, instance) {
     }
 }
 
-// getActivePopin as the plugin implements it (walk + id-fallback).
+// getActivePopin as the plugin implements it since #gh76 §8(a): the activePopinId popin
+// when it is OPEN, else the first open popin in registration order, else null (a
+// registered-but-not-open popin is never returned).
 function getActivePopinReplica(gina) {
-    var $popin = null;
-    for (var p in gina.popin.$popins) {
-        if (typeof (gina.popin.$popins[p].isOpen) != 'undefined' && gina.popin.$popins[p].isOpen) {
-            $popin = gina.popin.$popins[p];
-            break;
+    var $popins = gina.popin.$popins, activeId = gina.popin.activePopinId;
+    if (activeId && $popins[activeId] && $popins[activeId].isOpen) {
+        return $popins[activeId];
+    }
+    for (var p in $popins) {
+        if (typeof ($popins[p].isOpen) != 'undefined' && $popins[p].isOpen) {
+            return $popins[p];
         }
     }
-    if (!$popin && gina.popin.activePopinId) {
-        $popin = gina.popin.$popins[gina.popin.activePopinId];
-    }
-    return $popin;
+    return null;
 }
 
 describe('02 - Popin registry (#B90): old-pattern subtract reproduces the defect', function () {
@@ -304,8 +312,15 @@ describe('02b - Popin registry (#B90): the fixed pattern resolves every popin', 
         second.setActivePopinId('p1-id');
         assert.equal(gina.popin.activePopinId, 'p1-id',
             'NEW pattern: the write-through keeps the published activePopinId truthful');
+        // #gh76 §8(a): with nothing open the accessor returns null even though the
+        // write-through set the id; open the popin and the id-preference resolves it —
+        // which is what proves the published activePopinId reaches the accessor.
+        assert.equal(getActivePopinReplica(gina), null,
+            'NEW pattern: a not-open popin is never returned, activePopinId or not (#gh76)');
+        p1.isOpen = true;
         assert.equal(getActivePopinReplica(gina), p1,
-            'NEW pattern: the getActivePopin id-fallback fires with nothing open');
+            'NEW pattern: the OPEN activePopinId popin is preferred (the write-through is live)');
+        p1.isOpen = false;
 
         // clearing through the helper clears the published value too
         second.setActivePopinId(null);

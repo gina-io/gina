@@ -457,8 +457,17 @@ function handleXhr(xhr, $el, options, require) {
                         // if hasPopinHandler & popinIsBinded
                         if ( typeof(gina.popin) != 'undefined' && gina.hasPopinHandler ) {
 
-                            // select popin by id
-                            var $popin = gina.popin.getActivePopin();
+                            // #gh76 — the popin the clicked ANCHOR lives in ($el — never
+                            // $target, which is the link plugin's container on this path),
+                            // and only while it is open; a page link's HTML answer stays
+                            // with its own handler instead of being loaded into whichever
+                            // popin happened to be open.
+                            var $popin = ( typeof(gina.popin.getPopinContaining) == 'function' )
+                                ? gina.popin.getPopinContaining($el)
+                                : null;
+                            if ( $popin && !$popin.isOpen ) {
+                                $popin = null;
+                            }
 
                             if ($popin) {
 
@@ -490,6 +499,13 @@ function handleXhr(xhr, $el, options, require) {
 
                                 result = XHRData;
                                 triggerEvent(gina, $target, 'success.' + id, result);
+                                // #B571 — this branch returned before the tail that emits the
+                                // declared-callback companion, so a link's
+                                // `data-gina-link-event-on-success` never ran when its HTML
+                                // answer was loaded into a popin. `.hlink` only: the `.hform`
+                                // half of this handler is dead (no caller passes `$form`).
+                                if (hLinkIsRequired)
+                                    triggerEvent(gina, $link.target, 'success.' + $link.id + '.hlink', result);
 
                                 return;
                             }

@@ -158,6 +158,7 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/loading-state', 'lib/merge'
             '$popins'       : _sharedPopins, // #B90 — module-shared registry (one object for all instances)
             activePopinId   : null,
             getActivePopin  : null, // returns the active $popin
+            getPopinContaining : null, // the popin whose element contains a given element (#gh76)
             target          : document, // by default
             isReady         : false,
             initialized     : false
@@ -285,21 +286,78 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/loading-state', 'lib/merge'
             return $popin;
         }
 
+        /**
+         * getActivePopin
+         *
+         * The popin the framework considers active: the one `activePopinId` names WHEN IT
+         * IS OPEN, else the first open popin in registration order, else `null`.
+         *
+         * #gh76 §8(a) — a registered-but-not-open popin is never returned. The former
+         * any-registered fallback on `activePopinId` returned a popin during its own
+         * click-time load window (`popinLoad` sets the id before the content lands), which
+         * routed a page form's HTML answer into a popin the framework itself considered
+         * closed, and `popinLoadContent` then threw on it. With two popins open the id —
+         * the most recently opened one — now wins over registration order.
+         *
+         * @returns {object|null} $popin
+         *
+         * @example
+         * var $popin = gina.popin.getActivePopin();
+         * if ($popin) { $popin.close(); }
+         */
         function getActivePopin() {
-            var $popin = null;
+            var $popins = gina.popin.$popins, activeId = gina.popin.activePopinId;
 
-            for (var p in gina.popin.$popins) {
-                if ( typeof(gina.popin.$popins[p].isOpen) != 'undefined' && gina.popin.$popins[p].isOpen ) {
-                    $popin = gina.popin.$popins[p];
-                    break;
+            if ( activeId && $popins[activeId] && $popins[activeId].isOpen ) {
+                return $popins[activeId];
+            }
+            for (var p in $popins) {
+                if ( typeof($popins[p].isOpen) != 'undefined' && $popins[p].isOpen ) {
+                    return $popins[p];
                 }
             }
+            return null;
+        }
 
-            if (!$popin && gina.popin.activePopinId) {
-                $popin = gina.popin.$popins[gina.popin.activePopinId]
+        /**
+         * getPopinContaining
+         *
+         * The registered popin whose dialog element contains `$el`, or `null` when `$el`
+         * is not inside any popin. Innermost wins when popins nest (an in-page dialog
+         * registered from inside another popin's loaded content).
+         *
+         * #gh76 — the routing test for a form's or a link's HTML answer: the answer goes
+         * to the popin the SUBMITTING element lives in, never to "the active popin". The
+         * element id is the popin id on every flavour (dialog, div, in-page), so the walk
+         * is one `getElementById` + `contains` per registered popin — measured at 0.2 µs
+         * worst case per submit.
+         *
+         * @param {HTMLElement} $el - the form, anchor or any element to locate
+         *
+         * @returns {object|null} $popin
+         *
+         * @example
+         * var $popin = gina.popin.getPopinContaining(document.getElementById('my-form'));
+         * // -> the popin the form is rendered in, or null for a page form
+         */
+        function getPopinContaining($el) {
+            var $popins = gina.popin.$popins, $found = null, $foundEl = null, $dialog = null;
+
+            if ( !$el || typeof($el.nodeType) == 'undefined' ) {
+                return null;
             }
-
-            return $popin;
+            for (var p in $popins) {
+                $dialog = ( $popins[p].id ) ? document.getElementById($popins[p].id) : null;
+                if ( !$dialog || !$dialog.contains($el) ) {
+                    continue;
+                }
+                // innermost wins: take the candidate the previous one contains
+                if ( !$found || $foundEl.contains($dialog) ) {
+                    $found   = $popins[p];
+                    $foundEl = $dialog;
+                }
+            }
+            return $found;
         }
 
 
@@ -1436,7 +1494,7 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/loading-state', 'lib/merge'
 
                                 if (!fired) {
                                     fired = true;
-                                    popinLoadContent(e.detail);
+                                    popinLoadContent.call($popin, e.detail);
                                 }
                             });
                         }
@@ -2317,7 +2375,7 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/loading-state', 'lib/merge'
                                     !isJsonContent && $popin.isOpen && isRedirecting && !$popin.partialTarget
                                 ) {
                                     // console.debug('Popin now redirecting [1]');
-                                    popinLoadContent(result, isRedirecting);
+                                    popinLoadContent.call($popin, result, isRedirecting);
                                 } else {
 
                                     if (
@@ -2541,12 +2599,28 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/loading-state', 'lib/merge'
         /**
          * popinLoadContent
          *
-         * @param {string} html - plain/text
-         * @param {boolean} [isRedirecting] - to handle link inside popin without form
+         * Replaces the popin's content with `stringContent` and re-binds it. Called as a
+         * METHOD (`$popin.loadContent(html)`, or the internal `.call($popin, …)` sites) it
+         * loads into THAT popin; called on the manager (`gina.popin.loadContent(html)`) it
+         * loads into the active popin. Throws when the resolved popin is not open.
+         *
+         * #gh76 precision 4 — the former unconditional `getActivePopin()` re-resolve landed
+         * a form's answer in whichever open popin was registered first when two were open
+         * (measured); honouring `this` is what lets the validator load into the popin it
+         * captured at submit.
+         *
+         * @this {object} [$popin] - when a registry entry, the popin to load into
+         * @param {string} stringContent - the HTML to inject (plain text)
+         * @param {boolean} [isRedirecting] - to handle a link inside a popin without a form
+         *
+         * @example
+         * gina.popin.getPopinByName('details').loadContent('<p>updated</p>');
          */
         function popinLoadContent(stringContent, isRedirecting) {
 
-            var $popin = getActivePopin();
+            var $popin = ( this && this.id && instance.$popins[this.id] === this )
+                ? this
+                : getActivePopin();
             if ( !$popin ) {
                 return;
             }
@@ -3216,6 +3290,7 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/loading-state', 'lib/merge'
             instance.load           = popinLoad;
             instance.loadContent    = popinLoadContent;
             instance.getActivePopin = getActivePopin;
+            instance.getPopinContaining = getPopinContaining;
             instance.open           = popinOpen;
             instance.close          = popinClose;
             instance.destroy        = popinDestroy;
