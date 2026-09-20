@@ -1918,6 +1918,15 @@ function Config(opt, contextResetNeeded) {
         ;
         for (; c < cLen; ++c) {
             let jsonFile = null;
+            // #D45-overlay — the `<name>.<env>.json` content, STASHED here and folded in
+            // LAST (after the base file below) with lib/merge's `override` flag, so the
+            // environment overlay WINS on every key both files declare. It used to be
+            // merged in FIRST, target-wins, so the base file silently beat its own
+            // overlay on conflicting keys (env-only keys were added, overrides were
+            // dropped) since this loop's first cut in 2022 — while every reference page
+            // promised the opposite. Arrays: an env array REPLACES the base array
+            // (override semantics), it is not unioned into it.
+            let envJsonFile = null;
 
             fName = configFiles[c];
             fNameWithNoExt  = fName.replace(/.json/, '');
@@ -2005,13 +2014,9 @@ function Config(opt, contextResetNeeded) {
                 if (!exists) {
                     jsonFile = null;
                 } else {
-                    jsonFile = requireJSON(_(filename, true));
-
-                    if (Array.isArray(jsonFile) && !Array.isArray(fileContent) && !Object.keys(fileContent).length) {
-                        fileContent = []
-                    }
-                    // Fixed priority to env version and/or extended.description if found
-                    fileContent = merge(jsonFile, fileContent);
+                    jsonFile    = requireJSON(_(filename, true));
+                    // #D45-overlay — not merged here any more (see the fold after the base file)
+                    envJsonFile = jsonFile;
                 }
 
             } catch (_err) {
@@ -2067,6 +2072,14 @@ function Config(opt, contextResetNeeded) {
                 //fileContent = merge(fileContent, jsonFile);
                 // Fixed priority to env version and/or extended.description if found
                 fileContent = merge(jsonFile, fileContent);
+
+                // #D45-overlay — now the environment version, and it wins (override).
+                if ( envJsonFile ) {
+                    if (Array.isArray(envJsonFile) && !Array.isArray(fileContent) && !Object.keys(fileContent).length) {
+                        fileContent = []
+                    }
+                    fileContent = merge(fileContent, envJsonFile, true);
+                }
 
 
             } catch (_err) {

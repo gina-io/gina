@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'An `<name>.<env>.json` configuration overlay now wins on every key it declares. It was previously folded in before its base file and lost to it on any key both declared, so an environment-only key was added but an actual override was silently dropped — the opposite of what the reference pages have always described. Two consequences are observable and worth checking before upgrading: an overlay array now REPLACES the base array instead of being unioned into it, and a `null` in the overlay overrides the base value. Bundles with no overlay file are unaffected. This is the per-bundle configuration loader only; the `settings.*` template path is a separate mechanism and is unchanged.'
+time: 2026-09-20T17:53:49+01:00
