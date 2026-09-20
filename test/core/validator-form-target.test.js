@@ -12,6 +12,10 @@
  *      binding and its `deferFormId` on a self-replacing swap, `afterswap` ordering.
  *  §04 `refuseSend` — releases the submit and delivers the `targetError` shape.
  *  §05 `finalizeSelfReplacement` — retires the stale entry, binds an opted-in replacement.
+ *  §09 `applyResponseOverrides` (gh#76 §6) — the server's last word: `X-Gina-Retarget` /
+ *      `X-Gina-Reswap` / `X-Gina-Reselect` read at settle, the asymmetric invalid-value rule
+ *      (a bad Retarget drops the target — no swap; a bad Reswap/Reselect is ignored, the
+ *      declared value kept; either without a target is `noTarget`), the report shape.
  * WHAT IT PINS
  *  §06 the wiring: events registered, `sendCtx` shape, the capture placed after
  *      `listenToXhrEvents` and before the upload marker, the settle precedence (declared
@@ -19,6 +23,10 @@
  *      `.value` dereference left, the tail's `finalizeSelfReplacement`, the declarative
  *      `data-gina-form-event-on-swap` hook bound and unbound, `hFormIsRequired` including
  *      it, and the `on()` wrapper's `beforeswap.` exception.
+ *  §10 the gh#76 §6 wiring: the read sits inside the html branch, after the answer is known
+ *      to be HTML and before the target fork (never on the JSON branch); the refused-Retarget
+ *      branch precedes the fork; `beforeswap` and the payload carry the report only when set;
+ *      the legacy path attaches it, the popin path never touches it.
  *
  * Red-first: every §01-§05 extraction control and every §06 pin FAILS on the pre-C2
  * sources (the seams below pointed at `git show <C1 sha>:<file>` copies).
@@ -66,6 +74,9 @@ var srcParse    = extract(evtSrc, '^function parseXhrHtmlAnswer\\(', 'parseXhrHt
 var srcOob      = extract(evtSrc, '^function applyOobSwaps\\(', 'applyOobSwaps');
 var srcWarnOob  = extract(valSrc, '^[ \\t]*var warnOobRefusals = function\\(', 'warnOobRefusals');
 var mStrategies = valSrc.match(/^[ \t]*var SWAP_STRATEGIES = (\[[^\]]+\]);/m);
+// gh#76 §6 — extracted lazily so a pre-§6 source (the red-first lever) reds §09 alone, not the file
+var srcOverrides = null;
+try { srcOverrides = extract(valSrc, '^[ \\t]*var applyResponseOverrides = function\\(', 'applyResponseOverrides'); } catch (absent) { srcOverrides = null; }
 
 function win(html) {
     var dom = new JSDOM('<!DOCTYPE html><html><head><script src="http://localhost/js/gina.min.js"></script></head><body>' + (html || '') + '</body></html>', { url: 'http://localhost/page', runScripts: 'outside-only' });
@@ -627,5 +638,156 @@ describe('§06 wiring pins', function () {
         assert.equal(re.test('afterswap.f'), false, 'afterswap is NOT exempt');
         assert.equal(re.test('oobafterswap.f'), false, 'oobafterswap is NOT exempt');
         assert.equal(re.test('success.f'), false, 'an ordinary event is NOT exempt');
+    });
+});
+
+
+// ── gh#76 §6 — the server's last word: X-Gina-Retarget / X-Gina-Reswap / X-Gina-Reselect ──
+
+describe('§09 applyResponseOverrides — the response-header overrides, extracted', function () {
+    /** A settled transport: header lookup is case-insensitive, as a real XMLHttpRequest's is. */
+    function xhrWith(headers) {
+        var map = {};
+        Object.keys(headers || {}).forEach(function (k) { map[k.toLowerCase()] = headers[k]; });
+        return { getResponseHeader: function (name) { var v = map[String(name).toLowerCase()]; return ( typeof(v) == 'undefined' ) ? null : v; } };
+    }
+    function scene(html) {
+        var w = win(html || '<ul id="list"><li id="row" class="r"><form id="f"><span class="in">i</span></form></li></ul><div id="totals">t0</div>');
+        assert.ok(srcOverrides, 'applyResponseOverrides is declared in the source (extraction control — red on a pre-§6 source)');
+        w.eval('window.__applyResponseOverrides = (function(){ var envIsDev = false; var SWAP_STRATEGIES = ' + mStrategies[1] + '; ' + srcResolve + ' ' + srcOverrides + ' return applyResponseOverrides; }());');
+        return { w: w, $f: w.document.getElementById('f') };
+    }
+    function ctx(over) {
+        var c = { popin: null, target: null, swap: 'innerHTML', select: null, targetAttr: null, rebindSelf: false };
+        Object.keys(over || {}).forEach(function (k) { c[k] = over[k]; });
+        return c;
+    }
+
+    it('no header at all → null, and the capture is left exactly as it was (no `overrides` key)', function () {
+        var s = scene(), c = ctx({ target: s.w.document.getElementById('row'), targetAttr: '#row', swap: 'beforeend', select: 'li' });
+        var r = s.w.__applyResponseOverrides(xhrWith({}), c, s.$f, 'f');
+        assert.equal(r, null);
+        assert.equal(c.target.id, 'row'); assert.equal(c.targetAttr, '#row'); assert.equal(c.swap, 'beforeend'); assert.equal(c.select, 'li');
+        assert.equal('overrides' in c, false, 'nothing recorded when nothing was sent');
+    });
+    it('X-Gina-Retarget creates a target where none was declared; the report names the header as the target attribute', function () {
+        var s = scene(), c = ctx();
+        var r = s.w.__applyResponseOverrides(xhrWith({ 'X-Gina-Retarget': '#totals' }), c, s.$f, 'f');
+        assert.equal(c.target.id, 'totals');
+        assert.equal(c.targetAttr, 'X-Gina-Retarget');
+        assert.deepEqual(plain(r), { retarget: { value: '#totals', applied: true } });
+        assert.equal(c.overrides, r, 'stored on the capture');
+    });
+    it('X-Gina-Retarget takes the data-gina-form-target grammar through the same resolver (this / closest / find / selector)', function () {
+        var s = scene();
+        assert.equal(s.w.__applyResponseOverrides(xhrWith({ 'x-gina-retarget': 'this' }), ctx(), s.$f, 'f').retarget.applied, true);
+        var c1 = ctx(); s.w.__applyResponseOverrides(xhrWith({ 'x-gina-retarget': 'this' }), c1, s.$f, 'f'); assert.equal(c1.target, s.$f, 'this → the form');
+        var c2 = ctx(); s.w.__applyResponseOverrides(xhrWith({ 'x-gina-retarget': 'closest li' }), c2, s.$f, 'f'); assert.equal(c2.target.id, 'row');
+        var c3 = ctx(); s.w.__applyResponseOverrides(xhrWith({ 'x-gina-retarget': 'find .in' }), c3, s.$f, 'f'); assert.equal(c3.target.className, 'in');
+        var c4 = ctx(); var r4 = s.w.__applyResponseOverrides(xhrWith({ 'x-gina-retarget': 'next' }), c4, s.$f, 'f');
+        assert.equal(r4.retarget.applied, false); assert.match(r4.retarget.reason, /reserved/);
+    });
+    it('X-Gina-Retarget replaces a DECLARED target', function () {
+        var s = scene(), c = ctx({ target: s.w.document.getElementById('row'), targetAttr: '#row' });
+        s.w.__applyResponseOverrides(xhrWith({ 'X-Gina-Retarget': '#totals' }), c, s.$f, 'f');
+        assert.equal(c.target.id, 'totals'); assert.equal(c.targetAttr, 'X-Gina-Retarget');
+    });
+    it('a Retarget that cannot be resolved DROPS the target (no swap) and carries the reason; a Reswap in the same answer is then `noTarget`', function () {
+        var s = scene(), c = ctx({ target: s.w.document.getElementById('row'), targetAttr: '#row', swap: 'innerHTML' });
+        var r = s.w.__applyResponseOverrides(xhrWith({ 'X-Gina-Retarget': '#nowhere', 'X-Gina-Reswap': 'beforeend' }), c, s.$f, 'f');
+        assert.equal(c.target, null, 'the declared target is abandoned — the server meant somewhere else');
+        assert.equal(c.targetAttr, 'X-Gina-Retarget');
+        assert.equal(r.retarget.applied, false); assert.match(r.retarget.reason, /no element matches `#nowhere`/);
+        assert.deepEqual(plain(r.reswap), { value: 'beforeend', applied: false, reason: 'noTarget' });
+        assert.equal(c.swap, 'innerHTML', 'the declared strategy is untouched');
+        var e = s.w.__applyResponseOverrides(xhrWith({ 'X-Gina-Retarget': '' }), ctx(), s.$f, 'f');
+        assert.equal(e.retarget.applied, false); assert.match(e.retarget.reason, /empty/);
+    });
+    it('X-Gina-Reswap: a known strategy replaces the declared one; an unknown one is IGNORED and the declared kept; without a target it is `noTarget`', function () {
+        var s = scene();
+        var ok = ctx({ target: s.w.document.getElementById('row'), swap: 'innerHTML' });
+        assert.deepEqual(plain(s.w.__applyResponseOverrides(xhrWith({ 'X-Gina-Reswap': 'beforeend' }), ok, s.$f, 'f')), { reswap: { value: 'beforeend', applied: true } });
+        assert.equal(ok.swap, 'beforeend');
+        var bad = ctx({ target: s.w.document.getElementById('row'), swap: 'afterend' });
+        var rb = s.w.__applyResponseOverrides(xhrWith({ 'X-Gina-Reswap': 'sideways' }), bad, s.$f, 'f');
+        assert.equal(rb.reswap.applied, false); assert.match(rb.reswap.reason, /unknown swap strategy `sideways`/);
+        assert.equal(bad.swap, 'afterend', 'the declared strategy is kept');
+        var none = ctx();
+        assert.deepEqual(plain(s.w.__applyResponseOverrides(xhrWith({ 'X-Gina-Reswap': 'beforeend' }), none, s.$f, 'f')), { reswap: { value: 'beforeend', applied: false, reason: 'noTarget' } });
+        assert.equal(none.swap, 'innerHTML');
+    });
+    it('X-Gina-Reselect: a valid selector replaces the declared select; an invalid or empty one is IGNORED; without a target it is `noTarget`', function () {
+        var s = scene();
+        var ok = ctx({ target: s.w.document.getElementById('row'), select: null });
+        assert.deepEqual(plain(s.w.__applyResponseOverrides(xhrWith({ 'X-Gina-Reselect': 'li' }), ok, s.$f, 'f')), { reselect: { value: 'li', applied: true } });
+        assert.equal(ok.select, 'li');
+        var bad = ctx({ target: s.w.document.getElementById('row'), select: 'p' });
+        var rb = s.w.__applyResponseOverrides(xhrWith({ 'X-Gina-Reselect': '#[bad' }), bad, s.$f, 'f');
+        assert.equal(rb.reselect.applied, false); assert.match(rb.reselect.reason, /invalid selector/);
+        assert.equal(bad.select, 'p', 'the declared select is kept');
+        var empty = ctx({ target: s.w.document.getElementById('row') });
+        assert.equal(s.w.__applyResponseOverrides(xhrWith({ 'X-Gina-Reselect': '   ' }), empty, s.$f, 'f').reselect.applied, false);
+        var none = ctx();
+        assert.deepEqual(plain(s.w.__applyResponseOverrides(xhrWith({ 'X-Gina-Reselect': 'li' }), none, s.$f, 'f')), { reselect: { value: 'li', applied: false, reason: 'noTarget' } });
+    });
+    it('all three at once: Retarget resolves first, so Reswap and Reselect apply to the RETARGETED element', function () {
+        var s = scene(), c = ctx();
+        var r = s.w.__applyResponseOverrides(xhrWith({ 'X-Gina-Retarget': '#totals', 'X-Gina-Reswap': 'afterbegin', 'X-Gina-Reselect': 'li' }), c, s.$f, 'f');
+        assert.equal(c.target.id, 'totals'); assert.equal(c.swap, 'afterbegin'); assert.equal(c.select, 'li');
+        assert.deepEqual(plain(r), { retarget: { value: '#totals', applied: true }, reswap: { value: 'afterbegin', applied: true }, reselect: { value: 'li', applied: true } });
+    });
+    it('a transport whose getResponseHeader throws is read as "no header"', function () {
+        var s = scene(), c = ctx();
+        var r = s.w.__applyResponseOverrides({ getResponseHeader: function () { throw new Error('boom'); } }, c, s.$f, 'f');
+        assert.equal(r, null);
+    });
+});
+
+describe('§10 gh#76 §6 wiring pins', function () {
+    var a = active(valSrc);
+
+    it('the helper is declared once, beside the slice-2 helpers, ahead of applySwap', function () {
+        assert.equal((a.match(/^[ \t]*var applyResponseOverrides = function\(xhr, sendCtx, \$target, id\) \{/mg) || []).length, 1);
+        assert.ok(a.indexOf('var applyResponseOverrides = function(') < a.indexOf('var applySwap = function('));
+    });
+    it('the read sits inside the html branch — after the answer is known to be HTML, before the target fork — and never on the JSON branch', function () {
+        var jsonGate = a.indexOf("if ( /\\/json/.test( contentType ) ) {");
+        var htmlGate = a.indexOf("if ( /\\/html/.test( contentType ) ) {");
+        var readIdx  = a.indexOf('applyResponseOverrides(xhr, sendCtx, $target, id);');
+        var fork     = a.indexOf('else if ( sendCtx.target ) {');
+        assert.ok(jsonGate > -1 && htmlGate > jsonGate, 'both content-type gates located, JSON first (slice control)');
+        assert.ok(readIdx > htmlGate && readIdx < fork, 'html gate < read < target fork');
+        assert.equal((a.match(/applyResponseOverrides\(xhr, sendCtx, \$target, id\);/g) || []).length, 1, 'exactly one call site');
+        assert.equal(a.slice(jsonGate, htmlGate).indexOf('applyResponseOverrides('), -1, 'nothing between the JSON gate and the html gate reads the headers');
+    });
+    it('a refused Retarget takes its own branch AHEAD of the target fork: no swap, target null, reason retargetError, the report attached', function () {
+        var refused = a.indexOf('if ( sendCtx.overrides && sendCtx.overrides.retarget && !sendCtx.overrides.retarget.applied ) {');
+        var fork    = a.indexOf('else if ( sendCtx.target ) {');
+        assert.ok(refused > -1 && fork > refused, 'refused branch precedes the fork');
+        var block = a.slice(refused, fork);
+        assert.ok(/target\s*:\s*null,/.test(block) && /swapped\s*:\s*false,/.test(block) && /reason\s*:\s*'retargetError',/.test(block) && /overrides\s*:\s*sendCtx\.overrides/.test(block),
+            'the refused payload shape');
+        assert.ok(block.indexOf('parseXhrHtmlAnswer(result.content)') > -1, 'still parsed once, so data/view reach the handler as on a swap');
+        assert.equal((a.match(/else if \( sendCtx\.target \) \{/g) || []).length, 1, 'the declared-target fork is the else of that branch');
+    });
+    it('applySwap: beforeswap sees the report and the payload carries it — only when the server overrode something', function () {
+        assert.ok(/var beforeDetail = \{ target: \$el, content: content, strategy: strategy, select: sendCtx\.select \};\s*\n\s*if \( sendCtx\.overrides \) \{\s*\n\s*beforeDetail\.overrides = sendCtx\.overrides;/.test(a),
+            'the detail gains `overrides` when set');
+        assert.ok(a.indexOf("triggerEvent(gina, $target, 'beforeswap.' + id, beforeDetail);") > -1, 'the emit uses the built detail');
+        assert.ok(/if \( sendCtx\.overrides \) \{\s*\n\s*payload\.overrides = sendCtx\.overrides;/.test(a), 'the payload gains `overrides` when set');
+        assert.equal((a.match(/overrides\s*:\s*/g) || []).length, 1, 'the only literal `overrides:` key is the refused payload — applySwap adds it conditionally, never unconditionally');
+    });
+    it('the legacy (target-less, popin-less) path attaches the report; the popin path never touches it', function () {
+        var attach = a.indexOf("if ( !sendCtx.target && sendCtx.overrides && typeof(result.overrides) == 'undefined' ) {");
+        var oobLegacy = a.indexOf("if ( !sendCtx.target && typeof(result.content) == 'string' && result.content.indexOf('data-gina-swap-oob') > -1 ) {");
+        // the first success record AFTER the attach block (earlier branches record their own)
+        var success = a.indexOf('$form.eventData.success = result;', attach);
+        assert.ok(attach > -1 && oobLegacy > -1 && oobLegacy < attach && success > attach, 'after the legacy oob hook, before the success record');
+        // the popin branch ends at its own finalize + return; a slice running to the shared
+        // tail's success emit would cross the legacy attach block above and read its own needle
+        var from = a.indexOf('$popin.loadContent('), to = a.indexOf('finalizeSelfReplacement($target, id);', from);
+        var branch = ( from > -1 && to > from ) ? a.slice(from, to) : '';
+        assert.ok(branch.indexOf('result = XHRData ||') > -1, 'the popin branch slice is located (slice control)');
+        assert.equal(branch.indexOf('overrides'), -1, 'the parsed popin data is delivered verbatim — no report injected');
     });
 });

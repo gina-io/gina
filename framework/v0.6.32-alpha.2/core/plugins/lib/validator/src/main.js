@@ -836,6 +836,111 @@ function ValidatorPlugin(rules, data, formId, culture) {
     }
 
     /**
+     * applyResponseOverrides
+     *
+     * #gh76 §6 — the server's last word on where a `text/html` answer goes and how: three
+     * response headers, read at settle AFTER the answer is known to be HTML and BEFORE the
+     * swap-target fork and `beforeswap` (htmx's order, so a listener keeps the final say):
+     *   `X-Gina-Retarget` — the `data-gina-form-target` grammar (`this`, `closest`, `find`,
+     *     a selector; `next`/`previous` refused), resolved from the submitting form through
+     *     resolveSwapTarget. On success it BECOMES the target and `sendCtx.targetAttr` names
+     *     the header: a declaration made by the server, so it wins over the popin exactly as
+     *     a declared attribute does, and it creates a target where none was declared.
+     *   `X-Gina-Reswap` — one of SWAP_STRATEGIES, replacing the declared strategy.
+     *   `X-Gina-Reselect` — a selector applied to the answer, replacing `data-gina-form-select`.
+     * The invalid-value rule is ASYMMETRIC, each half consistent with a rule that already
+     * exists. A Retarget that cannot be resolved means NO swap (`applied: false` + the
+     * reason, and the target is dropped): slice 2's settle-time refusal for a target that
+     * left the document — inserting into the declared target could land the answer in the
+     * wrong DOM when the server plainly meant somewhere else. A Reswap or Reselect that
+     * fails validation is IGNORED and the declared value kept: a modifier on a known target,
+     * and htmx degrades an invalid `HX-Reswap` the same way. Either without a target —
+     * declared or retargeted — is ignored too (`reason: 'noTarget'`). Never a 422: a
+     * misconfiguration surfacing as an error after a successful write is the false-422
+     * shape slice 1 removed. Dev-mode console notices name every refused or ignored value.
+     *
+     * Returns the report — `null` when the answer carried none of the three — and stores it
+     * on `sendCtx.overrides`, from where `beforeswap` and the success payload carry it.
+     *
+     * @param {XMLHttpRequest} xhr - the settled transport (its `getResponseHeader`)
+     * @param {object} sendCtx - the per-send capture (`target`/`targetAttr`/`swap`/`select` mutated)
+     * @param {HTMLFormElement} $target - the submitting form (the `this`/`closest`/`find` base)
+     * @param {string} id - the form id (notices)
+     *
+     * @returns {(null|{retarget: (object|undefined), reswap: (object|undefined), reselect: (object|undefined)})}
+     *   each entry `{ value, applied, reason }` (`reason` only when not applied)
+     *
+     * @example
+     * applyResponseOverrides(xhr, sendCtx, $target, id); // => { retarget: { value: '#totals', applied: true } }
+     */
+    var applyResponseOverrides = function(xhr, sendCtx, $target, id) {
+        var read = function(name) {
+            var v = null;
+            try { v = xhr.getResponseHeader(name); } catch (headerErr) { v = null; }
+            return ( typeof(v) == 'string' ) ? v.trim() : null;
+        };
+        var retarget    = read('X-Gina-Retarget')
+            , reswap    = read('X-Gina-Reswap')
+            , reselect  = read('X-Gina-Reselect')
+            , report    = null
+            , resolved  = null
+            , hasTarget = false
+            , notice    = function(msg) {
+                if (envIsDev) {
+                    try { console.warn('[FormValidator][swap] form `#'+ id +'`: '+ msg); } catch (e) {}
+                }
+            }
+        ;
+        if ( retarget === null && reswap === null && reselect === null ) {
+            return null;
+        }
+        report = {};
+        if ( retarget !== null ) {
+            resolved = resolveSwapTarget($target, retarget);
+            sendCtx.targetAttr = 'X-Gina-Retarget';
+            if ( resolved.error ) {
+                report.retarget = { value: retarget, applied: false, reason: resolved.error };
+                sendCtx.target  = null;
+                notice('`X-Gina-Retarget: '+ retarget +'` cannot be honoured ('+ resolved.error +') — nothing swapped');
+            } else {
+                report.retarget = { value: retarget, applied: true };
+                sendCtx.target  = resolved.target;
+            }
+        }
+        hasTarget = !!sendCtx.target;
+        if ( reswap !== null ) {
+            if ( !hasTarget ) {
+                report.reswap = { value: reswap, applied: false, reason: 'noTarget' };
+                notice('`X-Gina-Reswap: '+ reswap +'` ignored — the answer has no swap target');
+            } else if ( SWAP_STRATEGIES.indexOf(reswap) < 0 ) {
+                report.reswap = { value: reswap, applied: false, reason: 'unknown swap strategy `'+ reswap +'` (one of '+ SWAP_STRATEGIES.join(', ') +')' };
+                notice('`X-Gina-Reswap: '+ reswap +'` ignored — unknown strategy, `'+ sendCtx.swap +'` kept');
+            } else {
+                report.reswap = { value: reswap, applied: true };
+                sendCtx.swap  = reswap;
+            }
+        }
+        if ( reselect !== null ) {
+            var selectorOk = ( reselect !== '' );
+            if ( selectorOk ) {
+                try { document.createDocumentFragment().querySelector(reselect); } catch (selectorErr) { selectorOk = false; }
+            }
+            if ( !hasTarget ) {
+                report.reselect = { value: reselect, applied: false, reason: 'noTarget' };
+                notice('`X-Gina-Reselect: '+ reselect +'` ignored — the answer has no swap target');
+            } else if ( !selectorOk ) {
+                report.reselect = { value: reselect, applied: false, reason: 'invalid selector `'+ reselect +'`' };
+                notice('`X-Gina-Reselect: '+ reselect +'` ignored — invalid selector, `'+ ( sendCtx.select || 'the whole answer' ) +'` kept');
+            } else {
+                report.reselect = { value: reselect, applied: true };
+                sendCtx.select  = reselect;
+            }
+        }
+        sendCtx.overrides = report;
+        return report;
+    }
+
+    /**
      * applySwap
      *
      * #gh76 slice 2 — swaps a `text/html` answer into the target captured at submit. ONE
@@ -886,6 +991,10 @@ function ValidatorPlugin(rules, data, formId, culture) {
                 swapped     : false
             }
         ;
+        // #gh76 §6 — present only when the answer carried an override header
+        if ( sendCtx.overrides ) {
+            payload.overrides = sendCtx.overrides;
+        }
         var warn = function(msg) {
             if (envIsDev) {
                 try { console.warn('[FormValidator][swap] form `#'+ id +'`: '+ msg); } catch (e) {}
@@ -941,7 +1050,11 @@ function ValidatorPlugin(rules, data, formId, culture) {
         }
 
         if ( strategy !== 'none' ) {
-            evt = triggerEvent(gina, $target, 'beforeswap.' + id, { target: $el, content: content, strategy: strategy, select: sendCtx.select });
+            var beforeDetail = { target: $el, content: content, strategy: strategy, select: sendCtx.select };
+            if ( sendCtx.overrides ) {
+                beforeDetail.overrides = sendCtx.overrides;
+            }
+            evt = triggerEvent(gina, $target, 'beforeswap.' + id, beforeDetail);
             if ( evt && evt.defaultPrevented ) {
                 warn('the swap was cancelled by a `beforeswap` listener');
                 return payload;
@@ -2573,7 +2686,7 @@ function ValidatorPlugin(rules, data, formId, culture) {
         // #gh76 — per-send capture of the popin the SUBMITTING form lives in (or null),
         // read at the settle below. `$form.eventData` is per form and a second send would
         // overwrite it; this closure is per send (#B175 made the XHR per send).
-        /** @type {{ popin: (object|null), target: (HTMLElement|null), swap: string, select: (string|null), targetAttr: (string|null), rebindSelf: boolean }} */
+        /** @type {{ popin: (object|null), target: (HTMLElement|null), swap: string, select: (string|null), targetAttr: (string|null), rebindSelf: boolean, overrides: (object|undefined) }} */
         var sendCtx = { popin: null, target: null, swap: 'innerHTML', select: null, targetAttr: null, rebindSelf: false };
 
         options = (typeof (options) != 'undefined') ? merge(options, xhrOptions) : xhrOptions;
@@ -2972,11 +3085,36 @@ function ValidatorPlugin(rules, data, formId, culture) {
                                 if ( typeof(result.status) == 'undefined' )
                                     result.status = xhr.status;
 
+                                // #gh76 §6 — the server's last word (X-Gina-Retarget / -Reswap /
+                                // -Reselect): read once the answer is known to be HTML, before
+                                // the target fork and before `beforeswap`, so a listener still
+                                // has the final say. A JSON answer never reaches this read.
+                                applyResponseOverrides(xhr, sendCtx, $target, id);
+
+                                // #gh76 §6 — a Retarget that cannot be honoured: no swap, nowhere
+                                // (the popin included) — the server plainly meant somewhere else.
+                                // The handler still receives the answer, and out-of-band elements
+                                // still land below: they are addressed by id, not by the target.
+                                if ( sendCtx.overrides && sendCtx.overrides.retarget && !sendCtx.overrides.retarget.applied ) {
+                                    var parsedRefused = parseXhrHtmlAnswer(result.content);
+                                    result = {
+                                        contentType : result.contentType,
+                                        content     : result.content,
+                                        status      : result.status,
+                                        data        : parsedRefused.data,
+                                        view        : parsedRefused.view,
+                                        target      : null,
+                                        swap        : sendCtx.swap,
+                                        swapped     : false,
+                                        reason      : 'retargetError',
+                                        overrides   : sendCtx.overrides
+                                    };
+                                }
                                 // #gh76 slice 2 — a DECLARED target wins over containment: the
                                 // answer is swapped into the element captured at submit (inside
                                 // or outside a popin), bound, and delivered with the richer
                                 // payload; the shared tail below emits `success`.
-                                if ( sendCtx.target ) {
+                                else if ( sendCtx.target ) {
                                     result = applySwap(sendCtx, $form, $target, id, hFormIsRequired, result);
                                 }
                                 // if hasPopinHandler & popinIsBinded
@@ -3073,6 +3211,12 @@ function ValidatorPlugin(rules, data, formId, culture) {
                                     result.oob       = oobRunLegacy.list;
                                     result.remainder = parsedLegacy.doc.body.innerHTML;
                                     if ( oobRunLegacy.rebindSelf ) sendCtx.rebindSelf = true;
+                                }
+                                // #gh76 §6 — an override the server sent to a target-less form
+                                // (ignored, `reason: 'noTarget'`) is still reported to the handler;
+                                // the popin path's parsed data is delivered verbatim and carries none
+                                if ( !sendCtx.target && sendCtx.overrides && typeof(result.overrides) == 'undefined' ) {
+                                    result.overrides = sendCtx.overrides;
                                 }
                             }
 
