@@ -3,6 +3,16 @@
 # Maintained by script/check_bun_suite.js --update — review the diff before committing.
 # A NEW failure not listed here is a red; a listed one that no longer fails is a warning.
 test/core/config-env-load-error-propagation.test.js :: #B372 §02 — replica of the callback contract :: SUBTRACT CONTROL: the pre-fix shape reproduces the exact shipped TypeError
+test/core/config-env-overlay.test.js :: #D45 §02 — the environment overlay wins on every key it declares :: CONTROL: with no environment file, the base config is served unchanged
+test/core/config-env-overlay.test.js :: #D45 §02 — the environment overlay wins on every key it declares :: a conflicting scalar takes the environment value
+test/core/config-env-overlay.test.js :: #D45 §02 — the environment overlay wins on every key it declares :: a nested object merges key by key, the environment winning per key
+test/core/config-env-overlay.test.js :: #D45 §02 — the environment overlay wins on every key it declares :: an environment array REPLACES the base array rather than being unioned into it
+test/core/config-env-overlay.test.js :: #D45 §02 — the environment overlay wins on every key it declares :: keys only one side declares survive from both sides
+test/core/config-session-lifetime.test.js :: session lifetime — the config boot seam :: CONTROL: a bundle with no security.json resolves to null, not an empty policy
+test/core/config-session-lifetime.test.js :: session lifetime — the config boot seam :: a declared policy reaches the slot the router reads
+test/core/config-session-lifetime.test.js :: session lifetime — the config boot seam :: a security.json with no session keys also resolves to null
+test/core/config-session-lifetime.test.js :: session lifetime — the config boot seam :: an unusable value is reported and IGNORED — the bundle still boots
+test/core/config-session-lifetime.test.js :: session lifetime — the config boot seam :: one unusable key does not discard its usable sibling
 test/core/config-src-fallback-scope.test.js :: #B542 §02 — a config-less bundle does not move any other bundle's config root :: CONTROL: a bundle opted out of the booting scope is skipped before the fallback can run
 test/core/config-src-fallback-scope.test.js :: #B542 §02 — a config-less bundle does not move any other bundle's config root :: CONTROL: with every release tree intact, both bundles resolve to the link container
 test/core/config-src-fallback-scope.test.js :: #B542 §02 — a config-less bundle does not move any other bundle's config root :: a LATER bundle keeps its own config root when an earlier one falls back to src

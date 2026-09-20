@@ -198,6 +198,34 @@ describe('lib/session-lifetime §03 — which lifetime lands on the cookie', fun
 });
 
 // ─── 04 — wrapLogin, the passport path ───────────────────────────────────────
+/**
+ * Run a callback-style arm as a promise.
+ *
+ * Assertions made inside an asynchronous callback need somewhere to land: a
+ * throw there escapes the test rather than failing it. This also keeps the file
+ * runner-portable — node:test passes `(t, done)` to an arm, `bun test` does not,
+ * so an arm written against that signature fails under Bun with `done is not a
+ * function` while testing nothing at all.
+ *
+ * @inner
+ * @param {function} body - Receives `ok`; call `ok(fn)` with the assertions.
+ * @returns {Promise} Resolves when `ok` runs cleanly, rejects with its error.
+ *
+ * @example
+ * it('…', function () {
+ *     return promised(function (ok) {
+ *         thing.run(function (err) { ok(function () { assert.equal(err, null); }); });
+ *     });
+ * });
+ */
+function promised(body) {
+    return new Promise(function (resolve, reject) {
+        body(function (assertions) {
+            try { assertions(); resolve(); } catch (e) { reject(e); }
+        });
+    });
+}
+
 describe('lib/session-lifetime §04 — wrapping an already-installed req.logIn', function () {
 
     var full = { expires: 15 * M, remember: 15 * D };
@@ -221,56 +249,70 @@ describe('lib/session-lifetime §04 — wrapping an already-installed req.logIn'
         return req;
     }
 
-    it('applies the lifetime after the underlying login succeeds, not before', function (t, done) {
-        var req = stubReq({ post: { remember: 'on' } });
-        sl.wrapLogin(req, full);
-        req.logIn({ id: 1 }, {}, function (err) {
-            assert.equal(err, null);
-            assert.equal(req.cookieAtUpstream, undefined,
-                'passport regenerates and saves inside its own logIn — writing the cookie first would be lost');
-            assert.equal(req.session.cookie.maxAge, 15 * D);
-            done();
+    it('applies the lifetime after the underlying login succeeds, not before', function () {
+        return promised(function (ok) {
+            var req = stubReq({ post: { remember: 'on' } });
+            sl.wrapLogin(req, full);
+            req.logIn({ id: 1 }, {}, function (err) {
+                ok(function () {
+                    assert.equal(err, null);
+                    assert.equal(req.cookieAtUpstream, undefined,
+                        'passport regenerates and saves inside its own logIn — writing the cookie first would be lost');
+                    assert.equal(req.session.cookie.maxAge, 15 * D);
+                });
+            });
         });
     });
 
-    it('applies the ordinary lifetime when the login is not remembered', function (t, done) {
-        var req = stubReq();
-        sl.wrapLogin(req, full);
-        req.logIn({ id: 1 }, {}, function () {
-            assert.equal(req.session.cookie.maxAge, 15 * M);
-            done();
+    it('applies the ordinary lifetime when the login is not remembered', function () {
+        return promised(function (ok) {
+            var req = stubReq();
+            sl.wrapLogin(req, full);
+            req.logIn({ id: 1 }, {}, function () {
+                ok(function () { assert.equal(req.session.cookie.maxAge, 15 * M); });
+            });
         });
     });
 
-    it('normalises the (user, done) two-argument form', function (t, done) {
-        var req = stubReq({ post: { remember: 'on' } });
-        sl.wrapLogin(req, full);
-        req.logIn({ id: 1 }, function (err) {
-            assert.equal(err, null);
-            assert.equal(req.session.cookie.maxAge, 15 * D);
-            done();
+    it('normalises the (user, done) two-argument form', function () {
+        return promised(function (ok) {
+            var req = stubReq({ post: { remember: 'on' } });
+            sl.wrapLogin(req, full);
+            req.logIn({ id: 1 }, function (err) {
+                ok(function () {
+                    assert.equal(err, null);
+                    assert.equal(req.session.cookie.maxAge, 15 * D);
+                });
+            });
         });
     });
 
-    it('applies nothing when the underlying login fails', function (t, done) {
-        var req = stubReq({ err: new Error('nope') });
-        sl.wrapLogin(req, full);
-        req.logIn({ id: 1 }, {}, function (err) {
-            assert.equal(err.message, 'nope');
-            assert.equal(req.session.cookie.maxAge, undefined,
-                'a failed login must not extend anything');
-            done();
+    it('applies nothing when the underlying login fails', function () {
+        return promised(function (ok) {
+            var req = stubReq({ err: new Error('nope') });
+            sl.wrapLogin(req, full);
+            req.logIn({ id: 1 }, {}, function (err) {
+                ok(function () {
+                    assert.equal(err.message, 'nope');
+                    assert.equal(req.session.cookie.maxAge, undefined,
+                        'a failed login must not extend anything');
+                });
+            });
         });
     });
 
-    it('passes a transient login straight through', function (t, done) {
-        var req = stubReq({ post: { remember: 'on' } });
-        sl.wrapLogin(req, full);
-        req.logIn({ id: 1 }, { session: false }, function () {
-            assert.equal(req.session.cookie.maxAge, undefined,
-                '{session:false} writes no session — there is no cookie to govern');
-            assert.equal(req.calls[0].options.session, false, 'the options must reach passport unchanged');
-            done();
+    it('passes a transient login straight through', function () {
+        return promised(function (ok) {
+            var req = stubReq({ post: { remember: 'on' } });
+            sl.wrapLogin(req, full);
+            req.logIn({ id: 1 }, { session: false }, function () {
+                ok(function () {
+                    assert.equal(req.session.cookie.maxAge, undefined,
+                        '{session:false} writes no session — there is no cookie to govern');
+                    assert.equal(req.calls[0].options.session, false,
+                        'the options must reach passport unchanged');
+                });
+            });
         });
     });
 

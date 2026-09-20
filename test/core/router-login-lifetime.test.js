@@ -195,6 +195,28 @@ function fixture(opts) {
 }
 
 // ─── 02 — the extracted shim, driven ─────────────────────────────────────────
+
+/**
+ * Run a callback-style arm as a promise.
+ *
+ * Assertions made inside the shim's callback need somewhere to land: a throw
+ * there escapes the test rather than failing it. This also keeps the file
+ * runner-portable — node:test passes `(t, done)` to an arm, `bun test` does
+ * not, so an arm written against that signature fails under Bun with `done is
+ * not a function` while testing nothing at all.
+ *
+ * @inner
+ * @param {function} body - Receives `ok`; call `ok(fn)` with the assertions.
+ * @returns {Promise} Resolves when `ok` runs cleanly, rejects with its error.
+ */
+function promised(body) {
+    return new Promise(function (resolve, reject) {
+        body(function (assertions) {
+            try { assertions(); resolve(); } catch (e) { reject(e); }
+        });
+    });
+}
+
 describe('session lifetime §02 — the shim applies the policy it was stamped with', function () {
 
     var POLICY = { expires: 15 * M, remember: 15 * D };
@@ -206,70 +228,84 @@ describe('session lifetime §02 — the shim applies the policy it was stamped w
         assert.equal(extractLogin('var x = 1;').declCount, 0, 'known-negative: the extractor can fail');
     });
 
-    it('CONTROL: a request with no stamped policy leaves the cookie untouched', function (t, done) {
+    it('CONTROL: a request with no stamped policy leaves the cookie untouched', function () {
         // Also the guard pin, executed: this fixture injects no policy, so a
         // shim that evaluated the library unguarded would throw here.
-        var req = fixture();
-        var login = makeLogin(extractLogin(SRC).fnSrc);
-        login.call(req, { id: 1 }, {}, function (err) {
-            assert.equal(err, null);
-            assert.equal(req.session.cookie.maxAge, undefined,
-                'a bundle that declares nothing must behave exactly as before');
-            done();
+        return promised(function (ok) {
+            var req = fixture();
+            var login = makeLogin(extractLogin(SRC).fnSrc);
+            login.call(req, { id: 1 }, {}, function (err) {
+                ok(function () {
+                    assert.equal(err, null);
+                    assert.equal(req.session.cookie.maxAge, undefined,
+                        'a bundle that declares nothing must behave exactly as before');
+                });
+            });
         });
     });
 
-    it('an ordinary login takes the expires lifetime, written before the save', function (t, done) {
-        var req = fixture({ lifetime: POLICY });
-        var login = makeLogin(extractLogin(SRC).fnSrc);
-        login.call(req, { id: 1 }, {}, function (err) {
-            assert.equal(err, null);
-            assert.equal(req.session.cookie.maxAge, 15 * M);
-            assert.equal(req.cookieAtSave, 15 * M,
-                'the cookie must already carry the lifetime when the session is persisted');
-            assert.deepEqual(req.order, ['regenerate', 'save'],
-                'and it must land after rotation, or it would be discarded with the old session');
-            done();
+    it('an ordinary login takes the expires lifetime, written before the save', function () {
+        return promised(function (ok) {
+            var req = fixture({ lifetime: POLICY });
+            var login = makeLogin(extractLogin(SRC).fnSrc);
+            login.call(req, { id: 1 }, {}, function (err) {
+                ok(function () {
+                    assert.equal(err, null);
+                    assert.equal(req.session.cookie.maxAge, 15 * M);
+                    assert.equal(req.cookieAtSave, 15 * M,
+                        'the cookie must already carry the lifetime when the session is persisted');
+                    assert.deepEqual(req.order, ['regenerate', 'save'],
+                        'and it must land after rotation, or it would be discarded with the old session');
+                });
+            });
         });
     });
 
-    it('a remembered login takes the remember lifetime, from the request field', function (t, done) {
-        var req = fixture({ lifetime: POLICY, post: { remember: 'on' } });
-        var login = makeLogin(extractLogin(SRC).fnSrc);
-        login.call(req, { id: 1 }, {}, function () {
-            assert.equal(req.session.cookie.maxAge, 15 * D);
-            done();
+    it('a remembered login takes the remember lifetime, from the request field', function () {
+        return promised(function (ok) {
+            var req = fixture({ lifetime: POLICY, post: { remember: 'on' } });
+            var login = makeLogin(extractLogin(SRC).fnSrc);
+            login.call(req, { id: 1 }, {}, function () {
+                ok(function () { assert.equal(req.session.cookie.maxAge, 15 * D); });
+            });
         });
     });
 
-    it('an explicit option beats the request field through the shim too', function (t, done) {
-        var req = fixture({ lifetime: POLICY, post: { remember: 'on' } });
-        var login = makeLogin(extractLogin(SRC).fnSrc);
-        login.call(req, { id: 1 }, { remember: false }, function () {
-            assert.equal(req.session.cookie.maxAge, 15 * M);
-            done();
+    it('an explicit option beats the request field through the shim too', function () {
+        return promised(function (ok) {
+            var req = fixture({ lifetime: POLICY, post: { remember: 'on' } });
+            var login = makeLogin(extractLogin(SRC).fnSrc);
+            login.call(req, { id: 1 }, { remember: false }, function () {
+                ok(function () { assert.equal(req.session.cookie.maxAge, 15 * M); });
+            });
         });
     });
 
-    it('the no-rotation branch applies it too', function (t, done) {
-        var req = fixture({ lifetime: POLICY, post: { remember: 'on' }, noRegenerate: true });
-        var login = makeLogin(extractLogin(SRC).fnSrc);
-        login.call(req, { id: 1 }, {}, function () {
-            assert.equal(req.session.cookie.maxAge, 15 * D,
-                'a session provider without regenerate() still gets the declared lifetime');
-            assert.equal(req.cookieAtSave, 15 * D);
-            assert.deepEqual(req.order, ['save']);
-            done();
+    it('the no-rotation branch applies it too', function () {
+        return promised(function (ok) {
+            var req = fixture({ lifetime: POLICY, post: { remember: 'on' }, noRegenerate: true });
+            var login = makeLogin(extractLogin(SRC).fnSrc);
+            login.call(req, { id: 1 }, {}, function () {
+                ok(function () {
+                    assert.equal(req.session.cookie.maxAge, 15 * D,
+                        'a session provider without regenerate() still gets the declared lifetime');
+                    assert.equal(req.cookieAtSave, 15 * D);
+                    assert.deepEqual(req.order, ['save']);
+                });
+            });
         });
     });
 
-    it('a transient login writes no cookie lifetime', function (t, done) {
-        var req = fixture({ lifetime: POLICY, post: { remember: 'on' } });
-        var login = makeLogin(extractLogin(SRC).fnSrc);
-        login.call(req, { id: 1 }, { session: false }, function () {
-            assert.equal(req.session.cookie.maxAge, undefined,
-                '{session:false} touches no session, so there is no cookie to govern');
-            done();
+    it('a transient login writes no cookie lifetime', function () {
+        return promised(function (ok) {
+            var req = fixture({ lifetime: POLICY, post: { remember: 'on' } });
+            var login = makeLogin(extractLogin(SRC).fnSrc);
+            login.call(req, { id: 1 }, { session: false }, function () {
+                ok(function () {
+                    assert.equal(req.session.cookie.maxAge, undefined,
+                        '{session:false} touches no session, so there is no cookie to govern');
+                });
+            });
         });
     });
 });
