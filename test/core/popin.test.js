@@ -516,7 +516,7 @@ describe('14 - Popin: no inline onclick injection on close (CSP-safe)', function
 // for the non-modal path. Any path that does NOT set `$popin.modal` (legacy
 // `data-gina-popin-*` triggers, direct popinOpen() calls) falls back to modal, so
 // legacy parity is preserved (legacy popins stay showModal()-only). The
-// `!getAttribute('open')` re-entry guard is kept (re-showModal/re-show on an
+// `!hasAttribute('open')` re-entry guard is kept (re-showModal/re-show on an
 // already-open dialog throws). Replaces the prior "showModal()-only" pins, which were
 // updated deliberately when the non-modal default was added (see plan Test 15).
 
@@ -562,9 +562,9 @@ describe('15 - Popin: modal/non-modal split (showModal vs show, legacy=modal)', 
         );
     });
 
-    it("source: the `useDialogMode && !$el.getAttribute('open')` guard is preserved", function() {
+    it("source: the `useDialogMode && !$el.hasAttribute('open')` guard is preserved (#B574)", function() {
         assert.ok(
-            /useDialogMode\s*&&\s*!\$el\.getAttribute\('open'\)/.test(getPopinSrc()),
+            /useDialogMode\s*&&\s*!\$el\.hasAttribute\('open'\)/.test(getPopinSrc()),
             "popinOpen must keep the open-guard so a consumer-preopened modal is not re-shown (re-showModal throws)"
         );
     });
@@ -597,7 +597,7 @@ describe('15 - Popin: modal/non-modal split (showModal vs show, legacy=modal)', 
 // popin.css) is used. It is invoked at BOTH loading-attr write sites and is
 // idempotent (the open/active guard makes it fire at most once per load). On
 // completion popinBind replaces the skeleton with the real HTML and popinOpen's
-// !$el.getAttribute('open') guard skips its own open.
+// !$el.hasAttribute('open') guard skips its own open.
 //
 // Strategy (same convention as validator-aria-invalid / validator-isinlist):
 //  - a jsdom-backed DOM exercises a test-local replica of showLoadingShell.

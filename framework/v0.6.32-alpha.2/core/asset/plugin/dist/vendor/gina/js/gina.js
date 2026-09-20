@@ -26367,7 +26367,7 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/loading-state', 'lib/merge'
             // Fix today's name-based aria-labelledby: associate a REAL title element.
             associateLabel($el);
 
-            if ( self.options.useDialogMode && !$el.getAttribute('open') ) {
+            if ( self.options.useDialogMode && !$el.hasAttribute('open') ) {
                 // Modal vs non-modal. The new `data-gina-dialog` API defaults to
                 // non-modal — openFromTrigger sets `$popin.modal`. Any path that did NOT
                 // set it (legacy `data-gina-popin-*` triggers, direct popinOpen() calls)
@@ -26378,8 +26378,12 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/loading-state', 'lib/merge'
                         // showModal() promotes the dialog to the top layer with a native
                         // ::backdrop and inerts the rest of the page. Consumers that
                         // preemptively open the dialog (skeleton-loading) MUST also use
-                        // showModal() so it is born modal; the !getAttribute('open') guard
+                        // showModal() so it is born modal; the !hasAttribute('open') guard
                         // above then skips this call (re-showModal on an open dialog throws).
+                        // #B574 — it has to be hasAttribute: showModal() sets `open` to the
+                        // EMPTY string, which getAttribute() returned as a falsy value, so the
+                        // guard never skipped a shell-opened dialog and the modeless branch
+                        // below called show() on a modal dialog (InvalidStateError).
                         $el.showModal();
                     } else {
                         // Non-modal: .show() loses the native ::backdrop / Escape /
