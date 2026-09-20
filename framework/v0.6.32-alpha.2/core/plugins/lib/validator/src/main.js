@@ -4783,6 +4783,7 @@ function ValidatorPlugin(rules, data, formId, culture) {
                 $validator.unbind               = unbindForm;
                 $validator.bind                 = bindForm;
                 $validator.reBind               = reBindForm;
+                $validator.bindRegion           = bindRegion;
                 $validator.destroy              = destroy;
 
                 var id          = null
@@ -6444,6 +6445,83 @@ function ValidatorPlugin(rules, data, formId, culture) {
         }
 
         return $form;
+    }
+
+    /**
+     * bindRegion
+     *
+     * #gh76 slice 2 — binds the forms of a freshly injected region through the SAME gate
+     * the boot scan applies (#B549): a form is bound only when the markup opts it in (a
+     * `data-gina-form-*` attribute, an id naming a registered rule, or a `gina-upload-*`
+     * id); a bare form keeps its native submit, exactly as on the initial page. Called by
+     * the shared `bindRegion()` DOM helper for fragment navigation and form-answer swaps,
+     * so swapped content follows the contract the guide states instead of re-entering
+     * the pre-#B549 bind-everything shape.
+     *
+     * An id-less opted-in form is minted an id, as at boot. A registry entry whose
+     * element is no longer the one in the region (a same-id replacement) is destroyed
+     * first, so `validateFormById` binds the NEW element instead of returning the stale
+     * entry. A form already bound to this very element is left alone.
+     *
+     * @param {HTMLElement} $root - the injected region
+     * @param {object} [options]
+     * @param {string|null} [options.deferFormId] - a form id to skip: the submitting form
+     *      of a swap that replaced it keeps its listeners until the swap's own events are
+     *      delivered, and is (re)bound by the caller afterwards
+     *
+     * @returns {number} the number of forms bound
+     *
+     * @example
+     * $region.innerHTML = fragment;
+     * gina.validator.bindRegion($region); // => 1
+     */
+    var bindRegion = function($root, options) {
+        var bound   = 0
+            , $v    = ( this && typeof(this.$forms) != 'undefined' ) ? this : instance
+            , $forms = null
+            , $f    = null
+            , _id   = null
+            , existing = null
+            , deferId = ( options && options.deferFormId ) ? options.deferFormId : null
+        ;
+        if ( !$root || typeof($root.getElementsByTagName) != 'function' ) {
+            return bound;
+        }
+        // a static copy: binding mutates nothing structural, but a live collection is
+        // the wrong thing to iterate while ids are minted
+        $forms = Array.prototype.slice.call($root.getElementsByTagName('form'));
+        for (var f = 0, fLen = $forms.length; f < fLen; ++f) {
+            $f = $forms[f];
+            if ( !isFormOptedIn($f, local.rules) ) continue;
+
+            _id = $f.getAttribute('id') || 'form.' + uuid();
+            if ( _id !== $f.getAttribute('id') ) {
+                $f.setAttribute('id', _id);
+            }
+            if ( deferId && _id === deferId ) continue;
+
+            existing = instance.$forms[_id];
+            if ( existing && existing.target === $f ) continue; // already bound to this element
+
+            if ( existing && existing.target && existing.target !== $f ) {
+                // the region replaced a same-id form: retire the stale entry so the new
+                // element binds (validateFormById returns an existing entry untouched)
+                try {
+                    destroy(_id);
+                } catch (staleErr) {
+                    // one stale entry must never abort the binding of the others — a form
+                    // holding a detached virtual upload input throws inside unbindForm
+                    if ( typeof(console) != 'undefined' && console.warn ) {
+                        console.warn('[gina][validator] bindRegion: could not retire stale form `' + _id + '`: ' + (staleErr.message || staleErr));
+                    }
+                    delete instance.$forms[_id];
+                }
+            }
+
+            validateFormById.call($v, _id);
+            bound++;
+        }
+        return bound;
     }
 
     var unbindForm = function($target) {
@@ -11556,6 +11634,7 @@ function ValidatorPlugin(rules, data, formId, culture) {
         instance.setOptions             = setOptions;
         instance.getFormById            = getFormById;
         instance.validateFormById       = validateFormById;
+        instance.bindRegion             = bindRegion;
         instance.resetErrorsDisplay     = resetErrorsDisplay;
         instance.resetFields            = resetFields;
         instance.handleErrorsDisplay    = handleErrorsDisplay;

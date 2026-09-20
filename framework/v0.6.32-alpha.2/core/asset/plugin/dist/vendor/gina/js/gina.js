@@ -11748,6 +11748,110 @@ function getElementsByAttribute(attribute) {
 		}
 	};
 }(DOMParser));
+/**
+ * bindRegion
+ *
+ * Binds a freshly injected HTML region — ONE policy, shared by fragment navigation
+ * (`gina/nav`) and by the validator's form-answer swaps (#gh76 slice 2), so a third
+ * copy of "what happens to injected content" never has to be written:
+ *  - `<script src>` elements the document does not already have OUTSIDE the region are
+ *    re-created in `<head>` (a `<script>` inserted through innerHTML never runs); a src the
+ *    document already carries elsewhere — the page's own bundles, a copy an earlier swap or a
+ *    popin injected — is not re-created, so a fragment may safely re-declare the page's
+ *    scripts. Inline scripts are never executed: innerHTML semantics, the contract popin
+ *    and nav content have always had;
+ *  - `<link rel="stylesheet">` elements are left alone — inserted through innerHTML they are
+ *    already live;
+ *  - forms that opt in (#B549: a `data-gina-form-*` attribute, an id naming a registered rule,
+ *    or a `gina-upload-*` id) are bound through the live validator's own `bindRegion`; a bare
+ *    form keeps its native submit, exactly as on the initial page;
+ *  - `<a data-gina-link>` anchors are bound through the live link plugin when one is active;
+ *  - declarative `data-gina-dialog` triggers are document-delegated (nothing to bind); legacy
+ *    `data-gina-popin-*` triggers are inert in injected content; custom elements upgrade
+ *    natively.
+ *
+ * @param {HTMLElement} $root - the injected region: the swapped element, or the parent of
+ *      nodes inserted beside it
+ * @param {object} [options]
+ * @param {string} [options.deferFormId] - a form id to SKIP: the submitting form of a swap
+ *      that replaced it keeps its listeners until the swap's own events are delivered, so
+ *      its replacement is bound by the caller afterwards
+ * @param {boolean} [options.forms=true] - bind opted-in forms
+ * @param {boolean} [options.links=true] - bind `data-gina-link` anchors
+ *
+ * @returns {{scripts: number, forms: number, links: number}} what was bound
+ *
+ * @example
+ * $region.innerHTML = fragment;
+ * bindRegion($region); // => { scripts: 1, forms: 2, links: 0 }
+ */
+function bindRegion($root, options) {
+    var out = { scripts: 0, forms: 0, links: 0 };
+    if ( !$root || typeof($root.getElementsByTagName) != 'function' ) {
+        return out;
+    }
+    options = options || {};
+    var _gina = ( typeof(window) != 'undefined' && window.gina ) ? window.gina : null;
+
+    // scripts — dedup against every src the DOCUMENT carries outside the region: the
+    // fragment's own copies are inert (innerHTML) and must not count as "already loaded"
+    var known       = []
+        , docScripts = document.getElementsByTagName('script')
+        , scripts   = $root.getElementsByTagName('script')
+        , src       = null
+        , $s        = null
+        , i         = 0
+        , len       = docScripts.length
+    ;
+    for (; i < len; ++i) {
+        if ( docScripts[i].src && !$root.contains(docScripts[i]) ) {
+            known.push(docScripts[i].src);
+        }
+    }
+    for (i = 0, len = scripts.length; i < len; ++i) {
+        src = scripts[i].src; // the resolved absolute URL
+        if ( !src || known.indexOf(src) > -1 ) continue;
+        $s     = document.createElement('script');
+        $s.src = src;
+        document.head.appendChild($s);
+        known.push(src);
+        out.scripts++;
+    }
+
+    // forms — the validator owns the opt-in gate (#B549)
+    if (
+        options.forms !== false
+        && _gina && _gina.hasValidator && _gina.validator
+        && typeof(_gina.validator.bindRegion) == 'function'
+    ) {
+        try {
+            out.forms = _gina.validator.bindRegion($root, { deferFormId: options.deferFormId || null });
+        } catch (formsErr) {
+            if ( typeof(console) != 'undefined' && console.warn ) {
+                console.warn('[gina][bindRegion] form binding failed: ' + (formsErr.message || formsErr));
+            }
+        }
+    }
+
+    // links — the link plugin binds the anchors that opt in
+    if (
+        options.links !== false
+        && _gina && _gina.hasLinkHandler && _gina.link
+        && typeof(_gina.link.bindLinks) == 'function'
+    ) {
+        try {
+            _gina.link.bindLinks($root);
+            out.links = $root.querySelectorAll('a[data-gina-link]:not([data-gina-link="false"])').length;
+        } catch (linksErr) {
+            if ( typeof(console) != 'undefined' && console.warn ) {
+                console.warn('[gina][bindRegion] link binding failed: ' + (linksErr.message || linksErr));
+            }
+        }
+    }
+
+    return out;
+}
+;
 define("utils/dom", function(){});
 
 /**
@@ -16954,6 +17058,7 @@ function ValidatorPlugin(rules, data, formId, culture) {
                 $validator.unbind               = unbindForm;
                 $validator.bind                 = bindForm;
                 $validator.reBind               = reBindForm;
+                $validator.bindRegion           = bindRegion;
                 $validator.destroy              = destroy;
 
                 var id          = null
@@ -18615,6 +18720,83 @@ function ValidatorPlugin(rules, data, formId, culture) {
         }
 
         return $form;
+    }
+
+    /**
+     * bindRegion
+     *
+     * #gh76 slice 2 — binds the forms of a freshly injected region through the SAME gate
+     * the boot scan applies (#B549): a form is bound only when the markup opts it in (a
+     * `data-gina-form-*` attribute, an id naming a registered rule, or a `gina-upload-*`
+     * id); a bare form keeps its native submit, exactly as on the initial page. Called by
+     * the shared `bindRegion()` DOM helper for fragment navigation and form-answer swaps,
+     * so swapped content follows the contract the guide states instead of re-entering
+     * the pre-#B549 bind-everything shape.
+     *
+     * An id-less opted-in form is minted an id, as at boot. A registry entry whose
+     * element is no longer the one in the region (a same-id replacement) is destroyed
+     * first, so `validateFormById` binds the NEW element instead of returning the stale
+     * entry. A form already bound to this very element is left alone.
+     *
+     * @param {HTMLElement} $root - the injected region
+     * @param {object} [options]
+     * @param {string|null} [options.deferFormId] - a form id to skip: the submitting form
+     *      of a swap that replaced it keeps its listeners until the swap's own events are
+     *      delivered, and is (re)bound by the caller afterwards
+     *
+     * @returns {number} the number of forms bound
+     *
+     * @example
+     * $region.innerHTML = fragment;
+     * gina.validator.bindRegion($region); // => 1
+     */
+    var bindRegion = function($root, options) {
+        var bound   = 0
+            , $v    = ( this && typeof(this.$forms) != 'undefined' ) ? this : instance
+            , $forms = null
+            , $f    = null
+            , _id   = null
+            , existing = null
+            , deferId = ( options && options.deferFormId ) ? options.deferFormId : null
+        ;
+        if ( !$root || typeof($root.getElementsByTagName) != 'function' ) {
+            return bound;
+        }
+        // a static copy: binding mutates nothing structural, but a live collection is
+        // the wrong thing to iterate while ids are minted
+        $forms = Array.prototype.slice.call($root.getElementsByTagName('form'));
+        for (var f = 0, fLen = $forms.length; f < fLen; ++f) {
+            $f = $forms[f];
+            if ( !isFormOptedIn($f, local.rules) ) continue;
+
+            _id = $f.getAttribute('id') || 'form.' + uuid();
+            if ( _id !== $f.getAttribute('id') ) {
+                $f.setAttribute('id', _id);
+            }
+            if ( deferId && _id === deferId ) continue;
+
+            existing = instance.$forms[_id];
+            if ( existing && existing.target === $f ) continue; // already bound to this element
+
+            if ( existing && existing.target && existing.target !== $f ) {
+                // the region replaced a same-id form: retire the stale entry so the new
+                // element binds (validateFormById returns an existing entry untouched)
+                try {
+                    destroy(_id);
+                } catch (staleErr) {
+                    // one stale entry must never abort the binding of the others — a form
+                    // holding a detached virtual upload input throws inside unbindForm
+                    if ( typeof(console) != 'undefined' && console.warn ) {
+                        console.warn('[gina][validator] bindRegion: could not retire stale form `' + _id + '`: ' + (staleErr.message || staleErr));
+                    }
+                    delete instance.$forms[_id];
+                }
+            }
+
+            validateFormById.call($v, _id);
+            bound++;
+        }
+        return bound;
     }
 
     var unbindForm = function($target) {
@@ -23727,6 +23909,7 @@ function ValidatorPlugin(rules, data, formId, culture) {
         instance.setOptions             = setOptions;
         instance.getFormById            = getFormById;
         instance.validateFormById       = validateFormById;
+        instance.bindRegion             = bindRegion;
         instance.resetErrorsDisplay     = resetErrorsDisplay;
         instance.resetFields            = resetFields;
         instance.handleErrorsDisplay    = handleErrorsDisplay;
@@ -27504,7 +27687,7 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
     // Publish as AMD module
     define('gina/storage', ['helpers/dateFormat', 'helpers/prototypes'],function() { return StoragePlugin })
 };
-define('gina/nav', [ 'require', 'lib/merge', 'lib/uuid', 'utils/events' ], function (require) {
+define('gina/nav', [ 'require', 'lib/merge', 'lib/uuid', 'utils/events', 'utils/dom' ], function (require) {
 
     var merge   = require('lib/merge');
     var uuid    = require('lib/uuid');
@@ -27540,12 +27723,15 @@ define('gina/nav', [ 'require', 'lib/merge', 'lib/uuid', 'utils/events' ], funct
      *     `X-Requested-With: XMLHttpRequest` (without it the render path
      *     re-wraps a layoutless body into a full `<html>` shell);
      *  4. a genuine negotiated answer — 2xx, HTML, `Vary` advertising
-     *     `X-Gina-Navigate` — replaces the region's content, re-injects the
-     *     fragment's src-bearing scripts the document does not already have
-     *     (inline scripts are NOT executed — same contract as popin content),
-     *     rebinds id-bearing forms through the live validator, closes any open
+     *     `X-Gina-Navigate` — replaces the region's content, closes any open
      *     popin (a full navigation would have unloaded it), pushes a history
-     *     entry, restores focus/scroll, and fires `success`;
+     *     entry, restores focus/scroll, binds the new region through the shared
+     *     `bindRegion()` policy (utils/dom: the fragment's src-bearing scripts
+     *     the document does not already have are re-created — inline scripts
+     *     are NOT executed, same contract as popin content — the forms that opt
+     *     in are bound through the live validator (#B549: a bare form keeps its
+     *     native submit, as on the initial page), `data-gina-link` anchors
+     *     through the live link plugin), and fires `success`;
      *  5. ANY other answer falls back to a full-page navigation: non-2xx,
      *     timeout, network error, an un-negotiated 2xx (the `Vary` check —
      *     a client/server matching disagreement degrades to a normal page
@@ -27608,11 +27794,6 @@ define('gina/nav', [ 'require', 'lib/merge', 'lib/uuid', 'utils/events' ], funct
         // arrives from an async fetch and can land after `isFrameworkLoaded`.
         var _compiled           = null;
         var _compiledFor        = null;
-        // Scripts present at activation + scripts nav injected across swaps
-        // (the popin `parentScripts` model): a fragment's src-bearing script is
-        // injected once, never re-executed on later swaps.
-        var _parentScripts      = [];
-        var _injectedScripts    = [];
         // pathname+search last rendered — popstate events that do not change it
         // are hash-only moves and are left to the browser.
         var _currentUrl         = null;
@@ -27820,75 +28001,6 @@ define('gina/nav', [ 'require', 'lib/merge', 'lib/uuid', 'utils/events' ], funct
         };
 
         /**
-         * Snapshots the src of every script present in the document at
-         * activation — the popin `parentScripts` model. Scripts already loaded
-         * with the page are never re-injected from a fragment.
-         *
-         * @inner
-         * @private
-         */
-        var snapshotParentScripts = function() {
-            var scripts = document.getElementsByTagName('script');
-            for (var i = 0, len = scripts.length; i < len; ++i) {
-                if ( scripts[i].src ) {
-                    _parentScripts.push(scripts[i].src);
-                }
-            }
-        };
-
-        /**
-         * Re-injects the fragment's src-bearing scripts the document does not
-         * already have (mirrors popinOpen's external-resource loading). Inline
-         * scripts are NOT executed — innerHTML semantics, the same contract
-         * popin content has always had. Injected scripts persist across later
-         * swaps (a page never "closes"); the registry keeps them single-shot.
-         *
-         * @inner
-         * @private
-         * @param {object} $target - the swapped region
-         */
-        var injectFragmentScripts = function($target) {
-            var scripts = $target.getElementsByTagName('script');
-            for (var i = 0, len = scripts.length; i < len; ++i) {
-                var src = scripts[i].src; // resolved absolute URL
-                if ( !src ) continue;
-                if ( _parentScripts.indexOf(src) > -1 || _injectedScripts.indexOf(src) > -1 ) continue;
-                var s = document.createElement('script');
-                s.src = src;
-                document.head.appendChild(s);
-                _injectedScripts.push(src);
-            }
-        };
-
-        /**
-         * Rebinds id-bearing forms of the swapped region through the live
-         * validator (`gina.validator.validateFormById` — the popinBind model).
-         * Id-less forms are skipped: validation rules are keyed by form id, so
-         * no rule can target them. A missing/ruleless validator is a no-op.
-         *
-         * @inner
-         * @private
-         * @param {object} $target - the swapped region
-         */
-        var rebindValidator = function($target) {
-            try {
-                if ( !gina.hasValidator || !gina.validator || typeof(gina.validator.validateFormById) != 'function' ) {
-                    return;
-                }
-                var $forms = $target.getElementsByTagName('form');
-                for (var i = 0, len = $forms.length; i < len; ++i) {
-                    var _id = $forms[i].getAttribute('id');
-                    if ( !_id ) continue;
-                    try {
-                        gina.validator.validateFormById(_id);
-                    } catch (bindErr) {
-                        console.warn('[gina][nav] validator rebind skipped for `'+ _id +'`: '+ (bindErr.message || bindErr));
-                    }
-                }
-            } catch (validatorErr) {}
-        };
-
-        /**
          * Closes the active popin when one is open: a full-page navigation
          * would have unloaded it, and after a fragment swap it would sit over
          * content it no longer belongs to.
@@ -27925,10 +28037,11 @@ define('gina/nav', [ 'require', 'lib/merge', 'lib/uuid', 'utils/events' ], funct
         };
 
         /**
-         * Applies a fetched fragment: swaps the region content, re-injects
-         * missing src scripts, applies the optional `[data-gina-nav-title]`
-         * document title, pushes/updates history, restores scroll and focus,
-         * closes any open popin, rebinds validator forms and fires `success`.
+         * Applies a fetched fragment: swaps the region content, applies the
+         * optional `[data-gina-nav-title]` document title, pushes/updates
+         * history, restores scroll and focus, closes any open popin, binds the
+         * new region (scripts, opted-in forms, links — the shared `bindRegion()`
+         * policy) and fires `success`.
          *
          * @inner
          * @private
@@ -27940,8 +28053,6 @@ define('gina/nav', [ 'require', 'lib/merge', 'lib/uuid', 'utils/events' ], funct
         var applyFragment = function(html, url, isPopState, navOptions) {
             var $target = instance.target;
             $target.innerHTML = ( typeof(html) == 'string' ) ? html.trim() : '';
-
-            injectFragmentScripts($target);
 
             // Optional per-page document title: the first element of the
             // fragment carrying `data-gina-nav-title` (the fragment is
@@ -27988,7 +28099,11 @@ define('gina/nav', [ 'require', 'lib/merge', 'lib/uuid', 'utils/events' ], funct
             }
 
             closeActivePopin();
-            rebindValidator($target);
+            // #gh76 — the one region-binding policy nav shares with the validator's
+            // form-answer swaps (utils/dom). Forms follow the #B549 opt-in gate here
+            // too: a bare id-bearing form in a fragment used to be bound — and its
+            // submit turned into an XHR — by a rebind that bypassed the gate.
+            bindRegion($target);
 
             instance.eventData.success = { 'url': url, 'target': $target, 'isPopState': isPopState };
             triggerEvent(gina, instance.target, 'success.' + instance.id, instance.eventData.success);
@@ -28240,7 +28355,6 @@ define('gina/nav', [ 'require', 'lib/merge', 'lib/uuid', 'utils/events' ], funct
 
                 instance.target = $marker;
                 _currentUrl     = window.location.pathname + window.location.search;
-                snapshotParentScripts();
                 try {
                     if ( window.history && 'scrollRestoration' in window.history ) {
                         window.history.scrollRestoration = 'manual';

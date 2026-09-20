@@ -1,4 +1,4 @@
-define('gina/nav', [ 'require', 'lib/merge', 'lib/uuid', 'utils/events' ], function (require) {
+define('gina/nav', [ 'require', 'lib/merge', 'lib/uuid', 'utils/events', 'utils/dom' ], function (require) {
 
     var merge   = require('lib/merge');
     var uuid    = require('lib/uuid');
@@ -34,12 +34,15 @@ define('gina/nav', [ 'require', 'lib/merge', 'lib/uuid', 'utils/events' ], funct
      *     `X-Requested-With: XMLHttpRequest` (without it the render path
      *     re-wraps a layoutless body into a full `<html>` shell);
      *  4. a genuine negotiated answer — 2xx, HTML, `Vary` advertising
-     *     `X-Gina-Navigate` — replaces the region's content, re-injects the
-     *     fragment's src-bearing scripts the document does not already have
-     *     (inline scripts are NOT executed — same contract as popin content),
-     *     rebinds id-bearing forms through the live validator, closes any open
+     *     `X-Gina-Navigate` — replaces the region's content, closes any open
      *     popin (a full navigation would have unloaded it), pushes a history
-     *     entry, restores focus/scroll, and fires `success`;
+     *     entry, restores focus/scroll, binds the new region through the shared
+     *     `bindRegion()` policy (utils/dom: the fragment's src-bearing scripts
+     *     the document does not already have are re-created — inline scripts
+     *     are NOT executed, same contract as popin content — the forms that opt
+     *     in are bound through the live validator (#B549: a bare form keeps its
+     *     native submit, as on the initial page), `data-gina-link` anchors
+     *     through the live link plugin), and fires `success`;
      *  5. ANY other answer falls back to a full-page navigation: non-2xx,
      *     timeout, network error, an un-negotiated 2xx (the `Vary` check —
      *     a client/server matching disagreement degrades to a normal page
@@ -102,11 +105,6 @@ define('gina/nav', [ 'require', 'lib/merge', 'lib/uuid', 'utils/events' ], funct
         // arrives from an async fetch and can land after `isFrameworkLoaded`.
         var _compiled           = null;
         var _compiledFor        = null;
-        // Scripts present at activation + scripts nav injected across swaps
-        // (the popin `parentScripts` model): a fragment's src-bearing script is
-        // injected once, never re-executed on later swaps.
-        var _parentScripts      = [];
-        var _injectedScripts    = [];
         // pathname+search last rendered — popstate events that do not change it
         // are hash-only moves and are left to the browser.
         var _currentUrl         = null;
@@ -314,75 +312,6 @@ define('gina/nav', [ 'require', 'lib/merge', 'lib/uuid', 'utils/events' ], funct
         };
 
         /**
-         * Snapshots the src of every script present in the document at
-         * activation — the popin `parentScripts` model. Scripts already loaded
-         * with the page are never re-injected from a fragment.
-         *
-         * @inner
-         * @private
-         */
-        var snapshotParentScripts = function() {
-            var scripts = document.getElementsByTagName('script');
-            for (var i = 0, len = scripts.length; i < len; ++i) {
-                if ( scripts[i].src ) {
-                    _parentScripts.push(scripts[i].src);
-                }
-            }
-        };
-
-        /**
-         * Re-injects the fragment's src-bearing scripts the document does not
-         * already have (mirrors popinOpen's external-resource loading). Inline
-         * scripts are NOT executed — innerHTML semantics, the same contract
-         * popin content has always had. Injected scripts persist across later
-         * swaps (a page never "closes"); the registry keeps them single-shot.
-         *
-         * @inner
-         * @private
-         * @param {object} $target - the swapped region
-         */
-        var injectFragmentScripts = function($target) {
-            var scripts = $target.getElementsByTagName('script');
-            for (var i = 0, len = scripts.length; i < len; ++i) {
-                var src = scripts[i].src; // resolved absolute URL
-                if ( !src ) continue;
-                if ( _parentScripts.indexOf(src) > -1 || _injectedScripts.indexOf(src) > -1 ) continue;
-                var s = document.createElement('script');
-                s.src = src;
-                document.head.appendChild(s);
-                _injectedScripts.push(src);
-            }
-        };
-
-        /**
-         * Rebinds id-bearing forms of the swapped region through the live
-         * validator (`gina.validator.validateFormById` — the popinBind model).
-         * Id-less forms are skipped: validation rules are keyed by form id, so
-         * no rule can target them. A missing/ruleless validator is a no-op.
-         *
-         * @inner
-         * @private
-         * @param {object} $target - the swapped region
-         */
-        var rebindValidator = function($target) {
-            try {
-                if ( !gina.hasValidator || !gina.validator || typeof(gina.validator.validateFormById) != 'function' ) {
-                    return;
-                }
-                var $forms = $target.getElementsByTagName('form');
-                for (var i = 0, len = $forms.length; i < len; ++i) {
-                    var _id = $forms[i].getAttribute('id');
-                    if ( !_id ) continue;
-                    try {
-                        gina.validator.validateFormById(_id);
-                    } catch (bindErr) {
-                        console.warn('[gina][nav] validator rebind skipped for `'+ _id +'`: '+ (bindErr.message || bindErr));
-                    }
-                }
-            } catch (validatorErr) {}
-        };
-
-        /**
          * Closes the active popin when one is open: a full-page navigation
          * would have unloaded it, and after a fragment swap it would sit over
          * content it no longer belongs to.
@@ -419,10 +348,11 @@ define('gina/nav', [ 'require', 'lib/merge', 'lib/uuid', 'utils/events' ], funct
         };
 
         /**
-         * Applies a fetched fragment: swaps the region content, re-injects
-         * missing src scripts, applies the optional `[data-gina-nav-title]`
-         * document title, pushes/updates history, restores scroll and focus,
-         * closes any open popin, rebinds validator forms and fires `success`.
+         * Applies a fetched fragment: swaps the region content, applies the
+         * optional `[data-gina-nav-title]` document title, pushes/updates
+         * history, restores scroll and focus, closes any open popin, binds the
+         * new region (scripts, opted-in forms, links — the shared `bindRegion()`
+         * policy) and fires `success`.
          *
          * @inner
          * @private
@@ -434,8 +364,6 @@ define('gina/nav', [ 'require', 'lib/merge', 'lib/uuid', 'utils/events' ], funct
         var applyFragment = function(html, url, isPopState, navOptions) {
             var $target = instance.target;
             $target.innerHTML = ( typeof(html) == 'string' ) ? html.trim() : '';
-
-            injectFragmentScripts($target);
 
             // Optional per-page document title: the first element of the
             // fragment carrying `data-gina-nav-title` (the fragment is
@@ -482,7 +410,11 @@ define('gina/nav', [ 'require', 'lib/merge', 'lib/uuid', 'utils/events' ], funct
             }
 
             closeActivePopin();
-            rebindValidator($target);
+            // #gh76 — the one region-binding policy nav shares with the validator's
+            // form-answer swaps (utils/dom). Forms follow the #B549 opt-in gate here
+            // too: a bare id-bearing form in a fragment used to be bound — and its
+            // submit turned into an XHR — by a rebind that bypassed the gate.
+            bindRegion($target);
 
             instance.eventData.success = { 'url': url, 'target': $target, 'isPopState': isPopState };
             triggerEvent(gina, instance.target, 'success.' + instance.id, instance.eventData.success);
@@ -734,7 +666,6 @@ define('gina/nav', [ 'require', 'lib/merge', 'lib/uuid', 'utils/events' ], funct
 
                 instance.target = $marker;
                 _currentUrl     = window.location.pathname + window.location.search;
-                snapshotParentScripts();
                 try {
                     if ( window.history && 'scrollRestoration' in window.history ) {
                         window.history.scrollRestoration = 'manual';
