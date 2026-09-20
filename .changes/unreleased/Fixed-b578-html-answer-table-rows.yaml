@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'A `text/html` form answer whose top-level elements are table rows or cells no longer loses them. The answer was parsed as a whole document, so the HTML parser moved a top-level `<tr>` or `<td>` out of existence and a swap into a `<tbody>` wrote the cell text instead of the row, while a `data-gina-form-select` on `tr` matched nothing. The answer is now parsed as a fragment, so any element survives at the top level; a full-page answer drops its `<head>` rather than placing its `<title>` in the swap. Behaviour is byte-identical for answers that were already parsed correctly (#B578)'
+time: 2026-09-20T18:58:00+01:00

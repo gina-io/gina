@@ -67,7 +67,8 @@ const ANSWERS = {
     'form':      { contentType: 'text/html; charset=utf-8',        body: form('data-gina-form-target="this" data-gina-form-swap="outerHTML"').replace('value="abc"', 'value="second"') + XHR_INPUTS },
     'inner':     { contentType: 'text/html; charset=utf-8',        body: '<form id="inner" data-gina-form-rule="hformform" action="/x76/save2" method="post"><input name="ref" value="in"><button type="submit">i</button></form>' + XHR_INPUTS },
     'script':    { contentType: 'text/html; charset=utf-8',        body: '<i>s</i><script src="/js/x76-swap.js"></script>' + XHR_INPUTS },
-    'json':      { contentType: 'application/json; charset=utf-8', body: '{"ok":true,"via":"json"}' }
+    'json':      { contentType: 'application/json; charset=utf-8', body: '{"ok":true,"via":"json"}' },
+    'tr':        { contentType: 'text/html; charset=utf-8',        body: '<tr id="new-row"><td>cell</td></tr>' + XHR_INPUTS }
 };
 const FRAG = '<div id="x76-frag">popin content</div>';
 const FRAG_WITH_FORM = (attrs) => '<div id="x76-frag"><p>popin content</p>'
@@ -343,6 +344,26 @@ test.describe('gh#76 slice 2 — a form answer swaps into the target the form de
         const s = await readState(page);
         expect(errors).toEqual([]); expect(s.row).toBe('before');
         expect(s.calls.success[0].keys).toEqual(['ok', 'via', 'status']);
+    });
+
+    test('§19 #B578 — a table-row answer swapped into a <tbody> lands as a ROW, not as its cell text (RED pre-fix)', async ({ page }) => {
+        const errors = collectPageErrors(page);
+        await routeScene(page, { attrs: 'data-gina-form-target="#tb" data-gina-form-swap="beforeend"', answer: 'tr',
+            extra: '<table><tbody id="tb"><tr id="r0"><td>first</td></tr></tbody></table>' });
+        await gotoAndBoot(page, true);
+        await submitPage(page, { formDelay: 100 });
+        const s = await readState(page);
+        const t = await page.evaluate(() => ({
+            rows: document.querySelectorAll('#tb tr').length,
+            newRow: !!document.getElementById('new-row'),
+            // pre-fix the parse reduced the row to the text `cell`, which a <tbody> then foster-parents BEFORE the table
+            strayText: /cell/.test((document.querySelector('table') || {}).previousSibling ? document.querySelector('table').previousSibling.textContent || '' : '')
+        }));
+        expect(errors).toEqual([]);
+        expect(s.calls.success.length).toBe(1);
+        expect(t.rows, 'two rows: the original and the appended one').toBe(2);
+        expect(t.newRow, 'the appended row is a real <tr> with its id').toBe(true);
+        expect(t.strayText, 'no cell text leaked outside the table').toBe(false);
     });
 
     test('§18 #B575 — a popin answer WITHOUT the hidden inputs (outside dev mode) loads the popin and delivers an object, not a false 422 (RED pre-C2)', async ({ page }) => {

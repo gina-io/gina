@@ -117,6 +117,31 @@ describe('§02 parseXhrHtmlAnswer — the ONE tolerant parse (#B575), extracted'
         assert.equal(p.data, null); assert.equal(p.view, null);
         assert.equal(p.doc.body.innerHTML, '<li id="r">x</li>');
     });
+    it('#B578 — table-context elements at the top level SURVIVE: a row answer keeps its <tr>, a lone <td> keeps its cell (parsed as a document they were foster-parented into bare text)', function () {
+        var w = win();
+        var p = w.__parseXhrHtmlAnswer('<tr id="row-42"><td>new</td></tr>' + XHR_INPUTS);
+        assert.deepEqual(JSON.parse(JSON.stringify(p.data)), { ok: true }, 'the inputs are still read — in-body, not vacuously');
+        assert.equal(p.doc.getElementById('gina-without-layout-xhr-data'), null, 'stripped');
+        assert.equal(p.doc.body.innerHTML, '<tr id="row-42"><td>new</td></tr>');
+        assert.equal(p.doc.querySelectorAll('tr').length, 1, 'a `select` on tr finds the row');
+        assert.equal(w.__parseXhrHtmlAnswer('<td>cell</td>').doc.body.innerHTML, '<td>cell</td>');
+        // a survivor is byte-identical under the new parse (control: the change is invisible where it was not needed)
+        assert.equal(w.__parseXhrHtmlAnswer('<option value="1">one</option>').doc.body.innerHTML, '<option value="1">one</option>');
+    });
+    it('#B578 — a full-page answer (a layout render by mistake) drops its <head>, so no <title> lands in a swap', function () {
+        var w = win();
+        var p = w.__parseXhrHtmlAnswer('<html><head><title>t</title><meta charset="utf-8"></head><body><b>page</b></body></html>' + XHR_INPUTS);
+        assert.equal(p.doc.body.innerHTML, '<b>page</b>');
+        assert.deepEqual(JSON.parse(JSON.stringify(p.data)), { ok: true });
+    });
+    it('#B578 — the wrapper is not observable: no <template> is left behind, and an author-supplied <template> in the answer is kept as content', function () {
+        var w = win();
+        assert.equal(w.__parseXhrHtmlAnswer('<p>y</p>').doc.querySelectorAll('template').length, 0);
+        var p = w.__parseXhrHtmlAnswer('<template><tr><td>x</td></tr></template><p>z</p>');
+        assert.equal(p.doc.querySelectorAll('template').length, 1);
+        assert.equal(p.doc.querySelector('template').content.querySelectorAll('tr').length, 1, 'its contents are intact');
+        assert.equal(p.doc.body.innerHTML, '<template><tr><td>x</td></tr></template><p>z</p>');
+    });
     it('tolerates a malformed value and a non-string body', function () {
         var p = win().__parseXhrHtmlAnswer('<input type="hidden" id="gina-without-layout-xhr-data" value="%7Bnope"><p>y</p>');
         assert.equal(p.data, null);

@@ -9338,7 +9338,25 @@ function on(event, cb) {
  * parsed.doc.body.innerHTML;  // the fragment, hidden inputs stripped
  */
 function parseXhrHtmlAnswer(content) {
-    var doc = new DOMParser().parseFromString(( typeof(content) == 'string' ) ? content : '', 'text/html');
+    var raw = ( typeof(content) == 'string' ) ? content : '';
+    // #B578 — an answer is a FRAGMENT, not a document. Parsed as a document, the HTML
+    // parser foster-parents table-context elements (`<tr>`, `<td>`, `<tbody>`…) out of
+    // existence, so a row answer came out as its cell text and a `select` on `tr` found
+    // nothing. Parse through a `<template>` — whose contents accept any element; htmx's
+    // `makeFragment` idiom — and MOVE the fragment into `doc.body`: a DOM move never
+    // re-parses, so the row survives and every reader of `doc` (`getElementById`,
+    // `querySelectorAll`, `body.innerHTML`) is unchanged. A full-page answer (a layout
+    // render by mistake) drops its `<head>` first, as htmx does, or its `<title>` would
+    // land in the swap. An author-supplied `<template>` inside the answer is content and
+    // is kept as-is.
+    raw = raw.replace(/<head(\s[^>]*)?>[\s\S]*?<\/head>/i, '');
+    var doc  = new DOMParser().parseFromString('<body><template>' + raw + '</template></body>', 'text/html');
+    var $tpl = ( doc.body ) ? doc.body.querySelector('template') : null;
+    if ( $tpl ) {
+        var frag = $tpl.content;
+        $tpl.parentNode.removeChild($tpl);
+        doc.body.appendChild(( typeof(doc.adoptNode) == 'function' ) ? doc.adoptNode(frag) : frag);
+    }
     var read = function(idName) {
         var $input = doc.getElementById(idName), value = null;
         if ( !$input ) {
