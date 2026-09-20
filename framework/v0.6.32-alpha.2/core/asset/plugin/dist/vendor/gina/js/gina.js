@@ -25820,6 +25820,13 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/loading-state', 'lib/merge'
                 if ( typeof(gina.events[loadedEvt]) == 'undefined' ) {
                     addListener(gina, existing.target, loadedEvt, function (loadedEvent) {
                         loadedEvent.preventDefault();
+                        // #B579 — popinLoadContent's redirect emit fires this same event with the
+                        // POPIN OBJECT as detail (the legacy listener only binds + opens on it): a
+                        // load landing on an already-open popin routes through it, and applying a
+                        // non-string would blank the dialog whose content that call just wrote
+                        if ( typeof(loadedEvent.detail) != 'string' ) {
+                            return;
+                        }
                         handleLoadedBody(loadedEvent.detail, existing, ensurePopinDialog(existing));
                     });
                 }
