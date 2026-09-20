@@ -29,6 +29,10 @@ var crypto = require('crypto');
  * injected global: every input arrives as an argument, so a caller can exercise
  * each branch without booting a bundle.
  *
+ * That includes the `GINA_MAINTENANCE` boot variable (C3 slice b): the engine
+ * reads it — on both launcher transports — and hands the VALUE to
+ * {@link resolveBootEnv}; this module never consults the environment itself.
+ *
  * @example
  * // engine-side, when maintenance is ON for this bundle
  * var verdict = lib.maintenance.evaluateBypass(request, conf, Date.now());
@@ -262,6 +266,69 @@ function lintConf(block) {
     }
 
     return warnings;
+}
+
+
+/**
+ * Resolve the `GINA_MAINTENANCE` boot environment variable — the third way
+ * to close a bundle, for processes that must boot CLOSED without a
+ * `settings.json` edit (a replacement pod created during a window).
+ *
+ * The VALUE is injected by the caller, never read here: the two launchers
+ * deliver the variable on different transports (`bin/cli` sweeps it into
+ * `process.gina`, `bin/gina-container` leaves it in `process.env`), and that
+ * transport question belongs to the engine — this module stays free of
+ * `process.gina` / `process.env` so every branch is testable without a boot.
+ *
+ * Contract:
+ *   - `'1'` or `'true'` (case-insensitive, trimmed) ⇒ `forced: true`.
+ *   - unset / `null` / empty ⇒ `forced: false`, no warning.
+ *   - `'0'` / `'false'` ⇒ `forced: false`, `explicitOff: true`, no warning —
+ *     accepted as a valid "do not force", and deliberately NOT an override of
+ *     a configured `enabled: true`. **It can only CLOSE, never OPEN**: the
+ *     same fail-safe asymmetry as an expired `ttlSeconds` reverting to config
+ *     rather than to "off" — a rollout-time variable must never be able to
+ *     open a site the release's configuration says is closed.
+ *   - any other value ⇒ `forced: false` PLUS a warning naming the accepted
+ *     values — the #MAINT1 lint contract: never silent, never fatal.
+ *
+ * The caller folds `forced` into the CONFIG layer (`conf.enabled = true`), so
+ * the runtime toggle keeps its meaning — `POST {enable:false}` still reopens
+ * the process, exactly as with `enabled: true` in settings — and reports the
+ * closure as `source: 'env'` in the status payload.
+ *
+ * @param {*} [raw] - the variable's value as delivered (a string, or undefined)
+ * @returns {{forced: boolean, explicitOff: boolean, warning: ?string}}
+ *
+ * @example
+ * resolveBootEnv('1');        // { forced: true,  explicitOff: false, warning: null }
+ * resolveBootEnv('TRUE');     // { forced: true,  explicitOff: false, warning: null }
+ * resolveBootEnv(undefined);  // { forced: false, explicitOff: false, warning: null }
+ * resolveBootEnv('false');    // { forced: false, explicitOff: true,  warning: null } — cannot open
+ * resolveBootEnv('yes');      // { forced: false, explicitOff: false, warning: '`GINA_MAINTENANCE` = "yes" is not recognised — …' }
+ */
+function resolveBootEnv(raw) {
+    var out = { forced: false, explicitOff: false, warning: null };
+    if ( typeof(raw) == 'undefined' || raw === null ) {
+        return out;
+    }
+    var value = String(raw).trim();
+    if ( value === '' ) {
+        return out;
+    }
+    var lower = value.toLowerCase();
+    if ( lower === '1' || lower === 'true' ) {
+        out.forced = true;
+        return out;
+    }
+    if ( lower === '0' || lower === 'false' ) {
+        out.explicitOff = true;
+        return out;
+    }
+    out.warning = '`GINA_MAINTENANCE` = ' + JSON.stringify(value)
+        + ' is not recognised — use `1` or `true` to boot with maintenance ON'
+        + ' (`0`, `false` or unset leave the configured state); the value is ignored';
+    return out;
 }
 
 /**
@@ -962,6 +1029,7 @@ module.exports = {
     MIN_KEY_LENGTH          : MIN_KEY_LENGTH,
     resolveConf             : resolveConf,
     lintConf                : lintConf,
+    resolveBootEnv          : resolveBootEnv,
     isActive                : isActive,
     effectiveConf           : effectiveConf,
     langTag                 : langTag,

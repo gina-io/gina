@@ -36,6 +36,22 @@ var mt          = require(path.join(FW, 'lib/maintenance/src/main'));
 var KEY = 'a-good-long-key-0123456789';
 var NOW = 1700000000000;
 
+/**
+ * The `_mtStatus` builder's body on one engine, sliced STRUCTURALLY — from the
+ * builder's opening line to its closing `};` — never by a fixed byte count. A
+ * byte window silently stops covering the payload's tail when anything above
+ * it grows (measured 2026-09-20: the `source` expression gained 40 chars and a
+ * 1500-char window lost `hasBypassKey`), and a miss of either anchor must fail
+ * by name rather than slice to end-of-file.
+ */
+function mtStatusBody(src, label) {
+    var at = src.indexOf('var _mtStatus = function()');
+    assert.ok(at > -1, label + ' must build the status payload in _mtStatus');
+    var end = src.indexOf('\n                };', at);
+    assert.ok(end > -1, label + ' the _mtStatus builder must close with `};` at its own indentation');
+    return src.slice(at, end);
+}
+
 /** Build a minimal request object. */
 function req(opts) {
     opts = opts || {};
@@ -539,9 +555,7 @@ describe('09 - engine wiring: both engines, and the gate is placed correctly', f
         // both engines inside the _mtStatus builder; the hasBypassKey check proves
         // the slice reaches the end of the payload rather than passing on a stub.
         [['server.js', server], ['server.isaac.js', isaac]].forEach(function (pair) {
-            var at  = pair[1].indexOf('var _mtStatus = function()');
-            assert.ok(at > -1, pair[0] + ' must build the status payload in _mtStatus');
-            var seg = pair[1].slice(at, at + 1500);
+            var seg = mtStatusBody(pair[1], pair[0]);
             assert.ok(/pid\s*:\s*process\.pid/.test(seg),          pair[0] + ' payload must carry pid');
             assert.ok(/hostname\s*:\s*os\.hostname\(\)/.test(seg), pair[0] + ' payload must carry hostname');
             assert.ok(seg.indexOf('hasBypassKey') > -1,           pair[0] + ' the slice must reach the end of the payload');
@@ -587,5 +601,94 @@ describe('10 - the schema declares the block', function () {
         );
         assert.equal(m.properties.retryAfter.default, 300);
         assert.match(m.properties.allowFrom.description, /NOT classify as proxied/i);
+    });
+});
+
+
+describe('11 - GINA_MAINTENANCE boot env: resolveBootEnv + the engine read (C3 slice b)', function () {
+    var server = fs.readFileSync(SERVER_SRC, 'utf8');
+    var isaac  = fs.readFileSync(ISAAC_SRC, 'utf8');
+
+    it('is exported', function () {
+        assert.equal(typeof mt.resolveBootEnv, 'function');
+    });
+
+    it('`1` and `true` force maintenance ON, case-insensitively and trimmed', function () {
+        ['1', 'true', 'TRUE', 'True', ' 1 ', '\ttrue\n'].forEach(function (v) {
+            var r = mt.resolveBootEnv(v);
+            assert.equal(r.forced, true, JSON.stringify(v) + ' must force');
+            assert.equal(r.explicitOff, false);
+            assert.equal(r.warning, null, JSON.stringify(v) + ' must not warn');
+        });
+    });
+
+    it('unset / null / empty do nothing and do not warn', function () {
+        [undefined, null, '', '   '].forEach(function (v) {
+            var r = mt.resolveBootEnv(v);
+            assert.equal(r.forced, false);
+            assert.equal(r.explicitOff, false);
+            assert.equal(r.warning, null);
+        });
+    });
+
+    it('`0` / `false` are explicit-off: accepted silently, never a force', function () {
+        ['0', 'false', 'FALSE', ' false '].forEach(function (v) {
+            var r = mt.resolveBootEnv(v);
+            assert.equal(r.forced, false);
+            assert.equal(r.explicitOff, true);
+            assert.equal(r.warning, null);
+        });
+    });
+
+    it('any other value is IGNORED with a warning naming the accepted values (the lint contract: never silent, never fatal)', function () {
+        ['yes', 'on', '2', 'enabled', 'maintenance'].forEach(function (v) {
+            var r = mt.resolveBootEnv(v);
+            assert.equal(r.forced, false);
+            assert.equal(r.explicitOff, false);
+            assert.equal(typeof r.warning, 'string');
+            assert.ok(r.warning.indexOf(JSON.stringify(v)) > -1, 'the warning must quote the offending value');
+            assert.ok(r.warning.indexOf('`1`') > -1 && r.warning.indexOf('`true`') > -1, 'the warning must name the accepted values');
+        });
+    });
+
+    it('CLOSE-ONLY: an explicit-off result folded into an enabled config leaves the site closed', function () {
+        // the engine folds `forced` into conf.enabled and nothing else — so an
+        // explicit-off result must never be able to open a site settings.json closed
+        var conf = mt.resolveConf({ enabled: true });
+        var r = mt.resolveBootEnv('false');
+        if ( r.forced ) { conf.enabled = true; }
+        assert.equal(conf.enabled, true);
+        assert.equal(mt.isActive({ conf: conf, runtime: null }), true);
+    });
+
+    it('a forced result composes with the runtime toggle: POST {enable:false} still wins', function () {
+        var conf = mt.resolveConf({ enabled: false });
+        var r = mt.resolveBootEnv('1');
+        if ( r.forced ) { conf.enabled = true; }
+        assert.equal(mt.isActive({ conf: conf, runtime: null }), true);
+        assert.equal(mt.isActive({ conf: conf, runtime: { active: false } }), false, 'the runtime override must still reopen the process');
+    });
+
+    it('server.js reads GINA_MAINTENANCE through resolveBootEnv inside the boot-resolve block, on BOTH transports', function () {
+        var at = server.indexOf('#MAINT1 — maintenance mode: boot-resolve');
+        assert.ok(at > -1, 'the boot-resolve anchor must exist');
+        var end = server.indexOf('#RWATCH — stale built-release watch', at);
+        assert.ok(end > -1, 'the end anchor (the next boot block) must exist');
+        var seg = server.slice(at, end);
+        assert.ok(seg.indexOf('lib.maintenance.resolveBootEnv(') > -1, 'must resolve through lib.maintenance.resolveBootEnv');
+        assert.ok(/getEnvVar\(\s*'GINA_MAINTENANCE'\s*\)/.test(seg), 'must read the daemon transport (process.gina via getEnvVar)');
+        assert.ok(seg.indexOf('process.env.GINA_MAINTENANCE') > -1, 'must read the launcher transport (process.env, #B570)');
+        assert.ok(/conf\.enabled\s*=\s*true/.test(seg), 'a forced result must fold into the CONFIG layer');
+        assert.ok(seg.indexOf('envForced') > -1, 'must stamp envForced for the status payload');
+    });
+
+    it('BOTH _mtStatus builders report source "env" for an env-forced closure with no live override', function () {
+        [['server.js', server], ['server.isaac.js', isaac]].forEach(function (pair) {
+            var seg = mtStatusBody(pair[1], pair[0]);
+            assert.ok(
+                /source\s*:\s*_rtLive\s*\?\s*'runtime'\s*:\s*\(\s*_mtCtl\.envForced\s*===\s*true\s*\?\s*'env'\s*:\s*'config'\s*\)/.test(seg),
+                pair[0] + ' source must resolve runtime > env > config'
+            );
+        });
     });
 });

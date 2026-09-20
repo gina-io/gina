@@ -1674,6 +1674,9 @@ function ServerEngineClass(options) {
                 // The status payload NEVER carries bypassKey — only whether one is
                 // configured, which is what an operator needs to know before closing
                 // a site they might then be unable to browse.
+                // `source` resolves runtime > env > config: 'env' = closed by
+                // GINA_MAINTENANCE at boot (folded into config by core/server.js,
+                // so a live toggle still wins — hence the order).
                 var _mtStatus = function() {
                     var _now    = Date.now();
                     var _eff    = lib.maintenance.effectiveConf(_mtCtl, _now);
@@ -1689,7 +1692,7 @@ function ServerEngineClass(options) {
                         pid          : process.pid,
                         hostname     : os.hostname(),
                         active       : lib.maintenance.isActive(_mtCtl, _now),
-                        source       : _rtLive ? 'runtime' : 'config',
+                        source       : _rtLive ? 'runtime' : ( _mtCtl.envForced === true ? 'env' : 'config' ),
                         retryAfter   : _eff.retryAfter,
                         message      : _eff.message,
                         until        : ( _rtLive && _rt && typeof(_rt.until) == 'number' ) ? new Date(_rt.until).toISOString() : null,

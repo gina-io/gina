@@ -2133,20 +2133,60 @@ function Server(options) {
             //
             // Read by the gate in onRequest() below AND by the isaac twin
             // (core/server.isaac.js reads the same object as `server._maintenance`).
+            // `_maintenance.envForced` records a `GINA_MAINTENANCE` boot closure (the
+            // block right after) — it only feeds the status payload's `source: 'env'`.
             try {
                 var _mtBlock = self.conf[self.appName][self.env].server.maintenance;
                 engine.instance._maintenance = {
-                    conf    : lib.maintenance.resolveConf(_mtBlock),
-                    runtime : null
+                    conf      : lib.maintenance.resolveConf(_mtBlock),
+                    runtime   : null,
+                    envForced : false
                 };
-                if ( engine.instance._maintenance.conf.enabled ) {
-                    console.warn('[ BUNDLE ][ server ][ init ] MAINTENANCE MODE IS ON for `'+ self.appName +'` (settings.json > server.maintenance.enabled) — every request outside /_gina/* answers 503 until it is turned off.');
-                }
             } catch (_mtErr) {
                 engine.instance._maintenance = {
-                    conf    : lib.maintenance.resolveConf(null),
-                    runtime : null
+                    conf      : lib.maintenance.resolveConf(null),
+                    runtime   : null,
+                    envForced : false
                 };
+            }
+            // `GINA_MAINTENANCE` — boot CLOSED without a settings edit (a replacement pod
+            // created during a window). Folded into the CONFIG layer, so the runtime
+            // toggle still reopens this process; `envForced` only feeds the status
+            // payload's `source: 'env'`. Close-only: `0`/`false` never override a
+            // configured `enabled: true` (lib.maintenance.resolveBootEnv states why).
+            //
+            // DUAL READ, deliberately, against the house rule "read via getEnvVar,
+            // never process.env" — the `GINA_AUDIT_SECRET` read above is the in-file
+            // precedent. Measured 2026-09-20: the two launchers deliver the same
+            // variable on DIFFERENT transports. `bin/cli` sweeps every GINA_* key OUT
+            // of process.env into process.gina (utils/helper.js importEnvVars) and a
+            // daemon-spawned bundle gets it back through the imported context — so
+            // getEnvVar sees it there and process.env does not. `bin/gina-container`
+            // never runs that sweep: its context carries only its own setEnvVar
+            // writes, the child inherits the launcher's UNSWEPT process.env, and
+            // nothing imports it — so process.env sees it there and getEnvVar does not
+            // (#B570). Honouring both is the only reader that works under both
+            // launchers. Its own try: a failure here must never cost a boot.
+            try {
+                var _mtEnvRaw = ( typeof(getEnvVar) == 'function' ) ? getEnvVar('GINA_MAINTENANCE') : undefined;
+                if ( typeof(_mtEnvRaw) == 'undefined' ) {
+                    _mtEnvRaw = process.env.GINA_MAINTENANCE;
+                }
+                var _mtEnv = lib.maintenance.resolveBootEnv(_mtEnvRaw);
+                if ( _mtEnv.warning ) {
+                    console.warn('[ BUNDLE ][ server ][ init ] [maintenance] ' + _mtEnv.warning);
+                }
+                if ( _mtEnv.forced ) {
+                    engine.instance._maintenance.conf.enabled = true;
+                    engine.instance._maintenance.envForced    = true;
+                } else if ( _mtEnv.explicitOff && engine.instance._maintenance.conf.enabled ) {
+                    console.warn('[ BUNDLE ][ server ][ init ] [maintenance] `GINA_MAINTENANCE` = ' + JSON.stringify(String(_mtEnvRaw).trim()) + ' does not override settings.json > server.maintenance.enabled: true — the variable can only CLOSE a bundle, never open one; the site stays closed.');
+                }
+            } catch (_mtEnvErr) {
+                console.warn('[ BUNDLE ][ server ][ init ] [maintenance] `GINA_MAINTENANCE` could not be read: ' + (_mtEnvErr.message || _mtEnvErr));
+            }
+            if ( engine.instance._maintenance.conf.enabled ) {
+                console.warn('[ BUNDLE ][ server ][ init ] MAINTENANCE MODE IS ON for `'+ self.appName +'` ('+ ( engine.instance._maintenance.envForced ? 'GINA_MAINTENANCE' : 'settings.json > server.maintenance.enabled' ) +') — every request outside /_gina/* answers 503 until it is turned off.');
             }
 
             // ── #RWATCH — stale built-release watch (local production rehearsals) ──
@@ -4992,6 +5032,9 @@ function Server(options) {
                 // The status payload NEVER carries bypassKey — only whether one is
                 // configured, which is what an operator actually needs to know
                 // before closing a site they might then be unable to browse.
+                // `source` resolves runtime > env > config: 'env' = closed by
+                // GINA_MAINTENANCE at boot (folded into config,
+                // so a live toggle still wins — hence the order).
                 var _mtStatus = function() {
                     var _now = Date.now();
                     var _eff = lib.maintenance.effectiveConf(_mtCtl, _now);
@@ -5007,7 +5050,7 @@ function Server(options) {
                         pid          : process.pid,
                         hostname     : os.hostname(),
                         active       : lib.maintenance.isActive(_mtCtl, _now),
-                        source       : _rtLive ? 'runtime' : 'config',
+                        source       : _rtLive ? 'runtime' : ( _mtCtl.envForced === true ? 'env' : 'config' ),
                         retryAfter   : _eff.retryAfter,
                         message      : _eff.message,
                         until        : ( _rtLive && _rt && typeof(_rt.until) == 'number' ) ? new Date(_rt.until).toISOString() : null,
