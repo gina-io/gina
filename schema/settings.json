@@ -350,7 +350,7 @@
         },
         "maintenance": {
           "type": "object",
-          "description": "Opt-in maintenance mode (#MAINT1). When active, every request EXCEPT the /_gina/* endpoints is answered 503 + Retry-After with a self-contained maintenance page, before static assets, the render/output cache and routing — coverage a route middleware cannot reach, since middleware only runs once a route has matched. The /_gina/* family stays reachable on purpose: liveness keeps answering 200 so an orchestrator does not restart pods over a declared window, and the operator can always reach the toggle. Flip it at runtime with POST /_gina/maintenance (admin-gated); a runtime override is NOT persisted across a restart and is PER PROCESS — a POST reaches the one process that received it, so with replicas fan it out and read back `pid`/`hostname` from each reply — and `enabled` here is the durable, deployment-wide form. A malformed block warns at boot per key and never refuses a boot.",
+          "description": "Opt-in maintenance mode (#MAINT1). When active, every request EXCEPT the /_gina/* endpoints is answered 503 + Retry-After with a self-contained maintenance page, before static assets, the render/output cache and routing — coverage a route middleware cannot reach, since middleware only runs once a route has matched. The /_gina/* family stays reachable on purpose: liveness keeps answering 200 so an orchestrator does not restart pods over a declared window, and the operator can always reach the toggle. Flip it at runtime with POST /_gina/maintenance (admin-gated); a runtime override is NOT persisted across a restart and is PER PROCESS — a POST reaches the one process that received it, so with replicas either fan it out and read back `pid`/`hostname` from each reply, or name a shared kv namespace in `store` so every replica follows one POST — and `enabled` here is the durable, deployment-wide form. A malformed block warns at boot per key and never refuses a boot, with one deliberate exception: a `store` naming a namespace that is not declared, or one running failMode \"open\", refuses the boot rather than run without the coherence you configured.",
           "additionalProperties": false,
           "properties": {
             "enabled": {
@@ -382,6 +382,18 @@
                 "type": "string"
               },
               "default": []
+            },
+            "store": {
+              "type": "string",
+              "description": "Name of a declared `kv.namespaces` entry (NOT a connectors.json entry) that keeps the runtime toggle in step across the replicas of one deployment. When set, every POST /_gina/maintenance applies to the process it reached first, then writes its override to the namespace under the bundle name as key, and each process polls the namespace on an unref'd timer (`pollInterval`) and applies what it finds — so one POST anywhere closes or reopens every replica within one interval, a replica joining mid-window follows the shared state within one store round-trip, and the request gate itself never touches the store. A `ttlSeconds` window becomes the record's own TTL, so it expires deployment-wide; `enable: false` is written, not deleted, so a runtime off wins over a configured `enabled: true` on every replica. A store outage keeps each replica in its last-known state and never reopens a closed site; a POST whose write fails still applies locally and answers 200 with `store.written: false`, and a flip applied while the store was down is superseded by the next successful poll — re-issue it once the store answers again. The namespace must run failMode \"closed\" (the default): under \"open\" an outage reads as \"no record\" and would reopen every replica, so the bundle refuses to boot rather than accept it — as it does for a name the kv primitive cannot hand out (kv unconfigured, or undeclared). A memory-backed namespace runs with a boot warning that replicas will NOT follow each other: replica-shared state needs a redis-backed (across hosts) or sqlite-backed (across the processes of one host) namespace. Whoever can write to the namespace can close or reopen the deployment — keep it private to the deployment, as you would a session store. Absent: no store call, no timer, per-process behaviour as before. Since 0.6.32.",
+              "minLength": 1
+            },
+            "pollInterval": {
+              "type": "integer",
+              "description": "How often each process reads the shared namespace, in milliseconds. Integer between 250 and 60000; out-of-range or non-integer values are ignored with a boot warning and the default applies. Only meaningful with `store` — without it no timer is armed. The first read happens at boot, so a joining replica converges within one store round-trip; after a POST every replica converges within one interval plus one round-trip. Defaults to 2000.",
+              "minimum": 250,
+              "maximum": 60000,
+              "default": 2000
             }
           }
         },

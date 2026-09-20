@@ -594,14 +594,14 @@ describe('09 - engine wiring: both engines, and the gate is placed correctly', f
 });
 
 describe('10 - the schema declares the block', function () {
-    it('settings.json schema carries server.maintenance with all five keys', function () {
+    it('settings.json schema carries server.maintenance with all seven keys', function () {
         var schema = JSON.parse(fs.readFileSync(path.join(FW, '../../schema/settings.json'), 'utf8'));
         var m = schema.properties.server.properties.maintenance;
         assert.ok(m, 'server.maintenance must be declared');
         assert.equal(m.additionalProperties, false);
         assert.deepEqual(
             Object.keys(m.properties).sort(),
-            ['allowFrom', 'bypassKey', 'enabled', 'message', 'retryAfter']
+            ['allowFrom', 'bypassKey', 'enabled', 'message', 'pollInterval', 'retryAfter', 'store']
         );
         assert.equal(m.properties.retryAfter.default, 300);
         assert.match(m.properties.allowFrom.description, /NOT classify as proxied/i);
