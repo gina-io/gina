@@ -24836,6 +24836,15 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/loading-state', 'lib/merge'
             'loadContent'       : null,
             'open'              : null,
             'isOpen'            : false,
+            // #gh76 §8 — true from the moment a `preOpen` popin shows its loading shell
+            // until its real open (or its close / failed load); a default popin shows
+            // nothing while it loads, so it never enters this state
+            'isLoading'         : false,
+            // #gh76 §8 — this popin's load sequence and the transport of the load in
+            // flight: a close during the load bumps the sequence, so the landing result
+            // is dropped instead of re-opening a dismissed dialog
+            '_loadSeq'          : 0,
+            '_loadXhr'          : null,
             'isRedirecting'     : false,
             'close'             : null,
             '$forms'            : [],
@@ -25459,6 +25468,9 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/loading-state', 'lib/merge'
                 // A preOpen popin still gets its instant born-modal skeleton now; the
                 // adopted preload swaps in the real content on arrival — matching the
                 // popinLoad preOpen flow this consume path bypasses (#B54).
+                // #gh76 §8 — this adoption's sequence, on the same counter popinLoad uses:
+                // a close during the wait bumps it and the body is dropped on arrival
+                var seq = ( $popin ) ? ( $popin._loadSeq = ( $popin._loadSeq || 0 ) + 1 ) : null;
                 if ( $popin && $popin.options && $popin.options.preOpen ) {
                     showLoadingShell($popin, ensurePopinDialog($popin));
                 }
@@ -25469,6 +25481,10 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/loading-state', 'lib/merge'
                     // #B285 — the adopted wait is over (body or failure): settle FIRST,
                     // matching the cold path's release-before-apply order.
                     _settle();
+                    // #gh76 §8 — cancelled while it waited: released above, body dropped
+                    if ( seq !== null && seq !== $popin._loadSeq ) {
+                        return;
+                    }
                     if ( body == null ) {
                         if ( typeof(onMiss) == 'function' ) { onMiss(); }
                     } else {
@@ -26741,6 +26757,106 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/loading-state', 'lib/merge'
                     $overlay.classList.add('gina-popin-is-active');
                 }
             }
+
+            // #gh76 §8 — the shell is showing and the load is in flight: an explicit state.
+            // `isOpen` stays false, so the two `!isOpen ⇒ popinOpen` consumers still run the
+            // real open when the content lands. A dialog shell gets the native `close` sync
+            // NOW, not only at popinOpen: an Escape during the load must route through
+            // popinClose, or the landing content would re-open a dismissed dialog.
+            $popin.isLoading = true;
+            bindNativeCloseSync($popin, $el);
+        }
+
+        /**
+         * bindNativeCloseSync
+         *
+         * #gh76 §8 — one native `close` listener per dialog element, bound at the loading
+         * shell AND at popinOpen, whichever comes first (`_ginaCloseSyncBound` keeps it to
+         * one across element reuse). Listens to `close`, not `cancel`: `close` fires for
+         * BOTH Escape and method="dialog". De-dup with the plugin's own close: popinClose
+         * (and closeLoadingShell) set isOpen / isLoading false SYNCHRONOUSLY before the
+         * queued `close` event fires, so the guard sees neither and no-ops; a `$el.close()`
+         * on an already-closed dialog is a spec no-op, so there is no recursion. Native
+         * addEventListener — NOT gina's addListener (the custom event bus). Gated on
+         * useDialogMode: a <div> has no `close` event.
+         *
+         * @param {object} $popin - the registered popin
+         * @param {HTMLElement} $el - its dialog element
+         *
+         * @returns {undefined}
+         *
+         * @example
+         * bindNativeCloseSync($popin, $el);
+         */
+        function bindNativeCloseSync($popin, $el) {
+            if ( self.options.useDialogMode && $el && !$el._ginaCloseSyncBound ) {
+                $el._ginaCloseSyncBound = true;
+                $el.addEventListener('close', function () {
+                    if ( $popin.isOpen || $popin.isLoading ) {
+                        popinClose($popin.name);
+                    }
+                });
+            }
+        }
+
+        /**
+         * closeLoadingShell
+         *
+         * #gh76 §8 — closes a popin whose loading shell is showing but whose real open never
+         * happened (`isLoading` true, `isOpen` false). The load itself is CANCELLED: the
+         * sequence is bumped so the landing result — or an adopted preload's body — is
+         * dropped instead of re-opening a dismissed dialog, and a transport still in flight
+         * is aborted (its own readyState-4 handler sees the bumped sequence and returns
+         * right after its release block, so no `error` fires for a cancel). Tears down what
+         * the shell built BY THE SHELL'S OWN STATE — not by the `gina-popin-is-active` class
+         * popinClose's teardown keys on, which a dialog shell never carries — releases the
+         * trigger, and fires `close.<id>`: the honest "this dialog went away" signal, even
+         * though `open.<id>` never fired.
+         *
+         * @param {object} $popin - the loading popin
+         *
+         * @returns {undefined}
+         *
+         * @example
+         * if ( $popin.isLoading && !$popin.isOpen ) closeLoadingShell($popin);
+         */
+        function closeLoadingShell($popin) {
+            var $el           = document.getElementById($popin.id) || null;
+            var $popinTrigger = document.getElementById($popin.openTrigger) || null;
+            // cancel the load: the landing result is dropped by the sequence check
+            $popin._loadSeq = ( $popin._loadSeq || 0 ) + 1;
+            if ( $popin._loadXhr && $popin._loadXhr.readyState !== 4 ) {
+                try { $popin._loadXhr.abort(); } catch (abortErr) { /* already dead */ }
+            }
+            $popin._loadXhr  = null;
+            // BEFORE the native close below: its queued `close` event must find no state
+            $popin.isLoading = false;
+            if ( $el ) {
+                if ( $el.tagName === 'DIALOG' ) {
+                    if ( typeof($el.close) === 'function' && $el.hasAttribute('open') ) {
+                        try { $el.close(); } catch (closeErr) { $el.removeAttribute('open'); }
+                    } else {
+                        $el.removeAttribute('open');
+                    }
+                } else {
+                    $el.classList.remove('gina-popin-is-active');
+                    var $overlay = $el.parentElement;
+                    if ( $overlay ) { $overlay.classList.remove('gina-popin-is-active'); }
+                }
+                $el.innerHTML = '';
+                $el.removeAttribute('data-gina-popin-loading');
+            }
+            if ( $popin.target && typeof($popin.target.removeAttribute) == 'function' ) {
+                $popin.target.removeAttribute('data-gina-popin-loading');
+            }
+            releasePopinTrigger($popinTrigger);
+            // operands reversed on purpose: popin-registry.test.js counts the raw WRITE
+            // shape of the active id (assignment to the instance field) at exactly one
+            // site, and a `===` read written the other way round carries that prefix
+            if ( $popin.id === instance.activePopinId ) {
+                setActivePopinId(null);
+            }
+            triggerEvent(gina, $popin.target, 'close.'+ $popin.id, $popin);
         }
 
         /**
@@ -26829,6 +26945,9 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/loading-state', 'lib/merge'
             var $popin          = getPopinByName(name);
             var id              = $popin.id;
             var $popinTrigger   = document.getElementById($popin.openTrigger) || null;
+            // #gh76 §8 — this load's sequence: a close during the load bumps it, and the
+            // landing result below is dropped instead of re-opening a dismissed dialog
+            var seq             = $popin._loadSeq = ( $popin._loadSeq || 0 ) + 1;
 
             // #B139 — record the content's source URL for the close-time cache
             // clear (covers every click-time load path, incl. validator redirects).
@@ -26929,6 +27048,9 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/loading-state', 'lib/merge'
                 catch (e) { try { xhr = new ActiveXObject("Microsoft.XMLHTTP"); } catch (e) {} }
             }
 
+            // #gh76 §8 — stashed so a close during the load can abort it
+            $popin._loadXhr = xhr;
+
             if ( options.withCredentials ) { // Preflighted requests
                 if ('withCredentials' in xhr) {
                     // XHR for Chrome/Firefox/Opera/Safari.
@@ -27009,6 +27131,13 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/loading-state', 'lib/merge'
                             }
                             loadingState.disarm($popinTrigger);
                         }
+                        // #gh76 §8 — a load cancelled by a close (or superseded by a newer
+                        // load of the same popin) has released above; its result is dropped
+                        // here, so landing content cannot re-open a dismissed dialog
+                        if ( seq !== $popin._loadSeq ) {
+                            return;
+                        }
+                        $popin._loadXhr = null;
                         // 200, 201, 201' etc ...
                         var result = null;
 
@@ -27202,6 +27331,13 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/loading-state', 'lib/merge'
                                 updateToolbar(result, resultIsObject);
 
                             triggerEvent(gina, $el, 'error.' + id, result)
+                            // #gh76 §8 — a failed load never leaves the shell behind: the
+                            // `error` listener above ran FIRST (it may have loaded content,
+                            // which completes the open and keeps the dialog); if nobody did,
+                            // close the shell — a spinner on a load that will never land
+                            if ( $popin.isLoading && !$popin.isOpen ) {
+                                closeLoadingShell($popin);
+                            }
                         }
                     }
                 };
@@ -27291,12 +27427,18 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/loading-state', 'lib/merge'
             if ( !$popin ) {
                 return;
             }
-            if (!$popin.isOpen)
+            // #gh76 §8 — a popin whose loading shell is showing accepts content: it lands
+            // in the shell and the open is completed below (a load still in flight lands
+            // afterwards as any second loadContent would — last write wins)
+            var completingOpen = ( !$popin.isOpen && $popin.isLoading );
+            if ( !$popin.isOpen && !completingOpen )
                 throw new Error('Popin `'+$popin.name+'` is not open !');
 
             $popin.isRedirecting = ( typeof(isRedirecting) != 'undefined' ) ? isRedirecting : false;
 
-            var $el = $popin.target;
+            // while loading, `target` still names the shared container (popinOpen re-points
+            // it at the dialog) — inject into the dialog element itself
+            var $el = ( completingOpen ) ? ( document.getElementById($popin.id) || $popin.target ) : $popin.target;
             // if (
             //     typeof(stringContent) != 'undefined'
             //     && typeof(stringContent.trim) == 'function'
@@ -27313,7 +27455,12 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/loading-state', 'lib/merge'
                  refreshCSS();
             }
 
-            if ( !$popin.isRedirecting ) {
+            if ( completingOpen ) {
+                // the real open: the a11y label, isOpen, the trigger re-point, `open.<id>` —
+                // the bind above is deduped, and the shell already showed the dialog so
+                // popinOpen's own showModal() is skipped
+                popinOpen($popin.name);
+            } else if ( !$popin.isRedirecting ) {
                 triggerEvent(gina, instance.target, 'open.'+ $popin.id, $popin);
             } else {
                 // console.debug('Popin now redirecting [1-b]');
@@ -27530,16 +27677,11 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/loading-state', 'lib/merge'
             // there is no recursion. `_ginaCloseSyncBound` keeps it to one listener across
             // element reuse; gated on useDialogMode (non-dialog mode is a <div>, no `close`
             // event). Native addEventListener — NOT gina's addListener (the custom event bus).
-            if ( self.options.useDialogMode && $el && !$el._ginaCloseSyncBound ) {
-                $el._ginaCloseSyncBound = true;
-                $el.addEventListener('close', function () {
-                    if ( $popin.isOpen ) {
-                        popinClose($popin.name);
-                    }
-                });
-            }
+            // #gh76 §8 — shared with the loading shell, which may have bound it already
+            bindNativeCloseSync($popin, $el);
 
             $popin.isOpen = true;
+            $popin.isLoading = false;
             // so it can be forwarded to the handler who is listening
             $popin.target = $el;
 
@@ -27678,7 +27820,7 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/loading-state', 'lib/merge'
         function popinClose(name) {
 
             var $popin = null;
-            if ( typeof(name) == 'undefined' && /^true$/.test(this.isOpen) ) {
+            if ( typeof(name) == 'undefined' && ( /^true$/.test(this.isOpen) || /^true$/.test(this.isLoading) ) ) {
                 name    = this.name;
                 $popin  = this;
             } else {
@@ -27692,6 +27834,16 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/loading-state', 'lib/merge'
             var $el = null;
             if ( !$popin && typeof(name) != 'undefined' ) {
                throw new Error('Popin `'+name+'` not found !');
+            }
+            // #gh76 §8 — a popin whose loading shell is showing closes too: the load is
+            // cancelled and the shell torn down. The `!isOpen` return below would otherwise
+            // leave a preOpen shell un-closeable for the whole round trip.
+            if ( !$popin.isOpen && $popin.isLoading ) {
+                if ( $popin.isRedirecting ) {
+                    return;
+                }
+                closeLoadingShell($popin);
+                return;
             }
             if (!$popin.isOpen)
                 return;
@@ -27790,8 +27942,9 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/loading-state', 'lib/merge'
             id = $popin.id;
             name = $popin.name;
 
-            // Close first if still open (handles listener cleanup, form unbinding, header removal)
-            if ( $popin.isOpen ) {
+            // Close first if still open — or still LOADING (#gh76 §8): the loading close
+            // cancels the load and tears the shell down
+            if ( $popin.isOpen || $popin.isLoading ) {
                 $popin.isRedirecting = false;
                 popinClose(name);
             }

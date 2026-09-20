@@ -1678,21 +1678,24 @@ describe('27 - Popin: native <dialog> UA-close routes through popinClose', funct
         assert.match(getPopinSrc(), /\$el\.addEventListener\(\s*['"]close['"]/, 'expected a native `close` listener (DOM addEventListener)');
     });
 
-    it('source: the close listener runs popinClose only while still flagged open', function () {
+    it('source: the close listener runs popinClose only while still flagged open or loading (gh#76 §8)', function () {
         assert.match(
             getPopinSrc(),
-            /addEventListener\(\s*['"]close['"][\s\S]{0,220}?if\s*\(\s*\$popin\.isOpen\s*\)[\s\S]{0,80}?popinClose\(\s*\$popin\.name\s*\)/,
-            'close handler must guard on $popin.isOpen then call popinClose($popin.name)'
+            /addEventListener\(\s*['"]close['"][\s\S]{0,220}?if\s*\(\s*\$popin\.isOpen\s*\|\|\s*\$popin\.isLoading\s*\)[\s\S]{0,80}?popinClose\(\s*\$popin\.name\s*\)/,
+            'close handler must guard on $popin.isOpen || $popin.isLoading then call popinClose($popin.name)'
         );
     });
 
     it('source: the close-sync bind precedes `$popin.isOpen = true` in popinOpen', function () {
         var src = getPopinSrc();
-        var bindIdx = src.indexOf('!$el._ginaCloseSyncBound');
+        // gh#76 §8 — the listener block moved into the shared bindNativeCloseSync helper; the
+        // popinOpen call site is the LAST occurrence (the helper's @example and the loading
+        // shell's call precede it), so lastIndexOf pins popinOpen's ordering, not the helper's
+        var bindIdx = src.lastIndexOf('bindNativeCloseSync($popin, $el);');
         var openIdx = src.indexOf('$popin.isOpen = true');
-        assert.ok(bindIdx > -1, 'gate present');
+        assert.ok(bindIdx > -1, 'the popinOpen call to bindNativeCloseSync is present');
         assert.ok(openIdx > -1, '$popin.isOpen = true present');
-        assert.ok(bindIdx < openIdx, 'the close listener is bound before isOpen is set true');
+        assert.ok(bindIdx < openIdx, 'the close-sync helper is called before isOpen is set true');
     });
 
     // --- dist freshness (the served bundle must carry the fix) ---
