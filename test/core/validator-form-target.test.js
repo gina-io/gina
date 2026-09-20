@@ -63,6 +63,8 @@ var srcRefuse   = extract(valSrc, '^[ \\t]*var refuseSend = function\\(', 'refus
 var srcApply    = extract(valSrc, '^[ \\t]*var applySwap = function\\(', 'applySwap');
 var srcFinalize = extract(valSrc, '^[ \\t]*var finalizeSelfReplacement = function\\(', 'finalizeSelfReplacement');
 var srcParse    = extract(evtSrc, '^function parseXhrHtmlAnswer\\(', 'parseXhrHtmlAnswer');
+var srcOob      = extract(evtSrc, '^function applyOobSwaps\\(', 'applyOobSwaps');
+var srcWarnOob  = extract(valSrc, '^[ \\t]*var warnOobRefusals = function\\(', 'warnOobRefusals');
 var mStrategies = valSrc.match(/^[ \t]*var SWAP_STRATEGIES = (\[[^\]]+\]);/m);
 
 function win(html) {
@@ -74,6 +76,8 @@ function win(html) {
     w.eval('window.__resolveSwapTarget = (function(){ ' + srcResolve + ' return resolveSwapTarget; }());');
     return w;
 }
+/** jsdom-realm objects carry that realm's prototype: normalise before a strict deepEqual. */
+function plain(v) { return JSON.parse(JSON.stringify(v)); }
 var XHR_INPUTS = '<input type="hidden" id="gina-without-layout-xhr-data" value="%7B%22ok%22%3Atrue%7D"><input type="hidden" id="gina-without-layout-xhr-view" value="%7B%22v%22%3A1%7D">';
 
 describe('§01 resolveSwapTarget — the hx-target grammar, extracted', function () {
@@ -306,12 +310,218 @@ describe('§05 finalizeSelfReplacement (extracted)', function () {
     });
 });
 
+describe('§07 applyOobSwaps — the out-of-band grammar, extracted', function () {
+    var PAGE = '<div id="totals">old</div><ul id="list"><li id="row">before</li></ul>'
+             + '<form id="f"><button>s</button></form><p id="gone">g</p>';
+    function scene(answer, opts) {
+        opts = opts || {};
+        var w = win(opts.html || PAGE);
+        var binds = [], events = [];
+        var bindRegion = function ($root, o) {
+            binds.push({ id: ( $root && ( $root.id || $root.tagName ) ) || null, defer: ( o && o.deferFormId ) || null });
+        };
+        var oob = w.eval('(function (triggerEvent, bindRegion, document) { ' + srcOob + ' return applyOobSwaps; })')(w.__triggerEvent, bindRegion, w.document);
+        var $form = w.document.getElementById('f');
+        ['oobbeforeswap.f', 'oobafterswap.f', 'oobbeforeswap.f.hform', 'oobafterswap.f.hform'].forEach(function (n) {
+            $form.addEventListener(n, function (e) { events.push(n); if (opts.onEvent) opts.onEvent(n, e); });
+        });
+        var parsed = w.__parseXhrHtmlAnswer(answer);
+        var run = oob(parsed.doc, { $target: $form, id: 'f', hFormIsRequired: !!opts.hform, gina: {} });
+        return { w: w, run: run, binds: binds, events: events, remainder: parsed.doc.body.innerHTML, doc: parsed.doc };
+    }
+    var $id = function (s, i) { return s.w.document.getElementById(i); };
+
+    it('`true` and an empty value mean outerHTML: the page element is REPLACED, the attribute stripped, the element removed from the answer', function () {
+        var s = scene('<p>main</p><div id="totals" data-gina-swap-oob="true">NEW</div>');
+        assert.equal($id(s, 'totals').outerHTML, '<div id="totals">NEW</div>', 'replaced, attribute stripped on landing');
+        assert.deepEqual(plain(s.run.list), [{ id: 'totals', strategy: 'outerHTML', swapped: true }]);
+        assert.equal(s.remainder, '<p>main</p>', 'the main fragment is clean');
+        var e = scene('<div id="totals" data-gina-swap-oob="">E</div>');
+        assert.equal($id(e, 'totals').outerHTML, '<div id="totals">E</div>', 'an empty value is outerHTML too');
+        assert.equal(e.remainder, '');
+    });
+    it('a strategy name uses the element CONTENT and strips the wrapper — innerHTML would otherwise nest a duplicate id', function () {
+        var s = scene('<div id="totals" data-gina-swap-oob="innerHTML"><b>c</b></div>');
+        assert.equal($id(s, 'totals').outerHTML, '<div id="totals"><b>c</b></div>', 'content only: no nested #totals');
+        assert.equal(scene('<div id="totals" data-gina-swap-oob="textContent"><b>c</b></div>').w.document.getElementById('totals').textContent, 'c');
+    });
+    it('the insert positions land where htmx puts them, and every strategy binds the right region', function () {
+        var s = scene('<li id="row" data-gina-swap-oob="beforebegin"><i id="pre">p</i></li>');
+        assert.equal($id(s, 'list').firstElementChild.id, 'pre');
+        assert.deepEqual(s.binds, [{ id: 'list', defer: null }], 'beforebegin binds the PARENT');
+        s = scene('<li id="row" data-gina-swap-oob="afterend"><i id="post">p</i></li>');
+        assert.equal($id(s, 'row').nextElementSibling.id, 'post');
+        s = scene('<li id="row" data-gina-swap-oob="afterbegin"><i>a</i></li>');
+        assert.equal($id(s, 'row').innerHTML, '<i>a</i>before');
+        assert.deepEqual(s.binds, [{ id: 'row', defer: null }], 'afterbegin binds the TARGET');
+        s = scene('<li id="row" data-gina-swap-oob="beforeend"><i>z</i></li>');
+        assert.equal($id(s, 'row').innerHTML, 'before<i>z</i>');
+        s = scene('<div id="totals" data-gina-swap-oob="true">N</div>');
+        assert.deepEqual(s.binds, [{ id: 'BODY', defer: null }], 'outerHTML binds the PARENT');
+        assert.equal(scene('<div id="totals" data-gina-swap-oob="textContent">t</div>').binds.length, 0, 'textContent binds nothing');
+    });
+    it('delete removes the page element; none writes nothing, fires no event, and STILL strips the element from the answer', function () {
+        var s = scene('<p id="gone" data-gina-swap-oob="delete"></p>');
+        assert.equal($id(s, 'gone'), null);
+        assert.deepEqual(plain(s.run.list), [{ id: 'gone', strategy: 'delete', swapped: true }]);
+        assert.equal(s.binds.length, 0, 'nothing to bind');
+        var n = scene('<p>main</p><div id="totals" data-gina-swap-oob="none">X</div>');
+        assert.equal($id(n, 'totals').textContent, 'old', 'untouched');
+        assert.deepEqual(plain(n.run.list), [{ id: 'totals', strategy: 'none', swapped: false }]);
+        assert.deepEqual(n.events, [], 'none is silent — a way to strip an element from the main content');
+        assert.equal(n.remainder, '<p>main</p>', 'removed from the answer all the same');
+    });
+    it('every refusal removes the element, reports a reason and never throws: no id, no page match, a reserved value, an unknown one', function () {
+        var s = scene('<p>main</p>'
+            + '<div data-gina-swap-oob="true">A</div>'
+            + '<div id="nowhere" data-gina-swap-oob="true">B</div>'
+            + '<div id="totals" data-gina-swap-oob="innerHTML:.sel">C</div>'
+            + '<div id="row" data-gina-swap-oob="sideways">D</div>');
+        assert.deepEqual(plain(s.run.list), [
+            { id: null,      strategy: 'outerHTML',        swapped: false, reason: 'noId' },
+            { id: 'nowhere', strategy: 'outerHTML',        swapped: false, reason: 'noTarget' },
+            { id: 'totals',  strategy: 'innerHTML:.sel',   swapped: false, reason: 'reserved' },
+            { id: 'row',     strategy: 'sideways',         swapped: false, reason: 'unknownStrategy' }
+        ]);
+        assert.equal(s.remainder, '<p>main</p>', 'all four removed — the main fragment is always clean');
+        assert.equal($id(s, 'totals').textContent, 'old'); assert.equal($id(s, 'row').textContent, 'before');
+        assert.deepEqual(s.events, [], 'a refused element never reaches the events');
+    });
+    it('an out-of-band element nested in ANOTHER one travels with its ancestor: not processed on its own, attribute stripped, never left live in the page', function () {
+        var s = scene('<div id="totals" data-gina-swap-oob="true">outer<span id="row" data-gina-swap-oob="true">inner</span></div>');
+        assert.deepEqual(plain(s.run.list), [{ id: 'totals', strategy: 'outerHTML', swapped: true }], 'one swap, not two');
+        assert.equal($id(s, 'totals').innerHTML, 'outer<span id="row">inner</span>', 'the nested attribute is stripped on landing');
+        assert.equal($id(s, 'list').textContent, 'before', 'the page #row was NOT swapped — the id moved, it did not fire');
+        // an element merely nested in a NON-oob wrapper IS processed and removed from it
+        var d = scene('<section><div id="totals" data-gina-swap-oob="true">N</div>keep</section>');
+        assert.deepEqual(plain(d.run.list), [{ id: 'totals', strategy: 'outerHTML', swapped: true }]);
+        assert.equal(d.remainder, '<section>keep</section>');
+    });
+    it('an author-supplied <template> is honoured, and one emptied of its out-of-band elements is consumed with them — so an oob-only answer leaves NOTHING, wrapped or not', function () {
+        // the canonical htmx shape: a table row, wrapped by an author who still writes the
+        // <template> (#B578 made the wrapper unnecessary, never wrong)
+        var TABLE = '<table><tbody id="tb"><tr id="trow"><td>old</td></tr></tbody></table><form id="f"><button>s</button></form>';
+        var s = scene('<template><tr id="trow" data-gina-swap-oob="true"><td>new</td></tr></template>', { html: TABLE });
+        assert.deepEqual(plain(s.run.list), [{ id: 'trow', strategy: 'outerHTML', swapped: true }], 'template contents are processed');
+        assert.equal($id(s, 'tb').innerHTML, '<tr id="trow"><td>new</td></tr>', 'a real row, cells intact');
+        assert.equal(s.remainder, '', 'the emptied wrapper went with it (a popin would be blanked by `<template></template>`)');
+        // a template that still holds content is KEPT — the removal is not over-broad
+        var k = scene('<template><div id="totals" data-gina-swap-oob="true">N</div><b>keep</b></template>');
+        assert.equal(k.remainder, '<template><b>keep</b></template>');
+        assert.equal($id(k, 'totals').textContent, 'N');
+    });
+    it('oobbeforeswap is per element, cancelable, and its detail.content is rewritable', function () {
+        var s = scene('<div id="totals" data-gina-swap-oob="true">A</div><li id="row" data-gina-swap-oob="innerHTML">B</li>', {
+            onEvent: function (n, e) { if (n === 'oobbeforeswap.f' && e.detail.oobId === 'totals') e.preventDefault(); }
+        });
+        assert.deepEqual(plain(s.run.list), [
+            { id: 'totals', strategy: 'outerHTML', swapped: false, reason: 'cancelled' },
+            { id: 'row',    strategy: 'innerHTML', swapped: true }
+        ], 'one cancelled, the next still runs');
+        assert.equal($id(s, 'totals').textContent, 'old', 'the cancelled one did not write');
+        assert.equal($id(s, 'row').textContent, 'B');
+        assert.deepEqual(s.events, ['oobbeforeswap.f', 'oobbeforeswap.f', 'oobafterswap.f'], 'no afterswap for the cancelled element');
+        var r = scene('<div id="totals" data-gina-swap-oob="true">A</div>', {
+            onEvent: function (n, e) { if (n === 'oobbeforeswap.f') e.detail.content = '<div id="totals">REWRITTEN</div>'; }
+        });
+        assert.equal($id(r, 'totals').textContent, 'REWRITTEN');
+    });
+    it('the events carry the element identity, and only oobafterswap has a `.hform` twin — a cancel is a decision, mirroring beforeswap', function () {
+        var seen = [];
+        var s = scene('<div id="totals" data-gina-swap-oob="innerHTML">N</div>', {
+            hform: true, onEvent: function (n, e) { seen.push({ n: n, oob: e.detail.oob, oobId: e.detail.oobId, strategy: e.detail.strategy, target: e.detail.target && e.detail.target.id }); }
+        });
+        assert.deepEqual(s.events, ['oobbeforeswap.f', 'oobafterswap.f', 'oobafterswap.f.hform'],
+            'armed: the afterswap twin fires, the beforeswap twin does NOT exist');
+        assert.deepEqual(seen.map(function (x) { return [x.oob, x.oobId, x.strategy, x.target]; }),
+            [[true, 'totals', 'innerHTML', 'totals'], [true, 'totals', 'innerHTML', 'totals'], [true, 'totals', 'innerHTML', 'totals']]);
+        assert.equal(scene('<div id="totals" data-gina-swap-oob="innerHTML">N</div>').events.indexOf('oobafterswap.f.hform'), -1,
+            'unarmed: no `.hform` at all');
+    });
+    it('a swap that replaces or removes the SUBMITTING form defers its binding and reports rebindSelf', function () {
+        var page = '<div id="wrap"><form id="f"><button>s</button></form></div><div id="totals">old</div>';
+        var s = scene('<form id="f" data-gina-swap-oob="true"><button>s2</button></form>', { html: page });
+        assert.equal(s.run.rebindSelf, true);
+        assert.deepEqual(s.binds, [{ id: 'wrap', defer: 'f' }], 'the submitting form is skipped — the caller binds the replacement after the events');
+        var c = scene('<div id="wrap" data-gina-swap-oob="delete"></div>', { html: page });
+        assert.equal(c.run.rebindSelf, true, 'a container that CONTAINS the form counts too');
+        var o = scene('<div id="totals" data-gina-swap-oob="true">N</div>', { html: page });
+        assert.equal(o.run.rebindSelf, false);
+        assert.deepEqual(o.binds, [{ id: 'BODY', defer: null }], 'an unrelated swap does not defer');
+    });
+    it('a non-document argument is tolerated (no throw, empty report)', function () {
+        var w = win(PAGE);
+        var oob = w.eval('(function (triggerEvent, bindRegion, document) { ' + srcOob + ' return applyOobSwaps; })')(w.__triggerEvent, function () {}, w.document);
+        assert.deepEqual(plain(oob(null, { $target: w.document.getElementById('f'), id: 'f' })), { list: [], rebindSelf: false });
+        assert.deepEqual(plain(oob({}, { $target: w.document.getElementById('f'), id: 'f' })), { list: [], rebindSelf: false });
+    });
+});
+
+describe('§08 applySwap + out-of-band — the target path, gated (extracted)', function () {
+    function scene(opts) {
+        var w = win(opts.html || '<div id="totals">old</div><ul id="list"><li id="row">before</li></ul><form id="f"><button>s</button></form>');
+        var binds = [], warns = [], oobCalls = 0;
+        w.console.warn = function (m) { warns.push(String(m)); };
+        var bindRegion = function ($root, o) { binds.push({ id: ( $root && ( $root.id || $root.tagName ) ) || null, defer: ( o && o.deferFormId ) || null }); };
+        var applyOobSwaps = w.eval('(function (triggerEvent, bindRegion, document) { ' + srcOob + ' return applyOobSwaps; })')(w.__triggerEvent, bindRegion, w.document);
+        var spyOob = function (doc, ctx) { oobCalls++; return applyOobSwaps(doc, ctx); };
+        var warnOobRefusals = w.eval('(function (envIsDev) { ' + srcWarnOob + ' return warnOobRefusals; })')(true);
+        var mk = w.eval('(function (parseXhrHtmlAnswer, triggerEvent, bindRegion, envIsDev, gina, document, window, applyOobSwaps, warnOobRefusals) { ' + srcApply + ' return applySwap; })');
+        var apply = mk(w.__parseXhrHtmlAnswer, w.__triggerEvent, bindRegion, true, {}, w.document, w, spyOob, warnOobRefusals);
+        var $form = w.document.getElementById('f');
+        var ctx = { popin: null, target: w.document.querySelector(opts.target), swap: opts.swap || 'innerHTML', select: opts.select || null, targetAttr: opts.target, rebindSelf: false };
+        var payload = apply(ctx, { eventData: {} }, $form, 'f', false, { contentType: 'text/html', content: opts.answer, status: 200 });
+        return { w: w, ctx: ctx, payload: payload, binds: binds, warns: warns, oobCalls: oobCalls };
+    }
+
+    it('below the gate nothing changes: an answer without the attribute never calls applyOobSwaps and carries neither key', function () {
+        var s = scene({ target: '#row', answer: '<b>saved</b>' + XHR_INPUTS });
+        assert.equal(s.oobCalls, 0, 'the string gate short-circuits — an oob-free answer pays nothing');
+        assert.equal('oob' in s.payload, false);
+        assert.equal('remainder' in s.payload, false);
+        assert.equal(s.w.document.getElementById('row').innerHTML, '<b>saved</b>');
+    });
+    it('the out-of-band element lands in the page while the main answer goes to its own target; `content` stays RAW and `remainder` is what is left', function () {
+        var s = scene({ target: '#row', answer: '<b>saved</b><div id="totals" data-gina-swap-oob="true">42</div>' });
+        assert.equal(s.w.document.getElementById('totals').outerHTML, '<div id="totals">42</div>');
+        assert.equal(s.w.document.getElementById('row').innerHTML, '<b>saved</b>', 'the main swap got the remainder, not the oob element');
+        assert.deepEqual(plain(s.payload.oob), [{ id: 'totals', strategy: 'outerHTML', swapped: true }]);
+        assert.equal(s.payload.remainder, '<b>saved</b>');
+        assert.ok(/data-gina-swap-oob/.test(s.payload.content), '`content` is still the raw answer — its meaning does not fork by path');
+    });
+    it('out-of-band runs BEFORE `select`, so an element outside the selection still lands (htmx order)', function () {
+        var s = scene({ target: '#row', select: '.pick', answer: '<i class="pick">p</i><div id="totals" data-gina-swap-oob="true">99</div>' });
+        assert.equal(s.w.document.getElementById('totals').textContent, '99');
+        assert.equal(s.w.document.getElementById('row').innerHTML, '<i class="pick">p</i>');
+    });
+    it('textContent renders the remainder, never the consumed out-of-band markup', function () {
+        var s = scene({ target: '#row', swap: 'textContent', answer: '<b>raw</b><div id="totals" data-gina-swap-oob="true">7</div>' });
+        assert.equal(s.w.document.getElementById('row').textContent, '<b>raw</b>', 'the transport is not rendered as visible text');
+        assert.equal(s.w.document.getElementById('totals').textContent, '7');
+    });
+    it('a refusal warns in dev mode, naming the element and the reason; `none` carries no reason and is not reported', function () {
+        var s = scene({ target: '#row', answer: '<b>x</b><div id="nowhere" data-gina-swap-oob="true">B</div>' });
+        assert.equal(s.warns.length, 1);
+        assert.match(s.warns[0], /form `#f`: out-of-band element `nowhere` not swapped — noTarget/);
+        var n = scene({ target: '#row', answer: '<b>x</b><div id="totals" data-gina-swap-oob="none">B</div>' });
+        assert.deepEqual(n.warns, []);
+    });
+    it('an out-of-band swap that replaced the submitting form sets rebindSelf even though the MAIN swap did not', function () {
+        var s = scene({
+            html: '<div id="wrap"><form id="f"><button>s</button></form></div><ul id="list"><li id="row">before</li></ul>',
+            target: '#row', answer: '<b>x</b><form id="f" data-gina-swap-oob="true"><button>s2</button></form>'
+        });
+        assert.equal(s.ctx.rebindSelf, true, 'the shared tail will bind the replacement after the success events');
+    });
+});
+
 describe('§06 wiring pins', function () {
     var a = active(valSrc), ae = active(evtSrc);
 
-    it('registers beforeswap and afterswap; SWAP_STRATEGIES carries the nine htmx values', function () {
+    it('registers beforeswap/afterswap and their out-of-band twins, in position; SWAP_STRATEGIES carries the nine htmx values', function () {
         // the array lines carry trailing `// #gh76` comments, which active() keeps (it strips whole-line comments only)
-        assert.ok(/'error',[^\n]*\n\s*'beforeswap',[^\n]*\n\s*'afterswap',[^\n]*\n\s*'progress',/.test(a));
+        assert.ok(/'error',[^\n]*\n\s*'beforeswap',[^\n]*\n\s*'afterswap',[^\n]*\n\s*'oobbeforeswap',[^\n]*\n\s*'oobafterswap',[^\n]*\n\s*'progress',/.test(a),
+            'the four swap events are registered, the slice-3 pair right after the slice-2 pair');
         assert.ok(mStrategies, 'SWAP_STRATEGIES declared');
         assert.deepEqual(JSON.parse(mStrategies[1].replace(/'/g, '"')), ['innerHTML', 'outerHTML', 'textContent', 'beforebegin', 'afterbegin', 'beforeend', 'afterend', 'delete', 'none']);
     });
@@ -348,7 +558,9 @@ describe('§06 wiring pins', function () {
         // a file-wide absence pin would fire on those and could never pass
         [[a, 'validator'], [ae, 'events.js']].forEach(function (pair) {
             var src = pair[0]
-                , from = src.indexOf('$popin.loadContent(result.content);')
+                // #gh76 slice 3: the validator now loads the oob REMAINDER, so the anchor is
+                // the call itself — measured unique in both files (validator, events.js)
+                , from = src.indexOf('$popin.loadContent(')
                 , to   = src.indexOf("triggerEvent(gina, $target, 'success.' + id, result);", from)
                 , branch = ( from > -1 && to > from ) ? src.slice(from, to) : ''
             ;
@@ -368,7 +580,52 @@ describe('§06 wiring pins', function () {
         assert.ok(a.indexOf("$form.on('afterswap.hform', window[htmlSwapEventCallback])") > -1);
         assert.ok(a.indexOf("removeListener(gina, $form, 'afterswap.' + _id + '.hform');") > -1);
     });
-    it("on(): the wrapper skips cancelEvent for `beforeswap.` events only", function () {
-        assert.ok(ae.indexOf("if ( !/^beforeswap\\./.test(e.type) ) {\n                    cancelEvent(e);") > -1);
+    it('out-of-band is reached from all THREE html paths, each behind the same string gate — below it every path is byte-identical', function () {
+        // anchored on the gate EXPRESSION, not on the `if (` prefix: the legacy hook carries an
+        // extra `!sendCtx.target` term first, so a prefix-anchored needle reads 2 and cannot fire
+        assert.equal((a.match(/result\.content\.indexOf\('data-gina-swap-oob'\) > -1/g) || []).length, 3,
+            'the target, popin and legacy paths, and nothing else');
+        assert.equal((a.match(/typeof\(result\.content\) == 'string' && result\.content\.indexOf\('data-gina-swap-oob'\) > -1/g) || []).length, 3,
+            'each gate guards the string type before indexing it');
+        // each gate opens the block that actually calls the helper
+        assert.equal((a.match(/applyOobSwaps\(/g) || []).length, 3, 'one call per path');
+        assert.equal((a.match(/warnOobRefusals\(id, /g) || []).length, 3, 'each path reports its refusals');
+        // the helper itself is a top-level global beside the parser, not a per-path copy
+        assert.ok(/^function applyOobSwaps\(doc, ctx\) \{/m.test(evtSrc), 'a single implementation in utils/events.js');
+        assert.equal((ae.match(/^function applyOobSwaps\(/mg) || []).length, 1);
+        // the legacy path is the one WITHOUT a declared target
+        assert.ok(a.indexOf("if ( !sendCtx.target && typeof(result.content) == 'string' && result.content.indexOf('data-gina-swap-oob') > -1 ) {") > -1,
+            'the legacy hook is scoped to a target-less send');
+    });
+    it('the popin is left as it is when nothing was addressed to it — loading an empty remainder would blank the dialog and unbind its form', function () {
+        var from = a.indexOf('var popinContent = result.content, oobRunPopin = null;');
+        assert.ok(from > -1, 'the popin branch computes a remainder (slice control)');
+        var to = a.indexOf("result = XHRData ||", from);
+        assert.ok(to > from, 'the branch slice is located');
+        var branch = a.slice(from, to);
+        assert.ok(branch.indexOf("if ( oobRunPopin === null || popinContent.trim() !== '' ) {\n                                            $popin.loadContent(popinContent);") > -1,
+            'loadContent is skipped on an empty remainder, and untouched when the gate never fired');
+        assert.equal(branch.indexOf('$popin.loadContent(result.content)'), -1, 'the raw answer no longer reaches the popin once oob ran');
+    });
+    it('a self-replacing out-of-band swap is finalized on every path: the popin branch returns, so it binds the replacement itself', function () {
+        // the target and legacy paths fall through to the shared tail; the popin branch does not
+        assert.ok(a.indexOf("if ( sendCtx.rebindSelf ) {\n                                            finalizeSelfReplacement($target, id);\n                                        }\n                                        return;") > -1,
+            'the popin branch binds before returning');
+        assert.ok(a.indexOf('sendCtx.rebindSelf = sendCtx.rebindSelf || detachesForm;') > -1,
+            'the main swap never clears a flag an out-of-band swap already set');
+        assert.equal(a.indexOf('sendCtx.rebindSelf = detachesForm;'), -1, 'the plain assignment is gone');
+    });
+    it("on(): the wrapper skips cancelEvent for `beforeswap.` AND `oobbeforeswap.` only", function () {
+        assert.ok(ae.indexOf("if ( !/^(oob)?beforeswap\\./.test(e.type) ) {\n                    cancelEvent(e);") > -1,
+            'the exception is widened to the out-of-band twin');
+        // the shipped regex itself, exercised: both decision points are exempt, nothing else is
+        var m = ae.match(/if \( !\/(\^\(oob\)\?beforeswap\\\.)\/\.test\(e\.type\) \)/);
+        assert.ok(m, 'the exception regex is readable from the source (instrument control)');
+        var re = new RegExp(m[1]);
+        assert.equal(re.test('beforeswap.f'), true, 'beforeswap is exempt');
+        assert.equal(re.test('oobbeforeswap.f'), true, 'oobbeforeswap is exempt — the slice-3 cancel reaches its listener');
+        assert.equal(re.test('afterswap.f'), false, 'afterswap is NOT exempt');
+        assert.equal(re.test('oobafterswap.f'), false, 'oobafterswap is NOT exempt');
+        assert.equal(re.test('success.f'), false, 'an ordinary event is NOT exempt');
     });
 });

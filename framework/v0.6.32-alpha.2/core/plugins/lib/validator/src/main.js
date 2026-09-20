@@ -40,6 +40,8 @@ function ValidatorPlugin(rules, data, formId, culture) {
         'error',
         'beforeswap', // #gh76 slice 2 — cancelable, before a form answer is swapped into its target
         'afterswap', // #gh76 slice 2 — after the swap and the region binding
+        'oobbeforeswap', // #gh76 slice 3 — per out-of-band element, cancelable
+        'oobafterswap', // #gh76 slice 3 — per out-of-band element, after its region binding
         'progress',
         'uploadProgress', // #R8 — upload (client-to-server) wire progress for staged uploads
         'submit',
@@ -810,6 +812,30 @@ function ValidatorPlugin(rules, data, formId, culture) {
     }
 
     /**
+     * warnOobRefusals
+     *
+     * #gh76 slice 3 — dev-mode notice for every out-of-band element that did not swap for a
+     * REASON (no id, no page match, reserved or unknown value, cancelled). `swap="none"`
+     * writes nothing by design and carries no reason, so it is not reported.
+     *
+     * @param {string} id - the form id
+     * @param {Array<{id: (string|null), strategy: string, swapped: boolean, reason: (string|undefined)}>} list - `applyOobSwaps().list`
+     *
+     * @returns {undefined}
+     *
+     * @example
+     * warnOobRefusals(id, run.list);
+     */
+    var warnOobRefusals = function(id, list) {
+        if ( !envIsDev || !list ) return;
+        for (var i = 0; i < list.length; ++i) {
+            if ( !list[i].swapped && list[i].reason ) {
+                try { console.warn('[FormValidator][swap] form `#'+ id +'`: out-of-band element `'+ (list[i].id || '(no id)') +'` not swapped — '+ list[i].reason); } catch (e) {}
+            }
+        }
+    }
+
+    /**
      * applySwap
      *
      * #gh76 slice 2 — swaps a `text/html` answer into the target captured at submit. ONE
@@ -873,8 +899,23 @@ function ValidatorPlugin(rules, data, formId, culture) {
             }
         } catch (toolbarErr) {}
 
+        // #gh76 slice 3 — out-of-band elements first (htmx order: before `select`, before
+        // the main swap), gated on the attribute appearing in the answer so an oob-free
+        // answer pays nothing and stays byte-identical. `content` keeps the RAW answer;
+        // `remainder` is what is left once the oob elements are out.
+        if ( typeof(result.content) == 'string' && result.content.indexOf('data-gina-swap-oob') > -1 ) {
+            var oobRun = applyOobSwaps(parsed.doc, { $target: $target, id: id, hFormIsRequired: hFormIsRequired, gina: gina });
+            warnOobRefusals(id, oobRun.list);
+            payload.oob       = oobRun.list;
+            payload.remainder = parsed.doc.body.innerHTML;
+            if ( oobRun.rebindSelf ) sendCtx.rebindSelf = true;
+        }
+
         if ( strategy === 'textContent' ) {
-            content = result.content; // htmx: the raw answer, not parsed as HTML
+            // htmx: the raw answer, not parsed as HTML — but never the out-of-band elements,
+            // which are consumed transport (#gh76 slice 3): once the gate fired, `remainder`
+            // IS the answer without them. Below the gate this is the raw answer, unchanged.
+            content = ( typeof(payload.remainder) == 'string' ) ? payload.remainder : result.content;
         } else if ( sendCtx.select ) {
             try {
                 $nodes = parsed.doc.querySelectorAll(sendCtx.select);
@@ -951,7 +992,7 @@ function ValidatorPlugin(rules, data, formId, culture) {
         if ( $scope && typeof($scope.getElementsByTagName) == 'function' ) {
             bindRegion($scope, { deferFormId: ( detachesForm ) ? id : null });
         }
-        sendCtx.rebindSelf = detachesForm;
+        sendCtx.rebindSelf = sendCtx.rebindSelf || detachesForm;
 
         if ( strategy !== 'none' ) {
             triggerEvent(gina, $target, 'afterswap.' + id, { target: $el, strategy: strategy, swapped: payload.swapped });
@@ -2976,8 +3017,22 @@ function ValidatorPlugin(rules, data, formId, culture) {
                                             throw err
                                         }
 
-
-                                        $popin.loadContent(result.content);
+                                        // #gh76 slice 3 — out-of-band elements are swapped into the PAGE
+                                        // before the popin receives what is left; an EMPTY remainder means
+                                        // nothing was addressed to the popin, so it is left as it is
+                                        // (loading '' would blank the open dialog and unbind its form —
+                                        // measured). The popin payload below is untouched: the oob
+                                        // results reach the consumer through the events.
+                                        var popinContent = result.content, oobRunPopin = null;
+                                        if ( typeof(result.content) == 'string' && result.content.indexOf('data-gina-swap-oob') > -1 ) {
+                                            oobRunPopin = applyOobSwaps(parsedAnswer.doc, { $target: $target, id: id, hFormIsRequired: hFormIsRequired, gina: gina });
+                                            warnOobRefusals(id, oobRunPopin.list);
+                                            popinContent = parsedAnswer.doc.body.innerHTML;
+                                            if ( oobRunPopin.rebindSelf ) sendCtx.rebindSelf = true;
+                                        }
+                                        if ( oobRunPopin === null || popinContent.trim() !== '' ) {
+                                            $popin.loadContent(popinContent);
+                                        }
 
                                         // the parsed xhr-data in dev mode, delivered VERBATIM, or
                                         // an object carrying the status outside dev mode where the
@@ -2996,8 +3051,28 @@ function ValidatorPlugin(rules, data, formId, culture) {
                                         if (hFormIsRequired)
                                             triggerEvent(gina, $target, 'success.' + id + '.hform', result);
 
+                                        // #gh76 slice 3 — an oob swap that replaced the submitting form
+                                        // (the popin left as it was) binds the same-id replacement now,
+                                        // exactly as the shared tail below does
+                                        if ( sendCtx.rebindSelf ) {
+                                            finalizeSelfReplacement($target, id);
+                                        }
                                         return;
                                     }
+                                }
+
+                                // #gh76 slice 3 — the legacy path (no declared target, not inside a
+                                // popin): the raw answer still goes to the handler, inserted nowhere,
+                                // but its out-of-band elements are swapped into the page first (htmx:
+                                // "out of band items will still be processed"). `content` stays raw;
+                                // `remainder` is what to insert, `oob` what was handled.
+                                if ( !sendCtx.target && typeof(result.content) == 'string' && result.content.indexOf('data-gina-swap-oob') > -1 ) {
+                                    var parsedLegacy = parseXhrHtmlAnswer(result.content);
+                                    var oobRunLegacy = applyOobSwaps(parsedLegacy.doc, { $target: $target, id: id, hFormIsRequired: hFormIsRequired, gina: gina });
+                                    warnOobRefusals(id, oobRunLegacy.list);
+                                    result.oob       = oobRunLegacy.list;
+                                    result.remainder = parsedLegacy.doc.body.innerHTML;
+                                    if ( oobRunLegacy.rebindSelf ) sendCtx.rebindSelf = true;
                                 }
                             }
 

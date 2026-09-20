@@ -9283,8 +9283,9 @@ function on(event, cb) {
                 // #gh76 slice 2 — `beforeswap.<id>` is CANCELABLE by design: the listener
                 // decides with `preventDefault()` whether the swap happens, so the blanket
                 // cancel below must not pre-empt it (it would read as "every listener
-                // cancels"). Name-scoped, so no other event sees a difference.
-                if ( !/^beforeswap\./.test(e.type) ) {
+                // cancels"). Name-scoped, so no other event sees a difference. Slice 3
+                // adds `oobbeforeswap.<id>`, the per-element out-of-band twin.
+                if ( !/^(oob)?beforeswap\./.test(e.type) ) {
                     cancelEvent(e);
                 }
 
@@ -9378,6 +9379,209 @@ function parseXhrHtmlAnswer(content) {
         data : read('gina-without-layout-xhr-data'),
         view : read('gina-without-layout-xhr-view')
     };
+}
+
+/**
+ * applyOobSwaps
+ *
+ * #gh76 slice 3 — out-of-band swaps (the `hx-swap-oob` contract). Every element of the
+ * parsed answer carrying `data-gina-swap-oob` is swapped into the PAGE element with the
+ * same `id`, independently of where the main answer goes, and is REMOVED from the answer
+ * whether or not it swapped — the main fragment is always clean. Runs BEFORE any
+ * `data-gina-form-select` pick and before the main swap (htmx's order, so an oob element
+ * outside the selection still lands; on overlap the main swap wins).
+ *
+ * Value grammar: `true` / empty ⇒ `outerHTML` (the page element is replaced by the oob
+ * element, attribute stripped); a strategy name ⇒ applied with the oob element's CONTENT
+ * (the wrapper is stripped — `innerHTML` would otherwise nest a duplicate id);
+ * `<strategy>:<selector>` is RESERVED; anything else is unknown. A missing `id`, no page
+ * match, a reserved or unknown value: the element is still removed and reported with a
+ * `reason`, never thrown. An oob element inside ANOTHER oob element is not processed on
+ * its own — it travels with its ancestor and its attribute is stripped there. Elements
+ * inside an author-supplied `<template>` are processed too.
+ *
+ * Per element: `oobbeforeswap.<formId>` (cancelable: `preventDefault()` skips it;
+ * `detail.content` may be rewritten) → the write → the region bound through the shared
+ * `bindRegion()` policy → `oobafterswap.<formId>`, whose `.hform` companion fires when the
+ * declared-callback channel is armed — `oobbeforeswap` has none, mirroring `beforeswap`:
+ * a cancel is a decision, and the declared-callback channel carries notifications. An
+ * author-supplied `<template>` emptied of its out-of-band elements is removed with them,
+ * so an out-of-band-only answer leaves NOTHING behind whether or not it was wrapped. A
+ * swap that replaces or removes the SUBMITTING form
+ * defers its re-binding (`deferFormId`) and is reported through `rebindSelf`, so the
+ * caller's shared tail binds the same-id replacement after the `success` events.
+ *
+ * @param {Document} doc - the parsed answer (`parseXhrHtmlAnswer().doc`), MUTATED: every oob element is removed
+ * @param {object} ctx
+ * @param {HTMLFormElement} ctx.$target - the submitting form element
+ * @param {string} ctx.id - the form id (event channel)
+ * @param {boolean} ctx.hFormIsRequired - whether the `.hform` companions are armed
+ * @param {object} ctx.gina - the framework global (event bus)
+ *
+ * @returns {{ list: Array<{ id: (string|null), strategy: string, swapped: boolean, reason: (string|undefined) }>, rebindSelf: boolean }}
+ *
+ * @example
+ * var run = applyOobSwaps(parsed.doc, { $target: $form, id: 'f', hFormIsRequired: true, gina: gina });
+ * // => { list: [{ id: 'totals', strategy: 'outerHTML', swapped: true }], rebindSelf: false }
+ */
+function applyOobSwaps(doc, ctx) {
+    var OOB_ATTR   = 'data-gina-swap-oob';
+    var STRATEGIES = ['innerHTML', 'outerHTML', 'textContent', 'beforebegin', 'afterbegin', 'beforeend', 'afterend', 'delete', 'none'];
+    var $target    = ctx.$target
+        , id       = ctx.id
+        , armed    = !!ctx.hFormIsRequired
+        , gina     = ctx.gina
+        , out      = { list: [], rebindSelf: false }
+        , list     = []
+        , work     = []
+        , i        = 0
+    ;
+    if ( !doc || typeof(doc.querySelectorAll) != 'function' ) {
+        return out;
+    }
+    var collect = function(root) {
+        var found = root.querySelectorAll('[' + OOB_ATTR + ']');
+        for (var f = 0; f < found.length; ++f) list.push(found[f]);
+    };
+    collect(doc);
+    var tpls = doc.querySelectorAll('template'), harvested = [];
+    for (i = 0; i < tpls.length; ++i) {
+        if ( !tpls[i].content ) continue;
+        var before = list.length;
+        collect(tpls[i].content);
+        if ( list.length > before ) harvested.push(tpls[i]);
+    }
+    // pre-pass while the tree is intact: an oob element under another oob element travels
+    // with its ancestor — strip its attribute now, so it never fires and never re-arms
+    for (i = 0; i < list.length; ++i) {
+        var $anc = list[i].parentNode, nested = false;
+        while ( $anc && $anc.nodeType === 1 ) {
+            if ( $anc.hasAttribute(OOB_ATTR) ) { nested = true; break; }
+            $anc = $anc.parentNode;
+        }
+        if (nested) {
+            list[i].removeAttribute(OOB_ATTR);
+        } else {
+            work.push(list[i]);
+        }
+    }
+    for (i = 0; i < work.length; ++i) {
+        var $oob     = work[i]
+            , oobId  = $oob.getAttribute('id') || null
+            , value  = ( $oob.getAttribute(OOB_ATTR) || '' ).trim()
+            , strategy = null
+            , reason = null
+            , $page  = null
+            , content = null
+            , evt    = null
+            , $scope = null
+            , detaches = false
+            , entry  = null
+        ;
+        if ( value === '' || /^true$/i.test(value) ) {
+            strategy = 'outerHTML';
+        } else if ( value.indexOf(':') > -1 ) {
+            strategy = value; reason = 'reserved';
+        } else if ( STRATEGIES.indexOf(value) < 0 ) {
+            strategy = value; reason = 'unknownStrategy';
+        } else {
+            strategy = value;
+        }
+        // consumed transport: never lands in the page, never stays in the answer
+        $oob.removeAttribute(OOB_ATTR);
+        if ( $oob.parentNode ) $oob.parentNode.removeChild($oob);
+
+        if ( !reason && !oobId ) reason = 'noId';
+        if ( !reason ) {
+            $page = document.getElementById(oobId);
+            if ( !$page ) reason = 'noTarget';
+        }
+        entry = { id: oobId, strategy: strategy, swapped: false };
+        if ( reason ) {
+            entry.reason = reason;
+            out.list.push(entry);
+            continue;
+        }
+
+        content = ( strategy === 'outerHTML' )
+            ? $oob.outerHTML
+            : ( strategy === 'textContent' ) ? $oob.textContent : $oob.innerHTML;
+
+        if ( strategy !== 'none' ) {
+            // no `.hform` companion, exactly as `beforeswap`: this is a DECISION point and the
+            // declared-callback channel carries notifications — `oobafterswap` has the twin
+            evt = triggerEvent(gina, $target, 'oobbeforeswap.' + id, { target: $page, content: content, strategy: strategy, oob: true, oobId: oobId });
+            if ( evt && evt.defaultPrevented ) {
+                entry.reason = 'cancelled';
+                out.list.push(entry);
+                continue;
+            }
+            if ( evt && evt.detail && typeof(evt.detail.content) == 'string' ) {
+                content = evt.detail.content;
+            }
+        }
+
+        detaches = ( strategy === 'outerHTML' || strategy === 'delete' ) && ( $page === $target || $page.contains($target) );
+
+        switch (strategy) {
+            case 'innerHTML':
+                $page.innerHTML = content;
+                $scope = $page;
+                break;
+            case 'outerHTML':
+                $scope = $page.parentNode;
+                $page.outerHTML = content;
+                break;
+            case 'textContent':
+                $page.textContent = content;
+                break;
+            case 'beforebegin':
+                $scope = $page.parentNode;
+                $page.insertAdjacentHTML('beforebegin', content);
+                break;
+            case 'afterbegin':
+                $page.insertAdjacentHTML('afterbegin', content);
+                $scope = $page;
+                break;
+            case 'beforeend':
+                $page.insertAdjacentHTML('beforeend', content);
+                $scope = $page;
+                break;
+            case 'afterend':
+                $scope = $page.parentNode;
+                $page.insertAdjacentHTML('afterend', content);
+                break;
+            case 'delete':
+                if ( $page.parentNode ) $page.parentNode.removeChild($page);
+                break;
+            case 'none':
+                break;
+        }
+        entry.swapped = ( strategy !== 'none' );
+        if ( detaches ) out.rebindSelf = true;
+
+        if ( $scope && typeof($scope.getElementsByTagName) == 'function' ) {
+            bindRegion($scope, { deferFormId: ( detaches ) ? id : null });
+        }
+        if ( strategy !== 'none' ) {
+            triggerEvent(gina, $target, 'oobafterswap.' + id, { target: $page, strategy: strategy, swapped: entry.swapped, oob: true, oobId: oobId });
+            if ( armed )
+                triggerEvent(gina, $target, 'oobafterswap.' + id + '.hform', { target: $page, strategy: strategy, swapped: entry.swapped, oob: true, oobId: oobId });
+        }
+        out.list.push(entry);
+    }
+    // an author-supplied wrapper that held nothing but out-of-band elements is consumed
+    // transport too: left in place it would defeat the empty-remainder rule downstream
+    // (a popin would be asked to load `<template></template>` and blank itself)
+    for (i = 0; i < harvested.length; ++i) {
+        if ( harvested[i].content.childElementCount === 0
+            && !/\S/.test(harvested[i].content.textContent || '')
+            && harvested[i].parentNode
+        ) {
+            harvested[i].parentNode.removeChild(harvested[i]);
+        }
+    }
+    return out;
 }
 
 /**
@@ -12387,6 +12591,8 @@ function ValidatorPlugin(rules, data, formId, culture) {
         'error',
         'beforeswap', // #gh76 slice 2 — cancelable, before a form answer is swapped into its target
         'afterswap', // #gh76 slice 2 — after the swap and the region binding
+        'oobbeforeswap', // #gh76 slice 3 — per out-of-band element, cancelable
+        'oobafterswap', // #gh76 slice 3 — per out-of-band element, after its region binding
         'progress',
         'uploadProgress', // #R8 — upload (client-to-server) wire progress for staged uploads
         'submit',
@@ -13157,6 +13363,30 @@ function ValidatorPlugin(rules, data, formId, culture) {
     }
 
     /**
+     * warnOobRefusals
+     *
+     * #gh76 slice 3 — dev-mode notice for every out-of-band element that did not swap for a
+     * REASON (no id, no page match, reserved or unknown value, cancelled). `swap="none"`
+     * writes nothing by design and carries no reason, so it is not reported.
+     *
+     * @param {string} id - the form id
+     * @param {Array<{id: (string|null), strategy: string, swapped: boolean, reason: (string|undefined)}>} list - `applyOobSwaps().list`
+     *
+     * @returns {undefined}
+     *
+     * @example
+     * warnOobRefusals(id, run.list);
+     */
+    var warnOobRefusals = function(id, list) {
+        if ( !envIsDev || !list ) return;
+        for (var i = 0; i < list.length; ++i) {
+            if ( !list[i].swapped && list[i].reason ) {
+                try { console.warn('[FormValidator][swap] form `#'+ id +'`: out-of-band element `'+ (list[i].id || '(no id)') +'` not swapped — '+ list[i].reason); } catch (e) {}
+            }
+        }
+    }
+
+    /**
      * applySwap
      *
      * #gh76 slice 2 — swaps a `text/html` answer into the target captured at submit. ONE
@@ -13220,8 +13450,23 @@ function ValidatorPlugin(rules, data, formId, culture) {
             }
         } catch (toolbarErr) {}
 
+        // #gh76 slice 3 — out-of-band elements first (htmx order: before `select`, before
+        // the main swap), gated on the attribute appearing in the answer so an oob-free
+        // answer pays nothing and stays byte-identical. `content` keeps the RAW answer;
+        // `remainder` is what is left once the oob elements are out.
+        if ( typeof(result.content) == 'string' && result.content.indexOf('data-gina-swap-oob') > -1 ) {
+            var oobRun = applyOobSwaps(parsed.doc, { $target: $target, id: id, hFormIsRequired: hFormIsRequired, gina: gina });
+            warnOobRefusals(id, oobRun.list);
+            payload.oob       = oobRun.list;
+            payload.remainder = parsed.doc.body.innerHTML;
+            if ( oobRun.rebindSelf ) sendCtx.rebindSelf = true;
+        }
+
         if ( strategy === 'textContent' ) {
-            content = result.content; // htmx: the raw answer, not parsed as HTML
+            // htmx: the raw answer, not parsed as HTML — but never the out-of-band elements,
+            // which are consumed transport (#gh76 slice 3): once the gate fired, `remainder`
+            // IS the answer without them. Below the gate this is the raw answer, unchanged.
+            content = ( typeof(payload.remainder) == 'string' ) ? payload.remainder : result.content;
         } else if ( sendCtx.select ) {
             try {
                 $nodes = parsed.doc.querySelectorAll(sendCtx.select);
@@ -13298,7 +13543,7 @@ function ValidatorPlugin(rules, data, formId, culture) {
         if ( $scope && typeof($scope.getElementsByTagName) == 'function' ) {
             bindRegion($scope, { deferFormId: ( detachesForm ) ? id : null });
         }
-        sendCtx.rebindSelf = detachesForm;
+        sendCtx.rebindSelf = sendCtx.rebindSelf || detachesForm;
 
         if ( strategy !== 'none' ) {
             triggerEvent(gina, $target, 'afterswap.' + id, { target: $el, strategy: strategy, swapped: payload.swapped });
@@ -15323,8 +15568,22 @@ function ValidatorPlugin(rules, data, formId, culture) {
                                             throw err
                                         }
 
-
-                                        $popin.loadContent(result.content);
+                                        // #gh76 slice 3 — out-of-band elements are swapped into the PAGE
+                                        // before the popin receives what is left; an EMPTY remainder means
+                                        // nothing was addressed to the popin, so it is left as it is
+                                        // (loading '' would blank the open dialog and unbind its form —
+                                        // measured). The popin payload below is untouched: the oob
+                                        // results reach the consumer through the events.
+                                        var popinContent = result.content, oobRunPopin = null;
+                                        if ( typeof(result.content) == 'string' && result.content.indexOf('data-gina-swap-oob') > -1 ) {
+                                            oobRunPopin = applyOobSwaps(parsedAnswer.doc, { $target: $target, id: id, hFormIsRequired: hFormIsRequired, gina: gina });
+                                            warnOobRefusals(id, oobRunPopin.list);
+                                            popinContent = parsedAnswer.doc.body.innerHTML;
+                                            if ( oobRunPopin.rebindSelf ) sendCtx.rebindSelf = true;
+                                        }
+                                        if ( oobRunPopin === null || popinContent.trim() !== '' ) {
+                                            $popin.loadContent(popinContent);
+                                        }
 
                                         // the parsed xhr-data in dev mode, delivered VERBATIM, or
                                         // an object carrying the status outside dev mode where the
@@ -15343,8 +15602,28 @@ function ValidatorPlugin(rules, data, formId, culture) {
                                         if (hFormIsRequired)
                                             triggerEvent(gina, $target, 'success.' + id + '.hform', result);
 
+                                        // #gh76 slice 3 — an oob swap that replaced the submitting form
+                                        // (the popin left as it was) binds the same-id replacement now,
+                                        // exactly as the shared tail below does
+                                        if ( sendCtx.rebindSelf ) {
+                                            finalizeSelfReplacement($target, id);
+                                        }
                                         return;
                                     }
+                                }
+
+                                // #gh76 slice 3 — the legacy path (no declared target, not inside a
+                                // popin): the raw answer still goes to the handler, inserted nowhere,
+                                // but its out-of-band elements are swapped into the page first (htmx:
+                                // "out of band items will still be processed"). `content` stays raw;
+                                // `remainder` is what to insert, `oob` what was handled.
+                                if ( !sendCtx.target && typeof(result.content) == 'string' && result.content.indexOf('data-gina-swap-oob') > -1 ) {
+                                    var parsedLegacy = parseXhrHtmlAnswer(result.content);
+                                    var oobRunLegacy = applyOobSwaps(parsedLegacy.doc, { $target: $target, id: id, hFormIsRequired: hFormIsRequired, gina: gina });
+                                    warnOobRefusals(id, oobRunLegacy.list);
+                                    result.oob       = oobRunLegacy.list;
+                                    result.remainder = parsedLegacy.doc.body.innerHTML;
+                                    if ( oobRunLegacy.rebindSelf ) sendCtx.rebindSelf = true;
                                 }
                             }
 

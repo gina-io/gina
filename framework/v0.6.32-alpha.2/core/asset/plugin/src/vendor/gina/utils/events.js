@@ -898,8 +898,9 @@ function on(event, cb) {
                 // #gh76 slice 2 — `beforeswap.<id>` is CANCELABLE by design: the listener
                 // decides with `preventDefault()` whether the swap happens, so the blanket
                 // cancel below must not pre-empt it (it would read as "every listener
-                // cancels"). Name-scoped, so no other event sees a difference.
-                if ( !/^beforeswap\./.test(e.type) ) {
+                // cancels"). Name-scoped, so no other event sees a difference. Slice 3
+                // adds `oobbeforeswap.<id>`, the per-element out-of-band twin.
+                if ( !/^(oob)?beforeswap\./.test(e.type) ) {
                     cancelEvent(e);
                 }
 
@@ -993,6 +994,209 @@ function parseXhrHtmlAnswer(content) {
         data : read('gina-without-layout-xhr-data'),
         view : read('gina-without-layout-xhr-view')
     };
+}
+
+/**
+ * applyOobSwaps
+ *
+ * #gh76 slice 3 — out-of-band swaps (the `hx-swap-oob` contract). Every element of the
+ * parsed answer carrying `data-gina-swap-oob` is swapped into the PAGE element with the
+ * same `id`, independently of where the main answer goes, and is REMOVED from the answer
+ * whether or not it swapped — the main fragment is always clean. Runs BEFORE any
+ * `data-gina-form-select` pick and before the main swap (htmx's order, so an oob element
+ * outside the selection still lands; on overlap the main swap wins).
+ *
+ * Value grammar: `true` / empty ⇒ `outerHTML` (the page element is replaced by the oob
+ * element, attribute stripped); a strategy name ⇒ applied with the oob element's CONTENT
+ * (the wrapper is stripped — `innerHTML` would otherwise nest a duplicate id);
+ * `<strategy>:<selector>` is RESERVED; anything else is unknown. A missing `id`, no page
+ * match, a reserved or unknown value: the element is still removed and reported with a
+ * `reason`, never thrown. An oob element inside ANOTHER oob element is not processed on
+ * its own — it travels with its ancestor and its attribute is stripped there. Elements
+ * inside an author-supplied `<template>` are processed too.
+ *
+ * Per element: `oobbeforeswap.<formId>` (cancelable: `preventDefault()` skips it;
+ * `detail.content` may be rewritten) → the write → the region bound through the shared
+ * `bindRegion()` policy → `oobafterswap.<formId>`, whose `.hform` companion fires when the
+ * declared-callback channel is armed — `oobbeforeswap` has none, mirroring `beforeswap`:
+ * a cancel is a decision, and the declared-callback channel carries notifications. An
+ * author-supplied `<template>` emptied of its out-of-band elements is removed with them,
+ * so an out-of-band-only answer leaves NOTHING behind whether or not it was wrapped. A
+ * swap that replaces or removes the SUBMITTING form
+ * defers its re-binding (`deferFormId`) and is reported through `rebindSelf`, so the
+ * caller's shared tail binds the same-id replacement after the `success` events.
+ *
+ * @param {Document} doc - the parsed answer (`parseXhrHtmlAnswer().doc`), MUTATED: every oob element is removed
+ * @param {object} ctx
+ * @param {HTMLFormElement} ctx.$target - the submitting form element
+ * @param {string} ctx.id - the form id (event channel)
+ * @param {boolean} ctx.hFormIsRequired - whether the `.hform` companions are armed
+ * @param {object} ctx.gina - the framework global (event bus)
+ *
+ * @returns {{ list: Array<{ id: (string|null), strategy: string, swapped: boolean, reason: (string|undefined) }>, rebindSelf: boolean }}
+ *
+ * @example
+ * var run = applyOobSwaps(parsed.doc, { $target: $form, id: 'f', hFormIsRequired: true, gina: gina });
+ * // => { list: [{ id: 'totals', strategy: 'outerHTML', swapped: true }], rebindSelf: false }
+ */
+function applyOobSwaps(doc, ctx) {
+    var OOB_ATTR   = 'data-gina-swap-oob';
+    var STRATEGIES = ['innerHTML', 'outerHTML', 'textContent', 'beforebegin', 'afterbegin', 'beforeend', 'afterend', 'delete', 'none'];
+    var $target    = ctx.$target
+        , id       = ctx.id
+        , armed    = !!ctx.hFormIsRequired
+        , gina     = ctx.gina
+        , out      = { list: [], rebindSelf: false }
+        , list     = []
+        , work     = []
+        , i        = 0
+    ;
+    if ( !doc || typeof(doc.querySelectorAll) != 'function' ) {
+        return out;
+    }
+    var collect = function(root) {
+        var found = root.querySelectorAll('[' + OOB_ATTR + ']');
+        for (var f = 0; f < found.length; ++f) list.push(found[f]);
+    };
+    collect(doc);
+    var tpls = doc.querySelectorAll('template'), harvested = [];
+    for (i = 0; i < tpls.length; ++i) {
+        if ( !tpls[i].content ) continue;
+        var before = list.length;
+        collect(tpls[i].content);
+        if ( list.length > before ) harvested.push(tpls[i]);
+    }
+    // pre-pass while the tree is intact: an oob element under another oob element travels
+    // with its ancestor — strip its attribute now, so it never fires and never re-arms
+    for (i = 0; i < list.length; ++i) {
+        var $anc = list[i].parentNode, nested = false;
+        while ( $anc && $anc.nodeType === 1 ) {
+            if ( $anc.hasAttribute(OOB_ATTR) ) { nested = true; break; }
+            $anc = $anc.parentNode;
+        }
+        if (nested) {
+            list[i].removeAttribute(OOB_ATTR);
+        } else {
+            work.push(list[i]);
+        }
+    }
+    for (i = 0; i < work.length; ++i) {
+        var $oob     = work[i]
+            , oobId  = $oob.getAttribute('id') || null
+            , value  = ( $oob.getAttribute(OOB_ATTR) || '' ).trim()
+            , strategy = null
+            , reason = null
+            , $page  = null
+            , content = null
+            , evt    = null
+            , $scope = null
+            , detaches = false
+            , entry  = null
+        ;
+        if ( value === '' || /^true$/i.test(value) ) {
+            strategy = 'outerHTML';
+        } else if ( value.indexOf(':') > -1 ) {
+            strategy = value; reason = 'reserved';
+        } else if ( STRATEGIES.indexOf(value) < 0 ) {
+            strategy = value; reason = 'unknownStrategy';
+        } else {
+            strategy = value;
+        }
+        // consumed transport: never lands in the page, never stays in the answer
+        $oob.removeAttribute(OOB_ATTR);
+        if ( $oob.parentNode ) $oob.parentNode.removeChild($oob);
+
+        if ( !reason && !oobId ) reason = 'noId';
+        if ( !reason ) {
+            $page = document.getElementById(oobId);
+            if ( !$page ) reason = 'noTarget';
+        }
+        entry = { id: oobId, strategy: strategy, swapped: false };
+        if ( reason ) {
+            entry.reason = reason;
+            out.list.push(entry);
+            continue;
+        }
+
+        content = ( strategy === 'outerHTML' )
+            ? $oob.outerHTML
+            : ( strategy === 'textContent' ) ? $oob.textContent : $oob.innerHTML;
+
+        if ( strategy !== 'none' ) {
+            // no `.hform` companion, exactly as `beforeswap`: this is a DECISION point and the
+            // declared-callback channel carries notifications — `oobafterswap` has the twin
+            evt = triggerEvent(gina, $target, 'oobbeforeswap.' + id, { target: $page, content: content, strategy: strategy, oob: true, oobId: oobId });
+            if ( evt && evt.defaultPrevented ) {
+                entry.reason = 'cancelled';
+                out.list.push(entry);
+                continue;
+            }
+            if ( evt && evt.detail && typeof(evt.detail.content) == 'string' ) {
+                content = evt.detail.content;
+            }
+        }
+
+        detaches = ( strategy === 'outerHTML' || strategy === 'delete' ) && ( $page === $target || $page.contains($target) );
+
+        switch (strategy) {
+            case 'innerHTML':
+                $page.innerHTML = content;
+                $scope = $page;
+                break;
+            case 'outerHTML':
+                $scope = $page.parentNode;
+                $page.outerHTML = content;
+                break;
+            case 'textContent':
+                $page.textContent = content;
+                break;
+            case 'beforebegin':
+                $scope = $page.parentNode;
+                $page.insertAdjacentHTML('beforebegin', content);
+                break;
+            case 'afterbegin':
+                $page.insertAdjacentHTML('afterbegin', content);
+                $scope = $page;
+                break;
+            case 'beforeend':
+                $page.insertAdjacentHTML('beforeend', content);
+                $scope = $page;
+                break;
+            case 'afterend':
+                $scope = $page.parentNode;
+                $page.insertAdjacentHTML('afterend', content);
+                break;
+            case 'delete':
+                if ( $page.parentNode ) $page.parentNode.removeChild($page);
+                break;
+            case 'none':
+                break;
+        }
+        entry.swapped = ( strategy !== 'none' );
+        if ( detaches ) out.rebindSelf = true;
+
+        if ( $scope && typeof($scope.getElementsByTagName) == 'function' ) {
+            bindRegion($scope, { deferFormId: ( detaches ) ? id : null });
+        }
+        if ( strategy !== 'none' ) {
+            triggerEvent(gina, $target, 'oobafterswap.' + id, { target: $page, strategy: strategy, swapped: entry.swapped, oob: true, oobId: oobId });
+            if ( armed )
+                triggerEvent(gina, $target, 'oobafterswap.' + id + '.hform', { target: $page, strategy: strategy, swapped: entry.swapped, oob: true, oobId: oobId });
+        }
+        out.list.push(entry);
+    }
+    // an author-supplied wrapper that held nothing but out-of-band elements is consumed
+    // transport too: left in place it would defeat the empty-remainder rule downstream
+    // (a popin would be asked to load `<template></template>` and blank itself)
+    for (i = 0; i < harvested.length; ++i) {
+        if ( harvested[i].content.childElementCount === 0
+            && !/\S/.test(harvested[i].content.textContent || '')
+            && harvested[i].parentNode
+        ) {
+            harvested[i].parentNode.removeChild(harvested[i]);
+        }
+    }
+    return out;
 }
 
 /**
