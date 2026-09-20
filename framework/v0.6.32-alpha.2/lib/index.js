@@ -116,14 +116,15 @@ function Lib() {
         // #STO1 — connector-backed storage metadata-store factory (lib/storage
         // `start({stores})`). Stateless dispatcher invoked ONCE at boot from
         // gna.js; _require like JobStore/AuditStore (no instance/singleton state
-        // to protect from eviction). No connector ships an implementation yet —
-        // demand-gated, the audit-store shipping order.
+        // to protect from eviction). Connector implementations ship demand-first
+        // (core/connectors/<connector>/lib/storage-store.js): couchbase today.
         StorageStore    : _require('./storage-store'),
         // #KV1 — connector-backed KV namespace-store factory (lib/kv,
         // `settings.kv.namespaces.<name>.store`). Stateless dispatcher invoked
         // once per store-backed namespace at boot; _require like JobStore /
-        // StorageStore. No connector ships an implementation yet — naming one
-        // refuses the boot (the audit-store shipping order).
+        // StorageStore. Connector implementations ship demand-first
+        // (core/connectors/<connector>/lib/kv-store.js): redis and sqlite today;
+        // naming a connector without one refuses the boot.
         KvStore         : _require('./kv-store'),
         SwigFilters     : _require('./swig-filters'),
         Cache           : require('./cache'),    // #B32-residual — plain require (leaf class held at gen-0 via server.isaac.js:35; Cache._events is a Collection). See Collection note above.
