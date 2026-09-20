@@ -1828,6 +1828,52 @@ isBundleMounted(projects, bundlesPath, getContext('bundle'), function onBundleMo
                                     console.warn('[kv] setup skipped: ' + (kvErr.message || kvErr));
                                 }
 
+                                // #MAINT1 slice (c) — replica sync (`server.maintenance.store`).
+                                // Deliberately HERE, in the started band, and not in the engine's
+                                // boot-resolve (core/server.js init): lib.kv.start() runs in this
+                                // band (#KV1 directly above), so init is too early to hand out a namespace —
+                                // measured 2026-09-20 (a resolve at init refused a bundle whose
+                                // settings.json declared the block, with "[kv] not configured").
+                                // Reads the state the boot-resolve published on the engine instance
+                                // and arms the poll on that same object: the gate keeps reading it
+                                // synchronously (#B383) and pays nothing when `store` is unset (#P39).
+                                // FATAL on a refusal (a dangling namespace, failMode open —
+                                // lib.maintenance.resolveStoreSync throws), the #KV1 shape above:
+                                // running WITHOUT the coherence the operator configured is that
+                                // property failing open.
+                                try {
+                                    var _mtState = server && server.instance && server.instance._maintenance;
+                                    if ( _mtState && _mtState.conf && typeof(_mtState.conf.store) == 'string' && _mtState.conf.store.length > 0 ) {
+                                        var _mtContent = conf && conf.content;
+                                        var _mtSync    = lib.maintenance.resolveStoreSync(_mtState.conf, {
+                                            kv         : lib.kv,
+                                            bundle     : server.appName,
+                                            kvSettings : _mtContent && _mtContent.settings && _mtContent.settings.kv,
+                                            connectors : _mtContent && _mtContent.connectors,
+                                            warn       : function(mtSyncWarn) { console.warn('[maintenance] ' + mtSyncWarn); }
+                                        });
+                                        if ( _mtSync ) {
+                                            _mtState.store  = _mtSync;
+                                            _mtState.syncer = lib.maintenance.createStoreSync({
+                                                state      : _mtState,
+                                                ns         : _mtSync.ns,
+                                                key        : _mtSync.key,
+                                                name       : _mtSync.name,
+                                                intervalMs : _mtSync.intervalMs,
+                                                warn       : function(mtSyncWarn) { console.warn('[maintenance] ' + mtSyncWarn); }
+                                            });
+                                            _mtState.syncer.start();
+                                            console.info('[maintenance] replica sync armed for `' + server.appName + '` — kv namespace `' + _mtSync.name + '`, key `' + _mtSync.key + '`, polled every ' + _mtSync.intervalMs + ' ms; a POST /_gina/maintenance on any replica reaches this one within that interval.');
+                                        }
+                                    }
+                                } catch (mtSyncErr) {
+                                    var _mtSyncMsg = '[maintenance] replica sync could not be armed — aborting boot: ' + (mtSyncErr.message || mtSyncErr);
+                                    console.emerg(_mtSyncMsg + '\n' + (mtSyncErr.stack || ''));
+                                    // boot-exit-flush: process.exit() truncates async stdio on a pipe.
+                                    try { fs.writeSync(2, _mtSyncMsg + '\n'); } catch (_e) {}
+                                    process.exit(1);
+                                }
+
                                 // #CE1 — `server.transientErrors` boot-time shape check
                                 // (warn-only, NEVER fatal: the opt-in governs how a
                                 // transient datastore error RENDERS — a bad value must

@@ -33,6 +33,12 @@ var crypto = require('crypto');
  * reads it — on both launcher transports — and hands the VALUE to
  * {@link resolveBootEnv}; this module never consults the environment itself.
  *
+ * And the replica sync (C3 slice c, `server.maintenance.store`): the engine
+ * hands {@link resolveStoreSync} the kv facade and the bundle name, and
+ * {@link createStoreSync} a namespace HANDLE — this module never requires
+ * `lib/kv`, so the crypto-only import boundary holds and every branch of the
+ * poll runs under a scripted namespace and mocked timers.
+ *
  * @example
  * // engine-side, when maintenance is ON for this bundle
  * var verdict = lib.maintenance.evaluateBypass(request, conf, Date.now());
@@ -54,12 +60,30 @@ var crypto = require('crypto');
  * @constant {object}
  */
 var DEFAULTS = {
-    enabled    : false,
-    retryAfter : 300,
-    message    : 'Service Unavailable',
-    bypassKey  : '',
-    allowFrom  : []
+    enabled      : false,
+    retryAfter   : 300,
+    message      : 'Service Unavailable',
+    bypassKey    : '',
+    allowFrom    : [],
+    store        : '',
+    pollInterval : 2000
 };
+
+/**
+ * Bounds of `server.maintenance.pollInterval` (ms) — the replica-sync poll
+ * cadence. 250 ms is already one store round-trip per replica four times a
+ * second; 60 s is the longest an operator should wait for a POST to fan out.
+ * @constant {number}
+ */
+var POLL_MIN_MS = 250;
+/** @constant {number} */
+var POLL_MAX_MS = 60000;
+/**
+ * Version tag on the replica-sync store record; a record carrying any other
+ * value is ignored by {@link applyStoreRecord} (kept last-known, never "off").
+ * @constant {number}
+ */
+var STORE_RECORD_V = 1;
 
 /**
  * Name of the bypass cookie set on a successful `?gina-maintenance-key=` grant.
@@ -147,7 +171,7 @@ function _safeEqual(a, b) {
  * what this function does silently.
  *
  * @param {object} [block] - the raw `settings.json > server.maintenance` block
- * @returns {object} `{enabled, retryAfter, message, bypassKey, allowFrom}` — always complete
+ * @returns {object} `{enabled, retryAfter, message, bypassKey, allowFrom, store, pollInterval}` — always complete
  *
  * @example
  * resolveConf({ enabled: true, retryAfter: 60 });
@@ -163,7 +187,9 @@ function resolveConf(block) {
         retryAfter : DEFAULTS.retryAfter,
         message    : DEFAULTS.message,
         bypassKey  : DEFAULTS.bypassKey,
-        allowFrom  : DEFAULTS.allowFrom.slice()
+        allowFrom  : DEFAULTS.allowFrom.slice(),
+        store        : DEFAULTS.store,
+        pollInterval : DEFAULTS.pollInterval
     };
 
     if ( typeof(block) != 'object' || block === null || Array.isArray(block) ) {
@@ -192,6 +218,17 @@ function resolveConf(block) {
             }
         }
         conf.allowFrom = list;
+    }
+    // C3 slice (c) — replica sync through a declared kv namespace. Per-key like
+    // the rest: a malformed value falls back (no sync / default cadence) and the
+    // lint says so; whether the NAMED namespace is usable is decided at boot by
+    // resolveStoreSync(), which refuses rather than degrading.
+    if ( typeof(block.store) == 'string' && block.store.length > 0 ) {
+        conf.store = block.store;
+    }
+    if ( typeof(block.pollInterval) == 'number' && Number.isSafeInteger(block.pollInterval)
+            && block.pollInterval >= POLL_MIN_MS && block.pollInterval <= POLL_MAX_MS ) {
+        conf.pollInterval = block.pollInterval;
     }
 
     return conf;
@@ -260,6 +297,14 @@ function lintConf(block) {
             + ( _loopback
                 ? ' ⚠️ It lists a LOOPBACK address, which is the single riskiest entry here: a same-host reverse proxy (the common nginx-in-front deployment) makes every visitor arrive from 127.0.0.1/::1. Unlike `admin.allowFrom`, loopback is NOT a safe default for this axis.'
                 : '' ));
+    }
+    if ( typeof(block.store) != 'undefined' && ( typeof(block.store) != 'string' || block.store.length === 0 ) ) {
+        warnings.push('`server.maintenance.store` must name a declared kv namespace (a non-empty string) — ignoring it (no replica sync)');
+    }
+    if ( typeof(block.pollInterval) != 'undefined'
+            && !( typeof(block.pollInterval) == 'number' && Number.isSafeInteger(block.pollInterval)
+                  && block.pollInterval >= POLL_MIN_MS && block.pollInterval <= POLL_MAX_MS ) ) {
+        warnings.push('`server.maintenance.pollInterval` must be an integer between ' + POLL_MIN_MS + ' and ' + POLL_MAX_MS + ' milliseconds — using the default (' + DEFAULTS.pollInterval + ')');
     }
     if ( block.enabled === true && !( typeof(block.bypassKey) == 'string' && block.bypassKey.length > 0 ) ) {
         warnings.push('`server.maintenance.enabled` is true with no `bypassKey` — nobody can bypass the maintenance page from outside the host');
@@ -330,6 +375,265 @@ function resolveBootEnv(raw) {
         + ' (`0`, `false` or unset leave the configured state); the value is ignored';
     return out;
 }
+
+/**
+ * Resolve the opt-in replica store sync (`server.maintenance.store`) — the
+ * boot-time half of C3 slice (c). Mirrors `lib/rate-limit` / `lib/idempotency`
+ * for a namespace reference: a dangling reference REFUSES the boot (thrown; the
+ * caller — core/gna.js's `server.on('started')` band, where lib.kv is started
+ * — turns it into the emerg + exit(1) refusal), because running silently
+ * WITHOUT the coherence the operator configured is that property failing open — a deliberate, narrow exception to this module's "a malformed
+ * block never refuses a boot" contract, which covers VALUE shape. Two
+ * refusals and two warnings:
+ *
+ *   - the namespace cannot be handed out by `deps.kv` (kv unconfigured, name
+ *     undeclared) ⇒ THROW, carrying the kv error.
+ *   - the namespace runs `failMode: 'open'` ⇒ THROW. Under `open` a backend
+ *     error degrades `get` to `null` — indistinguishable from "no record" — so
+ *     a store outage would revert every replica to config mid-window, which
+ *     is the one thing this feature must never do: a store outage must never
+ *     OPEN a closed site.
+ *   - memory-backed (no `store` on the namespace) ⇒ WARN: the state is per
+ *     process and replicas will not follow each other; the feature runs,
+ *     honestly labelled (the `lib/rate-limit` precedent).
+ *   - redis without the fail-fast trio ⇒ WARN (the shared precedent wording).
+ *
+ * @param {object} conf - a conf from {@link resolveConf}
+ * @param {object} deps
+ * @param {object} deps.kv                 - the kv facade (`lib.kv`)
+ * @param {string} deps.bundle             - the bundle name — the record's key, so one namespace may serve several bundles
+ * @param {object} [deps.kvSettings]       - `settings.kv` (failMode / backend honesty)
+ * @param {object} [deps.connectors]       - `connectors.json` content (redis tuning warn)
+ * @param {function(string)} [deps.warn]   - warn sink
+ * @returns {?{ns: object, name: string, key: string, intervalMs: number}} `null` when no store is configured
+ * @throws {Error} on a dangling namespace, an `open` failMode, or a missing kv facade / bundle name
+ *
+ * @example
+ * var sync = resolveStoreSync(conf, { kv: lib.kv, bundle: 'frontend', kvSettings: settings.kv });
+ * if (sync) { createStoreSync({ state: state, ns: sync.ns, key: sync.key, name: sync.name, intervalMs: sync.intervalMs }).start(); }
+ */
+function resolveStoreSync(conf, deps) {
+    if ( !conf || typeof(conf.store) != 'string' || conf.store.length === 0 ) {
+        return null;
+    }
+    deps = deps || {};
+    var _warn = ( typeof(deps.warn) == 'function' ) ? deps.warn : function(m){ console.warn('[maintenance] ' + m); };
+    if ( typeof(deps.bundle) != 'string' || deps.bundle.length === 0 ) {
+        throw new Error('[SERVER][#MAINT1] replica sync needs the bundle name as the record key — none reached the resolver');
+    }
+    if ( !deps.kv || typeof(deps.kv.get) != 'function' ) {
+        throw new Error('[SERVER][#MAINT1] `server.maintenance.store` needs the kv primitive — no kv facade reached the resolver');
+    }
+    var ns;
+    try {
+        ns = deps.kv.get(conf.store);
+    } catch (kvErr) {
+        // the kv `default`-naming-undeclared precedent: refuse, never degrade
+        // silently to a backend the operator did not ask for
+        throw new Error('[SERVER][#MAINT1] `server.maintenance.store` = `' + conf.store + '` is not usable: ' + (kvErr.message || kvErr));
+    }
+    var nsConf = deps.kvSettings && deps.kvSettings.namespaces && deps.kvSettings.namespaces[conf.store];
+    if ( nsConf && nsConf.failMode === 'open' ) {
+        throw new Error('[SERVER][#MAINT1] `server.maintenance.store` = `' + conf.store + '` runs `failMode: "open"` — under it a store outage reads as "no record" and would reopen every replica mid-window; use `failMode: "closed"` (the default) for this namespace');
+    }
+    var storeName = nsConf && nsConf.store;
+    if ( !storeName ) {
+        _warn('`server.maintenance.store` = `' + conf.store + '` is MEMORY-backed: the maintenance state is PER PROCESS — replicas will NOT follow each other. Replica-shared maintenance needs a redis- or sqlite-backed namespace');
+    } else {
+        var connEntry = deps.connectors && deps.connectors[storeName];
+        if ( connEntry && connEntry.connector === 'redis'
+                && ( connEntry.enableOfflineQueue !== false || typeof(connEntry.commandTimeout) == 'undefined' ) ) {
+            _warn('redis-backed namespace `' + conf.store + '`: set `enableOfflineQueue: false` and a `commandTimeout` on connectors.json entry `' + storeName + '` — with ioredis defaults an outage QUEUES the POST write and the poll instead of failing fast (the state stays as it was either way). The render-cache L2 ships this exact fail-fast trio');
+        }
+    }
+    return { ns: ns, name: conf.store, key: deps.bundle, intervalMs: conf.pollInterval };
+}
+
+/**
+ * The record a `POST /_gina/maintenance` writes to the shared store — the
+ * runtime override plus who set it and when. Written on BOTH flips: an
+ * `enable:false` writes `{active:false}` rather than deleting, so a replica
+ * whose CONFIG says closed still sees the runtime-off override win, exactly as
+ * it does locally.
+ *
+ * @param {object} runtime  - the local `{active, until, retryAfter, message}` just applied
+ * @param {object} identity - `{pid, hostname}` of the process that took the POST
+ * @param {number} [nowMs]  - injectable clock
+ * @returns {object} the record (JSON-serializable; never a top-level null)
+ *
+ * @example
+ * buildStoreRecord({ active: true, until: null }, { pid: 42, hostname: 'web-1' }, 1000);
+ * // { v: 1, active: true, until: null, setBy: { pid: 42, hostname: 'web-1' }, at: 1000 }
+ */
+function buildStoreRecord(runtime, identity, nowMs) {
+    var now = ( typeof(nowMs) == 'number' && isFinite(nowMs) ) ? nowMs : Date.now();
+    var rec = {
+        v      : STORE_RECORD_V,
+        active : !!( runtime && runtime.active === true ),
+        until  : ( runtime && typeof(runtime.until) == 'number' && isFinite(runtime.until) ) ? runtime.until : null,
+        setBy  : { pid: ( identity && identity.pid ) || null, hostname: ( identity && identity.hostname ) || null },
+        at     : now
+    };
+    if ( runtime && typeof(runtime.retryAfter) == 'number' ) { rec.retryAfter = runtime.retryAfter; }
+    if ( runtime && typeof(runtime.message) == 'string' )    { rec.message    = runtime.message; }
+    return rec;
+}
+
+/**
+ * Store TTL for a record: the remaining window in ms when `until` is set — so
+ * the record VANISHES when the dead-man switch fires and every replica reverts
+ * to config together — or `null` (no expiry) otherwise.
+ *
+ * @param {object} record - from {@link buildStoreRecord}
+ * @param {number} [nowMs]
+ * @returns {?number} positive integer ms, or null
+ */
+function storeRecordTtl(record, nowMs) {
+    var now = ( typeof(nowMs) == 'number' && isFinite(nowMs) ) ? nowMs : Date.now();
+    if ( record && typeof(record.until) == 'number' && isFinite(record.until) ) {
+        return Math.max(1, Math.ceil(record.until - now));
+    }
+    return null;
+}
+
+/**
+ * Apply a record read from the store to the local state. Pure — the caller
+ * owns the I/O. `null` (no record) clears the runtime: the only ways a key is
+ * absent are "nothing written since the store was emptied" and "the record's
+ * TTL lapsed", both of which mean CONFIG. A malformed record is IGNORED and
+ * the last-known state kept — never read as "off".
+ *
+ * @param {object} state  - the engine-instance state `{conf, runtime, …}`
+ * @param {*}      record - what `ns.get(key)` resolved
+ * @returns {string} `'applied'` | `'cleared'` | `'malformed'`
+ *
+ * @example
+ * applyStoreRecord(state, { v: 1, active: true, until: null });  // 'applied' — state.runtime.active === true
+ * applyStoreRecord(state, null);                                  // 'cleared' — state.runtime === null
+ * applyStoreRecord(state, { v: 7 });                              // 'malformed' — state untouched
+ */
+function applyStoreRecord(state, record) {
+    if ( record === null || typeof(record) == 'undefined' ) {
+        state.runtime = null;
+        return 'cleared';
+    }
+    if ( typeof(record) != 'object' || record.v !== STORE_RECORD_V
+            || ( record.active !== true && record.active !== false )
+            || !( record.until === null || typeof(record.until) == 'undefined'
+                  || ( typeof(record.until) == 'number' && isFinite(record.until) ) ) ) {
+        return 'malformed';
+    }
+    var rt = { active: record.active, until: ( typeof(record.until) == 'number' ) ? record.until : null };
+    if ( typeof(record.retryAfter) == 'number' ) { rt.retryAfter = record.retryAfter; }
+    if ( typeof(record.message) == 'string' )    { rt.message    = record.message; }
+    state.runtime = rt;
+    return 'applied';
+}
+
+/**
+ * The poll — the read half of the replica sync. One unref'd interval per
+ * process; each tick reads the record and writes it into the LOCAL state the
+ * gate already reads synchronously, so the gate never awaits anything (#B383)
+ * and costs nothing more when the feature is off (#P39: no interval exists
+ * then). Rules the tick enforces:
+ *
+ *   - ticks never overlap: while a `get` is in flight later ticks are skipped,
+ *     so a hung store (an ioredis offline queue) cannot pile them up;
+ *   - a resolved record is applied; a resolved `null` clears to config;
+ *   - a REJECTION keeps the last-known state — an outage must never open a
+ *     closed site — and warns ONCE per outage, then once more on recovery;
+ *   - the first tick fires at `start()`, so a replica joining mid-window
+ *     converges in one store round-trip rather than one interval.
+ *
+ * `state.sync` carries `{store, key, lastSyncAt, lastError}` for the status
+ * payload. Everything is injected — the namespace handle, the clock, the warn
+ * sink — and the timers are the globals, so a test drives it with mocked
+ * timers and a scripted namespace.
+ *
+ * @param {object} opts
+ * @param {object} opts.state        - the engine-instance state
+ * @param {object} opts.ns           - the kv namespace handle (`get(key)` → Promise)
+ * @param {string} opts.key          - the record key (the bundle name)
+ * @param {string} [opts.name]       - the namespace name, for the payload
+ * @param {number} [opts.intervalMs] - poll cadence (default `DEFAULTS.pollInterval`)
+ * @param {function} [opts.now]      - injectable clock
+ * @param {function(string)} [opts.warn]
+ * @returns {{start: function, stop: function, tick: function, isRunning: function}}
+ * @throws {TypeError} when the state, namespace handle or key is missing
+ *
+ * @example
+ * var syncer = createStoreSync({ state: state, ns: sync.ns, key: sync.key, name: sync.name, intervalMs: sync.intervalMs });
+ * syncer.start();   // arms the unref'd interval and fires the first tick
+ */
+function createStoreSync(opts) {
+    opts = opts || {};
+    var state      = opts.state;
+    var ns         = opts.ns;
+    var key        = opts.key;
+    var intervalMs = ( typeof(opts.intervalMs) == 'number' && opts.intervalMs > 0 ) ? opts.intervalMs : DEFAULTS.pollInterval;
+    var now        = ( typeof(opts.now) == 'function' ) ? opts.now : Date.now;
+    var warn       = ( typeof(opts.warn) == 'function' ) ? opts.warn : function(m){ console.warn('[maintenance] ' + m); };
+    if ( !state || typeof(state) != 'object' )  { throw new TypeError('[maintenance] createStoreSync needs the engine state object'); }
+    if ( !ns || typeof(ns.get) != 'function' )   { throw new TypeError('[maintenance] createStoreSync needs a kv namespace handle'); }
+    if ( typeof(key) != 'string' || key === '' ) { throw new TypeError('[maintenance] createStoreSync needs a non-empty record key'); }
+
+    var timer    = null;
+    var inFlight = false;
+    var erroring = false;
+
+    /**
+     * One poll. Never rejects — every branch resolves an outcome string, so the
+     * interval's dropped promise can never become an unhandled rejection.
+     * @inner
+     * @returns {Promise<string>} `'applied'` | `'cleared'` | `'malformed'` | `'error'` | `'skipped'`
+     */
+    function tick() {
+        if ( inFlight ) { return Promise.resolve('skipped'); }
+        inFlight = true;
+        return ns.get(key).then(function (record) {
+            inFlight = false;
+            var outcome = applyStoreRecord(state, record);
+            if ( outcome === 'malformed' ) {
+                warn('replica sync: the record under `' + key + '` in namespace `' + (opts.name || '?') + '` is malformed — ignored, keeping the last-known state');
+            }
+            if ( state.sync ) {
+                state.sync.lastSyncAt = now();
+                state.sync.lastError  = null;
+            }
+            if ( erroring ) {
+                erroring = false;
+                warn('replica sync: the store is reachable again — following the shared state');
+            }
+            return outcome;
+        }, function (err) {
+            inFlight = false;
+            var msg = (err && err.message) || String(err);
+            if ( state.sync ) { state.sync.lastError = msg; }
+            if ( !erroring ) {
+                erroring = true;
+                warn('replica sync: the store is unreachable (' + msg + ') — keeping the last-known maintenance state until it answers again; a store outage never reopens a closed site');
+            }
+            return 'error';
+        });
+    }
+
+    /** @inner */
+    function start() {
+        if ( timer ) { return; }
+        state.sync = { store: opts.name || null, key: key, lastSyncAt: null, lastError: null };
+        timer = setInterval(function () { tick(); }, intervalMs);
+        if ( timer && typeof(timer.unref) == 'function' ) { timer.unref(); }
+        tick();
+    }
+
+    /** @inner */
+    function stop() {
+        if ( timer ) { clearInterval(timer); timer = null; }
+    }
+
+    return { start: start, stop: stop, tick: tick, isRunning: function () { return timer !== null; } };
+}
+
 
 /**
  * Classify a request as arriving through a reverse proxy.
@@ -1030,6 +1334,14 @@ module.exports = {
     resolveConf             : resolveConf,
     lintConf                : lintConf,
     resolveBootEnv          : resolveBootEnv,
+    resolveStoreSync        : resolveStoreSync,
+    buildStoreRecord        : buildStoreRecord,
+    storeRecordTtl          : storeRecordTtl,
+    applyStoreRecord        : applyStoreRecord,
+    createStoreSync         : createStoreSync,
+    POLL_MIN_MS             : POLL_MIN_MS,
+    POLL_MAX_MS             : POLL_MAX_MS,
+    STORE_RECORD_V          : STORE_RECORD_V,
     isActive                : isActive,
     effectiveConf           : effectiveConf,
     langTag                 : langTag,

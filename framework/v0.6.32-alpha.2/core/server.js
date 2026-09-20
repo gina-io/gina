@@ -2188,6 +2188,13 @@ function Server(options) {
             if ( engine.instance._maintenance.conf.enabled ) {
                 console.warn('[ BUNDLE ][ server ][ init ] MAINTENANCE MODE IS ON for `'+ self.appName +'` ('+ ( engine.instance._maintenance.envForced ? 'GINA_MAINTENANCE' : 'settings.json > server.maintenance.enabled' ) +') — every request outside /_gina/* answers 503 until it is turned off.');
             }
+            // Replica sync (`server.maintenance.store`, C3 slice c) is armed in core/gna.js's
+            // `server.on('started')` band — AFTER lib.kv.start(), which runs THERE, so this
+            // init is too early to hand out a namespace (measured 2026-09-20: a resolve here
+            // refused a bundle whose settings.json declared the block, with "[kv] not
+            // configured"). The band attaches `store` + `syncer` to this same state object;
+            // the gate above keeps reading it synchronously (#B383) and pays nothing when
+            // `store` is unset (#P39).
 
             // ── #RWATCH — stale built-release watch (local production rehearsals) ──
             // Hard gates: local scope + non-dev env + explicit opt-in
@@ -5054,7 +5061,9 @@ function Server(options) {
                         retryAfter   : _eff.retryAfter,
                         message      : _eff.message,
                         until        : ( _rtLive && _rt && typeof(_rt.until) == 'number' ) ? new Date(_rt.until).toISOString() : null,
-                        hasBypassKey : !!( _eff.bypassKey && _eff.bypassKey.length )
+                        hasBypassKey : !!( _eff.bypassKey && _eff.bypassKey.length ),
+                        // replica sync (server.maintenance.store): what THIS process last read, or null
+                        sync         : _mtCtl.sync ? { store: _mtCtl.sync.store, key: _mtCtl.sync.key, lastSyncAt: ( typeof(_mtCtl.sync.lastSyncAt) == 'number' ) ? new Date(_mtCtl.sync.lastSyncAt).toISOString() : null, lastError: _mtCtl.sync.lastError } : null
                     };
                 };
 
@@ -5104,9 +5113,36 @@ function Server(options) {
                     console.warn('[maintenance] `' + self.appName + '` maintenance mode turned '
                         + ( _rtNew.active ? 'ON' : 'OFF' ) + ' via POST /_gina/maintenance'
                         + ( _rtNew.until ? (' until ' + new Date(_rtNew.until).toISOString()) : '' )
-                        + ' — runtime override, NOT persisted across a restart.');
+                        + ( _mtCtl.store ? (' — written to kv namespace `' + _mtCtl.store.name + '` for the other replicas.') : ' — runtime override, NOT persisted across a restart.' ));
 
-                    return response.end(JSON.stringify(_mtStatus()));
+                    // Replica sync (server.maintenance.store): the local apply above is
+                    // authoritative for THIS process; the write-through is what the other
+                    // replicas poll. A failed write still answers 200 — this process DID
+                    // change — with `store.written: false` and the error, because a 5xx
+                    // would invite a retry of a POST that already applied here. The
+                    // store-less path is byte-for-byte the old one. Keep in sync with the
+                    // core/server.isaac.js twin.
+                    if ( !_mtCtl.store ) {
+                        return response.end(JSON.stringify(_mtStatus()));
+                    }
+                    var _mtRec = lib.maintenance.buildStoreRecord(_rtNew, { pid: process.pid, hostname: os.hostname() });
+                    var _mtTtl = lib.maintenance.storeRecordTtl(_mtRec);
+                    return _mtCtl.store.ns.set(_mtCtl.store.key, _mtRec, _mtTtl ? { ttl: _mtTtl } : null).then(function () {
+                        if ( _mtCtl.sync ) { _mtCtl.sync.lastSyncAt = Date.now(); _mtCtl.sync.lastError = null; }
+                        var _mtOut = _mtStatus();
+                        _mtOut.store = { written: true, error: null };
+                        response.end(JSON.stringify(_mtOut));
+                    }, function (_mtWriteErr) {
+                        var _mtWriteMsg = (_mtWriteErr && _mtWriteErr.message) || String(_mtWriteErr);
+                        console.warn('[maintenance] `' + self.appName + '` the store write FAILED (' + _mtWriteMsg + ') — applied on this process only; the other replicas were NOT reached');
+                        if ( _mtCtl.sync ) { _mtCtl.sync.lastError = _mtWriteMsg; }
+                        var _mtOut = _mtStatus();
+                        _mtOut.store = { written: false, error: _mtWriteMsg };
+                        response.end(JSON.stringify(_mtOut));
+                    }).catch(function (_mtLateErr) {
+                        // own every terminal: a throw while answering must not become an unhandled rejection
+                        console.warn('[maintenance] `' + self.appName + '` replying after the store write failed: ' + ((_mtLateErr && _mtLateErr.message) || _mtLateErr));
+                    });
                 });
             }
 

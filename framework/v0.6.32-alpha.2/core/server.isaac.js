@@ -1696,7 +1696,9 @@ function ServerEngineClass(options) {
                         retryAfter   : _eff.retryAfter,
                         message      : _eff.message,
                         until        : ( _rtLive && _rt && typeof(_rt.until) == 'number' ) ? new Date(_rt.until).toISOString() : null,
-                        hasBypassKey : !!( _eff.bypassKey && _eff.bypassKey.length )
+                        hasBypassKey : !!( _eff.bypassKey && _eff.bypassKey.length ),
+                        // replica sync (server.maintenance.store): what THIS process last read, or null
+                        sync         : _mtCtl.sync ? { store: _mtCtl.sync.store, key: _mtCtl.sync.key, lastSyncAt: ( typeof(_mtCtl.sync.lastSyncAt) == 'number' ) ? new Date(_mtCtl.sync.lastSyncAt).toISOString() : null, lastError: _mtCtl.sync.lastError } : null
                     };
                 };
 
@@ -1743,9 +1745,32 @@ function ServerEngineClass(options) {
                     console.warn('[maintenance] maintenance mode turned '
                         + ( _rtNew.active ? 'ON' : 'OFF' ) + ' via POST /_gina/maintenance'
                         + ( _rtNew.until ? (' until ' + new Date(_rtNew.until).toISOString()) : '' )
-                        + ' — runtime override, NOT persisted across a restart.');
+                        + ( _mtCtl.store ? (' — written to kv namespace `' + _mtCtl.store.name + '` for the other replicas.') : ' — runtime override, NOT persisted across a restart.' ));
 
-                    return _mtSend(200, _mtStatus());
+                    // Replica sync (server.maintenance.store) — the core/server.js twin:
+                    // local apply first (authoritative here), then the write-through the
+                    // other replicas poll; a failed write still answers 200 with
+                    // `store.written: false`. The store-less path is the old one.
+                    if ( !_mtCtl.store ) {
+                        return _mtSend(200, _mtStatus());
+                    }
+                    var _mtRec = lib.maintenance.buildStoreRecord(_rtNew, { pid: process.pid, hostname: os.hostname() });
+                    var _mtTtl = lib.maintenance.storeRecordTtl(_mtRec);
+                    return _mtCtl.store.ns.set(_mtCtl.store.key, _mtRec, _mtTtl ? { ttl: _mtTtl } : null).then(function () {
+                        if ( _mtCtl.sync ) { _mtCtl.sync.lastSyncAt = Date.now(); _mtCtl.sync.lastError = null; }
+                        var _mtOut = _mtStatus();
+                        _mtOut.store = { written: true, error: null };
+                        _mtSend(200, _mtOut);
+                    }, function (_mtWriteErr) {
+                        var _mtWriteMsg = (_mtWriteErr && _mtWriteErr.message) || String(_mtWriteErr);
+                        console.warn('[maintenance] the store write FAILED (' + _mtWriteMsg + ') — applied on this process only; the other replicas were NOT reached');
+                        if ( _mtCtl.sync ) { _mtCtl.sync.lastError = _mtWriteMsg; }
+                        var _mtOut = _mtStatus();
+                        _mtOut.store = { written: false, error: _mtWriteMsg };
+                        _mtSend(200, _mtOut);
+                    }).catch(function (_mtLateErr) {
+                        console.warn('[maintenance] replying after the store write failed: ' + ((_mtLateErr && _mtLateErr.message) || _mtLateErr));
+                    });
                 });
             }
 
