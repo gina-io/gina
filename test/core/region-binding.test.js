@@ -10,8 +10,10 @@
  *      a second call for the same src injects nothing; `<link>` is left alone; the
  *      validator and link plugins are called when published and skipped when absent;
  *      `deferFormId` is forwarded.
- *  §02 the validator's `bindRegion` — source pins: it applies `isFormOptedIn` (the #B549
- *      gate), mints ids as the boot scan does, retires a stale same-id entry with
+ *  §02 the validator's `bindRegion` (declared `bindFormsInRegion` — a local of the shared
+ *      name would hoist over the module and shadow utils/dom's policy) — source pins: it
+ *      applies `isFormOptedIn` (the #B549 gate), mints ids as the boot scan does, retires
+ *      a stale same-id entry with
  *      `destroy` before `validateFormById`, honours `deferFormId`, and is published on
  *      both the proto (`$validator`) and the instance (`gina.validator`).
  *  §03 nav — source pins: the region is bound through `bindRegion($target)` after
@@ -176,12 +178,15 @@ describe('§01 bindRegion (utils/dom) — the extracted shipped bytes under jsdo
 
 describe('§02 validator bindRegion — source pins (behaviour driven by the e2e spec)', function () {
     var a = active(valSrc);
-    var declIdx = a.indexOf('var bindRegion = function($root, options) {');
+    var declIdx = a.indexOf('var bindFormsInRegion = function($root, options) {');
     var endIdx  = a.indexOf('var unbindForm = function($target) {');
 
     it('declares bindRegion once, ahead of unbindForm', function () {
         assert.ok(declIdx > -1, 'declaration present');
-        assert.equal(a.indexOf('var bindRegion = function', declIdx + 1), -1, 'declared once');
+        assert.equal(a.indexOf('var bindFormsInRegion = function', declIdx + 1), -1, 'declared once');
+        assert.equal(a.indexOf('var bindRegion = function'), -1,
+            'the module must NOT declare a local `bindRegion`: `var` hoists, so it would shadow '
+            + "utils/dom's shared policy for the whole file and applySwap would bind forms only");
         assert.ok(endIdx > declIdx, 'unbindForm follows it (the slice terminator)');
     });
 
@@ -203,8 +208,8 @@ describe('§02 validator bindRegion — source pins (behaviour driven by the e2e
     });
 
     it('is published on the proto AND on the instance gina.validator', function () {
-        assert.ok(/\$validator\.bindRegion\s+= bindRegion;/.test(a), 'proto publish');
-        assert.ok(/instance\.bindRegion\s+= bindRegion;/.test(a), 'instance publish');
+        assert.ok(/\$validator\.bindRegion\s+= bindFormsInRegion;/.test(a), 'proto publish');
+        assert.ok(/instance\.bindRegion\s+= bindFormsInRegion;/.test(a), 'instance publish');
     });
 });
 

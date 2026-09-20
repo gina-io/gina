@@ -38,6 +38,8 @@ function ValidatorPlugin(rules, data, formId, culture) {
         'registered',
         'success',
         'error',
+        'beforeswap', // #gh76 slice 2 — cancelable, before a form answer is swapped into its target
+        'afterswap', // #gh76 slice 2 — after the swap and the region binding
         'progress',
         'uploadProgress', // #R8 — upload (client-to-server) wire progress for staged uploads
         'submit',
@@ -695,6 +697,300 @@ function ValidatorPlugin(rules, data, formId, culture) {
         } catch (e) {}
     }
 
+
+    /**
+     * The swap strategies `data-gina-form-swap` accepts (#gh76 slice 2) — htmx's `hx-swap`
+     * values, applied with the matching DOM operation.
+     * @constant {string[]}
+     */
+    var SWAP_STRATEGIES = ['innerHTML', 'outerHTML', 'textContent', 'beforebegin', 'afterbegin', 'beforeend', 'afterend', 'delete', 'none'];
+
+    /**
+     * resolveSwapTarget
+     *
+     * #gh76 slice 2 — resolves a form's `data-gina-form-target` value to an element, at
+     * SUBMIT time, with htmx's `hx-target` grammar: `this` (the form itself),
+     * `closest <selector>` (the closest ancestor OR the form), `find <selector>` (the first
+     * descendant), or a CSS selector (the first match in the document). `next` and
+     * `previous` are reserved: refused with a message naming them, so a later addition is
+     * purely additive.
+     *
+     * @param {HTMLFormElement} $formEl - the submitting form
+     * @param {string} value - the attribute value
+     *
+     * @returns {{target: (HTMLElement|undefined), error: (string|undefined)}}
+     *
+     * @example
+     * resolveSwapTarget($form, 'closest li'); // => { target: <li> }
+     * resolveSwapTarget($form, '#nowhere');   // => { error: 'no element matches `#nowhere`' }
+     */
+    var resolveSwapTarget = function($formEl, value) {
+        var v = ( typeof(value) == 'string' ) ? value.trim() : '';
+        var m = null, keyword = null, selector = null, $el = null;
+        if ( v === '' ) {
+            return { error: 'empty value' };
+        }
+        if ( v === 'this' ) {
+            return { target: $formEl };
+        }
+        try {
+            m = v.match(/^(closest|find|next|previous)(?:\s+(.+))?$/i);
+            if (m) {
+                keyword  = m[1].toLowerCase();
+                selector = ( m[2] || '' ).trim();
+                if ( keyword === 'next' || keyword === 'previous' ) {
+                    return { error: '`'+ keyword +'` targeting is reserved and not supported yet' };
+                }
+                if ( selector === '' ) {
+                    return { error: '`'+ keyword +'` needs a selector' };
+                }
+                $el = ( keyword === 'closest' ) ? $formEl.closest(selector) : $formEl.querySelector(selector);
+            } else {
+                $el = document.querySelector(v);
+            }
+        } catch (selectorErr) {
+            return { error: 'invalid selector `'+ v +'`: '+ (selectorErr.message || selectorErr) };
+        }
+        return ( $el ) ? { target: $el } : { error: 'no element matches `'+ v +'`' };
+    }
+
+    /**
+     * refuseSend
+     *
+     * #gh76 slice 2 — refuses a submit BEFORE any request leaves (a declared target or swap
+     * strategy that cannot be honoured): releases what the submit armed and delivers the
+     * refusal to the form's error channels as `{ status: 422, reason: 'targetError', … }`.
+     * Runs before the request is opened, so no `disabled`/`data-gina-form-loading` lock
+     * exists yet; the #B247 trigger arm does, and is released.
+     *
+     * @param {object} $form - the form's registry entry
+     * @param {HTMLFormElement} $target - the form element
+     * @param {string} id - the form id
+     * @param {boolean} hFormIsRequired - whether the declared-callback channel is armed
+     * @param {string} attribute - the offending attribute name
+     * @param {string} value - its value
+     * @param {string} why - the reason
+     * @param {boolean} [ownedByEarlierSend] - a PREVIOUS request was already in flight when
+     *      this attempt reached `send()` (read before it claimed `isSending`). When true the
+     *      refusal delivers its error but touches neither `isSending`/`sent` nor the loading
+     *      state: both belong to the request still running, whose own settle releases them.
+     *      `armSubmitLoading` is first-wins, so this refused attempt armed nothing of its own
+     *      — the same ownership rule the validation-rejected path applies (#B247).
+     *
+     * @returns {undefined}
+     *
+     * @example
+     * refuseSend($form, $target, id, hFormIsRequired, 'data-gina-form-target', '#nowhere', 'no element matches `#nowhere`', false);
+     */
+    var refuseSend = function($form, $target, id, hFormIsRequired, attribute, value, why, ownedByEarlierSend) {
+        var result = {
+            status          : 422,
+            error           : attribute +': '+ why,
+            reason          : 'targetError',
+            attribute       : attribute,
+            value           : value,
+            transportError  : false
+        };
+        if ( !ownedByEarlierSend ) {
+            $form.isSending = false;
+            $form.sent      = false;
+            if ( instance.$forms[id] ) {
+                instance.$forms[id].isSending = false;
+                instance.$forms[id].sent      = false;
+            }
+            disarmSubmitLoading($form);
+        }
+        $form.eventData.error = result;
+        if (envIsDev) {
+            try { console.error('[FormValidator][swap] submit of form `#'+ id +'` refused — '+ result.error); } catch (e) {}
+        }
+        triggerEvent(gina, $target, 'error.' + id, result);
+        if (hFormIsRequired)
+            triggerEvent(gina, $target, 'error.' + id + '.hform', result);
+    }
+
+    /**
+     * applySwap
+     *
+     * #gh76 slice 2 — swaps a `text/html` answer into the target captured at submit. ONE
+     * parse (`parseXhrHtmlAnswer`, the hidden inputs stripped), the optional
+     * `data-gina-form-select` pick (every match, document order), the attached check, the
+     * cancelable `beforeswap.<id>` event (a listener's `preventDefault()` skips the swap;
+     * `detail.content` is re-read after dispatch, so a listener may rewrite it), the DOM
+     * write by strategy, the region binding through the shared `bindRegion()` policy, then
+     * `afterswap.<id>` (+ `.hform`). Returns the success payload; the caller's shared tail
+     * emits `success`. Fail-soft on a swap that cannot happen (no `select` match, a target
+     * that left the document): `swapped: false`, a dev notice, the payload still delivered
+     * — the data is already saved.
+     *
+     * A swap that replaces or removes the submitting form (`outerHTML`/`delete` on a target
+     * containing it) defers the form's own re-binding: its listeners deliver the events
+     * first, then `finalizeSelfReplacement` binds the same-id replacement.
+     *
+     * @param {object} sendCtx - the per-send capture
+     * @param {object} $form - the form's registry entry
+     * @param {HTMLFormElement} $target - the form element
+     * @param {string} id - the form id
+     * @param {boolean} hFormIsRequired - whether the declared-callback channel is armed
+     * @param {{contentType: string, content: string, status: number}} result - the legacy payload
+     *
+     * @returns {{contentType: string, content: string, status: number, data: (object|null), view: (object|null), target: HTMLElement, swap: string, swapped: boolean}}
+     *
+     * @example
+     * result = applySwap(sendCtx, $form, $target, id, hFormIsRequired, result); // => { …, swapped: true }
+     */
+    var applySwap = function(sendCtx, $form, $target, id, hFormIsRequired, result) {
+        var strategy    = sendCtx.swap || 'innerHTML'
+            , $el       = sendCtx.target
+            , parsed    = parseXhrHtmlAnswer(result.content)
+            , content   = null
+            , $nodes    = null
+            , evt       = null
+            , $scope    = null
+            , attached  = false
+            , detachesForm = false
+            , payload   = {
+                contentType : result.contentType,
+                content     : result.content,
+                status      : result.status,
+                data        : parsed.data,
+                view        : parsed.view,
+                target      : $el,
+                swap        : strategy,
+                swapped     : false
+            }
+        ;
+        var warn = function(msg) {
+            if (envIsDev) {
+                try { console.warn('[FormValidator][swap] form `#'+ id +'`: '+ msg); } catch (e) {}
+            }
+        };
+        // dev toolbar
+        try {
+            if ( gina && envIsDev && typeof(window.ginaToolbar) != 'undefined' && window.ginaToolbar ) {
+                if (parsed.data) window.ginaToolbar.update('data-xhr', parsed.data);
+                if (parsed.view) window.ginaToolbar.update('view-xhr', parsed.view);
+            }
+        } catch (toolbarErr) {}
+
+        if ( strategy === 'textContent' ) {
+            content = result.content; // htmx: the raw answer, not parsed as HTML
+        } else if ( sendCtx.select ) {
+            try {
+                $nodes = parsed.doc.querySelectorAll(sendCtx.select);
+            } catch (selErr) {
+                $nodes = [];
+            }
+            if ( !$nodes.length ) {
+                warn('`data-gina-form-select` matched nothing in the answer (`'+ sendCtx.select +'`) — nothing swapped');
+                return payload;
+            }
+            content = '';
+            for (var n = 0, nLen = $nodes.length; n < nLen; ++n) {
+                content += $nodes[n].outerHTML;
+            }
+        } else {
+            content = parsed.doc.body.innerHTML;
+        }
+
+        attached = ( typeof($el.isConnected) == 'boolean' ) ? $el.isConnected : document.contains($el);
+        if ( !attached ) {
+            warn('the target captured at submit (`'+ sendCtx.targetAttr +'`) is no longer in the document — nothing swapped');
+            return payload;
+        }
+
+        if ( strategy !== 'none' ) {
+            evt = triggerEvent(gina, $target, 'beforeswap.' + id, { target: $el, content: content, strategy: strategy, select: sendCtx.select });
+            if ( evt && evt.defaultPrevented ) {
+                warn('the swap was cancelled by a `beforeswap` listener');
+                return payload;
+            }
+            if ( evt && evt.detail && typeof(evt.detail.content) == 'string' ) {
+                content = evt.detail.content;
+            }
+        }
+
+        detachesForm = ( strategy === 'outerHTML' || strategy === 'delete' ) && ( $el === $target || $el.contains($target) );
+
+        switch (strategy) {
+            case 'innerHTML':
+                $el.innerHTML = content;
+                $scope = $el;
+                break;
+            case 'outerHTML':
+                $scope = $el.parentNode;
+                $el.outerHTML = content;
+                break;
+            case 'textContent':
+                $el.textContent = content;
+                break;
+            case 'beforebegin':
+                $scope = $el.parentNode;
+                $el.insertAdjacentHTML('beforebegin', content);
+                break;
+            case 'afterbegin':
+                $el.insertAdjacentHTML('afterbegin', content);
+                $scope = $el;
+                break;
+            case 'beforeend':
+                $el.insertAdjacentHTML('beforeend', content);
+                $scope = $el;
+                break;
+            case 'afterend':
+                $scope = $el.parentNode;
+                $el.insertAdjacentHTML('afterend', content);
+                break;
+            case 'delete':
+                if ( $el.parentNode ) $el.parentNode.removeChild($el);
+                break;
+            case 'none':
+                break;
+        }
+        payload.swapped = ( strategy !== 'none' );
+
+        if ( $scope && typeof($scope.getElementsByTagName) == 'function' ) {
+            bindRegion($scope, { deferFormId: ( detachesForm ) ? id : null });
+        }
+        sendCtx.rebindSelf = detachesForm;
+
+        if ( strategy !== 'none' ) {
+            triggerEvent(gina, $target, 'afterswap.' + id, { target: $el, strategy: strategy, swapped: payload.swapped });
+            if (hFormIsRequired)
+                triggerEvent(gina, $target, 'afterswap.' + id + '.hform', { target: $el, strategy: strategy, swapped: payload.swapped });
+        }
+        return payload;
+    }
+
+    /**
+     * finalizeSelfReplacement
+     *
+     * #gh76 slice 2 — after a swap that replaced or removed the submitting form and after
+     * its events were delivered: retire the stale registry entry (its element left the
+     * document) and bind the same-id replacement when the answer carried one and it opts
+     * in (#B549).
+     *
+     * @param {HTMLFormElement} $oldForm - the submitting form element
+     * @param {string} id - its id
+     *
+     * @returns {undefined}
+     *
+     * @example
+     * finalizeSelfReplacement($target, id);
+     */
+    var finalizeSelfReplacement = function($oldForm, id) {
+        var $new = document.getElementById(id);
+        var oldAttached = ( typeof($oldForm.isConnected) == 'boolean' ) ? $oldForm.isConnected : document.contains($oldForm);
+        if ( !oldAttached ) {
+            try {
+                destroy(id);
+            } catch (destroyErr) {
+                delete instance.$forms[id];
+            }
+        }
+        if ( $new && $new !== $oldForm && /^FORM$/i.test($new.tagName) && isFormOptedIn($new, local.rules) ) {
+            validateFormById.call(instance, id);
+        }
+    }
 
     /**
      * #B549 — does the page opt this form into the validator?
@@ -2236,8 +2532,8 @@ function ValidatorPlugin(rules, data, formId, culture) {
         // #gh76 — per-send capture of the popin the SUBMITTING form lives in (or null),
         // read at the settle below. `$form.eventData` is per form and a second send would
         // overwrite it; this closure is per send (#B175 made the XHR per send).
-        /** @type {{ popin: (object|null) }} */
-        var sendCtx = { popin: null };
+        /** @type {{ popin: (object|null), target: (HTMLElement|null), swap: string, select: (string|null), targetAttr: (string|null), rebindSelf: boolean }} */
+        var sendCtx = { popin: null, target: null, swap: 'innerHTML', select: null, targetAttr: null, rebindSelf: false };
 
         options = (typeof (options) != 'undefined') ? merge(options, xhrOptions) : xhrOptions;
 
@@ -2261,6 +2557,13 @@ function ValidatorPlugin(rules, data, formId, culture) {
             // first-wins, the refused attempt never armed anything of its own to clear.
             return;
         }
+
+        // #gh76 slice 2 — whether a PREVIOUS request still owns `isSending` and the armed
+        // loading state, read BEFORE this attempt claims them. Only reachable with
+        // `withRateLimit: false` (the gate above returns otherwise), and only consulted by
+        // a pre-send refusal below — which must not clear state it does not own.
+        var ownedByEarlierSend = /^true$/i.test(instance.$forms[id].isSending)
+            || /^true$/i.test($form.isSending);
 
         instance.$forms[id].isSending = true;
 
@@ -2305,11 +2608,42 @@ function ValidatorPlugin(rules, data, formId, culture) {
 
 
         // forward callback to HTML data event attribute through `hform` status
-        hFormIsRequired = ( $target.getAttribute('data-gina-form-event-on-submit-success') || $target.getAttribute('data-gina-form-event-on-submit-error') ) ? true : false;
+        hFormIsRequired = ( $target.getAttribute('data-gina-form-event-on-submit-success') || $target.getAttribute('data-gina-form-event-on-submit-error') || $target.getAttribute('data-gina-form-event-on-swap') ) ? true : false;
         // success -> data-gina-form-event-on-submit-success
         // error -> data-gina-form-event-on-submit-error
+        // afterswap -> data-gina-form-event-on-swap (#gh76 slice 2)
         if (hFormIsRequired)
             listenToXhrEvents($form);
+
+        // #gh76 slice 2 — a DECLARED swap target is resolved NOW, from the submitting form,
+        // and carried to the settle in this closure (the htmx contract: the target is a
+        // property of the issuing element, resolved before the request is sent). A target
+        // or strategy that cannot be honoured refuses the submit before anything leaves —
+        // fail-LOUD, deliberately the opposite of `data-gina-dialog-target`'s silent
+        // full-replace fallback.
+        var targetAttr = $target.getAttribute('data-gina-form-target');
+        var swapAttr   = $target.getAttribute('data-gina-form-swap');
+        var selectAttr = $target.getAttribute('data-gina-form-select');
+        if ( targetAttr !== null ) {
+            var resolvedTarget = resolveSwapTarget($target, targetAttr);
+            if ( resolvedTarget.error ) {
+                refuseSend($form, $target, id, hFormIsRequired, 'data-gina-form-target', targetAttr, resolvedTarget.error, ownedByEarlierSend);
+                return;
+            }
+            sendCtx.target     = resolvedTarget.target;
+            sendCtx.targetAttr = targetAttr;
+        }
+        if ( swapAttr !== null ) {
+            var strategy = swapAttr.trim();
+            if ( SWAP_STRATEGIES.indexOf(strategy) < 0 ) {
+                refuseSend($form, $target, id, hFormIsRequired, 'data-gina-form-swap', swapAttr, 'unknown swap strategy `'+ strategy +'` (one of '+ SWAP_STRATEGIES.join(', ') +')', ownedByEarlierSend);
+                return;
+            }
+            sendCtx.swap = strategy;
+        }
+        if ( selectAttr !== null && selectAttr.trim() !== '' ) {
+            sendCtx.select = selectAttr.trim();
+        }
 
         // #R8 — staged-upload send? (virtual `gina-upload-*` form) The upload-progress
         // channel below only activates for these sends.
@@ -2597,8 +2931,15 @@ function ValidatorPlugin(rules, data, formId, culture) {
                                 if ( typeof(result.status) == 'undefined' )
                                     result.status = xhr.status;
 
+                                // #gh76 slice 2 — a DECLARED target wins over containment: the
+                                // answer is swapped into the element captured at submit (inside
+                                // or outside a popin), bound, and delivered with the richer
+                                // payload; the shared tail below emits `success`.
+                                if ( sendCtx.target ) {
+                                    result = applySwap(sendCtx, $form, $target, id, hFormIsRequired, result);
+                                }
                                 // if hasPopinHandler & popinIsBinded
-                                if ( typeof(gina.popin) != 'undefined' && gina.hasPopinHandler ) {
+                                else if ( typeof(gina.popin) != 'undefined' && gina.hasPopinHandler ) {
                                     // #gh76 — the answer goes to the popin the form was captured
                                     // in at submit, while it is still open and still contains the
                                     // form; anything else is the legacy handler-only payload.
@@ -2611,24 +2952,23 @@ function ValidatorPlugin(rules, data, formId, culture) {
 
                                     if ($popin) {
 
-                                        XHRData = {};
+                                        // #B575 — ONE tolerant parse: the hidden inputs are a dev-mode
+                                        // transport (spliced only under NODE_ENV_IS_DEV), so outside
+                                        // dev mode they are absent — dereferencing them threw inside
+                                        // this try and surfaced as a false 422 error callback, and the
+                                        // popin was never loaded
+                                        var parsedAnswer = parseXhrHtmlAnswer(result.content);
+                                        XHRData = parsedAnswer.data;
+                                        XHRView = parsedAnswer.view;
                                         // update toolbar
-
                                         try {
-                                            XHRData = new DOMParser().parseFromString(result.content, 'text/html').getElementById('gina-without-layout-xhr-data');
-                                            XHRData = JSON.parse(decodeURIComponent(XHRData.value));
-
-                                            XHRView = new DOMParser().parseFromString(result.content, 'text/html').getElementById('gina-without-layout-xhr-view');
-                                            XHRView = JSON.parse(decodeURIComponent(XHRView.value));
-
                                             // update data tab
-                                            if ( gina && envIsDev && typeof(window.ginaToolbar) && typeof(XHRData) != 'undefined' ) {
+                                            if ( gina && envIsDev && typeof(window.ginaToolbar) && XHRData ) {
                                                 window.ginaToolbar.update("data-xhr", XHRData);
                                             }
 
                                             // update view tab
-
-                                            if ( gina && envIsDev && typeof(window.ginaToolbar) && typeof(XHRView) != 'undefined' ) {
+                                            if ( gina && envIsDev && typeof(window.ginaToolbar) && XHRView ) {
                                                 window.ginaToolbar.update("view-xhr", XHRView);
                                             }
 
@@ -2639,7 +2979,13 @@ function ValidatorPlugin(rules, data, formId, culture) {
 
                                         $popin.loadContent(result.content);
 
-                                        result = XHRData;
+                                        // the parsed xhr-data in dev mode, delivered VERBATIM, or
+                                        // an object carrying the status outside dev mode where the
+                                        // transport inputs are absent (the handler contract is "an
+                                        // object", never null). The parsed data is never mutated:
+                                        // injecting a `status` key into the action's own data would
+                                        // change the payload every contained form already receives.
+                                        result = XHRData || { status: xhr.status };
                                         // #B571 — this branch returned after the bare event, so the
                                         // DECLARED success callback (bound to the `.hform` channel by
                                         // listenToXhrEvents) never ran for a form answering into a
@@ -2817,6 +3163,13 @@ function ValidatorPlugin(rules, data, formId, culture) {
 
                             if (hFormIsRequired)
                                 triggerEvent(gina, $target, 'success.' + id + '.hform', result);
+
+                            // #gh76 slice 2 — a swap that replaced or removed the SUBMITTING form
+                            // kept its listeners until the events above were delivered; its
+                            // replacement (same id) is bound only now
+                            if ( sendCtx.rebindSelf ) {
+                                finalizeSelfReplacement($target, id);
+                            }
 
                         } catch (err) {
 
@@ -4529,6 +4882,16 @@ function ValidatorPlugin(rules, data, formId, culture) {
                 $form.on('success.hform',  window[htmlSuccesEventCallback])
             }
         }
+        //data-gina-form-event-on-swap (#gh76 slice 2) -> afterswap.<id>.hform
+        var htmlSwapEventCallback =  $form.target.getAttribute('data-gina-form-event-on-swap') || null;
+        if (htmlSwapEventCallback != null) {
+            if ( /\((.*)\)/.test(htmlSwapEventCallback) ) {
+                // #M21a — function-call shape unsupported; register a bare handler on window instead
+                try { console.warn('[gina-form-event] function-call shape not supported on data-gina-form-event-on-swap — use a bare identifier and register the handler on window: '+ htmlSwapEventCallback); } catch (e) {}
+            } else {
+                $form.on('afterswap.hform', window[htmlSwapEventCallback])
+            }
+        }
         //data-gina-form-event-on-submit-error
         var htmlErrorEventCallback =  $form.target.getAttribute('data-gina-form-event-on-submit-error') || null;
         if (htmlErrorEventCallback != null) {
@@ -4783,7 +5146,7 @@ function ValidatorPlugin(rules, data, formId, culture) {
                 $validator.unbind               = unbindForm;
                 $validator.bind                 = bindForm;
                 $validator.reBind               = reBindForm;
-                $validator.bindRegion           = bindRegion;
+                $validator.bindRegion           = bindFormsInRegion;
                 $validator.destroy              = destroy;
 
                 var id          = null
@@ -6448,7 +6811,7 @@ function ValidatorPlugin(rules, data, formId, culture) {
     }
 
     /**
-     * bindRegion
+     * bindFormsInRegion
      *
      * #gh76 slice 2 — binds the forms of a freshly injected region through the SAME gate
      * the boot scan applies (#B549): a form is bound only when the markup opts it in (a
@@ -6475,7 +6838,12 @@ function ValidatorPlugin(rules, data, formId, culture) {
      * $region.innerHTML = fragment;
      * gina.validator.bindRegion($region); // => 1
      */
-    var bindRegion = function($root, options) {
+    // NOTE: deliberately NOT named `bindRegion`. `var` hoists over the whole module,
+    // so a local of that name shadows utils/dom's shared `bindRegion()` policy for
+    // every line of this file — which is how a swapped region's `<script src>` came
+    // to be silently dropped (#gh76 slice 2): `applySwap` called the bare name and
+    // got THIS forms-only binder. The PUBLISHED name stays `gina.validator.bindRegion`.
+    var bindFormsInRegion = function($root, options) {
         var bound   = 0
             , $v    = ( this && typeof(this.$forms) != 'undefined' ) ? this : instance
             , $forms = null
@@ -6561,6 +6929,9 @@ function ValidatorPlugin(rules, data, formId, culture) {
 
         if ($form.target.getAttribute('data-gina-form-event-on-submit-error'))
             removeListener(gina, $form, 'error.' + _id + '.hform');
+
+        if ($form.target.getAttribute('data-gina-form-event-on-swap'))
+            removeListener(gina, $form, 'afterswap.' + _id + '.hform');
 
         removeListener(gina, $form, 'validate.' + _id);
         removeListener(gina, $form, 'validated.' + _id);
@@ -11634,7 +12005,7 @@ function ValidatorPlugin(rules, data, formId, culture) {
         instance.setOptions             = setOptions;
         instance.getFormById            = getFormById;
         instance.validateFormById       = validateFormById;
-        instance.bindRegion             = bindRegion;
+        instance.bindRegion             = bindFormsInRegion;
         instance.resetErrorsDisplay     = resetErrorsDisplay;
         instance.resetFields            = resetFields;
         instance.handleErrorsDisplay    = handleErrorsDisplay;

@@ -397,12 +397,13 @@ describe('06 - validator arm/disarm call sites (source pins)', function () {
             + '(the #B346 pending carve-out is the only sanctioned widening, and its own arms refuse authored marks)');
     });
 
-    it('disarms on exactly the three terminal paths — and NOWHERE else', function () {
-        // 1 JSDoc @example + 3 call sites. The count is the guard: a fourth release added
+    it('disarms on exactly the four terminal paths — and NOWHERE else', function () {
+        // 1 JSDoc @example + 4 call sites. The count is the guard: a further release added
         // without thinking about in-flight ownership is how the mid-flight-clear bug returns.
+        // It earned its keep at #gh76 slice 2, catching path (d) below releasing unconditionally.
         var sites = validatorSrc.match(/disarmSubmitLoading\(/g) || [];
-        assert.equal(sites.length, 4,
-            'expected the JSDoc example plus exactly 3 disarm call sites, found ' + sites.length);
+        assert.equal(sites.length, 5,
+            'expected the JSDoc example plus exactly 4 disarm call sites, found ' + sites.length);
 
         // (a) validation-rejected — the #B247 motivating path, which never reaches an XHR
         assert.ok(/disarmSubmitLoading\(_loadingForm\)/.test(validatorSrc),
@@ -410,6 +411,13 @@ describe('06 - validator arm/disarm call sites (source pins)', function () {
         // (b) loadend — covers success, error, timeout and abort alike  (c) readyState 4
         var settles = validatorSrc.match(/\$form\.target\.removeAttribute\('data-gina-form-loading'\);\n\s*\/\/ #B247[\s\S]{0,300}?disarmSubmitLoading\(\$form\)/g) || [];
         assert.equal(settles.length, 2, 'expected the loadend + readyState-4 disarms, found ' + settles.length);
+        // (d) pre-send refusal (#gh76 slice 2) — a declared `data-gina-form-target` / `-swap`
+        //     that cannot be honoured, refused before xhr.open. Gated on ownership: with
+        //     `withRateLimit: false` a second attempt can be refused while the first is still
+        //     running, and both the release and `isSending` belong to that first request.
+        assert.ok(/if \( !ownedByEarlierSend \) \{[\s\S]{0,400}?disarmSubmitLoading\(\$form\);\n\s*\}/.test(validatorSrc),
+            'the pre-send refusal release must be gated on ownership, or a refused later attempt '
+            + 'clears the running request\'s loading state');
     });
 
     it('arming is FIRST-WINS — a second attempt mid-flight must not steal the stash', function () {

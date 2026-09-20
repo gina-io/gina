@@ -471,23 +471,21 @@ function handleXhr(xhr, $el, options, require) {
 
                             if ($popin) {
 
-                                XHRData = {};
+                                // #B575 — ONE tolerant parse: the hidden inputs are a dev-mode
+                                // transport, absent outside dev mode; dereferencing them raised a
+                                // false 422 and the popin was never loaded
+                                var _parsed = parseXhrHtmlAnswer(result.content);
+                                XHRData = _parsed.data;
+                                XHRView = _parsed.view;
                                 // update toolbar
-
                                 try {
-                                    XHRData = new DOMParser().parseFromString(result.content, 'text/html').getElementById('gina-without-layout-xhr-data');
-                                    XHRData = JSON.parse(decodeURIComponent(XHRData.value));
-
-                                    XHRView = new DOMParser().parseFromString(result.content, 'text/html').getElementById('gina-without-layout-xhr-view');
-                                    XHRView = JSON.parse(decodeURIComponent(XHRView.value));
-
                                     // update data tab
-                                    if ( gina && typeof(window.ginaToolbar) != 'undefined' && window.ginaToolbar && typeof(XHRData) != 'undefined' ) {
+                                    if ( gina && typeof(window.ginaToolbar) != 'undefined' && window.ginaToolbar && XHRData ) {
                                         window.ginaToolbar.update('data-xhr', XHRData);
                                     }
 
                                     // update view tab
-                                    if ( gina && typeof(window.ginaToolbar) != 'undefined' && window.ginaToolbar && typeof(XHRView) != 'undefined' ) {
+                                    if ( gina && typeof(window.ginaToolbar) != 'undefined' && window.ginaToolbar && XHRView ) {
                                         window.ginaToolbar.update('view-xhr', XHRView);
                                     }
 
@@ -497,7 +495,11 @@ function handleXhr(xhr, $el, options, require) {
 
                                 $popin.loadContent(result.content);
 
-                                result = XHRData;
+                                // the parsed xhr-data in dev mode, delivered VERBATIM, or an
+                                // object carrying the status outside dev mode where the transport
+                                // inputs are absent (the handler contract is "an object", never
+                                // null). The parsed data is never mutated.
+                                result = XHRData || { status: xhr.status };
                                 triggerEvent(gina, $target, 'success.' + id, result);
                                 // #B571 — this branch returned before the tail that emits the
                                 // declared-callback companion, so a link's
@@ -893,7 +895,13 @@ function on(event, cb) {
             addListener(gina, $target, event, function(e) {
 
                 //if ( typeof(e.defaultPrevented) != 'undefined' && e.defaultPrevented)
-                cancelEvent(e);
+                // #gh76 slice 2 — `beforeswap.<id>` is CANCELABLE by design: the listener
+                // decides with `preventDefault()` whether the swap happens, so the blanket
+                // cancel below must not pre-empt it (it would read as "every listener
+                // cancels"). Name-scoped, so no other event sees a difference.
+                if ( !/^beforeswap\./.test(e.type) ) {
+                    cancelEvent(e);
+                }
 
                 var data = null;
 
@@ -921,6 +929,52 @@ function on(event, cb) {
         return this
     }
 
+}
+
+/**
+ * parseXhrHtmlAnswer
+ *
+ * Parses a `text/html` XHR answer ONCE and reads the two hidden inputs a
+ * `renderWithoutLayout()` action splices in — `gina-without-layout-xhr-data` (the page data)
+ * and `gina-without-layout-xhr-view` — when they are present. They are a DEV-MODE transport:
+ * the server splices them only under `NODE_ENV_IS_DEV`, so outside dev mode both read `null`
+ * (#B575: the popin branches used to dereference the absent input and raise a false `422`).
+ * The inputs are removed from the parsed document so a swap never carries them into the page
+ * (inside a form they would be submitted; repeated swaps would duplicate their ids); the
+ * caller's raw `content` string is untouched.
+ *
+ * @function parseXhrHtmlAnswer
+ * @param {string} content - the answer body
+ * @returns {{doc: Document, data: (object|null), view: (object|null)}}
+ *
+ * @example
+ * var parsed = parseXhrHtmlAnswer(xhr.responseText);
+ * parsed.data;                // the action's data in dev mode, null otherwise
+ * parsed.doc.body.innerHTML;  // the fragment, hidden inputs stripped
+ */
+function parseXhrHtmlAnswer(content) {
+    var doc = new DOMParser().parseFromString(( typeof(content) == 'string' ) ? content : '', 'text/html');
+    var read = function(idName) {
+        var $input = doc.getElementById(idName), value = null;
+        if ( !$input ) {
+            return null;
+        }
+        value = $input.value;
+        try { $input.parentNode.removeChild($input); } catch (rmErr) {}
+        if ( typeof(value) != 'string' || value === '' ) {
+            return null;
+        }
+        try {
+            return JSON.parse(decodeURIComponent(value));
+        } catch (parseErr) {
+            return null;
+        }
+    };
+    return {
+        doc  : doc,
+        data : read('gina-without-layout-xhr-data'),
+        view : read('gina-without-layout-xhr-view')
+    };
 }
 
 /**

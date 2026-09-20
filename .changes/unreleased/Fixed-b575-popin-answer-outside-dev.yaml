@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'A form or link whose `text/html` answer is loaded into a popin no longer raises a false `422` outside dev mode. The two hidden inputs the popin branch parsed (`gina-without-layout-xhr-data` / `-view`) are spliced by the server only when `NODE_ENV_IS_DEV` is true, so on any other boot the branch dereferenced an absent element, the error callback ran with a `TypeError` message after a successful server write, and the popin was never loaded. Both branches now go through one tolerant parse: the popin loads, the callback receives the parsed data in dev mode and an object carrying `status` otherwise (#B575)'
+time: 2026-09-20T17:22:29+01:00
