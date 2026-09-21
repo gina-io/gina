@@ -1258,11 +1258,20 @@ function ValidatorPlugin(rules, data, formId, culture) {
      * declared or retargeted — is ignored too (`reason: 'noTarget'`). Never a 422: a
      * misconfiguration surfacing as an error after a successful write is the false-422
      * shape slice 1 removed. Dev-mode console notices name every refused or ignored value.
+     * SAME-ORIGIN ONLY. All three are honoured only from a response whose origin is the
+     * page's own (`xhr.responseURL` — the URL after redirects — against
+     * `window.location.origin`): a responder elsewhere may not choose the element its
+     * answer lands in, nor reshape or trim the swap the author declared. A cross-origin
+     * Retarget is refused exactly as an unresolvable one (no swap, `reason: 'crossOrigin'`);
+     * a cross-origin Reswap/Reselect is ignored and the declared value kept. Fail-closed: a
+     * missing or unparseable `responseURL`, or an opaque origin on either side, reads as
+     * not-same-origin. htmx has no such read because `selfRequestsOnly` refuses the
+     * cross-origin REQUEST; a form here posts to its raw `action`, so the gate is at the read.
      *
      * Returns the report — `null` when the answer carried none of the three — and stores it
      * on `sendCtx.overrides`, from where `beforeswap` and the success payload carry it.
      *
-     * @param {XMLHttpRequest} xhr - the settled transport (its `getResponseHeader`)
+     * @param {XMLHttpRequest} xhr - the settled transport (its `getResponseHeader` and `responseURL`)
      * @param {object} sendCtx - the per-send capture (`target`/`targetAttr`/`swap`/`select` mutated)
      * @param {HTMLFormElement} $target - the submitting form (the `this`/`closest`/`find` base)
      * @param {string} id - the form id (notices)
@@ -1293,6 +1302,50 @@ function ValidatorPlugin(rules, data, formId, culture) {
         ;
         if ( retarget === null && reswap === null && reselect === null ) {
             return null;
+        }
+        // #gh76 §6 — same-origin only. The headers are honoured from a response whose
+        // origin is the page's own: a responder elsewhere may not choose the element its
+        // answer lands in, nor reshape or trim the swap the author declared. htmx never
+        // needs this read (`selfRequestsOnly` refuses the cross-origin REQUEST); a form
+        // here posts to its raw `action`, so the gate belongs at the read. Fail-closed: no
+        // `responseURL` (a transport that cannot say where the answer came from), an
+        // unparseable one, or an opaque origin on either side (`'null'` — two opaque
+        // origins are never the same origin, whatever the string says) all read as
+        // not-same-origin. `responseURL` is the URL AFTER redirects, so a same-origin
+        // action that was redirected elsewhere is refused too.
+        var sameOrigin  = false
+            , resOrigin = 'an unknown origin'
+        ;
+        try {
+            var docOrigin = window.location.origin
+                , resURL  = xhr.responseURL
+            ;
+            if ( typeof(docOrigin) == 'string' && docOrigin !== '' && docOrigin !== 'null'
+                && typeof(resURL) == 'string' && resURL !== '' ) {
+                resOrigin  = new URL(resURL, window.location.href).origin;
+                sameOrigin = ( resOrigin === docOrigin );
+            }
+        } catch (originErr) {
+            sameOrigin = false;
+        }
+        if ( !sameOrigin ) {
+            report = {};
+            if ( retarget !== null ) {
+                report.retarget    = { value: retarget, applied: false, reason: 'crossOrigin' };
+                sendCtx.targetAttr = 'X-Gina-Retarget';
+                sendCtx.target     = null;
+                notice('`X-Gina-Retarget: '+ retarget +'` refused — the answer came from '+ resOrigin +', not from this page\'s origin; nothing swapped');
+            }
+            if ( reswap !== null ) {
+                report.reswap = { value: reswap, applied: false, reason: 'crossOrigin' };
+                notice('`X-Gina-Reswap: '+ reswap +'` ignored — the answer came from '+ resOrigin +', not from this page\'s origin; `'+ sendCtx.swap +'` kept');
+            }
+            if ( reselect !== null ) {
+                report.reselect = { value: reselect, applied: false, reason: 'crossOrigin' };
+                notice('`X-Gina-Reselect: '+ reselect +'` ignored — the answer came from '+ resOrigin +', not from this page\'s origin; `'+ ( sendCtx.select || 'the whole answer' ) +'` kept');
+            }
+            sendCtx.overrides = report;
+            return report;
         }
         report = {};
         if ( retarget !== null ) {
@@ -3675,7 +3728,8 @@ function ValidatorPlugin(rules, data, formId, culture) {
                                 applyResponseOverrides(xhr, sendCtx, $target, id);
 
                                 // #gh76 §6 — a Retarget that cannot be honoured: no swap, nowhere
-                                // (the popin included) — the server plainly meant somewhere else.
+                                // (the popin included) — the server plainly meant somewhere else,
+                                // or the answer came from another origin, which may not choose.
                                 // The handler still receives the answer, and out-of-band elements
                                 // still land below: they are addressed by id, not by the target.
                                 if ( sendCtx.overrides && sendCtx.overrides.retarget && !sendCtx.overrides.retarget.applied ) {

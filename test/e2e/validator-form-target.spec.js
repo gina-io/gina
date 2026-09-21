@@ -973,3 +973,137 @@ test.describe('gh#76 slice 4 §7 — request coordination on the swap target', (
         expect((s.list.match(/<b>saved<\/b>/g) || []).length, 'both appended, neither replaced the other').toBe(2);
     });
 });
+
+// ── gh#76 §6 — the same-origin gate: overrides are honoured from the page's own origin only ──
+//
+// A REAL second origin: the same machine on a different host string (127.0.0.1 against
+// localhost) and a different port, served by a small node server that answers the preflight
+// the validator's `X-Requested-With` forces and exposes the three headers through
+// `Access-Control-Expose-Headers` — everything CORS needs for the browser to hand them to the
+// page. The PAGE comes from the runtime server's own network address (`/x76-page?b64=`) — a
+// route-fulfilled document has no remote address, and Chromium then refuses its request to the
+// loopback sink before any network I/O (`net::ERR_FAILED`), which is what the first run measured.
+// Red-first (pre-gate dist): §47 and §48 FAIL — the cross-origin Retarget lands in #totals, the
+// cross-origin Reswap/Reselect reshape the swap; §49 is the same-origin control that passes on
+// both sides. If §47 ever reads `t0` on the PRE-gate bundle, CORS withheld the headers and the
+// harness cannot discriminate — fix the sink before trusting anything else.
+test.describe('gh#76 §6 — a cross-origin answer may not retarget, reswap or reselect', () => {
+    const http = require('http');
+    // An EPHEMERAL port per worker: Playwright discards a worker after a failing test and the
+    // next one runs beforeAll again — a fixed port collides with the socket the old worker
+    // still holds (measured: EADDRINUSE on the second and third arm of the first run).
+    let sink = null, SINK = null, sinkAnswer = null, sinkLog = { preflights: 0, posts: 0 }, sinkSelfCheck = null;
+
+    test.beforeAll(async () => {
+        sink = http.createServer((req, res) => {
+            const cors = { 'Access-Control-Allow-Origin': req.headers.origin || '*', 'Vary': 'Origin' };
+            if (req.method === 'OPTIONS') {
+                sinkLog.preflights++;
+                res.writeHead(204, Object.assign({ 'Access-Control-Allow-Methods': 'POST, OPTIONS', 'Access-Control-Allow-Headers': req.headers['access-control-request-headers'] || '*', 'Access-Control-Max-Age': '0' }, cors));
+                return res.end();
+            }
+            req.on('data', () => {});
+            req.on('end', () => {
+                sinkLog.posts++;
+                const a = sinkAnswer || ANSWERS.html;
+                res.writeHead(200, Object.assign({ 'Content-Type': a.contentType, 'Access-Control-Expose-Headers': 'X-Gina-Retarget, X-Gina-Reswap, X-Gina-Reselect' }, cors, a.headers || {}));
+                res.end(a.body);
+            });
+        });
+        await new Promise((r) => sink.listen(0, '127.0.0.1', r));
+        SINK = 'http://127.0.0.1:' + sink.address().port;
+        // Self-check from a plain client: the sink answers a preflight, so a silent sink under the
+        // browser can only be a browser-side decision (blocked, or sent elsewhere).
+        sinkSelfCheck = await new Promise((resolve) => {
+            const rq = http.request({ host: '127.0.0.1', port: sink.address().port, path: '/x76/xsave', method: 'OPTIONS',
+                headers: { Origin: BASE, 'Access-Control-Request-Method': 'POST', 'Access-Control-Request-Headers': 'x-requested-with' } },
+                (rs) => { rs.resume(); resolve(rs.statusCode + ' acao=' + (rs.headers['access-control-allow-origin'] || '-')); });
+            rq.on('error', (e) => resolve('ERR ' + e.message)); rq.end();
+        });
+    });
+    test.afterAll(async () => { await new Promise((r) => sink.close(r)); });
+    test.beforeEach(() => { sinkLog = { preflights: 0, posts: 0 }; sinkAnswer = null; });
+
+    /** The page form, posting to the second origin — the builder's action swapped, nothing else. */
+    function crossForm(attrs) {
+        const f = form(attrs);
+        expect(f.split('action="/x76/save"').length, 'the page form builder still carries the same-origin action once').toBe(2);
+        return f.replace('action="/x76/save"', 'action="' + SINK + '/x76/xsave"');
+    }
+    /** Submits the cross-origin form; returns what left the page, so a failure names the URL. */
+    async function submitCross(page) {
+        const action = await page.$eval('#hformform', (f) => f.getAttribute('action'));
+        let seen = null, outcome = 'no response and no failure reported';
+        page.on('requestfailed', (r) => { if (r.url().indexOf('/x76/xsave') > -1) { outcome = 'FAILED ' + r.method() + ' ' + ((r.failure() || {}).errorText || '?'); } });
+        page.on('response', (r) => { if (r.url().indexOf('/x76/xsave') > -1) { outcome = 'RESPONSE ' + r.request().method() + ' ' + r.status(); } });
+        const req = page.waitForRequest((r) => { if (r.method() === 'POST' && r.url().indexOf('/x76/xsave') > -1) { seen = r.url(); return true; } return false; }, { timeout: 5000 });
+        await page.click('#hformform-submit'); await req; await sleep(1500);
+        return { action: action, seen: seen, outcome: outcome };
+    }
+    /**
+     * The page from the runtime server's OWN network address (`/x76-page?b64=`), never fulfilled
+     * through page.route: a fulfilled document has no remote address, and Chromium then refuses
+     * its cross-origin request to the loopback sink before any network I/O (measured: the POST
+     * created, then `net::ERR_FAILED`; the sink, answering a plain client, heard nothing). No
+     * route is registered for these arms — the page, the bundle and the sink are all real.
+     */
+    async function gotoCross(page, o) {
+        await page.goto(BASE + '/x76-page?b64=' + Buffer.from(buildPage(o)).toString('base64url'));
+        await page.waitForFunction(() => !!(window.gina && window.gina.isFrameworkLoaded === true
+            && window.gina.hasPopinHandler === true && window.gina.validator
+            && window.gina.validator.$forms && window.gina.validator.$forms['hformform']), null, { timeout: 15000 });
+    }
+    const ALL3 = { 'X-Gina-Retarget': '#totals', 'X-Gina-Reswap': 'beforeend', 'X-Gina-Reselect': 'b' };
+
+    test('§47 a cross-origin answer carrying all three headers is refused: nothing swapped anywhere, success with swapped:false, every header reported crossOrigin (RED pre-gate)', async ({ page }) => {
+        const errors = collectPageErrors(page);
+        await gotoCross(page, { noPageForm: true, extra: crossForm('data-gina-form-target="#row-42"') });
+        sinkAnswer = Object.assign({}, ANSWERS.html, { headers: ALL3 });
+        const sent = await submitCross(page);
+        const s = await readState(page);
+        expect(errors).toEqual([]);
+        // Whether Chromium under Playwright's interception sends the preflight to the network is
+        // NOT asserted (measured 0 on the first run); the sink answers OPTIONS so the arm holds
+        // either way — what it tests is the gate, keyed on the transport's real responseURL.
+        expect(sinkLog.posts, 'the POST reached the second origin (action ' + sent.action + ' | sent ' + sent.seen + ' | sink ' + SINK + ' self-check ' + sinkSelfCheck + ' | preflights seen ' + sinkLog.preflights + ' | browser: ' + sent.outcome + ')').toBe(1);
+        expect(s.totals, 'the cross-origin Retarget did NOT land').toBe('t0');
+        expect(s.row, 'nor did the declared target — a refused Retarget means no swap at all').toBe('before');
+        expect(s.calls.error.length, 'never a 422: the request succeeded').toBe(0);
+        expect(s.calls.success.length).toBe(1);
+        const p = s.calls.success[0];
+        expect(p.kind).toBe('swap'); expect(p.swapped).toBe(false); expect(p.reason).toBe('retargetError'); expect(p.targetId).toBe(null);
+        expect(p.overrides).toEqual({
+            retarget: { value: '#totals',   applied: false, reason: 'crossOrigin' },
+            reswap:   { value: 'beforeend', applied: false, reason: 'crossOrigin' },
+            reselect: { value: 'b',         applied: false, reason: 'crossOrigin' }
+        });
+        expect(s.isSending, 'the form is released').toBe(false);
+    });
+
+    test('§48 a cross-origin answer carrying only Reswap/Reselect is ignored: the declared target takes the whole answer with the declared strategy (RED pre-gate)', async ({ page }) => {
+        const errors = collectPageErrors(page);
+        await gotoCross(page, { noPageForm: true, extra: crossForm('data-gina-form-target="#list"') });
+        sinkAnswer = Object.assign({}, ANSWERS.li, { headers: { 'X-Gina-Reswap': 'beforeend', 'X-Gina-Reselect': 'li' } });
+        const sent = await submitCross(page);
+        const s = await readState(page);
+        expect(errors).toEqual([]);
+        expect(sinkLog.posts, 'the POST reached the second origin (action ' + sent.action + ' | sent ' + sent.seen + ' | sink ' + SINK + ' self-check ' + sinkSelfCheck + ' | preflights seen ' + sinkLog.preflights + ' | browser: ' + sent.outcome + ')').toBe(1);
+        expect(s.list, 'innerHTML (declared) replaced the list with the WHOLE answer — noise included').toContain('id="noise"');
+        expect(s.list, 'and the original rows are gone — not appended beside them').not.toContain('before');
+        expect(s.calls.success.length).toBe(1);
+        const p = s.calls.success[0];
+        expect(p.swapped).toBe(true); expect(p.targetId).toBe('list'); expect(p.swap).toBe('innerHTML');
+        expect(p.overrides).toEqual({ reswap: { value: 'beforeend', applied: false, reason: 'crossOrigin' }, reselect: { value: 'li', applied: false, reason: 'crossOrigin' } });
+    });
+
+    test('§49 CONTROL — the same three headers from the page\'s own origin apply (green on both sides)', async ({ page }) => {
+        const errors = collectPageErrors(page);
+        await routeScene(page, { headers: { 'X-Gina-Retarget': '#totals', 'X-Gina-Reswap': 'innerHTML', 'X-Gina-Reselect': 'b' } }); await gotoAndBoot(page, true);
+        await submitPage(page, { formDelay: 100 });
+        const s = await readState(page);
+        expect(errors).toEqual([]);
+        expect(s.totals).toBe('saved');
+        expect(s.calls.success.length).toBe(1);
+        expect(s.calls.success[0].overrides).toEqual({ retarget: { value: '#totals', applied: true }, reswap: { value: 'innerHTML', applied: true }, reselect: { value: 'b', applied: true } });
+    });
+});

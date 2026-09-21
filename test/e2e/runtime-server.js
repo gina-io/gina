@@ -16,6 +16,10 @@
  *                                         a11y harness; its stylesheet link resolves
  *                                         through this server's /css route)
  *   GET /js/gina.min.js                -> built bundle (dist)
+ *   GET /x76-page?b64=<base64url html> -> that page, from THIS origin's network address
+ *                                         (gh#76 §6: a page.route-fulfilled document has no
+ *                                         remote address and Chromium refuses its requests
+ *                                         to a loopback sink outright)
  *   GET /js/gina.onload.js             -> built onload (dist), whisper tokens
  *                                         substituted with harness stub values
  *   GET /css/vendor/gina/gina.min.css  -> built stylesheet (dist)
@@ -417,6 +421,19 @@ const server = http.createServer(function (req, res) {
         // flip hFormIsRequired on a scene shared with the autocomplete-caret specs.
         if (url === '/js/gina.onload.hform.js') {
             return send(res, 200, 'application/javascript; charset=utf-8', renderOnload(HFORM_FORMS_JSON));
+        }
+        // gh#76 §6 — a page BUILT BY THE SPEC, served from this origin's network address rather
+        // than fulfilled through page.route: a fulfilled document has no remote address, and a
+        // 2026 Chromium then refuses its request to a loopback sink before any network I/O
+        // (net::ERR_FAILED; measured with the sink answering a plain client) under its
+        // local-network-access checks. The whole page rides `?b64=` (base64url), so page
+        // construction stays in the spec.
+        if (url === '/x76-page') {
+            var b64  = ((req.url.split('?')[1] || '').split('&').filter(function (p) { return p.indexOf('b64=') === 0; })[0] || '').slice(4);
+            var html = '';
+            try { html = b64 ? Buffer.from(b64, 'base64url').toString('utf8') : ''; } catch (e) { html = ''; }
+            if (!html) { return send(res, 400, 'text/plain; charset=utf-8', 'x76-page: b64 missing or undecodable'); }
+            return send(res, 200, 'text/html; charset=utf-8', html);
         }
         if (url === '/hform' || url === '/hform.html') {
             return send(res, 200, 'text/html; charset=utf-8',

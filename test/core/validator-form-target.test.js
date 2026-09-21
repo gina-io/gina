@@ -16,6 +16,11 @@
  *      `X-Gina-Reswap` / `X-Gina-Reselect` read at settle, the asymmetric invalid-value rule
  *      (a bad Retarget drops the target — no swap; a bad Reswap/Reselect is ignored, the
  *      declared value kept; either without a target is `noTarget`), the report shape.
+ *  §11 the §6 SAME-ORIGIN gate — every override is honoured only from the page's own origin
+ *      (`responseURL` against `location.origin`), fail-closed on a missing, empty or
+ *      unparseable `responseURL` and on an opaque origin either side; a cross-origin Retarget
+ *      refuses (no swap, `crossOrigin`), Reswap/Reselect are ignored and the declared values
+ *      kept; plus a pin that the read sits after the all-null return and before the resolver.
  * WHAT IT PINS
  *  §06 the wiring: events registered, `sendCtx` shape, the capture placed after
  *      `listenToXhrEvents` and before the upload marker, the settle precedence (declared
@@ -664,11 +669,16 @@ describe('§06 wiring pins', function () {
 // ── gh#76 §6 — the server's last word: X-Gina-Retarget / X-Gina-Reswap / X-Gina-Reselect ──
 
 describe('§09 applyResponseOverrides — the response-header overrides, extracted', function () {
-    /** A settled transport: header lookup is case-insensitive, as a real XMLHttpRequest's is. */
+    /**
+     * A settled transport: header lookup is case-insensitive, as a real XMLHttpRequest's is.
+     * It answers from the page's own origin (the jsdom page is `http://localhost/page`): the
+     * gh#76 §6 same-origin gate reads `responseURL`, and a fake without one reads as
+     * cross-origin — §11 builds its own transports for that.
+     */
     function xhrWith(headers) {
         var map = {};
         Object.keys(headers || {}).forEach(function (k) { map[k.toLowerCase()] = headers[k]; });
-        return { getResponseHeader: function (name) { var v = map[String(name).toLowerCase()]; return ( typeof(v) == 'undefined' ) ? null : v; } };
+        return { responseURL: 'http://localhost/x76/save', getResponseHeader: function (name) { var v = map[String(name).toLowerCase()]; return ( typeof(v) == 'undefined' ) ? null : v; } };
     }
     function scene(html) {
         var w = win(html || '<ul id="list"><li id="row" class="r"><form id="f"><span class="in">i</span></form></li></ul><div id="totals">t0</div>');
@@ -1181,5 +1191,110 @@ describe('§12 gh#76 §7 wiring pins', function () {
         assert.ok(/\n\s*return;\n/.test(block), 'and it returns before any status dispatch');
         var transport = a.indexOf("'transportError': true,");
         assert.ok(transport > guard, 'the #B447 transport arm it must never reach is below');
+    });
+});
+
+describe('§11 applyResponseOverrides — the same-origin gate (gh#76 §6), extracted', function () {
+    /** A settled transport at a chosen `responseURL`; `undefined` leaves the property ABSENT. */
+    function xhrAt(responseURL, headers) {
+        var map = {};
+        Object.keys(headers || {}).forEach(function (k) { map[k.toLowerCase()] = headers[k]; });
+        var x = { getResponseHeader: function (name) { var v = map[String(name).toLowerCase()]; return ( typeof(v) == 'undefined' ) ? null : v; } };
+        if ( typeof(responseURL) != 'undefined' ) { x.responseURL = responseURL; }
+        return x;
+    }
+    var HTML = '<ul id="list"><li id="row" class="r"><form id="f"><span class="in">i</span></form></li></ul><div id="totals">t0</div>';
+    function build(w) {
+        assert.ok(srcOverrides, 'applyResponseOverrides is declared in the source (extraction control)');
+        w.eval('window.__applyResponseOverrides = (function(){ var envIsDev = false; var SWAP_STRATEGIES = ' + mStrategies[1] + '; ' + srcResolve + ' ' + srcOverrides + ' return applyResponseOverrides; }());');
+        return { w: w, $f: w.document.getElementById('f') };
+    }
+    function scene() { return build(win(HTML)); }
+    /** A document with an OPAQUE origin — jsdom's default `about:blank` page. */
+    function opaqueScene() {
+        var dom = new JSDOM('<!DOCTYPE html><html><body>' + HTML + '</body></html>', { runScripts: 'outside-only' });
+        assert.equal(dom.window.location.origin, 'null', 'control: the document origin is opaque');
+        return build(dom.window);
+    }
+    function ctx(over) {
+        var c = { popin: null, target: null, swap: 'innerHTML', select: null, targetAttr: null, rebindSelf: false };
+        Object.keys(over || {}).forEach(function (k) { c[k] = over[k]; });
+        return c;
+    }
+    var ALL = { 'X-Gina-Retarget': '#totals', 'X-Gina-Reswap': 'beforeend', 'X-Gina-Reselect': 'li' };
+    function refusedAll(r) {
+        assert.deepEqual(plain(r), {
+            retarget: { value: '#totals',   applied: false, reason: 'crossOrigin' },
+            reswap:   { value: 'beforeend', applied: false, reason: 'crossOrigin' },
+            reselect: { value: 'li',        applied: false, reason: 'crossOrigin' }
+        });
+    }
+
+    it('CONTROL — a same-origin answer (the jsdom page is http://localhost) applies all three', function () {
+        var s = scene(), c = ctx({ target: s.w.document.getElementById('row'), targetAttr: '#row' });
+        var r = s.w.__applyResponseOverrides(xhrAt('http://localhost/x76/save', ALL), c, s.$f, 'f');
+        assert.deepEqual(plain(r), { retarget: { value: '#totals', applied: true }, reswap: { value: 'beforeend', applied: true }, reselect: { value: 'li', applied: true } });
+        assert.equal(c.target.id, 'totals'); assert.equal(c.swap, 'beforeend'); assert.equal(c.select, 'li');
+    });
+    it('a cross-origin answer carrying all three: every one refused as crossOrigin — the Retarget drops the target (no swap), Reswap/Reselect keep the declared values', function () {
+        var s = scene(), c = ctx({ target: s.w.document.getElementById('row'), targetAttr: '#row', swap: 'outerHTML', select: '.r' });
+        var r = s.w.__applyResponseOverrides(xhrAt('http://127.0.0.1/x76/save', ALL), c, s.$f, 'f');
+        refusedAll(r);
+        assert.equal(c.target, null, 'the target is dropped — the refused-Retarget branch at settle keys on applied:false');
+        assert.equal(c.targetAttr, 'X-Gina-Retarget', 'and the header is named as the attribute that failed');
+        assert.equal(c.swap, 'outerHTML'); assert.equal(c.select, '.r');
+        assert.equal(c.overrides, r, 'stored on the capture');
+    });
+    it('a cross-origin answer carrying ONLY Reswap/Reselect: ignored as crossOrigin, the declared target and values stand — no retarget entry, so the settle fork proceeds', function () {
+        var s = scene(), row = s.w.document.getElementById('row'), c = ctx({ target: row, targetAttr: '#row', select: 'li' });
+        var r = s.w.__applyResponseOverrides(xhrAt('http://127.0.0.1/x76/save', { 'X-Gina-Reswap': 'delete', 'X-Gina-Reselect': '.in' }), c, s.$f, 'f');
+        assert.deepEqual(plain(r), { reswap: { value: 'delete', applied: false, reason: 'crossOrigin' }, reselect: { value: '.in', applied: false, reason: 'crossOrigin' } });
+        assert.equal(c.target, row); assert.equal(c.swap, 'innerHTML'); assert.equal(c.select, 'li');
+        assert.equal('retarget' in r, false);
+    });
+    it('a different scheme or port is another origin (https://localhost, http://localhost:8080) — and a redirect target is what responseURL reports', function () {
+        var s = scene();
+        assert.equal(s.w.__applyResponseOverrides(xhrAt('https://localhost/x76/save', ALL), ctx(), s.$f, 'f').retarget.reason, 'crossOrigin', 'scheme');
+        assert.equal(s.w.__applyResponseOverrides(xhrAt('http://localhost:8080/x76/save', ALL), ctx(), s.$f, 'f').retarget.reason, 'crossOrigin', 'port');
+        assert.equal(s.w.__applyResponseOverrides(xhrAt('http://localhost/elsewhere?after=redirect', ALL), ctx(), s.$f, 'f').retarget.applied, true, 'a same-origin redirect target still applies');
+    });
+    it('FAIL-CLOSED — a transport with NO responseURL refuses: the gate cannot place the answer', function () {
+        var s = scene(), c = ctx();
+        var r = s.w.__applyResponseOverrides(xhrAt(undefined, ALL), c, s.$f, 'f');
+        refusedAll(r); assert.equal(c.target, null);
+    });
+    it('FAIL-CLOSED — an empty responseURL refuses', function () {
+        var s = scene(); refusedAll(s.w.__applyResponseOverrides(xhrAt('', ALL), ctx(), s.$f, 'f'));
+    });
+    it('FAIL-CLOSED — an unparseable or non-string responseURL refuses without throwing', function () {
+        var s = scene();
+        refusedAll(s.w.__applyResponseOverrides(xhrAt('nonsense://[', ALL), ctx(), s.$f, 'f'));
+        refusedAll(s.w.__applyResponseOverrides(xhrAt(123, ALL), ctx(), s.$f, 'f'));
+    });
+    it('FAIL-CLOSED — an answer whose URL has an opaque origin (about:blank) is not same-origin with an http page', function () {
+        var s = scene(); refusedAll(s.w.__applyResponseOverrides(xhrAt('about:blank', ALL), ctx(), s.$f, 'f'));
+    });
+    it('FAIL-CLOSED — an OPAQUE document (origin "null") never reads an override, even from an answer whose origin is also "null"', function () {
+        var s = opaqueScene();
+        var r = s.w.__applyResponseOverrides(xhrAt('about:blank', { 'X-Gina-Retarget': '#totals' }), ctx(), s.$f, 'f');
+        assert.equal(r.retarget.reason, 'crossOrigin', "'null' === 'null' is not same-origin");
+    });
+    it('CONTROL — no header at all returns null BEFORE the origin is consulted: a transport that throws on getResponseHeader and has no responseURL still reads as "no header"', function () {
+        var s = scene(), c = ctx();
+        assert.equal(s.w.__applyResponseOverrides({ getResponseHeader: function () { throw new Error('boom'); } }, c, s.$f, 'f'), null);
+        assert.equal('overrides' in c, false);
+    });
+    it('PIN — the origin read sits after the all-null early return and before any resolveSwapTarget call, and every header present reads crossOrigin', function () {
+        var a = active(valSrc);
+        var fn      = a.indexOf('var applyResponseOverrides = function(');
+        var early   = a.indexOf('if ( retarget === null && reswap === null && reselect === null ) {', fn);
+        var origin  = a.indexOf('xhr.responseURL', fn);
+        var resolve = a.indexOf('resolveSwapTarget($target, retarget)', fn);
+        assert.ok(fn > -1 && early > fn && origin > early && resolve > origin, 'early return < responseURL read < resolver');
+        var block = a.slice(origin, resolve);
+        assert.equal((block.match(/reason: 'crossOrigin'/g) || []).length, 3, 'one crossOrigin entry per header');
+        assert.ok(/docOrigin !== 'null'/.test(block), 'the opaque-document clause');
+        assert.ok(/new URL\(resURL, window\.location\.href\)\.origin/.test(block), 'resolved against the page URL');
+        assert.ok(/sendCtx\.target\s*=\s*null;/.test(block), 'a refused Retarget drops the target');
     });
 });
