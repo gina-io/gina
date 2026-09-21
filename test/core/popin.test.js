@@ -2756,3 +2756,79 @@ describe('35 - #B300: the always-false id-backfill guards stay deleted', functio
             'the id-rewrite body must stay deleted — and must NOT be "repaired": it would set the clicked node\'s id to `evt + "." + _nextId()`, breaking the invariant the #B299/#B301 note depends on (the $close teardown sweep finds this listener via `gina.events[eId] == eId`, i.e. element id === event name) and leaking the listener');
     });
 });
+
+/**
+ * 22 — applyContent: the two fallbacks announced, and a malformed selector no longer throws (#B580).
+ *
+ * Drives the REAL function — brace-walk-extracted from the source, not the §21 replica (which
+ * omits `$popin` and mirrors the PRE-#B580 body). Red-first lever: `GINA_POPIN_SRC=<git show
+ * HEAD~:…/popin/main.js>` — on the pre-fix source the extraction of `warnPartialTarget` yields
+ * null, 22.1 throws inside the arm, 22.2/22.3 red on the missing notice, 22.6 red on the missing
+ * `try`, and 22.5 reds on its LAST assertion only (pre-fix the malformed selector throws instead of
+ * falling back). 22.4 is the one pure control — green on both trees, which is its job.
+ */
+describe('22 - Popin: applyContent — fallbacks announced, malformed selector falls back (#B580, REAL function)', function () {
+    var SRC22 = process.env.GINA_POPIN_SRC ? fs.readFileSync(process.env.GINA_POPIN_SRC, 'utf8') : getPopinSrc();
+    function extract22(declRe, label) {
+        var re = new RegExp(declRe, 'mg'); var m = re.exec(SRC22);
+        if ( !m ) { return null; }
+        var i = m.index, depth = 0, started = false;
+        for (; i < SRC22.length; i++) { var ch = SRC22[i]; if (ch === '{') { depth++; started = true; } else if (ch === '}') { depth--; if (started && depth === 0) { i++; break; } } }
+        return SRC22.slice(m.index, i);
+    }
+    var srcApply22 = extract22('^[ \\t]*function applyContent\\(', 'applyContent');
+    var srcWarn22  = extract22('^[ \\t]*function warnPartialTarget\\(', 'warnPartialTarget');   // null on a pre-#B580 source
+
+    function scene22(opts) {
+        var o = opts || {};
+        var w = new JSDOM('<!DOCTYPE html><body><dialog id="d">' + (o.dialog || '<b class="chrome">x</b><div id="slot">old</div>') + '</dialog></body>', { runScripts: 'outside-only' }).window;
+        var warns = [];
+        w.console.warn = function (m) { warns.push(String(m)); };
+        w.eval('window.gina = { config: { envIsDev: ' + (('envIsDev' in o) ? !!o.envIsDev : true) + ' } };');
+        var apply = w.eval('(function(){ ' + (srcWarn22 || '') + ' ' + srcApply22 + ' return applyContent; })()');
+        var $el = w.document.getElementById('d'); var threw = null;
+        try { apply($el, o.answer, { name: 'x22' }, o.target); } catch (e) { threw = e.name; }
+        return { threw: threw, dialog: $el.innerHTML, warns: warns };
+    }
+
+    it('22.1 a MALFORMED selector no longer throws: full replace, one notice naming the popin and the engine error (RED pre-#B580: SyntaxError)', function () {
+        assert.ok(srcWarn22, 'warnPartialTarget is declared (absent on a pre-#B580 source)');
+        var s = scene22({ target: '#slot >', answer: '<p>whole</p>' });
+        assert.equal(s.threw, null, 'no throw');
+        assert.equal(s.dialog, '<p>whole</p>', 'the documented fallback: a full replace');
+        assert.equal(s.warns.length, 1);
+        assert.match(s.warns[0], /\[gina\/popin\] popin `x22`: `data-gina-dialog-target="#slot >"` is not a valid selector \(/);
+    });
+    it('22.2 a selector matching nothing in the OPEN DIALOG: full replace (as before) — now announced', function () {
+        var s = scene22({ target: '#nowhere', answer: '<p>whole</p>' });
+        assert.equal(s.threw, null);
+        assert.equal(s.dialog, '<p>whole</p>');
+        assert.equal(s.warns.length, 1);
+        assert.match(s.warns[0], /matched nothing in the open dialog — the whole dialog was replaced instead/);
+    });
+    it('22.3 a selector matching nothing in the ANSWER: the whole answer body into the slot (as before) — the SECOND fallback, now announced', function () {
+        var s = scene22({ target: '#slot', answer: '<header>H</header><p>body</p>' });
+        assert.equal(s.threw, null);
+        assert.equal(s.dialog, '<b class="chrome">x</b><div id="slot"><header>H</header><p>body</p></div>', 'chrome kept, whole body in the slot');
+        assert.equal(s.warns.length, 1);
+        assert.match(s.warns[0], /matched nothing in the answer — the whole answer went into the slot/);
+    });
+    it('22.4 CONTROL — the slot present on BOTH sides: the partial swap, and NO notice (green on both trees)', function () {
+        var s = scene22({ target: '#slot', answer: '<header>H</header><div id="slot"><p>fresh</p></div>' });
+        assert.equal(s.threw, null);
+        assert.equal(s.dialog, '<b class="chrome">x</b><div id="slot"><p>fresh</p></div>');
+        assert.deepEqual(s.warns, []);
+    });
+    it('22.5 outside dev mode the three misses stay SILENT (the silence half is green on both trees); the malformed arm still falls back — RED pre-#B580 on that assertion', function () {
+        assert.deepEqual(scene22({ target: '#nowhere', answer: '<p>w</p>', envIsDev: false }).warns, [], 'dialog-side miss');
+        assert.deepEqual(scene22({ target: '#slot', answer: '<p>w</p>', envIsDev: false }).warns, [], 'answer-side miss');
+        var bad = scene22({ target: '#slot >', answer: '<p>w</p>', envIsDev: false });
+        assert.deepEqual(bad.warns, [], 'malformed selector');
+        assert.equal(bad.dialog, '<p>w</p>', 'and it still falls back rather than throwing');
+    });
+    it('22.6 source pin — the dialog-side read sits inside a `try`, and the answer-side miss is an explicit branch (RED pre-#B580)', function () {
+        assert.ok(/try\s*\{\s*\n\s*\$slot\s*=\s*\$el\.querySelector\(partialTarget\);/.test(srcApply22), 'the read the engine can refuse is guarded');
+        assert.ok(/\$incoming\s*=\s*parsed\.querySelector\(partialTarget\);\s*\n\s*if\s*\(\s*!\$incoming\s*\)/.test(srcApply22), 'the answer-side miss is a named branch, not a bare `||`');
+        assert.equal(srcApply22.indexOf('|| parsed.body'), -1, 'the silent `|| parsed.body` is gone');
+    });
+});

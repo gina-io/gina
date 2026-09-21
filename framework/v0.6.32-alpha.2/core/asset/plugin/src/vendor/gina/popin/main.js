@@ -621,28 +621,94 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/loading-state', 'lib/merge'
         }
 
         /**
-         * applyContent
+         * warnPartialTarget
          *
-         * Full (default): replace the whole element — byte-identical to the legacy
-         * `$el.innerHTML = html.trim()`, so legacy popins are unaffected.
-         * Partial (`partialTarget` set): parse the fetched HTML with DOMParser and swap
-         * only the `partialTarget` region, so chrome (close button, header/footer) and
-         * its bindings survive. Falls back to full-replace if the slot is absent.
+         * Dev-mode notice for the partial-swap fallbacks (#B580). Gated on
+         * `gina.config.envIsDev` like the CORS trace below, so production stays
+         * silent exactly as the guide promises; plain `console.warn`, the shape
+         * warnDeprecatedOnce uses. One line per event, naming the popin, the
+         * selector and which fallback ran — the three silent decisions this file
+         * used to make with no trace at all.
          *
          * @inner
+         * @param {object|null} $popin - the popin (its `name` goes in the message)
+         * @param {string} partialTarget - the declared `data-gina-dialog-target`
+         * @param {string} what - `invalid` | `noSlot` | `noRegion`
+         * @param {Error} [err] - the engine's error, for `invalid`
+         *
+         * @returns {undefined}
+         */
+        function warnPartialTarget($popin, partialTarget, what, err) {
+            var isDev = ( typeof(gina) != 'undefined' && gina && gina.config && gina.config.envIsDev ) ? true : false;
+            if ( !isDev || typeof(console) == 'undefined' || typeof(console.warn) != 'function' ) {
+                return;
+            }
+            var name = ( $popin && $popin.name ) ? $popin.name : '(unknown)';
+            var why  = ( what === 'invalid' )
+                ? 'is not a valid selector ('+ ( err && err.message ? err.message : String(err) ) +') — the whole dialog was replaced instead'
+                : ( what === 'noSlot' )
+                    ? 'matched nothing in the open dialog — the whole dialog was replaced instead'
+                    : 'matched nothing in the answer — the whole answer went into the slot';
+            try {
+                console.warn('[gina/popin] popin `'+ name +'`: `data-gina-dialog-target="'+ partialTarget +'"` '+ why +'.');
+            } catch (e) {}
+        }
+
+        /**
+         * applyContent
+         *
+         * Writes a loaded HTML body into the dialog element.
+         *
+         * Full (`partialTarget` absent): `$el.innerHTML = html.trim()`.
+         *
+         * Partial (`partialTarget` set): ONE plain CSS selector, applied on BOTH
+         * sides — it locates the slot in the OPEN DIALOG and the region in the
+         * parsed answer — and only the slot's CONTENTS are swapped, so chrome
+         * (close button, header/footer) and its bindings survive. That makes the
+         * attribute the dialog-scoped sibling of `data-gina-form-select`, not of
+         * `data-gina-form-target`: there is nothing here to resolve relative to an
+         * element, so the `this` / `closest` / `find` grammar does not apply.
+         *
+         * Three fallbacks, all deliberate (a popin open is a read the user can
+         * retry, so working-but-wrong beats refusing) and each now announced in
+         * dev mode (#B580 — before, the first THREW uncaught and the other two were
+         * silent):
+         *  - a selector the engine refuses         → full replace;
+         *  - a selector matching nothing in the dialog → full replace;
+         *  - a selector matching nothing in the answer → the whole answer body into the slot.
+         *
+         * @inner
+         * @param {HTMLElement} $el - the dialog element
+         * @param {string} html - the loaded body
+         * @param {object|null} $popin - the popin (for the notice)
+         * @param {string|null} partialTarget - the declared selector, or null
+         *
+         * @returns {undefined}
          */
         function applyContent($el, html, $popin, partialTarget) {
             if ( !partialTarget ) {
                 $el.innerHTML = ( typeof(html) == 'string' ) ? html.trim() : '';
                 return;
             }
-            var $slot = $el.querySelector(partialTarget);
-            if ( !$slot ) {
+            var $slot = null, parsed = null, $incoming = null;
+            try {
+                $slot = $el.querySelector(partialTarget);
+            } catch (badSelector) {
+                warnPartialTarget($popin, partialTarget, 'invalid', badSelector);
                 $el.innerHTML = ( typeof(html) == 'string' ) ? html.trim() : '';
                 return;
             }
-            var parsed = new DOMParser().parseFromString(html, 'text/html');
-            var $incoming = parsed.querySelector(partialTarget) || parsed.body;
+            if ( !$slot ) {
+                warnPartialTarget($popin, partialTarget, 'noSlot');
+                $el.innerHTML = ( typeof(html) == 'string' ) ? html.trim() : '';
+                return;
+            }
+            parsed    = new DOMParser().parseFromString(html, 'text/html');
+            $incoming = parsed.querySelector(partialTarget);
+            if ( !$incoming ) {
+                warnPartialTarget($popin, partialTarget, 'noRegion');
+                $incoming = parsed.body;
+            }
             $slot.innerHTML = $incoming.innerHTML;
         }
 
