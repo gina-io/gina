@@ -28,6 +28,8 @@
  *      `.value` dereference left, the tail's `finalizeSelfReplacement`, the declarative
  *      `data-gina-form-event-on-swap` hook bound and unbound, `hFormIsRequired` including
  *      it, and the `on()` wrapper's `beforeswap.` exception.
+ *  §13 `warnIfOldRuleRouted` — the containment dev warn (arm I of the issue's acceptance
+ *      table), which the e2e harness cannot reach: it serves `envIsDev: 'false'`.
  *  §10 the gh#76 §6 wiring: the read sits inside the html branch, after the answer is known
  *      to be HTML and before the target fork (never on the JSON branch); the refused-Retarget
  *      branch precedes the fork; `beforeswap` and the payload carry the report only when set;
@@ -78,6 +80,10 @@ var srcFinalize = extract(valSrc, '^[ \\t]*var finalizeSelfReplacement = functio
 var srcParse    = extract(evtSrc, '^function parseXhrHtmlAnswer\\(', 'parseXhrHtmlAnswer');
 var srcOob      = extract(evtSrc, '^function applyOobSwaps\\(', 'applyOobSwaps');
 var srcWarnOob  = extract(valSrc, '^[ \\t]*var warnOobRefusals = function\\(', 'warnOobRefusals');
+// gh#76 slice 1 — the containment dev warn. Lazily extracted like the §6/§7 seams below, so a
+// pre-slice-1 source reds §13 alone rather than failing the file at load.
+var srcWarnRouted = null;
+try { srcWarnRouted = extract(valSrc, '^[ \\t]*var warnIfOldRuleRouted = function\\(', 'warnIfOldRuleRouted'); } catch (absent) { srcWarnRouted = null; }
 var mStrategies = valSrc.match(/^[ \t]*var SWAP_STRATEGIES = (\[[^\]]+\]);/m);
 // gh#76 §6 — extracted lazily so a pre-§6 source (the red-first lever) reds §09 alone, not the file
 var srcOverrides = null;
@@ -1296,5 +1302,66 @@ describe('§11 applyResponseOverrides — the same-origin gate (gh#76 §6), extr
         assert.ok(/docOrigin !== 'null'/.test(block), 'the opaque-document clause');
         assert.ok(/new URL\(resURL, window\.location\.href\)\.origin/.test(block), 'resolved against the page URL');
         assert.ok(/sendCtx\.target\s*=\s*null;/.test(block), 'a refused Retarget drops the target');
+    });
+});
+
+/**
+ * §13 `warnIfOldRuleRouted` — the containment dev warn (gh#76 slice 1).
+ *
+ * This is arm I of the issue's acceptance table: "attribute absent, not in a popin, a popin
+ * active → legacy payload (raw HTML), nothing inserted, dev warn". The first two halves are
+ * driven end-to-end by the sibling popin runtime spec (its §02 open / §03 loading); the warn
+ * is not, and CANNOT be there — the e2e harness serves `page.environment.envIsDev: 'false'`
+ * (test/e2e/runtime-server.js) and that spec's §18 depends on the non-dev scene. So the warn
+ * is pinned here, with `envIsDev` injected, exactly as §08 pins `warnOobRefusals`.
+ *
+ * Both message branches are driven, because the two differ in what they tell the reader the
+ * OLD routing rule would have done — replaced the popin's content, or raised a false 422.
+ */
+describe('§13 warnIfOldRuleRouted — the containment dev warn, extracted', function () {
+    function scene(opts) {
+        var o = opts || {};
+        var w = win('<form id="f"><button>s</button></form>');
+        var warns = [];
+        w.console.warn = function (m) { warns.push(String(m)); };
+        var gina = { popin: o.noPopinPlugin ? null : {
+            getActivePopin: function () { return o.active || null; },
+            $popins:        o.$popins || {},
+            activePopinId:  o.activePopinId || null
+        } };
+        var fn = w.eval('(function (envIsDev, gina) { ' + srcWarnRouted + ' return warnIfOldRuleRouted; })')(
+            ('envIsDev' in o) ? o.envIsDev : true, gina
+        );
+        fn(o.captured || null, o.routed || null, w.document.getElementById('f'), o.what || 'answer');
+        return { warns: warns };
+    }
+
+    it('a page form answered while a popin is OPEN: the warn names the form, the popin, and what the old rule would have done', function () {
+        var s = scene({ active: { name: 'x76', isOpen: true } });
+        assert.equal(s.warns.length, 1);
+        assert.match(s.warns[0], /\[FormValidator\]\[popin\] the HTML answer of form `#f` is delivered to its own handler/);
+        assert.match(s.warns[0], /not inside popin `x76`/);
+        assert.match(s.warns[0], /open \(the former routing rule would have replaced its content\)/);
+    });
+
+    it('the LOADING branch is reached through `activePopinId` when getActivePopin() is empty, and names the false 422', function () {
+        var s = scene({ active: null, $popins: { x76: { name: 'x76', isOpen: false } }, activePopinId: 'x76' });
+        assert.equal(s.warns.length, 1);
+        assert.match(s.warns[0], /loading, not open \(the former routing rule would have raised a false 422 error\)/);
+    });
+
+    it('`what` is carried, so the redirect call site reads as a redirect and not as an answer', function () {
+        var s = scene({ active: { name: 'x76', isOpen: true }, what: 'redirect' });
+        assert.equal(s.warns.length, 1);
+        assert.match(s.warns[0], /the HTML redirect of form `#f`/);
+    });
+
+    it('CONTROLS — silent outside dev mode, when the answer WAS routed, when a popin WAS captured, with no popin in any state, and with no popin plugin', function () {
+        var open = { name: 'x76', isOpen: true };
+        assert.deepEqual(scene({ active: open, envIsDev: false }).warns, [], 'the dev-mode gate');
+        assert.deepEqual(scene({ active: open, routed: { name: 'x76' } }).warns, [], 'the answer went to a popin — the old rule agreed');
+        assert.deepEqual(scene({ active: open, captured: { name: 'x76' } }).warns, [], 'the form was captured inside a popin');
+        assert.deepEqual(scene({ active: null }).warns, [], 'no popin in any state');
+        assert.deepEqual(scene({ active: open, noPopinPlugin: true }).warns, [], 'no popin plugin on the page');
     });
 });
