@@ -85,11 +85,12 @@ const FRAG_WITH_FORM = (attrs) => '<div id="x76-frag"><p>popin content</p>'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function routeScene(page, o) {
-    const log = { saves: 0, scriptHits: 0 };
+    const log = { saves: 0, scriptHits: 0, sendAt: [], doneAt: [] };
     await page.route('**/x76', (r) => r.fulfill({ status: 200, contentType: 'text/html; charset=utf-8', body: buildPage(o) }));
     await page.route('**/frag/x76.html', async (r) => { await sleep(o.popinDelay || 0); await r.fulfill({ status: 200, contentType: 'text/html; charset=utf-8', body: o.frag || FRAG }); });
     // gh#76 §6 — `o.headers`: response headers the sink answers with (X-Gina-Retarget / -Reswap / -Reselect)
-    await page.route('**/x76/save', async (r) => { log.saves++; await sleep(o.formDelay || 0); await r.fulfill(Object.assign({ status: 200 }, ANSWERS[o.answer || 'html'], ( o.headers ? { headers: o.headers } : {} ))); });
+    // gh#76 §7 — `o.status`: the status the sink answers with (a 500 exercises the settle's release arms)
+    await page.route('**/x76/save', async (r) => { log.saves++; log.sendAt.push(Date.now()); await sleep(o.formDelay || 0); await r.fulfill(Object.assign({ status: o.status || 200 }, ANSWERS[o.answer || 'html'], ( o.headers ? { headers: o.headers } : {} ))); log.doneAt.push(Date.now()); });
     await page.route('**/x76/save2', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' }));
     await page.route('**/js/x76-swap.js', (r) => { log.scriptHits++; r.fulfill({ status: 200, contentType: 'application/javascript', body: 'window.__x76swap=(window.__x76swap||0)+1;' }); });
     return log;
@@ -643,4 +644,332 @@ test.describe('gh#76 slice 2 — a form answer swaps into the target the form de
         expect(s.row).toBe('before');
     });
 
+});
+
+/**
+ * gh#76 slice 4 §7 — request coordination.
+ *
+ * Keyed on the RESOLVED SWAP TARGET — the reorder the issue describes is two forms answering
+ * into ONE region, which a form-keyed guard never sees. The rule is DERIVED from the swap
+ * strategy the form already declared (§45/§46), and `data-gina-form-sync` is the override for
+ * the rare form that wants something else. `data-gina-form-disabled-elt` holds elements
+ * disabled for the life of a request.
+ *
+ * Every arm but §44 and §46 is RED on a pre-C3 bundle, where two forms answering into one
+ * region simply race, no abort channel exists, and nothing is ever held disabled.
+ */
+const SYNC_FORM2 = (attrs) => '<form id="hform2" data-gina-form-rule="hformform" '
+    + 'data-gina-form-event-on-submit-success="onRowSaved" data-gina-form-event-on-submit-error="onRowError" '
+    + (attrs || '') + ' action="/x76/save" method="post">'
+    + '<input id="hform2-input" type="text" name="ref" value="two">'
+    + '<button id="hform2-submit" type="submit">Save 2</button></form>';
+const SYNC_FIELDSET = '<fieldset id="fs"><legend>f</legend><input id="fs-in" type="text" name="extra" value="e"></fieldset>';
+
+/** The `abort` channel has no declarative twin by design — subscribe programmatically. */
+async function recordAborts(page, ids) {
+    await page.evaluate((formIds) => {
+        window.__x76.abort = [];
+        formIds.forEach(function (fid) {
+            window.gina.validator.$forms[fid].on('abort', function (e, d) {
+                var x = ( d && typeof d === 'object' ) ? d : ( e && e.detail ) || null;
+                window.__x76.abort.push({ formId: fid, status: x && x.status, reason: x && x.reason, sync: x && x.sync, derived: x && x.derived });
+            });
+        });
+    }, ids);
+}
+async function waitForForms(page, ids) {
+    await page.waitForFunction((formIds) => formIds.every(function (f) {
+        return !!(window.gina && window.gina.validator && window.gina.validator.$forms && window.gina.validator.$forms[f]);
+    }), ids, { timeout: 15000 });
+}
+async function disabledState(page) {
+    return await page.evaluate(() => {
+        var fs = document.getElementById('fs'), inp = document.getElementById('fs-in');
+        return {
+            fsDisabled: !!(fs && fs.hasAttribute('disabled')),
+            by: fs ? fs.getAttribute('data-gina-disabled-by') : null,
+            // `input.disabled` reflects only the element's OWN attribute; the state inherited
+            // from a disabled <fieldset> ancestor is observable through `:disabled`.
+            inputEffectivelyDisabled: !!(inp && inp.matches(':disabled'))
+        };
+    });
+}
+
+test.describe('gh#76 slice 4 §7 — request coordination on the swap target', () => {
+
+    test('§36 sync="replace": a second form on the SAME target supersedes the first — abort ×1, and NO false 408 (RED pre-C3)', async ({ page }) => {
+        const errors = collectPageErrors(page);
+        const log = await routeScene(page, {
+            attrs: 'data-gina-form-target="#row-42" data-gina-form-sync="replace"',
+            extra: SYNC_FORM2('data-gina-form-target="#row-42" data-gina-form-sync="replace"'),
+            formDelay: 1500
+        });
+        await gotoAndBoot(page, true); await waitForForms(page, ['hformform', 'hform2']);
+        await recordAborts(page, ['hformform', 'hform2']);
+        await page.click('#hformform-submit');
+        await sleep(400);
+        await page.click('#hform2-submit');
+        await sleep(3000);
+        const s = await readState(page);
+        expect(errors).toEqual([]);
+        expect(log.saves, 'both reached the sink — the module-wide gate yielded').toBe(2);
+        expect(s.calls.abort).toEqual([{ formId: 'hformform', status: 0, reason: 'superseded', sync: 'replace', derived: false }]);
+        expect(s.calls.error, 'a deliberate abort is NOT an error — the #B447 transport arm must not fire').toEqual([]);
+        expect(s.calls.success.length, 'only the request that was not superseded delivers').toBe(1);
+        expect(s.row).toBe('<b>saved</b>');
+        expect(s.isSending, 'the superseded settle did not strand the new cycle').toBe(false);
+    });
+
+    test('§37 sync="drop": a second form on the same target is dropped — one request, one success, no abort (RED pre-C3)', async ({ page }) => {
+        const errors = collectPageErrors(page);
+        const log = await routeScene(page, {
+            attrs: 'data-gina-form-target="#row-42" data-gina-form-sync="drop"',
+            extra: SYNC_FORM2('data-gina-form-target="#row-42" data-gina-form-sync="drop"'),
+            formDelay: 1200
+        });
+        await gotoAndBoot(page, true); await waitForForms(page, ['hformform', 'hform2']);
+        await recordAborts(page, ['hformform', 'hform2']);
+        await page.click('#hformform-submit'); await sleep(400);
+        await page.click('#hform2-submit');   await sleep(2500);
+        const s = await readState(page);
+        expect(errors).toEqual([]);
+        expect(log.saves).toBe(1);
+        expect(s.calls.abort).toEqual([]);
+        expect(s.calls.error).toEqual([]);
+        expect(s.calls.success.length).toBe(1);
+        // the dropped submit never reaches an XHR, so no settle will ever release the loading
+        // state its own click armed — and unlike the module-wide gate (same form), the form
+        // dropped here is a DIFFERENT one, whose trigger nothing else is going to release
+        const triggers = await page.evaluate(() => ({
+            a: document.getElementById('hformform-submit').getAttribute('data-gina-loading'),
+            b: document.getElementById('hform2-submit').getAttribute('data-gina-loading')
+        }));
+        expect(triggers.b, 'the dropped form released its own trigger').not.toBe('true');
+        expect(triggers.a, 'and the one that is running released its own at settle').not.toBe('true');
+    });
+
+    test('§38 sync="queue": a second form on the same target WAITS, then sends after the first settled (RED pre-C3)', async ({ page }) => {
+        const errors = collectPageErrors(page);
+        const log = await routeScene(page, {
+            attrs: 'data-gina-form-target="#row-42" data-gina-form-sync="queue"',
+            extra: SYNC_FORM2('data-gina-form-target="#row-42" data-gina-form-sync="queue"'),
+            formDelay: 1200
+        });
+        await gotoAndBoot(page, true); await waitForForms(page, ['hformform', 'hform2']);
+        await recordAborts(page, ['hformform', 'hform2']);
+        await page.click('#hformform-submit'); await sleep(300);
+        await page.click('#hform2-submit');    await sleep(4000);
+        const s = await readState(page);
+        expect(errors).toEqual([]);
+        expect(log.saves, 'both ran — deferred, not dropped').toBe(2);
+        expect(s.calls.abort).toEqual([]);
+        expect(s.calls.error).toEqual([]);
+        expect(s.calls.success.length).toBe(2);
+        expect(log.sendAt[1], 'the queued submit left only after the first answer landed').toBeGreaterThanOrEqual(log.doneAt[0]);
+        // the counterpart to §37: a QUEUED submit is pending, not abandoned — it keeps its
+        // loading state while it waits and releases it at its own settle, not before
+        const triggers = await page.evaluate(() => ({
+            a: document.getElementById('hformform-submit').getAttribute('data-gina-loading'),
+            b: document.getElementById('hform2-submit').getAttribute('data-gina-loading')
+        }));
+        expect(triggers.b, 'released once the replayed request settled').not.toBe('true');
+        expect(triggers.a).not.toBe('true');
+    });
+
+    test('§39 sync="abort" is REFUSED — it is htmx\'s disposable-GET idiom, and the message names what to write instead (RED pre-C3)', async ({ page }) => {
+        const errors = collectPageErrors(page);
+        const log = await routeScene(page, { attrs: 'data-gina-form-target="#row-42" data-gina-form-sync="abort"' });
+        await gotoAndBoot(page, true);
+        await page.click('#hformform-submit'); await sleep(900);
+        const s = await readState(page);
+        expect(errors).toEqual([]);
+        expect(log.saves, 'refused before anything left').toBe(0);
+        expect(s.calls.error.length).toBe(1);
+        expect(s.calls.error[0].status).toBe(422);
+        expect(s.calls.error[0].reason).toBe('targetError');
+        expect(s.calls.error[0].error, 'the reason').toMatch(/side effects/);
+        expect(s.calls.error[0].error, 'and both alternatives').toMatch(/`replace`[\s\S]*`drop`/);
+        expect(s.isSending).toBe(false);
+        expect(s.triggerLoading).not.toBe('true');
+    });
+
+    test('§40 disabled-elt: held disabled for the life of the request, released on SUCCESS (RED pre-C3)', async ({ page }) => {
+        const errors = collectPageErrors(page);
+        await routeScene(page, { attrs: 'data-gina-form-disabled-elt="#fs"', extra: SYNC_FIELDSET, formDelay: 1500 });
+        await gotoAndBoot(page, true);
+        expect(await disabledState(page)).toEqual({ fsDisabled: false, by: null, inputEffectivelyDisabled: false });
+        const req = page.waitForRequest((r) => r.url().endsWith('/x76/save'), { timeout: 5000 });
+        await page.click('#hformform-submit'); await req; await sleep(200);
+        expect(await disabledState(page), 'in flight').toEqual({ fsDisabled: true, by: 'hformform', inputEffectivelyDisabled: true });
+        await sleep(2200);
+        expect(await disabledState(page), 'released at the settle').toEqual({ fsDisabled: false, by: null, inputEffectivelyDisabled: false });
+        expect(errors).toEqual([]);
+        expect((await readState(page)).calls.success.length).toBe(1);
+    });
+
+    test('§41 disabled-elt: released on a 500 and on an ABORT too — `loadend` is the one chokepoint (RED pre-C3)', async ({ page }) => {
+        const errors = collectPageErrors(page);
+        await routeScene(page, { attrs: 'data-gina-form-disabled-elt="#fs"', extra: SYNC_FIELDSET, formDelay: 800, status: 500 });
+        await gotoAndBoot(page, true);
+        await page.click('#hformform-submit'); await sleep(2000);
+        expect(await disabledState(page), 'a 500 releases it').toEqual({ fsDisabled: false, by: null, inputEffectivelyDisabled: false });
+        expect((await readState(page)).calls.error.length, 'the error channel still ran').toBe(1);
+
+        await page.unroute('**/x76');
+        await routeScene(page, {
+            attrs: 'data-gina-form-target="#row-42" data-gina-form-sync="replace" data-gina-form-disabled-elt="#fs"',
+            extra: SYNC_FIELDSET + SYNC_FORM2('data-gina-form-target="#row-42" data-gina-form-sync="replace"'),
+            formDelay: 1500
+        });
+        await gotoAndBoot(page, true); await waitForForms(page, ['hformform', 'hform2']);
+        await recordAborts(page, ['hformform', 'hform2']);
+        await page.click('#hformform-submit'); await sleep(400);
+        await page.click('#hform2-submit');    await sleep(3000);
+        expect(await disabledState(page), 'an abort releases it').toEqual({ fsDisabled: false, by: null, inputEffectivelyDisabled: false });
+        expect((await readState(page)).calls.abort.length).toBe(1);
+        expect(errors).toEqual([]);
+    });
+
+    test('§42 an unresolvable disabled-elt part REFUSES the submit (htmx skips silently); the trigger is released (RED pre-C3)', async ({ page }) => {
+        const errors = collectPageErrors(page);
+        const log = await routeScene(page, { attrs: 'data-gina-form-disabled-elt="#fs, #nowhere"', extra: SYNC_FIELDSET });
+        await gotoAndBoot(page, true);
+        await page.click('#hformform-submit'); await sleep(900);
+        const s = await readState(page);
+        expect(errors).toEqual([]);
+        expect(log.saves, 'nothing left').toBe(0);
+        expect(s.calls.error.length).toBe(1);
+        expect(s.calls.error[0].status).toBe(422);
+        expect(s.calls.error[0].reason).toBe('targetError');
+        expect(s.calls.success).toEqual([]);
+        expect(s.isSending).toBe(false);
+        expect(s.triggerLoading).not.toBe('true');
+        expect(await disabledState(page), 'a refused submit never strands a disabled control').toEqual({ fsDisabled: false, by: null, inputEffectivelyDisabled: false });
+    });
+
+    test('§43 an invalid or RESERVED sync value refuses the submit before anything leaves (RED pre-C3)', async ({ page }) => {
+        const errors = collectPageErrors(page);
+        let log = await routeScene(page, { attrs: 'data-gina-form-sync="#row-42:drop"' });
+        await gotoAndBoot(page, true);
+        await page.click('#hformform-submit'); await sleep(900);
+        let s = await readState(page);
+        expect(errors).toEqual([]);
+        expect(log.saves).toBe(0);
+        expect(s.calls.error.length).toBe(1);
+        expect(s.calls.error[0].status).toBe(422);
+        expect(s.calls.error[0].error, 'gina already knows the key').toMatch(/the key is the resolved `data-gina-form-target`/);
+
+        await page.unroute('**/x76');
+        log = await routeScene(page, { attrs: 'data-gina-form-sync="replace-all"' });
+        await gotoAndBoot(page, true);
+        await page.click('#hformform-submit'); await sleep(900);
+        s = await readState(page);
+        expect(log.saves).toBe(0);
+        expect(s.calls.error[0].error).toMatch(/unknown strategy/);
+
+        // a `queue` modifier is refused the same way — one submit waits per region
+        await page.unroute('**/x76');
+        log = await routeScene(page, { attrs: 'data-gina-form-sync="queue first"' });
+        await gotoAndBoot(page, true);
+        await page.click('#hformform-submit'); await sleep(900);
+        s = await readState(page);
+        expect(log.saves).toBe(0);
+        expect(s.calls.error[0].error).toMatch(/takes no modifier/);
+        expect(s.calls.error[0].error).toMatch(/most recent/);
+    });
+
+    // A TWO-SIDED control: green on the pre-C3 bundle AND after. It deliberately does NOT
+    // subscribe to `abort` — that event does not exist pre-C3, and subscribing would red this
+    // arm for an instrument reason, leaving a "control" that cannot tell the two trees apart.
+    // It coordinates on nothing BY CONSTRUCTION: neither form declares a target, so neither
+    // has a region to conflict over and the derived default never engages.
+    test('§44 CONTROL — no target at all: behaviour is unchanged (green on BOTH trees)', async ({ page }) => {
+        const errors = collectPageErrors(page);
+        const log = await routeScene(page, {
+            attrs: '',
+            extra: SYNC_FORM2(''),
+            formDelay: 1200
+        });
+        await gotoAndBoot(page, true); await waitForForms(page, ['hformform', 'hform2']);
+        await page.click('#hformform-submit'); await sleep(300);
+        await page.click('#hform2-submit');    await sleep(2500);
+        const s = await readState(page);
+        expect(errors).toEqual([]);
+        expect(log.saves, 'two different forms: the rate-limit gate is per form, so both send').toBe(2);
+        expect(s.calls.success.length, 'both answers reach their callbacks').toBe(2);
+        expect(s.row, 'and nothing was swapped — there is no target').toBe('before');
+    });
+
+    // ---------------------------------------------------------------- the derived default
+
+    test('§45 THE DEFAULT — two forms replacing ONE region coordinate with NO attribute at all (RED pre-C3)', async ({ page }) => {
+        const errors = collectPageErrors(page);
+        const log = await routeScene(page, {
+            // no `data-gina-form-sync` anywhere: the rule is read from the swap strategy, and
+            // `innerHTML` is the default, so both of these replace `#row-42`
+            attrs: 'data-gina-form-target="#row-42"',
+            extra: SYNC_FORM2('data-gina-form-target="#row-42"'),
+            formDelay: 1500
+        });
+        await gotoAndBoot(page, true); await waitForForms(page, ['hformform', 'hform2']);
+        await recordAborts(page, ['hformform', 'hform2']);
+        await page.click('#hformform-submit');
+        await sleep(400);
+        await page.click('#hform2-submit');
+        await sleep(3000);
+        const s = await readState(page);
+        expect(errors).toEqual([]);
+        expect(log.saves, 'both reached the sink — the per-form rate limit never saw a conflict').toBe(2);
+        expect(s.calls.abort, 'the answer still on the wire was about to be overwritten, so it is moot')
+            .toEqual([{ formId: 'hformform', status: 0, reason: 'superseded', sync: 'replace', derived: true }]);
+        expect(s.calls.error, 'a deliberate supersede is NOT an error').toEqual([]);
+        expect(s.calls.success.length, 'only the answer that was not superseded delivers').toBe(1);
+        expect(s.row).toBe('<b>saved</b>');
+        expect(s.isSending).toBe(false);
+        const triggers = await page.evaluate(() => ({
+            a: document.getElementById('hformform-submit').getAttribute('data-gina-loading'),
+            b: document.getElementById('hform2-submit').getAttribute('data-gina-loading')
+        }));
+        expect(triggers.a, 'the superseded request released its own trigger').not.toBe('true');
+        expect(triggers.b).not.toBe('true');
+    });
+
+    test('§45b the derived default is an OVERRIDE away — `queue` on the same pair waits instead (RED pre-C3)', async ({ page }) => {
+        const errors = collectPageErrors(page);
+        const log = await routeScene(page, {
+            attrs: 'data-gina-form-target="#row-42"',
+            extra: SYNC_FORM2('data-gina-form-target="#row-42" data-gina-form-sync="queue"'),
+            formDelay: 1200
+        });
+        await gotoAndBoot(page, true); await waitForForms(page, ['hformform', 'hform2']);
+        await recordAborts(page, ['hformform', 'hform2']);
+        await page.click('#hformform-submit'); await sleep(300);
+        await page.click('#hform2-submit');    await sleep(4000);
+        const s = await readState(page);
+        expect(errors).toEqual([]);
+        expect(s.calls.abort, 'the second form declared `queue`, so it waited rather than superseding').toEqual([]);
+        expect(log.saves).toBe(2);
+        expect(s.calls.success.length).toBe(2);
+        expect(log.sendAt[1], 'it left only after the first answer landed').toBeGreaterThanOrEqual(log.doneAt[0]);
+    });
+
+    // TWO-SIDED control for the other half of the derivation: an insertion adds to the region
+    // rather than overwriting it, so there is nothing to resolve and both land — on BOTH trees.
+    test('§46 CONTROL — an INSERTING swap coordinates on nothing: both answers land (green on BOTH trees)', async ({ page }) => {
+        const errors = collectPageErrors(page);
+        const log = await routeScene(page, {
+            attrs: 'data-gina-form-target="#list" data-gina-form-swap="beforeend"',
+            extra: SYNC_FORM2('data-gina-form-target="#list" data-gina-form-swap="beforeend"'),
+            answer: 'html-bare',
+            formDelay: 1200
+        });
+        await gotoAndBoot(page, true); await waitForForms(page, ['hformform', 'hform2']);
+        await page.click('#hformform-submit'); await sleep(300);
+        await page.click('#hform2-submit');    await sleep(3000);
+        const s = await readState(page);
+        expect(errors).toEqual([]);
+        expect(log.saves).toBe(2);
+        expect(s.calls.success.length, 'every row the server wrote appears').toBe(2);
+        expect((s.list.match(/<b>saved<\/b>/g) || []).length, 'both appended, neither replaced the other').toBe(2);
+    });
 });

@@ -44,6 +44,7 @@ function ValidatorPlugin(rules, data, formId, culture) {
         'oobafterswap', // #gh76 slice 3 — per out-of-band element, after its region binding
         'progress',
         'uploadProgress', // #R8 — upload (client-to-server) wire progress for staged uploads
+        'abort', // #gh76 slice 4 — a request superseded by `data-gina-form-sync`
         'submit',
         'reset',
         'change',
@@ -809,6 +810,405 @@ function ValidatorPlugin(rules, data, formId, culture) {
         triggerEvent(gina, $target, 'error.' + id, result);
         if (hFormIsRequired)
             triggerEvent(gina, $target, 'error.' + id + '.hform', result);
+    }
+
+    /**
+     * #gh76 slice 4 — the three things a submit can do when the region its answer is bound
+     * for is already owned by a request in flight. `data-gina-form-sync` names one of them;
+     * most forms never need to, because the default is DERIVED from the swap strategy they
+     * already declared (see `deriveSync`).
+     * @constant {string[]}
+     */
+    var SYNC_STRATEGIES = ['drop', 'replace', 'queue'];
+
+    /**
+     * #gh76 slice 4 — the swap strategies that REPLACE what a region holds, as opposed to
+     * adding to it. They are what makes the default derivable: an answer about to overwrite
+     * the region makes the answer still on the wire moot, so the newer submit wins. The five
+     * that remain — the four insertion points and `none` — have no conflict to resolve, so
+     * two such answers both land, exactly as they always have.
+     * @constant {string[]}
+     */
+    var REPLACING_SWAPS = ['innerHTML', 'outerHTML', 'textContent', 'delete'];
+
+    /**
+     * #gh76 slice 4 — per-KEY coordination state, keyed on the element a form's answer is
+     * bound for: its resolved swap target, or the form itself when it declares none. A
+     * WeakMap because a swapped-away target is a NEW element — the old entry is collected
+     * with it, and a different element is legitimately a different key.
+     *
+     * There is no sequence counter: `#B175` gives every send its own XHR, so the XHR object
+     * IS the identity a late settle is checked against, exactly and without a counter to
+     * keep in step.
+     *
+     * @type {WeakMap<Element, {xhr: (XMLHttpRequest|null), ctx: (object|null), queue: Array<Function>}>}
+     */
+    var syncRegistry = new WeakMap();
+
+    /**
+     * #gh76 slice 4 — how many in-flight requests currently hold each element disabled
+     * through `data-gina-form-disabled-elt`. Overlapping requests naming the same element
+     * release it once, at the last settle. Only elements WE disabled are ever counted, so an
+     * authored `disabled` can never be cleared by us.
+     *
+     * @type {WeakMap<Element, number>}
+     */
+    var disabledRefs = new WeakMap();
+
+    /**
+     * syncNotice
+     *
+     * #gh76 slice 4 — dev-mode console notice for a coordination decision that silently
+     * changes what a submit did (dropped, queued, superseded). Production stays quiet: these
+     * are the declared outcomes, not errors.
+     *
+     * @param {string} id - the form id
+     * @param {string} msg - what happened
+     *
+     * @returns {undefined}
+     *
+     * @example
+     * syncNotice('add-row', 'submit dropped — a request already owns this target');
+     *
+     * @inner
+     */
+    var syncNotice = function(id, msg) {
+        if (envIsDev) {
+            try { console.warn('[FormValidator][sync] form `#'+ id +'`: '+ msg); } catch (e) {}
+        }
+    }
+
+    /**
+     * parseSync
+     *
+     * #gh76 slice 4 — parses an explicit `data-gina-form-sync` value into `{ strategy }`.
+     *
+     * Three htmx spellings are deliberately REFUSED rather than implemented, each with a
+     * message naming the reason and what to write instead — gina refuses what it will not
+     * honour rather than parsing it into silence:
+     *  - `abort` means "anything that comes next may cancel me", htmx's idiom for a
+     *    disposable GET. A gina submit is a validated POST with side effects, never
+     *    disposable; `replace` and `drop` cover both halves of what it was reaching for.
+     *  - the `queue` modifiers exist in htmx because its trigger spec has `queue:` modifiers
+     *    too. Gina has no trigger spec, and one submit waiting per region is the only
+     *    behaviour the region can act on.
+     *  - `<selector>:<strategy>` names the element to coordinate on. Gina already knows it:
+     *    it is the resolved swap target.
+     *
+     * @param {string} value - the attribute value
+     *
+     * @returns {{strategy: (string|undefined), error: (string|undefined)}}
+     *
+     * @example
+     * parseSync('replace');    // => { strategy: 'replace' }
+     * parseSync('queue');      // => { strategy: 'queue' }
+     * parseSync('abort');      // => { error: '`abort` is not supported: … Use `replace` …' }
+     *
+     * @inner
+     */
+    var parseSync = function(value) {
+        var v = ( typeof(value) == 'string' ) ? value.trim().toLowerCase() : '';
+        var m = null;
+        if ( v === '' ) {
+            return { error: 'empty value' };
+        }
+        if ( v.indexOf(':') > -1 ) {
+            return { error: '`<selector>:<strategy>` keying is not supported — the key is the resolved `data-gina-form-target`, so there is nothing to name; write the strategy alone' };
+        }
+        if ( /^abort\b/.test(v) ) {
+            return { error: '`abort` is not supported — it means `anything may cancel me`, which fits a disposable GET, not a submit with rules and side effects; use `replace` to let the newer submit take over, or `drop` to yield to the one running' };
+        }
+        m = v.match(/^(drop|replace|queue)(?:\s+(\S+))?$/);
+        if ( !m ) {
+            return { error: 'unknown strategy `'+ v +'` (one of '+ SYNC_STRATEGIES.join(', ') +')' };
+        }
+        if ( m[2] ) {
+            return { error: '`'+ m[1] +'` takes no modifier (found `'+ m[2] +'`) — the key is the resolved swap target, and one submit waits per region, the most recent one' };
+        }
+        return { strategy: m[1] };
+    }
+
+    /**
+     * deriveSync
+     *
+     * #gh76 slice 4 — the DEFAULT, for a form that declares no `data-gina-form-sync`: read
+     * from the swap strategy the form already declared, so the common case coordinates with
+     * nothing written in the markup.
+     *
+     * A form whose answer REPLACES a region coordinates on that region — an answer still on
+     * the wire is about to be overwritten, so it is moot and the newer submit supersedes it.
+     * A form whose answer is INSERTED, or writes nothing, has no conflict to resolve: both
+     * land, exactly as they always have. A form declaring no target coordinates on nothing —
+     * the module-wide one-at-a-time rule is the only thing that governs it, unchanged.
+     *
+     * This is the decision neither htmx nor Turbo can make for you: htmx knows nothing about
+     * the answer until it arrives, and Turbo treats every submit as a navigation, so newest
+     * wins for everything. Gina knows, at submit time, what the answer is going to do.
+     *
+     * The target must RESOLVE here. An unresolvable one is refused by the pre-flight a few
+     * lines below, and a submit already on its way to a refusal must never abort a running
+     * request on the way.
+     *
+     * @param {HTMLFormElement} $formEl - the submitting form
+     *
+     * @returns {?{strategy: string, derived: boolean, key: HTMLElement, swap: string}}
+     *
+     * @example
+     * // <form data-gina-form-target="#rows">
+     * deriveSync($form); // => { strategy: 'replace', derived: true, key: <ul id="rows">, swap: 'innerHTML' }
+     * // <form data-gina-form-target="#rows" data-gina-form-swap="beforeend">
+     * deriveSync($form); // => null — an insertion has nothing to resolve
+     *
+     * @inner
+     */
+    var deriveSync = function($formEl) {
+        var targetAttr = $formEl.getAttribute('data-gina-form-target');
+        var swapAttr   = null, strategy = '', resolved = null;
+        if ( targetAttr === null ) {
+            return null;
+        }
+        swapAttr = $formEl.getAttribute('data-gina-form-swap');
+        // read exactly as the pre-flight reads it, case included: a value it would refuse
+        // must not coordinate here either
+        strategy = ( swapAttr === null ) ? 'innerHTML' : swapAttr.trim();
+        if ( REPLACING_SWAPS.indexOf(strategy) < 0 ) {
+            return null;
+        }
+        resolved = resolveSwapTarget($formEl, targetAttr);
+        if ( resolved.error || !resolved.target ) {
+            return null;
+        }
+        return { strategy: 'replace', derived: true, key: resolved.target, swap: strategy };
+    }
+
+    /**
+     * decideSync
+     *
+     * #gh76 slice 4 — the pure overlap decision: what this submit does when the key it
+     * coordinates on is, or is not, already owned by a request in flight.
+     *
+     * A key nobody owns is never a decision: every strategy proceeds. When one IS owned,
+     * `drop` yields, `replace` takes the slot, and `queue` defers until it is free. There is
+     * no state carried on the entry for this — the strategy of the submit ARRIVING decides,
+     * because it is the one whose answer is about to land.
+     *
+     * @param {object} parsed - a parseSync() or deriveSync() result
+     * @param {object} [entry] - the key's registry entry, when it has one
+     *
+     * @returns {{action: string, abortPrevious: (boolean|undefined)}}
+     *
+     * @example
+     * decideSync({ strategy: 'drop' }, { xhr: {} });     // => { action: 'drop' }
+     * decideSync({ strategy: 'replace' }, { xhr: {} });  // => { action: 'proceed', abortPrevious: true }
+     * decideSync({ strategy: 'queue' }, null);           // => { action: 'proceed', abortPrevious: false }
+     *
+     * @inner
+     */
+    var decideSync = function(parsed, entry) {
+        var busy = !!( entry && entry.xhr );
+        if ( !busy ) {
+            return { action: 'proceed', abortPrevious: false };
+        }
+        switch ( parsed.strategy ) {
+            case 'drop':
+                return { action: 'drop' };
+            case 'replace':
+                return { action: 'proceed', abortPrevious: true };
+            case 'queue':
+                return { action: 'queue' };
+        }
+        return { action: 'proceed', abortPrevious: false };
+    }
+
+    /**
+     * queueSyncSend
+     *
+     * #gh76 slice 4 — holds a deferred submit until its key's slot is free. Exactly ONE waits
+     * per key: a submit arriving while another already waits replaces it, because what the
+     * user asked for last is what they meant. Drained by the settle chokepoint.
+     *
+     * @param {object} entry - the key's registry entry
+     * @param {Function} replay - re-enters send() with the caller's original arguments
+     *
+     * @returns {undefined}
+     *
+     * @example
+     * queueSyncSend(entry, function () { send.call(receiver, data, options); });
+     *
+     * @inner
+     */
+    var queueSyncSend = function(entry, replay) {
+        entry.queue = [ replay ];
+    }
+
+    /**
+     * shiftSyncQueue
+     *
+     * #gh76 slice 4 — runs the next deferred submit for a key, once that key's slot is free.
+     * Guarded on the slot ACTUALLY being free: a settle that was superseded by a `replace`
+     * never shifts, because the request that replaced it claims the slot immediately
+     * afterwards and would race the one this shift started.
+     *
+     * @param {object} [entry] - the key's registry entry
+     *
+     * @returns {undefined}
+     *
+     * @example
+     * shiftSyncQueue(syncRegistry.get($list));
+     *
+     * @inner
+     */
+    var shiftSyncQueue = function(entry) {
+        var next = null;
+        if ( !entry || entry.xhr || !entry.queue || !entry.queue.length ) {
+            return;
+        }
+        next = entry.queue.shift();
+        try {
+            next();
+        } catch (queueErr) {
+            if (envIsDev) {
+                try { console.error('[FormValidator][sync] a queued submit failed: '+ ( queueErr.message || queueErr )); } catch (e) {}
+            }
+        }
+    }
+
+    /**
+     * resolveSyncKey
+     *
+     * #gh76 slice 4 — the element a form coordinates on: its resolved swap target, or the
+     * form itself when it declares none. Keying on the TARGET is what closes the reorder the
+     * issue describes — two forms answering into one `#list` are invisible to a form-keyed
+     * guard. A declared target that does not resolve falls back to the form, and that submit
+     * is refused a few lines further down anyway, so the key it briefly used is moot.
+     *
+     * @param {HTMLFormElement} $formEl - the submitting form
+     *
+     * @returns {HTMLElement}
+     *
+     * @example
+     * resolveSyncKey($form); // => <ul id="list">
+     *
+     * @inner
+     */
+    var resolveSyncKey = function($formEl) {
+        var attr = $formEl.getAttribute('data-gina-form-target');
+        var resolved = null;
+        if ( attr === null ) {
+            return $formEl;
+        }
+        resolved = resolveSwapTarget($formEl, attr);
+        return ( resolved.target ) ? resolved.target : $formEl;
+    }
+
+    /**
+     * resolveDisabledElts
+     *
+     * #gh76 slice 4 — resolves a `data-gina-form-disabled-elt` value: a comma-separated list,
+     * each part carrying the `data-gina-form-target` grammar (`this`, `closest …`, `find …`,
+     * a CSS selector; `next`/`previous` reserved). A part that resolves to nothing is an
+     * ERROR, not a silent skip: the attribute exists so a user cannot act twice, and a typo
+     * that quietly disables nothing is the very failure it was added to prevent.
+     *
+     * @param {HTMLFormElement} $formEl - the submitting form
+     * @param {string} value - the attribute value
+     *
+     * @returns {{elements: (Array<HTMLElement>|undefined), error: (string|undefined)}}
+     *
+     * @example
+     * resolveDisabledElts($form, 'closest fieldset, #save'); // => { elements: [<fieldset>, <button>] }
+     * resolveDisabledElts($form, '#nope');                   // => { error: '`#nope`: no element matches `#nope`' }
+     *
+     * @inner
+     */
+    var resolveDisabledElts = function($formEl, value) {
+        var raw   = ( typeof(value) == 'string' ) ? value : '';
+        var parts = raw.split(',');
+        var out = [], i = 0, part = null, resolved = null;
+        if ( raw.trim() === '' ) {
+            return { error: 'empty value' };
+        }
+        for (; i < parts.length; ++i) {
+            part = parts[i].trim();
+            if ( part === '' ) {
+                return { error: 'empty part at position '+ ( i + 1 ) };
+            }
+            resolved = resolveSwapTarget($formEl, part);
+            if ( resolved.error ) {
+                return { error: '`'+ part +'`: '+ resolved.error };
+            }
+            if ( out.indexOf(resolved.target) < 0 ) {
+                out.push(resolved.target);
+            }
+        }
+        return { elements: out };
+    }
+
+    /**
+     * disableForRequest
+     *
+     * #gh76 slice 4 — holds one element disabled for the life of a request, refcounted so
+     * overlapping requests naming the same element release it once. An element ALREADY
+     * disabled without our marker was disabled by the page: it is left untouched and not
+     * counted, so the release can never clear a state we did not set.
+     *
+     * @param {HTMLElement} $el - the element to hold disabled
+     * @param {string} formId - written to `data-gina-disabled-by` as provenance
+     *
+     * @returns {boolean} whether this request now holds the element
+     *
+     * @example
+     * disableForRequest($fieldset, 'add-row'); // => true
+     *
+     * @inner
+     */
+    var disableForRequest = function($el, formId) {
+        var n = disabledRefs.get($el) || 0;
+        if ( n === 0 ) {
+            if ( $el.hasAttribute('disabled') ) {
+                return false;
+            }
+            $el.setAttribute('disabled', '');
+            $el.setAttribute('data-gina-disabled-by', formId);
+        }
+        disabledRefs.set($el, n + 1);
+        return true;
+    }
+
+    /**
+     * releaseDisabledElts
+     *
+     * #gh76 slice 4 — releases the elements one request held, at its settle. Decrements each
+     * refcount and clears `disabled` only at zero, and only on an element still carrying our
+     * own `data-gina-disabled-by` marker.
+     *
+     * @param {Array<HTMLElement>} [elements] - what this request held
+     *
+     * @returns {undefined}
+     *
+     * @example
+     * releaseDisabledElts(sendCtx.disabledElts);
+     *
+     * @inner
+     */
+    var releaseDisabledElts = function(elements) {
+        var i = 0, $el = null, n = 0;
+        if ( !elements || !elements.length ) {
+            return;
+        }
+        for (; i < elements.length; ++i) {
+            $el = elements[i];
+            n   = disabledRefs.get($el) || 0;
+            if ( n > 1 ) {
+                disabledRefs.set($el, n - 1);
+                continue;
+            }
+            disabledRefs['delete']($el);
+            if ( $el.getAttribute('data-gina-disabled-by') !== null ) {
+                $el.removeAttribute('disabled');
+                $el.removeAttribute('data-gina-disabled-by');
+            }
+        }
     }
 
     /**
@@ -2686,16 +3086,40 @@ function ValidatorPlugin(rules, data, formId, culture) {
         // #gh76 — per-send capture of the popin the SUBMITTING form lives in (or null),
         // read at the settle below. `$form.eventData` is per form and a second send would
         // overwrite it; this closure is per send (#B175 made the XHR per send).
-        /** @type {{ popin: (object|null), target: (HTMLElement|null), swap: string, select: (string|null), targetAttr: (string|null), rebindSelf: boolean, overrides: (object|undefined) }} */
+        /** @type {{ popin: (object|null), target: (HTMLElement|null), swap: string, select: (string|null), targetAttr: (string|null), rebindSelf: boolean, overrides: (object|undefined), sync: (string|undefined), syncDerived: (boolean|undefined), syncKey: (HTMLElement|undefined), superseded: (boolean|undefined), disabledElts: (Array<HTMLElement>|null|undefined) }} */
         var sendCtx = { popin: null, target: null, swap: 'innerHTML', select: null, targetAttr: null, rebindSelf: false };
+        // #gh76 slice 4 — the receiver and the caller's ORIGINAL options, captured BEFORE the
+        // merge below stamps headers into them: a `data-gina-form-sync="queue"` submit is
+        // replayed by re-entering send() from the settle chokepoint, and it must re-enter with
+        // what the caller passed, never with this send's merged copy.
+        var syncReceiver = this, syncRawOptions = options, syncEntry = null, syncParsed = null;
 
         options = (typeof (options) != 'undefined') ? merge(options, xhrOptions) : xhrOptions;
+
+        // forward callback to HTML data event attribute through `hform` status
+        // success -> data-gina-form-event-on-submit-success
+        // error -> data-gina-form-event-on-submit-error
+        // afterswap -> data-gina-form-event-on-swap (#gh76 slice 2)
+        // #gh76 slice 4 — read here, above the gate, so the coordination decision below can
+        // refuse a submit into the declared error channel. The binding itself still happens
+        // at its own site further down.
+        hFormIsRequired = ( $target.getAttribute('data-gina-form-event-on-submit-success') || $target.getAttribute('data-gina-form-event-on-submit-error') || $target.getAttribute('data-gina-form-event-on-swap') ) ? true : false;
+
+        // #gh76 slice 4 — `data-gina-form-sync` declares what this submit does when another
+        // request already owns the same key. Read before the gate below, because a form that
+        // declares it OWNS its own overlap decision: the gate is `setOptions`-wide with no
+        // per-form form, so `replace` and `queue` could not be reached otherwise.
+        var syncAttr = $target.getAttribute('data-gina-form-sync');
 
         // Rate Limit to one request at the time
         // Attention: this should be an option
         // the request needs to be completed before another can be made
         // TODO - Check same url
+        // #gh76 slice 4 — yields to `data-gina-form-sync` when that attribute is declared.
+        // Absent ⇒ byte-identical behaviour to before.
         if (
+            syncAttr === null
+            && (
             /^true$/i.test(options.withRateLimit)
             && typeof($form.isSending) != 'undefined'
             && /^true$/i.test($form.isSending)
@@ -2703,6 +3127,7 @@ function ValidatorPlugin(rules, data, formId, culture) {
             /^true$/i.test(options.withRateLimit)
             && typeof($form.sent) != 'undefined'
             && /^true$/i.test($form.sent)
+            )
         ) {
             // #B247 — deliberately NO loading-state release here. This return means a
             // request for this form is already in flight, so the trigger that owns it is
@@ -2710,6 +3135,76 @@ function ValidatorPlugin(rules, data, formId, culture) {
             // here would clear the state mid-request; and because `armSubmitLoading` is
             // first-wins, the refused attempt never armed anything of its own to clear.
             return;
+        }
+
+        // #gh76 slice 4 — the coordination decision. It runs BEFORE `isSending` is claimed
+        // below because `replace` aborts the in-flight request, and an XHR abort settles its
+        // handler SYNCHRONOUSLY: claiming first would let that settle clear the very flag this
+        // send had just taken (the #B332 class). The same ordering is why `ownedByEarlierSend`
+        // is read after this block — after an abort, nothing is owned by an earlier send.
+        // The strategy is the form's own `data-gina-form-sync` when it declares one, and is
+        // otherwise DERIVED from the swap strategy it already declared — so the case this
+        // slice exists for, two forms replacing one region, is coordinated with nothing
+        // written in the markup. The attribute is the override, not the switch.
+        if ( syncAttr !== null ) {
+            syncParsed = parseSync(syncAttr);
+        } else {
+            syncParsed = deriveSync($target);
+        }
+        // An UNREADABLE value coordinates nothing, so there is nothing to decide here — and the
+        // refusal it owes cannot be delivered from this far up, where the declared callbacks are
+        // not bound yet. It is carried to the pre-flight below, beside its `-target`/`-swap`
+        // siblings, and the gate above has already yielded because the attribute is present, so
+        // the submit is guaranteed to reach it.
+        if ( syncParsed && !syncParsed.error ) {
+            var syncKey      = syncParsed.key || resolveSyncKey($target);
+            var syncDecision = decideSync(syncParsed, syncRegistry.get(syncKey));
+            if ( syncDecision.action === 'drop' ) {
+                // #B247's ownership rule, re-derived for a TARGET key: a submit that stops here
+                // never reaches an XHR, so no settle will release the loading state its own click
+                // armed. The module-wide gate could return without releasing because it only ever
+                // fires on the form that already owns the request — its settle does the release.
+                // A target key coordinates DIFFERENT forms, so the one turned away here is usually
+                // not the one running, and nothing else would ever release it. It releases only
+                // what it owns: when this form IS the one in flight, the state belongs to that
+                // request and its settle still owns it.
+                if ( !( /^true$/i.test(instance.$forms[id].isSending) || /^true$/i.test($form.isSending) ) ) {
+                    disarmSubmitLoading($form);
+                }
+                syncNotice(id, 'submit dropped (`drop`) — a request already owns this target');
+                return;
+            }
+            if ( syncDecision.action === 'queue' ) {
+                syncEntry = syncRegistry.get(syncKey);
+                // a QUEUED submit keeps its loading state: it is genuinely pending, and the
+                // replay re-enters send() with `armSubmitLoading` first-arm-wins, so the state
+                // carries straight through to the real request's settle. Only a submit turned
+                // AWAY releases.
+                queueSyncSend(syncEntry, function replaySyncSend() { send.call(syncReceiver, data, syncRawOptions); });
+                syncNotice(id, 'submit queued (`queue`) — a request already owns this target');
+                return;
+            }
+            if ( syncDecision.abortPrevious ) {
+                syncEntry = syncRegistry.get(syncKey);
+                if ( syncEntry && syncEntry.xhr ) {
+                    if ( syncEntry.ctx ) {
+                        syncEntry.ctx.superseded = true;
+                    }
+                    try { syncEntry.xhr.abort(); } catch (abortErr) {}
+                    syncNotice(id, ( syncParsed.derived )
+                        ? 'the request that owned this target was superseded — a `'+ syncParsed.swap +'` answer replaces the region, so the one still on the wire is moot (declare `data-gina-form-sync` to choose otherwise)'
+                        : 'the request that owned this target was superseded (`replace`)');
+                    // That settle released the loading state on its way out (`loadend` covers
+                    // abort). This send is the one now running, so it takes the state over:
+                    // `armSubmitLoading` is first-arm-wins and the stash was just cleared, so
+                    // on a same-form replace this is the arm that sticks; on two different
+                    // forms the replacing one is already armed and this is a no-op.
+                    armSubmitLoading(instance.$forms[id], $submitTrigger);
+                }
+            }
+            sendCtx.sync        = syncParsed.strategy;
+            sendCtx.syncDerived = !!syncParsed.derived;
+            sendCtx.syncKey     = syncKey;
         }
 
         // #gh76 slice 2 — whether a PREVIOUS request still owns `isSending` and the armed
@@ -2761,11 +3256,9 @@ function ValidatorPlugin(rules, data, formId, culture) {
         }
 
 
-        // forward callback to HTML data event attribute through `hform` status
-        hFormIsRequired = ( $target.getAttribute('data-gina-form-event-on-submit-success') || $target.getAttribute('data-gina-form-event-on-submit-error') || $target.getAttribute('data-gina-form-event-on-swap') ) ? true : false;
-        // success -> data-gina-form-event-on-submit-success
-        // error -> data-gina-form-event-on-submit-error
-        // afterswap -> data-gina-form-event-on-swap (#gh76 slice 2)
+        // #gh76 slice 4 — `hFormIsRequired` itself is now decided at the top of send(): the
+        // coordination decision up there can refuse a submit, and a refusal must reach the
+        // declared error channel. Only the listener binding stays here, where it always was.
         if (hFormIsRequired)
             listenToXhrEvents($form);
 
@@ -2806,6 +3299,35 @@ function ValidatorPlugin(rules, data, formId, culture) {
         // file input's `data-gina-form-upload-on-progress` by the upload change
         // handler); no default: absent attribute = no `.hform` progress channel
         var uploadProgressHFormIsRequired = ( $target.getAttribute('data-gina-form-event-on-upload-progress') ) ? true : false;
+
+        // #gh76 slice 4 — `data-gina-form-disabled-elt`: elements held disabled for the life
+        // of this request, so a user cannot act on what the answer is about to change. Placed
+        // AFTER every pre-send refusal and after the coordination decision, and BEFORE the XHR
+        // is opened, so a refused submit can never strand a disabled control; released at the
+        // `loadend` fail-safe below — the one chokepoint that covers error, abort and timeout
+        // as well as success.
+        // #gh76 slice 4 — the refusal deferred from the coordination decision above: delivered
+        // HERE, where `listenToXhrEvents` has bound the declared error callback, and outside the
+        // `-target`/`-swap` window so that window's shape is untouched.
+        if ( syncParsed && syncParsed.error ) {
+            refuseSend($form, $target, id, hFormIsRequired, 'data-gina-form-sync', syncAttr, syncParsed.error, ownedByEarlierSend);
+            return;
+        }
+
+        var disabledAttr = $target.getAttribute('data-gina-form-disabled-elt');
+        if ( disabledAttr !== null ) {
+            var resolvedDisabled = resolveDisabledElts($target, disabledAttr);
+            if ( resolvedDisabled.error ) {
+                refuseSend($form, $target, id, hFormIsRequired, 'data-gina-form-disabled-elt', disabledAttr, resolvedDisabled.error, ownedByEarlierSend);
+                return;
+            }
+            sendCtx.disabledElts = [];
+            for (var dIdx = 0; dIdx < resolvedDisabled.elements.length; ++dIdx) {
+                if ( disableForRequest(resolvedDisabled.elements[dIdx], id) ) {
+                    sendCtx.disabledElts.push(resolvedDisabled.elements[dIdx]);
+                }
+            }
+        }
 
         var url         = $target.getAttribute('action') || options.url;
         var method      = $target.getAttribute('method') || options.method;
@@ -2924,8 +3446,43 @@ function ValidatorPlugin(rules, data, formId, culture) {
                     // #A11Y4 — last, so focus lands on a trigger that is fully settled:
                     // re-enabled above and no longer flagged loading.
                     releaseSubmitA11y($form, $submitTrigger);
+                    // #gh76 slice 4 — the same one chokepoint releases what this request held
+                    // disabled, frees its coordination slot and starts the next deferred
+                    // submit. A slot is freed only by the request that owns it (a late settle
+                    // must never evict a newer one — the XHR object is that identity), and a
+                    // SUPERSEDED settle does not shift: the request that replaced it claims
+                    // the slot on the very next statement of the aborting send().
+                    releaseDisabledElts(sendCtx.disabledElts);
+                    sendCtx.disabledElts = null;
+                    if ( sendCtx.syncKey ) {
+                        var settledEntry = syncRegistry.get(sendCtx.syncKey);
+                        if ( settledEntry && settledEntry.xhr === xhr ) {
+                            settledEntry.xhr = null;
+                            settledEntry.ctx = null;
+                            if ( !sendCtx.superseded ) {
+                                shiftSyncQueue(settledEntry);
+                            }
+                        }
+                    }
                 });
             }
+            // #gh76 slice 4 — claiming the coordination slot is deliberately deferred to the
+            // line AFTER `xhr.send()` at each of its three sites: claiming here would leave a
+            // key wedged "busy" forever on the one path that opens an XHR and never sends it
+            // (a `processFiles` failure on the binary branch), because `loadend` — the only
+            // release — never fires for a request that never left.
+            var claimSyncSlot = function() {
+                if ( !sendCtx.syncKey ) {
+                    return;
+                }
+                var claimed = syncRegistry.get(sendCtx.syncKey);
+                if ( !claimed ) {
+                    claimed = { xhr: null, ctx: null, queue: [] };
+                    syncRegistry.set(sendCtx.syncKey, claimed);
+                }
+                claimed.xhr = xhr;
+                claimed.ctx = sendCtx;
+            };
             // catching ready state cb
             // Data loading ...
             if ( /^(1|3)$/.test(xhr.readyState) ) {
@@ -2943,7 +3500,13 @@ function ValidatorPlugin(rules, data, formId, culture) {
             }
             //handleXhrResponse(xhr, $target, id, $form, hFormIsRequired);
             xhr.onreadystatechange = function onValidationCallback(event) {
-                $form.isSubmitting = false;
+                // #gh76 slice 4 — a request superseded by `data-gina-form-sync="replace"`
+                // settles SYNCHRONOUSLY inside the aborting send()'s own decision, before that
+                // send has claimed this latch: clearing it unconditionally here would clear the
+                // NEW cycle's flag and strand it (the #B332 class).
+                if ( !sendCtx.superseded ) {
+                    $form.isSubmitting = false;
+                }
                 // #B175: `isSending` is no longer cleared here — this handler
                 // first fires at readyState 1 (synchronously at open()), so an
                 // early clear made the flag false for almost the whole request
@@ -3009,6 +3572,26 @@ function ValidatorPlugin(rules, data, formId, culture) {
                     // #A11Y4 — last, so focus lands on a fully settled trigger; idempotent
                     // with the `loadend` release, which may already have restored it.
                     releaseSubmitA11y($form, $submitTrigger);
+
+                    // #gh76 slice 4 — this request was superseded by a later submit on the same
+                    // `data-gina-form-sync` key. Its RELEASE arms above have run, and must: the
+                    // trigger, the loading state and the a11y state may never outlive their
+                    // request. Its DISPATCH arms must not run at all — an aborted XHR settles at
+                    // readyState 4 with status 0, which the transport arm below reads as a 408
+                    // the server never sent (#B447). A deliberate abort is not an error: it
+                    // reaches its own `abort.<id>` channel and stops there, so neither `error`
+                    // nor `data-gina-form-event-on-submit-error` ever sees it.
+                    if ( sendCtx.superseded ) {
+                        triggerEvent(gina, $target, 'abort.' + id, {
+                            status  : 0,
+                            reason  : 'superseded',
+                            sync    : sendCtx.sync || null,
+                            // the default needs no attribute, so a page seeing this event may
+                            // find nothing in its own markup that asked for it: say which it was
+                            derived : !!sendCtx.syncDerived
+                        });
+                        return;
+                    }
 
                     var $popin          = null;
                     var blob            = null;
@@ -3838,6 +4421,13 @@ function ValidatorPlugin(rules, data, formId, culture) {
                                     if ( /^gina\-upload/i.test(id) )
                                         onUpload(gina, $target, 'error', id, err);
 
+                                    // #gh76 slice 4 — this send never reaches the wire, so its
+                                    // `loadend` never fires: release what it held disabled here.
+                                    // The coordination slot needs nothing — it is claimed after
+                                    // `xhr.send()`, which this branch never reaches.
+                                    releaseDisabledElts(sendCtx.disabledElts);
+                                    sendCtx.disabledElts = null;
+
                                     triggerEvent(gina, $target, 'error.' + id, err);
 
                                     if (hFormIsRequired)
@@ -3847,6 +4437,7 @@ function ValidatorPlugin(rules, data, formId, culture) {
                                     if (done) {
                                         xhr.setRequestHeader('Content-Type', 'multipart/form-data; boundary=' + boundary);
                                         xhr.send(data);
+                                        claimSyncSlot(); // #gh76 slice 4 — after send(): a throw leaves no wedged key
 
                                         $form.sent = true;
                                         if ( envIsDev && isGFFCtx && typeof(window.ginaToolbar) != 'undefined' && window.ginaToolbar ) {
@@ -3902,6 +4493,7 @@ function ValidatorPlugin(rules, data, formId, culture) {
                         xhr.setRequestHeader('Content-Type', sendContentType);
                     }
                     xhr.send(data)
+                    claimSyncSlot(); // #gh76 slice 4
                 }
 
             } else {
@@ -3910,6 +4502,7 @@ function ValidatorPlugin(rules, data, formId, culture) {
                     xhr.setRequestHeader('Content-Type', enctype);
                 }
                 xhr.send()
+                claimSyncSlot(); // #gh76 slice 4
             }
 
             $form.sent = true;

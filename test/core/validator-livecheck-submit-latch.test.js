@@ -318,9 +318,12 @@ describe('05 - source pins: latch set / gate / clear + the #B192 release', funct
     });
 
     it('XHR-settle control: the send path still clears it in onreadystatechange', function () {
+        // gh#76 slice 4: `data-gina-form-sync="replace"` aborts the in-flight XHR, whose handler
+        // then settles SYNCHRONOUSLY inside the aborting send() — before that send has claimed
+        // the latch. The clear is therefore guarded; pin the guard too, not only the clear.
         assert.match(
             mainSrc,
-            /xhr\.onreadystatechange = function onValidationCallback\(event\) \{\s*\$form\.isSubmitting = false;/
+            /xhr\.onreadystatechange = function onValidationCallback\(event\) \{(?:\s*\/\/[^\n]*\n)*\s*if \( !sendCtx\.superseded \) \{\s*\$form\.isSubmitting = false;\s*\}/
         );
     });
 

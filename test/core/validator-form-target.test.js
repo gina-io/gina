@@ -77,6 +77,25 @@ var mStrategies = valSrc.match(/^[ \t]*var SWAP_STRATEGIES = (\[[^\]]+\]);/m);
 // gh#76 §6 — extracted lazily so a pre-§6 source (the red-first lever) reds §09 alone, not the file
 var srcOverrides = null;
 try { srcOverrides = extract(valSrc, '^[ \\t]*var applyResponseOverrides = function\\(', 'applyResponseOverrides'); } catch (absent) { srcOverrides = null; }
+// gh#76 §7 — same lazy shape: a pre-C3 source reds §11/§12 alone, not the whole file
+var srcSync = null;
+try {
+    srcSync = {
+        parse:      extract(valSrc, '^[ \\t]*var parseSync = function\\(', 'parseSync'),
+        derive:     extract(valSrc, '^[ \\t]*var deriveSync = function\\(', 'deriveSync'),
+        decide:     extract(valSrc, '^[ \\t]*var decideSync = function\\(', 'decideSync'),
+        queue:      extract(valSrc, '^[ \\t]*var queueSyncSend = function\\(', 'queueSyncSend'),
+        shift:      extract(valSrc, '^[ \\t]*var shiftSyncQueue = function\\(', 'shiftSyncQueue'),
+        key:        extract(valSrc, '^[ \\t]*var resolveSyncKey = function\\(', 'resolveSyncKey'),
+        elts:       extract(valSrc, '^[ \\t]*var resolveDisabledElts = function\\(', 'resolveDisabledElts'),
+        disable:    extract(valSrc, '^[ \\t]*var disableForRequest = function\\(', 'disableForRequest'),
+        release:    extract(valSrc, '^[ \\t]*var releaseDisabledElts = function\\(', 'releaseDisabledElts'),
+        strategies: (valSrc.match(/^[ \t]*var SYNC_STRATEGIES = (\[[^\]]+\]);/m) || [])[1],
+        replacing:  (valSrc.match(/^[ \t]*var REPLACING_SWAPS = (\[[^\]]+\]);/m) || [])[1],
+        refs:       (valSrc.match(/^[ \t]*var disabledRefs = new WeakMap\(\);/m) || [])[0]
+    };
+    if ( !srcSync.strategies || !srcSync.replacing || !srcSync.refs ) { srcSync = null; }
+} catch (absent) { srcSync = null; }
 
 function win(html) {
     var dom = new JSDOM('<!DOCTYPE html><html><head><script src="http://localhost/js/gina.min.js"></script></head><body>' + (html || '') + '</body></html>', { url: 'http://localhost/page', runScripts: 'outside-only' });
@@ -789,5 +808,378 @@ describe('§10 gh#76 §6 wiring pins', function () {
         var branch = ( from > -1 && to > from ) ? a.slice(from, to) : '';
         assert.ok(branch.indexOf('result = XHRData ||') > -1, 'the popin branch slice is located (slice control)');
         assert.equal(branch.indexOf('overrides'), -1, 'the parsed popin data is delivered verbatim — no report injected');
+    });
+});
+
+describe('§11 gh#76 §7 request coordination — the decisions, extracted', function () {
+    function scene(html) {
+        var w = win(html || '<ul id="list"><li id="row"><form id="f"><fieldset id="fs"><input id="in"></fieldset></form></li><li id="other">o</li></ul><div id="totals">t0</div><button id="save">s</button>');
+        assert.ok(srcSync, 'the coordination helpers are declared in the source (extraction control — red on a pre-C3 source)');
+        w.eval('window.__sync = (function(){ var envIsDev = false;'
+            + ' var SYNC_STRATEGIES = ' + (srcSync && srcSync.strategies) + ';'
+            + ' var REPLACING_SWAPS = ' + (srcSync && srcSync.replacing) + '; '
+            + srcSync.refs + ' ' + srcResolve + ' '
+            + srcSync.parse + ' ' + srcSync.derive + ' ' + srcSync.decide + ' ' + srcSync.queue + ' ' + srcSync.shift + ' '
+            + srcSync.key + ' ' + srcSync.elts + ' ' + srcSync.disable + ' ' + srcSync.release
+            + ' return { parseSync: parseSync, deriveSync: deriveSync, decideSync: decideSync, queueSyncSend: queueSyncSend,'
+            + ' shiftSyncQueue: shiftSyncQueue, resolveSyncKey: resolveSyncKey, resolveDisabledElts: resolveDisabledElts,'
+            + ' disableForRequest: disableForRequest, releaseDisabledElts: releaseDisabledElts, refs: disabledRefs }; }());');
+        return w;
+    }
+    /** the form, with the attributes an arm wants on it */
+    function form(w, attrs) {
+        var $f = w.document.getElementById('f'), k = null;
+        for (k in (attrs || {})) { $f.setAttribute(k, attrs[k]); }
+        return $f;
+    }
+
+    // ---------------------------------------------------------------- the derived default
+    it('deriveSync: a REPLACING swap into a declared target coordinates on that target — with no attribute at all', function () {
+        var w = scene(), s = w.__sync;
+        ['innerHTML', 'outerHTML', 'textContent', 'delete'].forEach(function (swap) {
+            var d = s.deriveSync(form(w, { 'data-gina-form-target': '#list', 'data-gina-form-swap': swap }));
+            assert.ok(d, swap + ' coordinates');
+            assert.equal(d.strategy, 'replace', swap + ': the newer answer wins');
+            assert.equal(d.derived, true);
+            assert.equal(d.key, w.document.getElementById('list'), 'keyed on the resolved target');
+            assert.equal(d.swap, swap, 'and it reports which strategy derived it');
+        });
+        // the default swap is innerHTML, so a bare target coordinates too
+        w.document.getElementById('f').removeAttribute('data-gina-form-swap');
+        assert.equal(s.deriveSync(form(w, { 'data-gina-form-target': '#list' })).swap, 'innerHTML',
+            'no `data-gina-form-swap` means innerHTML, which replaces');
+    });
+    it('deriveSync: an INSERTING swap, or `none`, coordinates on nothing — both answers land, as they always have', function () {
+        var w = scene(), s = w.__sync;
+        ['beforebegin', 'afterbegin', 'beforeend', 'afterend', 'none'].forEach(function (swap) {
+            assert.equal(s.deriveSync(form(w, { 'data-gina-form-target': '#list', 'data-gina-form-swap': swap })), null,
+                swap + ': nothing is overwritten, so there is no conflict to resolve');
+        });
+    });
+    it('deriveSync: no declared target coordinates on nothing — the module-wide one-at-a-time rule is untouched', function () {
+        var w = scene(), s = w.__sync;
+        assert.equal(s.deriveSync(w.document.getElementById('f')), null);
+        // and adding only a swap strategy changes nothing: the key is the TARGET
+        assert.equal(s.deriveSync(form(w, { 'data-gina-form-swap': 'outerHTML' })), null);
+    });
+    it('deriveSync: a target that does not resolve, or a swap the pre-flight would refuse, coordinates on nothing', function () {
+        var w = scene(), s = w.__sync;
+        // a submit already on its way to a refusal must never abort a running request first
+        assert.equal(s.deriveSync(form(w, { 'data-gina-form-target': '#nowhere' })), null, 'unresolvable target');
+        form(w, { 'data-gina-form-target': '#list' });
+        assert.equal(s.deriveSync(form(w, { 'data-gina-form-target': 'next li' })), null, 'a reserved keyword');
+        assert.equal(s.deriveSync(form(w, { 'data-gina-form-target': '#list', 'data-gina-form-swap': 'INNERHTML' })), null,
+            'the pre-flight compares case-sensitively and would refuse this — so it must not coordinate here');
+        assert.equal(s.deriveSync(form(w, { 'data-gina-form-target': '#list', 'data-gina-form-swap': 'replace' })), null,
+            'not a swap strategy at all');
+        // CONTROL: the same scene with a swap the pre-flight accepts DOES coordinate
+        assert.ok(s.deriveSync(form(w, { 'data-gina-form-target': '#list', 'data-gina-form-swap': 'innerHTML' })));
+    });
+    it('deriveSync: the grammar is the target grammar, so `this` / `closest` / `find` all key correctly', function () {
+        var w = scene(), s = w.__sync, $f = w.document.getElementById('f');
+        assert.equal(s.deriveSync(form(w, { 'data-gina-form-target': 'this' })).key, $f);
+        assert.equal(s.deriveSync(form(w, { 'data-gina-form-target': 'closest li' })).key.id, 'row');
+        assert.equal(s.deriveSync(form(w, { 'data-gina-form-target': 'find fieldset' })).key.id, 'fs');
+    });
+
+    // ---------------------------------------------------------------- the explicit override
+    it('parseSync: the three strategies, case and space tolerant', function () {
+        var s = scene().__sync;
+        assert.deepEqual(plain(s.parseSync('drop')),    { strategy: 'drop' });
+        assert.deepEqual(plain(s.parseSync('replace')), { strategy: 'replace' });
+        assert.deepEqual(plain(s.parseSync('queue')),   { strategy: 'queue' });
+        assert.deepEqual(plain(s.parseSync('  QUEUE ')), { strategy: 'queue' });
+    });
+    it('parseSync: `abort` is REFUSED, and the message names both the reason and what to write instead', function () {
+        var s = scene().__sync;
+        ['abort', 'abort last', '  ABORT  '].forEach(function (v) {
+            var e = s.parseSync(v).error;
+            assert.ok(e, v + ' is refused');
+            assert.match(e, /side effects/, 'the reason');
+            assert.match(e, /`replace`/,    'the alternative');
+            assert.match(e, /`drop`/,       'and the other one');
+        });
+        assert.equal(typeof(s.parseSync('abort').strategy), 'undefined');
+    });
+    it('parseSync: a `queue` modifier is REFUSED — one submit waits per region, the most recent', function () {
+        var s = scene().__sync;
+        ['queue first', 'queue last', 'queue all', 'drop first'].forEach(function (v) {
+            var e = s.parseSync(v).error;
+            assert.ok(e, v + ' is refused');
+            assert.match(e, /takes no modifier/);
+            assert.match(e, /most recent/, 'and says what happens instead');
+        });
+    });
+    it('parseSync: `<selector>:<strategy>` is REFUSED — gina already knows the key', function () {
+        var s = scene().__sync;
+        assert.match(s.parseSync('#list:drop').error, /the key is the resolved `data-gina-form-target`/);
+        assert.match(s.parseSync('closest form:replace').error, /nothing to name/);
+        assert.equal(typeof(s.parseSync('#list:drop').strategy), 'undefined');
+    });
+    it('parseSync: an unknown strategy, an empty or non-string value all error', function () {
+        var s = scene().__sync;
+        assert.match(s.parseSync('replace-all').error, /unknown strategy/);
+        assert.match(s.parseSync('   ').error, /empty value/);
+        assert.match(s.parseSync(null).error, /empty value/);
+        // the message enumerates what IS accepted
+        assert.match(s.parseSync('nope').error, /drop, replace, queue/);
+    });
+
+    it('decideSync: with the key FREE every strategy proceeds', function () {
+        var s = scene().__sync;
+        ['drop', 'replace', 'queue'].forEach(function (strategy) {
+            var d = s.decideSync({ strategy: strategy }, null);
+            assert.equal(d.action, 'proceed', strategy + ' proceeds when nothing owns the key');
+            assert.equal(!!d.abortPrevious, false);
+        });
+        assert.equal(s.decideSync({ strategy: 'drop' }, { xhr: null, queue: [] }).action, 'proceed', 'an entry with no xhr is not busy');
+    });
+    it('decideSync: with the key BUSY — drop yields, replace takes it, queue defers; the ARRIVING submit decides', function () {
+        var s = scene().__sync, busy = { xhr: {}, queue: [] };
+        assert.equal(s.decideSync({ strategy: 'drop' }, busy).action, 'drop');
+        var r = s.decideSync({ strategy: 'replace' }, busy);
+        assert.equal(r.action, 'proceed'); assert.equal(r.abortPrevious, true);
+        assert.equal(s.decideSync({ strategy: 'queue' }, busy).action, 'queue');
+        // the derived default is a `replace` like any other — nothing is carried on the entry
+        var d = s.decideSync({ strategy: 'replace', derived: true }, busy);
+        assert.equal(d.action, 'proceed'); assert.equal(d.abortPrevious, true);
+    });
+
+    it('queueSyncSend: exactly one submit waits per key — the most recent replaces the one waiting', function () {
+        var s = scene().__sync, e = { xhr: {}, queue: [] };
+        var a1 = function () {}, a2 = function () {};
+        s.queueSyncSend(e, a1);
+        assert.deepEqual([e.queue.length, e.queue[0]], [1, a1]);
+        s.queueSyncSend(e, a2);
+        assert.deepEqual([e.queue.length, e.queue[0]], [1, a2], 'what the user asked for last is what they meant');
+        var fresh = { xhr: {} };
+        s.queueSyncSend(fresh, a1);
+        assert.deepEqual([fresh.queue.length, fresh.queue[0]], [1, a1], 'a queue-less entry gets one');
+    });
+    it('shiftSyncQueue: runs the waiting submit once the slot is free, and never while it is still owned', function () {
+        var s = scene().__sync, ran = [];
+        var e = { xhr: {}, queue: [function () { ran.push(1); }] };
+        s.shiftSyncQueue(e);
+        assert.deepEqual(ran, [], 'still owned — nothing shifts');
+        e.xhr = null;
+        s.shiftSyncQueue(e);
+        assert.deepEqual(ran, [1]);
+        assert.equal(e.queue.length, 0);
+        s.shiftSyncQueue(e); assert.deepEqual(ran, [1], 'an empty queue is a no-op');
+        s.shiftSyncQueue(null); s.shiftSyncQueue({});
+    });
+    it('shiftSyncQueue: a queued submit that throws is contained — the settle it runs in must not be derailed', function () {
+        var s = scene().__sync, after = 0;
+        var e = { xhr: null, queue: [function () { throw new Error('boom'); }] };
+        s.shiftSyncQueue(e);
+        after = 1;
+        assert.equal(after, 1);
+        assert.equal(e.queue.length, 0, 'and it is still consumed, never retried forever');
+    });
+
+    it('resolveSyncKey: the resolved swap target when one is declared, the FORM when none is — the explicit path`s key', function () {
+        var w = scene(), s = w.__sync, $f = w.document.getElementById('f');
+        assert.equal(s.resolveSyncKey($f), $f, 'no attribute → the form itself');
+        $f.setAttribute('data-gina-form-target', '#list');
+        assert.equal(s.resolveSyncKey($f), w.document.getElementById('list'));
+        $f.setAttribute('data-gina-form-target', 'closest li');
+        assert.equal(s.resolveSyncKey($f).id, 'row');
+        $f.setAttribute('data-gina-form-target', '#nowhere');
+        assert.equal(s.resolveSyncKey($f), $f, 'unresolvable → the form (that submit is refused a few lines later anyway)');
+    });
+
+    // ---------------------------------------------------------------- disabled-elt
+    it('resolveDisabledElts: a comma list in the target grammar, de-duplicated, in order', function () {
+        var w = scene(), s = w.__sync, $f = w.document.getElementById('f');
+        var ids = function (r) { return plain(Array.prototype.map.call(r.elements, function (e) { return e.id; })); };
+        assert.deepEqual(ids(s.resolveDisabledElts($f, 'closest li, #save , find #in')), ['row', 'save', 'in']);
+        assert.deepEqual(ids(s.resolveDisabledElts($f, '#save, #save')), ['save'], 'named twice, held once');
+        assert.equal(s.resolveDisabledElts($f, 'this').elements[0], $f);
+    });
+    it('resolveDisabledElts: an unresolvable part is an ERROR naming the part — never a silent skip (htmx skips)', function () {
+        var w = scene(), s = w.__sync, $f = w.document.getElementById('f');
+        assert.match(s.resolveDisabledElts($f, '#save, #nope').error, /`#nope`: no element matches/);
+        assert.match(s.resolveDisabledElts($f, 'next li').error, /reserved/);
+        assert.match(s.resolveDisabledElts($f, '#save, ').error, /empty part at position 2/);
+        assert.match(s.resolveDisabledElts($f, '   ').error, /empty value/);
+        assert.equal(typeof(s.resolveDisabledElts($f, '#nope').elements), 'undefined');
+    });
+    it('disableForRequest / releaseDisabledElts: refcounted, so overlapping requests naming one element release it once', function () {
+        var w = scene(), s = w.__sync, $fs = w.document.getElementById('fs');
+        assert.equal(s.disableForRequest($fs, 'a'), true);
+        assert.equal($fs.getAttribute('disabled'), '');
+        assert.equal($fs.getAttribute('data-gina-disabled-by'), 'a');
+        assert.equal(s.disableForRequest($fs, 'b'), true, 'a second request holds it too');
+        assert.equal($fs.getAttribute('data-gina-disabled-by'), 'a', 'provenance stays with the first holder');
+        s.releaseDisabledElts([$fs]);
+        assert.equal($fs.hasAttribute('disabled'), true, 'one holder left — still held');
+        s.releaseDisabledElts([$fs]);
+        assert.equal($fs.hasAttribute('disabled'), false);
+        assert.equal($fs.hasAttribute('data-gina-disabled-by'), false);
+    });
+    it('disableForRequest: an element the PAGE disabled is left alone and never counted, so we can never clear a state we did not set', function () {
+        var w = scene(), s = w.__sync, $save = w.document.getElementById('save');
+        $save.setAttribute('disabled', 'disabled');
+        assert.equal(s.disableForRequest($save, 'a'), false, 'not ours to hold');
+        assert.equal(s.refs.has($save), false, 'and not counted');
+        s.releaseDisabledElts([$save]);
+        assert.equal($save.hasAttribute('disabled'), true, 'the page keeps its own disabled state');
+    });
+    it('releaseDisabledElts: nothing to release is a no-op, and a marker-less element is never stripped', function () {
+        var w = scene(), s = w.__sync, $save = w.document.getElementById('save');
+        s.releaseDisabledElts(null); s.releaseDisabledElts([]);
+        $save.setAttribute('disabled', '');
+        s.releaseDisabledElts([$save]);
+        assert.equal($save.hasAttribute('disabled'), true, 'no `data-gina-disabled-by` ⇒ not ours');
+    });
+});
+
+describe('§12 gh#76 §7 wiring pins', function () {
+    var a = active(valSrc);
+
+    it('`abort` is a registered event, placed so the slice-2/3 contiguous run stays intact; there is no declarative twin', function () {
+        assert.ok(/'uploadProgress',[^\n]*\n\s*'abort',[^\n]*\n\s*'submit',/.test(a), '`abort` registered after uploadProgress');
+        assert.equal((a.match(/'abort\.' \+ id/g) || []).length, 1, 'exactly one abort emit');
+        assert.equal(a.indexOf("'abort.' + id + '.hform'"), -1,
+            'a deliberate abort has NO declarative channel — it must never reach data-gina-form-event-on-submit-error');
+    });
+    it('every helper is declared exactly once, all of them ahead of send()', function () {
+        var sendIdx = a.indexOf('var send = function(data, options) {');
+        assert.ok(sendIdx > -1, 'send() located (slice control)');
+        ['parseSync', 'deriveSync', 'decideSync', 'queueSyncSend', 'shiftSyncQueue', 'resolveSyncKey', 'resolveDisabledElts', 'disableForRequest', 'releaseDisabledElts', 'syncNotice'].forEach(function (name) {
+            var re = new RegExp('^[ \\t]*var ' + name + ' = function\\(', 'mg');
+            assert.equal((a.match(re) || []).length, 1, name + ' declared once');
+            assert.ok(a.indexOf('var ' + name + ' = function(') < sendIdx, name + ' precedes send()');
+        });
+        assert.ok(/^[ \t]*var syncRegistry = new WeakMap\(\);/m.test(a) && /^[ \t]*var disabledRefs = new WeakMap\(\);/m.test(a), 'both registries are WeakMaps');
+    });
+
+    it('the DEFAULT is derived: no attribute falls through to deriveSync, and the derived key is used as-is', function () {
+        assert.ok(/if \( syncAttr !== null \) \{\s*\n\s*syncParsed = parseSync\(syncAttr\);\s*\n\s*\} else \{\s*\n\s*syncParsed = deriveSync\(\$target\);\s*\n\s*\}/.test(a),
+            'the explicit attribute is the override; its absence derives');
+        assert.equal((a.match(/syncParsed = deriveSync\(\$target\);/g) || []).length, 1);
+        assert.ok(/var syncKey\s+= syncParsed\.key \|\| resolveSyncKey\(\$target\);/.test(a),
+            'the derived path carries its already-resolved key — the explicit one resolves its own');
+    });
+    it('the derived default classifies on REPLACING_SWAPS only — the four that overwrite, never the insertions', function () {
+        assert.ok(/^[ \t]*var REPLACING_SWAPS = \['innerHTML', 'outerHTML', 'textContent', 'delete'\];/m.test(a));
+        // every replacing name is one the pre-flight also accepts — a value it would refuse
+        // must never reach the registry
+        var swaps = (a.match(/^[ \t]*var SWAP_STRATEGIES = \[([^\]]+)\];/m) || [])[1];
+        assert.ok(swaps, 'SWAP_STRATEGIES located (slice control)');
+        ['innerHTML', 'outerHTML', 'textContent', 'delete'].forEach(function (s) {
+            assert.ok(swaps.indexOf("'" + s + "'") > -1, s + ' is a real swap strategy');
+        });
+        assert.ok(/REPLACING_SWAPS\.indexOf\(strategy\) < 0/.test(a), 'and the classification is a membership test, not a regex');
+    });
+    it('the trimmed vocabulary: three strategies, and the three htmx spellings are refused by name', function () {
+        assert.ok(/^[ \t]*var SYNC_STRATEGIES = \['drop', 'replace', 'queue'\];/m.test(a), 'no `abort`');
+        assert.equal(a.indexOf("'first', 'last', 'all'"), -1, 'no queue modifiers');
+        assert.ok(/\/\^abort\\b\/\.test\(v\)/.test(a), '`abort` is refused explicitly, not by falling through to "unknown"');
+        assert.ok(/v\.indexOf\(':'\) > -1/.test(a), '`<selector>:<strategy>` is refused');
+        assert.ok(/takes no modifier/.test(a), 'a modifier is refused');
+        // each refusal names an alternative, not just a complaint
+        assert.ok(/use `replace` to let the newer submit take over, or `drop` to yield/.test(a));
+        assert.ok(/the key is the resolved `data-gina-form-target`/.test(a));
+    });
+    it('the module-wide rate-limit gate YIELDS when the form declares its own coordination', function () {
+        assert.ok(/if \(\s*syncAttr === null\s*&& \(\s*\/\^true\$\/i\.test\(options\.withRateLimit\)/.test(a),
+            'the gate is conditioned on the attribute being absent');
+        assert.equal((a.match(/var syncAttr = \$target\.getAttribute\('data-gina-form-sync'\);/g) || []).length, 1);
+        assert.ok(a.indexOf("var syncAttr = $target.getAttribute('data-gina-form-sync');") < a.indexOf('/^true$/i.test(options.withRateLimit)'),
+            'read before the gate consults it');
+        // and the DERIVED default runs AFTER that gate, so a form that declares nothing keeps
+        // the one-at-a-time rule it has always had for its own re-submits
+        assert.ok(a.indexOf('/^true$/i.test(options.withRateLimit)') < a.indexOf('syncParsed = deriveSync($target);'),
+            'derivation is downstream of the rate limit, never a replacement for it');
+    });
+    it('the decision runs BEFORE `isSending` is claimed — a `replace` abort settles synchronously and would clear the new cycle', function () {
+        var hForm    = a.indexOf("hFormIsRequired = ( $target.getAttribute('data-gina-form-event-on-submit-success')");
+        var decision = a.indexOf('var syncDecision = decideSync(syncParsed, syncRegistry.get(syncKey));');
+        var owned    = a.indexOf('var ownedByEarlierSend = ');
+        var claim    = a.indexOf('instance.$forms[id].isSending = true;');
+        assert.ok(hForm > -1 && decision > hForm, 'hFormIsRequired is decided first, so the gate below can read it');
+        assert.ok(decision < owned && owned < claim, 'decision < ownedByEarlierSend < the claim');
+        assert.ok(a.indexOf('syncEntry.xhr.abort();') < claim, 'the abort is inside the decision, above the claim');
+        assert.ok(a.indexOf('armSubmitLoading(instance.$forms[id], $submitTrigger);') > a.indexOf('syncEntry.xhr.abort();'),
+            'the replacing send takes the loading state over, after the abort released it');
+    });
+    it('exactly ONE submit is ever turned away, and it releases the loading state it owns — a queued one keeps it', function () {
+        // #B247 ownership, re-derived for a target key. `drop` is now the only turn-away:
+        // `queue` always waits, `replace` always proceeds.
+        assert.equal((a.match(/if \( !\( \/\^true\$\/i\.test\(instance\.\$forms\[id\]\.isSending\) \|\| \/\^true\$\/i\.test\(\$form\.isSending\) \) \) \{\s*\n\s*disarmSubmitLoading\(\$form\);\s*\n\s*\}/g) || []).length, 1,
+            'the `drop` turn-away releases, gated on ownership');
+        var queued = a.indexOf("syncNotice(id, 'submit queued");
+        var retrn  = a.indexOf('return;', queued);
+        assert.ok(queued > -1 && retrn > queued);
+        assert.equal(a.slice(queued, retrn).indexOf('disarmSubmitLoading'), -1, 'a queued submit keeps its loading state');
+    });
+    it('the sendCtx literal is UNCHANGED — every slice-4 field is assigned lazily', function () {
+        assert.ok(a.indexOf("var sendCtx = { popin: null, target: null, swap: 'innerHTML', select: null, targetAttr: null, rebindSelf: false };") > -1);
+        ['sync', 'syncDerived', 'syncKey', 'superseded', 'disabledElts'].forEach(function (k) {
+            assert.ok(a.indexOf('sendCtx.' + k) > -1, 'sendCtx.' + k + ' is set outside the literal');
+        });
+        assert.equal(a.indexOf('syncAbortable'), -1, '`abortable` and its single reader are gone with `abort`');
+        assert.equal(a.indexOf('claimed.abortable'), -1);
+    });
+    it('`data-gina-form-disabled-elt` resolves OUTSIDE the slice-2 refusal window and before any xhr.open', function () {
+        var cap    = a.indexOf("var targetAttr = $target.getAttribute('data-gina-form-target');");
+        var upload = a.indexOf('var isUploadXhr = /^gina\\-upload/i.test(id);');
+        var dis    = a.indexOf("var disabledAttr = $target.getAttribute('data-gina-form-disabled-elt');");
+        var open   = a.indexOf('xhr.open(options.method, options.url');
+        assert.ok(cap > -1 && upload > cap && dis > upload, 'after the upload marker — the §06 return-count window is untouched');
+        assert.equal(a.slice(cap, upload).indexOf('data-gina-form-disabled-elt'), -1);
+        assert.ok(open > dis, 'and before the request is opened, so a refusal can never strand a disabled control');
+        assert.ok(/refuseSend\(\$form, \$target, id, hFormIsRequired, 'data-gina-form-disabled-elt', disabledAttr, resolvedDisabled\.error, ownedByEarlierSend\);/.test(a),
+            'an unresolvable part refuses the submit through the shared refusal');
+    });
+    it('an unreadable sync value is DEFERRED to the pre-flight, where the declared error callback is bound', function () {
+        var listen = a.indexOf('listenToXhrEvents($form);');
+        var upload = a.indexOf('var isUploadXhr = /^gina\\-upload/i.test(id);');
+        var refuse = a.indexOf("refuseSend($form, $target, id, hFormIsRequired, 'data-gina-form-sync', syncAttr, syncParsed.error, ownedByEarlierSend);");
+        var decide = a.indexOf('var syncDecision = decideSync(syncParsed, syncRegistry.get(syncKey));');
+        assert.ok(listen > -1 && refuse > listen, 'delivered only once the declared channels are bound');
+        assert.ok(refuse > upload, 'and outside the `-target`/`-swap` refusal window');
+        assert.ok(decide > -1 && decide < listen, 'while the DECISION still runs up top, before isSending');
+        assert.ok(/if \( syncParsed && !syncParsed\.error \) \{/.test(a), 'an unreadable value decides nothing');
+        assert.equal((a.match(/'data-gina-form-sync', syncAttr, syncParsed\.error/g) || []).length, 1, 'exactly one sync refusal');
+        // the gate has already yielded on the attribute being PRESENT, so an unreadable value
+        // can never be swallowed by the rate limit before reaching that refusal
+        assert.ok(/if \(\s*syncAttr === null\s*&& \(/.test(a));
+        // a DERIVED result never carries an error — deriveSync returns a decision or nothing
+        assert.ok(/return \{ strategy: 'replace', derived: true, key: resolved\.target, swap: strategy \};/.test(a));
+    });
+    it('the slot is claimed on the line AFTER each xhr.send — never before, or a request that never leaves wedges the key', function () {
+        assert.equal((a.match(/claimSyncSlot\(\);/g) || []).length, 3, 'one per xhr.send site inside send()');
+        assert.equal((a.match(/xhr\.send\([^)]*\)[;]?\s*\n\s*claimSyncSlot\(\);/g) || []).length, 3, 'each immediately follows its send');
+        assert.ok(/var claimSyncSlot = function\(\) \{/.test(a));
+        assert.ok(a.indexOf('var claimSyncSlot = function() {') < a.indexOf('claimSyncSlot();'), 'declared before it is called');
+    });
+    it('the settle chokepoint releases, frees the slot on XHR identity, and does NOT shift a superseded queue', function () {
+        assert.equal((a.match(/releaseDisabledElts\(sendCtx\.disabledElts\);/g) || []).length, 2,
+            'the loadend chokepoint AND the one other exit after the pre-flight (the binary branch error)');
+        assert.ok(/if \( settledEntry && settledEntry\.xhr === xhr \) \{/.test(a), 'a late settle can never evict a newer request');
+        assert.ok(/if \( !sendCtx\.superseded \) \{\s*\n\s*shiftSyncQueue\(settledEntry\);/.test(a),
+            'a superseded settle leaves the queue to the request that replaced it');
+        var loadend = a.indexOf("xhr.addEventListener('loadend', function onSendSettled() {");
+        var release = a.indexOf('releaseSubmitA11y($form, $submitTrigger);', loadend);
+        assert.ok(loadend > -1 && release > loadend && a.indexOf('releaseDisabledElts(sendCtx.disabledElts);', release) > release,
+            'inside the fail-safe, after the existing releases');
+    });
+    it('a superseded request runs its RELEASE arms and skips its DISPATCH arms — the #B447 false 408 must not fire', function () {
+        assert.ok(/xhr\.onreadystatechange = function onValidationCallback\(event\) \{\s*if \( !sendCtx\.superseded \) \{\s*\$form\.isSubmitting = false;\s*\}/.test(a),
+            'the handler-top latch clear is guarded (#B332 class)');
+        assert.equal((a.match(/releaseSubmitA11y\(\$form, \$submitTrigger\);/g) || []).length, 2, 'both release sites located (slice control)');
+        var rel2  = a.lastIndexOf('releaseSubmitA11y($form, $submitTrigger);');
+        var guard = a.indexOf('if ( sendCtx.superseded ) {', rel2);
+        var ctype = a.indexOf('var contentType     = xhr.getResponseHeader("Content-Type");');
+        assert.ok(guard > rel2 && ctype > guard, 'release block < the superseded guard < the contentType read');
+        var block = a.slice(guard, ctype);
+        assert.ok(/status  : 0,/.test(block) && /reason  : 'superseded',/.test(block) && /sync    : sendCtx\.sync \|\| null,/.test(block), 'the abort payload shape');
+        assert.ok(/derived : !!sendCtx\.syncDerived/.test(block),
+            'and it says whether the rule was declared or derived — a page may find nothing in its own markup that asked for this');
+        assert.ok(/\n\s*return;\n/.test(block), 'and it returns before any status dispatch');
+        var transport = a.indexOf("'transportError': true,");
+        assert.ok(transport > guard, 'the #B447 transport arm it must never reach is below');
     });
 });
