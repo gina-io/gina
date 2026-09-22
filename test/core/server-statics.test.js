@@ -22,14 +22,19 @@ describe('01 - HTTP/2 dev path: cache headers cover all static types', function(
     before(function() {
         src = fs.readFileSync(SOURCE, 'utf8');
 
-        // There are two HTTP/2 isCacheless blocks that contain header['X-SourceMap']:
-        //  1. onHttp2Stream push-stream path (~line 1630)
-        //  2. handleStatics direct-response path (~line 2046)
-        // Both had the same bug; both were fixed. Test the handleStatics path (last occurrence).
+        // One HTTP/2 isCacheless block contains header['X-SourceMap']: the handleStatics
+        // direct-response path. The onHttp2Stream push-stream block that also carried it
+        // was removed with the listener in 14359ee6a (#B566), so the literal now occurs
+        // exactly once. lastIndexOf is kept deliberately: it is a no-op on one occurrence
+        // and still selects handleStatics if an earlier one is ever reintroduced.
         // The HTTP/1.x paths use response.setHeader("X-SourceMap") — different syntax, excluded.
         var xSourceMapIdx  = src.lastIndexOf("header['X-SourceMap']");
         var isCachelessIdx = src.lastIndexOf('if (isCacheless)', xSourceMapIdx);
         var regionEnd      = src.indexOf('header  = completeHeaders(header', xSourceMapIdx);
+        // indexOf returning -1 is not an error, and slice(start, -1) does not throw - it
+        // slices to end of file, inflating this 1,433-byte region to ~262 kB and leaving
+        // every assertion below satisfiable by unrelated code. Fail by name instead.
+        assert.ok(regionEnd > -1, 'the completeHeaders end anchor moved - this pin would slice to end of file');
         region = src.slice(isCachelessIdx, regionEnd);
     });
 
@@ -91,43 +96,6 @@ describe('01 - HTTP/2 dev path: cache headers cover all static types', function(
         assert.ok(
             /header\['cache-control'\]\s*=\s*'no-cache, no-store, must-revalidate'/.test(region),
             "cache-control must be 'no-cache, no-store, must-revalidate' in HTTP/2 dev path"
-        );
-    });
-
-});
-
-
-// ─── 02 — HTTP/2 push-stream dev path: same fix ──────────────────────────────
-
-describe('02 - HTTP/2 push-stream dev path: cache headers cover all pushed assets', function() {
-
-    var src, region;
-
-    before(function() {
-        src = fs.readFileSync(SOURCE, 'utf8');
-
-        // The push-stream isCacheless block is the FIRST occurrence of header['X-SourceMap'].
-        var xSourceMapIdx  = src.indexOf("header['X-SourceMap']");
-        var isCachelessIdx = src.lastIndexOf('if (isCacheless)', xSourceMapIdx);
-        var regionEnd      = src.indexOf('header = completeHeaders(header', xSourceMapIdx);
-        region = src.slice(isCachelessIdx, regionEnd);
-    });
-
-    it('cache-control appears AFTER X-SourceMap in the push-stream isCacheless block', function() {
-        var xSourceMapPos   = region.indexOf("header['X-SourceMap']");
-        var cacheControlPos = region.indexOf("header['cache-control']");
-        assert.ok(cacheControlPos > xSourceMapPos, 'cache-control must appear after X-SourceMap');
-        var firstClosingBrace = region.indexOf('}', xSourceMapPos);
-        assert.ok(
-            firstClosingBrace > xSourceMapPos && firstClosingBrace < cacheControlPos,
-            'closing } of source-map inner if must be between X-SourceMap and cache-control'
-        );
-    });
-
-    it('cache-control value is no-cache, no-store, must-revalidate in push-stream path', function() {
-        assert.ok(
-            /header\['cache-control'\]\s*=\s*'no-cache, no-store, must-revalidate'/.test(region),
-            "cache-control must be 'no-cache, no-store, must-revalidate' in HTTP/2 push-stream dev path"
         );
     });
 
@@ -310,6 +278,7 @@ describe('07 - ETag + Last-Modified are set on production 200 responses', functi
         // Region: from the last X-SourceMap assignment to the completeHeaders call that follows.
         var xSourceMapIdx = src.lastIndexOf("header['X-SourceMap']");
         var regionEnd     = src.indexOf('header  = completeHeaders(header', xSourceMapIdx);
+        assert.ok(regionEnd > -1, 'the completeHeaders end anchor moved - this pin would slice to end of file');
         var region        = src.slice(xSourceMapIdx, regionEnd);
         assert.ok(
             /header\['last-modified'\]\s*=\s*lastModified/.test(region),
@@ -324,6 +293,7 @@ describe('07 - ETag + Last-Modified are set on production 200 responses', functi
     it('HTTP/2 ETag + Last-Modified are in the else branch (not inside isCacheless dev block)', function() {
         var xSourceMapIdx   = src.lastIndexOf("header['X-SourceMap']");
         var regionEnd       = src.indexOf('header  = completeHeaders(header', xSourceMapIdx);
+        assert.ok(regionEnd > -1, 'the completeHeaders end anchor moved - this pin would slice to end of file');
         var region          = src.slice(xSourceMapIdx, regionEnd);
         // The closing } of the inner source-map if must come before last-modified
         var firstBrace      = region.indexOf('}');
@@ -337,6 +307,7 @@ describe('07 - ETag + Last-Modified are set on production 200 responses', functi
     it('HTTP/1.x production writeHead(200) includes last-modified and etag', function() {
         // Locate the HTTP/1.x X-SourceMap setHeader call, then the else branch that follows.
         var xSourceMapH1Idx = src.lastIndexOf('response.setHeader("X-SourceMap"');
+        assert.ok(xSourceMapH1Idx > -1, 'the HTTP/1.x X-SourceMap anchor moved - indexOf would restart at 0 and select the wrong block');
         var elseIdx         = src.indexOf('} else {', xSourceMapH1Idx);
         var regionEnd       = src.indexOf('\n\n', elseIdx + 10);
         var region          = src.slice(elseIdx, regionEnd);
@@ -352,6 +323,7 @@ describe('07 - ETag + Last-Modified are set on production 200 responses', functi
 
     it('HTTP/1.x ETag + Last-Modified are in the else branch (not in the dev writeHead)', function() {
         var xSourceMapH1Idx = src.lastIndexOf('response.setHeader("X-SourceMap"');
+        assert.ok(xSourceMapH1Idx > -1, 'the HTTP/1.x X-SourceMap anchor moved - indexOf would restart at 0 and select the wrong block');
         var devWriteHeadIdx = src.indexOf("'cache-control': 'no-cache, no-store, must-revalidate'", xSourceMapH1Idx);
         var elseIdx         = src.indexOf('} else {', xSourceMapH1Idx);
         // The else branch (with last-modified/etag) must appear after the dev writeHead block
@@ -364,63 +336,7 @@ describe('07 - ETag + Last-Modified are set on production 200 responses', functi
 });
 
 
-// ─── 08 — static-asset map is never poisoned with a string ───────────────────
-//
-// Regression for: `TypeError: Cannot create property '<url>' on string '{}'`
-// crashing the bundle under concurrent HTTP/2 static requests (Chrome favicon/
-// manifest/og-image prefetch). Root cause: getAssets() returns the assets map
-// SERIALIZED as a string (its render-path consumers embed it verbatim), and the
-// dev static-serve path assigned that string straight onto _options.template.assets
-// — an object map — so the next `template.assets[request.url] = {...}` write threw
-// under 'use strict'. Fix: parse the serialized map back to an object at the call
-// site + coerce to an object before the property writes (defense-in-depth).
-
-describe('08 - static-asset template.assets stays an object (never the string from getAssets)', function() {
-
-    var src;
-    before(function() { src = fs.readFileSync(SOURCE, 'utf8'); });
-
-    it('does NOT assign the raw getAssets() string straight onto template.assets', function() {
-        assert.ok(
-            !/_options\.template\.assets\s*=\s*getAssets\s*\(/.test(src),
-            'template.assets must not be assigned the raw getAssets() return (it is a serialized string) — wrap it in JSON.parse'
-        );
-    });
-
-    it('parses the serialized getAssets() output back into the object map', function() {
-        assert.ok(
-            /_options\.template\.assets\s*=\s*JSON\.parse\(\s*getAssets\s*\(/.test(src),
-            'the static-serve path must do template.assets = JSON.parse( getAssets(...) )'
-        );
-    });
-
-    it('coerces template.assets to an object before the property writes (defense-in-depth)', function() {
-        var coercions = src.match(/typeof\(self\._options\.template\.assets\)\s*!=\s*'object'/g) || [];
-        assert.ok(
-            coercions.length >= 2,
-            'an object-coercion guard must precede the assets-map writes on both the onStaticFileRead and onHttp2Strem paths (found ' + coercions.length + ')'
-        );
-    });
-
-    it('every assets-map property write is preceded by an object guard or parse', function() {
-        // Each `self._options.template.assets[<url>] = {` write must sit AFTER a
-        // coercion/parse that guarantees the map is an object. Cheap proxy: the
-        // first such write must appear after the first JSON.parse(getAssets()) /
-        // coercion in the source.
-        var firstGuard = src.search(/_options\.template\.assets\s*=\s*JSON\.parse\(\s*getAssets|typeof\(self\._options\.template\.assets\)\s*!=\s*'object'/);
-        var firstWrite = src.search(/self\._options\.template\.assets\[request\.url\]\s*=\s*\{/);
-        assert.ok(firstGuard > -1, 'a guard/parse for template.assets must exist');
-        assert.ok(firstWrite > -1, 'a template.assets[request.url] write must exist');
-        assert.ok(firstGuard < firstWrite, 'the first template.assets object-guard must precede the first property write');
-    });
-
-    it('carries the #assets-guard markers for traceability', function() {
-        var markers = src.match(/#assets-guard/g) || [];
-        assert.ok(markers.length >= 3, 'expected the #assets-guard markers at the parse + both write-path coercions (found ' + markers.length + ')');
-    });
-
-});
-
+// (§08 — the template.assets registry it guarded was removed with the HTTP/2 stream listener, #B566)
 
 // ─── 09 — directory→index redirect sends 301 on BOTH protocols, dev or not ───
 //

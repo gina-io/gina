@@ -516,7 +516,7 @@ describe('14 - Popin: no inline onclick injection on close (CSP-safe)', function
 // for the non-modal path. Any path that does NOT set `$popin.modal` (legacy
 // `data-gina-popin-*` triggers, direct popinOpen() calls) falls back to modal, so
 // legacy parity is preserved (legacy popins stay showModal()-only). The
-// `!getAttribute('open')` re-entry guard is kept (re-showModal/re-show on an
+// `!hasAttribute('open')` re-entry guard is kept (re-showModal/re-show on an
 // already-open dialog throws). Replaces the prior "showModal()-only" pins, which were
 // updated deliberately when the non-modal default was added (see plan Test 15).
 
@@ -562,9 +562,9 @@ describe('15 - Popin: modal/non-modal split (showModal vs show, legacy=modal)', 
         );
     });
 
-    it("source: the `useDialogMode && !$el.getAttribute('open')` guard is preserved", function() {
+    it("source: the `useDialogMode && !$el.hasAttribute('open')` guard is preserved (#B574)", function() {
         assert.ok(
-            /useDialogMode\s*&&\s*!\$el\.getAttribute\('open'\)/.test(getPopinSrc()),
+            /useDialogMode\s*&&\s*!\$el\.hasAttribute\('open'\)/.test(getPopinSrc()),
             "popinOpen must keep the open-guard so a consumer-preopened modal is not re-shown (re-showModal throws)"
         );
     });
@@ -597,7 +597,7 @@ describe('15 - Popin: modal/non-modal split (showModal vs show, legacy=modal)', 
 // popin.css) is used. It is invoked at BOTH loading-attr write sites and is
 // idempotent (the open/active guard makes it fire at most once per load). On
 // completion popinBind replaces the skeleton with the real HTML and popinOpen's
-// !$el.getAttribute('open') guard skips its own open.
+// !$el.hasAttribute('open') guard skips its own open.
 //
 // Strategy (same convention as validator-aria-invalid / validator-isinlist):
 //  - a jsdom-backed DOM exercises a test-local replica of showLoadingShell.
@@ -1139,7 +1139,9 @@ describe('21 - Popin: applyContent full vs partial', function () {
         // The FINAL guard clause must directly close the if-condition and gate the
         // popinLoadContent diversion (structural + indentation-tolerant — robust vs a char count).
         var lastGuard = src.slice(src.lastIndexOf('!$popin.partialTarget'));
-        assert.ok(/^!\$popin\.partialTarget\s*\)\s*\{[\s\S]{0,160}?popinLoadContent\(/.test(lastGuard),
+        // #gh76: the diversion is `popinLoadContent.call($popin, result, …)` — it loads into
+        // THIS popin instead of re-resolving the active one — so both call forms are accepted.
+        assert.ok(/^!\$popin\.partialTarget\s*\)\s*\{[\s\S]{0,160}?popinLoadContent(?:\.call\(\$popin,\s*|\()result/.test(lastGuard),
             'the final !$popin.partialTarget guard clause must directly gate the popinLoadContent call');
     });
 });
@@ -1676,21 +1678,24 @@ describe('27 - Popin: native <dialog> UA-close routes through popinClose', funct
         assert.match(getPopinSrc(), /\$el\.addEventListener\(\s*['"]close['"]/, 'expected a native `close` listener (DOM addEventListener)');
     });
 
-    it('source: the close listener runs popinClose only while still flagged open', function () {
+    it('source: the close listener runs popinClose only while still flagged open or loading (gh#76 §8)', function () {
         assert.match(
             getPopinSrc(),
-            /addEventListener\(\s*['"]close['"][\s\S]{0,220}?if\s*\(\s*\$popin\.isOpen\s*\)[\s\S]{0,80}?popinClose\(\s*\$popin\.name\s*\)/,
-            'close handler must guard on $popin.isOpen then call popinClose($popin.name)'
+            /addEventListener\(\s*['"]close['"][\s\S]{0,220}?if\s*\(\s*\$popin\.isOpen\s*\|\|\s*\$popin\.isLoading\s*\)[\s\S]{0,80}?popinClose\(\s*\$popin\.name\s*\)/,
+            'close handler must guard on $popin.isOpen || $popin.isLoading then call popinClose($popin.name)'
         );
     });
 
     it('source: the close-sync bind precedes `$popin.isOpen = true` in popinOpen', function () {
         var src = getPopinSrc();
-        var bindIdx = src.indexOf('!$el._ginaCloseSyncBound');
+        // gh#76 §8 — the listener block moved into the shared bindNativeCloseSync helper; the
+        // popinOpen call site is the LAST occurrence (the helper's @example and the loading
+        // shell's call precede it), so lastIndexOf pins popinOpen's ordering, not the helper's
+        var bindIdx = src.lastIndexOf('bindNativeCloseSync($popin, $el);');
         var openIdx = src.indexOf('$popin.isOpen = true');
-        assert.ok(bindIdx > -1, 'gate present');
+        assert.ok(bindIdx > -1, 'the popinOpen call to bindNativeCloseSync is present');
         assert.ok(openIdx > -1, '$popin.isOpen = true present');
-        assert.ok(bindIdx < openIdx, 'the close listener is bound before isOpen is set true');
+        assert.ok(bindIdx < openIdx, 'the close-sync helper is called before isOpen is set true');
     });
 
     // --- dist freshness (the served bundle must carry the fix) ---
@@ -2749,5 +2754,81 @@ describe('35 - #B300: the always-false id-backfill guards stay deleted', functio
             'the always-false id guard must stay deleted');
         assert.equal(/event\.target\.setAttribute\('id', evt/.test(region), false,
             'the id-rewrite body must stay deleted — and must NOT be "repaired": it would set the clicked node\'s id to `evt + "." + _nextId()`, breaking the invariant the #B299/#B301 note depends on (the $close teardown sweep finds this listener via `gina.events[eId] == eId`, i.e. element id === event name) and leaking the listener');
+    });
+});
+
+/**
+ * 22 — applyContent: the two fallbacks announced, and a malformed selector no longer throws (#B580).
+ *
+ * Drives the REAL function — brace-walk-extracted from the source, not the §21 replica (which
+ * omits `$popin` and mirrors the PRE-#B580 body). Red-first lever: `GINA_POPIN_SRC=<git show
+ * HEAD~:…/popin/main.js>` — on the pre-fix source the extraction of `warnPartialTarget` yields
+ * null, 22.1 throws inside the arm, 22.2/22.3 red on the missing notice, 22.6 red on the missing
+ * `try`, and 22.5 reds on its LAST assertion only (pre-fix the malformed selector throws instead of
+ * falling back). 22.4 is the one pure control — green on both trees, which is its job.
+ */
+describe('22 - Popin: applyContent — fallbacks announced, malformed selector falls back (#B580, REAL function)', function () {
+    var SRC22 = process.env.GINA_POPIN_SRC ? fs.readFileSync(process.env.GINA_POPIN_SRC, 'utf8') : getPopinSrc();
+    function extract22(declRe, label) {
+        var re = new RegExp(declRe, 'mg'); var m = re.exec(SRC22);
+        if ( !m ) { return null; }
+        var i = m.index, depth = 0, started = false;
+        for (; i < SRC22.length; i++) { var ch = SRC22[i]; if (ch === '{') { depth++; started = true; } else if (ch === '}') { depth--; if (started && depth === 0) { i++; break; } } }
+        return SRC22.slice(m.index, i);
+    }
+    var srcApply22 = extract22('^[ \\t]*function applyContent\\(', 'applyContent');
+    var srcWarn22  = extract22('^[ \\t]*function warnPartialTarget\\(', 'warnPartialTarget');   // null on a pre-#B580 source
+
+    function scene22(opts) {
+        var o = opts || {};
+        var w = new JSDOM('<!DOCTYPE html><body><dialog id="d">' + (o.dialog || '<b class="chrome">x</b><div id="slot">old</div>') + '</dialog></body>', { runScripts: 'outside-only' }).window;
+        var warns = [];
+        w.console.warn = function (m) { warns.push(String(m)); };
+        w.eval('window.gina = { config: { envIsDev: ' + (('envIsDev' in o) ? !!o.envIsDev : true) + ' } };');
+        var apply = w.eval('(function(){ ' + (srcWarn22 || '') + ' ' + srcApply22 + ' return applyContent; })()');
+        var $el = w.document.getElementById('d'); var threw = null;
+        try { apply($el, o.answer, { name: 'x22' }, o.target); } catch (e) { threw = e.name; }
+        return { threw: threw, dialog: $el.innerHTML, warns: warns };
+    }
+
+    it('22.1 a MALFORMED selector no longer throws: full replace, one notice naming the popin and the engine error (RED pre-#B580: SyntaxError)', function () {
+        assert.ok(srcWarn22, 'warnPartialTarget is declared (absent on a pre-#B580 source)');
+        var s = scene22({ target: '#slot >', answer: '<p>whole</p>' });
+        assert.equal(s.threw, null, 'no throw');
+        assert.equal(s.dialog, '<p>whole</p>', 'the documented fallback: a full replace');
+        assert.equal(s.warns.length, 1);
+        assert.match(s.warns[0], /\[gina\/popin\] popin `x22`: `data-gina-dialog-target="#slot >"` is not a valid selector \(/);
+    });
+    it('22.2 a selector matching nothing in the OPEN DIALOG: full replace (as before) — now announced', function () {
+        var s = scene22({ target: '#nowhere', answer: '<p>whole</p>' });
+        assert.equal(s.threw, null);
+        assert.equal(s.dialog, '<p>whole</p>');
+        assert.equal(s.warns.length, 1);
+        assert.match(s.warns[0], /matched nothing in the open dialog — the whole dialog was replaced instead/);
+    });
+    it('22.3 a selector matching nothing in the ANSWER: the whole answer body into the slot (as before) — the SECOND fallback, now announced', function () {
+        var s = scene22({ target: '#slot', answer: '<header>H</header><p>body</p>' });
+        assert.equal(s.threw, null);
+        assert.equal(s.dialog, '<b class="chrome">x</b><div id="slot"><header>H</header><p>body</p></div>', 'chrome kept, whole body in the slot');
+        assert.equal(s.warns.length, 1);
+        assert.match(s.warns[0], /matched nothing in the answer — the whole answer went into the slot/);
+    });
+    it('22.4 CONTROL — the slot present on BOTH sides: the partial swap, and NO notice (green on both trees)', function () {
+        var s = scene22({ target: '#slot', answer: '<header>H</header><div id="slot"><p>fresh</p></div>' });
+        assert.equal(s.threw, null);
+        assert.equal(s.dialog, '<b class="chrome">x</b><div id="slot"><p>fresh</p></div>');
+        assert.deepEqual(s.warns, []);
+    });
+    it('22.5 outside dev mode the three misses stay SILENT (the silence half is green on both trees); the malformed arm still falls back — RED pre-#B580 on that assertion', function () {
+        assert.deepEqual(scene22({ target: '#nowhere', answer: '<p>w</p>', envIsDev: false }).warns, [], 'dialog-side miss');
+        assert.deepEqual(scene22({ target: '#slot', answer: '<p>w</p>', envIsDev: false }).warns, [], 'answer-side miss');
+        var bad = scene22({ target: '#slot >', answer: '<p>w</p>', envIsDev: false });
+        assert.deepEqual(bad.warns, [], 'malformed selector');
+        assert.equal(bad.dialog, '<p>w</p>', 'and it still falls back rather than throwing');
+    });
+    it('22.6 source pin — the dialog-side read sits inside a `try`, and the answer-side miss is an explicit branch (RED pre-#B580)', function () {
+        assert.ok(/try\s*\{\s*\n\s*\$slot\s*=\s*\$el\.querySelector\(partialTarget\);/.test(srcApply22), 'the read the engine can refuse is guarded');
+        assert.ok(/\$incoming\s*=\s*parsed\.querySelector\(partialTarget\);\s*\n\s*if\s*\(\s*!\$incoming\s*\)/.test(srcApply22), 'the answer-side miss is a named branch, not a bare `||`');
+        assert.equal(srcApply22.indexOf('|| parsed.body'), -1, 'the silent `|| parsed.body` is gone');
     });
 });

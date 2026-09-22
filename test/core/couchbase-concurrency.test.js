@@ -205,7 +205,8 @@ before(function () {
     // Production hands out the singleton registered at entity.js:491 — the same object the
     // connector falls back to for a detached call. That sharing IS the defect's substrate.
     EntitySuper = require(path.join(FW, 'core/model/entity.js'));
-    ent = EntitySuper.Thing.instance;
+    // #B555 — keyed on (bundle, model, className) now; the same pair the connector was built with.
+    ent = EntitySuper[EntitySuper.key('bundle', 'model', 'Thing')].instance;
 });
 
 after(function () { fs.rmSync(TMP, { recursive: true, force: true }); });
@@ -214,7 +215,7 @@ describe('01 - controls (these PASS on the pre-fix connector too)', function () 
 
     it('the entity handed to callers is the process-wide singleton', function () {
         assert.ok(ent, 'entity singleton must be resolvable');
-        assert.equal(ent, EntitySuper.Thing.instance);
+        assert.equal(ent, EntitySuper[EntitySuper.key('bundle', 'model', 'Thing')].instance);
     });
 
     it('serial calls each receive their own row (the instrument can read CORRECT)', async function () {
@@ -375,7 +376,7 @@ describe('04 - exactly one trigger emit per completion (observability contract)'
 
     it('the emit reaches lib/inspector-events when the N1QL:* topic is allow-listed', async function () {
         await quiesce();
-        var ie = require('lib/inspector-events');
+        var ie = require(path.join(FW, 'lib/inspector-events'));
         var original = ie.emit;
         var calls = [];
         ie.emit = function (name, meta, source) { calls.push({ name: name, meta: meta, source: source }); };

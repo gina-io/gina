@@ -1,0 +1,98 @@
+#!/usr/bin/env bash
+#
+# commit-msg — blocks local-tool configuration paths and AI-attribution
+# mentions from entering a commit MESSAGE.
+#
+# WHY. The sibling pre-commit hook scans staged CONTENT (#S7) and has done so
+# since 0.3.6, but nothing anywhere has ever received a commit MESSAGE. That
+# gap is measured, not theoretical: 13 messages on the public branches name
+# local configuration paths, 2026-05-06 (afaa930ac) -> 2026-08-22 (a7bb3e84a),
+# every one of them authored while the content scan was already in place.
+#
+# It also covers a surface no editor-side tooling can reach: a message typed
+# straight into a terminal. That is why the attribution half of the pattern is
+# included here as well, not only the path half.
+#
+# CONTRACT. Git calls this with $1 = the path to the message file, for commit,
+# amend, merge and squash alike. Comment lines are git's own template and
+# status block, never the author's text, so they are stripped before scanning;
+# so is everything from the scissors marker onward, which git itself discards.
+#
+# PATTERN PARITY. The two S7_* variables below are byte-identical to the copies
+# in .githooks/pre-commit — they were extracted from that file, not retyped.
+# test/lib/commit-msg-hook.test.js pins the equality, so the pair cannot drift
+# apart silently. Change one, change both, or the suite reds.
+#
+# MESSAGE-ONLY SUPPLEMENT. S7_LEAK_RE alone catches only 10 of the 13 known
+# leaks: it matches a configuration path with a trailing slash, but not a bare
+# filename mention nor the directory named without one — which is precisely how
+# afaa930ac, 70ca041dd and 6bfac5402 got through. The shared pattern is NOT
+# widened to close that, deliberately: `.claude` as a bare token is also the AI
+# connector's provider key, and test/lib/connector-config.test.js legitimately
+# carries `shared.claude.model` / `bundle.claude.b` in fixtures. Widening the
+# CONTENT scan would reject product functionality the rule explicitly allows.
+#
+# A commit message is prose, not code, so it takes a broader pattern of its own.
+# MSG_EXTRA_RE requires a non-word character before the directory form, which is
+# what keeps `shared.claude.model` (preceded by `d`) out while catching
+# ` .claude` and `(.claude*`. Verified against all 13 real messages and a
+# 40-message clean control.
+#
+# FAIL-OPEN. A missing or unreadable message file is allowed: this hook exists
+# to catch a wording slip, and it must never be the reason a commit cannot be
+# made. `git commit --no-verify` remains git's own escape hatch.
+#
+# Exit codes: 0 = allow · 1 = block (stderr explains, in the house style).
+
+set -u
+
+msg_file="${1:-}"
+[ -n "$msg_file" ] || exit 0
+[ -f "$msg_file" ] || exit 0
+[ -r "$msg_file" ] || exit 0
+
+S7_LEAK_RE='\.claude/|\.claudeignore|claude\.ai|claude\.com/claude-code|Co-Authored-By:?[^\n]{0,30}(Claude|Anthropic)|Generated (by|with)[^\n]{0,30}Claude|🤖[^\n]{0,30}Claude'
+S7_EXCEPTION_RE='anthropic://|openai://|deepseek://|qwen://|groq://|mistral://|gemini://|xai://|perplexity://|ollama://|@anthropic-ai/sdk|ANTHROPIC_API_KEY|OPENAI_API_KEY'
+
+# Message-only supplement — see the header. Bare filename mention, or the
+# directory form preceded by a non-word character (never mid-identifier).
+MSG_EXTRA_RE='CLAUDE\.md|(^|[^A-Za-z0-9_])\.claude'
+
+# The author's text only: drop comment lines and anything below the scissors.
+msg_body="$(sed -e '/^# *-* *>8 *-*/,$d' -e '/^#/d' "$msg_file" 2>/dev/null)" || exit 0
+[ -n "$msg_body" ] || exit 0
+
+# Same behaviour as the content scan: strip the documented exceptions first,
+# then test the residue — so a line carrying a leak AND an allowed identifier
+# is still caught, while an allowed identifier alone is not.
+hits=""
+while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    stripped=$(printf '%s' "$line" | sed -E "s#$S7_EXCEPTION_RE##gI")
+    if printf '%s' "$stripped" | grep -qiE "$S7_LEAK_RE" \
+       || printf '%s' "$stripped" | grep -qE "$MSG_EXTRA_RE"; then
+        hits="${hits}    ${line}
+"
+    fi
+done <<EOF
+$msg_body
+EOF
+
+[ -n "$hits" ] || exit 0
+
+{
+    echo "[commit-msg] ERROR: local-tool path or AI-attribution mention in the commit message:"
+    printf '%s' "$hits" | head -10
+    echo ""
+    echo "[commit-msg] A commit message is a public surface on this repository."
+    echo "[commit-msg] Say what the change IS, not where a local note about it lives:"
+    echo "[commit-msg]   \"Updating the internal roadmap copy\"   not  \"Updating <local dir>/roadmap.md\""
+    echo "[commit-msg]   \"per the local verification rule\"      not  \"per <local file>\""
+    echo "[commit-msg] Allowed exceptions (product functionality, not attribution):"
+    echo "[commit-msg]   - protocol identifiers (anthropic://, openai://, etc.)"
+    echo "[commit-msg]   - vendor SDK package names (@anthropic-ai/sdk, openai)"
+    echo "[commit-msg]   - canonical env-var names (ANTHROPIC_API_KEY, OPENAI_API_KEY)"
+    echo ""
+    echo "[commit-msg] Rewrite the message, or bypass deliberately with --no-verify."
+} >&2
+exit 1

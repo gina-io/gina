@@ -1,0 +1,3 @@
+# stale: carries an entry that no longer fails
+test/fixtures/bun-suite/files/b.test.js :: suite :: fails deliberately
+test/fixtures/bun-suite/files/b.test.js :: suite :: used to fail

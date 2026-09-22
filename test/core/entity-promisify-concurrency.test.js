@@ -89,7 +89,8 @@ function build(name, method) {
     E.prototype.getRecord = method;
     mu.setConnection('bundle_' + name, 'model_' + name, null);
     mu.setModelEntity('bundle_' + name, 'model_' + name, name + 'Entity', E);
-    EntitySuper[name] = { initialized: true };
+    // #B555 — keyed on (bundle, model, className) now, via EntitySuper.key().
+    EntitySuper[EntitySuper.key('bundle_' + name, 'model_' + name, name)] = { initialized: true };
     return new E(null, null);
 }
 

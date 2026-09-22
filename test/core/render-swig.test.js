@@ -466,7 +466,7 @@ describe('07 - normal render exit paths: response.end() sites and guards', funct
         // capture name (no `local.` prefix to disambiguate).
         var matches = src.match(/\bres\.end\s*\(/g);
         assert.ok(matches, 'no res.end() calls found');
-        assert.strictEqual(matches.length, 5, 'expected exactly 5 res.end() calls (2 HEAD + 2 body + 1 fallthrough)');
+        assert.strictEqual(matches.length, 9, 'expected exactly 9 res.end() calls (5 original: 2 HEAD + 2 body + 1 fallthrough; plus 4 #B562 deferral branches, one per converted raw-stream site)');
     });
 
     it('zero res.write() calls — all writes use .end(body)', function() {
@@ -752,7 +752,7 @@ describe('10 - HTTP/2 direct stream implementation (#H8)', function() {
         var stripped = stripComments(getSrc());
         var matches = stripped.match(/\bres\.statusCode\s*\|\|\s*200/g);
         assert.ok(matches, 'no dynamic :status found');
-        assert.strictEqual(matches.length, 4, 'expected 4 dynamic :status (2 HEAD + 2 body, error uses hardcoded 500)');
+        assert.strictEqual(matches.length, 8, 'expected 8 dynamic :status (4 original: 2 HEAD + 2 body; plus 4 in the #B562 writeHead calls; error still uses hardcoded 500)');
     });
 
     it('hardcoded :status 500 in error fallthrough path', function() {
@@ -793,7 +793,7 @@ describe('10 - HTTP/2 direct stream implementation (#H8)', function() {
         // Word-boundary anchor: `res` is the function-scoped capture name.
         var matches = src.match(/\bres\.end\s*\(/g);
         assert.ok(matches, 'no res.end() found');
-        assert.strictEqual(matches.length, 5, 'expected 5 res.end() calls for HTTP/1.1 fallback');
+        assert.strictEqual(matches.length, 9, 'expected 9 res.end() calls (5 for the HTTP/1.1 fallback + 4 #B562 deferral branches)');
     });
 
     // ── Pure logic: patterns that #H8 must implement ────────────────────

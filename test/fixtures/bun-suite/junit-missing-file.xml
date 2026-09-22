@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="bun test" tests="2" assertions="0" failures="1" skipped="1" time="0.100000000">
+  <testsuite name="test/fixtures/bun-suite/files/b.test.js" file="test/fixtures/bun-suite/files/b.test.js" tests="2" assertions="0" failures="1" skipped="1" time="0.025023655" hostname="fixture">
+    <testsuite name="suite" file="test/fixtures/bun-suite/files/b.test.js" line="2" tests="2" assertions="0" failures="1" skipped="1" time="0.004" hostname="fixture">
+      <testcase name="fails deliberately" classname="suite" time="0.00488" file="test/fixtures/bun-suite/files/b.test.js" line="2" assertions="0">
+        <failure type="AssertionError" message="Expected values to be strictly equal:&#10;&#10;1 !== 2&#10;">AssertionError: Expected values to be strictly equal:&#10;&#10;1 !== 2&#10;&#10;      at b.test.js:2:79&#10;</failure>
+      </testcase>
+      <testcase name="skipped one" classname="suite" time="0" file="test/fixtures/bun-suite/files/b.test.js" line="2" assertions="0">
+        <skipped />
+      </testcase>
+    </testsuite>
+  </testsuite>
+</testsuites>

@@ -164,7 +164,7 @@ S7_EXCEPTION_RE='anthropic://|openai://|deepseek://|qwen://|groq://|mistral://|g
 # leak before it reaches dist. Scanner test files join the list for the same
 # reason as their scanners — they must pin the regex shape via source-text
 # assertions, which requires writing the patterns literally.
-S7_EXCLUDED_FILES='^(\.githooks/pre-commit|\.github/workflows/security\.yml|script/check_no_local_leak\.js|script/prepare_version\.js|test/lib/check-no-local-leak\.test\.js|\.gitignore|\.npmignore|framework/v[^/]+/core/asset/plugin/dist/.*|.*\.(min\.(js|css)(\.br|\.gz)?|map))$'
+S7_EXCLUDED_FILES='^(\.githooks/pre-commit|\.githooks/commit-msg|\.github/workflows/security\.yml|script/check_no_local_leak\.js|script/prepare_version\.js|test/lib/check-no-local-leak\.test\.js|test/lib/commit-msg-hook\.test\.js|\.gitignore|\.npmignore|framework/v[^/]+/core/asset/plugin/dist/.*|.*\.(min\.(js|css)(\.br|\.gz)?|map))$'
 
 s7_current=""
 s7_in_excluded=0

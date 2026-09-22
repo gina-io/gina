@@ -420,7 +420,10 @@ describe('#R8 §07 — negatives: shipped surfaces untouched, scope locked', fun
 
     it('no abort path was added (the layer has none)', function () {
         var active = stripComments(SRC);
-        assert.ok(active.indexOf('xhr.abort(') < 0);
+        // gh#76 slice 4 added ONE abort, in the request-coordination decision at the top of
+        // send() — a different layer. Pin that it is the only one, and that it is that one:
+        // an abort reaching THIS layer would show up as a second hit, or a different prefix.
+        assert.deepEqual(active.match(/[\w.$]*xhr\.abort\(/g) || [], ['syncEntry.xhr.abort(']);
     });
 });
 

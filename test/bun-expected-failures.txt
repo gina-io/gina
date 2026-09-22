@@ -1,0 +1,67 @@
+# Expected failures of the node:test suite under `bun test --isolate` on the CI Bun pin.
+# One key per line: <file> :: <classname> :: <name>  (classname as bun emits it, deepest-first).
+# Maintained by script/check_bun_suite.js --update — review the diff before committing.
+# A NEW failure not listed here is a red; a listed one that no longer fails is a warning.
+test/core/config-env-load-error-propagation.test.js :: #B372 §02 — replica of the callback contract :: SUBTRACT CONTROL: the pre-fix shape reproduces the exact shipped TypeError
+test/core/config-env-overlay.test.js :: #D45 §02 — the environment overlay wins on every key it declares :: CONTROL: with no environment file, the base config is served unchanged
+test/core/config-env-overlay.test.js :: #D45 §02 — the environment overlay wins on every key it declares :: a conflicting scalar takes the environment value
+test/core/config-env-overlay.test.js :: #D45 §02 — the environment overlay wins on every key it declares :: a nested object merges key by key, the environment winning per key
+test/core/config-env-overlay.test.js :: #D45 §02 — the environment overlay wins on every key it declares :: an environment array REPLACES the base array rather than being unioned into it
+test/core/config-env-overlay.test.js :: #D45 §02 — the environment overlay wins on every key it declares :: keys only one side declares survive from both sides
+test/core/config-session-lifetime.test.js :: session lifetime — the config boot seam :: CONTROL: a bundle with no security.json resolves to null, not an empty policy
+test/core/config-session-lifetime.test.js :: session lifetime — the config boot seam :: a declared policy reaches the slot the router reads
+test/core/config-session-lifetime.test.js :: session lifetime — the config boot seam :: a security.json with no session keys also resolves to null
+test/core/config-session-lifetime.test.js :: session lifetime — the config boot seam :: an unusable value is reported and IGNORED — the bundle still boots
+test/core/config-session-lifetime.test.js :: session lifetime — the config boot seam :: one unusable key does not discard its usable sibling
+test/core/config-src-fallback-scope.test.js :: #B542 §02 — a config-less bundle does not move any other bundle's config root :: CONTROL: a bundle opted out of the booting scope is skipped before the fallback can run
+test/core/config-src-fallback-scope.test.js :: #B542 §02 — a config-less bundle does not move any other bundle's config root :: CONTROL: with every release tree intact, both bundles resolve to the link container
+test/core/config-src-fallback-scope.test.js :: #B542 §02 — a config-less bundle does not move any other bundle's config root :: a LATER bundle keeps its own config root when an earlier one falls back to src
+test/core/config-src-fallback-scope.test.js :: #B542 §02 — a config-less bundle does not move any other bundle's config root :: a manifest key that differs from the src dirname does not splice the two together
+test/core/config-src-fallback-scope.test.js :: #B542 §02 — a config-less bundle does not move any other bundle's config root :: a project path that repeats the bundle name earlier is not truncated
+test/core/config-src-fallback-scope.test.js :: #B542 §02 — a config-less bundle does not move any other bundle's config root :: the process-global `bundles` registry survives a fallback
+test/core/config-src-fallback-scope.test.js :: #B542 §03 — a config directory that cannot be read names the bundle :: neither tree readable: the refusal names BOTH the release link and the source tree
+test/core/config-src-fallback-scope.test.js :: #B542 §04 — getInstance reports the init failure instead of fabricating :: CONTROL: on a healthy scene getInstance still returns the instance
+test/core/config-src-fallback-scope.test.js :: #B542 §04 — getInstance reports the init failure instead of fabricating :: after an aborted init it throws the RETAINED reason, naming the bundle
+test/core/context-config-resolution.test.js :: helpers/context.js config resolution — §03 SUBTRACT (pre-fix reproduces the crash) :: pre-fix getConfig deref CRASHES with the same TypeError on a partial Config (the relocated crash)
+test/core/context-config-resolution.test.js :: helpers/context.js config resolution — §03 SUBTRACT (pre-fix reproduces the crash) :: pre-fix getLib deref CRASHES with the exact reported TypeError on a partial Config
+test/core/controller.test.js :: 22 - throwError / headersSent on a released response (#B31) :: subtract: the pre-fix headersSent shape throws reading `stream` on a released response
+test/core/controller.test.js :: 22 - throwError / headersSent on a released response (#B31) :: subtract: the pre-fix tail throws the exact field TypeError on a released response
+test/core/controller.test.js :: 23 - query retry/response handlers on a released response (#B33) :: subtract: the pre-fix forward shape throws reading `headers` on a released request
+test/core/controller.test.js :: 23 - query retry/response handlers on a released response (#B33) :: subtract: the pre-fix getSession shape throws reading `session` on a released request
+test/core/controller.test.js :: 23 - query retry/response handlers on a released response (#B33) :: subtract: the pre-fix intercept shape throws reading `writeHead` on a released response
+test/core/controller.test.js :: 25 - released-response guards on synchronous controller APIs (#B35) :: subtract: the pre-fix unguarded reads throw the released-response TypeError
+test/core/controller.test.js :: 26 - released-response guard on redirect() (#B37) :: subtract: the pre-fix redirect head throws reading a property on a released request
+test/core/controller.test.js :: 27 - released-response guards on more synchronous controller APIs (#B38) :: subtract: the pre-fix unguarded reads reproduce each released-response TypeError
+test/core/controller.test.js :: 28 - throwError early released-response guard on 2-arg/3-arg shapes (#B44) :: subtract: the unguarded prologue throws the exact field TypeError per protocol
+test/core/controller.test.js :: 35 - redirect XHR/popin JSON exits inherit the no-store hardening (#B75) + session-less guard :: SUBTRACT — the pre-fix unguarded deref throws when no session is mounted
+test/core/couchbase-concurrency.test.js :: 04 - exactly one trigger emit per completion (observability contract) :: the emit reaches lib/inspector-events when the N1QL:* topic is allow-listed
+test/core/error-message-annihilation.test.js :: #B112 §02 — the 500 response body carries the error, not an empty body :: SUBTRACT: the pre-fix response.end("" + err.stack | err.message | err) serves an EMPTY body
+test/core/esm-entry.test.js :: esm-entry — 02: resolution behaviour :: undeclared subpaths are blocked (exports map is active)
+test/core/express-engine-compat.test.js :: 03 - replica: prototype-getter assignment physics :: strict-mode assignment through a getter-only prototype THROWS (the pre-fix per-request death)
+test/core/render-json.test.js :: 03 - released-response guard (#B36) :: subtract: the pre-fix head throws reading `stream` on a released response
+test/core/render-nunjucks.test.js :: 01 - function-scoped captures of per-request refs (#M1 race fix) :: repro of the pre-retrofit failure: `local.req.method` after null-out throws TypeError
+test/core/render-nunjucks.test.js :: 08 - released-response guard (#B45) :: subtract: the pre-fix head throws reading `headers` on a released response
+test/core/render-stream.test.js :: 11 - renderStream: released-response guard (#B38) :: subtract: the pre-fix `response.stream` read throws on a released response
+test/core/render-swig.test.js :: 12 - function-scoped captures of per-request refs (#M1 race fix) :: repro of the original crash: `local.req.method.toLowerCase()` after null-out throws TypeError
+test/core/render-swig.test.js :: 19 - released-response guard (#B45) :: subtract: the pre-fix head throws reading `stream` on a released response
+test/core/render-swig.test.js :: 20 - writeCache module-scope safety (prod cache-path 500 regression) :: module-level guard reading a function-scoped binding throws ReferenceError (the pre-fix 500); the param-threaded guard does not
+test/core/render-swig.test.js :: layoutless userData merge — top-level + page.data, JSON-serializable (real merge) :: SUBTRACT: stashing AFTER the top-level merge creates a circular ref (proves the ordering is load-bearing)
+test/core/server-completeheaders-guard.test.js :: 02 - #B121 completeHeaders: extract-and-execute the SHIPPED guard bytes :: SUBTRACT (typeof-only guard restored): the same bytes THROW the exact #B121 TypeError on false
+test/core/upload-size-accuracy.test.js :: 03 - #B142 behavioral choreography (extracted live bytes) :: SUBTRACT — the pre-fix shape (no _flush patch) ships the short provisional value
+test/core/upload-size-accuracy.test.js :: 03 - #B142 behavioral choreography (extracted live bytes) :: settled sink: final size exact under whichever end/_flush interleaving occurs
+test/core/upload-size-accuracy.test.js :: 03 - #B142 behavioral choreography (extracted live bytes) :: stalled sink: provisional read is SHORT, _flush-patched size is exact, bytes intact
+test/core/validator-upload-binary-wire.test.js :: 02 - processFiles behaviour: exact body bytes (shipped source) :: the f start index is honoured (files before it are skipped)
+test/lib/mq-listener-conn-error.test.js :: 02 - mq listener: a peer reset kills an unguarded connection socket :: WITHOUT conn.on('error') a peer reset takes the process down (the #B279 crash)
+test/lib/multipart.test.js :: 04 - coded errors; the cap trips before any read :: the cap is checked BEFORE any file is read: an unreadable file past the cap reports TOO_LARGE, not UNREADABLE
+test/lib/nunjucks-filters.test.js :: 09 - getWebroot context-lookup fix (#B26) :: MEASUREMENT: the old body throws "Cannot read properties of undefined (reading 'getConf')"
+test/lib/routing-fixes.test.js :: 07 - #B120 getRoute: requirements-less GET route + extra params (guarded deref) :: SUBTRACT (guard perturbed away = the pre-fix shape): the same bytes throw the #B120 TypeError
+test/lib/routing-fixes.test.js :: 10 - #B168 getRoute: proxied-context degrade when no proxy hostname is resolvable :: SUBTRACT (proxied guard perturbed to always-true = the pre-fix reachability): the block throws the production TypeError
+test/lib/routing-fixes.test.js :: 10 - #B168 getRoute: proxied-context degrade when no proxy hostname is resolvable :: SUBTRACT (truthy conjunct perturbed away = the pre-fix typeof-only gate): a null global throws in the block
+test/lib/runtime.test.js :: 02 - utils/runtime: detection under Node :: isBun() is false and isNode() is true in this Node process
+test/lib/runtime.test.js :: 03 - utils/runtime: Bun detection via stub seam :: detects Bun when the global Bun object is present
+test/lib/runtime.test.js :: 03 - utils/runtime: Bun detection via stub seam :: returns to Node detection once the stubs are removed (no leak)
+test/lib/runtime.test.js :: 05 - utils/runtime: runtimeBinary under Node :: is a pure passthrough of any string under Node
+test/lib/runtime.test.js :: 05 - utils/runtime: runtimeBinary under Node :: returns the fallback binary verbatim (no Node delta)
+test/lib/runtime.test.js :: 06 - utils/runtime: runtimeBinary under Bun :: falls back to Bun.which("bun") when execPath is not recognisably bun
+test/lib/swig-filters.test.js :: 03 - getWebroot context-lookup fix (#B26) :: MEASUREMENT: the old body throws "Cannot read properties of undefined (reading 'getConf')"
+test/lib/validator-label-degrade.test.js :: 06 - compileError no longer dies on a placeholder-less backend error :: replica: the guarded shape returns the error verbatim; the pre-fix shape throws

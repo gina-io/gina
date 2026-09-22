@@ -1,17 +1,21 @@
 'use strict';
 
-var { describe, it } = require('node:test');
+var { describe, it, beforeEach, afterEach, mock } = require('node:test');
 var assert = require('node:assert/strict');
 var path   = require('path');
 var fs     = require('fs');
 
 var FW          = require('../fw');
-var MT_SRC      = path.join(FW, 'lib/maintenance/src/main.js');
+var MT_SRC      = process.env.GINA_MAINTENANCE_SRC || path.join(FW, 'lib/maintenance/src/main.js');
 var LIB_INDEX   = path.join(FW, 'lib/index.js');
-var SERVER_SRC  = path.join(FW, 'core/server.js');
-var ISAAC_SRC   = path.join(FW, 'core/server.isaac.js');
-var GNA_SRC     = path.join(FW, 'core/gna.js');
-var mt          = require(path.join(FW, 'lib/maintenance/src/main'));
+var SERVER_SRC  = process.env.GINA_SERVER_SRC || path.join(FW, 'core/server.js');         // red-first seam (the #B498 harness names)
+var ISAAC_SRC   = process.env.GINA_ISAAC_SRC  || path.join(FW, 'core/server.isaac.js');
+var GNA_SRC     = process.env.GINA_GNA_SRC    || path.join(FW, 'core/gna.js');
+// Red-first seam: GINA_MAINTENANCE_SRC points BOTH the pins and the behavioural
+// arms at a pre-change extract (`git show <sha>:<path> > /tmp/pre.js`) — the module is
+// crypto-only, so a copy anywhere is faithful (measurement-traps § scratchpad copy of HEAD).
+var MT_MAIN     = process.env.GINA_MAINTENANCE_SRC || path.join(FW, 'lib/maintenance/src/main.js');
+var mt          = require(MT_MAIN);
 
 // ─────────────────────────────────────────────────────────────────────────
 // #MAINT1 — maintenance mode
@@ -35,6 +39,22 @@ var mt          = require(path.join(FW, 'lib/maintenance/src/main'));
 
 var KEY = 'a-good-long-key-0123456789';
 var NOW = 1700000000000;
+
+/**
+ * The `_mtStatus` builder's body on one engine, sliced STRUCTURALLY — from the
+ * builder's opening line to its closing `};` — never by a fixed byte count. A
+ * byte window silently stops covering the payload's tail when anything above
+ * it grows (measured 2026-09-20: the `source` expression gained 40 chars and a
+ * 1500-char window lost `hasBypassKey`), and a miss of either anchor must fail
+ * by name rather than slice to end-of-file.
+ */
+function mtStatusBody(src, label) {
+    var at = src.indexOf('var _mtStatus = function()');
+    assert.ok(at > -1, label + ' must build the status payload in _mtStatus');
+    var end = src.indexOf('\n                };', at);
+    assert.ok(end > -1, label + ' the _mtStatus builder must close with `};` at its own indentation');
+    return src.slice(at, end);
+}
 
 /** Build a minimal request object. */
 function req(opts) {
@@ -532,6 +552,20 @@ describe('09 - engine wiring: both engines, and the gate is placed correctly', f
         });
     });
 
+    it('the status payload names the process that answered: pid + hostname, on both engines', function () {
+        // The override is per process — it lives on engine.instance._maintenance and
+        // is never written or broadcast — so an operator fanning the POST out over
+        // replicas needs to read back WHICH process applied it. Pin both fields on
+        // both engines inside the _mtStatus builder; the hasBypassKey check proves
+        // the slice reaches the end of the payload rather than passing on a stub.
+        [['server.js', server], ['server.isaac.js', isaac]].forEach(function (pair) {
+            var seg = mtStatusBody(pair[1], pair[0]);
+            assert.ok(/pid\s*:\s*process\.pid/.test(seg),          pair[0] + ' payload must carry pid');
+            assert.ok(/hostname\s*:\s*os\.hostname\(\)/.test(seg), pair[0] + ' payload must carry hostname');
+            assert.ok(seg.indexOf('hasBypassKey') > -1,           pair[0] + ' the slice must reach the end of the payload');
+        });
+    });
+
     it('server.js boot-resolves the state onto the engine instance (one server = one bundle)', function () {
         assert.ok(server.indexOf('engine.instance._maintenance') > -1);
         assert.ok(server.indexOf('lib.maintenance.resolveConf') > -1);
@@ -560,16 +594,432 @@ describe('09 - engine wiring: both engines, and the gate is placed correctly', f
 });
 
 describe('10 - the schema declares the block', function () {
-    it('settings.json schema carries server.maintenance with all five keys', function () {
+    it('settings.json schema carries server.maintenance with all seven keys', function () {
         var schema = JSON.parse(fs.readFileSync(path.join(FW, '../../schema/settings.json'), 'utf8'));
         var m = schema.properties.server.properties.maintenance;
         assert.ok(m, 'server.maintenance must be declared');
         assert.equal(m.additionalProperties, false);
         assert.deepEqual(
             Object.keys(m.properties).sort(),
-            ['allowFrom', 'bypassKey', 'enabled', 'message', 'retryAfter']
+            ['allowFrom', 'bypassKey', 'enabled', 'message', 'pollInterval', 'retryAfter', 'store']
         );
         assert.equal(m.properties.retryAfter.default, 300);
         assert.match(m.properties.allowFrom.description, /NOT classify as proxied/i);
+    });
+});
+
+
+describe('11 - GINA_MAINTENANCE boot env: resolveBootEnv + the engine read (C3 slice b)', function () {
+    var server = fs.readFileSync(SERVER_SRC, 'utf8');
+    var isaac  = fs.readFileSync(ISAAC_SRC, 'utf8');
+
+    it('is exported', function () {
+        assert.equal(typeof mt.resolveBootEnv, 'function');
+    });
+
+    it('`1` and `true` force maintenance ON, case-insensitively and trimmed', function () {
+        ['1', 'true', 'TRUE', 'True', ' 1 ', '\ttrue\n'].forEach(function (v) {
+            var r = mt.resolveBootEnv(v);
+            assert.equal(r.forced, true, JSON.stringify(v) + ' must force');
+            assert.equal(r.explicitOff, false);
+            assert.equal(r.warning, null, JSON.stringify(v) + ' must not warn');
+        });
+    });
+
+    it('unset / null / empty do nothing and do not warn', function () {
+        [undefined, null, '', '   '].forEach(function (v) {
+            var r = mt.resolveBootEnv(v);
+            assert.equal(r.forced, false);
+            assert.equal(r.explicitOff, false);
+            assert.equal(r.warning, null);
+        });
+    });
+
+    it('`0` / `false` are explicit-off: accepted silently, never a force', function () {
+        ['0', 'false', 'FALSE', ' false '].forEach(function (v) {
+            var r = mt.resolveBootEnv(v);
+            assert.equal(r.forced, false);
+            assert.equal(r.explicitOff, true);
+            assert.equal(r.warning, null);
+        });
+    });
+
+    it('any other value is IGNORED with a warning naming the accepted values (the lint contract: never silent, never fatal)', function () {
+        ['yes', 'on', '2', 'enabled', 'maintenance'].forEach(function (v) {
+            var r = mt.resolveBootEnv(v);
+            assert.equal(r.forced, false);
+            assert.equal(r.explicitOff, false);
+            assert.equal(typeof r.warning, 'string');
+            assert.ok(r.warning.indexOf(JSON.stringify(v)) > -1, 'the warning must quote the offending value');
+            assert.ok(r.warning.indexOf('`1`') > -1 && r.warning.indexOf('`true`') > -1, 'the warning must name the accepted values');
+        });
+    });
+
+    it('CLOSE-ONLY: an explicit-off result folded into an enabled config leaves the site closed', function () {
+        // the engine folds `forced` into conf.enabled and nothing else — so an
+        // explicit-off result must never be able to open a site settings.json closed
+        var conf = mt.resolveConf({ enabled: true });
+        var r = mt.resolveBootEnv('false');
+        if ( r.forced ) { conf.enabled = true; }
+        assert.equal(conf.enabled, true);
+        assert.equal(mt.isActive({ conf: conf, runtime: null }), true);
+    });
+
+    it('a forced result composes with the runtime toggle: POST {enable:false} still wins', function () {
+        var conf = mt.resolveConf({ enabled: false });
+        var r = mt.resolveBootEnv('1');
+        if ( r.forced ) { conf.enabled = true; }
+        assert.equal(mt.isActive({ conf: conf, runtime: null }), true);
+        assert.equal(mt.isActive({ conf: conf, runtime: { active: false } }), false, 'the runtime override must still reopen the process');
+    });
+
+    it('server.js reads GINA_MAINTENANCE through resolveBootEnv inside the boot-resolve block, on BOTH transports', function () {
+        var at = server.indexOf('#MAINT1 — maintenance mode: boot-resolve');
+        assert.ok(at > -1, 'the boot-resolve anchor must exist');
+        var end = server.indexOf('#RWATCH — stale built-release watch', at);
+        assert.ok(end > -1, 'the end anchor (the next boot block) must exist');
+        var seg = server.slice(at, end);
+        assert.ok(seg.indexOf('lib.maintenance.resolveBootEnv(') > -1, 'must resolve through lib.maintenance.resolveBootEnv');
+        assert.ok(/getEnvVar\(\s*'GINA_MAINTENANCE'\s*\)/.test(seg), 'must read the daemon transport (process.gina via getEnvVar)');
+        assert.ok(seg.indexOf('process.env.GINA_MAINTENANCE') > -1, 'must read the launcher transport (process.env, #B570)');
+        assert.ok(/conf\.enabled\s*=\s*true/.test(seg), 'a forced result must fold into the CONFIG layer');
+        assert.ok(seg.indexOf('envForced') > -1, 'must stamp envForced for the status payload');
+    });
+
+    it('BOTH _mtStatus builders report source "env" for an env-forced closure with no live override', function () {
+        [['server.js', server], ['server.isaac.js', isaac]].forEach(function (pair) {
+            var seg = mtStatusBody(pair[1], pair[0]);
+            assert.ok(
+                /source\s*:\s*_rtLive\s*\?\s*'runtime'\s*:\s*\(\s*_mtCtl\.envForced\s*===\s*true\s*\?\s*'env'\s*:\s*'config'\s*\)/.test(seg),
+                pair[0] + ' source must resolve runtime > env > config'
+            );
+        });
+    });
+});
+
+
+describe('12 - replica sync conf: resolveConf / lintConf gain `store` + `pollInterval` (C3 slice c)', function () {
+    it('defaults: no store, pollInterval 2000', function () {
+        var c = mt.resolveConf(null);
+        assert.equal(c.store, '');
+        assert.equal(c.pollInterval, 2000);
+        assert.equal(mt.DEFAULTS.pollInterval, 2000);
+    });
+
+    it('store must be a non-empty string; anything else falls back to no sync', function () {
+        assert.equal(mt.resolveConf({ store: 'maint' }).store, 'maint');
+        [ '', 7, true, null, {} ].forEach(function (v) {
+            assert.equal(mt.resolveConf({ store: v }).store, '', JSON.stringify(v) + ' must fall back');
+        });
+    });
+
+    it('pollInterval accepts only integers within 250..60000 and falls back per key', function () {
+        assert.equal(mt.resolveConf({ pollInterval: 250 }).pollInterval, 250);
+        assert.equal(mt.resolveConf({ pollInterval: 60000 }).pollInterval, 60000);
+        [ 249, 60001, 0, -1, 1.5, '500', NaN, Infinity ].forEach(function (v) {
+            assert.equal(mt.resolveConf({ pollInterval: v }).pollInterval, 2000, JSON.stringify(v) + ' must fall back');
+        });
+        // per key: a bad pollInterval must not lose the store
+        var c = mt.resolveConf({ store: 'maint', pollInterval: 5 });
+        assert.equal(c.store, 'maint');
+        assert.equal(c.pollInterval, 2000);
+    });
+
+    it('lintConf explains both fallbacks and stays silent when the keys are absent', function () {
+        var w = mt.lintConf({ store: '', pollInterval: 5 });
+        assert.equal(w.length, 2);
+        assert.match(w[0], /server\.maintenance\.store.*non-empty string/);
+        assert.match(w[1], /server\.maintenance\.pollInterval.*250.*60000.*2000/);
+        assert.deepEqual(mt.lintConf({ enabled: false, retryAfter: 60 }), []);
+    });
+});
+
+
+describe('13 - resolveStoreSync: the boot half — refuse a dangling namespace and failMode open, warn on memory', function () {
+    /** A fake kv facade that hands out a handle only for the listed names. */
+    function fakeKv(names) {
+        return { get: function (n) {
+            if ( names.indexOf(n) < 0 ) { throw new Error('[kv] no namespace `' + n + '` (configured: ' + names.join(', ') + ')'); }
+            return { name: n, get: function () { return Promise.resolve(null); }, set: function () { return Promise.resolve(true); } };
+        } };
+    }
+    function collect() { var a = []; a.warn = function (m) { a.push(m); }; return a; }
+
+    it('returns null when no store is configured — zero cost, nothing consulted', function () {
+        var kvTouched = 0;
+        var r = mt.resolveStoreSync(mt.resolveConf(null), { kv: { get: function () { kvTouched++; } }, bundle: 'app' });
+        assert.equal(r, null);
+        assert.equal(kvTouched, 0);
+    });
+
+    it('returns the handle, name, key and cadence for a usable namespace', function () {
+        var w = collect();
+        var r = mt.resolveStoreSync(mt.resolveConf({ store: 'maint', pollInterval: 500 }), {
+            kv: fakeKv(['maint']), bundle: 'app', warn: w.warn,
+            kvSettings: { namespaces: { maint: { store: 'kvRedis' } } },
+            connectors: { kvRedis: { connector: 'redis', enableOfflineQueue: false, commandTimeout: 2000 } }
+        });
+        assert.equal(r.name, 'maint');
+        assert.equal(r.key, 'app');
+        assert.equal(r.intervalMs, 500);
+        assert.equal(typeof r.ns.get, 'function');
+        assert.equal(w.length, 0, 'a redis namespace with the fail-fast trio earns no warning');
+    });
+
+    it('REFUSES (throws, named) when kv cannot hand out the namespace — carrying the kv message', function () {
+        assert.throws(function () {
+            mt.resolveStoreSync(mt.resolveConf({ store: 'nope' }), { kv: fakeKv(['maint']), bundle: 'app' });
+        }, /\[SERVER\]\[#MAINT1\] `server\.maintenance\.store` = `nope` is not usable: \[kv\] no namespace `nope`/);
+    });
+
+    it('REFUSES (throws, named) a namespace running failMode open — an outage would reopen every replica', function () {
+        assert.throws(function () {
+            mt.resolveStoreSync(mt.resolveConf({ store: 'maint' }), {
+                kv: fakeKv(['maint']), bundle: 'app',
+                kvSettings: { namespaces: { maint: { store: 'kvRedis', failMode: 'open' } } }
+            });
+        }, /failMode: "open".*reopen every replica.*failMode: "closed"/);
+    });
+
+    it('WARNS on a memory-backed namespace (per process, no coherence) and still returns the handle', function () {
+        var w = collect();
+        var r = mt.resolveStoreSync(mt.resolveConf({ store: 'maint' }), {
+            kv: fakeKv(['maint']), bundle: 'app', warn: w.warn, kvSettings: { namespaces: { maint: {} } }
+        });
+        assert.ok(r && r.ns, 'the feature still runs');
+        assert.equal(w.length, 1);
+        assert.match(w[0], /MEMORY-backed.*PER PROCESS.*replicas will NOT follow each other/);
+    });
+
+    it('WARNS on redis without the fail-fast trio (the shared precedent wording)', function () {
+        var w = collect();
+        mt.resolveStoreSync(mt.resolveConf({ store: 'maint' }), {
+            kv: fakeKv(['maint']), bundle: 'app', warn: w.warn,
+            kvSettings: { namespaces: { maint: { store: 'kvRedis' } } },
+            connectors: { kvRedis: { connector: 'redis' } }
+        });
+        assert.equal(w.length, 1);
+        assert.match(w[0], /enableOfflineQueue: false.*commandTimeout.*kvRedis/);
+    });
+
+    it('throws without a bundle key or without a kv facade (programming errors, named)', function () {
+        assert.throws(function () { mt.resolveStoreSync(mt.resolveConf({ store: 'maint' }), { kv: fakeKv(['maint']) }); }, /bundle name as the record key/);
+        assert.throws(function () { mt.resolveStoreSync(mt.resolveConf({ store: 'maint' }), { bundle: 'app' }); }, /no kv facade reached the resolver/);
+    });
+});
+
+
+describe('14 - createStoreSync: the poll — apply / clear / keep-last-known / no overlap / warn once', function () {
+    beforeEach(function () { mock.timers.enable({ apis: ['setInterval', 'setTimeout', 'Date'] }); });
+    afterEach(function () { mock.timers.reset(); });
+
+    /**
+     * A scripted namespace: each get() shifts the next outcome —
+     * {value} resolves it, {reject} rejects, {hang} never settles.
+     */
+    function scriptedNs(script) {
+        var calls = 0;
+        return {
+            calls: function () { return calls; },
+            get: function () {
+                calls++;
+                var step = script.length ? script.shift() : { value: null };
+                if ( step.hang )   { return new Promise(function () {}); }
+                if ( step.reject ) { return Promise.reject(new Error(step.reject)); }
+                return Promise.resolve(step.value);
+            }
+        };
+    }
+    function collect() { var a = []; a.warn = function (m) { a.push(m); }; return a; }
+    var flush = function () { return new Promise(function (r) { setImmediate(r); }); };
+
+    it('start() arms an unref-able interval, fires the first tick immediately, and applies the record', async function () {
+        var state = { conf: { enabled: false }, runtime: null };
+        var ns = scriptedNs([{ value: { v: 1, active: true, until: null, message: 'from the store' } }]);
+        var s = mt.createStoreSync({ state: state, ns: ns, key: 'app', name: 'maint', intervalMs: 1000, warn: collect().warn });
+        s.start();
+        assert.equal(s.isRunning(), true);
+        assert.equal(ns.calls(), 1, 'the first tick fires at start()');
+        await flush();
+        assert.equal(mt.isActive(state), true);
+        assert.equal(state.runtime.message, 'from the store');
+        assert.equal(state.sync.store, 'maint');
+        assert.equal(state.sync.key, 'app');
+        assert.equal(typeof state.sync.lastSyncAt, 'number');
+        assert.equal(state.sync.lastError, null);
+        s.stop();
+        assert.equal(s.isRunning(), false);
+    });
+
+    it('a resolved null clears the runtime to CONFIG on a later tick', async function () {
+        var state = { conf: { enabled: false }, runtime: { active: true, until: null } };
+        var ns = scriptedNs([{ value: { v: 1, active: true, until: null } }, { value: null }]);
+        var s = mt.createStoreSync({ state: state, ns: ns, key: 'app', intervalMs: 1000, warn: collect().warn });
+        s.start(); await flush();
+        assert.equal(mt.isActive(state), true);
+        mock.timers.tick(1000); await flush();
+        assert.equal(ns.calls(), 2);
+        assert.equal(state.runtime, null, 'null ⇒ config');
+        assert.equal(mt.isActive(state), false);
+        s.stop();
+    });
+
+    it('a REJECTION keeps the last-known state, warns ONCE per outage, and warns once more on recovery', async function () {
+        var state = { conf: { enabled: false }, runtime: null };
+        var w = collect();
+        var ns = scriptedNs([
+            { value: { v: 1, active: true, until: null } },
+            { reject: 'ECONNREFUSED' }, { reject: 'ECONNREFUSED' }, { reject: 'ECONNREFUSED' },
+            { value: { v: 1, active: true, until: null } }
+        ]);
+        var s = mt.createStoreSync({ state: state, ns: ns, key: 'app', intervalMs: 1000, warn: w.warn });
+        s.start(); await flush();
+        assert.equal(mt.isActive(state), true);
+        for (var i = 0; i < 3; i++) { mock.timers.tick(1000); await flush(); }
+        assert.equal(ns.calls(), 4);
+        assert.equal(mt.isActive(state), true, 'an outage must never reopen a closed site');
+        assert.equal(state.sync.lastError, 'ECONNREFUSED');
+        assert.equal(w.length, 1, 'one warning for the whole outage, not one per tick');
+        assert.match(w[0], /unreachable.*never reopens a closed site/);
+        mock.timers.tick(1000); await flush();
+        assert.equal(state.sync.lastError, null);
+        assert.equal(w.length, 2);
+        assert.match(w[1], /reachable again/);
+        s.stop();
+    });
+
+    it('a hanging get never overlaps: later ticks are skipped while it is in flight', async function () {
+        var state = { conf: { enabled: false }, runtime: null };
+        var ns = scriptedNs([{ hang: true }]);
+        var s = mt.createStoreSync({ state: state, ns: ns, key: 'app', intervalMs: 1000, warn: collect().warn });
+        s.start(); await flush();
+        mock.timers.tick(1000); await flush();
+        mock.timers.tick(1000); await flush();
+        assert.equal(ns.calls(), 1, 'no second get while the first hangs');
+        assert.equal(await s.tick(), 'skipped');
+        s.stop();
+    });
+
+    it('a malformed record is ignored with a warning and the last-known state kept', async function () {
+        var state = { conf: { enabled: false }, runtime: { active: true, until: null } };
+        var w = collect();
+        var ns = scriptedNs([{ value: { v: 99 } }]);
+        var s = mt.createStoreSync({ state: state, ns: ns, key: 'app', name: 'maint', intervalMs: 1000, warn: w.warn });
+        assert.equal(await s.tick(), 'malformed');
+        assert.equal(mt.isActive(state), true);
+        assert.equal(w.length, 1);
+        assert.match(w[0], /malformed.*keeping the last-known state/);
+    });
+
+    it('tick() reports its outcome and never rejects', async function () {
+        var state = { conf: { enabled: false }, runtime: null };
+        var ns = scriptedNs([{ value: { v: 1, active: false, until: null } }, { value: null }, { reject: 'boom' }]);
+        var s = mt.createStoreSync({ state: state, ns: ns, key: 'app', intervalMs: 1000, warn: collect().warn });
+        assert.equal(await s.tick(), 'applied');
+        assert.equal(await s.tick(), 'cleared');
+        assert.equal(await s.tick(), 'error');
+    });
+
+    it('refuses to build without a state, a namespace handle or a key', function () {
+        assert.throws(function () { mt.createStoreSync({ ns: { get: function () {} }, key: 'app' }); }, /engine state object/);
+        assert.throws(function () { mt.createStoreSync({ state: {}, key: 'app' }); }, /namespace handle/);
+        assert.throws(function () { mt.createStoreSync({ state: {}, ns: { get: function () {} } }); }, /record key/);
+    });
+
+    it('record round trip: build → ttl → apply, with the dead-man window carried as the store TTL', function () {
+        var rec = mt.buildStoreRecord({ active: true, until: 61000, retryAfter: 60, message: 'deploying' }, { pid: 7, hostname: 'web-1' }, 1000);
+        assert.deepEqual(rec, { v: 1, active: true, until: 61000, setBy: { pid: 7, hostname: 'web-1' }, at: 1000, retryAfter: 60, message: 'deploying' });
+        assert.equal(mt.storeRecordTtl(rec, 1000), 60000);
+        assert.equal(mt.storeRecordTtl({ v: 1, active: true, until: null }, 1000), null, 'no window ⇒ no expiry');
+        var state = { conf: { enabled: false }, runtime: null };
+        assert.equal(mt.applyStoreRecord(state, rec), 'applied');
+        assert.deepEqual(state.runtime, { active: true, until: 61000, retryAfter: 60, message: 'deploying' });
+        assert.equal(mt.isActive(state, 2000), true);
+        assert.equal(mt.isActive(state, 61000), false, 'the local clock still honours until');
+        assert.equal(mt.effectiveConf(state, 2000).message, 'deploying');
+    });
+
+    it('an enable:false POST writes {active:false}, which wins over a config enabled:true on every replica', function () {
+        var rec = mt.buildStoreRecord({ active: false, until: null }, { pid: 1, hostname: 'h' }, 1);
+        var state = { conf: mt.resolveConf({ enabled: true }), runtime: null };
+        assert.equal(mt.isActive(state), true);
+        assert.equal(mt.applyStoreRecord(state, rec), 'applied');
+        assert.equal(mt.isActive(state), false, 'runtime off wins over config on — the shipped rule, now replica-wide');
+    });
+});
+
+
+describe('15 - replica sync engine wiring: boot-resolve arms the poll, both POST twins write through, both payloads carry sync', function () {
+    var server = fs.readFileSync(SERVER_SRC, 'utf8');
+    var isaac  = fs.readFileSync(ISAAC_SRC, 'utf8');
+
+    /** The POST callback of one engine's /_gina/maintenance handler (the #B498 harness geometry). */
+    function postCallback(src, label) {
+        var a = src.indexOf('── /_gina/maintenance');
+        var b = src.indexOf('── /_gina/instrument');
+        assert.ok(a > -1 && b > a, label + ': the maintenance region anchors must exist in order');
+        var region = src.slice(a, b);
+        var st = region.indexOf('function(_mbErr, _mbBody) {');
+        assert.ok(st > -1, label + ': the POST callback must be present');
+        return region.slice(st);
+    }
+
+    it('the store sync is armed in gna.js\'s started band — right AFTER lib.kv.start(), before the warn-only lints, with the #KV1 fatal shape — and NOT in server.js init, which runs before kv exists', function () {
+        var gna = fs.readFileSync(GNA_SRC, 'utf8');
+        var kvStart = gna.indexOf('lib.kv.start(');
+        var lint    = gna.indexOf('lib.maintenance.lintConf(');
+        var banner  = gna.indexOf('#MAINT1 slice (c) — replica sync');
+        var next    = gna.indexOf('// #CE1 — `server.transientErrors` boot-time shape check', banner);
+        assert.ok(kvStart > -1 && lint > -1, 'the kv start and the maintenance lint must exist');
+        assert.ok(banner > -1, 'the slice (c) block must exist in gna.js');
+        assert.ok(next > banner, 'the block must end at the #CE1 lint that follows it (structural end anchor)');
+        assert.ok(kvStart < banner && banner < lint, 'kv start, then the store sync (fatal-shaped, beside #KV1), then the warn-only lints');
+        var band = gna.slice(banner, next);
+        assert.ok(band.indexOf('lib.maintenance.resolveStoreSync(') > -1, 'must resolve through the lib');
+        assert.ok(band.indexOf('lib.maintenance.createStoreSync(') > -1 && band.indexOf('.syncer.start()') > -1, 'must arm and start the poll');
+        assert.ok(/bundle\s*:\s*server\.appName/.test(band), 'the record key is the bundle name');
+        assert.ok(/kv\s*:\s*lib\.kv/.test(band), 'the kv facade is injected, never required by the lib');
+        assert.ok(/server\.instance\._maintenance/.test(band), 'the poll is armed on the engine state the boot-resolve published');
+        assert.ok(band.indexOf('process.exit(1)') > -1 && band.indexOf('aborting boot') > -1, 'a refusal is FATAL, the #KV1 shape');
+        // measured 2026-09-20: a resolve in server.js init fired "[kv] not configured" on a
+        // bundle whose settings.json declared the block — init runs before the started band
+        var at  = server.indexOf('#MAINT1 — maintenance mode: boot-resolve');
+        var end = server.indexOf('#RWATCH — stale built-release watch', at);
+        assert.ok(at > -1 && end > at, 'boot-resolve anchors');
+        assert.equal(server.slice(at, end).indexOf('lib.maintenance.resolveStoreSync('), -1, 'server.js init must NOT resolve the store');
+    });
+
+    it('BOTH POST twins apply locally FIRST, keep the store-less path, then write the record through with buildStoreRecord + storeRecordTtl', function () {
+        [['server.js', server], ['server.isaac.js', isaac]].forEach(function (pair) {
+            var cb = postCallback(pair[1], pair[0]);
+            var apply = cb.indexOf('_mtCtl.runtime = _rtNew;');
+            var early = cb.indexOf('if ( !_mtCtl.store )');
+            var rec   = cb.indexOf('lib.maintenance.buildStoreRecord(_rtNew');
+            var ttl   = cb.indexOf('lib.maintenance.storeRecordTtl(');
+            var set   = cb.indexOf('_mtCtl.store.ns.set(_mtCtl.store.key');
+            assert.ok(apply > -1 && early > -1 && rec > -1 && ttl > -1 && set > -1, pair[0] + ': every step present');
+            assert.ok(apply < early && early < rec && rec < ttl && ttl < set, pair[0] + ': local apply → store-less return → record → ttl → set');
+            assert.ok(cb.indexOf("written: true") > -1 && cb.indexOf("written: false") > -1, pair[0] + ': both write outcomes are reported');
+            assert.ok(cb.indexOf('.catch(') > -1, pair[0] + ': the reply chain owns its last terminal');
+        });
+    });
+
+    it('BOTH status payloads carry `sync` (store, key, lastSyncAt, lastError) after hasBypassKey', function () {
+        [['server.js', server], ['server.isaac.js', isaac]].forEach(function (pair) {
+            var body = mtStatusBody(pair[1], pair[0]);
+            var hb = body.indexOf('hasBypassKey');
+            var sy = body.indexOf('sync         : _mtCtl.sync ?');
+            assert.ok(hb > -1 && sy > hb, pair[0] + ': sync follows hasBypassKey');
+            ['store: _mtCtl.sync.store', 'key: _mtCtl.sync.key', 'lastSyncAt', 'lastError: _mtCtl.sync.lastError'].forEach(function (needle) {
+                assert.ok(body.indexOf(needle) > -1, pair[0] + ': payload must carry ' + needle);
+            });
+        });
+    });
+
+    it('the lib refuses by name at boot — the two refusal messages and the memory warning exist in the shipped source', function () {
+        var src = fs.readFileSync(MT_SRC, 'utf8');
+        assert.ok(src.indexOf("is not usable: ' + (kvErr.message || kvErr)") > -1, 'dangling-namespace refusal');
+        assert.ok(src.indexOf('runs `failMode: "open"`') > -1, 'failMode-open refusal');
+        assert.ok(src.indexOf('is MEMORY-backed: the maintenance state is PER PROCESS') > -1, 'memory-backed warning');
     });
 });

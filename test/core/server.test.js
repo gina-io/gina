@@ -38,8 +38,9 @@ describe('#B13 — completeHeaders preserves preflight ACAH echo', function() {
         var completeHeadersIdx = src.indexOf('var completeHeaders = function(responseHeaders');
         assert.ok(completeHeadersIdx > -1, 'completeHeaders function must exist');
 
-        // Region: from completeHeaders start to end of function (next "    }" at column 4)
-        var nextFnIdx = src.indexOf('this.onHttp2Stream', completeHeadersIdx);
+        // Region: from completeHeaders start to the next declaration (getResponseProtocol; the
+        // former end-anchor `this.onHttp2Stream` was removed in #B566)
+        var nextFnIdx = src.indexOf('var getResponseProtocol = function', completeHeadersIdx);
         assert.ok(nextFnIdx > -1, 'must find a function after completeHeaders');
         var region = src.slice(completeHeadersIdx, nextFnIdx);
 
@@ -67,7 +68,7 @@ describe('#B13 — completeHeaders preserves preflight ACAH echo', function() {
 
     it('guard is positioned before the response.setHeader call inside the else branch', function() {
         var completeHeadersIdx = src.indexOf('var completeHeaders = function(responseHeaders');
-        var nextFnIdx          = src.indexOf('this.onHttp2Stream', completeHeadersIdx);
+        var nextFnIdx          = src.indexOf('var getResponseProtocol = function', completeHeadersIdx);
         var region             = src.slice(completeHeadersIdx, nextFnIdx);
 
         var b13Idx       = region.indexOf('#B13');
@@ -408,7 +409,7 @@ describe('#H11 — Alt-Svc HTTP/3-advertisement gate in completeHeaders', functi
     // region = the completeHeaders function body
     function completeHeadersRegion() {
         var startIdx = src.indexOf('var completeHeaders = function(responseHeaders');
-        var endIdx   = src.indexOf('this.onHttp2Stream', startIdx);
+        var endIdx   = src.indexOf('var getResponseProtocol = function', startIdx);
         return src.slice(startIdx, endIdx);
     }
 

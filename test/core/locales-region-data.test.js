@@ -39,7 +39,7 @@ FILES.forEach(function (f) {
     DB[f.split(/\./)[0]] = require(path.join(DIR, f));
 });
 
-var Collection = require('lib/collection');
+var Collection = require(path.join(FW, 'lib/collection'));
 
 
 describe('01 - per-file structural invariants (#50 defects 1 + empty-iso)', function() {

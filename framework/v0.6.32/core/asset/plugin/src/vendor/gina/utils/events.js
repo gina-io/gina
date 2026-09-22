@@ -1,0 +1,1241 @@
+function registerEvents(plugin, events) {
+    if ( typeof(gina) == 'undefined' && typeof(window.gina) != 'undefined' ) {
+        gina = window.gina;
+    }
+    gina.registeredEvents[plugin] = events;
+}
+function mergeEventProps(evt, proxiedEvent) {
+    for (let p in proxiedEvent) {
+        // add only missing props
+        if ( typeof(evt[p]) == 'undefined' ) {
+            evt[p] = proxiedEvent[p];
+        }
+    }
+    return evt;
+}
+/**
+ * addListener
+ *
+ * @param {object} target
+ * @param {object} element
+ * @param {string|array} name
+ * @param {callback} callback
+ */
+function addListener(target, element, name, callback) {
+
+    var registerListener = function(target, element, name, callback) {
+
+        if ( typeof(target.event) != 'undefined' && target.event.isTouchSupported && /^(click|mouseout|mouseover)/.test(name) && target.event[name].indexOf(element) == -1) {
+            target.event[name][target.event[name].length] = element
+        }
+
+        if (typeof(element) != 'undefined' && element != null) {
+            if (element.addEventListener) {
+                element.addEventListener(name, callback, false)
+            } else if (element.attachEvent) {
+                element.attachEvent('on' + name, callback)
+            }
+        } else {
+            target.customEvent.addListener(name, callback)
+        }
+
+        gina.events[name] = ( typeof(element.id) != 'undefined' && typeof(element.id) != 'object' ) ? element.id : element.getAttribute('id');
+    }
+
+    var i = 0, len = null;
+    if ( Array.isArray(name) ) {
+        len = name.length;
+        for (; i < len; i++) {
+            registerListener(target, element, name[i], callback)
+        }
+    } else {
+        if ( Array.isArray(element) ) {
+            i = 0;
+            len = element.length;
+            for (; i < len; i++) {
+                let evtName =  ( /\.$/.test(name) ) ? name + element[i].id : name;
+                registerListener(target, element[i], evtName, callback);
+            }
+        } else {
+            name =  ( /\.$/.test(name) ) ? name + element.id : name;
+            registerListener(target, element, name, callback);
+        }
+    }
+
+}
+/**
+ * triggerEvent
+ * @param {object} target - targeted domain
+ * @param {object} element - HTMLFormElement
+ * @param {string} name - event ID
+ * @param {object|array|string} args - details
+ * @param {object} [proxiedEvent]
+ * @returns {object|undefined} the dispatched event when a DOM element received
+ *      one - so a proxy can read the handler's decision (defaultPrevented) and
+ *      mirror it onto the native event it is proxying; undefined on the
+ *      customEvent (element-less) path
+ */
+function triggerEvent (target, element, name, args, proxiedEvent) {
+    if (typeof(element) != 'undefined' && element != null) {
+        var evt = null, isDefaultPrevented = false, isAttachedToDOM = false, merge  = null;
+
+        if (window.CustomEvent || document.createEvent) {
+
+
+            if (window.CustomEvent) { // new method from ie9
+                evt = new CustomEvent(name, {
+                    'detail'    : args,
+                    'bubbles'   : true,
+                    'cancelable': true,
+                    'target'    : element
+                })
+            } else { // before ie9
+
+                evt = document.createEvent('HTMLEvents');
+                // OR
+                // evt = document.createEvent('Event');
+
+                evt['detail'] = args;
+                evt['target'] = element;
+                evt.initEvent(name, true, true);
+
+                evt['eventName'] = name;
+
+            }
+            if (proxiedEvent) {
+                // merging props
+                evt = mergeEventProps(evt, proxiedEvent);
+            }
+
+            if ( typeof(evt.defaultPrevented) != 'undefined' && evt.defaultPrevented )
+                isDefaultPrevented = evt.defaultPrevented;
+
+            if ( !isDefaultPrevented ) {
+                //console.log('dispatching ['+name+'] to ', element.id, isAttachedToDOM, evt.detail);
+                element.dispatchEvent(evt)
+            }
+            return evt;
+
+        } else if (document.createEventObject) { // non standard
+
+            evt = document.createEventObject();
+            evt.srcElement.id = element.id;
+            evt.detail = args;
+            evt.target = element;
+
+            if (proxiedEvent) {
+                // merging props
+                evt = mergeEventProps(evt, proxiedEvent);
+            }
+
+            element.fireEvent('on' + name, evt);
+            return evt;
+        }
+
+    } else {
+        target.customEvent.fire(name, args);
+    }
+}
+
+function cancelEvent(event) {
+    if (typeof(event) != 'undefined' && event != null) {
+
+        event.cancelBubble = true;
+
+        if (event.preventDefault) {
+            event.preventDefault()
+        }
+
+        if (event.stopPropagation) {
+            event.stopPropagation()
+        }
+
+
+        event.returnValue = false;
+    }
+}
+
+function setupXhr(options) {
+    var xhr = null;
+    if (window.XMLHttpRequest) { // Mozilla, Safari, ...
+        xhr = new XMLHttpRequest();
+    } else if (window.ActiveXObject) { // IE
+        try {
+            xhr = new ActiveXObject("Msxml2.XMLHTTP");
+        } catch (e) {
+            try {
+                xhr = new ActiveXObject("Microsoft.XMLHTTP");
+            }
+            catch (e) {}
+        }
+    }
+    if ( typeof(options) != 'undefined' ) {
+        if ( !options.url || typeof(options.url) == 'undefined' ) {
+            throw new Error('Missing `options.url`');
+        }
+        if ( typeof(options.method) == 'undefined' ) {
+            options.method = 'GET';
+        }
+        options.method = options.method.toUpperCase();
+
+        if ( options.withCredentials ) {
+            if ('withCredentials' in xhr) {
+                // XHR for Chrome/Firefox/Opera/Safari.
+                if (options.isSynchrone) {
+                    xhr.open(options.method, options.url, options.isSynchrone)
+                } else {
+                    xhr.open(options.method, options.url)
+                }
+            } else if ( typeof XDomainRequest != 'undefined' ) {
+                // XDomainRequest for IE.
+                xhr = new XDomainRequest();
+                xhr.open(options.method, options.url);
+            } else {
+                // CORS not supported.
+                xhr = null;
+                result = 'CORS not supported: the server is missing the header `"Access-Control-Allow-Credentials": true` ';
+                triggerEvent(gina, $target, 'error.' + id, result);
+
+                return;
+            }
+
+            if ( typeof(options.responseType) != 'undefined' ) {
+                xhr.responseType = options.responseType;
+            } else {
+                xhr.responseType = '';
+            }
+
+            xhr.withCredentials = true;
+        } else {
+            if (options.isSynchrone) {
+                xhr.open(options.method, options.url, options.isSynchrone);
+            } else {
+                xhr.open(options.method, options.url);
+            }
+        }
+
+        // setting up headers -    all but Content-Type ; it will be set right before .send() is called
+        for (var header in options.headers) {
+             //if ( header == 'Content-Type' && typeof (enctype) != 'undefined' && enctype != null && enctype != '') {
+             //    options.headers[header] = enctype
+             //}
+            if (header == 'Content-Type' && typeof (enctype) != 'undefined' && enctype != null && enctype != '')
+                continue;
+
+            xhr.setRequestHeader(header, options.headers[header]);
+        }
+    }
+    return xhr;
+}
+
+/**
+ * getFilenameFromContentDisposition
+ *
+ * Extracts the `filename` parameter from a response `Content-Disposition`
+ * header for the XHR blob-download path. Both RFC 6266 value forms are
+ * accepted: a bare token (`filename=report.pdf`, read up to the next `;`)
+ * and a quoted-string (`filename="monthly report.pdf"`, delimiters stripped,
+ * `\"` and `\\` unescaped). Returns an empty string when the header is
+ * missing or carries no `filename` parameter (e.g. a bare `attachment`), so
+ * the caller can hand the browser an empty `download` attribute and let it
+ * derive a name instead of throwing mid-handler. The extended RFC 5987
+ * parameter (`filename` followed by a star) is never matched — the star
+ * breaks the `filename=` adjacency — so a header carrying both parameters
+ * yields the plain one instead of folding the two values together.
+ *
+ * @function getFilenameFromContentDisposition
+ * @param {string|null} contentDisposition - raw header value, e.g. from `xhr.getResponseHeader('Content-Disposition')`
+ * @returns {string} filename - the decoded filename, or `''` when none is present
+ *
+ * @example
+ *  getFilenameFromContentDisposition('attachment; filename="monthly report.pdf"');
+ *  // -> 'monthly report.pdf'
+ * @example
+ *  getFilenameFromContentDisposition('attachment');
+ *  // -> ''
+ */
+function getFilenameFromContentDisposition(contentDisposition) {
+    if (!contentDisposition) {
+        return '';
+    }
+    var found = contentDisposition.match(/filename\s*=\s*(?:"((?:[^"\\]|\\.)*)"|([^;]+))/i);
+    if (!found) {
+        return '';
+    }
+    if ( typeof(found[1]) != 'undefined' ) {
+        // quoted-string: delimiters are not part of the name; unescape quoted pairs
+        return found[1].replace(/\\(.)/g, '$1');
+    }
+    return found[2].replace(/^\s+|\s+$/g, '');
+}
+
+/**
+ * handleXhr
+ *
+ * @param {object} xhr - instance
+ * @param {object} $el - dom objet element
+ * @param {object} options
+ */
+function handleXhr(xhr, $el, options, require) {
+
+    if (!xhr)
+        throw new Error('No `xhr` object initiated');
+
+    //var merge   = require('lib/merge');
+
+    var blob            = null
+        , isAttachment  = null // handle download
+        , contentType   = null
+        , result        = null
+        , id            = null
+        , $link         = options.$link || null
+        , $form         = options.$form || null
+        , $target       = null
+    ;
+    delete options.$link;
+    delete options.$form;
+
+    if ($form || $link) {
+        if ($link) {
+            // not the link element but the link elements collection : like for popins main container
+            $link.target = document.getElementById($link.id);
+            $target     = gina.link.target;
+            id          = gina.link.id;
+
+            // copy $el attributes to $target
+            // for (var prop in $link) {
+            //     if ( !$target[prop] )
+            //         $target[prop] = $link[prop];
+            // }
+        } else { // forms
+            $target = $form.target;
+            id      = $target.getAttribute('id');
+        }
+    } else {
+        $target = $el;
+        id      = $target.getAttribute('id');
+    }
+
+    // forward callback to HTML data event attribute through `hlink` status
+    // (registration happens in link/main.js `linkRequest` before handleXhr runs)
+    var hLinkIsRequired = ( $link && $el.getAttribute('data-gina-link-event-on-success') || $link && $el.getAttribute('data-gina-link-event-on-error') ) ? true : false;
+
+    // forward callback to HTML data event attribute through `hform` status
+    var hFormIsRequired = ( $form && $target.getAttribute('data-gina-form-event-on-submit-success') || $form && $target.getAttribute('data-gina-form-event-on-submit-error') ) ? true : false;
+    // success -> data-gina-form-event-on-submit-success
+    // error -> data-gina-form-event-on-submit-error
+    if (hFormIsRequired && $form)
+        listenToXhrEvents($form, 'form');
+
+
+    // to upload, use `multipart/form-data` for `enctype`
+    var enctype = $el.getAttribute('enctype') || options.headers['Content-Type'];
+
+    // setting up headers -    all but Content-Type ; it will be set right before .send() is called
+    for (var header in options.headers) {
+        //if ( header == 'Content-Type' && typeof (enctype) != 'undefined' && enctype != null && enctype != '') {
+        //    options.headers[header] = enctype
+        //}
+        if (header == 'Content-Type' && typeof (enctype) != 'undefined' && enctype != null && enctype != '')
+            continue;
+
+        xhr.setRequestHeader(header, options.headers[header]);
+    }
+    xhr.withCredentials = ( typeof(options.withCredentials) != 'undefined' ) ? options.withCredentials : false;
+
+
+    // catching errors
+    xhr.onerror = function(event, err) {
+
+        var error = 'Transaction error: might be due to the server CORS settings.\nPlease, check the console for more details.';
+        var result = {
+            'status':  xhr.status || 500, //500,
+            'error' : error
+        };
+
+        var resultIsObject = true;
+        if ($form)
+            $form.eventData.error = result;
+
+        if ($link)
+            $link.eventData.error = result;
+
+        //updateToolbar(result, resultIsObject);
+        if ( typeof(window.ginaToolbar) != 'undefined' && window.ginaToolbar ) {
+            window.ginaToolbar.update('data-xhr', result, resultIsObject);
+        }
+
+        triggerEvent(gina, $target, 'error.' + id, result);
+
+        if (hFormIsRequired)
+            triggerEvent(gina, $target, 'error.' + id + '.hform', result);
+
+        if (hLinkIsRequired)
+            triggerEvent(gina, $link.target, 'error.' + $link.id + '.hlink', result);
+    }
+
+    // catching ready state cb
+    xhr.onreadystatechange = function (event) {
+        if ( typeof(merge) == 'undefined' ) {
+            merge = require('lib/merge');
+        }
+        // In case the user is also redirecting
+        var redirectDelay = (/Google Inc/i.test(navigator.vendor)) ? 50 : 0;
+
+        // Data loading ...
+        // if (xhr.readyState == 3) {
+        //     $form.target.setAttribute('data-gina-form-loading', true);
+        // }
+
+        if (xhr.readyState == 2) { // responseType interception
+            isAttachment    = ( /^attachment\;/.test( xhr.getResponseHeader('Content-Disposition') ) ) ? true : false;
+            // force blob response type
+            if ( !xhr.responseType && isAttachment ) {
+                xhr.responseType = 'blob';
+            }
+        }
+
+        if (xhr.readyState == 4) {
+            blob            = null;
+            contentType     = xhr.getResponseHeader('Content-Type');
+
+            // 200, 201, 201' etc ...
+            if( /^2/.test(xhr.status) ) {
+
+                try {
+
+                    // handling blob xhr download
+                    if ( /blob/.test(xhr.responseType) || isAttachment ) {
+                        if ( typeof(contentType) == 'undefined' || contentType == null) {
+                            contentType = 'application/octet-stream';
+                        }
+
+                        blob = new Blob([this.response], { type: contentType });
+
+                        //Create a link element, hide it, direct it towards the blob, and then 'click' it programatically
+                        var a = document.createElement('a');
+                        a.style = 'display: none';
+                        document.body.appendChild(a);
+                        //Create a DOMString representing the blob and point the link element towards it
+                        var url = window.URL.createObjectURL(blob);
+                        a.href = url;
+                        var contentDisposition = xhr.getResponseHeader('Content-Disposition');
+                        a.download = getFilenameFromContentDisposition(contentDisposition);
+                        //programatically click the link to trigger the download
+                        a.click();
+                        //release the reference to the file by revoking the Object URL
+                        window.URL.revokeObjectURL(url);
+
+                        result = {
+                            status          : xhr.status,
+                            statusText      : xhr.statusText,
+                            responseType    : blob.type,
+                            type            : blob.type,
+                            size            : blob.size
+                        }
+
+                    }
+
+
+                    if ( !result && /\/json/.test( contentType ) ) {
+                        result = JSON.parse(xhr.responseText);
+
+                        if ( typeof(result.status) == 'undefined' )
+                            result.status = xhr.status || 200;
+                    }
+
+                    if ( !result && /\/html/.test( contentType ) ) {
+
+                        result = {
+                            contentType : contentType,
+                            content     : xhr.responseText
+                        };
+
+                        if ( typeof(result.status) == 'undefined' )
+                            result.status = xhr.status;
+
+                        // if hasPopinHandler & popinIsBinded
+                        if ( typeof(gina.popin) != 'undefined' && gina.hasPopinHandler ) {
+
+                            // #gh76 — the popin the clicked ANCHOR lives in ($el — never
+                            // $target, which is the link plugin's container on this path),
+                            // and only while it is open; a page link's HTML answer stays
+                            // with its own handler instead of being loaded into whichever
+                            // popin happened to be open.
+                            var $popin = ( typeof(gina.popin.getPopinContaining) == 'function' )
+                                ? gina.popin.getPopinContaining($el)
+                                : null;
+                            if ( $popin && !$popin.isOpen ) {
+                                $popin = null;
+                            }
+
+                            if ($popin) {
+
+                                // #B575 — ONE tolerant parse: the hidden inputs are a dev-mode
+                                // transport, absent outside dev mode; dereferencing them raised a
+                                // false 422 and the popin was never loaded
+                                var _parsed = parseXhrHtmlAnswer(result.content);
+                                XHRData = _parsed.data;
+                                XHRView = _parsed.view;
+                                // update toolbar
+                                try {
+                                    // update data tab
+                                    if ( gina && typeof(window.ginaToolbar) != 'undefined' && window.ginaToolbar && XHRData ) {
+                                        window.ginaToolbar.update('data-xhr', XHRData);
+                                    }
+
+                                    // update view tab
+                                    if ( gina && typeof(window.ginaToolbar) != 'undefined' && window.ginaToolbar && XHRView ) {
+                                        window.ginaToolbar.update('view-xhr', XHRView);
+                                    }
+
+                                } catch (err) {
+                                    throw err
+                                }
+
+                                $popin.loadContent(result.content);
+
+                                // the parsed xhr-data in dev mode, delivered VERBATIM, or an
+                                // object carrying the status outside dev mode where the transport
+                                // inputs are absent (the handler contract is "an object", never
+                                // null). The parsed data is never mutated.
+                                result = XHRData || { status: xhr.status };
+                                triggerEvent(gina, $target, 'success.' + id, result);
+                                // #B571 — this branch returned before the tail that emits the
+                                // declared-callback companion, so a link's
+                                // `data-gina-link-event-on-success` never ran when its HTML
+                                // answer was loaded into a popin. `.hlink` only: the `.hform`
+                                // half of this handler is dead (no caller passes `$form`).
+                                if (hLinkIsRequired)
+                                    triggerEvent(gina, $link.target, 'success.' + $link.id + '.hlink', result);
+
+                                return;
+                            }
+
+                        }
+                    }
+
+                    if (!result) { // normal case
+                        result = xhr.responseText;
+                    }
+
+                    if ($form)
+                        $form.eventData.success = result;
+
+                    XHRData = result;
+                    // update toolbar
+                    if ( gina && typeof(window.ginaToolbar) != 'undefined' && window.ginaToolbar && XHRData ) {
+                        try {
+                            // don't refresh for html datas
+                            if ( typeof(XHRData) != 'undefined' && /\/html/.test(contentType) ) {
+                                window.ginaToolbar.update('data-xhr', XHRData);
+                            }
+
+                        } catch (err) {
+                            throw err
+                        }
+                    }
+
+                    triggerEvent(gina, $target, 'success.' + id, result);
+
+                    if (hFormIsRequired)
+                        triggerEvent(gina, $target, 'success.' + id + '.hform', result);
+
+                    if (hLinkIsRequired)
+                        triggerEvent(gina, $link.target, 'success.' + $link.id + '.hlink', result);
+
+                } catch (err) {
+
+                    result = {
+                        status:  422,
+                        error : err.message,
+                        stack : err.stack
+
+                    };
+
+                    if ($form)
+                        $form.eventData.error = result;
+
+
+                    XHRData = result;
+                    // update toolbar
+                    if ( gina && typeof(window.ginaToolbar) != 'undefined' && window.ginaToolbar && XHRData ) {
+                        try {
+
+                            if ( typeof(XHRData) != 'undefined' ) {
+                                window.ginaToolbar.update('data-xhr', XHRData);
+                            }
+
+                        } catch (err) {
+                            throw err
+                        }
+                    }
+
+                    triggerEvent(gina, $target, 'error.' + id, result);
+                    if (hFormIsRequired)
+                        triggerEvent(gina, $target, 'error.' + id + '.hform', result);
+
+                    if (hLinkIsRequired)
+                        triggerEvent(gina, $link.target, 'error.' + $link.id + '.hlink', result);
+                }
+
+                // handle redirect
+                if ( typeof(result) != 'undefined' && typeof(result.location) != 'undefined' ) {
+                    window.location.hash = ''; //removing hashtag
+
+                    // if ( window.location.host == gina.config.hostname && /^(http|https)\:\/\//.test(result.location) ) { // same origin
+                    //     result.location = result.location.replace( new RegExp(gina.config.hostname), '' );
+                    // } else { // external - need to remove `X-Requested-With` from `options.headers`
+                        result.location = (!/^http/.test(result.location) && !/^\//.test(result.location) ) ? location.protocol +'//' + result.location : result.location;
+                    //}
+
+                    return setTimeout(() => {
+                        window.location.href = result.location;
+                    }, redirectDelay);
+                }
+
+            } else if ( xhr.status != 0) {
+
+                result = { 'status': xhr.status, 'message': '' };
+                // handling blob xhr error
+                if ( /blob/.test(xhr.responseType) ) {
+
+                    blob = new Blob([this.response], { type: 'text/plain' });
+
+                    var reader = new FileReader(), blobError = '';
+
+                    // This fires after the blob has been read/loaded.
+                    reader.addEventListener('loadend', (e) => {
+
+                        if ( typeof(merge) == 'undefined' ) {
+                            merge = require('lib/merge');
+                        }
+
+                        if ( /string/i.test(typeof(e.srcElement.result)) ) {
+                            blobError += e.srcElement.result;
+                        } else if ( typeof(e.srcElement.result) == 'object' ) {
+                            result = merge(result, e.srcElement.result)
+                        } else {
+                            result.message += e.srcElement.result
+                        }
+
+                        // once ready
+                        if ( /^2/.test(reader.readyState) ) {
+
+                            if ( /^(\{|\[)/.test( blobError ) ) {
+                                try {
+                                    result = merge( result, JSON.parse(blobError) )
+                                } catch(err) {
+                                    result = merge(result, err)
+                                }
+                            }
+
+                            if (!result.message)
+                                delete result.message;
+
+                            if ($form)
+                                $form.eventData.error = result;
+
+                            // forward appplication errors to forms.errors when available
+                            if ( typeof(result) != 'undefined' && typeof(result.error) != 'undefined' &&  result.error.fields && typeof(result.error.fields) == 'object') {
+                                var formsErrors = {}, errCount = 0;
+                                for (var f in result.error.fields) {
+                                    ++errCount;
+                                    formsErrors[f] = { isApplicationValidationError: result.error.fields[f] };
+                                }
+
+                                if (errCount > 0) {
+                                    handleErrorsDisplay($form.target, formsErrors);
+                                }
+                            }
+
+                            // update toolbar
+                            XHRData = result;
+                            if ( gina && typeof(window.ginaToolbar) != 'undefined' && window.ginaToolbar && XHRData ) {
+                                try {
+                                    // update toolbar
+                                    window.ginaToolbar.update('data-xhr', XHRData );
+
+                                } catch (err) {
+                                    throw err
+                                }
+                            }
+
+                            triggerEvent(gina, $target, 'error.' + id, result);
+
+                            if (hFormIsRequired)
+                                triggerEvent(gina, $target, 'error.' + id + '.hform', result);
+
+                            if (hLinkIsRequired)
+                                triggerEvent(gina, $link.target, 'error.' + $link.id + '.hlink', result);
+                        }
+                        return;
+
+
+                    });
+
+                    // Start reading the blob as text.
+                    reader.readAsText(blob);
+
+                } else { // normal case
+
+                    if ( /^(\{|\[)/.test( xhr.responseText ) ) {
+
+                        try {
+                            result = merge( result, JSON.parse(xhr.responseText) )
+                        } catch (err) {
+                            result = merge(result, err)
+                        }
+
+                    } else if ( typeof(xhr.responseText) == 'object' ) {
+                        result = merge(result, xhr.responseText)
+                    } else {
+                        result.message = xhr.responseText
+                    }
+
+                    if ($form)
+                        $form.eventData.error = result;
+
+                    // forward appplication errors to forms.errors when available
+                    if ( typeof(result) != 'undefined' && typeof(result.error) != 'undefined' &&  result.error.fields && typeof(result.error.fields) == 'object') {
+                        var formsErrors = {}, errCount = 0;
+                        for (var f in result.error.fields) {
+                            ++errCount;
+                            formsErrors[f] = { isApplicationValidationError: result.error.fields[f] };
+                        }
+
+                        if (errCount > 0) {
+                            handleErrorsDisplay($form.target, formsErrors);
+                        }
+                    }
+
+                    // update toolbar
+                    XHRData = result;
+                    if ( gina && typeof(window.ginaToolbar) != 'undefined' && window.ginaToolbar && XHRData ) {
+                        try {
+                            // update toolbar
+                            window.ginaToolbar.update('data-xhr', XHRData );
+
+                        } catch (err) {
+                            throw err
+                        }
+                    }
+
+                    triggerEvent(gina, $target, 'error.' + id, result);
+
+                    if (hFormIsRequired)
+                        triggerEvent(gina, $target, 'error.' + id + '.hform', result);
+
+                    if (hLinkIsRequired)
+                        triggerEvent(gina, $link.target, 'error.' + $link.id + '.hlink', result);
+                }
+
+                return;
+
+
+            }
+        }
+    };
+
+    // catching request progress
+    xhr.onprogress = function(event) {
+
+        var percentComplete = '0';
+        if (event.lengthComputable) {
+            percentComplete = event.loaded / event.total;
+            percentComplete = parseInt(percentComplete * 100);
+
+        }
+
+        //var percentComplete = (event.position / event.totalSize)*100;
+        var result = {
+            'status': 100,
+            'progress': percentComplete
+        };
+
+        if ($form)
+            $form.eventData.onprogress = result;
+
+        triggerEvent(gina, $target, 'progress.' + id, result);
+        return;
+    };
+
+    // catching timeout
+    xhr.ontimeout = function (event) {
+        result = {
+            'status': 408,
+            'error': 'Request Timeout'
+        };
+
+        if ($form)
+            $form.eventData.ontimeout = result;
+
+        triggerEvent(gina, $target, 'error.' + id, result);
+
+        if (hFormIsRequired)
+            triggerEvent(gina, $target, 'error.' + id + '.hform', result);
+
+        if (hLinkIsRequired)
+            triggerEvent(gina, $link.target, 'error.' + $link.id + '.hlink', result);
+
+        return;
+    };
+
+
+    //return xhr;
+}
+
+function removeListener(target, element, name, callback) {
+    if (typeof(target.event) != 'undefined' && target.event.isTouchSupported && /^(click|mouseout|mouseover)/.test(name) && target.event[name].indexOf(element) != -1) {
+        target.event[name].splice(target.event[name].indexOf(element), 1)
+    }
+
+    if (typeof(element) != 'undefined' && element != null) {
+        if (element.removeEventListener) {
+            //element.removeEventListener(name, callback, false);
+            if ( Array.isArray(element) ) {
+                i = 0;
+                len = element.length;
+                for (; i < len; i++) {
+                    let evtName =  ( /\.$/.test(name) ) ? name + element[i].id : name;
+                    element.removeEventListener(evtName, callback, false);
+                    if ( typeof(gina.events[evtName]) != 'undefined' ) {
+                        // removed ------> [evtName];
+                        delete gina.events[evtName]
+                    }
+                }
+            } else {
+                name =  ( /\.$/.test(name) ) ? name + element.id : name;
+                element.removeEventListener(name, callback, false);
+            }
+        } else if (element.attachEvent) {
+            //element.detachEvent('on' + name, callback);
+            if ( Array.isArray(element) ) {
+                i = 0;
+                len = element.length;
+                for (; i < len; i++) {
+                    let evtName =  ( /\.$/.test(name) ) ? name + element[i].id : name;
+                    element.detachEvent('on' + evtName, callback);
+                    if ( typeof(gina.events[evtName]) != 'undefined' ) {
+                        // removed ------> [evtName];
+                        delete gina.events[evtName]
+                    }
+                }
+            } else {
+                name =  ( /\.$/.test(name) ) ? name + element.id : name;
+                element.detachEvent('on' + name, callback);
+            }
+        }
+    } else {
+        //target.customEvent.removeListener(name, callback)
+        if ( Array.isArray(element) ) {
+            i = 0;
+            len = element.length;
+            for (; i < len; i++) {
+                let evtName =  ( /\.$/.test(name) ) ? name + element[i].id : name;
+                target.customEvent.removeListener(evtName, callback);
+                if ( typeof(gina.events[evtName]) != 'undefined' ) {
+                    // removed ------> [evtName];
+                    delete gina.events[evtName]
+                }
+            }
+        } else {
+            name =  ( /\.$/.test(name) ) ? name + element.id : name;
+            target.customEvent.removeListener(name, callback)
+        }
+    }
+
+    if ( typeof(gina.events[name]) != 'undefined' ) {
+        // removed ------> [name];
+        delete gina.events[name]
+    }
+    if ( typeof(callback) != 'undefined' ) {
+        callback()
+    }
+}
+
+
+
+function on(event, cb) {
+
+    if (!this.plugin) throw new Error('No `plugin` reference found for this event: `'+ event);
+
+    var events = gina.registeredEvents[this.plugin];
+
+    if ( events.indexOf(event) < 0 && !/^init$/.test(event) && !/\.hform$/.test(event) && !/\.hlink$/.test(event) ) {
+        cb(new Error('Event `'+ event +'` not handled by ginaEventHandler'))
+    } else {
+        var $target = null, id = null;
+        if ( typeof(this.id) != 'undefined' && typeof(this.id) != 'object' ) {
+            $target = this.target || this;
+            id      = this.id;
+        } else if ( typeof(this.target) != 'undefined'  ) {
+            $target = this.target;
+            if (!$target) {
+                $target = this;
+            }
+            id      = ( typeof($target.getAttribute) != 'undefined' ) ? $target.getAttribute('id') : this.id;
+        } else {
+            $target = this.target;
+            id      = instance.id;
+        }
+
+        if ( this.eventData && !$target.eventData)
+            $target.eventData = this.eventData
+
+        if ( /\.(hform|hlink)$/.test(event) ) {
+            event = ( /\.hform$/.test(event) ) ? event.replace(/\.hform$/, '.' + id + '.hform') : event.replace(/\.hlink$/, '.' + id + '.hlink');
+        } else { // normal case
+            event += '.' + id;
+        }
+
+
+        if (!gina.events[event]) {
+
+            addListener(gina, $target, event, function(e) {
+
+                //if ( typeof(e.defaultPrevented) != 'undefined' && e.defaultPrevented)
+                // #gh76 slice 2 — `beforeswap.<id>` is CANCELABLE by design: the listener
+                // decides with `preventDefault()` whether the swap happens, so the blanket
+                // cancel below must not pre-empt it (it would read as "every listener
+                // cancels"). Name-scoped, so no other event sees a difference. Slice 3
+                // adds `oobbeforeswap.<id>`, the per-element out-of-band twin.
+                if ( !/^(oob)?beforeswap\./.test(e.type) ) {
+                    cancelEvent(e);
+                }
+
+                var data = null;
+
+                if (e['detail']) {
+                    data = e['detail'];
+                } else if ( typeof(this.eventData.submit) != 'undefined' ) {
+                    data = this.eventData.submit
+                } else if ( typeof(this.eventData.error) != 'undefined' ) {
+                    data = this.eventData.error;
+                } else if ( typeof(this.eventData.success) != 'undefined' ) {
+                    data = this.eventData.success;
+                }
+
+                if (cb)
+                    cb(e, data);
+
+                //triggerEvent(gina, e.currentTarget, e.type);
+            });
+
+            if (this.initialized && !this.isReady)
+                triggerEvent(gina, $target, 'init.' + id);
+
+        }
+
+        return this
+    }
+
+}
+
+/**
+ * parseXhrHtmlAnswer
+ *
+ * Parses a `text/html` XHR answer ONCE and reads the two hidden inputs a
+ * `renderWithoutLayout()` action splices in — `gina-without-layout-xhr-data` (the page data)
+ * and `gina-without-layout-xhr-view` — when they are present. They are a DEV-MODE transport:
+ * the server splices them only under `NODE_ENV_IS_DEV`, so outside dev mode both read `null`
+ * (#B575: the popin branches used to dereference the absent input and raise a false `422`).
+ * The inputs are removed from the parsed document so a swap never carries them into the page
+ * (inside a form they would be submitted; repeated swaps would duplicate their ids); the
+ * caller's raw `content` string is untouched.
+ *
+ * @function parseXhrHtmlAnswer
+ * @param {string} content - the answer body
+ * @returns {{doc: Document, data: (object|null), view: (object|null)}}
+ *
+ * @example
+ * var parsed = parseXhrHtmlAnswer(xhr.responseText);
+ * parsed.data;                // the action's data in dev mode, null otherwise
+ * parsed.doc.body.innerHTML;  // the fragment, hidden inputs stripped
+ */
+function parseXhrHtmlAnswer(content) {
+    var raw = ( typeof(content) == 'string' ) ? content : '';
+    // #B578 — an answer is a FRAGMENT, not a document. Parsed as a document, the HTML
+    // parser foster-parents table-context elements (`<tr>`, `<td>`, `<tbody>`…) out of
+    // existence, so a row answer came out as its cell text and a `select` on `tr` found
+    // nothing. Parse through a `<template>` — whose contents accept any element; htmx's
+    // `makeFragment` idiom — and MOVE the fragment into `doc.body`: a DOM move never
+    // re-parses, so the row survives and every reader of `doc` (`getElementById`,
+    // `querySelectorAll`, `body.innerHTML`) is unchanged. A full-page answer (a layout
+    // render by mistake) drops its `<head>` first, as htmx does, or its `<title>` would
+    // land in the swap. An author-supplied `<template>` inside the answer is content and
+    // is kept as-is.
+    raw = raw.replace(/<head(\s[^>]*)?>[\s\S]*?<\/head>/i, '');
+    var doc  = new DOMParser().parseFromString('<body><template>' + raw + '</template></body>', 'text/html');
+    var $tpl = ( doc.body ) ? doc.body.querySelector('template') : null;
+    if ( $tpl ) {
+        var frag = $tpl.content;
+        $tpl.parentNode.removeChild($tpl);
+        doc.body.appendChild(( typeof(doc.adoptNode) == 'function' ) ? doc.adoptNode(frag) : frag);
+    }
+    var read = function(idName) {
+        var $input = doc.getElementById(idName), value = null;
+        if ( !$input ) {
+            return null;
+        }
+        value = $input.value;
+        try { $input.parentNode.removeChild($input); } catch (rmErr) {}
+        if ( typeof(value) != 'string' || value === '' ) {
+            return null;
+        }
+        try {
+            return JSON.parse(decodeURIComponent(value));
+        } catch (parseErr) {
+            return null;
+        }
+    };
+    return {
+        doc  : doc,
+        data : read('gina-without-layout-xhr-data'),
+        view : read('gina-without-layout-xhr-view')
+    };
+}
+
+/**
+ * applyOobSwaps
+ *
+ * #gh76 slice 3 — out-of-band swaps (the `hx-swap-oob` contract). Every element of the
+ * parsed answer carrying `data-gina-swap-oob` is swapped into the PAGE element with the
+ * same `id`, independently of where the main answer goes, and is REMOVED from the answer
+ * whether or not it swapped — the main fragment is always clean. Runs BEFORE any
+ * `data-gina-form-select` pick and before the main swap (htmx's order, so an oob element
+ * outside the selection still lands; on overlap the main swap wins).
+ *
+ * Value grammar: `true` / empty ⇒ `outerHTML` (the page element is replaced by the oob
+ * element, attribute stripped); a strategy name ⇒ applied with the oob element's CONTENT
+ * (the wrapper is stripped — `innerHTML` would otherwise nest a duplicate id);
+ * `<strategy>:<selector>` is RESERVED; anything else is unknown. A missing `id`, no page
+ * match, a reserved or unknown value: the element is still removed and reported with a
+ * `reason`, never thrown. An oob element inside ANOTHER oob element is not processed on
+ * its own — it travels with its ancestor and its attribute is stripped there. Elements
+ * inside an author-supplied `<template>` are processed too.
+ *
+ * Per element: `oobbeforeswap.<formId>` (cancelable: `preventDefault()` skips it;
+ * `detail.content` may be rewritten) → the write → the region bound through the shared
+ * `bindRegion()` policy → `oobafterswap.<formId>`, whose `.hform` companion fires when the
+ * declared-callback channel is armed — `oobbeforeswap` has none, mirroring `beforeswap`:
+ * a cancel is a decision, and the declared-callback channel carries notifications. An
+ * author-supplied `<template>` emptied of its out-of-band elements is removed with them,
+ * so an out-of-band-only answer leaves NOTHING behind whether or not it was wrapped. A
+ * swap that replaces or removes the SUBMITTING form
+ * defers its re-binding (`deferFormId`) and is reported through `rebindSelf`, so the
+ * caller's shared tail binds the same-id replacement after the `success` events.
+ *
+ * @param {Document} doc - the parsed answer (`parseXhrHtmlAnswer().doc`), MUTATED: every oob element is removed
+ * @param {object} ctx
+ * @param {HTMLFormElement} ctx.$target - the submitting form element
+ * @param {string} ctx.id - the form id (event channel)
+ * @param {boolean} ctx.hFormIsRequired - whether the `.hform` companions are armed
+ * @param {object} ctx.gina - the framework global (event bus)
+ *
+ * @returns {{ list: Array<{ id: (string|null), strategy: string, swapped: boolean, reason: (string|undefined) }>, rebindSelf: boolean }}
+ *
+ * @example
+ * var run = applyOobSwaps(parsed.doc, { $target: $form, id: 'f', hFormIsRequired: true, gina: gina });
+ * // => { list: [{ id: 'totals', strategy: 'outerHTML', swapped: true }], rebindSelf: false }
+ */
+function applyOobSwaps(doc, ctx) {
+    var OOB_ATTR   = 'data-gina-swap-oob';
+    var STRATEGIES = ['innerHTML', 'outerHTML', 'textContent', 'beforebegin', 'afterbegin', 'beforeend', 'afterend', 'delete', 'none'];
+    var $target    = ctx.$target
+        , id       = ctx.id
+        , armed    = !!ctx.hFormIsRequired
+        , gina     = ctx.gina
+        , out      = { list: [], rebindSelf: false }
+        , list     = []
+        , work     = []
+        , i        = 0
+    ;
+    if ( !doc || typeof(doc.querySelectorAll) != 'function' ) {
+        return out;
+    }
+    var collect = function(root) {
+        var found = root.querySelectorAll('[' + OOB_ATTR + ']');
+        for (var f = 0; f < found.length; ++f) list.push(found[f]);
+    };
+    collect(doc);
+    var tpls = doc.querySelectorAll('template'), harvested = [];
+    for (i = 0; i < tpls.length; ++i) {
+        if ( !tpls[i].content ) continue;
+        var before = list.length;
+        collect(tpls[i].content);
+        if ( list.length > before ) harvested.push(tpls[i]);
+    }
+    // pre-pass while the tree is intact: an oob element under another oob element travels
+    // with its ancestor — strip its attribute now, so it never fires and never re-arms
+    for (i = 0; i < list.length; ++i) {
+        var $anc = list[i].parentNode, nested = false;
+        while ( $anc && $anc.nodeType === 1 ) {
+            if ( $anc.hasAttribute(OOB_ATTR) ) { nested = true; break; }
+            $anc = $anc.parentNode;
+        }
+        if (nested) {
+            list[i].removeAttribute(OOB_ATTR);
+        } else {
+            work.push(list[i]);
+        }
+    }
+    for (i = 0; i < work.length; ++i) {
+        var $oob     = work[i]
+            , oobId  = $oob.getAttribute('id') || null
+            , value  = ( $oob.getAttribute(OOB_ATTR) || '' ).trim()
+            , strategy = null
+            , reason = null
+            , $page  = null
+            , content = null
+            , evt    = null
+            , $scope = null
+            , detaches = false
+            , entry  = null
+        ;
+        if ( value === '' || /^true$/i.test(value) ) {
+            strategy = 'outerHTML';
+        } else if ( value.indexOf(':') > -1 ) {
+            strategy = value; reason = 'reserved';
+        } else if ( STRATEGIES.indexOf(value) < 0 ) {
+            strategy = value; reason = 'unknownStrategy';
+        } else {
+            strategy = value;
+        }
+        // consumed transport: never lands in the page, never stays in the answer
+        $oob.removeAttribute(OOB_ATTR);
+        if ( $oob.parentNode ) $oob.parentNode.removeChild($oob);
+
+        if ( !reason && !oobId ) reason = 'noId';
+        if ( !reason ) {
+            $page = document.getElementById(oobId);
+            if ( !$page ) reason = 'noTarget';
+        }
+        entry = { id: oobId, strategy: strategy, swapped: false };
+        if ( reason ) {
+            entry.reason = reason;
+            out.list.push(entry);
+            continue;
+        }
+
+        content = ( strategy === 'outerHTML' )
+            ? $oob.outerHTML
+            : ( strategy === 'textContent' ) ? $oob.textContent : $oob.innerHTML;
+
+        if ( strategy !== 'none' ) {
+            // no `.hform` companion, exactly as `beforeswap`: this is a DECISION point and the
+            // declared-callback channel carries notifications — `oobafterswap` has the twin
+            evt = triggerEvent(gina, $target, 'oobbeforeswap.' + id, { target: $page, content: content, strategy: strategy, oob: true, oobId: oobId });
+            if ( evt && evt.defaultPrevented ) {
+                entry.reason = 'cancelled';
+                out.list.push(entry);
+                continue;
+            }
+            if ( evt && evt.detail && typeof(evt.detail.content) == 'string' ) {
+                content = evt.detail.content;
+            }
+        }
+
+        detaches = ( strategy === 'outerHTML' || strategy === 'delete' ) && ( $page === $target || $page.contains($target) );
+
+        switch (strategy) {
+            case 'innerHTML':
+                $page.innerHTML = content;
+                $scope = $page;
+                break;
+            case 'outerHTML':
+                $scope = $page.parentNode;
+                $page.outerHTML = content;
+                break;
+            case 'textContent':
+                $page.textContent = content;
+                break;
+            case 'beforebegin':
+                $scope = $page.parentNode;
+                $page.insertAdjacentHTML('beforebegin', content);
+                break;
+            case 'afterbegin':
+                $page.insertAdjacentHTML('afterbegin', content);
+                $scope = $page;
+                break;
+            case 'beforeend':
+                $page.insertAdjacentHTML('beforeend', content);
+                $scope = $page;
+                break;
+            case 'afterend':
+                $scope = $page.parentNode;
+                $page.insertAdjacentHTML('afterend', content);
+                break;
+            case 'delete':
+                if ( $page.parentNode ) $page.parentNode.removeChild($page);
+                break;
+            case 'none':
+                break;
+        }
+        entry.swapped = ( strategy !== 'none' );
+        if ( detaches ) out.rebindSelf = true;
+
+        if ( $scope && typeof($scope.getElementsByTagName) == 'function' ) {
+            bindRegion($scope, { deferFormId: ( detaches ) ? id : null });
+        }
+        if ( strategy !== 'none' ) {
+            triggerEvent(gina, $target, 'oobafterswap.' + id, { target: $page, strategy: strategy, swapped: entry.swapped, oob: true, oobId: oobId });
+            if ( armed )
+                triggerEvent(gina, $target, 'oobafterswap.' + id + '.hform', { target: $page, strategy: strategy, swapped: entry.swapped, oob: true, oobId: oobId });
+        }
+        out.list.push(entry);
+    }
+    // an author-supplied wrapper that held nothing but out-of-band elements is consumed
+    // transport too: left in place it would defeat the empty-remainder rule downstream
+    // (a popin would be asked to load `<template></template>` and blank itself)
+    for (i = 0; i < harvested.length; ++i) {
+        if ( harvested[i].content.childElementCount === 0
+            && !/\S/.test(harvested[i].content.textContent || '')
+            && harvested[i].parentNode
+        ) {
+            harvested[i].parentNode.removeChild(harvested[i]);
+        }
+    }
+    return out;
+}
+
+/**
+ * listenToXhrEvents
+ *
+ * Registers the `data-gina-<type>-event-on-success` / `data-gina-<type>-event-on-error`
+ * HTML callbacks of a plugin element on its `success.h<type>` / `error.h<type>` XHR
+ * event channels. The attribute value must be a bare identifier resolving on `window`
+ * (function-call shapes are refused with a console warning — #M21a).
+ * Consumed by `link/main.js` `linkRequest` (type `'link'`) and by `handleXhr`'s form
+ * branch (type `'form'`); must stay top-level — both callers resolve it as a global.
+ *
+ * @function listenToXhrEvents
+ * @param {object} $el - plugin element object (a `$link`/`$form` carrying `.target` and `.on`)
+ * @param {string} type - attribute/channel type: `'link'` or `'form'`
+ * @returns {void}
+ */
+function listenToXhrEvents($el, type) {
+
+    //data-gina-{type}-event-on-success
+    var htmlSuccesEventCallback =  $el.target.getAttribute('data-gina-'+ type +'-event-on-success') || null;
+    if (htmlSuccesEventCallback != null) {
+
+        if ( /\((.*)\)/.test(htmlSuccesEventCallback) ) {
+            // #M21a — function-call shape unsupported; register a bare handler on window instead
+            try { console.warn('[gina-event] function-call shape no longer supported on data-gina-'+ type +'-event-on-success — use a bare identifier and register the handler on window: '+ htmlSuccesEventCallback); } catch (e) {}
+        } else {
+            $el.on('success.h'+ type,  window[htmlSuccesEventCallback])
+        }
+    }
+
+    //data-gina-{type}-event-on-error
+    var htmlErrorEventCallback =  $el.target.getAttribute('data-gina-'+ type +'-event-on-error') || null;
+    if (htmlErrorEventCallback != null) {
+        if ( /\((.*)\)/.test(htmlErrorEventCallback) ) {
+            // #M21a — function-call shape unsupported; register a bare handler on window instead
+            try { console.warn('[gina-event] function-call shape no longer supported on data-gina-'+ type +'-event-on-error — use a bare identifier and register the handler on window: '+ htmlErrorEventCallback); } catch (e) {}
+        } else {
+            $el.on('error.h'+ type, window[htmlErrorEventCallback])
+        }
+    }
+}

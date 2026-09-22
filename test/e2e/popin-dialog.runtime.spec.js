@@ -211,6 +211,64 @@ test.describe('data-gina-dialog runtime (real bundle)', () => {
         await expect(dialog.locator('#partial-chrome')).toHaveAttribute('data-kept', 'yes');
     });
 
+    test('#B580 a MALFORMED data-gina-dialog-target falls back to a full replace instead of throwing', async ({ page }) => {
+        // Three triggers on ONE dialog (data-gina-dialog="b580" dedups them), clicked in an
+        // order that makes every outcome discriminating:
+        //   1. no target        -> full load seeds 'Chrome stays' + SLOT-ONE;
+        //   2. target="#slot"   -> CONTROL: the partial swap still runs (SLOT-TWO with the
+        //      chrome text AND its data-kept marker preserved) — green on both trees, so a
+        //      later full replace cannot be mistaken for the partial path breaking wholesale;
+        //   3. target="#slot >" -> the fix: the engine refuses the selector, applyContent
+        //      catches it and full-replaces, so the chrome becomes 'REPLACED chrome' and the
+        //      data-kept marker is dropped. Pre-#B580 the uncaught SyntaxError left the
+        //      dialog untouched, so BOTH the chrome assertion and the page-error count red.
+        // The harness serves envIsDev:'false', so the dev-mode notice is deliberately NOT
+        // asserted here — popin.test.js §22 owns the notice, this arm owns the fallback.
+        const errors = [];
+        page.on('pageerror', (e) => errors.push(String((e && e.message) || e)));
+
+        await page.evaluate(() => {
+            const mk = (id, src, target) => {
+                const a = document.createElement('a');
+                a.id = id;
+                a.setAttribute('data-gina-dialog', 'b580');
+                a.setAttribute('data-gina-dialog-src', src);
+                if (target) { a.setAttribute('data-gina-dialog-target', target); }
+                a.setAttribute('href', '#');
+                a.textContent = id;
+                document.body.appendChild(a);
+            };
+            mk('b580-full', '/frag/partial-1.html', null);
+            mk('b580-ok',   '/frag/partial-2.html', '#slot');
+            mk('b580-bad',  '/frag/partial-2.html', '#slot >');
+        });
+
+        await page.click('#b580-full');
+        const dialog = page.locator('dialog').filter({ hasText: 'Chrome stays' });
+        await expect(dialog.locator('#slot')).toHaveText('SLOT-ONE');
+        // Tag the chrome node so a full replace is observable as node loss, not just text.
+        await dialog.locator('#partial-chrome').evaluate((el) => el.setAttribute('data-kept', 'yes'));
+
+        // CONTROL — a VALID selector still swaps only the slot. The triggers sit under the
+        // open dialog, so dispatch directly (the delegated document handler still fires).
+        await page.dispatchEvent('#b580-ok', 'click');
+        await expect(dialog.locator('#slot')).toHaveText('SLOT-TWO');
+        await expect(dialog.locator('#partial-chrome')).toHaveText('Chrome stays');
+        await expect(dialog.locator('#partial-chrome')).toHaveAttribute('data-kept', 'yes');
+
+        // THE FIX — the malformed selector takes the documented full-replace fallback.
+        await page.dispatchEvent('#b580-bad', 'click');
+        const replaced = page.locator('dialog').filter({ hasText: 'REPLACED chrome' });
+        await expect(replaced.locator('#partial-chrome')).toHaveText('REPLACED chrome');
+        await expect(replaced.locator('#partial-chrome')).not.toHaveAttribute('data-kept', 'yes');
+
+        // Nothing escaped. MEASURED on HEAD's bundle, the click raises an uncaught
+        // "Failed to execute 'querySelector' on 'Element': '#slot >' is not a valid
+        // selector." — the count goes 0 -> 1 there, so the absence asserted here is real.
+        await page.waitForTimeout(300);
+        expect(errors).toEqual([]);
+    });
+
     // --- #B54: one click = one GET (no hover/focus-preload double-fetch) -----------
 
     test('#B54 legacy (data-gina-popin-name + -url) plain click fires exactly one GET', async ({ page }) => {
