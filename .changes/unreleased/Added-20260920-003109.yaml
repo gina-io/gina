@@ -1,3 +1,0 @@
-kind: Added
-body: 'The maintenance status payload (`GET`/`POST /_gina/maintenance`, both engines) now carries `pid` and `hostname` — the process that answered, and under Kubernetes the pod name. The runtime override was always per process: it lives in the memory of the process that received the `POST` and — unless the replica sync below (`server.maintenance.store`) is configured — is neither written nor broadcast, and a replica that restarts returns to its configured state. That contract is now stated on the guide, the schema and `llms.txt`, and the two fields let an operator fanning a `POST` out over replicas read back which ones applied it; `enabled: true` in configuration remains the durable, deployment-wide form'
-time: 2026-09-20T00:31:09.65181+01:00

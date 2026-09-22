@@ -1,3 +1,0 @@
-kind: Added
-body: '`lib.duration.parse()` — the framework''s one parser for unit-suffixed duration strings (`"500ms"`, `"30s"`, `"15m"`, `"3h"`, `"15d"`; the unit is required, a bare number is refused with `NaN`, `"0s"` is legal). It is the parser `lib/storage` already used for its interval keys, promoted to a registry entry so every configuration key that names a span of time shares one dialect; storage delegates to it and its behaviour is unchanged.'
-time: 2026-09-20T17:34:32+01:00
