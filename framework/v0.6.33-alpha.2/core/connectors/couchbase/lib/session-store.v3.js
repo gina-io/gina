@@ -242,8 +242,26 @@ module.exports = function(session, bundle){
     /**
      * Destroy the session associated with the given `sid`.
      *
-     * @param {String} sid
+     * Removing a session that is not in the bucket is a successful delete
+     * (#B577), as it is on every other session store the framework ships.
+     * express-session's `regenerate()` destroys the current sid before it
+     * issues a new one, and a sid that was never persisted
+     * (`saveUninitialized: false`, first visit) is absent — so reporting that
+     * absence as an error failed every login that rotates the session
+     * (`req.login()`, and Passport >= 0.6). Every other error still reaches
+     * `fn`, so a logout can never report a session gone that survived.
+     *
+     * @param {String}   sid  - the session id, without the store prefix.
+     * @param {Function} [fn] - `fn(err)`; `err` is `null` when the document was
+     *                          removed or was already absent.
+     * @returns {void}
      * @api public
+     *
+     * @example
+     * store.destroy(req.sessionID, function (err) {
+     *     if (err) { return next(err); } // a real failure: timeout, auth, network
+     *     // the session is gone — removed now, or already absent
+     * });
      */
 
     CouchbaseStore.prototype.destroy = function(sid, fn){
@@ -256,7 +274,23 @@ module.exports = function(session, bundle){
                 // CB-BUG-4 fix: same as session-store.v4.js — .then(fn) passes
                 // MutationResult as fn's first arg. Call fn(null) explicitly on success. (#CB-BUG-4)
                 .then(function onResult() { fn(null); })
-                .catch(fn)
+                // #B577 — same as session-store.v4.js: this was `.catch(fn)`, which handed
+                // a DocumentNotFoundError to express-session as a failed delete. An absent
+                // document is a successful delete; it is matched on the SDK class NAME,
+                // exactly (SDK 3.x sets name from the constructor, as 4.x does), so a
+                // timeout or a DesignDocumentNotFoundError still fails. The read is
+                // guarded: a throwing getter must not leave fn uncalled.
+                .catch(function onRemoveError(err) {
+                    var isAbsent = false;
+                    try {
+                        isAbsent = !!err && typeof(err) == 'object'
+                            && ( err.name === 'DocumentNotFoundError'
+                                || ( !!err.constructor && err.constructor.name === 'DocumentNotFoundError' ) );
+                    } catch (readErr) {
+                        isAbsent = false;
+                    }
+                    fn( isAbsent ? null : err );
+                })
     };
 
 
