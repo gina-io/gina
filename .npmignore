@@ -41,6 +41,7 @@ script/post_publish.js
 script/prepare_version.js
 script/check_readme_freshness.js
 script/check_bun_suite.js
+script/resolve_release_state.js
 
 # Local-only — never publish (prefix globs cover backup/variant filenames too)
 .claude*

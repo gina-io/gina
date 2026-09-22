@@ -32,7 +32,14 @@ var lib         = null;
  * */
 function PostPublish() {
     var self    = {
-        isWin32: isWin32()
+        isWin32: isWin32(),
+        // written by configure() when the script is run directly with `--tag=`
+        // or `-m` (npm lifecycle runs pass the tag as npm_config_tag instead);
+        // without this declaration that direct run threw a TypeError
+        git : {
+            tag: 'latest',
+            msg: null
+        }
     };
 
     var configure = function() {
@@ -442,26 +449,39 @@ function PostPublish() {
         var mainConfigPath = _(ginaHomeDir + '/main.json', true);
         var settingsConfigPath = _(ginaHomeDir + '/' + shortVersion + '/settings.json', true);
 
-        try {
-            var mainConfig = requireJSON(mainConfigPath);
-            mainConfig.def_framework = newVersion;
-            if (mainConfig.frameworks[shortVersion].indexOf(newVersion) < 0) {
-                mainConfig.frameworks[shortVersion].push(newVersion);
+        // #R10 phase 2 — the state store is optional: a release can run on a
+        // machine that never installed gina (a CI runner). Each file is checked
+        // before it is read because requireJSON() ends the process on a missing
+        // file (console.emerg + process.exit) — the catch blocks below never saw
+        // that error, so a store-less run died here, after the upload.
+        if ( fs.existsSync(mainConfigPath) ) {
+            try {
+                var mainConfig = requireJSON(mainConfigPath);
+                mainConfig.def_framework = newVersion;
+                if (mainConfig.frameworks[shortVersion].indexOf(newVersion) < 0) {
+                    mainConfig.frameworks[shortVersion].push(newVersion);
+                }
+                new _(mainConfigPath).rmSync();
+                lib.generator.createFileFromDataSync(JSON.stringify(mainConfig, null, 2), mainConfigPath);
+            } catch (e) {
+                console.warn('Could not update ' + mainConfigPath + ': ' + e.message);
             }
-            new _(mainConfigPath).rmSync();
-            lib.generator.createFileFromDataSync(JSON.stringify(mainConfig, null, 2), mainConfigPath);
-        } catch (e) {
-            console.warn('Could not update ' + mainConfigPath + ': ' + e.message);
+        } else {
+            console.info('[bumpVersion] No gina state store file at ' + mainConfigPath + ' — skipped.');
         }
 
-        try {
-            var settingsConfig = requireJSON(settingsConfigPath);
-            settingsConfig.version = newVersion;
-            settingsConfig.def_framework = newVersion;
-            new _(settingsConfigPath).rmSync();
-            lib.generator.createFileFromDataSync(JSON.stringify(settingsConfig, null, 2), settingsConfigPath);
-        } catch (e) {
-            console.warn('Could not update ' + settingsConfigPath + ': ' + e.message);
+        if ( fs.existsSync(settingsConfigPath) ) {
+            try {
+                var settingsConfig = requireJSON(settingsConfigPath);
+                settingsConfig.version = newVersion;
+                settingsConfig.def_framework = newVersion;
+                new _(settingsConfigPath).rmSync();
+                lib.generator.createFileFromDataSync(JSON.stringify(settingsConfig, null, 2), settingsConfigPath);
+            } catch (e) {
+                console.warn('Could not update ' + settingsConfigPath + ': ' + e.message);
+            }
+        } else {
+            console.info('[bumpVersion] No gina state store file at ' + settingsConfigPath + ' — skipped.');
         }
 
         // Rename the framework directory
@@ -484,7 +504,7 @@ function PostPublish() {
         lib.generator.createFileFromDataSync(JSON.stringify(packObj, null, 2), pack);
 
         // Update framework/v{new}/package.json version field
-        // The file is gitignored and moves with the renameSync above, so its
+        // The file is git-tracked and moves with the renameSync above, so its
         // version field stays at whatever it was last set to — drifting away
         // from the framework dir name. Rewrite it so a local dev environment
         // stays consistent with the root package.json after each bump.
