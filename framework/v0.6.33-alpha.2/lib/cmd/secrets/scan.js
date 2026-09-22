@@ -111,14 +111,19 @@ function Scan(opt, cmd) {
      *
      * @inner
      * @private
-     * @param {{bundle: string, byKey: Object<string, string[]>}} entry - One walk entry
-     * @returns {{bundle:string, totalKeys:number, byKey:Object<string, string[]>}}
+     * @param {{bundle: string, byKey: Object<string, string[]>, malformed: Array<{file: string, path: string, ref: string}>}} entry - One walk entry
+     * @returns {{bundle:string, totalKeys:number, byKey:Object<string, string[]>, malformed:Array<{file: string, path: string, ref: string}>}}
      */
     var toBundleReport = function (entry) {
         return {
             bundle    : entry.bundle,
             totalKeys : Object.keys(entry.byKey).length,
-            byKey     : entry.byKey
+            byKey     : entry.byKey,
+            // #B583 — the whole-value references the runtime would REFUSE at
+            // config load, reported beside the required keys (a malformed
+            // reference is not a key). scan stays informational — exit 0;
+            // secrets:check is the gate that fails on them.
+            malformed : Array.isArray(entry.malformed) ? entry.malformed : []
         };
     };
 
@@ -230,16 +235,39 @@ function Scan(opt, cmd) {
         console.log('  ' + br.bundle + ':');
         if (br.totalKeys === 0) {
             console.log('    No ${secret:KEY} placeholders found in config.');
-            return;
+        } else {
+            var keys  = Object.keys(br.byKey).sort();
+            var width = 0;
+            for (var w = 0; w < keys.length; w++) {
+                if (keys[w].length > width) width = keys[w].length;
+            }
+            console.log('    Required secrets (' + br.totalKeys + '):');
+            for (var k = 0; k < keys.length; k++) {
+                console.log('      ' + padRight(keys[k], width) + '   <-  ' + br.byKey[keys[k]].join(', '));
+            }
         }
-        var keys  = Object.keys(br.byKey).sort();
+        emitTextMalformed(br.malformed);
+    };
+
+    /**
+     * Renders the bundle's MALFORMED whole-value references (#B583) under
+     * their own heading — path, originating file, and the offending text (the
+     * CLI already prints key names; the boot log is the surface that hides
+     * them). Nothing at all when there are none.
+     *
+     * @inner
+     * @private
+     * @param {Array<{file: string, path: string, ref: string}>} list - The `malformed` block from `toBundleReport`
+     */
+    var emitTextMalformed = function (list) {
+        if (!list || !list.length) return;
         var width = 0;
-        for (var w = 0; w < keys.length; w++) {
-            if (keys[w].length > width) width = keys[w].length;
+        for (var w = 0; w < list.length; w++) {
+            if (list[w].path.length > width) width = list[w].path.length;
         }
-        console.log('    Required secrets (' + br.totalKeys + '):');
-        for (var k = 0; k < keys.length; k++) {
-            console.log('      ' + padRight(keys[k], width) + '   <-  ' + br.byKey[keys[k]].join(', '));
+        console.log('    Malformed references (' + list.length + ') — the runtime REFUSES to boot on these:');
+        for (var i = 0; i < list.length; i++) {
+            console.log('      ' + padRight(list[i].path, width) + '   <-  ' + list[i].file + '   (' + list[i].ref + ')');
         }
     };
 

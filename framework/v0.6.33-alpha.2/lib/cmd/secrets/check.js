@@ -615,7 +615,9 @@ function Check(opt, cmd) {
      * formed the lower one — the resolved `settings.secrets.file` chain or
      * the `settings.secrets.exec` fetch (mutually exclusive by validation).
      * Flips `self.anyUnset` when a key is missing and `self.anyError` when
-     * the declaration itself would refuse the boot (#B409).
+     * the declaration itself would refuse the boot (#B409) — or when the
+     * config carries a MALFORMED whole-value reference (#B583), which the
+     * runtime refuses at config load exactly like a declaration error.
      *
      * The chain is resolved per bundle, not per project: `settings.json` is a
      * per-bundle file and a declared path may embed `${bundle}`.
@@ -626,15 +628,23 @@ function Check(opt, cmd) {
      * @param {object|null} manifest
      * @param {string} bundleName
      * @param {Object<string, string[]>} entryByKey - The bundle's walk entry map (shared keys already folded in)
-     * @returns {{bundle:string, totalKeys:number, set:number, unset:number, keys:Array<{key:string, set:boolean, source:(string|null), from:(string|null)}>, secretsFile:object}}
+     * @param {Array<{file: string, path: string, ref: string}>} [malformed] - The bundle's malformed references from the SAME walk entry (#B583); each one is a boot refusal
+     * @returns {{bundle:string, totalKeys:number, set:number, unset:number, keys:Array<{key:string, set:boolean, source:(string|null), from:(string|null)}>, malformed:Array<{file: string, path: string, ref: string}>, secretsFile:object, secretsExec:object}}
      */
-    var checkBundle = function (projectPath, manifest, bundleName, entryByKey) {
+    var checkBundle = function (projectPath, manifest, bundleName, entryByKey, malformed) {
         var chain = resolveSecretsChain(projectPath, manifest, bundleName);
 
         // #B409 — a declaration/fetch error means the runtime refuses to
         // boot this bundle, so the gate must exit non-zero regardless of
         // whether the environment happens to carry the keys.
         if (chain.errors.length) { self.anyError = true; }
+
+        // #B583 — a MALFORMED whole-value reference is refused by the runtime
+        // at config load, so it fails the gate the same way: a green here for
+        // a config that cannot boot is the #B408 drift class. It names no
+        // usable key, so it is reported beside the keys, never among them.
+        var bad = Array.isArray(malformed) ? malformed : [];
+        if (bad.length) { self.anyError = true; }
 
         var keys     = Object.keys(entryByKey).sort();
         var statuses = [];
@@ -650,6 +660,7 @@ function Check(opt, cmd) {
             set       : setCount,
             unset     : keys.length - setCount,
             keys      : statuses,
+            malformed : bad,
             secretsFile : {
                 declared     : (chain.declared && chain.tier !== 'exec'),
                 assumedScope : self.scopeAssumed || null,
@@ -684,7 +695,7 @@ function Check(opt, cmd) {
             var mf    = loadManifest(pp.path); // still read here: the secrets-file chain needs it
             var entry = { project: names[i], bundles: [] };
             for (var b = 0; b < walked.bundles.length; b++) {
-                entry.bundles.push(checkBundle(pp.path, mf, walked.bundles[b].bundle, walked.bundles[b].byKey));
+                entry.bundles.push(checkBundle(pp.path, mf, walked.bundles[b].bundle, walked.bundles[b].byKey, walked.bundles[b].malformed));
             }
             report.projects.push(entry);
         }
@@ -709,7 +720,7 @@ function Check(opt, cmd) {
         var manifest = loadManifest(project.path); // still read here: the secrets-file chain needs it
         var report   = { project: projectName, bundles: [] };
         for (var i = 0; i < walked.bundles.length; i++) {
-            report.bundles.push(checkBundle(project.path, manifest, walked.bundles[i].bundle, walked.bundles[i].byKey));
+            report.bundles.push(checkBundle(project.path, manifest, walked.bundles[i].bundle, walked.bundles[i].byKey, walked.bundles[i].malformed));
         }
         emit(report);
     };
@@ -726,7 +737,7 @@ function Check(opt, cmd) {
         var project  = self.projects[projectName];
         var walked   = secrets.getProjectRequiredKeys(project.path, { scope: self.scopeName, bundle: bundleName });
         var manifest = loadManifest(project.path); // still read here: the secrets-file chain needs it
-        var report   = { project: projectName, bundles: [checkBundle(project.path, manifest, bundleName, walked.bundles[0].byKey)] };
+        var report   = { project: projectName, bundles: [checkBundle(project.path, manifest, bundleName, walked.bundles[0].byKey, walked.bundles[0].malformed)] };
         emit(report);
     };
 
@@ -783,6 +794,7 @@ function Check(opt, cmd) {
         console.log('  ' + br.bundle + ':');
         emitTextChain(br.secretsFile);
         emitTextExec(br.secretsExec);
+        emitTextMalformed(br.malformed);
         if (br.totalKeys === 0) {
             console.log('    No ${secret:KEY} placeholders found in config.');
             return;
@@ -796,7 +808,29 @@ function Check(opt, cmd) {
                 + padRight(br.keys[k].set ? 'SET' : 'UNSET', 5) + '   '
                 + sourceLabel(br.keys[k], br.secretsFile));
         }
-        console.log('    (' + br.totalKeys + ' required: ' + br.set + ' set, ' + br.unset + ' unset)');
+        console.log('    (' + br.totalKeys + ' required: ' + br.set + ' set, ' + br.unset + ' unset'
+            + ((br.malformed && br.malformed.length) ? '; ' + br.malformed.length + ' malformed' : '') + ')');
+    };
+
+    /**
+     * Renders the bundle's MALFORMED whole-value references (#B583), each one
+     * a boot refusal: the runtime throws on it at config load, so the gate
+     * names the file, the path AND the offending text — the text is safe on
+     * this surface (the CLI already prints key names; the boot log does not)
+     * and it is what the operator needs in order to fix the entry. Prints
+     * nothing when there are none, so an unaffected report reads as before.
+     *
+     * @inner
+     * @private
+     * @param {Array<{file: string, path: string, ref: string}>} list - The `malformed` block from `checkBundle`
+     */
+    var emitTextMalformed = function (list) {
+        if (!list || !list.length) return;
+        for (var i = 0; i < list.length; i++) {
+            console.log('      ! MALFORMED reference at `' + list[i].path + '` in ' + list[i].file
+                + ' — the runtime REFUSES to boot on this: `' + list[i].ref
+                + '` is not a ${secret:KEY} placeholder (KEY must match ^[A-Z_][A-Z0-9_]*$, no surrounding whitespace)');
+        }
     };
 
     /**

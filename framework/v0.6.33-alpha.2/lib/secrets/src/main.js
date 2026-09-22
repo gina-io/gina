@@ -21,7 +21,13 @@
  * **Syntax.** `${secret:KEY}` where `KEY` matches `^[A-Z_][A-Z0-9_]*$`.
  * The placeholder must be the entire JSON string value — mixed-content
  * strings like `'prefix-${secret:K}-suffix'` are passed through unchanged
- * (no substitution attempted).
+ * (no substitution attempted). A value that is NOTHING BUT a `${secret:…}`
+ * token whose key breaks that grammar (`${secret:db_password}`,
+ * `${secret:a.b}`, `${secret:}`), or a valid token padded with surrounding
+ * whitespace, is a MALFORMED reference (#B583): it is REFUSED, never passed
+ * through — such a value is always a secret-reference attempt, and passing
+ * it through handed the literal text to its consumer as a credential (a
+ * database driver authenticated with it, silently).
  *
  * **Timing.** Runs once per bundle slice during `loadBundleConfig`,
  * mutating the merged config object in place. Subsequent reads see the
@@ -29,7 +35,11 @@
  *
  * **Fail-closed.** Unset / empty backend values cause the backend to
  * throw `Error('Secret resolution failed')`. The error message does NOT
- * include the key name.
+ * include the key name. A malformed reference throws
+ * `Error('Secret reference malformed at `<path>`: …')` — the message names
+ * the config PATH and the key grammar, never the offending text, which rides
+ * a non-enumerable `_ginaSecretRef` for debug logging (the `_ginaSecretKey`
+ * policy, #B42).
  *
  * **Path tracking.** The dotted paths that were substituted are recorded
  * in an internal `WeakMap`; callers can retrieve them via
@@ -49,6 +59,8 @@
  * **Introspection.** `getRequiredKeys(config)` enumerates the placeholder
  * keys a config requires without resolving them — read-only and
  * non-throwing. It backs the `gina secrets:scan` / `secrets:check` CLI.
+ * `getMalformedReferences(config)` is its sibling for the references
+ * `resolve()` would refuse, so the CLI gate cannot pass what boot refuses.
  *
  * @example
  * var secrets = lib.secrets;
@@ -76,10 +88,11 @@ var envFile        = require('./env-file');
 // pure and require-free, so it adds nothing to the zero-setup load path.
 var declaration    = require('./declaration');
 // The config-source walk (./sources) is a FACTORY over this module's own
-// getRequiredKeys — instantiated here, at the composition root, so the two
-// files never require each other in a cycle. `getRequiredKeys` is a hoisted
-// function declaration, so passing it above its definition is safe.
-var sources        = require('./sources')(getRequiredKeys);
+// enumeration primitives — getRequiredKeys and, since #B583, its sibling
+// getMalformedReferences — instantiated here, at the composition root, so the
+// two files never require each other in a cycle. Both are hoisted function
+// declarations, so passing them above their definitions is safe.
+var sources        = require('./sources')(getRequiredKeys, getMalformedReferences);
 
 /**
  * Regex matching an entire `${secret:KEY}` placeholder. The capture group
@@ -90,6 +103,61 @@ var sources        = require('./sources')(getRequiredKeys);
  * @memberof module:lib/secrets
  */
 var SECRET_RE = /^\${secret:([A-Z_][A-Z0-9_]*)\}$/;
+
+/**
+ * Regex matching a MALFORMED whole-value reference (#B583): a string that is
+ * nothing but a `${secret:…}` token — exactly the token, or the token with
+ * surrounding whitespace — and is NOT a valid `SECRET_RE` placeholder. Built
+ * FROM `SECRET_RE`, so the two can never disagree about the key grammar; a
+ * consumer that carries its own refusing guard can align on it.
+ *
+ * Matches (each refused by `resolve()`): `${secret:db_password}` (lowercase),
+ * `${secret:a.b}` (dotted), `${secret:}` (empty), `${secret:1A}` (leading
+ * digit), `${secret:DB_PASSWORD} ` (a VALID key padded with whitespace).
+ * Does NOT match: a valid placeholder; mixed content such as
+ * `https://${secret:HOST}/v1` or `${secret:A}-${secret:B}`, which keeps the
+ * documented passthrough (composition belongs in bundle code); a
+ * differently-spelled namespace (`${SECRET:X}`), which the framework does
+ * not claim to interpret.
+ *
+ * The lookahead carries `SECRET_RE`'s capture group, so `.exec()` reports an
+ * inert `undefined` group — use `.test()`; the offending text is the whole
+ * string, never a capture.
+ *
+ * @constant {RegExp} MALFORMED_RE
+ * @memberof module:lib/secrets
+ */
+var MALFORMED_RE = new RegExp('^(?!' + SECRET_RE.source + ')\\s*\\$\\{secret:[^}]*\\}\\s*$');
+
+/**
+ * Build the Error `resolve()` throws for a MALFORMED whole-value reference
+ * (#B583). The message names the config PATH and the key grammar — the
+ * offending text is NOT in it, by the policy that keeps a missing key out of
+ * `'Secret resolution failed'` (#B42): the boot log is a user-facing surface.
+ * The text rides a non-enumerable `_ginaSecretRef` so the config loader can
+ * name it at debug level only.
+ *
+ * @inner
+ * @private
+ * @param {string} path - Dotted path of the offending value from the walk root
+ * @param {string} ref  - The offending string, verbatim
+ * @returns {Error} The error to throw, `_ginaSecretRef` attached non-enumerably
+ */
+function malformedReferenceError(path, ref) {
+    var err = new Error(
+        'Secret reference malformed at `' + path + '`: a whole-value ${secret:KEY} placeholder'
+        + ' must be exactly the placeholder, with no surrounding whitespace, and KEY must match'
+        + ' ^[A-Z_][A-Z0-9_]*$ (uppercase letters, digits and underscores, not starting with a'
+        + ' digit) — name the environment variable that carries the secret'
+    );
+    Object.defineProperty(err, '_ginaSecretRef', {
+        value: ref,
+        enumerable: false,
+        configurable: true,
+        writable: true
+    });
+    return err;
+}
 
 /**
  * Internal map of resolved-config object → array of dotted paths that
@@ -105,7 +173,10 @@ var _resolvedPathsByConfig = new WeakMap();
 /**
  * Walk `node` recursively, substituting any string value that matches
  * `SECRET_RE` in place. Records substituted dotted paths into `paths`.
- * Mixed-content strings pass through unchanged.
+ * Mixed-content strings pass through unchanged. A string matching
+ * `MALFORMED_RE` — a whole-value `${secret:…}` token `SECRET_RE` rejects —
+ * THROWS at the first one met, in walk order (#B583): first-error-wins,
+ * like the declaration guards; the CLI enumerates them all instead.
  *
  * @inner
  * @private
@@ -114,7 +185,8 @@ var _resolvedPathsByConfig = new WeakMap();
  * @param {string}   currentPath - Dotted path of `node` from the walk root
  * @param {object}   backend     - Backend with `resolve(key) → string`
  * @returns {void}
- * @throws {Error} Propagates backend resolution errors
+ * @throws {Error} Propagates backend resolution errors; throws the
+ *   `malformedReferenceError` for a malformed whole-value reference
  */
 function walkAndResolve(node, paths, currentPath, backend) {
     if (node === null || typeof node !== 'object') {
@@ -128,6 +200,8 @@ function walkAndResolve(node, paths, currentPath, backend) {
                 if (match) {
                     node[i] = backend.resolve(match[1]);
                     paths.push(elementPath);
+                } else if (MALFORMED_RE.test(node[i])) {
+                    throw malformedReferenceError(elementPath, node[i]);
                 }
             } else if (node[i] !== null && typeof node[i] === 'object') {
                 walkAndResolve(node[i], paths, elementPath, backend);
@@ -145,6 +219,8 @@ function walkAndResolve(node, paths, currentPath, backend) {
             if (keyMatch) {
                 node[key] = backend.resolve(keyMatch[1]);
                 paths.push(keyPath);
+            } else if (MALFORMED_RE.test(node[key])) {
+                throw malformedReferenceError(keyPath, node[key]);
             }
         } else if (node[key] !== null && typeof node[key] === 'object') {
             walkAndResolve(node[key], paths, keyPath, backend);
@@ -154,31 +230,39 @@ function walkAndResolve(node, paths, currentPath, backend) {
 
 /**
  * Walk `node` recursively, collecting the KEY of every string value that
- * matches `SECRET_RE` into `keys`. Unlike `walkAndResolve`, this never
- * calls a backend and never mutates `node` — it only enumerates the
- * placeholder keys present, so it cannot throw on unset / empty values.
- * Mixed-content strings (`'prefix-${secret:K}-suffix'`) do not match,
- * exactly as `walkAndResolve` leaves them untouched.
+ * matches `SECRET_RE` into `keys`, and every MALFORMED whole-value reference
+ * (`MALFORMED_RE`, #B583) into `malformed` as `{ path, ref }`. Unlike
+ * `walkAndResolve`, this never calls a backend, never mutates `node` and
+ * never throws — it only enumerates what is present, so it cannot fail on
+ * unset / empty values or on a malformed reference. Mixed-content strings
+ * (`'prefix-${secret:K}-suffix'`) match neither, exactly as `walkAndResolve`
+ * leaves them untouched. One walker for both enumerations, so the CLI's
+ * "required" and "malformed" views can never disagree about a value.
  *
  * @inner
  * @private
- * @param {*}      node - Current subtree (object, array, or scalar)
- * @param {object} keys - Mutable null-proto set; each required key name maps to `true`
+ * @param {*}      node        - Current subtree (object, array, or scalar)
+ * @param {object} keys        - Mutable null-proto set; each required key name maps to `true`
+ * @param {Array<{path: string, ref: string}>} malformed - Mutable list of malformed references, walk order
+ * @param {string} currentPath - Dotted path of `node` from the walk root
  * @returns {void}
  */
-function walkAndCollect(node, keys) {
+function walkAndCollect(node, keys, malformed, currentPath) {
     if (node === null || typeof node !== 'object') {
         return;
     }
     if (Array.isArray(node)) {
         for (var i = 0; i < node.length; i++) {
+            var elementPath = currentPath + '[' + i + ']';
             if (typeof node[i] === 'string') {
                 var match = node[i].match(SECRET_RE);
                 if (match) {
                     keys[match[1]] = true;
+                } else if (MALFORMED_RE.test(node[i])) {
+                    malformed.push({ path: elementPath, ref: node[i] });
                 }
             } else if (node[i] !== null && typeof node[i] === 'object') {
-                walkAndCollect(node[i], keys);
+                walkAndCollect(node[i], keys, malformed, elementPath);
             }
         }
         return;
@@ -187,13 +271,16 @@ function walkAndCollect(node, keys) {
         if (!Object.prototype.hasOwnProperty.call(node, key)) {
             continue;
         }
+        var keyPath = currentPath ? (currentPath + '.' + key) : key;
         if (typeof node[key] === 'string') {
             var keyMatch = node[key].match(SECRET_RE);
             if (keyMatch) {
                 keys[keyMatch[1]] = true;
+            } else if (MALFORMED_RE.test(node[key])) {
+                malformed.push({ path: keyPath, ref: node[key] });
             }
         } else if (node[key] !== null && typeof node[key] === 'object') {
-            walkAndCollect(node[key], keys);
+            walkAndCollect(node[key], keys, malformed, keyPath);
         }
     }
 }
@@ -215,6 +302,10 @@ function walkAndCollect(node, keys) {
  * @param {function}     backend.resolve - `function(key) ⇒ string`. Throws on failure.
  * @returns {object|Array|*} The same `config` reference (mutated in place). Non-object inputs return unchanged.
  * @throws {Error} `'Secret resolution failed'` if any placeholder cannot be resolved
+ * @throws {Error} `'Secret reference malformed at `<path>`: …'` for a whole-value
+ *   `${secret:…}` token whose key breaks the grammar or that carries surrounding
+ *   whitespace (#B583) — refused, never passed through; the config was partially
+ *   substituted up to that point, which is moot since the caller refuses it
  *
  * @example
  * var secrets = lib.secrets;
@@ -340,7 +431,9 @@ function getResolvedValues(config) {
  * Backs the `gina secrets:scan` / `secrets:check` introspection CLI.
  * Mirrors `resolve()`'s matching rule exactly (anchored `SECRET_RE`), so
  * the reported set is precisely the set `resolve()` would substitute:
- * mixed-content strings (`'prefix-${secret:K}-suffix'`) are NOT reported.
+ * mixed-content strings (`'prefix-${secret:K}-suffix'`) are NOT reported,
+ * and neither is a MALFORMED reference (#B583) — it names no usable key;
+ * `getMalformedReferences()` lists those.
  *
  * @memberof module:lib/secrets
  * @function getRequiredKeys
@@ -360,8 +453,43 @@ function getRequiredKeys(config) {
         return [];
     }
     var keys = Object.create(null);
-    walkAndCollect(config, keys);
+    walkAndCollect(config, keys, [], '');
     return Object.keys(keys).sort();
+}
+
+/**
+ * Enumerate every MALFORMED whole-value `${secret:…}` reference in `config`
+ * — a value `resolve()` would REFUSE (#B583) — as `{ path, ref }` pairs in
+ * walk order, without resolving or mutating anything. Read-only and
+ * non-throwing, the `getRequiredKeys()` contract: it backs the
+ * `secrets:scan` / `secrets:check` CLI, which must report what boot refuses
+ * (a gate that green-lights a config the runtime refuses is the #B408 drift
+ * class). `getRequiredKeys()` never lists these — a malformed reference
+ * names no usable key.
+ *
+ * @memberof module:lib/secrets
+ * @function getMalformedReferences
+ * @param {object|Array} config - A bundle config object (or any subtree)
+ * @returns {Array<{path: string, ref: string}>} One entry per offending
+ *   value — `path` in `getResolvedPaths()`'s notation, `ref` the offending
+ *   string verbatim. Empty for non-object inputs or a config with none.
+ *
+ * @example
+ * secrets.getMalformedReferences({
+ *     db  : { password: '${secret:db_password}' },   // lowercase key — listed
+ *     api : { key: '${secret:API_KEY}' },            // valid — not listed
+ *     url : 'https://${secret:API_HOST}/v1'          // mixed content — not listed
+ * });
+ * // → [{ path: 'db.password', ref: '${secret:db_password}' }]
+ * secrets.getMalformedReferences({}); // → []
+ */
+function getMalformedReferences(config) {
+    if (config === null || typeof config !== 'object') {
+        return [];
+    }
+    var out = [];
+    walkAndCollect(config, Object.create(null), out, '');
+    return out;
 }
 
 /**
@@ -502,6 +630,9 @@ module.exports = {
     getResolvedPaths: getResolvedPaths,
     getResolvedValues: getResolvedValues,
     getRequiredKeys: getRequiredKeys,
+    // The read-only view of what resolve() REFUSES (#B583), beside the view
+    // of what it substitutes — the CLI gate consumes both.
+    getMalformedReferences: getMalformedReferences,
     selectBackend: selectBackend,
     // Declaration validation, re-exported from ./declaration so the
     // secrets:check gate validates with the RUNTIME's own guards rather than
@@ -515,6 +646,10 @@ module.exports = {
     // #B408 drift class on the semantics axis.
     fetchExecMap: execBackend.fetchExecMap,
     SECRET_RE: SECRET_RE,
+    // The malformed-reference class (#B583), exported so a consumer that
+    // carries its own refusing guard can align on the framework's grammar
+    // instead of re-deriving it.
+    MALFORMED_RE: MALFORMED_RE,
     // `.env`-style parsing, re-exported from ./env-file so that every reader
     // of a given file agrees on what it means. See that module's header for
     // why one implementation matters here.

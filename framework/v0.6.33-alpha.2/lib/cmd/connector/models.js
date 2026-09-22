@@ -199,11 +199,15 @@ function Models(opt, cmd) {
         try {
             secrets.resolve(entry);
         } catch (secretErr) {
-            console.error(
-                '[connector:models] secret resolution failed for `' + (secretErr._ginaSecretKey || '<unknown>') + '`. '
-                + 'Set it in this shell (export ' + (secretErr._ginaSecretKey || 'KEY') + '=...), or pass --api-key=<literal>. '
-                + 'A detached CLI sees only its own environment, not secrets injected by a supervisor at bundle start.'
-            );
+            // #B583 — a MALFORMED whole-value reference names its config path
+            // in its own message and carries no key; the `export KEY=` advice
+            // below is for a MISSING key only.
+            var secretMsg = (typeof secretErr._ginaSecretRef !== 'undefined')
+                ? ('[connector:models] ' + secretErr.message + '. Fix the placeholder in the connector entry.')
+                : ('[connector:models] secret resolution failed for `' + (secretErr._ginaSecretKey || '<unknown>') + '`. '
+                    + 'Set it in this shell (export ' + (secretErr._ginaSecretKey || 'KEY') + '=...), or pass --api-key=<literal>. '
+                    + 'A detached CLI sees only its own environment, not secrets injected by a supervisor at bundle start.');
+            console.error(secretMsg);
             process.exit(1);
             return;
         }

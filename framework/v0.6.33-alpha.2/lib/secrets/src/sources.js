@@ -56,14 +56,17 @@ var fs = require('fs');
 var merge = require('../../merge');
 
 /**
- * Builds the config-source walk over the supplied key-enumeration
- * primitive.
+ * Builds the config-source walk over the supplied enumeration primitives:
+ * the keys a config REQUIRES and the whole-value references the runtime
+ * would REFUSE (#B583) — two views of one walk, so the CLI gate reports
+ * exactly what boot does.
  *
  * @function module:lib/secrets/sources
  * @param {function} getRequiredKeys - `lib/secrets`'s own `getRequiredKeys(config)` — read-only, non-throwing, backend-free
+ * @param {function} getMalformedReferences - its sibling `getMalformedReferences(config)` (#B583), same contract: `[{path, ref}]` for every value `resolve()` would refuse
  * @returns {{getProjectRequiredKeys: function, loadManifest: function, readJsonSafe: function, resolveBundleSrc: function}}
  */
-module.exports = function sourcesFactory(getRequiredKeys) {
+module.exports = function sourcesFactory(getRequiredKeys, getMalformedReferences) {
 
     /**
      * Config files are JSON. The loader globs every `.json` in a config
@@ -172,7 +175,10 @@ module.exports = function sourcesFactory(getRequiredKeys) {
      * Reads every `.json` under `absDir`, enumerates its required secret
      * keys via the injected `getRequiredKeys`, and records each key
      * against its originating file (labelled `relBase + '/' + filename`).
-     * Mutates `byKey` in place.
+     * Mutates `byKey` in place. The MALFORMED whole-value references
+     * (#B583) ride the same read through `getMalformedReferences`, into
+     * `malformed`, each with the file that carries it — a reference the
+     * runtime refuses is not a required key, so it is reported beside them.
      *
      * When `scopeName` is set, the sibling `<absDir>_<scope>/` directory
      * (e.g. `shared/config_production/`) is read-only overlaid on top of
@@ -190,8 +196,9 @@ module.exports = function sourcesFactory(getRequiredKeys) {
      * @param {string} relBase - Display prefix for file labels (e.g. `src/demo/config`)
      * @param {Object<string, string[]>} byKey - Mutable KEY -> [files] map
      * @param {string|null} scopeName - Scope overlay name, or `null`
+     * @param {Array<{file: string, path: string, ref: string}>} malformed - Mutable list of malformed references (#B583), de-duplicated by file + path
      */
-    var collectFromConfigDir = function (absDir, relBase, byKey, scopeName) {
+    var collectFromConfigDir = function (absDir, relBase, byKey, scopeName, malformed) {
         var scopeAbsDir  = scopeName ? (absDir + '_' + scopeName) : null;
         var scopeRelBase = scopeName ? (relBase + '_' + scopeName) : null;
 
@@ -223,24 +230,44 @@ module.exports = function sourcesFactory(getRequiredKeys) {
                 if (!byKey[keys[k]]) byKey[keys[k]] = [];
                 if (byKey[keys[k]].indexOf(label) < 0) byKey[keys[k]].push(label);
             }
+
+            // #B583 — the references the runtime would REFUSE, attributed the
+            // same way: to the layer whose own content carries that value at
+            // that path (the scope file wins on a collision, like a key).
+            var bad      = getMalformedReferences(effective);
+            var scopeBad = scopeContent ? getMalformedReferences(scopeContent) : [];
+            for (var m = 0; m < bad.length; m++) {
+                var fromScope = false;
+                for (var sb = 0; sb < scopeBad.length; sb++) {
+                    if (scopeBad[sb].path === bad[m].path && scopeBad[sb].ref === bad[m].ref) { fromScope = true; break; }
+                }
+                var badFile = fromScope ? (scopeRelBase + '/' + name) : (relBase + '/' + name);
+                var seen = false;
+                for (var d = 0; d < malformed.length; d++) {
+                    if (malformed[d].file === badFile && malformed[d].path === bad[m].path) { seen = true; break; }
+                }
+                if (!seen) malformed.push({ file: badFile, path: bad[m].path, ref: bad[m].ref });
+            }
         }
     };
 
     /**
-     * Computes the shared-config KEY -> [files] map once per project. The
-     * loader merges `shared/config/` into every bundle, so these keys are
-     * attributed to each bundle.
+     * Computes the shared-config KEY -> [files] map, and the shared
+     * malformed-reference list (#B583), once per project. The loader merges
+     * `shared/config/` into every bundle, so both are attributed to each
+     * bundle.
      *
      * @inner
      * @private
      * @param {string} projectPath
      * @param {string|null} scopeName
-     * @returns {Object<string, string[]>}
+     * @returns {{byKey: Object<string, string[]>, malformed: Array<{file: string, path: string, ref: string}>}}
      */
     var computeSharedByKey = function (projectPath, scopeName) {
-        var byKey = Object.create(null);
-        collectFromConfigDir(_(projectPath + '/shared/config', true), 'shared/config', byKey, scopeName);
-        return byKey;
+        var byKey     = Object.create(null);
+        var malformed = [];
+        collectFromConfigDir(_(projectPath + '/shared/config', true), 'shared/config', byKey, scopeName, malformed);
+        return { byKey: byKey, malformed: malformed };
     };
 
     /**
@@ -252,7 +279,11 @@ module.exports = function sourcesFactory(getRequiredKeys) {
      *
      * Provenance is always on: each key maps to the project-relative
      * config file(s) that require it, insertion-ordered and de-duplicated
-     * (shared labels first, then the bundle's own).
+     * (shared labels first, then the bundle's own). Each bundle entry also
+     * carries `malformed` (#B583): the whole-value `${secret:…}` references
+     * the runtime would REFUSE at config load, each with the file that
+     * carries it, shared entries first — so `secrets:check` can fail on
+     * exactly what boot fails on, and `secrets:scan` can show it.
      *
      * Semantics, precisely:
      *   - a non-string or empty `projectPath` returns `null`.
@@ -272,12 +303,16 @@ module.exports = function sourcesFactory(getRequiredKeys) {
      * @param {object} [options]
      * @param {string|null} [options.scope=null]  - Scope overlay name (`config_<scope>/` siblings)
      * @param {string|null} [options.bundle=null] - Restrict the walk to one bundle
-     * @returns {{bundles: Array<{bundle: string, byKey: Object<string, string[]>}>}|null}
-     *          Bundles sorted by name; `byKey` is a null-proto KEY -> [labels] map
+     * @returns {{bundles: Array<{bundle: string, byKey: Object<string, string[]>, malformed: Array<{file: string, path: string, ref: string}>}>}|null}
+     *          Bundles sorted by name; `byKey` is a null-proto KEY -> [labels] map;
+     *          `malformed` is empty for a clean bundle
      * @example
      * // all bundles, production overlay:
      * var r = getProjectRequiredKeys('/tmp/some-project', { scope: 'production' });
-     * // -> { bundles: [ { bundle: 'demo', byKey: { DB_PASSWORD: ['shared/config/app.json'] } } ] }
+     * // -> { bundles: [ { bundle: 'demo', byKey: { DB_PASSWORD: ['shared/config/app.json'] }, malformed: [] } ] }
+     * @example
+     * // a bundle whose connectors.json carries `"password": "${secret:db_password}"` (lowercase — refused at boot):
+     * // -> malformed: [ { file: 'src/demo/config/connectors.json', path: 'db.password', ref: '${secret:db_password}' } ]
      * @example
      * // one bundle, no overlay — null projectPath and missing manifests are not thrown:
      * getProjectRequiredKeys('', {});                                // null
@@ -301,17 +336,22 @@ module.exports = function sourcesFactory(getRequiredKeys) {
             names = Object.keys(manifest.bundles).sort();
         }
 
-        var sharedByKey = computeSharedByKey(projectPath, scopeName);
-        var bundles     = [];
+        var shared  = computeSharedByKey(projectPath, scopeName);
+        var bundles = [];
         for (var i = 0; i < names.length; i++) {
             var byKey = Object.create(null);
-            for (var sk in sharedByKey) {
-                byKey[sk] = sharedByKey[sk].slice();
+            for (var sk in shared.byKey) {
+                byKey[sk] = shared.byKey[sk].slice();
+            }
+            // each bundle gets its own copies: the per-bundle walk appends
+            var malformed = [];
+            for (var sm = 0; sm < shared.malformed.length; sm++) {
+                malformed.push({ file: shared.malformed[sm].file, path: shared.malformed[sm].path, ref: shared.malformed[sm].ref });
             }
             var bundleSrc = resolveBundleSrc(manifest, names[i]);
             var rel       = bundleSrc + '/config';
-            collectFromConfigDir(_(projectPath + '/' + rel, true), rel, byKey, scopeName);
-            bundles.push({ bundle: names[i], byKey: byKey });
+            collectFromConfigDir(_(projectPath + '/' + rel, true), rel, byKey, scopeName, malformed);
+            bundles.push({ bundle: names[i], byKey: byKey, malformed: malformed });
         }
         return { bundles: bundles };
     };

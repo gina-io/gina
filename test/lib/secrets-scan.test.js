@@ -808,3 +808,83 @@ describe('09 - scope overlay + env-file', function () {
         assert.equal(lookup('NOWHERE'), null);             // still fail-closed
     });
 });
+
+
+// ---------------------------------------------------------------------------
+// 10 — #B583: a MALFORMED whole-value reference fails the gate and is listed
+// ---------------------------------------------------------------------------
+// The runtime REFUSES a config carrying `${secret:db_password}` (or a valid
+// token padded with whitespace) at config load. A gate that green-lights
+// such a config is the #B408 drift class, so check exits 1 on it and both
+// commands list it beside the keys — it is not a key.
+
+describe('10 - #B583 malformed references: check fails, scan lists', function () {
+
+    it('the walk aggregation over the REAL lib.secrets lists each malformed value with its file (replica of collectFromConfigDir)', function () {
+        // Replica of collectFromConfigDir's malformed accumulation over an in-memory
+        // { filename: confObject } map, using the REAL secrets.getMalformedReferences.
+        function aggregateMalformed(filesByName, relBase) {
+            var out = [];
+            Object.keys(filesByName).sort().forEach(function (name) {
+                secrets.getMalformedReferences(filesByName[name]).forEach(function (e) {
+                    out.push({ file: relBase + '/' + name, path: e.path, ref: e.ref });
+                });
+            });
+            return out;
+        }
+        var got = aggregateMalformed({
+            'connectors.json': { db: { password: '${secret:db_password}', user: '${secret:DB_USER}' } },
+            'settings.json'  : { api: { key: '${secret:API_KEY} ' }, url: 'https://${secret:API_HOST}/v1' }
+        }, 'src/demo/config');
+        assert.deepStrictEqual(got, [
+            { file: 'src/demo/config/connectors.json', path: 'db.password', ref: '${secret:db_password}' },
+            { file: 'src/demo/config/settings.json',   path: 'api.key',     ref: '${secret:API_KEY} ' }
+        ]);
+    });
+
+    it('check: a malformed reference flips anyError even when every required key is SET (replica of checkBundle)', function () {
+        var env       = { DB_USER: 'u' };
+        var keys      = ['DB_USER'];
+        var malformed = [{ file: 'src/demo/config/connectors.json', path: 'db.password', ref: '${secret:db_password}' }];
+        var anyUnset = false, anyError = false;
+        keys.forEach(function (k) { if (!(typeof env[k] === 'string' && env[k] !== '')) anyUnset = true; });
+        if (malformed.length) anyError = true;
+        assert.equal(anyUnset, false);
+        assert.equal(anyError, true, 'the runtime refuses this config; the gate must exit 1');
+        assert.equal((anyUnset || anyError) ? 1 : 0, 1);
+    });
+
+    // ---- source pins: the shipped handlers carry the accounting -----------
+
+    it('check.js: checkBundle takes the walk entry\'s malformed list and flips self.anyError on it', function () {
+        assert.match(checkSrc, /var\s+checkBundle\s*=\s*function\s*\(\s*projectPath\s*,\s*manifest\s*,\s*bundleName\s*,\s*entryByKey\s*,\s*malformed\s*\)/);
+        assert.match(checkSrc, /if\s*\(\s*bad\.length\s*\)\s*\{\s*self\.anyError\s*=\s*true;\s*\}/);
+        // every caller passes the list from the SAME walk entry (file order)
+        var callers = checkSrc.match(/checkBundle\([^)]*walked\.bundles\[[^\]]+\]\.malformed\s*\)/g) || [];
+        assert.equal(callers.length, 3, 'checkAll, checkProjectOnly and checkBundleOnly pass walked.bundles[…].malformed; found ' + callers.length);
+    });
+
+    it('check.js: the report carries `malformed`, and the text renderer names file, path and text + counts them in the summary', function () {
+        assert.match(checkSrc, /malformed\s*:\s*bad,/);
+        assert.match(checkSrc, /var\s+emitTextMalformed\s*=\s*function/);
+        assert.match(checkSrc, /MALFORMED reference at `/);
+        assert.match(checkSrc, /the runtime REFUSES to boot on this/);
+        assert.match(checkSrc, /' malformed'/);
+    });
+
+    it('scan.js: the bundle report carries `malformed` and the text renderer lists them under their own heading (exit stays 0)', function () {
+        assert.match(scanSrc, /malformed\s*:\s*Array\.isArray\(entry\.malformed\)/);
+        assert.match(scanSrc, /var\s+emitTextMalformed\s*=\s*function/);
+        assert.match(scanSrc, /Malformed references \(/);
+        assert.match(scanSrc, /process\.exit\(0\);/);
+    });
+
+    it('help.txt documents the malformed-reference refusal', function () {
+        assert.match(helpTxt, /MALFORMED reference/);
+    });
+
+    it('lib/secrets exports getMalformedReferences and MALFORMED_RE (the CLI consumes the runtime\'s own view)', function () {
+        assert.equal(typeof secrets.getMalformedReferences, 'function');
+        assert.ok(secrets.MALFORMED_RE instanceof RegExp);
+    });
+});

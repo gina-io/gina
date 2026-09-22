@@ -550,7 +550,15 @@ function Test(opt, cmd) {
             try {
                 secrets.resolve(probeEntry);
             } catch (secretErr) {
-                resolveP({ ok: false, detail: 'secret resolution failed for `' + (secretErr._ginaSecretKey || '<unknown>') + '`' });
+                // #B583 — a MALFORMED whole-value reference names its config
+                // path in its own message and carries no key (the secrets check
+                // above cannot see it: a malformed reference is not a required key).
+                resolveP({
+                    ok: false,
+                    detail: (typeof secretErr._ginaSecretRef !== 'undefined')
+                        ? secretErr.message
+                        : 'secret resolution failed for `' + (secretErr._ginaSecretKey || '<unknown>') + '`'
+                });
                 return;
             }
 

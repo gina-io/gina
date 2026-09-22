@@ -3273,11 +3273,24 @@ function Config(opt, contextResetNeeded) {
             // operators can locate it. The user-facing message intentionally
             // omits the key (lib/secrets/backends/env.js); the key rides on the
             // non-enumerable `_ginaSecretKey` and is surfaced here only.
-            console.debug(
-                '[CONFIG][loadBundleConfig] Secret resolution failed for `'
-                + (secretErr._ginaSecretKey || '<unknown>')
-                + '` in `'+ bundle +'/'+ env +':'+ scope +'` configuration'
-            );
+            //
+            // #B583 — a MALFORMED whole-value reference carries no key: its
+            // message already names the config path (never the offending
+            // text), and the text rides the non-enumerable `_ginaSecretRef`,
+            // surfaced here at debug level only, by the same policy.
+            if (typeof secretErr._ginaSecretRef !== 'undefined') {
+                console.debug(
+                    '[CONFIG][loadBundleConfig] '+ secretErr.message
+                    + ' — reference `'+ secretErr._ginaSecretRef
+                    + '` in `'+ bundle +'/'+ env +':'+ scope +'` configuration'
+                );
+            } else {
+                console.debug(
+                    '[CONFIG][loadBundleConfig] Secret resolution failed for `'
+                    + (secretErr._ginaSecretKey || '<unknown>')
+                    + '` in `'+ bundle +'/'+ env +':'+ scope +'` configuration'
+                );
+            }
             return callback(secretErr);
         }
 
