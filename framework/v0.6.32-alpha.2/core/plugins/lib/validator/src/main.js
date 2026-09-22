@@ -702,6 +702,40 @@ function ValidatorPlugin(rules, data, formId, culture) {
 
 
     /**
+     * warnIfOldRulePlacedUpload
+     *
+     * #B572 — dev-only notice, the staged-upload twin of `warnIfOldRuleRouted`: the
+     * retired "active popin" rule placed a PAGE form's virtual upload form — and with it
+     * the preview lookups and the staging request's popin headers — inside whichever popin
+     * happened to be open, where the staged metadata never reached the form. Containment
+     * now decides the placement; this is how a page that relied on the old placement
+     * finds out. Only an OPEN popin is named: the retired gate required `isOpen`.
+     *
+     * @param {object|null} $owner - the popin containing the real form (null for a page form)
+     * @param {HTMLElement} $formEl - the real form the file input belongs to
+     * @param {HTMLElement} $inputEl - the file input
+     *
+     * @returns {undefined}
+     *
+     * @example
+     * warnIfOldRulePlacedUpload($ownerPopin, $el.form, $el);
+     */
+    var warnIfOldRulePlacedUpload = function($owner, $formEl, $inputEl) {
+        var $old = null;
+        if ( !envIsDev || $owner || typeof(gina.popin) == 'undefined' || !gina.popin ) {
+            return;
+        }
+        // what isPopinContext() resolved before #B572: the first OPEN popin
+        $old = ( typeof(gina.popin.getActivePopin) == 'function' ) ? gina.popin.getActivePopin() : null;
+        if ( !$old || !$old.isOpen ) {
+            return;
+        }
+        try {
+            console.warn('[FormValidator][popin] the staged upload of `#'+ ( ( $inputEl && $inputEl.id ) ? $inputEl.id : '' ) +'` (form `#'+ ( ( $formEl && $formEl.id ) ? $formEl.id : '' ) +'`) is placed with its own form: the form is not inside popin `'+ $old.name +'`, which is open (the former rule would have placed the upload inside it and its metadata would never have reached the form).');
+        } catch (e) {}
+    }
+
+    /**
      * The swap strategies `data-gina-form-swap` accepts (#gh76 slice 2) — htmx's `hx-swap`
      * values, applied with the matching DOM operation.
      * @constant {string[]}
@@ -8617,19 +8651,33 @@ function ValidatorPlugin(rules, data, formId, culture) {
                     var eventOnError    = $el.getAttribute('data-gina-form-upload-on-error');
                     var eventOnProgress = $el.getAttribute('data-gina-form-upload-on-progress'); // #R8
                     var errorField    = null;
+                    // #B572 — which popin, if any, this upload belongs to is decided by
+                    // CONTAINMENT (the popin the real form is inside), captured ONCE per
+                    // selection and read by every site below — never by "some popin is open"
+                    // (`isPopinContext()`), which placed a PAGE form's virtual upload form, its
+                    // preview lookups and its staging request inside whatever popin happened
+                    // to be open, where the staged metadata never reached the form. The same
+                    // capture the submit path makes into `sendCtx.popin`; `$el.form` is the
+                    // consumer's real form (the file input is never moved into the virtual one).
+                    var $ownerPopin = (
+                        typeof(gina.popin) != 'undefined'
+                        && gina.popin
+                        && typeof(gina.popin.getPopinContaining) == 'function'
+                    ) ? gina.popin.getPopinContaining($el.form || $el) : null;
+                    warnIfOldRulePlacedUpload($ownerPopin, $el.form, $el);
 
                     if (files.length > 0) {
 
                         // create form if not exists
-                        var $uploadForm = null, $activePopin = null;
-                        if ( isPopinContext() ) {
-                            // getting active popin
-                            $activePopin = gina.popin.getActivePopin();
-                            $activePopin.$target = new DOMParser().parseFromString($activePopin.target.outerHTML, 'text/html');
+                        var $uploadForm = null;
+                        if ( $ownerPopin ) {
+                            // the popin CONTAINING the real form (#B572) — its element is where
+                            // the virtual form lives and is torn down with it
+                            $ownerPopin.$target = new DOMParser().parseFromString($ownerPopin.target.outerHTML, 'text/html');
                             // binding to DOM
-                            $activePopin.$target.getElementById($activePopin.id).innerHTML = document.getElementById($activePopin.id).innerHTML;
+                            $ownerPopin.$target.getElementById($ownerPopin.id).innerHTML = document.getElementById($ownerPopin.id).innerHTML;
 
-                            $uploadForm = $activePopin.$target.getElementById(uploadFormId);
+                            $uploadForm = $ownerPopin.$target.getElementById(uploadFormId);
                         } else {
                             $uploadForm = document.getElementById(uploadFormId);
                         }
@@ -8642,8 +8690,8 @@ function ValidatorPlugin(rules, data, formId, culture) {
                             }
 
                             if (!$uploadForm) {
-                                $uploadForm = (isPopinContext())
-                                            ? $activePopin.$target.createElement('form')
+                                $uploadForm = ($ownerPopin)
+                                            ? $ownerPopin.$target.createElement('form')
                                             : document.createElement('form');
                             }
 
@@ -8674,8 +8722,8 @@ function ValidatorPlugin(rules, data, formId, culture) {
                                 // no default id (see bindUploadDropzone)
                                 var dropzoneContainer   = $el.getAttribute('data-gina-form-upload-dropzone') || null;
                                 var previewContainer    = $el.getAttribute('data-gina-form-upload-preview') || fieldId + '-preview';
-                                previewContainer        = (isPopinContext())
-                                                        ? $activePopin.$target.getElementById(previewContainer)
+                                previewContainer        = ($ownerPopin)
+                                                        ? $ownerPopin.$target.getElementById(previewContainer)
                                                         : document.getElementById(previewContainer);
 
                                 // #B147 — previewContainer is a getElementById RESULT
@@ -8828,7 +8876,7 @@ function ValidatorPlugin(rules, data, formId, culture) {
                                     mandatoryFields     : mandatoryFields,
                                     uploadFields        : hiddenFields,
                                     hasPreviewContainer : hasPreviewContainer,
-                                    isPopinContext      : isPopinContext()
+                                    isPopinContext      : !!$ownerPopin // #B572 — true iff the file's form is inside a popin; nothing reads it, the key is kept for shape
                                 };
                                 if (hasPreviewContainer) {
                                     $uploadForm.uploadProperties.previewContainer = previewContainer;
@@ -8855,9 +8903,9 @@ function ValidatorPlugin(rules, data, formId, culture) {
 
 
                             // adding for to current document
-                            if (isPopinContext()) {
-                                //$activePopin.$target.appendChild($uploadForm)
-                                document.getElementById($activePopin.id).appendChild($uploadForm)
+                            if ($ownerPopin) {
+                                //$ownerPopin.$target.appendChild($uploadForm)
+                                document.getElementById($ownerPopin.id).appendChild($uploadForm)
                             } else {
                                 document.body.appendChild($uploadForm)
                             }
