@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'The published package no longer carries Playwright `test-results/` artifacts. The directory is gitignored but `.npmignore` never listed it, so two `error-context.md` snapshots from a local end-to-end run shipped inside `gina@0.6.32` and `gina@0.6.33-alpha.1` — test fixtures only, with no credentials and no local paths (measured before this entry was written). `test-results/` and `playwright-report/` are now excluded from the tarball (#B581)'
+time: 2026-09-22T04:27:37+01:00
