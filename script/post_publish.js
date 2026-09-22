@@ -618,6 +618,32 @@ function PostPublish() {
         done();
     }
 
+    /**
+     * publishAlpha - Publishes the freshly bumped alpha in a NESTED npm lifecycle
+     *
+     * Runs only on a STABLE cut (alpha cuts early-return: they already are the alpha).
+     * bumpVersion has already written the next alpha version, so this re-reads
+     * package.json to get it. The nested call re-enters the whole lifecycle —
+     * prepare -> prepack -> PUT/stage -> postpublish -> this script again with
+     * isAlpha true — which is what performs the alpha's own bump and branch cleanup.
+     *
+     * The publish MODE and the npm BINARY are both taken from the environment npm
+     * gives a lifecycle script, rather than hard-coded or left to PATH:
+     *   - `npm_command` is `stage` under `npm stage publish`, `publish` otherwise, so
+     *     the nested alpha always matches the cut the operator actually started and a
+     *     staged cut can never publish its alpha outright past the approval gate.
+     *   - `npm_execpath` is the npm currently running this script; reusing it means a
+     *     stage-capable parent cannot hand the child a stage-incapable npm.
+     * Falls back to a PATH-resolved bare `npm` when `npm_execpath` is unset, so this is
+     * never worse than the previous behaviour. `--tag alpha` reaches `npm_config_tag`
+     * under a staged publish too, so prepare_version.js's alpha temp-branch path is
+     * unaffected (measured).
+     *
+     * This step is fail-fast: its catch does `return done(err)`, which the chain turns
+     * into process.exit(1), aborting cleanupPublishBranch and end.
+     *
+     * @param {function} done - Callback
+     */
     self.publishAlpha = function(done) {
 
         // Skip on dry-run
@@ -634,11 +660,24 @@ function PostPublish() {
         var alphaVersion = packObj.version;
         console.info('[publishAlpha] Publishing ' + alphaVersion + ' with tag alpha');
 
+        // Mirror the parent's publish mode, and reuse the parent's own npm.
+        var npmVerb = (process.env.npm_command === 'stage') ? 'stage publish' : 'publish';
+        var npmBin  = process.env.npm_execpath;
+        var publishCmd = ( npmBin )
+            ? '"' + process.execPath + '" "' + npmBin + '" ' + npmVerb + ' --tag alpha'
+            : 'npm ' + npmVerb + ' --tag alpha';
+        // A staged alpha is NOT installable until a human approves it — say so, or the
+        // log claims a release that has not happened.
+        var doneVerb = ( npmVerb === 'stage publish' )
+            ? 'Staged (awaiting approval \u2014 NOT yet installable)'
+            : 'Published to npm';
+        console.info('[publishAlpha] Mode: npm ' + npmVerb + ' (npm_command=' + (process.env.npm_command || 'unset') + ')');
+
         var initialDir = process.cwd();
         process.chdir(self.gina);
         try {
-            execSync('npm publish --tag alpha', { stdio: 'inherit' });
-            console.info('[publishAlpha] Published ' + alphaVersion + ' to npm with tag alpha');
+            execSync(publishCmd, { stdio: 'inherit' });
+            console.info('[publishAlpha] ' + doneVerb + ': ' + alphaVersion + ' with tag alpha');
         } catch (err) {
             process.chdir(initialDir);
             return done(err);
