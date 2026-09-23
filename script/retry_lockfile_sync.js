@@ -39,7 +39,7 @@ var execSync = require('child_process').execSync;
  *
  * @param {object}   opts
  * @param {string}   opts.cmd               shell command to run
- * @param {number[]} [opts.delaysSec]       sleep seconds between attempts (default [5, 15, 30, 30] — ~80s ceiling)
+ * @param {number[]} [opts.delaysSec]       one entry per attempt: the array's length is the attempt count, and entry i is slept after a failed attempt i — except the last entry, which is never slept (default [5, 15, 30, 30]: 4 attempts, ~50 s of sleep)
  * @param {function} [opts.execDriver]      injected execSync replacement (test-only)
  * @param {function} [opts.sleepDriver]     injected sleep(seconds) (test-only)
  * @param {object}   [opts.logger]          injected `{ info }` logger (test-only)
