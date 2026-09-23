@@ -901,12 +901,24 @@ isBundleMounted(projects, bundlesPath, getContext('bundle'), function onBundleMo
         /**
          * Registers a callback to run when the framework middleware is initialised.
          * Loads all models for the project's bundles, then fires the callback with
-         * `(instance, middleware, conf)` when the 'init' event is emitted.
+         * `(event, instance, middleware)` when the 'init' event is emitted. The
+         * callback wires the application and ends with `event.emit('complete', instance)`,
+         * which starts the server.
+         *
+         * Failure contract (#B576): a synchronous throw from the callback — or the
+         * rejection of a promise it returns — BEFORE it has emitted `'complete'`
+         * aborts the boot: the reason is logged at emerg level, flushed to stderr
+         * and the process exits with code 1 (otherwise the boot would stop with
+         * nothing listening and no failure reported: the daemon's startup watchdog
+         * times out naming no cause, and `gina-container` can even exit 0). A throw
+         * AFTER `'complete'` is logged at error level and the bundle keeps
+         * starting: its server start has already been triggered, but the rest of
+         * the callback did not run.
          *
          * Also exposed as `process.onInitialize`.
          *
          * @memberof module:gina/core/gna
-         * @param {function} callback - Called with `(instance, middleware, conf)` after models load
+         * @param {function} callback - Called with `(event, instance, middleware)` after models load; may return a promise
          */
         gna.onInitialize = process.onInitialize = function(callback) {
             console.debug('[ FRAMEWORK ] Bootstrap Initialization... ');
@@ -939,12 +951,49 @@ isBundleMounted(projects, bundlesPath, getContext('bundle'), function onBundleMo
                             }
                             return tmp
                         };
+                        // #B576 — a throw from the application's onInitialize callback
+                        // used to be logged at error level and SWALLOWED: the boot
+                        // stopped with nothing listening (the app never reached its
+                        // `event.emit('complete')`) and no failure was reported — the
+                        // daemon's startup watchdog saw no `[ emerg` line and timed out
+                        // after ~60 s with only "Check your logs", and under
+                        // bin/gina-container the process could even exit with code 0,
+                        // a success status.
+                        // Fail fast in the #B57 shape when the throw lands BEFORE
+                        // 'complete'. A throw AFTER 'complete' keeps the process: the
+                        // server start has already been triggered inside the
+                        // 'complete' listener (gna.start), so exiting would stop a
+                        // bundle that serves; it is logged, saying so. A callback that
+                        // returns a promise (an async bootstrap) gets the same rule on
+                        // rejection — pre-fix that rejection reached the process-level
+                        // unhandledRejection net, which only logs.
+                        // Was: try { callback(e, instance, middleware) }
+                        //      catch (err) { console.error('[ FRAMEWORK ] Could not complete initialization: ', err.stack) }
+                        var _initCompleted = false;
+                        e.once('complete', function onInitComplete() { _initCompleted = true; });
+                        var _onInitFailure = function(err) {
+                            if ( !(err instanceof Error) ) {
+                                err = new Error('onInitialize failed with a non-Error value: ' + String(err));
+                            }
+                            if (_initCompleted) {
+                                console.error('[ FRAMEWORK ] onInitialize threw after emitting \'complete\' — the bundle keeps starting, but the rest of its bootstrap did not run: ' + (err.stack || err.message));
+                                return;
+                            }
+                            var _initMsg = '[ FRAMEWORK ] onInitialize threw before emitting \'complete\' — aborting boot: ' + (err.stack || err.message);
+                            console.emerg(_initMsg);
+                            // boot-exit-flush: process.exit() truncates async stdout/stderr on a
+                            // pipe (e.g. bin/gina-container); fs.writeSync blocks until flushed.
+                            try { fs.writeSync(2, _initMsg + '\n'); } catch (_e) { /* best-effort */ }
+                            process.exit(1);
+                        };
                         try {
                             //configureMiddleware(instance, express); // no, no and no...
-                            callback(e, instance, middleware)
+                            var _initResult = callback(e, instance, middleware);
+                            if (_initResult && typeof _initResult.then === 'function') {
+                                _initResult.then(null, _onInitFailure);
+                            }
                         } catch (err) {
-                            // TODO Output this to the error logger.
-                            console.error('[ FRAMEWORK ] Could not complete initialization: ', err.stack)
+                            _onInitFailure(err);
                         }
 
                     })// EO modelUtil
