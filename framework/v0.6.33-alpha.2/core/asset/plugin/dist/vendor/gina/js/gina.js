@@ -12325,6 +12325,29 @@ function DataHelper(){
         return obj
     }
 
+    /**
+     * The one line a parse failure may log: the input's LENGTH and the error's NAME —
+     * never the input, and never `err.message` (#B590). On the server the input is a
+     * request body or the whole serialized query string, i.e. credentials and tokens
+     * typed by a visitor; and this helper is browser-bundled, so the same line reaches
+     * the console. V8's `JSON.parse` messages carry only positions, but
+     * JavaScriptCore's quote the offending token, which is why the message is not
+     * logged either. The server callers name the URL in their own warn lines.
+     *
+     * @inner
+     * @private
+     * @param {*} input - the text that failed to parse
+     * @param {Error} err - the parse error
+     * @returns {string} e.g. `42 chars (SyntaxError)`
+     * @example
+     *   describeParseFailure('{"a":', new SyntaxError('x')); // '5 chars (SyntaxError)'
+     */
+    var describeParseFailure = function(input, err) {
+        var len  = ( typeof(input) == 'string' ) ? input.length : -1;
+        var name = ( err && err.name ) ? err.name : 'Error';
+        return len + ' chars (' + name + ')';
+    };
+
     var parseBody = function(body) {
         var obj             = null
             , tmp           = null
@@ -12350,7 +12373,10 @@ function DataHelper(){
 
                 return obj
             } catch (err) {
-                console.error('[365] could not parse body:\n' + body)
+                // #B590 — metadata only (see describeParseFailure); the leading character
+                // is one of `{`, `[` or `%` here, by the branch's own test.
+                // was: console.error('[365] could not parse body:\n' + body)
+                console.error('[365] could not parse body: ' + describeParseFailure(body, err) + ', leading ' + body.charAt(0))
             }
 
         } else {
@@ -12386,7 +12412,9 @@ function DataHelper(){
 
 
                     } catch (err) {
-                        console.error('[parseBody#1] could not parse body:\n' + arr[i])
+                        // #B590 — the segment is a client-supplied key/value pair: metadata only.
+                        // was: console.error('[parseBody#1] could not parse body:\n' + arr[i])
+                        console.error('[parseBody#1] could not parse a JSON-leaning segment: ' + describeParseFailure(arr[i], err))
                     }
                 } else {
                     el = arr[i].split(/=/);
@@ -12394,7 +12422,9 @@ function DataHelper(){
                         try {
                             el[1] = JSON.parse(el[1])
                         } catch (err) {
-                            console.error('[parseBody#2] could not parse body:\n' + el[1])
+                            // #B590 — the value is client-supplied: metadata only.
+                            // was: console.error('[parseBody#2] could not parse body:\n' + el[1])
+                            console.error('[parseBody#2] could not parse a JSON-leaning value: ' + describeParseFailure(el[1], err))
                         }
                     }
 

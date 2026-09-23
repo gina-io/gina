@@ -2712,7 +2712,11 @@ function ServerEngineClass(options) {
                                     try {
                                         a[1] = JSON.parse(a[1]);
                                     } catch(notAJsonError) {
-                                        console.warn('[SERVER][INCOMING REQUEST]', 'Could not convert to JSON or Array this key/value to :' + a[0] + ': '+a[1] +'/nLeaving value as a string.');
+                                        // #B590 — the value is client-supplied (a token or a password typed into a
+                                        // GET form ends up here): log the key, the value's length and the error's
+                                        // name — never the value.
+                                        // was: console.warn('[SERVER][INCOMING REQUEST]', 'Could not convert to JSON or Array this key/value to :' + a[0] + ': '+a[1] +'/nLeaving value as a string.');
+                                        console.warn('[SERVER][INCOMING REQUEST]', 'Could not convert to JSON or Array the value of `' + a[0] + '` (' + a[1].length + ' chars, ' + notAJsonError.name + '). Leaving value as a string.');
                                     }
                                 }
                                 request.query[ a[0] ] = a[1]
