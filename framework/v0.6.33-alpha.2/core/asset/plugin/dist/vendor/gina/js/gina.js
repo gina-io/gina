@@ -12368,9 +12368,9 @@ function DataHelper(){
      * never the input, and never `err.message` (#B590). On the server the input is a
      * request body or the whole serialized query string, i.e. credentials and tokens
      * typed by a visitor; and this helper is browser-bundled, so the same line reaches
-     * the console. V8's `JSON.parse` messages carry only positions, but
-     * JavaScriptCore's quote the offending token, which is why the message is not
-     * logged either. The server callers name the URL in their own warn lines.
+     * the console. The message is no safer than the input: a `JSON.parse` message can
+     * quote the input itself — V8's "Unexpected token" form embeds the text around the
+     * offending character, and JavaScriptCore's names the offending token.
      *
      * @inner
      * @private
