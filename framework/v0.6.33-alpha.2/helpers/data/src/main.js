@@ -363,10 +363,21 @@ function DataHelper(){
                 }
                 // Assinging index or key
                 else {
-                    if ( /^\d+$/.test(key[k]) && !Array.isArray(obj) ) {
-                        obj = [];
-                        // _key = (obj.length > 0) ? obj.length-1 : 0;
-                    }
+                    // #B591 — was:
+                    //     if ( /^\d+$/.test(key[k]) && !Array.isArray(obj) ) {
+                    //         obj = [];
+                    //         // _key = (obj.length > 0) ? obj.length-1 : 0;
+                    //     }
+                    // That rebind meant "a numeric segment turns this level into an array", but
+                    // it only rebound the LOCAL: the parent never saw the new array, the slot
+                    // below was then seeded with null, and the recursion dereferenced it — every
+                    // path through it threw a TypeError (`0[a]=1`, `a[x]=1&a[0][b]=2`), and from
+                    // the GET/HEAD `inheritedData` call site that throw had no try/catch and
+                    // exited the bundle process. Arrays are built by the look-ahead above (the
+                    // slot is created as an array when the NEXT segment is numeric); a numeric
+                    // segment under an object now simply creates a plain object slot, so
+                    // `0[a]=1` nests as the key `0` holding `a`. The client twin in the
+                    // validator plugin carries the same removal.
                     // Handle unstructured array from object
                     // E.G.: design[1][id] where design is starting with `1` index instead of `0`
                     // if ( Array.isArray(obj) ) {

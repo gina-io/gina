@@ -12527,10 +12527,21 @@ function DataHelper(){
                 }
                 // Assinging index or key
                 else {
-                    if ( /^\d+$/.test(key[k]) && !Array.isArray(obj) ) {
-                        obj = [];
-                        // _key = (obj.length > 0) ? obj.length-1 : 0;
-                    }
+                    // #B591 — was:
+                    //     if ( /^\d+$/.test(key[k]) && !Array.isArray(obj) ) {
+                    //         obj = [];
+                    //         // _key = (obj.length > 0) ? obj.length-1 : 0;
+                    //     }
+                    // That rebind meant "a numeric segment turns this level into an array", but
+                    // it only rebound the LOCAL: the parent never saw the new array, the slot
+                    // below was then seeded with null, and the recursion dereferenced it — every
+                    // path through it threw a TypeError (`0[a]=1`, `a[x]=1&a[0][b]=2`), and from
+                    // the GET/HEAD `inheritedData` call site that throw had no try/catch and
+                    // exited the bundle process. Arrays are built by the look-ahead above (the
+                    // slot is created as an array when the NEXT segment is numeric); a numeric
+                    // segment under an object now simply creates a plain object slot, so
+                    // `0[a]=1` nests as the key `0` holding `a`. The client twin in the
+                    // validator plugin carries the same removal.
                     // Handle unstructured array from object
                     // E.G.: design[1][id] where design is starting with `1` index instead of `0`
                     // if ( Array.isArray(obj) ) {
@@ -15440,11 +15451,11 @@ function ValidatorPlugin(rules, data, formId, culture) {
      * current level an array.
      *
      * @inner
-     * @param {(object|Array)} obj - accumulator, mutated in place (may be replaced when the head segment is numeric — assign the return value)
+     * @param {(object|Array)} obj - accumulator, mutated in place and returned
      * @param {Array<string>} key - the split key path, e.g. `item[0][id]` -> `['item','0','id']`
      * @param {number} k - current recursion depth into `key`
      * @param {*} value - the field value to assign at the leaf
-     * @returns {(object|Array)} the (possibly replaced) accumulator
+     * @returns {(object|Array)} the accumulator (never a replacement — #B591 removed the rebind that pretended otherwise)
      *
      * @example
      * // 'item[0][id]' -> ['item','0','id']
@@ -15491,9 +15502,15 @@ function ValidatorPlugin(rules, data, formId, culture) {
                 }
                 // Assigning index or key
                 else {
-                    if ( /^\d+$/.test(key[k]) && !Array.isArray(obj) ) {
-                        obj = [];
-                    }
+                    // #B591 — was:
+                    //     if ( /^\d+$/.test(key[k]) && !Array.isArray(obj) ) {
+                    //         obj = [];
+                    //     }
+                    // The rebind only rebound the LOCAL, the slot below was then seeded with
+                    // null and the recursion dereferenced it: every path through it threw, so
+                    // a field named `0[a]` broke the whole submission. Same removal as the
+                    // server helper (helpers/data `parseLocalObj`); a numeric segment under an
+                    // object now creates a plain object slot.
                     // Init array or object
                     if ( typeof(obj[ _key ]) == 'undefined' ) {
                         obj[ _key ] = null;
