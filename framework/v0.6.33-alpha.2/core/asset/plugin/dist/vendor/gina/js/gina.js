@@ -3064,6 +3064,79 @@ function ownCount(container) {
     return Object.prototype.count.call(container);
 }
 
+/**
+ * Escapes a value for use INSIDE a JSON string literal: `"`, `\` and the control
+ * characters U+0000 to U+001F, exactly what JSON requires and nothing else, so a value
+ * carrying none of them comes back unchanged (#B600). A lone surrogate is left as it is
+ * on purpose: it never broke a parse, so escaping it would only change bytes. The
+ * validator plugin's `main.js` carries the same function for its rule-set splices.
+ *
+ * @param   {*} value - Coerced with `String()`.
+ * @returns {string} The escaped text, without surrounding quotes.
+ * @inner
+ *
+ * @example
+ * escapeForJsonString('say "hi"'); // the text: say \"hi\"
+ */
+function escapeForJsonString(value) {
+    return String(value).replace(/[\u0000-\u001f"\\]/g, function (ch) {
+        switch (ch) {
+            case '"'  : return '\\"';
+            case '\\' : return '\\\\';
+            case '\b' : return '\\b';
+            case '\f' : return '\\f';
+            case '\n' : return '\\n';
+            case '\r' : return '\\r';
+            case '\t' : return '\\t';
+            default   : return '\\u' + ('000' + ch.charCodeAt(0).toString(16)).slice(-4);
+        }
+    });
+}
+
+/**
+ * Restores the field values spliced into a `query` rule's request body (#B600).
+ *
+ * Every spliced value arrives wrapped in quotes and escaped as a JSON string literal;
+ * each one is decoded back to the value, and any other quote character is dropped, as
+ * the body always had them dropped. The old cleanup deleted every escaped quote from
+ * the JSON text, which was only right for values with no `"` or `\`: a quote in a
+ * value came out as a backslash, and a value ending in a backslash broke the body.
+ *
+ * Works token by token on the JSON text, so key order and every non-string token stay
+ * byte-identical; for a body whose strings carry no backslash the output is exactly
+ * what the old cleanup produced. An authored quoted segment that is valid JSON is
+ * decoded too, the one place the two ever differ.
+ *
+ * @param   {string} jsonText - The request body, as JSON text.
+ * @returns {string} The body with every spliced value restored, as JSON text.
+ * @inner
+ *
+ * @example
+ * // a spliced `jo"hn` sits in the body as the literal "jo\"hn"
+ * decodeSplicedQuotes(JSON.stringify({ account: '"jo\\"hn"' }));
+ * // the text: {"account":"jo\"hn"}, which the server reads as jo"hn
+ */
+function decodeSplicedQuotes(jsonText) {
+    return jsonText.replace(/"(?:[^"\\]|\\.)*"/g, function (token) {
+        var text = null;
+        try {
+            text = JSON.parse(token);
+        } catch (tokenErr) {
+            return token.replace(/\\"/g, '');
+        }
+        return JSON.stringify(text.replace(/"(?:[^"\\]|\\.)*"|"/g, function (segment) {
+            if (segment === '"') {
+                return '';
+            }
+            try {
+                return JSON.parse(segment);
+            } catch (segmentErr) {
+                return segment.replace(/"/g, '');
+            }
+        }));
+    });
+}
+
 function FormValidatorUtil(data, $fields, xhrOptions, fieldsSet, culture) {
 
     var isGFFCtx        = ( ( typeof(module) !== 'undefined' ) && module.exports ) ? false : true;
@@ -3686,11 +3759,18 @@ function FormValidatorUtil(data, $fields, xhrOptions, fieldsSet, culture) {
                     value = getElementByName(this.target.form, key).value;
                 }
 
-                strData = strData.replace( re, value );
+                // #B600 — spliced as a quoted string operand escaped twice, the form every
+                // other spliced value takes, so decodeSplicedQuotes() below restores it
+                // exactly; through a function replacer, so a `$&` in it stays text. It went
+                // in verbatim, which corrupted the body for a value carrying a `"` or `\`.
+                var splicedValue = '\\"' + escapeForJsonString(escapeForJsonString(value)) + '\\"';
+                strData = strData.replace( re, function() { return splicedValue; } );
             }
         }
         // cleanup before sending
-        queryData = strData.replace(/\\"/g, '');
+        // #B600 — each spliced value is decoded back, instead of every escaped quote being
+        // deleted from the JSON text (which turned a `"` in a value into a backslash).
+        queryData = decodeSplicedQuotes(strData);
         // TODO - support regexp for validIf
         var validIf = ( typeof(options.validIf) == 'undefined' ) ? true : options.validIf;
 
@@ -4428,94 +4508,130 @@ function FormValidatorUtil(data, $fields, xhrOptions, fieldsSet, culture) {
                 var re = null, flags = null;
                 // Fixed added on 2021-03-13: $variable now replaced with real value beafore validation
                 if ( /[\!\=>\>\<a-z 0-9]+/i.test(condition) ) {
-                    var variables = condition.match(/\${0}[-_,.\[\]a-z0-9]+/ig); // without space(s)
-                    if (variables && variables.length > 0) {
-                        var compiledCondition = condition;
-                        for (var i = 0, len = variables.length; i < len; ++i) {
-                            // $varibale comparison
-                            if ( typeof(self[ variables[i] ]) != 'undefined' && variables[i]) {
-                                re = new RegExp("\\$"+ variables[i] +"(?!\\S+)", "g");
-                                if ( self[ variables[i] ].value == "" ) {
-                                    compiledCondition = compiledCondition.replace(re, '""');
-                                } else if ( typeof(self[ variables[i] ].value) == 'string' ) {
-                                    compiledCondition = compiledCondition.replace(re, '"'+ self[ variables[i] ].value +'"');
-                                } else {
-                                    compiledCondition = compiledCondition.replace(re, self[ variables[i] ].value);
-                                }
+                    // #B602 — the evaluation below used to run only when this match found an ASCII
+                    // letter or digit run, so a comparison of values made only of symbols or non-ASCII
+                    // letters (`!!!`, `é€`) never reached the grammar and always read as a mismatch.
+                    // An empty match now just means there is nothing to substitute.
+                    var variables = condition.match(/\${0}[-_,.\[\]a-z0-9]+/ig) || []; // without space(s)
+                    var compiledCondition = condition;
+                    for (var i = 0, len = variables.length; i < len; ++i) {
+                        // $varibale comparison
+                        if ( typeof(self[ variables[i] ]) != 'undefined' && variables[i]) {
+                            re = new RegExp("\\$"+ variables[i] +"(?!\\S+)", "g");
+                            if ( self[ variables[i] ].value == "" ) {
+                                compiledCondition = compiledCondition.replace(re, '""');
+                            } else if ( typeof(self[ variables[i] ].value) == 'string' ) {
+                                // #B600 — a JSON string literal through a function replacer: the value was
+                                // wrapped in bare quotes by a string replacement, so a `"` in it broke the
+                                // operand and a `$&` in it was expanded.
+                                var _scsSubstituted = JSON.stringify(self[ variables[i] ].value);
+                                compiledCondition = compiledCondition.replace(re, function() { return _scsSubstituted; });
+                            } else {
+                                compiledCondition = compiledCondition.replace(re, self[ variables[i] ].value);
                             }
                         }
+                    }
 
-                        try {
-                            // #SCS1e (2026-04-24) — replaced the two `eval(...)` calls below with
-                            // auditable equivalents. After `$var` substitution (lines 910-920),
-                            // `compiledCondition` is either:
-                            //   (a) a regex literal `/<body>/<flags>` (when `/^\//` matches), or
-                            //   (b) a binary comparison `<operand><op><operand>` where operand ∈
-                            //       {number, "string", true, false, null, undefined} and op ∈
-                            //       {===, !==, ==, !=, <, >, <=, >=} — paren/`return`-stripped
-                            //       inside its branch, before the grammar match.
-                            // Old eval executed arbitrary JS; any value reaching `$var` substitution
-                            // that contained a quote (e.g. user input `bar"; process.exit();//`)
-                            // could escape the `"..."` wrapper at line 916 and reach eval as
-                            // arbitrary code. Grammar-locked replacements reject any input that
-                            // doesn't fit the two documented shapes.
-                            // if ( /^\//.test(compiledCondition) ) {
-                            //     isValid = eval(compiledCondition + '.test("' + this.value + '")')
-                            // } else {
-                            //     isValid = eval(compiledCondition)
-                            // }
-                            // #B345 — the paren/`return` strip used to run HERE, before the branch
-                            // decision, so it also mangled every parenthesized regex literal:
-                            // groups were destroyed (`^(a|b)$` compiled as `^a|b$`, rebinding the
-                            // anchors and turning middle alternatives substring-permissive),
-                            // quantified groups were requantified (`(#TAG)?` became `#TA` plus an
-                            // optional `G`), and a literal `return` inside a pattern was deleted —
-                            // all silently, because the stripped text still compiled as a valid
-                            // regex. The strip protects the BINARY-COMPARISON shape only, so it
-                            // now lives inside that branch; the regex branch never evaluates the
-                            // condition as JS (`new RegExp(body, flags).test(value)` — no eval),
-                            // so parentheses there are legitimate syntax and a regex literal is
-                            // compiled exactly as authored.
-                            if ( /^\//.test(compiledCondition) ) {
-                                var _scsRegexMatch = compiledCondition.match(/^\/(.+)\/([a-z]*)$/);
-                                if (!_scsRegexMatch) {
-                                    throw new Error('Invalid regex literal: `' + compiledCondition + '`');
-                                }
-                                isValid = new RegExp(_scsRegexMatch[1], _scsRegexMatch[2]).test(this.value);
+                    try {
+                        // #SCS1e (2026-04-24) — replaced the two `eval(...)` calls below with
+                        // auditable equivalents. After `$var` substitution (lines 910-920),
+                        // `compiledCondition` is either:
+                        //   (a) a regex literal `/<body>/<flags>` (when `/^\//` matches), or
+                        //   (b) a binary comparison `<operand><op><operand>` where operand ∈
+                        //       {number, "string", true, false, null, undefined} and op ∈
+                        //       {===, !==, ==, !=, <, >, <=, >=} — paren/`return`-stripped
+                        //       inside its branch, before the grammar match.
+                        // Old eval executed arbitrary JS; any value reaching `$var` substitution
+                        // that contained a quote (e.g. user input `bar"; process.exit();//`)
+                        // could escape the `"..."` wrapper at line 916 and reach eval as
+                        // arbitrary code. Grammar-locked replacements reject any input that
+                        // doesn't fit the two documented shapes.
+                        // if ( /^\//.test(compiledCondition) ) {
+                        //     isValid = eval(compiledCondition + '.test("' + this.value + '")')
+                        // } else {
+                        //     isValid = eval(compiledCondition)
+                        // }
+                        // #B345 — the paren/`return` strip used to run HERE, before the branch
+                        // decision, so it also mangled every parenthesized regex literal:
+                        // groups were destroyed (`^(a|b)$` compiled as `^a|b$`, rebinding the
+                        // anchors and turning middle alternatives substring-permissive),
+                        // quantified groups were requantified (`(#TAG)?` became `#TA` plus an
+                        // optional `G`), and a literal `return` inside a pattern was deleted —
+                        // all silently, because the stripped text still compiled as a valid
+                        // regex. The strip protects the BINARY-COMPARISON shape only, so it
+                        // now lives inside that branch; the regex branch never evaluates the
+                        // condition as JS (`new RegExp(body, flags).test(value)` — no eval),
+                        // so parentheses there are legitimate syntax and a regex literal is
+                        // compiled exactly as authored.
+                        if ( /^\//.test(compiledCondition) ) {
+                            var _scsRegexMatch = compiledCondition.match(/^\/(.+)\/([a-z]*)$/);
+                            if (!_scsRegexMatch) {
+                                throw new Error('Invalid regex literal: `' + compiledCondition + '`');
+                            }
+                            isValid = new RegExp(_scsRegexMatch[1], _scsRegexMatch[2]).test(this.value);
+                        } else {
+                            // security checks (#SCS1e) — strip parens/`return` before the
+                            // grammar-locked match; authored parens in a comparison stay
+                            // tolerated (`("a") === ("a")` strips to `"a" === "a"`).
+                            // #B601 — only OUTSIDE string literals: the strip ran over the compared
+                            // values too, so two values differing only by a parenthesis or the word
+                            // `return` compared as equal.
+                            compiledCondition = compiledCondition.replace(/"(?:[^"\\]|\\.)*"|[^"]+/g, function(_scsPart) {
+                                return ( _scsPart.charAt(0) === '"' ) ? _scsPart : _scsPart.replace(/(\(|\)|return)/g, '');
+                            });
+                            // #B600 — a string operand may carry escaped quotes and backslashes
+                            var _SCS_BINARY_RE = /^\s*(null|undefined|true|false|"(?:[^"\\]|\\.)*"|-?\d+(?:\.\d+)?)\s*(===|!==|<=|>=|==|!=|<|>)\s*(null|undefined|true|false|"(?:[^"\\]|\\.)*"|-?\d+(?:\.\d+)?)\s*$/;
+                            var _scsBinMatch = (typeof(compiledCondition) == 'string') ? compiledCondition.match(_SCS_BINARY_RE) : null;
+                            if (!_scsBinMatch) {
+                                // A condition that doesn't fit the grammar (e.g. a dangling
+                                // operator left by an empty cross-field reference) must FAIL
+                                // THE FIELD, not throw: is() runs on every keystroke during
+                                // live-check, and an uncaught throw propagates out of the
+                                // whole-form validity pass (main.js checkFieldAgainstRules
+                                // re-wraps + re-throws it), leaving the submit trigger ungated.
+                                // A genuine authoring typo stays visible via the warning
+                                // without killing live validation. Fail-closed: the field is
+                                // treated as invalid on both the client and the server.
+                                console.warn('[FormValidator] Could not evaluate condition `' + compiledCondition + '` - treating field as invalid.\n(grammar: <operand><op><operand>; operand ∈ number | "string" | true | false | null | undefined; op ∈ === !== == != < > <= >=)');
+                                isValid = false;
                             } else {
-                                // security checks (#SCS1e) — strip parens/`return` before the
-                                // grammar-locked match; authored parens in a comparison stay
-                                // tolerated (`("a") === ("a")` strips to `"a" === "a"`).
-                                compiledCondition = compiledCondition.replace(/(\(|\)|return)/g, '');
-                                var _SCS_BINARY_RE = /^\s*(null|undefined|true|false|"[^"]*"|-?\d+(?:\.\d+)?)\s*(===|!==|<=|>=|==|!=|<|>)\s*(null|undefined|true|false|"[^"]*"|-?\d+(?:\.\d+)?)\s*$/;
-                                var _scsBinMatch = (typeof(compiledCondition) == 'string') ? compiledCondition.match(_SCS_BINARY_RE) : null;
-                                if (!_scsBinMatch) {
-                                    // A condition that doesn't fit the grammar (e.g. a dangling
-                                    // operator left by an empty cross-field reference) must FAIL
-                                    // THE FIELD, not throw: is() runs on every keystroke during
-                                    // live-check, and an uncaught throw propagates out of the
-                                    // whole-form validity pass (main.js checkFieldAgainstRules
-                                    // re-wraps + re-throws it), leaving the submit trigger ungated.
-                                    // A genuine authoring typo stays visible via the warning
-                                    // without killing live validation. Fail-closed: the field is
-                                    // treated as invalid on both the client and the server.
-                                    console.warn('[FormValidator] Could not evaluate condition `' + compiledCondition + '` - treating field as invalid.\n(grammar: <operand><op><operand>; operand ∈ number | "string" | true | false | null | undefined; op ∈ === !== == != < > <= >=)');
+                                var _scsParseOperand = function(s) {
+                                    var _t = s.replace(/^\s+|\s+$/g, '');
+                                    if (_t === 'null')      return null;
+                                    if (_t === 'undefined') return undefined;
+                                    if (_t === 'true')      return true;
+                                    if (_t === 'false')     return false;
+                                    // #B600 — a string operand is decoded as the JSON string literal the
+                                    // splice made it (every `"`, `\` and control character escaped). An
+                                    // authored literal that is not valid JSON (`"C:\dir"`) is read verbatim
+                                    // between its quotes, as every string operand was before.
+                                    if (/^"(?:[^"\\]|\\.)*"$/.test(_t)) {
+                                        try {
+                                            return JSON.parse(_t);
+                                        } catch (_scsLiteralErr) {
+                                            if (/^"[^"]*"$/.test(_t)) return _t.slice(1, -1);
+                                            throw _scsLiteralErr;
+                                        }
+                                    }
+                                    var _n = Number(_t);
+                                    if (!isNaN(_n) && _t !== '') return _n;
+                                    throw new Error('Invalid operand: `' + s + '`');
+                                };
+                                var _scsLeft = null, _scsRight = null, _scsOperandErr = null;
+                                try {
+                                    _scsLeft  = _scsParseOperand(_scsBinMatch[1]);
+                                    _scsRight = _scsParseOperand(_scsBinMatch[3]);
+                                } catch (_scsErr) {
+                                    _scsOperandErr = _scsErr;
+                                }
+                                if (_scsOperandErr) {
+                                    // #B600 — an operand that cannot be read fails the FIELD, like a
+                                    // grammar mismatch: a throw here would leave through the catch
+                                    // below and abort the whole validity pass.
+                                    console.warn('[FormValidator] Could not read an operand of `' + compiledCondition + '` - treating field as invalid.\n(' + _scsOperandErr.message + ')');
                                     isValid = false;
                                 } else {
-                                    var _scsParseOperand = function(s) {
-                                        var _t = s.replace(/^\s+|\s+$/g, '');
-                                        if (_t === 'null')      return null;
-                                        if (_t === 'undefined') return undefined;
-                                        if (_t === 'true')      return true;
-                                        if (_t === 'false')     return false;
-                                        if (/^"[^"]*"$/.test(_t)) return _t.slice(1, -1);
-                                        var _n = Number(_t);
-                                        if (!isNaN(_n) && _t !== '') return _n;
-                                        throw new Error('Invalid operand: `' + s + '`');
-                                    };
-                                    var _scsLeft  = _scsParseOperand(_scsBinMatch[1]);
-                                    var _scsOp    = _scsBinMatch[2];
-                                    var _scsRight = _scsParseOperand(_scsBinMatch[3]);
+                                    var _scsOp = _scsBinMatch[2];
                                     switch (_scsOp) {
                                         case '===': isValid = _scsLeft === _scsRight; break;
                                         case '!==': isValid = _scsLeft !== _scsRight; break;
@@ -4528,10 +4644,10 @@ function FormValidatorUtil(data, $fields, xhrOptions, fieldsSet, culture) {
                                     }
                                 }
                             }
-
-                        } catch (err) {
-                            throw new Error(err.stack||err.message)
                         }
+
+                    } catch (err) {
+                        throw new Error(err.stack||err.message)
                     }
                 } else if ( condition instanceof RegExp ) {
 
@@ -24072,6 +24188,58 @@ function ValidatorPlugin(rules, data, formId, culture) {
     }
 
     /**
+     * escapeForJsonString
+     * Escapes a value for use INSIDE a JSON string literal: `"`, `\` and the
+     * control characters U+0000 to U+001F, exactly what JSON requires and
+     * nothing else, so a value carrying none of them comes back unchanged
+     * (#B600). A lone surrogate is left as it is on purpose: it never broke a
+     * parse, so escaping it would only change bytes. `form-validator.js`
+     * carries the same function for the query-body splice.
+     *
+     * @inner
+     * @param {*} value - coerced with `String()`
+     * @returns {string} the escaped text, without surrounding quotes
+     *
+     * @example
+     * escapeForJsonString('say "hi"'); // the text: say \"hi\"
+     */
+    var escapeForJsonString = function(value) {
+        return String(value).replace(/[\u0000-\u001f"\\]/g, function(ch) {
+            switch (ch) {
+                case '"'  : return '\\"';
+                case '\\' : return '\\\\';
+                case '\b' : return '\\b';
+                case '\f' : return '\\f';
+                case '\n' : return '\\n';
+                case '\r' : return '\\r';
+                case '\t' : return '\\t';
+                default   : return '\\u' + ('000' + ch.charCodeAt(0).toString(16)).slice(-4);
+            }
+        });
+    }
+
+    /**
+     * quoteForDynamisedRules
+     * Returns `value` as a quoted string operand, ready to splice into the
+     * STRINGIFIED rule set that `getDynamisedRules` parses back (#B600). Two
+     * levels of escaping: the inner one makes `"<value>"` a JSON string
+     * literal, the operand `is()` decodes; the outer one embeds that literal in
+     * the rule set's own JSON text. For a value with no `"`, `\` or control
+     * character the result is exactly the historical `\"<value>\"` splice.
+     *
+     * @inner
+     * @param {*} value - coerced with `String()`
+     * @returns {string} the splice text
+     *
+     * @example
+     * quoteForDynamisedRules('abc');   // the text: \"abc\"   (unchanged)
+     * quoteForDynamisedRules('ab"cd'); // the text: \"ab\\\"cd\" (the rule set parses it to "ab\"cd")
+     */
+    var quoteForDynamisedRules = function(value) {
+        return '\\"' + escapeForJsonString(escapeForJsonString(value)) + '\\"';
+    }
+
+    /**
      * getCastedValue
      * Returns the value to use for `fieldName` — raw for the engine to
      * adjudicate, or cast/quoted for dynamised-rules substitution.
@@ -24130,6 +24298,19 @@ function ValidatorPlugin(rules, data, formId, culture) {
             if ( /\,/.test(fields[fieldName]) ) {
                 fields[fieldName] = fields[fieldName].replace(/\,/g, '.').replace(/\s+/g, '');
             }
+            // #B600 — in dynamised mode this value is spliced into the stringified rule
+            // set, so only a NUMBER goes in raw: a numeric comparison must stay numeric,
+            // and the condition grammar reads the space padding around it. Anything else
+            // is spliced as an escaped string operand and compares as text; it all went
+            // in raw, so a `"` or `\` typed into a number field broke the closing parse.
+            if (
+                isOnDynamisedRules
+                && typeof(fields[fieldName]) != 'number'
+                && typeof(fields[fieldName]) != 'boolean'
+                && !/^ *-?\d+(?:\.\d+)? *$/.test(fields[fieldName])
+            ) {
+                return quoteForDynamisedRules(fields[fieldName]);
+            }
             return fields[fieldName];
         }
 
@@ -24148,7 +24329,10 @@ function ValidatorPlugin(rules, data, formId, culture) {
             return (/^true$/i.test(fields[fieldName])) ? true : false;
         }
 
-        return isOnDynamisedRules ? '\\"'+ fields[fieldName] +'\\"' : fields[fieldName];
+        // #B600 — escaped inside its quotes (quoteForDynamisedRules); the value was
+        // concatenated between them verbatim, so a `"`, `\` or control character in
+        // it broke the closing parse of the whole rule set.
+        return isOnDynamisedRules ? quoteForDynamisedRules(fields[fieldName]) : fields[fieldName];
     }
 
     /**
@@ -24205,8 +24389,8 @@ function ValidatorPlugin(rules, data, formId, culture) {
         for (let i = 0, len = arrFields.length; i < len; i++) {
             _field = arrFields[i].replace(/\-|\_|\@|\#|\.|\[|\]/g, '\\$&');
             re = new RegExp('\\$'+_field, 'g');
-            // default field value
-            let fieldValue = '\\"'+ fields[arrFields[i]] +'\\"';
+            // default field value (#B600 — escaped inside its quotes, see quoteForDynamisedRules)
+            let fieldValue = quoteForDynamisedRules(fields[arrFields[i]]);
             let isInRule = re.test(stringifiedRulesTmp);
             if ( isInRule && typeof(ruleObj[arrFields[i]]) != 'undefined' ) {
                 fieldValue = getCastedValue(ruleObj, fields, arrFields[i], true);
@@ -24214,7 +24398,9 @@ function ValidatorPlugin(rules, data, formId, culture) {
                 console.warn('`'+arrFields[i]+'` is used in a dynamic rule without definition. This could lead to an evaluation error. Casting `'+arrFields[i]+'` to `string`.');
             }
 
-            stringifiedRules = stringifiedRules.replace(re, fieldValue );
+            // #B600 — a function replacer: a `$&`, `$'` or `$$` in the value is text,
+            // never a replacement pattern.
+            stringifiedRules = stringifiedRules.replace(re, function() { return fieldValue; });
         }
         // #B234 — this second loop is a DOM FALLBACK: it re-derives each splice
         // value from the live element (`$fields[...].value` / `.checked`), and
@@ -24232,7 +24418,7 @@ function ValidatorPlugin(rules, data, formId, culture) {
                 _field = arrFields[i].replace(/\-|\_|\@|\#|\.|\[|\]/g, '\\$&');
                 re = new RegExp('\\$'+_field, 'g');
                 // default field value
-                let fieldValue = ($fields[arrFields[i]].value != '' ) ? '\\"'+ $fields[arrFields[i]].value +'\\"' : '\\"\\"';
+                let fieldValue = ($fields[arrFields[i]].value != '' ) ? quoteForDynamisedRules($fields[arrFields[i]].value) : '\\"\\"';
                 let isInRule = re.test(stringifiedRulesTmp);
                 if ( isInRule && typeof(ruleObj[arrFields[i]]) != 'undefined' ) {
                     fieldValue = getCastedValue(ruleObj, fields, arrFields[i], true);
@@ -24240,11 +24426,22 @@ function ValidatorPlugin(rules, data, formId, culture) {
                     console.warn('`'+arrFields[i]+'` is used in a dynamic rule without definition. This could lead to an evaluation error. Casting `'+arrFields[i]+'` to `string`.');
                 }
 
-                stringifiedRules = stringifiedRules.replace(re, fieldValue || $fields[arrFields[i]].checked);
+                // #B600 — escaped, and spliced through a function replacer, as in the first loop
+                let splicedValue = fieldValue || $fields[arrFields[i]].checked;
+                stringifiedRules = stringifiedRules.replace(re, function() { return splicedValue; });
             }
         }
 
-        return JSON.parse(stringifiedRules)
+        // #B600 — a splice can no longer break this parse (every value is escaped), but
+        // a failure here must never throw out of the validation pass: fall back to the
+        // rules as declared, whose `$` references the engine's own is() substitution
+        // then resolves or fails closed (the #B82 precedent: fail the field, never the pass).
+        try {
+            return JSON.parse(stringifiedRules);
+        } catch (parseErr) {
+            console.warn('[FormValidator] Could not parse the dynamised rules - validating against the rules as declared.\n(' + parseErr.message + ')');
+            return ruleObj;
+        }
     }
 
 

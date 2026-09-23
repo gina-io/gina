@@ -128,12 +128,20 @@ describe('validator-array-rule-dollar §01 — source pins', function () {
         assert.ok(block.indexOf('args[0].match(/\\$[\\-\\w\\[\\]]*/g)') > -1);
     });
 
-    it('01.5 - premise: the upstream dynamised-mode quoting is untouched (#B240 is NOT fixed here)', function () {
+    it('01.5 - premise: the upstream dynamised-mode quoting still wraps the value (#B240 is NOT fixed here)', function () {
         // getCastedValue's dynamised return wraps in escaped quotes — correct for
         // `is` condition splices, and the mechanism behind #B240 for array elements.
-        assert.match(MAIN_SRC,
-            /return isOnDynamisedRules \? '\\\\"'\+ fields\[fieldName\] \+'\\\\"' : fields\[fieldName\];/,
-            'the quoting tail must stay byte-identical — changing it is #B240 scope');
+        // #B600 escaped the value INSIDE those quotes (a `"` or `\` in it broke the
+        // closing parse); the quotes themselves stay, so #B240's premise holds and
+        // its behaviour stays locked by 03.3/03.4. Pinned on comment-stripped
+        // source: the replace-code record must not be able to satisfy it.
+        var active = activeLines(MAIN_SRC);
+        assert.match(active,
+            /return isOnDynamisedRules \? quoteForDynamisedRules\(fields\[fieldName\]\) : fields\[fieldName\];/,
+            'the quoting tail must still wrap the value — changing its quoting is #B240 scope');
+        assert.match(active,
+            /return '\\\\"' \+ escapeForJsonString\(escapeForJsonString\(value\)\) \+ '\\\\"';/,
+            'quoteForDynamisedRules wraps the escaped value in escaped quotes');
     });
 });
 

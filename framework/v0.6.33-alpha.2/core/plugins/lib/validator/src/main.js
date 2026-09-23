@@ -11443,6 +11443,58 @@ function ValidatorPlugin(rules, data, formId, culture) {
     }
 
     /**
+     * escapeForJsonString
+     * Escapes a value for use INSIDE a JSON string literal: `"`, `\` and the
+     * control characters U+0000 to U+001F, exactly what JSON requires and
+     * nothing else, so a value carrying none of them comes back unchanged
+     * (#B600). A lone surrogate is left as it is on purpose: it never broke a
+     * parse, so escaping it would only change bytes. `form-validator.js`
+     * carries the same function for the query-body splice.
+     *
+     * @inner
+     * @param {*} value - coerced with `String()`
+     * @returns {string} the escaped text, without surrounding quotes
+     *
+     * @example
+     * escapeForJsonString('say "hi"'); // the text: say \"hi\"
+     */
+    var escapeForJsonString = function(value) {
+        return String(value).replace(/[\u0000-\u001f"\\]/g, function(ch) {
+            switch (ch) {
+                case '"'  : return '\\"';
+                case '\\' : return '\\\\';
+                case '\b' : return '\\b';
+                case '\f' : return '\\f';
+                case '\n' : return '\\n';
+                case '\r' : return '\\r';
+                case '\t' : return '\\t';
+                default   : return '\\u' + ('000' + ch.charCodeAt(0).toString(16)).slice(-4);
+            }
+        });
+    }
+
+    /**
+     * quoteForDynamisedRules
+     * Returns `value` as a quoted string operand, ready to splice into the
+     * STRINGIFIED rule set that `getDynamisedRules` parses back (#B600). Two
+     * levels of escaping: the inner one makes `"<value>"` a JSON string
+     * literal, the operand `is()` decodes; the outer one embeds that literal in
+     * the rule set's own JSON text. For a value with no `"`, `\` or control
+     * character the result is exactly the historical `\"<value>\"` splice.
+     *
+     * @inner
+     * @param {*} value - coerced with `String()`
+     * @returns {string} the splice text
+     *
+     * @example
+     * quoteForDynamisedRules('abc');   // the text: \"abc\"   (unchanged)
+     * quoteForDynamisedRules('ab"cd'); // the text: \"ab\\\"cd\" (the rule set parses it to "ab\"cd")
+     */
+    var quoteForDynamisedRules = function(value) {
+        return '\\"' + escapeForJsonString(escapeForJsonString(value)) + '\\"';
+    }
+
+    /**
      * getCastedValue
      * Returns the value to use for `fieldName` — raw for the engine to
      * adjudicate, or cast/quoted for dynamised-rules substitution.
@@ -11501,6 +11553,19 @@ function ValidatorPlugin(rules, data, formId, culture) {
             if ( /\,/.test(fields[fieldName]) ) {
                 fields[fieldName] = fields[fieldName].replace(/\,/g, '.').replace(/\s+/g, '');
             }
+            // #B600 — in dynamised mode this value is spliced into the stringified rule
+            // set, so only a NUMBER goes in raw: a numeric comparison must stay numeric,
+            // and the condition grammar reads the space padding around it. Anything else
+            // is spliced as an escaped string operand and compares as text; it all went
+            // in raw, so a `"` or `\` typed into a number field broke the closing parse.
+            if (
+                isOnDynamisedRules
+                && typeof(fields[fieldName]) != 'number'
+                && typeof(fields[fieldName]) != 'boolean'
+                && !/^ *-?\d+(?:\.\d+)? *$/.test(fields[fieldName])
+            ) {
+                return quoteForDynamisedRules(fields[fieldName]);
+            }
             return fields[fieldName];
         }
 
@@ -11519,7 +11584,10 @@ function ValidatorPlugin(rules, data, formId, culture) {
             return (/^true$/i.test(fields[fieldName])) ? true : false;
         }
 
-        return isOnDynamisedRules ? '\\"'+ fields[fieldName] +'\\"' : fields[fieldName];
+        // #B600 — escaped inside its quotes (quoteForDynamisedRules); the value was
+        // concatenated between them verbatim, so a `"`, `\` or control character in
+        // it broke the closing parse of the whole rule set.
+        return isOnDynamisedRules ? quoteForDynamisedRules(fields[fieldName]) : fields[fieldName];
     }
 
     /**
@@ -11576,8 +11644,8 @@ function ValidatorPlugin(rules, data, formId, culture) {
         for (let i = 0, len = arrFields.length; i < len; i++) {
             _field = arrFields[i].replace(/\-|\_|\@|\#|\.|\[|\]/g, '\\$&');
             re = new RegExp('\\$'+_field, 'g');
-            // default field value
-            let fieldValue = '\\"'+ fields[arrFields[i]] +'\\"';
+            // default field value (#B600 — escaped inside its quotes, see quoteForDynamisedRules)
+            let fieldValue = quoteForDynamisedRules(fields[arrFields[i]]);
             let isInRule = re.test(stringifiedRulesTmp);
             if ( isInRule && typeof(ruleObj[arrFields[i]]) != 'undefined' ) {
                 fieldValue = getCastedValue(ruleObj, fields, arrFields[i], true);
@@ -11585,7 +11653,9 @@ function ValidatorPlugin(rules, data, formId, culture) {
                 console.warn('`'+arrFields[i]+'` is used in a dynamic rule without definition. This could lead to an evaluation error. Casting `'+arrFields[i]+'` to `string`.');
             }
 
-            stringifiedRules = stringifiedRules.replace(re, fieldValue );
+            // #B600 — a function replacer: a `$&`, `$'` or `$$` in the value is text,
+            // never a replacement pattern.
+            stringifiedRules = stringifiedRules.replace(re, function() { return fieldValue; });
         }
         // #B234 — this second loop is a DOM FALLBACK: it re-derives each splice
         // value from the live element (`$fields[...].value` / `.checked`), and
@@ -11603,7 +11673,7 @@ function ValidatorPlugin(rules, data, formId, culture) {
                 _field = arrFields[i].replace(/\-|\_|\@|\#|\.|\[|\]/g, '\\$&');
                 re = new RegExp('\\$'+_field, 'g');
                 // default field value
-                let fieldValue = ($fields[arrFields[i]].value != '' ) ? '\\"'+ $fields[arrFields[i]].value +'\\"' : '\\"\\"';
+                let fieldValue = ($fields[arrFields[i]].value != '' ) ? quoteForDynamisedRules($fields[arrFields[i]].value) : '\\"\\"';
                 let isInRule = re.test(stringifiedRulesTmp);
                 if ( isInRule && typeof(ruleObj[arrFields[i]]) != 'undefined' ) {
                     fieldValue = getCastedValue(ruleObj, fields, arrFields[i], true);
@@ -11611,11 +11681,22 @@ function ValidatorPlugin(rules, data, formId, culture) {
                     console.warn('`'+arrFields[i]+'` is used in a dynamic rule without definition. This could lead to an evaluation error. Casting `'+arrFields[i]+'` to `string`.');
                 }
 
-                stringifiedRules = stringifiedRules.replace(re, fieldValue || $fields[arrFields[i]].checked);
+                // #B600 — escaped, and spliced through a function replacer, as in the first loop
+                let splicedValue = fieldValue || $fields[arrFields[i]].checked;
+                stringifiedRules = stringifiedRules.replace(re, function() { return splicedValue; });
             }
         }
 
-        return JSON.parse(stringifiedRules)
+        // #B600 — a splice can no longer break this parse (every value is escaped), but
+        // a failure here must never throw out of the validation pass: fall back to the
+        // rules as declared, whose `$` references the engine's own is() substitution
+        // then resolves or fails closed (the #B82 precedent: fail the field, never the pass).
+        try {
+            return JSON.parse(stringifiedRules);
+        } catch (parseErr) {
+            console.warn('[FormValidator] Could not parse the dynamised rules - validating against the rules as declared.\n(' + parseErr.message + ')');
+            return ruleObj;
+        }
     }
 
 
