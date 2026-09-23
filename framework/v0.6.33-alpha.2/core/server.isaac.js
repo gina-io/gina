@@ -2719,6 +2719,15 @@ function ServerEngineClass(options) {
                                         console.warn('[SERVER][INCOMING REQUEST]', 'Could not convert to JSON or Array the value of `' + a[0] + '` (' + a[1].length + ' chars, ' + notAJsonError.name + '). Leaving value as a string.');
                                     }
                                 }
+                                // #B588 — decode the KEY once, the way the value is decoded above. An
+                                // HTML form GET sends `user[name]` as `user%5Bname%5D`, and it nested
+                                // only because the GET re-parse in server.js percent-decoded the whole
+                                // serialized query document — the double decode #B589 removes. `+` is a
+                                // space in a key as well (the WHATWG form parser treats both halves alike).
+                                if (a[0] && (a[0].indexOf('+') > -1 || a[0].indexOf('%') > -1)) {
+                                    if (a[0].indexOf('+') > -1) a[0] = a[0].replace(/\+/g, ' ');
+                                    if (a[0].indexOf('%') > -1) a[0] = safeDecodeURIComponent(a[0]);
+                                }
                                 request.query[ a[0] ] = a[1]
                             }
                         }
@@ -2736,6 +2745,11 @@ function ServerEngineClass(options) {
                                 if (a[1].indexOf('%') > -1) a[1] = safeDecodeURIComponent(a[1]); // #B30: malformed-%-safe (raw fallback) — an unguarded decodeURIComponent here crashes the bundle
                             }
 
+                            // #B588 — key decoded once (see the multi-value branch above).
+                            if (a[0] && (a[0].indexOf('+') > -1 || a[0].indexOf('%') > -1)) {
+                                if (a[0].indexOf('+') > -1) a[0] = a[0].replace(/\+/g, ' ');
+                                if (a[0].indexOf('%') > -1) a[0] = safeDecodeURIComponent(a[0]);
+                            }
                             request.query[ a[0] ] = a[1]
                         } else { // for redirection purposes or when passing `?encodedJsonObject`
                             try {

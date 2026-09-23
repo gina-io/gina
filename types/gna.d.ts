@@ -71,7 +71,10 @@ interface GinaExports {
     // Data helpers
     /** URL-encode a string per RFC 5987 (adds `!` handling and `*` → `%2A`). */
     encodeRFC5987ValueChars: typeof globalThis.encodeRFC5987ValueChars;
-    /** Parse a form/body string (`application/x-www-form-urlencoded` or JSON) into a nested object. */
+    /**
+     * Parse a form/body string (`application/x-www-form-urlencoded`, or a JSON document) into a
+     * nested object.
+     */
     formatDataFromString: typeof globalThis.formatDataFromString;
 
     // Text helper

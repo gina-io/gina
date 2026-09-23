@@ -126,7 +126,9 @@ describe('03 - #B590: source pins (comment-stripped, so the `// was:` records ca
     it('helpers/data: every parse-failure line goes through describeParseFailure (length + error name)', function () {
         assert.match(helperCode, /var describeParseFailure\s*=\s*function\s*\(\s*input\s*,\s*err\s*\)/);
         var uses = helperCode.match(/describeParseFailure\(/g) || [];
-        assert.ok(uses.length >= 2, 'the helper is defined once and used at least once: ' + uses.length);
+        // counts CALLS (the declaration is `describeParseFailure = function`); #B588 retired the two
+        // segment-level sites, whose values are now kept verbatim when they do not parse
+        assert.ok(uses.length >= 1, 'the helper is called at least once (the [365] site): ' + uses.length);
         assert.match(helperCode, /console\.error\('\[365\] could not parse body: ' \+ describeParseFailure\(body, err\)/);
     });
 

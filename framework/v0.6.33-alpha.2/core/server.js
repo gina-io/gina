@@ -6616,17 +6616,30 @@ function Server(options) {
                                 if ( request.body.substring(0,1) == '?')
                                     request.body = request.body.substring(1);
 
-                                try {
-                                    bodyStr = decodeURIComponent(request.body); // it is already a string for sure
-                                } catch (err) {
-                                    bodyStr = request.body;
-                                }
-
-                                // false & true case
-                                if ( /(\"false\"|\"true\"|\"on\")/.test(bodyStr) )
-                                    bodyStr = bodyStr.replace(/\"false\"/g, false).replace(/\"true\"/g, true).replace(/\"on\"/g, true);
-                                if ( /(\"null\")/i.test(bodyStr) )
-                                    bodyStr = bodyStr.replace(/\"null\"/ig, null);
+                                // #B588 — the body reaches the data helper VERBATIM. It used to be
+                                // percent-decoded here as a WHOLE, before the helper split it on `&`
+                                // and `=`, so an encoded `&` or `=` inside ONE value became a separator
+                                // and that value could add or override any other field of the request
+                                // (`role=user&bio=hi%26role%3Dadmin` arrived as role=admin); the helper
+                                // then decoded the whole string again, and once more per part
+                                // (`100%2525` -> `100%`). The helper now decodes each key and value
+                                // exactly once, AFTER the split. The quoted-token text pass that ran
+                                // here on the decoded body is gone with it: for a `{`-leading body it
+                                // duplicated the helper's own document-branch coercion (unchanged), and
+                                // on a urlencoded body it only ever matched raw quotes and stripped them
+                                // out of free text. The gated `+` -> space above stays: `+` is never a
+                                // separator, and a literal plus arrives as `%2B`.
+                                // was:
+                                //     try {
+                                //         bodyStr = decodeURIComponent(request.body); // it is already a string for sure
+                                //     } catch (err) {
+                                //         bodyStr = request.body;
+                                //     }
+                                //     if ( /(\"false\"|\"true\"|\"on\")/.test(bodyStr) )
+                                //         bodyStr = bodyStr.replace(/\"false\"/g, false).replace(/\"true\"/g, true).replace(/\"on\"/g, true);
+                                //     if ( /(\"null\")/i.test(bodyStr) )
+                                //         bodyStr = bodyStr.replace(/\"null\"/ig, null);
+                                bodyStr = request.body;
 
                                 try {
                                     // obj = parseBody(bodyStr);
@@ -6815,18 +6828,20 @@ function Server(options) {
                                 if ( request.body.substring(0,1) == '?')
                                     request.body = request.body.substring(1);
 
-                                // false & true case
-                                try {
-                                    bodyStr = decodeURIComponent(request.body); // it is already a string for sure
-                                } catch (err) {
-                                    bodyStr = request.body;
-                                }
-
-                                // false & true case
-                                if ( /(\"false\"|\"true\"|\"on\")/.test(bodyStr) )
-                                    bodyStr = bodyStr.replace(/\"false\"/g, false).replace(/\"true\"/g, true).replace(/\"on\"/g, true);
-                                if ( /(\"null\")/i.test(bodyStr) )
-                                    bodyStr = bodyStr.replace(/\"null\"/ig, null);
+                                // #B588 — verbatim body, decoded once per key/value by the helper after
+                                // the split; the whole-body decode and the quoted-token pass are gone
+                                // (the POST branch carries the full rationale).
+                                // was:
+                                //     try {
+                                //         bodyStr = decodeURIComponent(request.body); // it is already a string for sure
+                                //     } catch (err) {
+                                //         bodyStr = request.body;
+                                //     }
+                                //     if ( /(\"false\"|\"true\"|\"on\")/.test(bodyStr) )
+                                //         bodyStr = bodyStr.replace(/\"false\"/g, false).replace(/\"true\"/g, true).replace(/\"on\"/g, true);
+                                //     if ( /(\"null\")/i.test(bodyStr) )
+                                //         bodyStr = bodyStr.replace(/\"null\"/ig, null);
+                                bodyStr = request.body;
 
                                 obj = formatDataFromString(bodyStr);
 
@@ -6938,15 +6953,20 @@ function Server(options) {
                                 }
                                 if ( request.body.substring(0,1) == '?' )
                                     request.body = request.body.substring(1);
-                                try {
-                                    bodyStr = decodeURIComponent(request.body);
-                                } catch (err) {
-                                    bodyStr = request.body;
-                                }
-                                if ( /(\"false\"|\"true\"|\"on\")/.test(bodyStr) )
-                                    bodyStr = bodyStr.replace(/\"false\"/g, false).replace(/\"true\"/g, true).replace(/\"on\"/g, true);
-                                if ( /(\"null\")/i.test(bodyStr) )
-                                    bodyStr = bodyStr.replace(/\"null\"/ig, null);
+                                // #B588 — verbatim body, decoded once per key/value by the helper after
+                                // the split; the whole-body decode and the quoted-token pass are gone
+                                // (the POST branch carries the full rationale).
+                                // was:
+                                //     try {
+                                //         bodyStr = decodeURIComponent(request.body);
+                                //     } catch (err) {
+                                //         bodyStr = request.body;
+                                //     }
+                                //     if ( /(\"false\"|\"true\"|\"on\")/.test(bodyStr) )
+                                //         bodyStr = bodyStr.replace(/\"false\"/g, false).replace(/\"true\"/g, true).replace(/\"on\"/g, true);
+                                //     if ( /(\"null\")/i.test(bodyStr) )
+                                //         bodyStr = bodyStr.replace(/\"null\"/ig, null);
+                                bodyStr = request.body;
                                 try {
                                     obj = formatDataFromString(bodyStr);
                                     if ( !obj ) {

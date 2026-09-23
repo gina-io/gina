@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'The published TypeScript declarations of two data-helper globals now match what the runtime does. `nestBracketNotationKey` takes the bracket path as an ARRAY (`[''item'', ''0'', ''id'']`), which is what it has always required — a string nested character by character — so a TypeScript caller passing a string now gets a compile error instead of a silently wrong object; and `formatDataFromString` returns `object | undefined`, since a `{`- or `[`-leading input that does not parse as JSON yields `undefined`. (#B588)'
+time: 2026-09-23T07:51:40+01:00

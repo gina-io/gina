@@ -2900,11 +2900,14 @@ gna.safeDecodeURIComponent = safeDecodeURIComponent;
 gna.safeDecodeURI = safeDecodeURI;
 
 /**
- * Parse a form/body string (`application/x-www-form-urlencoded` or JSON) into
- * a nested object. Recognises PHP-style `foo[bar][0]` keys.
+ * Parse a form/body string (`application/x-www-form-urlencoded`, or a JSON
+ * document) into a nested object. Bracket-notation keys (`foo[bar][0]`) nest;
+ * a urlencoded key/value is percent-decoded exactly once after the split, a
+ * JSON document is never decoded (#B588/#B589), and the quoted-token casting
+ * (`"true"`/`"false"`/`"on"`/`"null"`) applies to documents and object input only.
  *
  * @param {string|object} bodyStr - Body string; objects are `JSON.stringify`-ed first
- * @returns {object} Parsed object
+ * @returns {object|undefined} Parsed object, or `undefined` for an invalid JSON document
  * @example
  *   formatDataFromString('user[name]=Ada&user[age]=37');
  *   // → { user: { name: 'Ada', age: '37' } }

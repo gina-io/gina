@@ -100,29 +100,61 @@ function DataHelper(){
     };
 
     /**
-     * Convert JSON string with structured keys to object
+     * Parses a request payload into a plain object. Three input shapes:
      *
-     * @param {string} JSON string with structured keys
-     * */
+     * - a urlencoded string (`key=value&…`): split on `&`, then at the FIRST `=`,
+     *   each key and value percent-decoded exactly ONCE after the split, bracket
+     *   keys (`user[name]`, `item[0][id]`) nested; a value leaning `{`/`[` is
+     *   parsed as JSON when it parses (JSON carries its own types, so a quoted
+     *   `"true"` inside it stays a string) and kept verbatim otherwise; bare
+     *   `true`/`false`/`on`/`null` stay strings, a value-less segment is dropped,
+     *   a repeated key keeps the last value;
+     * - a `{`/`[`-leading JSON document: parsed VERBATIM — never percent-decoded
+     *   (#B589) — after the quoted-token casting on the document text
+     *   (`"true"`/`"false"`/`"on"` → boolean, `"null"` in any case → null);
+     * - an object: stringified first, so it takes the document contract (the
+     *   browser validator and DTO routes hand their fields over this way).
+     *
+     * A document that does not parse yields `undefined` (and one metadata-only
+     * error line, #B590). A top-level `__proto__`/`constructor`/`prototype` key is
+     * dropped on either path (#B592, #B446).
+     *
+     * @global
+     * @param {string|object} bodyStr - urlencoded string, JSON document, or object
+     * @returns {object|undefined} the parsed object, or `undefined` for an invalid document
+     * @example
+     *   formatDataFromString('user[name]=Ada&tag=a%26b');   // { user: { name: 'Ada' }, tag: 'a&b' }
+     *   formatDataFromString('{"active":"true","n":"2"}'); // { active: true, n: '2' }
+     *   formatDataFromString({ q: 'a%20b' });               // { q: 'a%20b' }  (never decoded)
+     */
     formatDataFromString = function(bodyStr){
 
-        if ( typeof(bodyStr) == 'object' ) {
+        if ( typeof(bodyStr) == 'object' && bodyStr !== null ) {
             bodyStr = JSON.stringify(bodyStr)
+        } else if ( typeof(bodyStr) != 'string' ) {
+            bodyStr = String(bodyStr);   // undefined / null / a number: `{}` after the split, as before
         }
 
-        try {
-            bodyStr = decodeURIComponent(bodyStr);
-        } catch (err) {
-            // Already decoded - ignoring
-        }
-
-        // false & true case
-        if ( /(\"false\"|\"true\"|\"on\")/.test(bodyStr) ) {
-            bodyStr = bodyStr.replace(/\"false\"/g, false).replace(/\"true\"/g, true).replace(/\"on\"/g, true);
-        }
-        if ( /(\"null\")/i.test(bodyStr) ) {
-            bodyStr = bodyStr.replace(/\"null\"/ig, null);
-        }
+        // #B588 / #B589 — was:
+        //     try {
+        //         bodyStr = decodeURIComponent(bodyStr);
+        //     } catch (err) {
+        //         // Already decoded - ignoring
+        //     }
+        //     // false & true case
+        //     if ( /(\"false\"|\"true\"|\"on\")/.test(bodyStr) ) {
+        //         bodyStr = bodyStr.replace(/\"false\"/g, false).replace(/\"true\"/g, true).replace(/\"on\"/g, true);
+        //     }
+        //     if ( /(\"null\")/i.test(bodyStr) ) {
+        //         bodyStr = bodyStr.replace(/\"null\"/ig, null);
+        //     }
+        // That whole-string decode ran BEFORE the urlencoded split, so an encoded `&`
+        // or `=` inside one value became a separator (#B588); and on a JSON document
+        // — which JSON.stringify never percent-encodes — it re-decoded value TEXT, so
+        // `%22`/`%0A` produced invalid JSON and the whole input was dropped (#B589).
+        // The quoted-token casting is a DOCUMENT feature and now runs inside
+        // parseBody's document branch only; a urlencoded pair is never coerced (bare
+        // tokens never were).
 
         return parseBody(bodyStr);
     }
@@ -146,6 +178,12 @@ function DataHelper(){
         }
 
         for (let o in tmp) {
+
+            // #B592 — a top-level `__proto__` (an OWN key, which JSON.parse produces),
+            // `constructor` or `prototype` assigned flat below would swap the prototype
+            // of the RESULT object; drop the pair. Bracket paths are guarded per segment
+            // inside parseLocalObj (#B446).
+            if ( o === '__proto__' || o === 'constructor' || o === 'prototype' ) continue;
 
             el[0]   = o;
             el[1]   = tmp[o];
@@ -196,10 +234,21 @@ function DataHelper(){
                 obj = ( isArrayType ) ? [] : {};
 
                 if ( /^(\%7B|\%5B)/.test(body) ) {
-                    tmp = JSON.parse(decodeURIComponent(body))
-                } else {
-                    tmp = JSON.parse(body)
+                    // a fully percent-encoded document (a direct caller's shape, never the
+                    // request pipeline's): decoded ONCE, then treated like a raw document
+                    body = decodeURIComponent(body)
                 }
+                // #B588 / #B589 — the quoted-token casting, moved here from
+                // formatDataFromString: `"true"`/`"false"`/`"on"` -> boolean and `"null"`
+                // (any case) -> null, on the DOCUMENT text only. An escaped occurrence
+                // inside a longer value (`\"true\"`) never matches.
+                if ( /(\"false\"|\"true\"|\"on\")/.test(body) ) {
+                    body = body.replace(/\"false\"/g, false).replace(/\"true\"/g, true).replace(/\"on\"/g, true);
+                }
+                if ( /(\"null\")/i.test(body) ) {
+                    body = body.replace(/\"null\"/ig, null);
+                }
+                tmp = JSON.parse(body)
 
                 if ( Array.isArray(tmp) ) {
                     obj = parseCollection(tmp, obj)
@@ -216,67 +265,55 @@ function DataHelper(){
             }
 
         } else {
+            // #B588 — the standard form algorithm (the WHATWG urlencoded parser): split
+            // on `&`, split each pair at the FIRST `=`, then percent-decode the key and
+            // the value exactly ONCE. The loop it replaces decoded each whole segment
+            // BEFORE its `=` split (`field=a%3Db` lost everything after `a`), split on
+            // every `=` keeping only the first two parts, decoded key and value once
+            // more, let a `{`-leading segment REPLACE the accumulator and stop, dropped
+            // a value that merely started with `{`/`[` when it was not JSON, skipped a
+            // value containing `[object `, and probed values for a literal `{}":`. Kept
+            // as before: a value-less segment is dropped, an empty value is `''`, a
+            // repeated key keeps the last value, bracket keys nest through parseLocalObj,
+            // and no bare-token coercion happens on this path.
             obj = {};
             arr = body.split(/&/g);
-            if ( /(\"false\"|\"true\"|\"on\")/.test(body) )
-                body = body.replace(/\"false\"/g, false).replace(/\"true\"/g, true).replace(/\"on\"/g, true);
 
-
-            var el      = {}
+            var idx     = -1
+                , key   = null
                 , value = null
-                , key   = null;
+                , path  = null;
 
             for (var i = 0, len = arr.length; i < len; ++i) {
                 if (!arr[i]) continue;
 
-                // #B30: tolerate a malformed `%` escape (fall back to the raw
-                // segment) instead of letting decodeURIComponent throw URIError —
-                // an unguarded throw here propagates to processRequestData with no
-                // uncaughtException handler and crashes the bundle.
-                arr[i] = safeDecodeURIComponent(arr[i]);
+                idx = arr[i].indexOf('=');
+                if (idx < 0) continue;                                   // a value-less segment: dropped, as before
 
-                if ( /^\{/.test(arr[i]) || /\=\{/.test(arr[i]) || /\=\[/.test(arr[i]) ) {
+                // #B30: malformed-%-safe decode (raw fallback, never a throw) — once, after the split.
+                key   = safeDecodeURIComponent(arr[i].substring(0, idx));
+                value = safeDecodeURIComponent(arr[i].substring(idx + 1));
+
+                // #B592 — a whole key named after the prototype accessors would swap the
+                // prototype of the result (a JSON-valued `__proto__`) or shadow it: drop the
+                // pair. Bracket paths are guarded per segment inside parseLocalObj (#B446).
+                if ( key === '__proto__' || key === 'constructor' || key === 'prototype' ) continue;
+
+                // a JSON value (`filter={"a":1}`, `list=[1,2]`, or their encoded forms) is
+                // parsed when it parses and kept VERBATIM otherwise (`note={name}` is text)
+                if ( /^[\{\[]/.test(value) ) {
                     try {
-                        if (/^\{/.test(arr[i])) {
-                            obj = JSON.parse(arr[i]);
-                            break;
-                        } else {
-                            el = arr[i].match(/\=(.*)/);
-                            el[0] =  arr[i].split(/\=/)[0];
-                            obj[ el[0] ] = JSON.parse( el[1] );
-                        }
-
-
-                    } catch (err) {
-                        // #B590 — the segment is a client-supplied key/value pair: metadata only.
-                        // was: console.error('[parseBody#1] could not parse body:\n' + arr[i])
-                        console.error('[parseBody#1] could not parse a JSON-leaning segment: ' + describeParseFailure(arr[i], err))
+                        value = JSON.parse(value);
+                    } catch (notAJsonValue) {
+                        // not JSON after all — keep the text
                     }
+                }
+
+                if ( /^(.*)\[(.*)\]/.test(key) ) { // some[field] ?
+                    path = key.replace(/\]/g, '').split(/\[/g);
+                    obj  = parseLocalObj(obj, path, 0, value)
                 } else {
-                    el = arr[i].split(/=/);
-                    if ( /\{\}\"\:/.test(el[1]) ) { //might be a json
-                        try {
-                            el[1] = JSON.parse(el[1])
-                        } catch (err) {
-                            // #B590 — the value is client-supplied: metadata only.
-                            // was: console.error('[parseBody#2] could not parse body:\n' + el[1])
-                            console.error('[parseBody#2] could not parse a JSON-leaning value: ' + describeParseFailure(el[1], err))
-                        }
-                    }
-
-                    if ( typeof(el[1]) == 'string' && !/\[object /.test(el[1])) {
-                        key     = null;
-                        // #B30: malformed-%-safe decode (see the arr[] loop above).
-                        el[0]   = safeDecodeURIComponent(el[0]);
-                        el[1]   = safeDecodeURIComponent(el[1]);
-
-                        if ( /^(.*)\[(.*)\]/.test(el[0]) ) { // some[field] ?
-                            key = el[0].replace(/\]/g, '').split(/\[/g);
-                            obj = parseLocalObj(obj, key, 0, el[1])
-                        } else {
-                            obj[ el[0] ] = el[1]
-                        }
-                    }
+                    obj[ key ] = value
                 }
             }
 

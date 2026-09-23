@@ -115,7 +115,7 @@ expectType<string>(JSON.escape('x'));
 expectType<object>(merge({ a: 1 }, { b: 2 }));
 expectType<string>(safeDecodeURI('/a%2Fb'));
 expectType<string>(safeDecodeURIComponent('50%off'));
-nestBracketNotationKey({}, 'item[0][id]', 0, 7);
+nestBracketNotationKey({}, ['item', '0', 'id'], 0, 7);
 joinContext({ x: 1 });
 log('fixture');
 defineDefault({ MY_FLAG: '1' });
