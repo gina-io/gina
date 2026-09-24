@@ -386,12 +386,14 @@ var jobId = self.inferAsync([{ role: 'user', content: prompt }], { connector: 'm
     "initialWindowSize": 655350,
     "maxSessionRejectedStreams": 100,
     "maxSessionInvalidFrames": 1000,
-    "maxStreamsPerSecond": 200,
+    "maxStreamResetsPerSecond": 200,
     "enableConnectProtocol": false
   }
 }
 ```
 Security-critical settings that are hardcoded and not user-overridable: `maxHeaderListSize: 65536` (HPACK bomb), `enablePush: false`. All of the above apply to both https and cleartext h2c bundles (the full `http2Options` reaches createSecureServer and createServer alike).
+
+**Rapid-reset guard (#H9, re-scoped by #B611 in `0.6.33`) — `maxStreamResetsPerSecond` (default 200) counts, per session per rolling second, the streams the CLIENT cuts short before the response completed** (a `RST_STREAM` of any code, or the peer destroying the stream — the stream's `aborted` event, with engine-side aborts told apart: a server-side destroy reads `stream.destroyed` at that moment, a session teardown reads `session.closed`/`destroyed`); past the limit the session gets `GOAWAY(ENHANCE_YOUR_CALM)` + `close()`, `rapidResetBlocked` increments and a `[ SERVER ]` warn names the count. It does NOT count new streams (those stay bounded by `maxConcurrentStreams`): the pre-0.6.33 guard did, under the key `maxStreamsPerSecond`, and a sibling bundle's own multiplexed `self.query()` calls tripped it above 200 calls/s on one cached session — 17% of calls answered 500 at c=50 with default settings (bundle-to-bundle audit, 2026-09-24). That key is no longer read: a bundle still setting it gets one boot warning and the default — a raised workaround value must not quietly widen the reset limit. The runtime's OWN frame-level limit is the primary guard and stays underneath: nghttp2 >= 1.57 counts every received `RST_STREAM` (completed streams included, so a reset that lands after the response was written is invisible to gina's guard but counted there) against a 1,000-frame burst refilled at 33/s and closes the session with `GOAWAY(INTERNAL_ERROR)` — with NO server-side event (no session `error`, no `sessionError`, no `frameError`; measured on node v25.3.0 / nghttp2 1.67.1); it is tunable through the pass-through pair `http2Options.streamResetBurst` + `streamResetRate` (node applies neither unless both are set). A reset that lands after the response was written is not amplification — the work was done — which is why a synchronous route never trips gina's guard and a rapid-reset burst against it meets nghttp2's limit at ~1,000 instead (measured: an in-flight 25 ms route → GOAWAY 11 at the 201st reset, `rstCount` 201, `rapidResetBlocked` 1; a synchronous route → GOAWAY 2 at ~1,050, gina's counters untouched). Policy module: `core/server.isaac.rapid-reset.js` (framework-free; tested live against a bare `node:http2` server in `test/core/h2-rapid-reset-guard.test.js`).
 
 **Session metrics** — exposed at `/_gina/info` under `"http2"` key:
 ```json
@@ -400,16 +402,18 @@ Security-critical settings that are hardcoded and not user-overridable: `maxHead
     "activeSessions": 3,
     "totalStreams": 142,
     "goawayCount": 0,
-    "rstCount": 5
+    "rstCount": 5,
+    "rapidResetBlocked": 0,
+    "extendedConnect": 0
   }
 }
 ```
-Counters are live — no restart required. `activeSessions` is bounded by ≥ 0. `rstCount` counts only non-zero RST codes (normal stream close = code 0 = not counted).
+Counters are live — no restart required. `activeSessions` is bounded by ≥ 0. `rstCount` counts the streams the client cut short before the response completed (the same signal the rapid-reset guard counts; a normal completion, or a reset arriving after the response was written, is not counted) — it had read 0 since #H9 shipped because the server listened for a `rstCode` EVENT, and `rstCode` is a stream property (#B614, fixed in `0.6.33`). `rapidResetBlocked` counts breach events (one per session torn down), `extendedConnect` the RFC 8441 extended-CONNECT streams seen (#H13).
 
 **CVE coverage** — see `docs/security.md` for the full table. All mitigations are on by default:
 | CVE | Name | Mitigation |
 |---|---|---|
-| CVE-2023-44487 | Rapid Reset | `maxSessionRejectedStreams: 100` + Node ≥ 20.12.1 |
+| CVE-2023-44487 | Rapid Reset | `maxSessionRejectedStreams: 100` + the runtime's reset rate limit (nghttp2 ≥ 1.57, Node ≥ 20.12.1; tunable via `streamResetBurst`/`streamResetRate`) + gina's `maxStreamResetsPerSecond: 200` client-reset guard |
 | CVE-2024-27316 / CVE-2024-27983 | CONTINUATION flood | `maxSessionInvalidFrames: 1000` + Node ≥ 20.12.1 |
 | CVE-2019-9514 | RST flood | `maxSessionRejectedStreams: 100` |
 | — | HPACK bomb | `maxHeaderListSize: 65536` |
@@ -418,6 +422,8 @@ Counters are live — no restart required. `activeSessions` is bounded by ≥ 0.
 **HTTP/2 client resilience** (inter-bundle `self.query()` calls):
 
 `handleHTTP2ClientRequest` retries failed requests up to 2 times with 500ms backoff on 2nd+ retry. Before sending on a cached session, validates freshness via a pre-flight PING (if no PONG received in 3s, evicts session and retries). Protects against silent TCP drops (observed with OrbStack Docker networking) and stale HTTP/2 sessions.
+
+**Session errors are retried, and a completed stream is never reset (#B612 / #B613, `0.6.33`).** A server GOAWAY — `ENHANCE_YOUR_CALM` from a rapid-reset guard, `INTERNAL_ERROR` from nghttp2's own, `NO_ERROR` on a drain — fails every in-flight stream with `ERR_HTTP2_SESSION_ERROR` "Session closed with error code N" (measured on node v25.3.0); that code now sits in the stream-error retry whitelist beside `ERR_HTTP2_STREAM_ERROR`/`ECONNRESET`, under the same #B53 safe-method/`retryUnsafe` rule (the response was lost post-send). A session gone between the cache read and the send makes `client.request()` THROW synchronously (`ERR_HTTP2_INVALID_SESSION` on a destroyed session, `ERR_HTTP2_GOAWAY_SESSION` on a closed one); `_sendRequest` now catches it, evicts, and retries on a fresh session for ANY method — nothing was sent, the pre-flight precedent — exhausting into a typed `STREAM_ERROR`/503; unguarded, a throw on a retry re-entry escaped its listener as an uncaughtException. And the #B52 settled-stream release no longer calls `req.close()`: at the `end` terminal `req.closed` is still `false` (measured: 3,000/3,000), so that close put an `RST_STREAM(NO_ERROR)` on the wire after EVERY completed response and the target's nghttp2 reset limit (1,000 burst, 33/s) GOAWAY'd the cached session with `INTERNAL_ERROR` after ~1,000 calls, silently — the `Session closed with error code 2` failures on long-lived bundle-to-bundle sessions; the timeout cancel + listener drop alone release the stream, which closes itself within milliseconds. Live pins: `test/core/query-h2-session-resilience.test.js` (real `query()` against bare `node:http2` servers; red-first 7/8 on the pre-fix controller, the POST-not-replayed control holding on both).
 
 **Basic auth rides the `auth` option on BOTH transports (#B465).** `options.auth` (`"user:password"`) is minted into an `Authorization: Basic <base64>` header before dispatch and the option itself is deleted pre-dispatch (and listed in the HTTP/2 header strip set as a belt) — one code path, identical wire bytes on HTTP/1.x and HTTP/2. A caller-supplied `authorization` header always wins. Before the fix, node consumed `auth` on HTTP/1.x only; on HTTP/2 it leaked as a literal `auth:` header while authentication silently never happened. Tests: `query-auth-option.test.js`.
 
