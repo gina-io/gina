@@ -620,8 +620,10 @@ function ServerEngineClass(options) {
         // nghttp2 >= 1.57 closes a session with GOAWAY(INTERNAL_ERROR) — silently, no
         // server-side event — after a 1,000-reset burst, then 33/s (measured on node
         // v25.3.0). Node exposes the two knobs as server options, and both must be
-        // set together for either to apply (node's documented contract), so they are
-        // passed through only as a pair; the defaults stay the runtime's.
+        // set together for either to apply (node's documented contract — measured:
+        // burst-only 5 and rate-only 1 each still trip at the default ~1,200 mark,
+        // both together at 300), so they are passed through only as a pair; the
+        // defaults stay the runtime's. Bun ignores both (#B615 — warned below).
         if (typeof _h2Opts.streamResetBurst === 'number' && typeof _h2Opts.streamResetRate === 'number') {
             http2Options.streamResetBurst = _h2Opts.streamResetBurst;
             http2Options.streamResetRate  = _h2Opts.streamResetRate;
@@ -643,13 +645,22 @@ function ServerEngineClass(options) {
         if (typeof _h2Opts.maxStreamsPerSecond !== 'undefined') {
             console.warn('[ SERVER ] http2Options.maxStreamsPerSecond is no longer read (0.6.33): the rapid-reset guard counts client stream RESETS per second, not new streams — set http2Options.maxStreamResetsPerSecond (default '+ _rapidReset.DEFAULT_MAX_RESETS_PER_SECOND +') and remove the old key');
         }
+        // #B615 — Bun's node:http2 has no frame-level reset rate limit (measured on
+        // 1.2.21 / 1.3.14 / 1.4.2: 50,000 open+reset pairs on one session, no GOAWAY,
+        // no event), so the pass-through pair above is inert there and gina's guard
+        // is the ONLY layer. Say so once at boot rather than let a tuned pair look
+        // protective. The guard module itself picks a Bun-aware discriminator.
+        if (_rapidReset.RUNTIME_IS_BUN && typeof _h2Opts.streamResetBurst === 'number' && typeof _h2Opts.streamResetRate === 'number') {
+            console.warn('[ SERVER ] http2Options.streamResetBurst / streamResetRate are ignored on this runtime — Bun\'s HTTP/2 server has no frame-level reset rate limit, so http2Options.maxStreamResetsPerSecond ('+ _maxResetsPerSec +'/s per session) is the only rapid-reset limit on this bundle');
+        }
         var http2   = require('http2');
         // h2c flood-defense parity: the cleartext branches receive the same
         // `http2Options` as the https branch. On non-https schemes the object
         // carries no TLS material (key/cert/ca/pfx/passphrase are merged under
         // `/https/` scheme gates only) — it holds exactly allowHTTP1 + the
-        // `settings` advert + the #H3/#H7 caps, so the hardening applies
-        // identically across schemes.
+        // `settings` advert + the #H3/#H7 caps (+ the #B611 `streamResetBurst` /
+        // `streamResetRate` pair when a bundle sets both), so the hardening
+        // applies identically across schemes.
         switch (options.scheme) {
             case 'http':
                 server      = http2.createServer(http2Options);

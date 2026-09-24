@@ -528,6 +528,17 @@ describe('07 - HTTP/2 rapid-reset guard wiring in the session stream listener (#
         assert.ok(getSrc().indexOf('client stream resets in <1s (limit') > -1, 'the warning counts client stream resets, not streams');
     });
 
+    it('source warns once at engine creation on Bun when the pass-through pair is set — Bun has no frame-level reset limit, so the pair is inert there (#B615)', function() {
+        var s = getSrc();
+        var idx = s.indexOf("if (_rapidReset.RUNTIME_IS_BUN && typeof _h2Opts.streamResetBurst === 'number' && typeof _h2Opts.streamResetRate === 'number') {");
+        assert.ok(idx > -1, 'expected the Bun-gated pair check');
+        var block = s.slice(idx, idx + 600);
+        assert.ok(block.indexOf('are ignored on this runtime') > -1, 'the warning says the runtime ignores the pair');
+        assert.ok(block.indexOf('maxStreamResetsPerSecond') > -1, 'the warning names the limit that does apply');
+        var requireIdx = s.indexOf("var _rapidReset      = require('./server.isaac.rapid-reset');");
+        assert.ok(requireIdx > -1 && requireIdx < idx, 'the guard module is required before the check reads RUNTIME_IS_BUN');
+    });
+
     it('the settings templates carry the new key and not the retired one', function() {
         var tplPath = path.join(require('../fw'), 'core', 'template', 'conf', 'settings.json');
         var bpPath  = path.join(require('../fw'), 'core', 'template', 'boilerplate', 'bundle', 'config', 'settings.server.json');

@@ -31,16 +31,32 @@
  * - `stream.rstCode` is a PROPERTY, not an event: the `'rstCode'` listener the
  *   previous code attached never fired (#B614).
  *
+ * Bun's `node:http2` server emits the same event with a DIFFERENT state model, so
+ * the discriminator is picked by runtime at load (#B615, measured on Bun 1.2.21 /
+ * 1.3.14 / 1.4.2 with a raw-frame client, 2026-09-24):
+ *
+ * - Bun closes the stream (`state.state` 7, `state.localClose` 1) BEFORE emitting
+ *   `'aborted'` for a reset it received; its own `destroy()` / `close()` emit the
+ *   event with the local side still open (`localClose` 0). That field is the Bun
+ *   signal — `stream.destroyed` is not: 1.4.2 reads it `true` for every received
+ *   reset but CANCEL (the node rule missed them), 1.2 / 1.3 read it `false` for
+ *   the engine's own aborts (the node rule over-counted them).
+ * - Bun has NO frame-level reset rate limit — 50,000 open+reset pairs on one
+ *   session raise no GOAWAY and no event on any of the three versions, and the
+ *   `streamResetBurst` / `streamResetRate` server options are ignored. On Bun
+ *   this guard is the ONLY layer.
+ *
  * nghttp2 >= 1.57 (node >= 20.8.1) carries its own reset rate limit — a 1,000-frame
  * burst, then 33/s, closing the session with `GOAWAY(INTERNAL_ERROR)` and no
  * server-side event — and it applies to every received `RST_STREAM`, completed
- * streams included. This guard is the observable, configurable, tighter-burst
- * layer on top of it (a GOAWAY with `ENHANCE_YOUR_CALM`, a warn line, the
- * `rapidResetBlocked` and `rstCount` metrics), never the only one.
+ * streams included. On node this guard is the observable, configurable,
+ * tighter-burst layer on top of it (a GOAWAY with `ENHANCE_YOUR_CALM`, a warn
+ * line, the `rapidResetBlocked` and `rstCount` metrics), never the only one.
  *
  * Framework-free on purpose: it is unit-tested live against a bare
  * `http2.createServer()`, which `server.isaac.js` (loading the lib registry at
- * require time) cannot be.
+ * require time) cannot be. Its one dependency, `utils/runtime`, is a
+ * dependency-free leaf at the package root.
  *
  * @module core/server.isaac.rapid-reset
  */
@@ -49,13 +65,30 @@
 /**
  * Default limit: client resets per session per rolling one-second window.
  *
- * Kept at the previous limiter's value. Well below nghttp2's 1,000-frame burst
- * (so this layer fires first, observably), well above anything a browser produces
- * (cancelling a page's in-flight requests is a burst of a few dozen at most).
+ * Kept at the previous limiter's value. On node it sits well below nghttp2's
+ * 1,000-frame burst, so a BURST meets this layer first, observably; a SUSTAINED
+ * client reset rate between nghttp2's 33/s refill and this limit trips nghttp2
+ * first, after roughly 1000 / (rate − 33) seconds (inferred from the measured
+ * bucket, not measured as such). On Bun nothing sits underneath: this is the only
+ * layer (module header). Well above anything a browser produces (cancelling a
+ * page's in-flight requests is a burst of a few dozen at most).
  *
  * @constant {number}
  */
 var DEFAULT_MAX_RESETS_PER_SECOND = 200;
+
+/**
+ * Whether this process runs on Bun — decided once at load. The `'aborted'`-time
+ * state model differs by runtime (module header), so the discriminator is picked
+ * by RUNTIME, never by feature-probing a stream: the Bun rule is wrong on node
+ * and the node rule is wrong on Bun.
+ *
+ * `utils/runtime` is a dependency-free leaf at the package root (the
+ * `lib/sqlite-driver` shape), so the module stays free of the lib registry.
+ *
+ * @constant {boolean}
+ */
+var RUNTIME_IS_BUN = require(__dirname + '/../../../utils/runtime').isBun();
 
 /**
  * Rolling window length in milliseconds.
@@ -108,6 +141,52 @@ function isClientReset(session, stream) {
 }
 
 /**
+ * The Bun variant of {@link isClientReset} (#B615). Bun's `node:http2` server
+ * marks a stream CLOSED (`state.state` 7, `state.localClose` 1) BEFORE emitting
+ * `'aborted'` for a reset it RECEIVED, while its own `destroy()` / `close()` emit
+ * the event with the local side still open (`localClose` 0) — measured on nine
+ * abort shapes across Bun 1.2.21, 1.3.14 and 1.4.2 (2026-09-24). `stream.destroyed`
+ * cannot serve there: 1.4.2 reads it `true` for every received reset but CANCEL
+ * (the node rule missed them), 1.2 / 1.3 read it `false` for the engine's own
+ * aborts (the node rule over-counted them).
+ *
+ * Fail-closed: when `state.localClose` is unreadable the reset IS counted — a
+ * missed reset is the hole this guard exists to close, an over-counted engine
+ * abort costs one session, and the live arms in the Bun CI leg turn red on any
+ * runtime change that gets here.
+ *
+ * On node this function is WRONG (a received reset reads `localClose` 0 there);
+ * it is selected only when {@link RUNTIME_IS_BUN}.
+ *
+ * @param {object} session - The `http2.ServerHttp2Session` the stream belongs to
+ * @param {object} stream  - The `http2.ServerHttp2Stream` that just emitted `'aborted'`
+ * @returns {boolean} `true` when the peer cut the stream short
+ *
+ * @example
+ * // a received RST_STREAM on Bun 1.4 (destroyed already reads true)
+ * isClientResetOnBun({ closed: false, destroyed: false }, { destroyed: true,  state: { localClose: 1 } }); // → true
+ * // the engine's own destroy() / close(code)
+ * isClientResetOnBun({ closed: false, destroyed: false }, { destroyed: false, state: { localClose: 0 } }); // → false
+ */
+function isClientResetOnBun(session, stream) {
+    if (!session || !stream) { return false; }
+    if (session.closed || session.destroyed) { return false; } // session teardown
+    var _state = null;
+    try { _state = stream.state; } catch (e) { _state = null; }
+    if (_state && typeof _state.localClose === 'number') {
+        return _state.localClose === 1;                        // the peer closed it first
+    }
+    return true;                                               // unreadable: count it (fail-closed)
+}
+
+/**
+ * The discriminator {@link attach} uses on this runtime.
+ *
+ * @constant {function}
+ */
+var isClientResetActive = RUNTIME_IS_BUN ? isClientResetOnBun : isClientReset;
+
+/**
  * The window step: records one client reset on the session and reports whether
  * it breached the limit. State lives on the session object (`_resetWindowStart`,
  * `_resetWindowCount`), so every session is limited independently.
@@ -144,7 +223,8 @@ function countReset(session, now, max) {
  * breach, calls `hooks.onBreach(count, max)` — the engine then warns, sends
  * `GOAWAY(ENHANCE_YOUR_CALM)` and closes the session. Once the session is closing,
  * the remaining in-flight streams' aborts are teardown, not resets, and are not
- * counted (see {@link isClientReset}).
+ * counted (see {@link isClientReset} on node, {@link isClientResetOnBun} on Bun —
+ * picked once at load, {@link isClientResetActive}).
  *
  * Call it from the session's `'stream'` listener, once per stream.
  *
@@ -173,7 +253,7 @@ function attach(session, stream, max, hooks, now) {
     var _hooks = hooks || {};
     var _now   = (typeof now === 'function') ? now : Date.now;
     stream.on('aborted', function onStreamAbortedByPeer() {
-        if (!isClientReset(session, stream)) { return; }
+        if (!isClientResetActive(session, stream)) { return; }
         if (typeof _hooks.onReset === 'function') { _hooks.onReset(); }
         if (countReset(session, _now(), max) && typeof _hooks.onBreach === 'function') {
             _hooks.onBreach(session._resetWindowCount, max);
@@ -184,8 +264,11 @@ function attach(session, stream, max, hooks, now) {
 module.exports = {
     DEFAULT_MAX_RESETS_PER_SECOND : DEFAULT_MAX_RESETS_PER_SECOND,
     WINDOW_MS                     : WINDOW_MS,
+    RUNTIME_IS_BUN                : RUNTIME_IS_BUN,
     resolveMaxResetsPerSecond     : resolveMaxResetsPerSecond,
     isClientReset                 : isClientReset,
+    isClientResetOnBun            : isClientResetOnBun,
+    isClientResetActive           : isClientResetActive,
     countReset                    : countReset,
     attach                        : attach
 };

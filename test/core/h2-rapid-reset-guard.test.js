@@ -13,6 +13,13 @@
  *
  * The former server.isaac.test.js §07b replica cases live here as §02, against the
  * real `countReset`.
+ *
+ * §03b / §03c (#B615): the discriminator is picked by RUNTIME at load — Bun's server
+ * closes a stream before emitting `aborted` for a reset it received, so the Bun rule
+ * reads `state.localClose`, while node keeps `stream.destroyed`. The §04 live arms
+ * therefore run unchanged under both `node --test` and `bun test`: their expectations
+ * are the correct behaviour on every runtime (the Bun CI leg turned red on exactly the
+ * two arms the node rule missed on Bun 1.4).
  */
 var { describe, it, after } = require('node:test');
 var assert = require('node:assert/strict');
@@ -175,6 +182,62 @@ describe('03 - isClientReset: the aborted-time discriminator', function() {
     it('missing arguments never count', function() {
         assert.equal(guard.isClientReset(null, { destroyed: false }), false);
         assert.equal(guard.isClientReset({ closed: false }, null), false);
+    });
+});
+
+describe('03b - isClientResetOnBun: the aborted-time discriminator on Bun (#B615)', function() {
+    var live = { closed: false, destroyed: false };
+
+    it('a received reset — Bun closes the stream before emitting aborted, so state.localClose reads 1 — is a client reset whatever stream.destroyed reads', function() {
+        assert.equal(guard.isClientResetOnBun(live, { destroyed: true,  state: { state: 7, localClose: 1, remoteClose: 1 } }), true, 'the Bun 1.4 shape: destroyed already true for a non-CANCEL reset');
+        assert.equal(guard.isClientResetOnBun(live, { destroyed: false, state: { state: 7, localClose: 1, remoteClose: 1 } }), true, 'the Bun 1.2 / 1.3 shape');
+    });
+
+    it('the engine\'s own destroy() / close() emits aborted with the local side still open (localClose 0) — not a client reset, whatever stream.destroyed reads', function() {
+        assert.equal(guard.isClientResetOnBun(live, { destroyed: true,  state: { state: 6, localClose: 0, remoteClose: 1 } }), false, 'Bun 1.4: own destroy');
+        assert.equal(guard.isClientResetOnBun(live, { destroyed: false, state: { state: 6, localClose: 0, remoteClose: 1 } }), false, 'Bun 1.2 / 1.3: own destroy, or close(code) on any Bun');
+        assert.equal(guard.isClientResetOnBun(live, { destroyed: false, state: { state: 2, localClose: 0, remoteClose: 0 } }), false, 'own destroy with the request body still open');
+    });
+
+    it('a session teardown is not — even when the stream reads localClose 1', function() {
+        assert.equal(guard.isClientResetOnBun({ closed: true,  destroyed: false }, { destroyed: false, state: { localClose: 1 } }), false);
+        assert.equal(guard.isClientResetOnBun({ closed: false, destroyed: true  }, { destroyed: false, state: { localClose: 1 } }), false);
+    });
+
+    it('fail-closed: an unreadable state COUNTS — a missed reset is the hole the guard exists to close', function() {
+        assert.equal(guard.isClientResetOnBun(live, { destroyed: false }), true, 'no state at all');
+        assert.equal(guard.isClientResetOnBun(live, { destroyed: true, state: {} }), true, 'an empty state (node\'s shape for a destroyed stream)');
+        assert.equal(guard.isClientResetOnBun(live, { destroyed: false, state: { localClose: '1' } }), true, 'a non-numeric localClose');
+        var throwing = { destroyed: false };
+        Object.defineProperty(throwing, 'state', { get: function() { throw new Error('gone'); } });
+        assert.equal(guard.isClientResetOnBun(live, throwing), true, 'a throwing state getter');
+    });
+
+    it('missing arguments never count', function() {
+        assert.equal(guard.isClientResetOnBun(null, { destroyed: false, state: { localClose: 1 } }), false);
+        assert.equal(guard.isClientResetOnBun(live, null), false);
+    });
+});
+
+describe('03c - the discriminator is picked by RUNTIME at load, never by feature (#B615)', function() {
+    it('RUNTIME_IS_BUN reflects this process, and isClientResetActive is the matching rule', function() {
+        var isBun = !!(process.versions && process.versions.bun);
+        assert.equal(guard.RUNTIME_IS_BUN, isBun);
+        assert.equal(guard.isClientResetActive, isBun ? guard.isClientResetOnBun : guard.isClientReset);
+        assert.notEqual(guard.isClientResetOnBun, guard.isClientReset, 'control: the two rules are distinct functions');
+    });
+
+    it('the node rule and the Bun rule disagree on the shapes that made #B615 — which is why the pick is by runtime', function() {
+        var live = { closed: false, destroyed: false };
+        var bun14PeerReset  = { destroyed: true,  state: { localClose: 1, remoteClose: 1 } }; // Bun 1.4: a received non-CANCEL reset
+        var bun13OwnDestroy = { destroyed: false, state: { localClose: 0, remoteClose: 1 } }; // Bun 1.2 / 1.3: the engine's own destroy
+        var nodePeerReset   = { destroyed: false, state: { localClose: 0, remoteClose: 1 } }; // node: a received reset — the SAME state as the Bun own-destroy: only the runtime tells them apart
+        assert.equal(guard.isClientReset(live, bun14PeerReset), false, 'the node rule misses it');
+        assert.equal(guard.isClientResetOnBun(live, bun14PeerReset), true);
+        assert.equal(guard.isClientReset(live, bun13OwnDestroy), true, 'the node rule over-counts it');
+        assert.equal(guard.isClientResetOnBun(live, bun13OwnDestroy), false);
+        assert.equal(guard.isClientReset(live, nodePeerReset), true);
+        assert.equal(guard.isClientResetOnBun(live, nodePeerReset), false, 'the Bun rule would MISS a node peer reset — never select it on node');
     });
 });
 
