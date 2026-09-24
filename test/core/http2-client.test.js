@@ -168,8 +168,11 @@ function onQueryErrorLogic(ctx) {
     var error     = ctx.error;
     var errorCode = error.code || (error.cause ? error.cause.code : null);
 
-    // Retry path for ERR_HTTP2_STREAM_ERROR or ECONNRESET (up to maxRetries)
-    if (ctx.retryCount < ctx.maxRetries && (errorCode === 'ERR_HTTP2_STREAM_ERROR' || errorCode === 'ECONNRESET')) {
+    // Retry path for ERR_HTTP2_STREAM_ERROR, ERR_HTTP2_SESSION_ERROR (#B612 — every
+    // in-flight stream of a session the server GOAWAY'd) or ECONNRESET (up to maxRetries).
+    // The #B53 method gate that conjoins this in the source is pinned by §10 on the source
+    // text; the replica keeps its narrower error-code scope.
+    if (ctx.retryCount < ctx.maxRetries && (errorCode === 'ERR_HTTP2_STREAM_ERROR' || errorCode === 'ERR_HTTP2_SESSION_ERROR' || errorCode === 'ECONNRESET')) {
         ctx.isFinished.value = true;
         ctx.cache.delete(ctx.sessKey);
         if (!ctx.client.destroyed) ctx.client.destroy();
@@ -698,6 +701,26 @@ describe('06 - onQueryError handler — stream error / connection error', functi
         assert.equal(result.action, 'retry');
     });
 
+    it('#B612 — ERR_HTTP2_SESSION_ERROR (server GOAWAY cut the in-flight stream) + retryCount < maxRetries → retry', function() {
+        var err = Object.assign(new Error('Session closed with error code 11'), { code: 'ERR_HTTP2_SESSION_ERROR' });
+        var ctx = makeCtx({ retryCount: 0, error: err });
+        var result = onQueryErrorLogic(ctx);
+        assert.equal(result.action, 'retry');
+        assert.ok(ctx.client.destroyed, 'the dead session is destroyed on the retry path');
+    });
+
+    it('#B612 — ERR_HTTP2_SESSION_ERROR + retryCount exhausted → callback with the STREAM_ERROR code, status 500', function() {
+        var err = Object.assign(new Error('Session closed with error code 2'), { code: 'ERR_HTTP2_SESSION_ERROR' });
+        var delivered = [];
+        var ctx = makeCtx({ retryCount: 2, error: err, callback: function(e) { delivered.push(e); } });
+        var result = onQueryErrorLogic(ctx);
+        assert.equal(delivered.length, 1, 'delivered once');
+        assert.equal(result.action, 'callback');
+        assert.equal(result.err.code, 'STREAM_ERROR');
+        assert.equal(result.err.status, 500);
+        assert.equal(result.err.retryable, false);
+    });
+
     it('ERR_HTTP2_STREAM_ERROR retry: client destroyed on retry path', function() {
         var err = Object.assign(new Error('stream'), { code: 'ERR_HTTP2_STREAM_ERROR' });
         var ctx = makeCtx({ retryCount: 0, error: err });
@@ -1069,9 +1092,9 @@ describe('10 - #B53 source structure — guard wired into every retry branch', f
         assert.equal(n, 2, 'expected the bare-budget guard form in exactly the timeout + close branches');
     });
 
-    it('HTTP/2 stream-error branch gates retry on the method guard', function() {
+    it('HTTP/2 stream-error branch gates retry on the method guard (whitelist: stream error, session error #B612, ECONNRESET)', function() {
         assert.ok(
-            src.indexOf("(errorCode === 'ERR_HTTP2_STREAM_ERROR' || errorCode === 'ECONNRESET') && isRetryableMethod(options[':method'], options.retryUnsafe)") > -1,
+            src.indexOf("(errorCode === 'ERR_HTTP2_STREAM_ERROR' || errorCode === 'ERR_HTTP2_SESSION_ERROR' || errorCode === 'ECONNRESET') && isRetryableMethod(options[':method'], options.retryUnsafe)") > -1,
             'the stream-error retry must also check the method guard');
     });
 

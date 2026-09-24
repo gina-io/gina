@@ -6598,7 +6598,50 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
         // ─────────────────────────────────────────────────────────────
         var _sendRequest = function _sendRequest() {
 
-        const req = client.request(headers);
+        // #B612 — a session that died between the cache read and this send (a GOAWAY that
+        // landed during the pre-flight window, a keepalive eviction, a drain) makes
+        // request() THROW synchronously — ERR_HTTP2_INVALID_SESSION on a destroyed session,
+        // ERR_HTTP2_GOAWAY_SESSION on a closed one (measured on node v25.3.0). No HEADERS
+        // frame was sent, so a retry on a fresh session is replay-safe for EVERY method
+        // (the pre-flight PING precedent, deliberately not gated on isRetryableMethod).
+        // Unguarded, the throw escaped: on the first attempt as an untyped error through
+        // query()'s own try, on a retry re-entry as an uncaughtException out of the
+        // listener or timer it ran in.
+        var req;
+        try {
+            req = client.request(headers);
+        } catch (_reqErr) {
+            cache.delete(sessKey);
+            var _rqIdx = self.serverInstance._http2Sessions.indexOf(sessKey);
+            if (_rqIdx !== -1) self.serverInstance._http2Sessions.splice(_rqIdx, 1);
+            _rqIdx = null;
+            try { if (!client.destroyed) client.destroy(); } catch (_destroyErr) {}
+            if (retryCount < HTTP2_MAX_RETRIES) {
+                console.warn('[HTTP2][RETRYING] Session '+ sessKey +' was gone before the request was sent ('+ (_reqErr && _reqErr.code || _reqErr) +') — retry '+ (retryCount + 1) +'/'+ HTTP2_MAX_RETRIES +' on a fresh session');
+                options.queryData = options._body || body;
+                var _rqNext = retryCount + 1;
+                if (_rqNext > 1) {
+                    return setTimeout(function() {
+                        handleHTTP2ClientRequest(browser, options, callback, _rqNext, isCritical);
+                    }, HTTP2_RETRY_DELAY_MS);
+                }
+                return handleHTTP2ClientRequest(browser, options, callback, _rqNext, isCritical);
+            }
+            var _sessGoneErr = new GinaHttp2Error('[HTTP2] Session to '+ authority +' was gone before the request could be sent ('+ (_reqErr && _reqErr.code || _reqErr) +'; exhausted '+ HTTP2_MAX_RETRIES +' retries)', {
+                code       : _http2ErrCodeMap[_reqErr && _reqErr.code] || 'STREAM_ERROR',
+                retryable  : false,
+                status     : 503,
+                retryCount : retryCount
+            });
+            _sessGoneErr.cause = _reqErr;
+            // H3: if non-critical, swallow and return (no stream exists — nothing to finalize)
+            if (_swallowIfNonCritical(_sessGoneErr)) return;
+            try {
+                return _ownAsyncCbRejection(callback(_sessGoneErr));
+            } catch (_syncCbErr) {
+                return _ownSyncCbThrow(_syncCbErr);
+            }
+        }
 
         let isFinished  = false;
         let data        = '';
@@ -6610,13 +6653,23 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
         // per-request `options.conf` clone made in router.js). Idempotent; invoked at every
         // NON-retry terminal below (retry paths client.destroy() the session, which tears the
         // old stream down). Never throws — cleanup must not break the response path.
+        // #B613 — the release is the timeout cancel + the listener drop, NOT a close(). At
+        // the `end` terminal `req.closed` is still false (measured on node v25.3.0: false on
+        // 3,000/3,000 completed streams), so the `req.close()` this helper used to run put an
+        // RST_STREAM(NO_ERROR) on the wire after EVERY completed response — and nghttp2 >= 1.57
+        // on the target counts those frames against its CVE-2023-44487 reset rate limit
+        // (1,000 burst, then 33/s): the cached session was GOAWAY'd with INTERNAL_ERROR after
+        // ~1,000 calls, silently on the server side. A settled stream closes itself within
+        // milliseconds of `end` (the listener drop alone releases it — measured); an errored
+        // or timed-out one is torn down by its own error or by the session destroy the retry
+        // paths run, so nothing here needs a close.
+        // replaced: try { if (!req.closed && !req.destroyed) { req.close(); } } catch (e) {}
         var _finalized = false;
         var _finalizeStream = function _finalizeStream() {
             if (_finalized) { return; }
             _finalized = true;
             try { req.setTimeout(0); } catch (e) {}
             try { req.removeAllListeners(); } catch (e) {}
-            try { if (!req.closed && !req.destroyed) { req.close(); } } catch (e) {}
         };
 
         // Capture the HTTP/2 response status code from the HEADERS frame.
@@ -6682,9 +6735,23 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
 
             // If the session closed exactly when we sent the request (Race Condition)
             // Retry with a fresh connection (up to HTTP2_MAX_RETRIES, with backoff)
-            if (retryCount < HTTP2_MAX_RETRIES && (errorCode === 'ERR_HTTP2_STREAM_ERROR' || errorCode === 'ECONNRESET') && isRetryableMethod(options[':method'], options.retryUnsafe)) {
+            // #B612 — a server GOAWAY (ENHANCE_YOUR_CALM from a rapid-reset guard,
+            // INTERNAL_ERROR from nghttp2's own reset limiter, NO_ERROR on a drain) fails
+            // every in-flight stream with ERR_HTTP2_SESSION_ERROR "Session closed with error
+            // code N" (measured on node v25.3.0) — the response is lost exactly as on a stream
+            // error, so the same safe-method / retryUnsafe rule (#B53) applies. It was not in
+            // this whitelist: 1,990 such errors produced 24 retries on the bundle-to-bundle
+            // scene (audit 2026-09-24), every other one a 500 to the caller.
+            if (retryCount < HTTP2_MAX_RETRIES && (errorCode === 'ERR_HTTP2_STREAM_ERROR' || errorCode === 'ERR_HTTP2_SESSION_ERROR' || errorCode === 'ECONNRESET') && isRetryableMethod(options[':method'], options.retryUnsafe)) {
                 isFinished = true; // Mark current attempt as done
                 cache.delete(sessKey);
+                // #B612 — drop the tracker entry too, as every other retry branch does: without
+                // it the key sat twice in _http2Sessions until the dead session's own close
+                // listener spliced one copy, and the HTTP2_SESSION_MAX shift() could then
+                // destroy the fresh replacement instead of a stale entry.
+                var _eIdx = self.serverInstance._http2Sessions.indexOf(sessKey);
+                if (_eIdx !== -1) self.serverInstance._http2Sessions.splice(_eIdx, 1);
+                _eIdx = null;
                 if (!client.destroyed) client.destroy();
                 options.queryData = options._body; // restore body for retry
                 var _eNext = retryCount + 1;
