@@ -149,6 +149,117 @@ function Couchbase(conn, infos) {
     };
 
     /**
+     * #B608 — resolves the environment scope this connector writes into its
+     * statements, and refuses a value outside the scope-name grammar.
+     *
+     * The scope is not a query parameter: `$scope` in a `.sql` file becomes the
+     * quoted literal `'<scope>'` in the statement TEXT, and the same value is
+     * stamped as `_scope` on every entity prototype — so on every inserted
+     * document. It used to reach both unvalidated (`connectors.json` is not
+     * schema-checked at boot, and `NODE_SCOPE` is only checked to be a
+     * registered scope name), so a quote, a backslash or a `$` in it produced a
+     * malformed or a different statement, and a wrong stamp on every document.
+     *
+     * Precedence is unchanged: the connector entry's `scope` when it is truthy,
+     * `NODE_SCOPE` otherwise — an empty `""` entry still falls back, as the
+     * historical `infos.scope || process.env.NODE_SCOPE` did. The grammar
+     * `^[A-Za-z0-9_./-]+$` admits the scope names gina ships and documents
+     * (`local`, `beta`, `production`, `testing`, and both documented `scope:add`
+     * forms, `<scope>` and `<bundle>/<scope>`), and each of its characters is
+     * inert inside a single-quoted N1QL string literal, so the emitted statement
+     * is byte-identical to before for every scope that passes. `scope:add` checks
+     * only a name's first character, so a name outside the grammar can be
+     * registered — it is refused here, where it would reach statement text.
+     *
+     * @param {*} configScope - The connector entry's `scope` (`connectors.json`).
+     * @param {*} envScope - `process.env.NODE_SCOPE`.
+     * @returns {string} The resolved scope name.
+     * @throws {Error} `GINA_COUCHBASE_INVALID_SCOPE`, naming the refused value and where it came from.
+     * @private
+     *
+     * @example
+     * resolveScope(undefined, 'production'); // 'production'
+     * resolveScope('beta', 'production');    // 'beta' — the connector entry wins
+     * resolveScope('', 'local');             // 'local' — an empty entry falls back
+     * resolveScope(undefined, 'frontend/staging'); // 'frontend/staging' — the <bundle>/<scope> form
+     * resolveScope('two words', 'local');    // throws — err.code === 'GINA_COUCHBASE_INVALID_SCOPE'
+     */
+    var resolveScope = function(configScope, envScope) {
+        var fromConfig  = !!configScope
+            , value     = fromConfig ? configScope : envScope
+            , shown     = null
+        ;
+
+        if ( typeof(value) == 'string' && /^[A-Za-z0-9_.\/-]+$/.test(value) ) {
+            return value;
+        }
+
+        // JSON-quoted and truncated: whitespace and control characters stay visible,
+        // and nothing in the value can start a new log line.
+        shown = ( typeof(value) == 'string' )
+            ? JSON.stringify( value.length > 64 ? value.substring(0, 64) + '…' : value )
+            : '(' + ( value === null ? 'null' : typeof(value) ) + ')';
+
+        var _err = new Error('invalid scope ' + shown + ' from '
+            + ( fromConfig ? 'connectors.json "scope"' : 'NODE_SCOPE (the bundle\'s scope)' )
+            + ': a scope name must be a non-empty string of letters, digits, `_`, `.`, `-` or `/` '
+            + '(^[A-Za-z0-9_./-]+$). It is written into every N1QL statement as a quoted literal and '
+            + 'stamped on every inserted document, so it is refused rather than escaped.');
+        _err.code = 'GINA_COUCHBASE_INVALID_SCOPE';
+        throw _err;
+    };
+
+    /**
+     * #B608 — refuses a field-path key that is not an identifier path.
+     *
+     * A `$N` written in field-path position (`doc.flags.$1 = true`,
+     * `doc.counters.$2 = $3`) cannot be bound as a query parameter — N1QL takes
+     * no parameter as a field name — so the connector splices the caller's
+     * argument into the statement TEXT after the dot. Only an identifier path
+     * may be spliced: `identifier(.identifier)*`, each identifier
+     * `[A-Za-z_][A-Za-z0-9_]*`. A dotted value keeps producing the multi-segment
+     * path it always produced. Anything else — whitespace, quotes, backticks,
+     * brackets, operators, a leading digit, `$`, a non-string — is refused before
+     * dispatch: most of those broke the statement or changed its structure, and
+     * the few that could still form a valid path (a backtick-escaped name, an
+     * array index, a `$` inside a name) were never part of the documented
+     * contract, which writes the key as a literal identifier. `$` is excluded
+     * although N1QL allows it inside identifiers: no key needs it, and it is the
+     * connector's own placeholder syntax.
+     *
+     * @param {*} value - The caller's argument for the field-path placeholder.
+     * @param {string} placeholder - The placeholder as declared in the `.sql` file (`$2`).
+     * @param {string} entityName - Entity the query belongs to (message only).
+     * @param {string} name - Query method name (message only).
+     * @param {string} source - Path of the backing `.sql` file (message only).
+     * @returns {TypeError|null} A ready-to-surface error, or `null` when the value is an identifier path.
+     * @private
+     *
+     * @example
+     * getInvalidFieldPathError('jwtLogin', '$2', 'user', 'setFlag', src); // null — spliced as `.jwtLogin`
+     * getInvalidFieldPathError('meta.count', '$2', 'user', 'setFlag', src); // null — spliced as `.meta.count`
+     * var err = getInvalidFieldPathError('two words', '$2', 'user', 'setFlag', src);
+     * if (err) { return cb(err); } // err.code === 'GINA_COUCHBASE_INVALID_FIELD_PATH'
+     */
+    var getInvalidFieldPathError = function(value, placeholder, entityName, name, source) {
+        if ( typeof(value) == 'string' && /^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$/.test(value) ) {
+            return null;
+        }
+
+        // JSON-quoted and truncated, as in resolveScope(); a non-string shows its type only.
+        var shown = ( typeof(value) == 'string' )
+            ? JSON.stringify( value.length > 64 ? value.substring(0, 64) + '…' : value )
+            : '(' + ( value === null ? 'null' : typeof(value) ) + ')';
+
+        var _err = new TypeError('[N1QL][ ' + entityName + '#' + name + '() ] parameter ' + placeholder
+            + ' is a field-path key (`.' + placeholder + '`), so its value is written into the statement text: '
+            + 'it must be a string of identifiers separated by dots — identifier(.identifier)*, each identifier '
+            + '[A-Za-z_][A-Za-z0-9_]* — and got ' + shown + '. Please refer to [ ' + source + ' ]');
+        _err.code = 'GINA_COUCHBASE_INVALID_FIELD_PATH';
+        return _err;
+    };
+
+    /**
      * #B243 — guards the assembled N1QL parameter list against values the
      * Couchbase SDK cannot serialize. This defends against a PROCESS ABORT,
      * not a normal validation failure.
@@ -335,7 +446,9 @@ function Couchbase(conn, infos) {
                     Entity.prototype.bundle         = infos.bundle;
                     Entity.prototype.database       = infos.database;
                     Entity.prototype._collection    = entityName;
-                    Entity.prototype._scope         = infos.scope || process.env.NODE_SCOPE;
+                    // #B608 — was `infos.scope || process.env.NODE_SCOPE`, unvalidated: now the
+                    // value resolveScope() resolved and validated once at factory load.
+                    Entity.prototype._scope         = resolvedScope;
                     Entity.prototype._filename      = _(path + '/' +files[f], true);
 
                     // extra CRUD methods
@@ -601,7 +714,8 @@ function Couchbase(conn, infos) {
                     entities[entityName].prototype.model          = infos.model;
                     entities[entityName].prototype.bundle         = infos.bundle;
                     entities[entityName].prototype._collection    = entityName;
-                    entities[entityName].prototype._scope         = infos.scope || process.env.NODE_SCOPE;
+                    // #B608 — the validated value, as on the model entities above.
+                    entities[entityName].prototype._scope         = resolvedScope;
                     entities[entityName].prototype._filename      = _( __dirname + '/lib/n1ql.js', true );
                     // public SDK Cluster accessor — parity with model entities so a
                     // consumer never hits an asymmetric `undefined` (see getCluster()).
@@ -732,6 +846,17 @@ function Couchbase(conn, infos) {
                                     var paramKeyEsc = params[i].replace(/([$%]+)/, '\\$1');
                                     re = new RegExp('\\.'+ paramKeyEsc + '(?![0-9])');
                                     if ( re.test(qStr) ) {
+                                        // #B608 — args[i] is about to be written into the statement text
+                                        // after the dot (a field name cannot be bound), so only an identifier
+                                        // path may pass. Refused before dispatch and delivered like #B243:
+                                        // to the callback when there is one, thrown otherwise.
+                                        var _fieldPathErr = getInvalidFieldPathError(args[i], params[i], entityName, name, source);
+                                        if (_fieldPathErr) {
+                                            if (_mainCallback) {
+                                                return _mainCallback(_fieldPathErr);
+                                            }
+                                            throw _fieldPathErr;
+                                        }
                                         p[key] = args[key];
                                         // global + dollar-safe function replacer: a plain string replacement
                                         // would expand $&/$`/$' inside a dynamic field-key value.
@@ -891,8 +1016,14 @@ function Couchbase(conn, infos) {
                     // Replace $scope placeholder with the connector's resolved scope value.
                     // Uses a string literal (not a positional param) so existing $1, $2…
                     // numbering is preserved and no call-site changes are needed.
+                    // #B608 — the value is `resolvedScope`, validated at factory load by
+                    // resolveScope(), so the literal cannot carry a quote, a backslash or a `$`.
+                    // `\b` leaves a longer placeholder such as `$scopeId` alone (it used to become
+                    // `'local'Id`), and the function replacer keeps the value from ever being read
+                    // as a replacement pattern. The replaced line read:
+                    // query = query.replace(/\$scope/g, "'" + (infos.scope || process.env.NODE_SCOPE) + "'");
                     if ( query.indexOf('$scope') > -1 ) {
-                        query = query.replace(/\$scope/g, "'" + (infos.scope || process.env.NODE_SCOPE) + "'");
+                        query = query.replace(/\$scope\b/g, function () { return "'" + resolvedScope + "'"; });
                     }
                     // #B243 — refuse a parameter the SDK cannot serialize BEFORE dispatch.
                     // This is the single site where `queryOptions.parameters` is assigned,
@@ -912,32 +1043,50 @@ function Couchbase(conn, infos) {
 
                     queryOptions.parameters = queryParams;
 
-                    // JUNE 2021 patch
-                    // FTS (Full Text Search): N1QL parameters are not interpolated into
-                    // SEARCH() predicates by the SDK, so substitute them into the statement manually.
-                    // looking for FTS (Full Text Search)
-                    var ftsClause = query.match(/(search\(|search\s+\().*\)/i);
-                    if (ftsClause && Array.isArray(queryParams) ) {
-                        var originalFtsClauses = JSON.clone(ftsClause), _queryParams = null;
-
-                        if ( Array.isArray(queryOptions.parameters) ) {
-                            _queryParams = queryOptions.parameters;
-                        }
-
-                        for (let s = 0, sLen = ftsClause.length; s < sLen; s++) {
-                            if ( !/\)$/.test(ftsClause[s]) ) continue;
-                            for (let p = 0, pLen = _queryParams.length; p < pLen; p++) {
-                                if ( typeof(_queryParams[p]) == 'function' ) continue;
-                                let searchValue = ( /^(true|false)$/i.test(_queryParams[p]) ) ? _queryParams[p] : '"'+_queryParams[p]+'"';
-                                ftsClause[s] = ftsClause[s].replace( new RegExp('\\$'+ (p+1),'g'), searchValue)
-                            }
-
-                            query = query.replace(originalFtsClauses[s], ftsClause[s]);
-                        }
-
-                        originalFtsClauses = null;
-                    }
-                    ftsClause = null;
+                    // #B608 — the JUNE 2021 SEARCH() substitution below is RETIRED (commented out, not
+                    // deleted). It spliced every positional value into the statement text as
+                    // '"' + value + '"': unescaped (a `"` in a search term made the statement malformed),
+                    // through a string replacement (`$&` in a value expanded), with no digit boundary
+                    // (`$1` also rewrote `$10`), over a greedy span running to the statement's LAST `)`,
+                    // so value parameters that merely FOLLOWED the SEARCH() call were re-typed as string
+                    // literals — and every distinct search term compiled its own prepared plan.
+                    // Its premise was wrong: the query service binds a parameter used as SEARCH()'s
+                    // query argument when it resolves to a string or an object (a complete search
+                    // request with the parameter nested inside included). Couchbase documents it for
+                    // every server version that has SEARCH() (6.5 onward); measured on Server 8.0 on
+                    // ad-hoc and prepared statements, with the Search index still serving the plan.
+                    // The values are already in `queryOptions.parameters` (assigned just above), so
+                    // `$N` now stays in the statement and the server binds it. Behaviour changes, in the
+                    // migration guide: a non-string search term is no longer stringified; a value
+                    // parameter after SEARCH() keeps its real type; one prepared plan per statement.
+                    // The commented-out SDK v2 copy of this block at the top of register() is removed.
+                    //
+                    // // JUNE 2021 patch
+                    // // FTS (Full Text Search): N1QL parameters are not interpolated into
+                    // // SEARCH() predicates by the SDK, so substitute them into the statement manually.
+                    // // looking for FTS (Full Text Search)
+                    // var ftsClause = query.match(/(search\(|search\s+\().*\)/i);
+                    // if (ftsClause && Array.isArray(queryParams) ) {
+                    //     var originalFtsClauses = JSON.clone(ftsClause), _queryParams = null;
+                    //
+                    //     if ( Array.isArray(queryOptions.parameters) ) {
+                    //         _queryParams = queryOptions.parameters;
+                    //     }
+                    //
+                    //     for (let s = 0, sLen = ftsClause.length; s < sLen; s++) {
+                    //         if ( !/\)$/.test(ftsClause[s]) ) continue;
+                    //         for (let p = 0, pLen = _queryParams.length; p < pLen; p++) {
+                    //             if ( typeof(_queryParams[p]) == 'function' ) continue;
+                    //             let searchValue = ( /^(true|false)$/i.test(_queryParams[p]) ) ? _queryParams[p] : '"'+_queryParams[p]+'"';
+                    //             ftsClause[s] = ftsClause[s].replace( new RegExp('\\$'+ (p+1),'g'), searchValue)
+                    //         }
+                    //
+                    //         query = query.replace(originalFtsClauses[s], ftsClause[s]);
+                    //     }
+                    //
+                    //     originalFtsClauses = null;
+                    // }
+                    // ftsClause = null;
 
 
 
@@ -1160,27 +1309,6 @@ function Couchbase(conn, infos) {
                      * @returns {void}
                      */
                     var register = async function (trigger, queryParams, onQueryCallback) {
-                        // // JUNE 2021 patch
-                        // // Adding support for FTS since it is not implemented in sdkVersion 2:
-                        // // variables not replaced by value
-                        // // looking for FTS (Full Text Search)
-                        // var ftsClause = query.options.statement.match(/(search\(|search\s+\().*\)/i);
-                        // if (ftsClause && Array.isArray(queryParams) ) {
-                        //     var originalFtsClauses = JSON.clone(ftsClause);
-                        //     for (let s = 0, sLen = ftsClause.length; s < sLen; s++) {
-                        //         if ( !/\)$/.test(ftsClause[s]) ) continue;
-                        //         for (let p = 0, pLen = queryParams.length; p < pLen; p++) {
-                        //             if ( typeof(queryParams[p]) == 'function' ) continue;
-                        //             let searchValue = ( /^(true|false)$/i.test(queryParams[p]) ) ? queryParams[p] : '"'+queryParams[p]+'"';
-                        //             ftsClause[s] = ftsClause[s].replace( new RegExp('\\$'+ (p+1),'g'), searchValue)
-                        //         }
-                        //         query.options.statement = query.options.statement.replace(originalFtsClauses[s], ftsClause[s]);
-                        //     }
-                        //     originalFtsClauses = null;
-                        // }
-                        // ftsClause = null;
-
-
                         // #B429 — ONE dispatch path. `cb` is gone from the signature: it was
                         // always the caller's settlement hook, and settlement no longer happens
                         // here. The explicit trailing callback is already in onQueryCallback's
@@ -1776,6 +1904,26 @@ function Couchbase(conn, infos) {
         return resolveCluster(this.getConnection());
     };
 
+
+    // #B608 — resolve the scope ONCE, before init() stamps it on the entity prototypes
+    // and before any query writes it into a statement (see resolveScope()). Called here
+    // rather than at the top of the factory so every factory-level `var x = function`
+    // above is already assigned. A refusal ends the boot through the explicit terminal
+    // (the gna.js port-guard / #B57 idiom) instead of a bare throw: this factory runs
+    // inside the model layer's ready handler, which an async connector reaches from a
+    // connect() nothing awaits, so a throw here surfaces as an unhandled rejection that
+    // is only logged (read from the code, #B617) — and the bundle would keep booting
+    // with every query built on a scope it should have refused.
+    var resolvedScope = null;
+    try {
+        resolvedScope = resolveScope(infos.scope, process.env.NODE_SCOPE);
+    } catch (_scopeErr) {
+        var _scopeMsg = '[ CONNECTOR ][ couchbase ] connector [ ' + infos.model + ' ] of bundle [ '
+            + infos.bundle + ' ] refuses to load (' + _scopeErr.code + '): ' + _scopeErr.message;
+        console.emerg(_scopeMsg);
+        try { fs.writeSync(2, _scopeMsg + '\n'); } catch (_e) { /* best-effort */ }
+        process.exit(1);
+    }
 
     return init(conn, infos)
 }
