@@ -138,14 +138,15 @@
     // initialWindowSize        : flow-control window in bytes (Node default: 65535, Gina default: 655350 = 10×).
     // maxSessionRejectedStreams : RST flood defense — CVE-2019-9514, CVE-2023-44487 (default: 100).
     // maxSessionInvalidFrames  : CONTINUATION flood defense — CVE-2024-27316, CVE-2024-27983 (default: 1000).
-    // maxStreamsPerSecond       : rapid-reset rate limit — max new streams per session per rolling 1s window before GOAWAY + close — CVE-2023-44487 (default: 200).
+    // maxStreamResetsPerSecond  : rapid-reset guard — max streams a CLIENT may cut short (RST_STREAM before the response completed) per session per rolling 1s window before GOAWAY + close — CVE-2023-44487 (default: 200). Replaces the pre-0.6.33 `maxStreamsPerSecond`, which counted NEW streams and tripped on a sibling bundle's own multiplexed calls; that key is no longer read (a boot warning names it).
+    // streamResetBurst / streamResetRate : the runtime's OWN frame-level reset limit (nghttp2, the primary rapid-reset guard: a 1,000-reset burst then 33/s, closing the session with GOAWAY INTERNAL_ERROR); both must be set together to apply — leave both out to keep the runtime defaults.
     // enableConnectProtocol     : RFC 8441 extended CONNECT (WebSocket over HTTP/2) — strict boolean opt-in; advertised on both https and cleartext h2c bundles (default: false).
     "http2Options": {
       "maxConcurrentStreams": 256,
       "initialWindowSize": 655350,
       "maxSessionRejectedStreams": 100,
       "maxSessionInvalidFrames": 1000,
-      "maxStreamsPerSecond": 200,
+      "maxStreamResetsPerSecond": 200,
       "enableConnectProtocol": false
     },
     // Stale built-release watch (#RWATCH) — LOCAL production rehearsals only.

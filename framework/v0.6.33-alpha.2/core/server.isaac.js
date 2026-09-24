@@ -616,12 +616,33 @@ function ServerEngineClass(options) {
         // #H3 — CONTINUATION flood defense (CVE-2024-27316, CVE-2024-27983)
         // #H7 — configurable via settings.json http2Options.maxSessionInvalidFrames (default 1000)
         http2Options.maxSessionInvalidFrames = _h2Opts.maxSessionInvalidFrames || 1000;
-        // #H9 — rapid-reset rate limit: max new streams accepted per session per
-        // rolling 1s window before the session is GOAWAY'd + closed. Defends against
-        // CVE-2023-44487-style rapid-reset floods (open then immediately RST streams
-        // faster than maxConcurrentStreams alone can throttle). Configurable via
-        // settings.json http2Options.maxStreamsPerSecond (default 200).
-        var _maxStreamsPerSec = _h2Opts.maxStreamsPerSecond || 200;
+        // #B611 — the runtime's OWN reset rate limit is the primary rapid-reset guard:
+        // nghttp2 >= 1.57 closes a session with GOAWAY(INTERNAL_ERROR) — silently, no
+        // server-side event — after a 1,000-reset burst, then 33/s (measured on node
+        // v25.3.0). Node exposes the two knobs as server options, and both must be
+        // set together for either to apply (node's documented contract), so they are
+        // passed through only as a pair; the defaults stay the runtime's.
+        if (typeof _h2Opts.streamResetBurst === 'number' && typeof _h2Opts.streamResetRate === 'number') {
+            http2Options.streamResetBurst = _h2Opts.streamResetBurst;
+            http2Options.streamResetRate  = _h2Opts.streamResetRate;
+        }
+        // #H9 — rapid-reset guard: max CLIENT stream resets per session per rolling
+        // 1s window before the session is GOAWAY'd + closed (CVE-2023-44487 is a
+        // client opening streams and cancelling them before the answer). Counting
+        // policy + the measured event model: ./server.isaac.rapid-reset.js.
+        // #B611 — it used to count NEW streams, which GOAWAY'd a sibling bundle's
+        // own multiplexed `self.query()` session above 200 calls/s (17% HTTP 500 at
+        // c=50 with default settings, audit 2026-09-24). Configurable via
+        // settings.json http2Options.maxStreamResetsPerSecond (default 200); the
+        // pre-0.6.33 key `maxStreamsPerSecond` is no longer read — warn, don't honour:
+        // a raised value left over from the self-DoS workaround must not quietly
+        // widen the reset limit.
+        // replaced: var _maxStreamsPerSec = _h2Opts.maxStreamsPerSecond || 200;
+        var _rapidReset      = require('./server.isaac.rapid-reset');
+        var _maxResetsPerSec = _rapidReset.resolveMaxResetsPerSecond(_h2Opts);
+        if (typeof _h2Opts.maxStreamsPerSecond !== 'undefined') {
+            console.warn('[ SERVER ] http2Options.maxStreamsPerSecond is no longer read (0.6.33): the rapid-reset guard counts client stream RESETS per second, not new streams — set http2Options.maxStreamResetsPerSecond (default '+ _rapidReset.DEFAULT_MAX_RESETS_PER_SECOND +') and remove the old key');
+        }
         var http2   = require('http2');
         // h2c flood-defense parity: the cleartext branches receive the same
         // `http2Options` as the https branch. On non-https schemes the object
@@ -676,31 +697,27 @@ function ServerEngineClass(options) {
             session.on('stream', (stream) => {
                 _h2Metrics.totalStreams++;
 
-                // #H9 — rapid-reset rate limit. Count new streams in a rolling 1s
-                // window per session; on breach send GOAWAY(ENHANCE_YOUR_CALM) and
-                // close the session so a flood cannot exhaust the worker.
-                var _now = Date.now();
-                if (typeof session._streamWindowStart === 'undefined' || (_now - session._streamWindowStart) >= 1000) {
-                    session._streamWindowStart = _now;
-                    session._streamWindowCount = 0;
-                }
-                session._streamWindowCount++;
-                if (session._streamWindowCount > _maxStreamsPerSec) {
-                    _h2Metrics.rapidResetBlocked++;
-                    console.warn('[ SERVER ] HTTP/2 rapid-reset rate limit exceeded — ' + session._streamWindowCount + ' streams in <1s (limit ' + _maxStreamsPerSec + '); sending GOAWAY + closing session');
-                    session.goaway(http2.constants.NGHTTP2_ENHANCE_YOUR_CALM);
-                    session.close();
-                    // Deliberately return before registering the per-stream
-                    // `rstCode` listener below: the session is being torn down,
-                    // so the breaching stream needs no per-stream accounting.
-                    // Breached streams are counted by `rapidResetBlocked`, not
-                    // `rstCount` — the two metrics stay cleanly separated
-                    // (proactive block vs. observed client RST_STREAM).
-                    return;
-                }
-
-                stream.on('rstCode', (code) => {
-                    if (code !== 0) _h2Metrics.rstCount++;
+                // #H9 / #B611 — rapid-reset guard: count the streams THIS CLIENT cuts
+                // short before the response completed (a `RST_STREAM` of any code, or
+                // the peer destroying the stream) in a rolling 1s window per session;
+                // past `maxStreamResetsPerSecond` send GOAWAY(ENHANCE_YOUR_CALM) and
+                // close the session. New streams are no longer counted — they are
+                // bounded by maxConcurrentStreams — so a multiplexing caller never trips
+                // it. Engine-side aborts (a server destroy, the teardown this very
+                // GOAWAY causes) are told apart inside the guard and not counted.
+                // #B614 — `rstCount` is fed by the same signal: the `stream.on('rstCode')`
+                // listener that used to feed it never fired (`rstCode` is a property, not
+                // an event), so the metric had read 0 since #H9 shipped.
+                _rapidReset.attach(session, stream, _maxResetsPerSec, {
+                    onReset  : function onClientReset() {
+                        _h2Metrics.rstCount++;
+                    },
+                    onBreach : function onRapidResetBreach(count, limit) {
+                        _h2Metrics.rapidResetBlocked++;
+                        console.warn('[ SERVER ] HTTP/2 rapid-reset rate limit exceeded — ' + count + ' client stream resets in <1s (limit ' + limit + '); sending GOAWAY + closing session');
+                        session.goaway(http2.constants.NGHTTP2_ENHANCE_YOUR_CALM);
+                        session.close();
+                    }
                 });
             });
 
@@ -734,8 +751,9 @@ function ServerEngineClass(options) {
         // to previous releases (plain CONNECT → compat 405; extended CONNECT →
         // rejected as malformed before reaching the app, since
         // SETTINGS_ENABLE_CONNECT_PROTOCOL was never advertised).
-        // #H9 composition: the per-session `stream` accounting above still counts
-        // every CONNECT stream — a rapid-reset flood of CONNECT streams trips the
+        // #H9 composition: the per-session guard above is armed on every CONNECT
+        // stream too — a CONNECT stream the client resets before it is answered
+        // counts like any other, so a rapid-reset flood of CONNECT streams trips the
         // same GOAWAY teardown, which destroys any just-accepted stream with it.
         if (_enableConnectProtocol) {
             server.on('connect', (request, response) => {

@@ -416,36 +416,74 @@ describe('04b - HTTP/2 session metrics: counter logic', function() {
 });
 
 
-// 07 — HTTP/2 rapid-reset rate limiter source structure (#H9)
-describe('07 - HTTP/2 rapid-reset rate limiter source structure (#H9)', function() {
+// 07 — HTTP/2 rapid-reset guard wiring (#H9, re-scoped by #B611; #B614)
+// The counting policy lives in core/server.isaac.rapid-reset.js and is tested LIVE
+// against a bare node:http2 server in test/core/h2-rapid-reset-guard.test.js (the
+// former §07b sliding-window replica cases run there against the real function).
+// This section pins how server.isaac.js wires it: the resolved limit, the legacy-key
+// warning, the per-stream attach inside the session 'stream' listener, and the two
+// hooks that own the metrics and the GOAWAY teardown.
+describe('07 - HTTP/2 rapid-reset guard wiring in the session stream listener (#H9 / #B611 / #B614)', function() {
 
     function getSrc() { return src || (src = fs.readFileSync(SOURCE, 'utf8')); }
+    function stripLineComments(text) {
+        return text.split('\n').filter(function (l) { return !/^\s*\/\//.test(l); }).join('\n');
+    }
 
-    it('source defaults maxStreamsPerSecond to 200', function() {
-        assert.ok(
-            getSrc().indexOf('_h2Opts.maxStreamsPerSecond || 200') > -1,
-            'expected `_h2Opts.maxStreamsPerSecond || 200` — configurable rapid-reset rate limit'
-        );
-    });
-
-    it('source tracks a per-session rolling window (_streamWindowStart / _streamWindowCount)', function() {
+    it('source requires the guard module and resolves the limit from http2Options.maxStreamResetsPerSecond', function() {
         var s = getSrc();
-        assert.ok(s.indexOf('session._streamWindowStart') > -1, 'expected `session._streamWindowStart` window state');
-        assert.ok(s.indexOf('session._streamWindowCount') > -1, 'expected `session._streamWindowCount` window state');
+        assert.ok(s.indexOf("var _rapidReset      = require('./server.isaac.rapid-reset');") > -1, 'expected the guard module require');
+        assert.ok(s.indexOf('var _maxResetsPerSec = _rapidReset.resolveMaxResetsPerSecond(_h2Opts);') > -1,
+            'expected the limit resolved by the module from the http2Options block');
     });
 
-    it('source resets the rolling window when 1000ms have elapsed', function() {
-        assert.ok(
-            getSrc().indexOf('session._streamWindowStart) >= 1000') > -1,
-            'expected a `>= 1000` rolling-window reset check'
-        );
+    it('source no longer counts NEW streams (#B611): no live window state on the stream count, no maxStreamsPerSecond fallback', function() {
+        var live = stripLineComments(getSrc());
+        assert.equal(live.indexOf('session._streamWindowCount'), -1, 'the new-stream window counter is gone');
+        assert.equal(live.indexOf('maxStreamsPerSecond || 200'), -1, 'the old key is not read as the limit');
+        assert.ok(getSrc().indexOf('maxStreamsPerSecond || 200') > -1,
+            'control: the retired line survives as a `// replaced:` comment, so the strip above is a real strip');
     });
 
-    it('source breaches when the window count exceeds _maxStreamsPerSec', function() {
-        assert.ok(
-            getSrc().indexOf('session._streamWindowCount > _maxStreamsPerSec') > -1,
-            'expected `session._streamWindowCount > _maxStreamsPerSec` breach check'
-        );
+    it('source warns once at engine creation when the pre-0.6.33 key maxStreamsPerSecond is still set, and does not honour it', function() {
+        var s = getSrc();
+        var warnIdx = s.indexOf("if (typeof _h2Opts.maxStreamsPerSecond !== 'undefined') {");
+        assert.ok(warnIdx > -1, 'expected the legacy-key presence check');
+        var warnBlock = s.slice(warnIdx, warnIdx + 700);
+        assert.ok(warnBlock.indexOf('is no longer read') > -1, 'the warning says the key is no longer read');
+        assert.ok(warnBlock.indexOf('maxStreamResetsPerSecond') > -1, 'the warning names the replacement key');
+        var resolveIdx = s.indexOf('_rapidReset.resolveMaxResetsPerSecond(_h2Opts)');
+        assert.ok(resolveIdx > -1 && resolveIdx < warnIdx, 'the limit is resolved by the module BEFORE the warning (the old key never feeds it)');
+    });
+
+    it('source passes the runtime\'s own reset-limit knobs through only as a pair (streamResetBurst + streamResetRate)', function() {
+        var s = getSrc();
+        var idx = s.indexOf("if (typeof _h2Opts.streamResetBurst === 'number' && typeof _h2Opts.streamResetRate === 'number') {");
+        assert.ok(idx > -1, 'both knobs gated together — node applies neither unless both are set');
+        var block = s.slice(idx, idx + 300);
+        assert.ok(block.indexOf('http2Options.streamResetBurst = _h2Opts.streamResetBurst;') > -1);
+        assert.ok(block.indexOf('http2Options.streamResetRate  = _h2Opts.streamResetRate;') > -1);
+    });
+
+    it('source arms the guard on every stream inside the session stream listener, before the goaway listener', function() {
+        var s = getSrc();
+        var streamIdx = s.indexOf("session.on('stream'");
+        var attachIdx = s.indexOf('_rapidReset.attach(session, stream, _maxResetsPerSec, {', streamIdx);
+        var goawayIdx = s.indexOf("session.on('goaway'", streamIdx);
+        assert.ok(streamIdx > -1 && attachIdx > streamIdx && goawayIdx > attachIdx,
+            'expected `_rapidReset.attach(session, stream, _maxResetsPerSec, {…})` between the stream and goaway listeners');
+    });
+
+    it('source feeds rstCount from the guard\'s onReset hook — the rstCode EVENT listener is gone (#B614: rstCode is a property, that listener never fired)', function() {
+        var s = getSrc();
+        var attachIdx = s.indexOf('_rapidReset.attach(session, stream, _maxResetsPerSec, {');
+        var hooks = s.slice(attachIdx, attachIdx + 1200);
+        var resetIdx = hooks.indexOf('onReset  : function onClientReset() {');
+        assert.ok(resetIdx > -1, 'expected the onReset hook');
+        assert.ok(hooks.indexOf('_h2Metrics.rstCount++', resetIdx) > -1, 'onReset increments rstCount');
+        assert.equal(stripLineComments(s).indexOf("stream.on('rstCode'"), -1, 'no live rstCode event listener');
+        assert.ok(s.indexOf("stream.on('rstCode')") > -1 || s.indexOf('`rstCode` is a property') > -1,
+            'control: the retired listener is named in a comment at the site, so the strip above is a real strip');
     });
 
     it('source sends GOAWAY with NGHTTP2_ENHANCE_YOUR_CALM on breach', function() {
@@ -467,11 +505,12 @@ describe('07 - HTTP/2 rapid-reset rate limiter source structure (#H9)', function
         assert.ok(getSrc().indexOf('rapidResetBlocked') > -1, 'expected a `rapidResetBlocked` counter');
     });
 
-    it('source increments rapidResetBlocked on breach', function() {
-        assert.ok(
-            getSrc().indexOf('_h2Metrics.rapidResetBlocked++') > -1,
-            'expected `_h2Metrics.rapidResetBlocked++` in the breach branch'
-        );
+    it('source increments rapidResetBlocked on breach, inside the guard\'s onBreach hook', function() {
+        var s = getSrc();
+        var breachIdx = s.indexOf('onBreach : function onRapidResetBreach(count, limit) {');
+        assert.ok(breachIdx > -1, 'expected the onBreach hook');
+        var blockedIdx = s.indexOf('_h2Metrics.rapidResetBlocked++', breachIdx);
+        assert.ok(blockedIdx > -1 && (blockedIdx - breachIdx) < 200, 'expected `_h2Metrics.rapidResetBlocked++` inside the onBreach hook');
     });
 
     it('source exposes rapidResetBlocked in the /_gina/info http2 payload', function() {
@@ -481,118 +520,32 @@ describe('07 - HTTP/2 rapid-reset rate limiter source structure (#H9)', function
         );
     });
 
-    it('source warns in the [ SERVER ] style on breach', function() {
+    it('source warns in the [ SERVER ] style on breach, naming client stream resets', function() {
         assert.ok(
             getSrc().indexOf('[ SERVER ] HTTP/2 rapid-reset rate limit exceeded') > -1,
             'expected a `[ SERVER ] HTTP/2 rapid-reset rate limit exceeded` console.warn'
         );
+        assert.ok(getSrc().indexOf('client stream resets in <1s (limit') > -1, 'the warning counts client stream resets, not streams');
+    });
+
+    it('the settings templates carry the new key and not the retired one', function() {
+        var tplPath = path.join(require('../fw'), 'core', 'template', 'conf', 'settings.json');
+        var bpPath  = path.join(require('../fw'), 'core', 'template', 'boilerplate', 'bundle', 'config', 'settings.server.json');
+        var tpl = fs.readFileSync(tplPath, 'utf8');
+        var bp  = fs.readFileSync(bpPath, 'utf8');
+        assert.ok(tpl.indexOf('"maxStreamResetsPerSecond": 200') > -1, 'conf/settings.json ships maxStreamResetsPerSecond: 200');
+        assert.equal(tpl.indexOf('"maxStreamsPerSecond":'), -1, 'conf/settings.json no longer ships the retired key');
+        assert.ok(bp.indexOf('"maxStreamResetsPerSecond": 200') > -1, 'the boilerplate example names the new key');
+        assert.equal(bp.indexOf('"maxStreamsPerSecond":'), -1, 'the boilerplate example no longer names the retired key');
+        assert.ok(tpl.indexOf('"maxConcurrentStreams": 256') > -1, 'control: the sibling key is still there');
     });
 
 });
 
-
-// 07b — HTTP/2 rapid-reset rate limiter pure logic
-describe('07b - HTTP/2 rapid-reset rate limiter: sliding-window logic', function() {
-
-    // Replica of the #H9 maxStreamsPerSecond fallback in server.isaac.js
-    function resolveMaxStreamsPerSec(optionsHttp2Options) {
-        var _h2Opts = (optionsHttp2Options && typeof optionsHttp2Options === 'object') ? optionsHttp2Options : {};
-        return _h2Opts.maxStreamsPerSecond || 200;
-    }
-
-    // Replica of the #H9 rolling-1s-window counter in session.on('stream').
-    // `session` is a plain object mutated in place (mirrors session._streamWindowStart
-    // / session._streamWindowCount); `now` is the injected timestamp. Returns true on
-    // breach — the real code then sends GOAWAY(ENHANCE_YOUR_CALM) + closes the session.
-    function onStream(session, now, maxStreamsPerSec) {
-        if (typeof session._streamWindowStart === 'undefined' || (now - session._streamWindowStart) >= 1000) {
-            session._streamWindowStart = now;
-            session._streamWindowCount = 0;
-        }
-        session._streamWindowCount++;
-        return session._streamWindowCount > maxStreamsPerSec;
-    }
-
-    it('default maxStreamsPerSecond is 200 when http2Options is absent or not an object', function() {
-        assert.equal(resolveMaxStreamsPerSec(undefined), 200);
-        assert.equal(resolveMaxStreamsPerSec(null), 200);
-        assert.equal(resolveMaxStreamsPerSec('string'), 200);
-        assert.equal(resolveMaxStreamsPerSec({}), 200);
-    });
-
-    it('honours a custom maxStreamsPerSecond from settings.json', function() {
-        assert.equal(resolveMaxStreamsPerSec({ maxStreamsPerSecond: 50 }), 50);
-        assert.equal(resolveMaxStreamsPerSec({ maxStreamsPerSecond: 1000 }), 1000);
-    });
-
-    it('a maxStreamsPerSecond of 0 is treated as falsy and falls back to 200', function() {
-        // `|| 200` coerces 0 to the default — consistent with the sibling #H3/#H7
-        // options (maxSessionRejectedStreams, maxSessionInvalidFrames). An operator
-        // cannot disable the limiter by setting it to 0; the 200 default is the floor.
-        assert.equal(resolveMaxStreamsPerSec({ maxStreamsPerSecond: 0 }), 200);
-    });
-
-    it('the first stream initialises the window and does not breach', function() {
-        var session = {};
-        assert.equal(onStream(session, 1000, 5), false);
-        assert.equal(session._streamWindowStart, 1000);
-        assert.equal(session._streamWindowCount, 1);
-    });
-
-    it('streams up to the limit within one window do not breach', function() {
-        var session = {};
-        for (var i = 0; i < 5; i++) {
-            assert.equal(onStream(session, 1000, 5), false, 'stream ' + (i + 1) + ' must not breach');
-        }
-        assert.equal(session._streamWindowCount, 5);
-    });
-
-    it('the stream past the limit within one window breaches (count > max)', function() {
-        var session = {};
-        for (var i = 0; i < 5; i++) { onStream(session, 1000, 5); }
-        assert.equal(onStream(session, 1000, 5), true, '6th stream in a window with limit 5 must breach');
-        assert.equal(session._streamWindowCount, 6);
-    });
-
-    it('the window resets after 1000ms — count starts over, no breach', function() {
-        var session = {};
-        for (var i = 0; i < 5; i++) { onStream(session, 1000, 5); }
-        assert.equal(onStream(session, 2000, 5), false, 'first stream of a fresh window must not breach');
-        assert.equal(session._streamWindowStart, 2000);
-        assert.equal(session._streamWindowCount, 1);
-    });
-
-    it('the window boundary is inclusive — exactly 1000ms elapsed resets (>= 1000)', function() {
-        var session = {};
-        onStream(session, 1000, 5);   // window starts at 1000
-        onStream(session, 1999, 5);   // 1999 - 1000 = 999 < 1000 -> same window
-        assert.equal(session._streamWindowCount, 2);
-        onStream(session, 2000, 5);   // 2000 - 1000 = 1000 >= 1000 -> new window
-        assert.equal(session._streamWindowStart, 2000);
-        assert.equal(session._streamWindowCount, 1);
-    });
-
-    it('a sustained flood breaches once per over-limit stream; a quiet next window does not', function() {
-        var session = {};
-        var window1Breaches = 0;
-        for (var i = 0; i < 10; i++) { if (onStream(session, 1000, 5)) { window1Breaches++; } }
-        assert.equal(window1Breaches, 5, 'streams 6-10 in window 1 each breach');
-        var window2Breaches = 0;
-        for (var j = 0; j < 3; j++) { if (onStream(session, 2000, 5)) { window2Breaches++; } }
-        assert.equal(window2Breaches, 0, 'window 2 is under the limit');
-        assert.equal(session._streamWindowCount, 3);
-    });
-
-    it('per-session windows are independent — one session flooding does not breach another', function() {
-        var sessionA = {};
-        var sessionB = {};
-        for (var i = 0; i < 6; i++) { onStream(sessionA, 1000, 5); }
-        assert.equal(onStream(sessionB, 1000, 5), false, 'session B is unaffected by session A flooding');
-        assert.equal(sessionA._streamWindowCount, 6);
-        assert.equal(sessionB._streamWindowCount, 1);
-    });
-
-});
+// 07b — the sliding-window cases that used to run here against a replica now run in
+// test/core/h2-rapid-reset-guard.test.js against the real core/server.isaac.rapid-reset.js
+// (pure window step + live bare-http2 arms). Kept as a pointer so a grep for the old
+// section title lands here.
 
 
 // ─── X-Forwarded-Prefix capture (per-request, not process-global) ────────────
