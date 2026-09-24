@@ -362,14 +362,14 @@ var jobId = self.inferAsync([{ role: 'user', content: prompt }], { connector: 'm
 
 ## Route radix trie
 
-`lib/routing/src/radix.js` — built once at startup from `routing.json`. Never mutated at runtime.
+`lib/routing/src/radix.js` — designed to be built once at startup from `routing.json` and never mutated at runtime. ⚠️ **NOT ACTIVE as of 0.6.33-alpha.2 (measured 2026-09-24):** `buildTrie()` is called only from `onRoutesLoaded()`, which nothing calls, so `Routing._tries` stays `{}`, `lookupTrie()` returns `null`, and every request is matched by the linear scan in `core/server.js` (per-candidate `JSON.clone` + `compareUrls`, a warm hit re-running both). Wiring it, with a runtime pin, is roadmap #P46 (the inter-bundle throughput arc).
 
 - `createNode()` — `{ static: {}, param: null, names: [] }`
 - `insert(root, url, name)` — splits URL on `/`, static segments go to `node.static[s]`, `:param` segments to `node.param`
 - `lookup(root, pathname)` — O(m) candidate lookup (m = segment count); strips query string before matching; returns `string[]` of route name candidates
 - `_match()` — static child has priority over param (more specific), but param is always tried when present; both may appear in results
 - **Candidate set**: `lookup()` returns structural matches only; semantic validation (HTTP method, `requirements`, param extraction) remains in `compareUrls()` and `parseRouting()`
-- `Routing.buildTrie(routing, bundle)` called in `onRoutesLoaded()` after `config.setRouting()`
+- `Routing.buildTrie(routing, bundle)` is wired in `onRoutesLoaded()` after `config.setRouting()` — a function with no caller (its last call was removed in 2019), which is why the trie has never run in a shipped release
 - `Routing.lookupTrie(pathname, bundle)` returns `null` when no trie is available (safe full-scan fallback)
 - In `handle()`: `_trieCandidateSet = new Set(trieHits)` used with `Set.has(name)` to skip non-candidates in the `for…in` loop
 - Falls back silently to the full linear scan when trie is absent or lookup returns no hits
