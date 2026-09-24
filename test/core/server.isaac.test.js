@@ -3363,3 +3363,195 @@ describe('18b - #B365 binding logic — pure-seam replica', function() {
         });
     });
 });
+
+
+// 07b — #B619: the server-side idle close (node only)
+describe('07b - #B619: idle HTTP/2 sessions are closed gracefully by the server after http2Options.sessionIdleTimeout (node only)', function() {
+
+    function getSrc() { return src || (src = fs.readFileSync(SOURCE, 'utf8')); }
+    function stripLineComments(text) {
+        return text.split('\n').filter(function (l) { return !/^\s*\/\//.test(l); }).join('\n');
+    }
+    var RUNTIME_IS_BUN = !!(process.versions && process.versions.bun);
+
+    it('source pins: the timeout handler closes unconditionally — no live activeStreams gate (the property does not exist), an idempotency guard, the retired gate kept as a comment', function() {
+        var s = getSrc();
+        assert.equal(stripLineComments(s).indexOf('session.activeStreams'), -1, 'no live read of session.activeStreams — undefined === 0 never closed anything');
+        assert.ok(s.indexOf('if (session.activeStreams === 0) { session.close(); } else { session.setTimeout(sessionTimeout); }') > -1,
+            'control: the retired gate survives as a `// replaced:` comment, so the strip above is a real strip');
+        var tIdx = s.indexOf("session.on('timeout', () => {");
+        assert.ok(tIdx > -1, 'expected the session timeout listener');
+        var block = s.slice(tIdx, tIdx + 1200);
+        assert.ok(block.indexOf('if (session.closed || session.destroyed) { return; }') > -1,
+            'the handler returns early on a session already closing — the timer re-arms while an open stream drains (measured), close() is idempotent, the log line is not');
+        var closeIdx = block.indexOf('session.close();');
+        assert.ok(closeIdx > -1, 'expected `session.close();` in the timeout handler');
+        assert.equal(stripLineComments(block.slice(0, closeIdx)).indexOf('activeStreams'), -1, 'nothing gates the close on a stream count');
+        assert.equal(stripLineComments(block.slice(0, closeIdx)).indexOf('session.setTimeout(sessionTimeout)'), -1, 'the handler no longer re-arms the timer itself');
+        assert.ok(block.indexOf('[ SERVER ] HTTP/2 session idle for ') > -1 && block.indexOf('console.info(') > -1,
+            'the idle close is logged once at info level in the [ SERVER ] style');
+    });
+
+    it('source pins: sessionIdleTimeout is read through parseTimeout with a 120000 default, 0 disables the timer, out-of-range values warn and fall back', function() {
+        var s = getSrc();
+        assert.ok(s.indexOf('var _sessionIdleTimeout = 120000;') > -1, 'the default is 120000 ms');
+        assert.ok(s.indexOf('parseTimeout(_h2Opts.sessionIdleTimeout)') > -1, 'the key is read through parseTimeout ("120s", 120000)');
+        var rangeIdx = s.indexOf('_parsedIdleTimeout > 2147483647');
+        assert.ok(rangeIdx > -1, 'a value above the timer ceiling is refused (node clamps it to 1 ms)');
+        var rangeBlock = s.slice(rangeIdx - 200, rangeIdx + 500);
+        assert.ok(rangeBlock.indexOf('!isFinite(_parsedIdleTimeout)') > -1 && rangeBlock.indexOf('_parsedIdleTimeout < 0') > -1,
+            'NaN / Infinity / negative values are refused too — parseTimeout passes any number through');
+        assert.ok(rangeBlock.indexOf('http2Options.sessionIdleTimeout must be a timeout between 0 (disabled) and 2147483647 ms') > -1, 'the warning names the key and the range');
+        assert.ok(s.indexOf('let sessionTimeout = _sessionIdleTimeout;') > -1, 'the per-session timer reads the resolved value');
+        var gateIdx = s.indexOf('if (sessionTimeout > 0) {');
+        var armIdx  = s.indexOf('session.setTimeout(sessionTimeout);');
+        assert.ok(gateIdx > -1 && armIdx > gateIdx && (armIdx - gateIdx) < 120, '0 disables: the timer is armed only inside the `> 0` gate');
+        assert.equal(stripLineComments(s).indexOf('let sessionTimeout = 120000;'), -1, 'the hard-coded literal is gone from live code');
+        assert.ok(s.indexOf('let sessionTimeout = 120000;') > -1, 'control: the literal survives in the `// replaced:` comment');
+    });
+
+    it('source pins: on Bun the timeout resolves to 0 and a set key warns once, after the guard module is required (the #B615 pattern)', function() {
+        var s = getSrc();
+        var idx = s.indexOf('if (_rapidReset.RUNTIME_IS_BUN) {');
+        assert.ok(idx > -1, 'expected the Bun branch');
+        var block = s.slice(idx, idx + 900);
+        assert.ok(block.indexOf("typeof _h2Opts.sessionIdleTimeout !== 'undefined'") > -1, 'the warning fires only when a bundle set the key');
+        assert.ok(block.indexOf('sessionIdleTimeout is ignored on this runtime') > -1, 'the warning says the runtime ignores the key');
+        assert.ok(block.indexOf('_sessionIdleTimeout = 0;') > -1, 'the timeout resolves to 0 on Bun — no close, the pre-0.6.33 behaviour');
+        var requireIdx = s.indexOf("var _rapidReset      = require('./server.isaac.rapid-reset');");
+        assert.ok(requireIdx > -1 && requireIdx < idx, 'the guard module is required before the branch reads RUNTIME_IS_BUN');
+        var resolveIdx = s.indexOf('var _sessionIdleTimeout = 120000;');
+        assert.ok(resolveIdx > -1 && resolveIdx < idx, 'the Bun override comes AFTER the parse, so a Bun bundle still gets the range warning for a bad value');
+    });
+
+    it('source pins: the close-handler comment names the idle timeout instead of the old "60s of inactivity" claim', function() {
+        var s = getSrc();
+        assert.equal(s.indexOf('This is normal after 60s of inactivity'), -1, 'the 60 s claim is gone (the timer was 120 s and never closed anything)');
+        var closeIdx = s.indexOf("session.on('close', () => {");
+        assert.ok(closeIdx > -1 && s.slice(closeIdx, closeIdx + 400).indexOf('sessionIdleTimeout') > -1, 'the close handler names http2Options.sessionIdleTimeout');
+    });
+
+    // ── live: the REAL `server.on('session', …)` handler bytes, extracted from the
+    // engine source and attached to a bare node:http2 server with every closed-over
+    // identifier injected (the shape of query-h2-session-lifecycle.test.js § 10).
+    function extractSessionHandler(s) {
+        var start   = s.indexOf("server.on('session', (session) => {");
+        var arrowAt = s.indexOf('(session) => {', start);
+        var errAt   = s.indexOf("session.on('error', (err) => {", arrowAt);
+        var end     = s.indexOf('\n        });\n', errAt); // the `});` closing server.on('session', …)
+        assert.ok(start > -1 && errAt > start && end > errAt, 'the session handler is found');
+        return s.slice(arrowAt, end + '\n        }'.length);
+    }
+    function harness(idleMs) {
+        var http2 = require('node:http2');
+        var logs = { info: [], warn: [], error: [], log: [], debug: [] };
+        var fakeConsole = {};
+        Object.keys(logs).forEach(function(k) { fakeConsole[k] = function() { logs[k].push(Array.prototype.join.call(arguments, ' ')); }; });
+        var metrics = { activeSessions: 0, totalStreams: 0, goawayCount: 0, rstCount: 0, rapidResetBlocked: 0, extendedConnect: 0 };
+        var rapidReset = require(path.join(require('../fw'), 'core', 'server.isaac.rapid-reset.js'));
+        var handler = new Function('_h2Metrics', '_rapidReset', '_maxResetsPerSec', '_sessionIdleTimeout', 'http2', 'console',
+            'return (' + extractSessionHandler(getSrc()) + ');')(metrics, rapidReset, 200, idleMs, http2, fakeConsole);
+        var server = http2.createServer();
+        var sessions = [];
+        server.on('session', function(s) { sessions.push(s); });
+        server.on('session', handler);
+        server.on('stream', function(stream, headers) {
+            stream.on('error', function() {});
+            stream.respond({ ':status': 200 });
+            if (headers[':path'] === '/hold') { setTimeout(function() { try { stream.end('done'); } catch (e) {} }, 700); }
+            else { stream.end('ok'); }
+        });
+        return new Promise(function(res) {
+            server.listen(0, '127.0.0.1', function() {
+                res({ server: server, port: server.address().port, metrics: metrics, logs: logs,
+                      stop: function() { sessions.forEach(function(s) { try { s.destroy(); } catch (e) {} }); try { server.close(); } catch (e) {} } });
+            });
+        });
+    }
+    function sleep(ms) { return new Promise(function(r) { setTimeout(r, ms); }); }
+    async function waitFor(cond, ms) {
+        var until = Date.now() + ms;
+        while (Date.now() < until) { if (cond()) return true; await sleep(5); }
+        return cond();
+    }
+    function get(client, p) {
+        return new Promise(function(res) {
+            var out = { status: null, body: '', error: null };
+            var r;
+            try { r = client.request({ ':path': p, ':method': 'GET' }); } catch (e) { out.error = e.code; return res(out); }
+            r.on('response', function(h) { out.status = h[':status']; });
+            r.on('data', function(d) { out.body += d; });
+            r.on('error', function(e) { out.error = e.code; });
+            r.on('close', function() { res(out); });
+            r.end();
+        });
+    }
+
+    it('live: an idle session is closed gracefully after the timeout — once, even while it drains an open stream (the timer re-arms) — and the stream finishes', async function() {
+        if (RUNTIME_IS_BUN) return; // the idle close is node-only (#B619): the timeout resolves to 0 on Bun
+        var http2 = require('node:http2');
+        var h = await harness(300);
+        var client = http2.connect('http://127.0.0.1:' + h.port);
+        client.on('error', function() {});
+        var goaway = null; client.on('goaway', function(code) { goaway = { code: code, at: Date.now() }; });
+        var t0 = Date.now();
+        try {
+            var hold = get(client, '/hold'); // the response ends at 700 ms — the timer fires at 300 and again at 600
+            assert.ok(await waitFor(function() { return goaway !== null; }, 1500), 'the server closed the idle session: a GOAWAY reached the client');
+            assert.equal(goaway.code, 0, 'GOAWAY(NO_ERROR) — a graceful close');
+            assert.ok(goaway.at - t0 >= 250 && goaway.at - t0 < 650, 'closed at the first timer fire (~300 ms), not at the stream end — got ' + (goaway.at - t0) + ' ms');
+            var r = await hold;
+            assert.equal(r.status, 200);
+            assert.equal(r.body, 'done', 'the open stream finished on its own after the close');
+            assert.ok(await waitFor(function() { return h.metrics.activeSessions === 0; }, 1000), 'activeSessions went back to 0 through the close handler');
+            var idleLines = h.logs.info.filter(function(l) { return l.indexOf('HTTP/2 session idle for 300 ms') > -1; });
+            assert.equal(idleLines.length, 1, 'the idle close was logged ONCE although the timer fired again at ~600 ms on the draining session (the idempotency guard)');
+            assert.ok(h.logs.warn.some(function(l) { return l.indexOf('TCP Connection closed') > -1; }), 'control: the close handler ran (its warn line)');
+        } finally {
+            try { client.destroy(); } catch (e) {}
+            h.stop();
+        }
+    });
+
+    it('live: a busy session is never closed — each request refreshes the timer', async function() {
+        if (RUNTIME_IS_BUN) return; // node-only (#B619)
+        var http2 = require('node:http2');
+        var h = await harness(300);
+        var client = http2.connect('http://127.0.0.1:' + h.port);
+        client.on('error', function() {});
+        var goaway = null; client.on('goaway', function(code) { goaway = { code: code }; });
+        try {
+            for (var i = 0; i < 8; i++) { var r = await get(client, '/'); assert.equal(r.status, 200); await sleep(100); }
+            assert.equal(goaway, null, 'no GOAWAY in 800 ms of requests every 100 ms against a 300 ms timeout');
+            assert.equal(h.metrics.activeSessions, 1, 'the session is still counted active');
+            try { client.destroy(); } catch (e) {}
+            assert.ok(await waitFor(function() { return h.metrics.activeSessions === 0; }, 1000), 'control: destroying the client decrements the counter');
+        } finally {
+            try { client.destroy(); } catch (e) {}
+            h.stop();
+        }
+    });
+
+    it('live: sessionIdleTimeout 0 disables the close', async function() {
+        if (RUNTIME_IS_BUN) return; // node-only (#B619)
+        var http2 = require('node:http2');
+        var h = await harness(0);
+        var client = http2.connect('http://127.0.0.1:' + h.port);
+        client.on('error', function() {});
+        var goaway = null; client.on('goaway', function(code) { goaway = { code: code }; });
+        try {
+            var r = await get(client, '/');
+            assert.equal(r.status, 200);
+            await sleep(700);
+            assert.equal(goaway, null, 'no GOAWAY after 700 ms idle with the timer disabled');
+            assert.equal(h.metrics.activeSessions, 1);
+            assert.equal(h.logs.info.length, 0, 'nothing logged');
+            try { client.destroy(); } catch (e) {}
+            assert.ok(await waitFor(function() { return h.metrics.activeSessions === 0; }, 1000), 'control: the close handler still runs');
+        } finally {
+            try { client.destroy(); } catch (e) {}
+            h.stop();
+        }
+    });
+
+});

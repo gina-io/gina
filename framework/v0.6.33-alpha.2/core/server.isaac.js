@@ -653,6 +653,39 @@ function ServerEngineClass(options) {
         if (_rapidReset.RUNTIME_IS_BUN && typeof _h2Opts.streamResetBurst === 'number' && typeof _h2Opts.streamResetRate === 'number') {
             console.warn('[ SERVER ] http2Options.streamResetBurst / streamResetRate are ignored on this runtime — Bun\'s HTTP/2 server has no frame-level reset rate limit, so http2Options.maxStreamResetsPerSecond ('+ _maxResetsPerSec +'/s per session) is the only rapid-reset limit on this bundle');
         }
+        // #B619 — idle HTTP/2 sessions are closed GRACEFULLY by the server after
+        // `http2Options.sessionIdleTimeout` (parseTimeout format — "120s", 120000;
+        // default 120 s; 0 disables the close, which is what every release before
+        // 0.6.33 actually did: the old `session.activeStreams === 0` gate could never
+        // pass, that property does not exist on Http2Session). Node's session timer
+        // fires only on an IDLE session — a request or a DATA frame refreshes it, a
+        // PING or a quiet open stream does not (measured on node 22 / 24 / 25 / 26) —
+        // and `session.close()` lets open streams finish while refusing new ones with
+        // GOAWAY(NO_ERROR); gina's client evicts the closed session and reconnects.
+        // Node clamps a timer above 2147483647 ms to 1 ms (TimeoutOverflowWarning),
+        // so the range check is load-bearing, not cosmetic.
+        var _sessionIdleTimeout = 120000;
+        if (typeof _h2Opts.sessionIdleTimeout !== 'undefined') {
+            var _parsedIdleTimeout = parseTimeout(_h2Opts.sessionIdleTimeout);
+            if (typeof _parsedIdleTimeout !== 'number' || !isFinite(_parsedIdleTimeout) || _parsedIdleTimeout < 0 || _parsedIdleTimeout > 2147483647) {
+                console.warn('[ SERVER ] http2Options.sessionIdleTimeout must be a timeout between 0 (disabled) and 2147483647 ms (e.g. "120s", 120000) — got `'+ _h2Opts.sessionIdleTimeout +'`; using 120s');
+            } else {
+                _sessionIdleTimeout = _parsedIdleTimeout;
+            }
+        }
+        // #B619 — resolved to 0 on Bun (the #B615 pattern: by runtime, never by
+        // version). Measured 2026-09-24: Bun 1.2.21 / 1.3.14 fire the session timer
+        // on a BUSY session (requests every 300 ms still time out) and after a
+        // `close()` a new request from a node or Bun <= 1.3 client HANGS — no GOAWAY
+        // reaches it — so an idle close there is a regression every T; Bun 1.4.2
+        // behaves like node, but a missed close is the status quo while a wrong
+        // close is not, and a version gate has no tripwire below the CI pin.
+        if (_rapidReset.RUNTIME_IS_BUN) {
+            if (typeof _h2Opts.sessionIdleTimeout !== 'undefined') {
+                console.warn('[ SERVER ] http2Options.sessionIdleTimeout is ignored on this runtime — Bun\'s HTTP/2 server closes sessions unsafely on an idle timer (it fires on busy sessions on Bun 1.2 / 1.3, and a client\'s next request hangs after the close), so idle sessions are left to the client on this bundle');
+            }
+            _sessionIdleTimeout = 0;
+        }
         var http2   = require('http2');
         // h2c flood-defense parity: the cleartext branches receive the same
         // `http2Options` as the https branch. On non-https schemes the object
@@ -688,22 +721,27 @@ function ServerEngineClass(options) {
         server._h2Metrics = _h2Metrics;
 
         server.on('session', (session) => {
-            // 120 seconds (120000 of inactivity
-            let sessionTimeout = 120000;
-            session.setTimeout(sessionTimeout);
+            // #B619 — replaced: let sessionTimeout = 120000;
+            // (a 120 s idle close whose `session.activeStreams === 0` gate could never pass:
+            // the property does not exist on Http2Session, so the timer re-armed forever and
+            // the server never closed an idle session — measured on node 22 / 24 / 25 / 26.)
+            let sessionTimeout = _sessionIdleTimeout;
             _h2Metrics.activeSessions++;
 
-            session.on('timeout', () => {
-                // Check if there are active streams before closing
-                // This prevents killing a POST request that is still processing
-                if (session.activeStreams === 0) {
-                    console.log('[SERVER] Session idle timeout - Closing connection safely');
+            if (sessionTimeout > 0) {
+                session.setTimeout(sessionTimeout);
+                session.on('timeout', () => {
+                    // replaced: if (session.activeStreams === 0) { session.close(); } else { session.setTimeout(sessionTimeout); }
+                    // close() is graceful — open streams finish on their own, new ones are
+                    // refused with GOAWAY(NO_ERROR) — so no stream count is needed. The timer
+                    // re-arms after it fires: on a session still draining an open stream it
+                    // fires again every `sessionTimeout` until that stream ends (measured);
+                    // close() is idempotent, the log line is not.
+                    if (session.closed || session.destroyed) { return; }
+                    console.info('[ SERVER ] HTTP/2 session idle for ' + sessionTimeout + ' ms — closing it gracefully (open streams finish, no new streams; http2Options.sessionIdleTimeout)');
                     session.close();
-                } else {
-                    // Reset timeout if streams are still active
-                    session.setTimeout(sessionTimeout);
-                }
-            });
+                });
+            }
 
             session.on('stream', (stream) => {
                 _h2Metrics.totalStreams++;
@@ -737,7 +775,8 @@ function ServerEngineClass(options) {
             });
 
             session.on('close', () => {
-                // This is normal after 60s of inactivity
+                // Normal after the idle close (#B619 — `http2Options.sessionIdleTimeout`,
+                // default 120 s, node only), a client GOAWAY, or a network drop.
                 if (_h2Metrics.activeSessions > 0) _h2Metrics.activeSessions--;
                 console.warn("[ SERVER ] TCP Connection closed");
             });
