@@ -275,6 +275,15 @@ describe('validator-token-grammar §02 — plugin path', function () {
         assert.equal(isErr(drivePlugin(PC, pc('x $password y', 'x $password z')), 'password-confirm'), true, 'unequal still errors');
     });
 
+    it('02.3b - two DIFFERENT values no longer compare equal when one holds `$<sibling>` (the array-rule scan fail-open, #B603)', function () {
+        // the scan re-substituted `$zeta` RAW inside the already-spliced value, so
+        // `abc$zeta x` matched `abcZ x` — a confirmation check passing two different values
+        var rules = pcRules({ zeta: { isRequired: true } });
+        assert.equal(isErr(drivePlugin(rules, pc('abc$zeta x', 'abcZ x', { zeta: 'Z' })), 'password-confirm'), true, 'different values must mismatch');
+        assert.equal(isErr(drivePlugin(rules, pc('a$zeta', 'aZ$zetaZ', { zeta: 'Z$&Z' })), 'password-confirm'), true, 'nor may `$&` in the sibling value expand');
+        assert.equal(isErr(drivePlugin(rules, pc('abc$zeta x', 'abc$zeta x', { zeta: 'Z' })), 'password-confirm'), false, 'control: the same value still confirms');
+    });
+
     it('02.4 - premise: the prefix pair, parentheses and a bare `$100` were already right on this path', function () {
         assert.equal(isErr(drivePlugin(PC, pc('abc', 'abc')), 'password-confirm'), false);
         var paren = pcRules(); paren['password-confirm'].is = ['($password) === ($password-confirm)', 'mismatch'];
