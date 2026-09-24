@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'A `$fieldName` token in a `query` rule''s `data` now names the right field whatever its spelling: `$passwordConfirm` was resolved as `$password` followed by `Confirm` (another field''s value reached the endpoint), `$Email` was left as is, `$password` and `$password-confirm` in one body resolved by their order, a space after a token swallowed the text that followed it, and a `$` naming no field was sent as the string `null` — and threw while live-checking. Such a `$` now stays as typed. (#B606)'
+time: 2026-09-24T04:03:21+01:00

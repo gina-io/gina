@@ -1,5 +1,11 @@
 'use strict';
 /**
+ * 2026-09-24 (#B603): `getDynamisedRules` now substitutes in ONE pass through
+ * the engine's tokenizer and the DOM-fallback second loop this file was
+ * written around is gone — with it the `$fields &&` gate. §01/§03 pin the
+ * single pass; §02's behaviour arms are unchanged (nothing survives a pass for
+ * a second loop to crash on). The history below is kept as the record.
+ *
  * #B234 — the server auto path crashed on ANY `$` that survives the first
  * dollar-substitution loop.
  *
@@ -87,19 +93,20 @@ describe('validator-server-dollar-rules §01 — source pins', function () {
         assert.ok(dynBlock(MAIN_SRC).length > 400, 'real block sliced');
     });
 
-    it('01.2 - loop 2 is gated on $fields (the #B127 precedent, one function later)', function () {
+    it('01.2 - the DOM-fallback loop is gone: no `$fields` gate, one pass through the tokenizer (#B603)', function () {
         var block = dynBlock(MAIN_SRC);
-        assert.ok(block.indexOf('if ( $fields && /\\$(.*)/.test(stringifiedRules) ) {') > -1,
-            'the DOM-fallback loop must not run with no DOM');
+        assert.equal(block.indexOf('if ( $fields && /\\$(.*)/.test(stringifiedRules) ) {'), -1,
+            'the DOM-fallback loop (and its #B234 gate) must stay retired');
+        assert.ok(block.indexOf('stringifiedRules = FormValidator.substituteFieldTokens(stringifiedRules, arrFields, function(field) {') > -1,
+            'the single pass through the engine\'s tokenizer');
     });
 
-    it('01.3 - premise: loop 1 and its casting stay byte-identical', function () {
+    it('01.3 - premise: the casting keeps its call shape, at exactly one call site', function () {
         var block = dynBlock(MAIN_SRC);
-        // the first loop's substitution + cast call shape
-        assert.ok(block.indexOf('fieldValue = getCastedValue(ruleObj, fields, arrFields[i], true);') > -1);
-        // exactly two call sites (one per loop) — a third means this file is stale
-        var m = block.match(/getCastedValue\(ruleObj, fields, arrFields\[i\], true\)/g) || [];
-        assert.equal(m.length, 2);
+        assert.ok(block.indexOf('fieldValue = getCastedValue(ruleObj, fields, field, true);') > -1);
+        // exactly one call site — a second means a per-loop copy is back
+        var m = block.match(/getCastedValue\(ruleObj, fields, field, true\)/g) || [];
+        assert.equal(m.length, 1);
     });
 });
 
@@ -160,25 +167,22 @@ describe('validator-server-dollar-rules §02 — behaviour', function () {
 // ---------------------------------------------------------------------------
 describe('validator-server-dollar-rules §03 — dist fidelity', function () {
 
-    it('03.1 - gina.js carries the guarded loop-2 gate', function () {
+    it('03.1 - gina.js carries the single pass and no DOM-fallback gate (#B603)', function () {
         var raw = fs.readFileSync(DIST_RAW_PATH, 'utf8');
-        assert.ok(raw.indexOf('if ( $fields && /\\$(.*)/.test(stringifiedRules) ) {') > -1,
-            'the guard must reach the bundle');
+        assert.equal(raw.indexOf('if ( $fields && /\\$(.*)/.test(stringifiedRules) ) {'), -1, 'the retired gate must not reach the bundle');
+        assert.ok(raw.indexOf('stringifiedRules = FormValidator.substituteFieldTokens(stringifiedRules, arrFields, function(field) {') > -1,
+            'the single pass must reach the bundle');
     });
 
-    it('03.2 - gina.min.js: the guarded gate reaches the served artifact', function () {
+    it('03.2 - gina.min.js: no guarded gate remains; validate()\'s own unguarded gate still does (the needle\'s control)', function () {
         var min = fs.readFileSync(DIST_MIN_PATH, 'utf8');
-        // DERIVED from the REAL Closure emission at the rebuild — `if(c&&/\$(.*)/
-        // .test(a))` — and validated 0-pre/1-post against the actual artifacts.
-        // Identifier-agnostic (the minifier renames `$fields`/`stringifiedRules`
-        // freely) and wrap-agnostic at every token boundary, because Closure
-        // line-breaks its output at token positions that shift with unrelated
-        // upstream edits — a strict needle would flip this pin on a future
-        // rebuild for reasons having nothing to do with this guard.
-        var m = min.match(/if\s*\(\s*[A-Za-z_$][\w$]*\s*&&\s*\/\\\$\(\.\*\)\/\s*\.\s*test\(\s*[A-Za-z_$][\w$]*\s*\)\s*\)/g) || [];
-        assert.equal(m.length, 1,
-            'gina.min.js must carry the guarded loop-2 gate — exactly one, since ' +
-            '`validate`\'s own same-text gate legitimately stays UNGUARDED (it is ' +
-            'reached only with a live DOM, and guarding it would change client behaviour)');
+        // The guarded shape was DERIVED from the real Closure emission when #B234
+        // landed — `if(c&&/\$(.*)/.test(a))` — identifier- and wrap-agnostic. It
+        // must now read 0; the UNGUARDED `/\$(.*)/.test(x)` of `validate` is the
+        // control proving the needle still discriminates (it reads >= 1).
+        var guarded = min.match(/if\s*\(\s*[A-Za-z_$][\w$]*\s*&&\s*\/\\\$\(\.\*\)\/\s*\.\s*test\(\s*[A-Za-z_$][\w$]*\s*\)\s*\)/g) || [];
+        assert.equal(guarded.length, 0, 'a guarded DOM-fallback gate is back in gina.min.js');
+        var any = min.match(/\/\\\$\(\.\*\)\/\s*\.\s*test\(\s*[A-Za-z_$][\w$]*\s*\)/g) || [];
+        assert.ok(any.length >= 1, 'the needle no longer matches validate()\'s own gate — re-derive it from the emission');
     });
 });

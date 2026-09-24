@@ -3137,6 +3137,69 @@ function decodeSplicedQuotes(jsonText) {
     });
 }
 
+/**
+ * escapeRegExp
+ * Escapes every RegExp metacharacter of `text`, so a field name matches
+ * itself inside a pattern built from it.
+ *
+ * @param {string} text - a field name
+ * @returns {string} the escaped text
+ *
+ * @example
+ * new RegExp('\\$' + escapeRegExp('pw[0]')).test('$pw[0]'); // true — `[0]` is not a character class
+ */
+function escapeRegExp(text) {
+    return String(text).replace(/[.*+?^${}()|[\]\\\/-]/g, '\\$&');
+}
+
+/**
+ * substituteFieldTokens
+ * Resolves every `$<field>` token of `text` in ONE pass — the one grammar
+ * shared by `is()` conditions, the client `query` body and the plugin's
+ * dynamised rule set (#B603 / #B604 / #B606).
+ *
+ * A token is `$` immediately followed by one of `names`. The longest matching
+ * name wins whatever order the names were listed in, so `$password-confirm`
+ * is never read as `$password` + `-confirm`; a token ends where its name ends
+ * provided the next character is not a name character (`[A-Za-z0-9_-]`), so
+ * `($a)`, `$a===$b` and `$a,` resolve while `$passwordX` leaves `password`
+ * alone. Names are matched case-sensitively and RegExp-escaped. Whatever
+ * `resolve` returns is spliced verbatim and never scanned again, so a value
+ * that itself contains `$other` stays as typed. A `$` that names none of
+ * `names` is not a token and is left literal.
+ *
+ * @param {string} text - the text carrying the tokens
+ * @param {string[]} names - the field names in scope (duplicates and empty names are ignored)
+ * @param {function(string, string): string} resolve - `(name, token)` -> the replacement text
+ * @returns {string} `text` with every token replaced
+ *
+ * @example
+ * substituteFieldTokens('($a) === ($a-confirm)', ['a', 'a-confirm'], function(name) {
+ *     return JSON.stringify(values[name]);
+ * });
+ * // -> ("x$a") === ("x$a")   — the `$a` inside the value is not resolved again
+ */
+function substituteFieldTokens(text, names, resolve) {
+    var list = [], i = 0, name = null;
+    for (; i < names.length; i++) {
+        name = String(names[i]);
+        if ( name !== '' && list.indexOf(name) < 0 ) {
+            list.push(name);
+        }
+    }
+    if ( !list.length ) {
+        return text;
+    }
+    // longest first: a longer name always wins over a name it starts with
+    list.sort(function(a, b) {
+        return b.length - a.length || ( (a < b) ? -1 : ( (a > b) ? 1 : 0 ) );
+    });
+    var re = new RegExp('\\$(' + list.map(escapeRegExp).join('|') + ')(?![A-Za-z0-9_-])', 'g');
+    return String(text).replace(re, function(token, matched) {
+        return resolve(matched, token);
+    });
+}
+
 function FormValidatorUtil(data, $fields, xhrOptions, fieldsSet, culture) {
 
     var isGFFCtx        = ( ( typeof(module) !== 'undefined' ) && module.exports ) ? false : true;
@@ -3748,24 +3811,36 @@ function FormValidatorUtil(data, $fields, xhrOptions, fieldsSet, culture) {
         // replace placeholders by field values
         strData = JSON.stringify(queryData);
         if ( /\$/.test(strData) ) {
-            var variables = strData.match(/\$[-_\[\]a-z 0-9]+/g) || [];
-            var value = null, key = null;
-            for (let i = 0, len = variables.length; i < len; i++) {
-                key = variables[i].replace(/\$/g, '');
-                re = new RegExp("\\"+ variables[i].replace(/\[|\]/g, '\\$&'), "g");
-                value = local.data[key] || null;
+            // #B606 — one pass through the shared tokenizer: the scan
+            // `/\$[-_\[\]a-z 0-9]+/g` was lowercase-only (`$passwordConfirm` resolved
+            // `$password` + `Confirm` — another field's value on the wire), read a space as
+            // part of the token, and each name re-scanned the body after every splice
+            // (`$password` ate `$password-confirm` in body order; a spliced `x$b` was hit
+            // again). The token universe is the engine's fields plus, under live-check,
+            // every control of the form (a sibling not yet validated resolves from the
+            // live element, as before); a `$` naming none of them is text and stays as
+            // typed — it used to go out as the string `null`, and threw under live-check.
+            var tokenNames = Object.keys(local.data);
+            if (isInlineValidation) {
+                for (let f in fieldsSet) {
+                    if (fieldsSet[f].name) {
+                        tokenNames.push(fieldsSet[f].name);
+                    }
+                }
+            }
+            var _queryForm = this.target.form;
+            strData = substituteFieldTokens(strData, tokenNames, function(key) {
+                var value = local.data[key] || null;
                 if (!value && isInlineValidation) {
                     // Retrieving live value instead of using fieldsSet.value
-                    value = getElementByName(this.target.form, key).value;
+                    value = getElementByName(_queryForm, key).value;
                 }
-
                 // #B600 — spliced as a quoted string operand escaped twice, the form every
                 // other spliced value takes, so decodeSplicedQuotes() below restores it
                 // exactly; through a function replacer, so a `$&` in it stays text. It went
                 // in verbatim, which corrupted the body for a value carrying a `"` or `\`.
-                var splicedValue = '\\"' + escapeForJsonString(escapeForJsonString(value)) + '\\"';
-                strData = strData.replace( re, function() { return splicedValue; } );
-            }
+                return '\\"' + escapeForJsonString(escapeForJsonString(value)) + '\\"';
+            });
         }
         // cleanup before sending
         // #B600 — each spliced value is decoded back, instead of every escaped quote being
@@ -4463,6 +4538,10 @@ function FormValidatorUtil(data, $fields, xhrOptions, fieldsSet, culture) {
          *       "/^[0-9]+$/"   -> only numbers
          *       "$field === $fieldOther"   -> will be evaluated
          *
+         *  A `$<field>` token follows `substituteFieldTokens`: the longest field name
+         *  wins, a token ends at any character outside [A-Za-z0-9_-] (so `($field)`
+         *  and `$field===$other` resolve), and a `$` naming no field stays literal.
+         *
          * @param {object|string} condition - RegExp object, or condition to eval, or eval result
          * @param {string} [errorMessage] - error message
          * @param {string} [errorStack] - error stack
@@ -4508,28 +4587,47 @@ function FormValidatorUtil(data, $fields, xhrOptions, fieldsSet, culture) {
                 var re = null, flags = null;
                 // Fixed added on 2021-03-13: $variable now replaced with real value beafore validation
                 if ( /[\!\=>\>\<a-z 0-9]+/i.test(condition) ) {
-                    // #B602 — the evaluation below used to run only when this match found an ASCII
-                    // letter or digit run, so a comparison of values made only of symbols or non-ASCII
-                    // letters (`!!!`, `é€`) never reached the grammar and always read as a mismatch.
-                    // An empty match now just means there is nothing to substitute.
-                    var variables = condition.match(/\${0}[-_,.\[\]a-z0-9]+/ig) || []; // without space(s)
-                    var compiledCondition = condition;
-                    for (var i = 0, len = variables.length; i < len; ++i) {
-                        // $varibale comparison
-                        if ( typeof(self[ variables[i] ]) != 'undefined' && variables[i]) {
-                            re = new RegExp("\\$"+ variables[i] +"(?!\\S+)", "g");
-                            if ( self[ variables[i] ].value == "" ) {
-                                compiledCondition = compiledCondition.replace(re, '""');
-                            } else if ( typeof(self[ variables[i] ].value) == 'string' ) {
-                                // #B600 — a JSON string literal through a function replacer: the value was
-                                // wrapped in bare quotes by a string replacement, so a `"` in it broke the
-                                // operand and a `$&` in it was expanded.
-                                var _scsSubstituted = JSON.stringify(self[ variables[i] ].value);
-                                compiledCondition = compiledCondition.replace(re, function() { return _scsSubstituted; });
-                            } else {
-                                compiledCondition = compiledCondition.replace(re, self[ variables[i] ].value);
-                            }
+                    // #B602 — a condition with nothing to substitute is still evaluated: the
+                    // evaluation below used to run only when a scan found an ASCII letter or digit
+                    // run, so a comparison of values made only of symbols or non-ASCII letters
+                    // (`!!!`, `é€`) never reached the grammar and always read as a mismatch.
+                    // #B604 — one pass through the shared tokenizer (longest name first, a token
+                    // ends at any non-name character, names RegExp-escaped): the per-name
+                    // `"\$" + name + "(?!\S+)"` replace resolved a token only when whitespace or
+                    // the end followed it, so `($a) === ($b)` and `$a===$b` never resolved, and a
+                    // bracket name became a character class. The token universe is the instance's
+                    // FIELDS (an own object carrying `value`): an engine method name is not a token
+                    // and stays literal for the grammar to refuse — it used to splice `undefined`.
+                    var fieldNames = [];
+                    for (var fieldKey in self) {
+                        if ( self.hasOwnProperty(fieldKey) && self[fieldKey] && typeof(self[fieldKey]) == 'object' && ('value' in self[fieldKey]) ) {
+                            fieldNames.push(fieldKey);
                         }
+                    }
+                    var resolveFieldToken = function(name) {
+                        var value = self[name].value;
+                        if ( value == "" ) {
+                            return '""';
+                        }
+                        if ( typeof(value) == 'string' ) {
+                            // #B600 — a JSON string literal: a `"` in the value cannot break the
+                            // operand, and the function replacer keeps a `$&` in it as text.
+                            return JSON.stringify(value);
+                        }
+                        return value;
+                    };
+                    // Tokens are resolved OUTSIDE string literals only, and never inside a
+                    // regex literal (compiled exactly as authored, #B345): the plugin path
+                    // arrives here with every value already spliced as a literal, so a value
+                    // holding `$other` must not be resolved a second time (#B603).
+                    // `_SCS_SEGMENT_RE` splits a condition into string literals and the code
+                    // between them; the #B601 strip below walks the same segments.
+                    var _SCS_SEGMENT_RE = /"(?:[^"\\]|\\.)*"|[^"]+/g;
+                    var compiledCondition = condition;
+                    if ( !/^\//.test(condition) ) {
+                        compiledCondition = condition.replace(_SCS_SEGMENT_RE, function(part) {
+                            return ( part.charAt(0) === '"' ) ? part : substituteFieldTokens(part, fieldNames, resolveFieldToken);
+                        });
                     }
 
                     try {
@@ -4576,7 +4674,7 @@ function FormValidatorUtil(data, $fields, xhrOptions, fieldsSet, culture) {
                             // #B601 — only OUTSIDE string literals: the strip ran over the compared
                             // values too, so two values differing only by a parenthesis or the word
                             // `return` compared as equal.
-                            compiledCondition = compiledCondition.replace(/"(?:[^"\\]|\\.)*"|[^"]+/g, function(_scsPart) {
+                            compiledCondition = compiledCondition.replace(_SCS_SEGMENT_RE, function(_scsPart) {
                                 return ( _scsPart.charAt(0) === '"' ) ? _scsPart : _scsPart.replace(/(\(|\)|return)/g, '');
                             });
                             // #B600 — a string operand may carry escaped quotes and backslashes
@@ -6197,6 +6295,13 @@ function FormValidatorUtil(data, $fields, xhrOptions, fieldsSet, culture) {
 
     return self
 };
+
+/**
+ * The one `$`-token grammar, exposed for the validator plugin's dynamised rule
+ * set — see `substituteFieldTokens`.
+ * @type {function(string, string[], function(string, string): string): string}
+ */
+FormValidatorUtil.substituteFieldTokens = substituteFieldTokens;
 
 if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
     // Publish as node.js module
@@ -24356,6 +24461,30 @@ function ValidatorPlugin(rules, data, formId, culture) {
         return fields;
     }
 
+    /**
+     * getDynamisedRules
+     * Resolves every `$<field>` token of the STRINGIFIED rule set with that
+     * field's value — cast through `getCastedValue` when the field carries a
+     * rule, quoted through `quoteForDynamisedRules` otherwise — and parses the
+     * result back. Under a live check on a single element the whole form's
+     * fields are (re)collected first, since a condition may compare the element
+     * with a sibling.
+     *
+     * One pass through the engine's tokenizer (#B603): the per-name loop that
+     * preceded it re-scanned the whole rule set after every splice, so a value
+     * holding `$<otherField>` was substituted a second time whenever that field
+     * came later in the descending walk — and its DOM-fallback second loop
+     * (#B234) could only ever act on a `$` a spliced value had carried in.
+     *
+     * @inner
+     * @param {string} stringifiedRules - `JSON.stringify(rules)`
+     * @param {object} fields - the collected field values (name -> value)
+     * @param {object|null} $fields - the DOM handles (null on the server paths)
+     * @param {boolean} isLiveCheckingOnASingleElement - a live check on one element
+     * @returns {object} the rule set with every token resolved — or, should the
+     *   result not parse, the rules as declared (the engine then resolves or
+     *   fails closed)
+     */
     var getDynamisedRules = function(stringifiedRules, fields, $fields, isLiveCheckingOnASingleElement) {
 
         // Because this could also be live check, if it is the case, we need all fields
@@ -24363,7 +24492,6 @@ function ValidatorPlugin(rules, data, formId, culture) {
         // meant to validate one field at the time, you could fall in a case where the current
         // field should be compared with another field of the same form.
         var ruleObj = JSON.parse(stringifiedRules.replace(/\"(true|false)\"/gi, '$1'));
-        var stringifiedRulesTmp = JSON.stringify(ruleObj);
         if (isLiveCheckingOnASingleElement) {
             var $currentForm    = $fields[Object.getOwnPropertyNames($fields)[0]].form;
             var vInfos          = getFormValidationInfos($currentForm, ruleObj);
@@ -24373,64 +24501,26 @@ function ValidatorPlugin(rules, data, formId, culture) {
             $fields = vInfos.$fields;
         }
 
-
-        var re = null, _field = null, arrFields = [], a = 0;
-        // avoiding conflict like ["myfield", "myfield-name"]
-        // where once `myfield` is replaced for exemple with `1234`, you also get 1234-name left behind
-        // TODO - Replace this trick with a RegExp matching only the exact word
-        // TODO - test this one:
-        //          \W(\$myfield-name)(?!-)\W
+        var arrFields = [], spliced = {};
         for (let field in fields) {
-            arrFields[a] = field;
-            a++;
+            arrFields.push(field);
         }
-        arrFields.sort().reverse();
-
-        for (let i = 0, len = arrFields.length; i < len; i++) {
-            _field = arrFields[i].replace(/\-|\_|\@|\#|\.|\[|\]/g, '\\$&');
-            re = new RegExp('\\$'+_field, 'g');
+        // #B603 — the tokenizer picks the longest name and never scans a replacement
+        // again; the resolver runs once per NAME (cast once, warn once).
+        stringifiedRules = FormValidator.substituteFieldTokens(stringifiedRules, arrFields, function(field) {
+            if ( typeof(spliced[field]) != 'undefined' ) {
+                return spliced[field];
+            }
             // default field value (#B600 — escaped inside its quotes, see quoteForDynamisedRules)
-            let fieldValue = quoteForDynamisedRules(fields[arrFields[i]]);
-            let isInRule = re.test(stringifiedRulesTmp);
-            if ( isInRule && typeof(ruleObj[arrFields[i]]) != 'undefined' ) {
-                fieldValue = getCastedValue(ruleObj, fields, arrFields[i], true);
-            } else if ( isInRule ) {
-                console.warn('`'+arrFields[i]+'` is used in a dynamic rule without definition. This could lead to an evaluation error. Casting `'+arrFields[i]+'` to `string`.');
+            let fieldValue = quoteForDynamisedRules(fields[field]);
+            if ( typeof(ruleObj[field]) != 'undefined' ) {
+                fieldValue = getCastedValue(ruleObj, fields, field, true);
+            } else {
+                console.warn('`'+field+'` is used in a dynamic rule without definition. This could lead to an evaluation error. Casting `'+field+'` to `string`.');
             }
-
-            // #B600 — a function replacer: a `$&`, `$'` or `$$` in the value is text,
-            // never a replacement pattern.
-            stringifiedRules = stringifiedRules.replace(re, function() { return fieldValue; });
-        }
-        // #B234 — this second loop is a DOM FALLBACK: it re-derives each splice
-        // value from the live element (`$fields[...].value` / `.checked`), and
-        // the server auto path (`backendInit`) passes `$fields = null`, so ANY
-        // `$` surviving loop 1 threw here — a regex end-anchor in an `is`
-        // condition, or a `$` inside a human-readable message string. Loop 1
-        // already replaces every KNOWN field's token, so what reaches loop 2 is
-        // a leftover it structurally cannot match anyway: skipping when there is
-        // no DOM matches what the client does when this re-scan no-ops, and
-        // leaves every previously-working substitution byte-identical. Same
-        // `$fields &&` guard shape as the #B127 precedent one function later.
-        // was: `if ( /\$(.*)/.test(stringifiedRules) ) {`
-        if ( $fields && /\$(.*)/.test(stringifiedRules) ) {
-            for (let i = 0, len = arrFields.length; i < len; i++) {
-                _field = arrFields[i].replace(/\-|\_|\@|\#|\.|\[|\]/g, '\\$&');
-                re = new RegExp('\\$'+_field, 'g');
-                // default field value
-                let fieldValue = ($fields[arrFields[i]].value != '' ) ? quoteForDynamisedRules($fields[arrFields[i]].value) : '\\"\\"';
-                let isInRule = re.test(stringifiedRulesTmp);
-                if ( isInRule && typeof(ruleObj[arrFields[i]]) != 'undefined' ) {
-                    fieldValue = getCastedValue(ruleObj, fields, arrFields[i], true);
-                } else if ( isInRule ) {
-                    console.warn('`'+arrFields[i]+'` is used in a dynamic rule without definition. This could lead to an evaluation error. Casting `'+arrFields[i]+'` to `string`.');
-                }
-
-                // #B600 — escaped, and spliced through a function replacer, as in the first loop
-                let splicedValue = fieldValue || $fields[arrFields[i]].checked;
-                stringifiedRules = stringifiedRules.replace(re, function() { return splicedValue; });
-            }
-        }
+            spliced[field] = fieldValue;
+            return fieldValue;
+        });
 
         // #B600 — a splice can no longer break this parse (every value is escaped), but
         // a failure here must never throw out of the validation pass: fall back to the
@@ -24500,13 +24590,14 @@ function ValidatorPlugin(rules, data, formId, culture) {
         /**
          * Apply every rule declared for one field to the FormValidator instance `d`.
          *
-         * Array-form rules (`isInList: [...]`) get their FIRST argument scanned for
-         * `$`-prefixed tokens; a token resolving to a real field (a `d` key with a
+         * Array-form rules (`isInList: [...]`) — except `is` / `is<N>`, whose
+         * condition the engine resolves itself (#B603) — get their FIRST argument
+         * scanned for `$`-prefixed tokens; a token resolving to a real field (a `d` key with a
          * defined `.value`) is substituted with that value, anything else stays
          * LITERAL (#B239 — the blind deref crashed on unknown names and spliced
          * "undefined" on engine-method-name collisions). Later elements are never
          * scanned. Cross-field refs inside array rules are consumed upstream by
-         * getDynamisedRules loop 1 (quoted — #B240), so in practice only leftover
+         * getDynamisedRules (quoted — #B240), so in practice only leftover
          * non-field tokens reach the scan here.
          *
          * @inner
@@ -24610,7 +24701,12 @@ function ValidatorPlugin(rules, data, formId, culture) {
                     if (Array.isArray(rules[field][rule])) { // has args
                         //convert array to arguments
                         args = JSON.clone(rules[field][rule]);
-                        if ( /\$[\-\w\[\]]*/.test(args[0]) ) {
+                        // #B603 — an `is` / `is<N>` condition is the ENGINE's to resolve
+                        // (getDynamisedRules has already spliced every known field as a
+                        // string literal, and is() resolves tokens outside literals only):
+                        // this raw first-occurrence replace re-hit a `$<field>` a spliced
+                        // VALUE carried in, so the two-argument `is` form mismatched on it.
+                        if ( !/^is\d*$/.test(rule) && /\$[\-\w\[\]]*/.test(args[0]) ) {
                             var foundVariables = args[0].match(/\$[\-\w\[\]]*/g);
                             for (var v = 0, vLen = foundVariables.length; v < vLen; ++v) {
                                 // #B239 — the deref used to be blind, throwing
@@ -24622,7 +24718,7 @@ function ValidatorPlugin(rules, data, formId, culture) {
                                 // defined keys with no `.value`). A token that does not
                                 // resolve to a real field now stays LITERAL, so strict
                                 // comparison applies. Cross-field refs inside array
-                                // rules remain owned by #B240 (upstream loop-1 quoting).
+                                // rules remain owned by #B240 (upstream getDynamisedRules quoting).
                                 // was: args[0] = args[0].replace( foundVariables[v], d[foundVariables[v].replace('$', '')].value )
                                 var _refName = foundVariables[v].replace('$', '');
                                 if (

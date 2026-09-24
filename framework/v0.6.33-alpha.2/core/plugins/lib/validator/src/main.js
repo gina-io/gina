@@ -11611,6 +11611,30 @@ function ValidatorPlugin(rules, data, formId, culture) {
         return fields;
     }
 
+    /**
+     * getDynamisedRules
+     * Resolves every `$<field>` token of the STRINGIFIED rule set with that
+     * field's value — cast through `getCastedValue` when the field carries a
+     * rule, quoted through `quoteForDynamisedRules` otherwise — and parses the
+     * result back. Under a live check on a single element the whole form's
+     * fields are (re)collected first, since a condition may compare the element
+     * with a sibling.
+     *
+     * One pass through the engine's tokenizer (#B603): the per-name loop that
+     * preceded it re-scanned the whole rule set after every splice, so a value
+     * holding `$<otherField>` was substituted a second time whenever that field
+     * came later in the descending walk — and its DOM-fallback second loop
+     * (#B234) could only ever act on a `$` a spliced value had carried in.
+     *
+     * @inner
+     * @param {string} stringifiedRules - `JSON.stringify(rules)`
+     * @param {object} fields - the collected field values (name -> value)
+     * @param {object|null} $fields - the DOM handles (null on the server paths)
+     * @param {boolean} isLiveCheckingOnASingleElement - a live check on one element
+     * @returns {object} the rule set with every token resolved — or, should the
+     *   result not parse, the rules as declared (the engine then resolves or
+     *   fails closed)
+     */
     var getDynamisedRules = function(stringifiedRules, fields, $fields, isLiveCheckingOnASingleElement) {
 
         // Because this could also be live check, if it is the case, we need all fields
@@ -11618,7 +11642,6 @@ function ValidatorPlugin(rules, data, formId, culture) {
         // meant to validate one field at the time, you could fall in a case where the current
         // field should be compared with another field of the same form.
         var ruleObj = JSON.parse(stringifiedRules.replace(/\"(true|false)\"/gi, '$1'));
-        var stringifiedRulesTmp = JSON.stringify(ruleObj);
         if (isLiveCheckingOnASingleElement) {
             var $currentForm    = $fields[Object.getOwnPropertyNames($fields)[0]].form;
             var vInfos          = getFormValidationInfos($currentForm, ruleObj);
@@ -11628,64 +11651,26 @@ function ValidatorPlugin(rules, data, formId, culture) {
             $fields = vInfos.$fields;
         }
 
-
-        var re = null, _field = null, arrFields = [], a = 0;
-        // avoiding conflict like ["myfield", "myfield-name"]
-        // where once `myfield` is replaced for exemple with `1234`, you also get 1234-name left behind
-        // TODO - Replace this trick with a RegExp matching only the exact word
-        // TODO - test this one:
-        //          \W(\$myfield-name)(?!-)\W
+        var arrFields = [], spliced = {};
         for (let field in fields) {
-            arrFields[a] = field;
-            a++;
+            arrFields.push(field);
         }
-        arrFields.sort().reverse();
-
-        for (let i = 0, len = arrFields.length; i < len; i++) {
-            _field = arrFields[i].replace(/\-|\_|\@|\#|\.|\[|\]/g, '\\$&');
-            re = new RegExp('\\$'+_field, 'g');
+        // #B603 — the tokenizer picks the longest name and never scans a replacement
+        // again; the resolver runs once per NAME (cast once, warn once).
+        stringifiedRules = FormValidator.substituteFieldTokens(stringifiedRules, arrFields, function(field) {
+            if ( typeof(spliced[field]) != 'undefined' ) {
+                return spliced[field];
+            }
             // default field value (#B600 — escaped inside its quotes, see quoteForDynamisedRules)
-            let fieldValue = quoteForDynamisedRules(fields[arrFields[i]]);
-            let isInRule = re.test(stringifiedRulesTmp);
-            if ( isInRule && typeof(ruleObj[arrFields[i]]) != 'undefined' ) {
-                fieldValue = getCastedValue(ruleObj, fields, arrFields[i], true);
-            } else if ( isInRule ) {
-                console.warn('`'+arrFields[i]+'` is used in a dynamic rule without definition. This could lead to an evaluation error. Casting `'+arrFields[i]+'` to `string`.');
+            let fieldValue = quoteForDynamisedRules(fields[field]);
+            if ( typeof(ruleObj[field]) != 'undefined' ) {
+                fieldValue = getCastedValue(ruleObj, fields, field, true);
+            } else {
+                console.warn('`'+field+'` is used in a dynamic rule without definition. This could lead to an evaluation error. Casting `'+field+'` to `string`.');
             }
-
-            // #B600 — a function replacer: a `$&`, `$'` or `$$` in the value is text,
-            // never a replacement pattern.
-            stringifiedRules = stringifiedRules.replace(re, function() { return fieldValue; });
-        }
-        // #B234 — this second loop is a DOM FALLBACK: it re-derives each splice
-        // value from the live element (`$fields[...].value` / `.checked`), and
-        // the server auto path (`backendInit`) passes `$fields = null`, so ANY
-        // `$` surviving loop 1 threw here — a regex end-anchor in an `is`
-        // condition, or a `$` inside a human-readable message string. Loop 1
-        // already replaces every KNOWN field's token, so what reaches loop 2 is
-        // a leftover it structurally cannot match anyway: skipping when there is
-        // no DOM matches what the client does when this re-scan no-ops, and
-        // leaves every previously-working substitution byte-identical. Same
-        // `$fields &&` guard shape as the #B127 precedent one function later.
-        // was: `if ( /\$(.*)/.test(stringifiedRules) ) {`
-        if ( $fields && /\$(.*)/.test(stringifiedRules) ) {
-            for (let i = 0, len = arrFields.length; i < len; i++) {
-                _field = arrFields[i].replace(/\-|\_|\@|\#|\.|\[|\]/g, '\\$&');
-                re = new RegExp('\\$'+_field, 'g');
-                // default field value
-                let fieldValue = ($fields[arrFields[i]].value != '' ) ? quoteForDynamisedRules($fields[arrFields[i]].value) : '\\"\\"';
-                let isInRule = re.test(stringifiedRulesTmp);
-                if ( isInRule && typeof(ruleObj[arrFields[i]]) != 'undefined' ) {
-                    fieldValue = getCastedValue(ruleObj, fields, arrFields[i], true);
-                } else if ( isInRule ) {
-                    console.warn('`'+arrFields[i]+'` is used in a dynamic rule without definition. This could lead to an evaluation error. Casting `'+arrFields[i]+'` to `string`.');
-                }
-
-                // #B600 — escaped, and spliced through a function replacer, as in the first loop
-                let splicedValue = fieldValue || $fields[arrFields[i]].checked;
-                stringifiedRules = stringifiedRules.replace(re, function() { return splicedValue; });
-            }
-        }
+            spliced[field] = fieldValue;
+            return fieldValue;
+        });
 
         // #B600 — a splice can no longer break this parse (every value is escaped), but
         // a failure here must never throw out of the validation pass: fall back to the
@@ -11755,13 +11740,14 @@ function ValidatorPlugin(rules, data, formId, culture) {
         /**
          * Apply every rule declared for one field to the FormValidator instance `d`.
          *
-         * Array-form rules (`isInList: [...]`) get their FIRST argument scanned for
-         * `$`-prefixed tokens; a token resolving to a real field (a `d` key with a
+         * Array-form rules (`isInList: [...]`) — except `is` / `is<N>`, whose
+         * condition the engine resolves itself (#B603) — get their FIRST argument
+         * scanned for `$`-prefixed tokens; a token resolving to a real field (a `d` key with a
          * defined `.value`) is substituted with that value, anything else stays
          * LITERAL (#B239 — the blind deref crashed on unknown names and spliced
          * "undefined" on engine-method-name collisions). Later elements are never
          * scanned. Cross-field refs inside array rules are consumed upstream by
-         * getDynamisedRules loop 1 (quoted — #B240), so in practice only leftover
+         * getDynamisedRules (quoted — #B240), so in practice only leftover
          * non-field tokens reach the scan here.
          *
          * @inner
@@ -11865,7 +11851,12 @@ function ValidatorPlugin(rules, data, formId, culture) {
                     if (Array.isArray(rules[field][rule])) { // has args
                         //convert array to arguments
                         args = JSON.clone(rules[field][rule]);
-                        if ( /\$[\-\w\[\]]*/.test(args[0]) ) {
+                        // #B603 — an `is` / `is<N>` condition is the ENGINE's to resolve
+                        // (getDynamisedRules has already spliced every known field as a
+                        // string literal, and is() resolves tokens outside literals only):
+                        // this raw first-occurrence replace re-hit a `$<field>` a spliced
+                        // VALUE carried in, so the two-argument `is` form mismatched on it.
+                        if ( !/^is\d*$/.test(rule) && /\$[\-\w\[\]]*/.test(args[0]) ) {
                             var foundVariables = args[0].match(/\$[\-\w\[\]]*/g);
                             for (var v = 0, vLen = foundVariables.length; v < vLen; ++v) {
                                 // #B239 — the deref used to be blind, throwing
@@ -11877,7 +11868,7 @@ function ValidatorPlugin(rules, data, formId, culture) {
                                 // defined keys with no `.value`). A token that does not
                                 // resolve to a real field now stays LITERAL, so strict
                                 // comparison applies. Cross-field refs inside array
-                                // rules remain owned by #B240 (upstream loop-1 quoting).
+                                // rules remain owned by #B240 (upstream getDynamisedRules quoting).
                                 // was: args[0] = args[0].replace( foundVariables[v], d[foundVariables[v].replace('$', '')].value )
                                 var _refName = foundVariables[v].replace('$', '');
                                 if (

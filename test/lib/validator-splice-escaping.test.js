@@ -188,9 +188,11 @@ function compileSplice(stubCast) {
     };
     var noLiveCheck = function () { throw new Error('getFormValidationInfos must not run in a full-form pass'); };
     var body = parts.join(';\n') + ';\nreturn getDynamisedRules;';
+    // #B603 — the single pass runs through the engine's static (`FormValidator`
+    // is a closure-scope binding of main.js), so the real engine is supplied
     var fn = stubCast
-        ? new Function('getFormValidationInfos', 'console', 'getCastedValue', body)(noLiveCheck, fakeConsole, stubCast)
-        : new Function('getFormValidationInfos', 'console', body)(noLiveCheck, fakeConsole);
+        ? new Function('getFormValidationInfos', 'console', 'FormValidator', 'getCastedValue', body)(noLiveCheck, fakeConsole, FormValidator, stubCast)
+        : new Function('getFormValidationInfos', 'console', 'FormValidator', body)(noLiveCheck, fakeConsole, FormValidator);
     return { getDynamisedRules: fn, warns: warns };
 }
 
@@ -529,16 +531,17 @@ describe('validator-splice-escaping §04 — escapeForJsonString / quoteForDynam
 // ---------------------------------------------------------------------------
 // §05 — getDynamisedRules' DOM fallback and parse guard (extracted, no DOM needed)
 // ---------------------------------------------------------------------------
-describe('validator-splice-escaping §05 — getDynamisedRules loop 2 and parse (#B600)', function () {
+describe('validator-splice-escaping §05 — getDynamisedRules splice and parse (#B600)', function () {
 
-    // `$b` surviving loop 1 inside a SPLICED value is what makes loop 2 act (it
-    // walks the same field names as loop 1, in descending order): `a` is spliced
-    // after `b`'s turn, so the `$b` it carries meets `b`'s DOM value in loop 2.
+    // A `$b` inside a SPLICED value used to be what made the (since retired)
+    // DOM-fallback second loop act; under the single pass (#B603) it is text —
+    // these arms keep the #B600 contract (no throw, `$&` literal) on the splice
+    // that remains.
     var RULES = { a: { is: ['$a === $a-confirm', 'mismatch'] }, 'a-confirm': {}, b: {} };
-    function dom(bValue) {
+    function dom(aValue, bValue) {
         return {
-            fields: { a: 'x$b', 'a-confirm': 'x$b', b: bValue },
-            $fields: { a: { value: 'x$b' }, 'a-confirm': { value: 'x$b' }, b: { value: bValue } }
+            fields: { a: aValue, 'a-confirm': aValue, b: bValue },
+            $fields: { a: { value: aValue }, 'a-confirm': { value: aValue }, b: { value: bValue } }
         };
     }
 
@@ -548,16 +551,16 @@ describe('validator-splice-escaping §05 — getDynamisedRules loop 2 and parse 
         assert.equal(out.a.is[0], '"x" === "x"');
     });
 
-    it('05.2 - the DOM-fallback splice of a quote-bearing value no longer throws', function () {
-        var s = compileSplice(), d = dom('q"r'), out;
+    it('05.2 - with a DOM present, a quote-bearing splice does not throw, and a `$b` it carries is not resolved again', function () {
+        var s = compileSplice(), d = dom('x$b', 'q"r'), out;
         assert.doesNotThrow(function () { out = s.getDynamisedRules(JSON.stringify(RULES), d.fields, d.$fields, false); });
-        assert.equal(typeof out.a.is[0], 'string');
+        assert.equal(out.a.is[0], '"x$b" === "x$b"');
     });
 
-    it('05.3 - the DOM-fallback splice keeps `$&` literal', function () {
-        var s = compileSplice(), d = dom('q$&r');
+    it('05.3 - the splice keeps `$&` literal', function () {
+        var s = compileSplice(), d = dom('q$&r', 'z');
         var out = s.getDynamisedRules(JSON.stringify(RULES), d.fields, d.$fields, false);
-        assert.ok(out.a.is[0].indexOf('q$&r') > -1, out.a.is[0]);
+        assert.equal(out.a.is[0], '"q$&r" === "q$&r"');
     });
 
     it('05.4 - a rule set that cannot be parsed falls back to the rules as declared, with a warning', function () {
@@ -638,16 +641,13 @@ describe('validator-splice-escaping §06 — source pins', function () {
         assert.ok(block.indexOf('} else if (isOnDynamisedRules && ruleObj[fieldName].isBoolean) {') > -1);
     });
 
-    it('06.4 - getDynamisedRules: escaped defaults, function replacers, a guarded parse', function () {
+    it('06.4 - getDynamisedRules: an escaped default, one pass through the tokenizer, a guarded parse', function () {
         var block = activeLines(dynBlock(MAIN_SRC));
-        assert.ok(block.indexOf('let fieldValue = quoteForDynamisedRules(fields[arrFields[i]]);') > -1, 'loop-1 default');
-        assert.ok(block.indexOf(String.raw`let fieldValue = ($fields[arrFields[i]].value != '' ) ? quoteForDynamisedRules($fields[arrFields[i]].value) : '\\"\\"';`) > -1,
-            'loop-2 default');
-        assert.ok(block.indexOf('stringifiedRules = stringifiedRules.replace(re, function() { return fieldValue; });') > -1);
-        assert.ok(block.indexOf('stringifiedRules = stringifiedRules.replace(re, function() { return splicedValue; });') > -1);
+        assert.ok(block.indexOf('let fieldValue = quoteForDynamisedRules(fields[field]);') > -1, 'the escaped default');
+        // #B603 — the single pass replaced the per-name `replace(re, …)` loops
+        assert.ok(block.indexOf('stringifiedRules = FormValidator.substituteFieldTokens(stringifiedRules, arrFields, function(field) {') > -1);
         assert.equal(block.indexOf('.replace(re, fieldValue'), -1, 'no string replacement left');
-        assert.equal(block.indexOf('+ fields[arrFields[i]] +'), -1);
-        assert.equal(block.indexOf('+ $fields[arrFields[i]].value +'), -1);
+        assert.equal(block.indexOf('+ fields[field] +'), -1, 'no raw concatenation left');
         var tryAt = block.lastIndexOf('try {'), parseAt = block.indexOf('return JSON.parse(stringifiedRules);');
         var catchAt = block.indexOf('} catch (parseErr) {'), fallbackAt = block.indexOf('return ruleObj;');
         assert.ok(tryAt > -1 && tryAt < parseAt && parseAt < catchAt && catchAt < fallbackAt, 'try -> parse -> catch -> ruleObj');
@@ -655,12 +655,15 @@ describe('validator-splice-escaping §06 — source pins', function () {
 
     it('06.5 - is(): escaped substitution, literal-aware strip, widened grammar, guarded operand decode', function () {
         var body = activeLines(isBody(ENGINE_SRC));
-        assert.ok(body.indexOf('var variables = condition.match(/\\${0}[-_,.\\[\\]a-z0-9]+/ig) || [];') > -1, '#B602: no gate on an empty match');
-        assert.equal(body.indexOf('variables && variables.length > 0'), -1);
-        assert.ok(body.indexOf('var _scsSubstituted = JSON.stringify(self[ variables[i] ].value);') > -1);
-        assert.ok(body.indexOf('compiledCondition = compiledCondition.replace(re, function() { return _scsSubstituted; });') > -1);
+        // #B604 — the sigil-less scan and its `variables.length` gate (#B602) are gone;
+        // tokens resolve through the shared tokenizer, outside string literals
+        assert.equal(body.indexOf('variables && variables.length > 0'), -1, '#B602: no gate on an empty match');
+        assert.ok(body.indexOf('substituteFieldTokens(part, fieldNames, resolveFieldToken)') > -1);
+        assert.ok(body.indexOf('return JSON.stringify(value);') > -1, 'a string value splices as a JSON literal');
         assert.equal(body.indexOf("'\"'+ self[ variables[i] ].value +'\"'"), -1, 'no bare-quote string replacement left');
-        var stripAt = body.indexOf(String.raw`compiledCondition = compiledCondition.replace(/"(?:[^"\\]|\\.)*"|[^"]+/g, function(_scsPart) {`);
+        // #B604 hoisted the segment regex into `_SCS_SEGMENT_RE`, shared with the token pass
+        assert.ok(body.indexOf(String.raw`var _SCS_SEGMENT_RE = /"(?:[^"\\]|\\.)*"|[^"]+/g;`) > -1, 'the segment regex, declared once');
+        var stripAt = body.indexOf('compiledCondition = compiledCondition.replace(_SCS_SEGMENT_RE, function(_scsPart) {');
         var grammarAt = body.indexOf(String.raw`var _SCS_BINARY_RE = /^\s*(null|undefined|true|false|"(?:[^"\\]|\\.)*"|-?\d+(?:\.\d+)?)\s*(===|!==|<=|>=|==|!=|<|>)\s*(null|undefined|true|false|"(?:[^"\\]|\\.)*"|-?\d+(?:\.\d+)?)\s*$/;`);
         assert.ok(stripAt > -1, '#B601: the strip runs outside string literals');
         assert.ok(grammarAt > stripAt, 'the widened grammar, after the strip');
@@ -670,8 +673,9 @@ describe('validator-splice-escaping §06 — source pins', function () {
 
     it('06.6 - queryFromFrontend: the late token is spliced twice-escaped, the body decoded', function () {
         var block = activeLines(queryBlock(ENGINE_SRC));
-        assert.ok(block.indexOf(String.raw`var splicedValue = '\\"' + escapeForJsonString(escapeForJsonString(value)) + '\\"';`) > -1);
-        assert.ok(block.indexOf('strData = strData.replace( re, function() { return splicedValue; } );') > -1);
+        // #B606 — the splice is now the tokenizer's resolver: still twice-escaped, still a function
+        assert.ok(block.indexOf(String.raw`return '\\"' + escapeForJsonString(escapeForJsonString(value)) + '\\"';`) > -1);
+        assert.ok(block.indexOf('strData = substituteFieldTokens(strData, tokenNames, function(key) {') > -1);
         assert.ok(block.indexOf('queryData = decodeSplicedQuotes(strData);') > -1);
         assert.equal(block.indexOf('strData.replace( re, value )'), -1);
         assert.equal(block.indexOf(String.raw`strData.replace(/\\"/g, '')`), -1, 'the blanket cleanup is gone');
