@@ -1000,13 +1000,16 @@ describe('08 - isRequired radio: form-owner-scoped serialize-time resolution', f
         // Reassociated radios that are NOT DOM descendants of any shared form. The form-owner
         // filter still scopes correctly via $target.form, regardless of how ownership was
         // declared (DOM descent vs form="X" attribute).
+        // The forms come FIRST: parsed ahead of them, both checked radios would share a null form
+        // owner, so the later one unchecks the earlier (the HTML radio-group rule, applied by
+        // Chromium and by jsdom from 30.1.0).
         var dom = new JSDOM('<!DOCTYPE html><html><body>'
+            + '<form id="probeA"></form>'
+            + '<form id="probeB"></form>'
             + '<input type="radio" name="grp" value="a" form="probeA" id="r-a">'
             + '<input type="radio" name="grp" value="b" form="probeA" id="r-b" checked>'
             + '<input type="radio" name="grp" value="c" form="probeB" id="r-c" checked>'
             + '<input type="radio" name="grp" value="d" form="probeB" id="r-d">'
-            + '<form id="probeA"></form>'
-            + '<form id="probeB"></form>'
             + '</body></html>');
         var $b = dom.window.document.getElementById('r-b');
         var resolved = resolveRadioValue($b, 'grp', dom.window.document);
