@@ -38,6 +38,13 @@
  * path-count pin reads 2, and §02 counts 2 + 2×50 = 102 template reads while
  * the projects.json control and the boot itself pass — so the instrument
  * discriminates.
+ *
+ * Under `bun test` §02 does not complete: a Config booted in a child process
+ * exits 1 before its env resolves there, the same shape as every sibling
+ * child-boot arm (config-env-overlay, config-src-fallback-scope,
+ * config-session-lifetime, config-env-load-error-propagation), so its five
+ * tests are carried in test/bun-expected-failures.txt like theirs. §01 runs
+ * under both runtimes.
  */
 var { describe, it, before } = require('node:test');
 var assert = require('node:assert/strict');
