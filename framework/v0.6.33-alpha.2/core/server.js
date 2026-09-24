@@ -2568,6 +2568,39 @@ function Server(options) {
     };
 
     /**
+     * #P43 — resolve `server.query.http2SessionPool` ONCE at engine start, for the
+     * stamp below that `controller.query()`'s HTTP/2 client reads. The pool is the
+     * number of HTTP/2 sessions one bundle keeps per upstream authority; calls are
+     * spread over them round-robin. Default 1 — the single cached session per
+     * authority that every earlier release used, byte-identical behaviour. Raise it
+     * when the upstream is several replicas behind a per-CONNECTION (L4) balancer
+     * such as a Kubernetes Service: one session pins every call to one replica.
+     * A structurally invalid value refuses the boot (the #MS5 shape): running with a
+     * pool the operator did not ask for is a silent capacity change. The ceiling is
+     * the HTTP/2 client's per-process session cap (`HTTP2_SESSION_MAX` = 50 in
+     * controller.js, all authorities together): a larger pool would make that cap
+     * evict a live session on every new connection.
+     *
+     * @inner
+     * @param {object} [serverConf] - Post-fold `server` block (env.json keys win, settings.json fills — the config.js #MS5 fold)
+     * @returns {number} Integer >= 1
+     * @throws {Error} When the key is set to anything but an integer from 1 to 50
+     * @example
+     * resolveQueryHttp2SessionPool({ query: { http2SessionPool: 3 } }); // 3
+     * resolveQueryHttp2SessionPool({});                                  // 1
+     */
+    var resolveQueryHttp2SessionPool = function(serverConf) {
+        var raw = serverConf && serverConf.query && serverConf.query.http2SessionPool;
+        if ( typeof(raw) == 'undefined' ) {
+            return 1;
+        }
+        if ( typeof(raw) != 'number' || raw !== ~~raw || raw < 1 || raw > 50 ) {
+            throw new Error('[SERVER][#P43] `server.query.http2SessionPool` must be an integer from 1 to 50 (the per-process HTTP/2 session cap) — got `'+ raw +'`');
+        }
+        return raw;
+    };
+
+    /**
      * Attaches the server engine instance, injects helper references
      * (`throwError`, `getAssets`, `completeHeaders`) onto it, and returns
      * `onRequest()` to begin serving HTTP traffic.
@@ -2619,6 +2652,14 @@ function Server(options) {
             // minted lazily by the controller).
             if ( typeof(instance._queryCircuitBreaker) == 'undefined' ) {
                 instance._queryCircuitBreaker = resolveQueryCircuitBreakerConf(self.conf[self.appName][self.env].server);
+            }
+
+            // #P43 — HTTP/2 client session pool size per upstream authority, resolved
+            // ONCE from the post-fold `server.query.http2SessionPool` (default 1) and
+            // stamped where the HTTP/2 client reads it; the per-authority round-robin
+            // cursor (`_h2PoolCursor`) is minted lazily by the controller.
+            if ( typeof(instance._h2SessionPool) == 'undefined' ) {
+                instance._h2SessionPool = resolveQueryHttp2SessionPool(self.conf[self.appName][self.env].server);
             }
 
             // #MS6 — identified-caller quota policy, resolved ONCE from the

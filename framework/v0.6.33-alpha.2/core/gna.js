@@ -2117,8 +2117,16 @@ isBundleMounted(projects, bundlesPath, getContext('bundle'), function onBundleMo
 
                                                     _wClient.setTimeout(0); // keep session alive
 
+                                                    // #B625 — identity check (raw engine Map, `{value}` wrappers): the
+                                                    // warmup's close/goaway/error run asynchronously and may fire after
+                                                    // a query() retry cached a fresh session under the same key.
+                                                    var _wIsCached = function() {
+                                                        var _e = instance._cached && instance._cached.get(_wSessKey);
+                                                        return !!_e && (_e === _wClient || _e.value === _wClient);
+                                                    };
                                                     var _wCleanup = function() {
                                                         if (_wPingInterval) { clearInterval(_wPingInterval); _wPingInterval = null; }
+                                                        if (!_wIsCached()) return; // #B625 — never a later session's entry
                                                         warmupCache.delete(_wSessKey);
                                                         if (!instance._http2Sessions) return;
                                                         var _wi = instance._http2Sessions.indexOf(_wSessKey);
@@ -2134,12 +2142,22 @@ isBundleMounted(projects, bundlesPath, getContext('bundle'), function onBundleMo
 
                                                     // Cache the session BEFORE the PING completes so the first
                                                     // request can reuse it immediately (even if PING is in flight)
-                                                    warmupCache.set(_wSessKey, _wClient);
+                                                    // #B625 — the cache owns "this session lost its slot" (replace, LRU,
+                                                    // the HTTP2_SESSION_MAX cap, any delete): stop the keepalive, drop
+                                                    // the tracker entry, drain gracefully — the controller's own cleanup.
+                                                    warmupCache.set(_wSessKey, _wClient, function _onWarmupSessionEvicted() {
+                                                        if (_wPingInterval) { clearInterval(_wPingInterval); _wPingInterval = null; }
+                                                        if (instance._http2Sessions) {
+                                                            var _wEvIdx = instance._http2Sessions.indexOf(_wSessKey);
+                                                            if (_wEvIdx !== -1) instance._http2Sessions.splice(_wEvIdx, 1);
+                                                        }
+                                                        try { if (!_wClient.closed && !_wClient.destroyed) { _wClient.close(); } } catch (_wCloseErr) {}
+                                                    });
                                                     if (!instance._http2Sessions) instance._http2Sessions = [];
                                                     instance._http2Sessions.push(_wSessKey);
 
-                                                    // Send initial PING to verify the connection is alive
-                                                    _wClient.ping(function(wPingErr, wDuration) {
+                                                    // Initial PING to verify the connection is alive (sent by _wInitialPing below).
+                                                    var _wOnInitialPong = function(wPingErr, wDuration) {
                                                         if (wPingErr) {
                                                             console.warn('[warmup] Initial PING failed for '+ authority +': '+ wPingErr.message);
                                                             _wCleanup();
@@ -2147,6 +2165,7 @@ isBundleMounted(projects, bundlesPath, getContext('bundle'), function onBundleMo
                                                             return;
                                                         }
                                                         console.info('[warmup] HTTP/2 session ready for '+ authority +' (PING RTT: '+ ~~wDuration +'ms)');
+                                                        _wClient._lastPongAt = Date.now(); // #B627 — validated: query() need not pre-flight it
 
                                                         // Start the 5s keepalive PING cycle (mirrors handleHTTP2ClientRequest)
                                                         _wPingInterval = setInterval(function() {
@@ -2159,12 +2178,37 @@ isBundleMounted(projects, bundlesPath, getContext('bundle'), function onBundleMo
                                                                 _wCleanup();
                                                                 if (!_wClient.destroyed) _wClient.destroy();
                                                             }, 3000);
-                                                            _wClient.ping(function(keepAliveErr) {
+                                                            var _wOnKeepalivePong = function(keepAliveErr) {
                                                                 clearTimeout(_wDeadline);
-                                                                if (keepAliveErr) { _wCleanup(); }
-                                                            });
+                                                                if (keepAliveErr) {
+                                                                    // #B627 — node cancels a ping past its outstanding limit, and
+                                                                    // every pending ping at teardown: inconclusive, skip the tick.
+                                                                    if (keepAliveErr.code !== 'ERR_HTTP2_PING_CANCEL') { _wCleanup(); }
+                                                                    return;
+                                                                }
+                                                                _wClient._lastPongAt = Date.now();
+                                                            };
+                                                            try {
+                                                                _wClient.ping(_wOnKeepalivePong);
+                                                            } catch (_wKeepaliveThrow) { // Bun <= 1.3 throws a cancelled ping synchronously — never out of this interval
+                                                                _wOnKeepalivePong(_wKeepaliveThrow);
+                                                            }
                                                         }, 5000);
-                                                    });
+                                                    };
+                                                    // #B629 — ping only once the session is CONNECTED: node cancels a PING sent
+                                                    // while the session is still connecting (ERR_HTTP2_PING_CANCEL — measured on
+                                                    // node 22/24/25/26; Bun acks it), and the callback above read that cancel as a
+                                                    // dead session, so every warmed session on node was destroyed within a tick.
+                                                    var _wInitialPing = function() {
+                                                        try {
+                                                            _wClient.ping(_wOnInitialPong);
+                                                        } catch (wPingThrow) { // destroyed before `connect` fired — never throw out of a listener
+                                                            console.warn('[warmup] Initial PING could not be sent for '+ authority +': '+ (wPingThrow && wPingThrow.message));
+                                                            _wCleanup();
+                                                            if (!_wClient.destroyed) _wClient.destroy();
+                                                        }
+                                                    };
+                                                    if (_wClient.connecting) { _wClient.once('connect', _wInitialPing); } else { _wInitialPing(); }
 
                                                 } catch(wConnErr) {
                                                     console.warn('[warmup] Could not connect to '+ authority +': '+ wConnErr.message);

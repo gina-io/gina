@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'The boot warmup of HTTP/2 sessions (`server.warmup`) never kept a session on Node.js: its initial PING was sent while the session was still connecting, node cancels such a ping at once, and the warmup read the cancel as a dead session and tore it down within a tick — so the first real `self.query()` still met a cold connection. The PING is now sent once the session is connected, the warmed session is stamped fresh after its PONG (the first call does not pre-flight it), and it is cached with the same identity-checked eviction and graceful cleanup as a session `self.query()` opens itself. Pickup: bundle restart, no re-bake (#B629)'
+time: 2026-09-24T23:12:28+01:00

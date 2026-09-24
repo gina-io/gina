@@ -6214,11 +6214,13 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
      */
     var handleHTTP2ClientRequest = function(browser, options, callback, retryCount = 0, isCritical = true) {
 
-        var HTTP2_SESSION_MAX = 50;           // max concurrent HTTP/2 sessions in cache
+        var HTTP2_SESSION_MAX = 50;           // max concurrent HTTP/2 sessions in cache — server.js caps server.query.http2SessionPool at this value (#P43)
         var HTTP2_MAX_RETRIES = 2;            // total retry attempts (original + 2 retries = 3 tries)
         var HTTP2_RETRY_DELAY_MS = 500;       // delay before 2nd+ retry (backoff)
         var HTTP2_PREFLIGHT_STALE_MS = 3000;  // session stale if last PONG > 3s ago
         var HTTP2_PREFLIGHT_DEADLINE_MS = 1500; // pre-flight PING timeout
+        var HTTP2_KEEPALIVE_MS = 5000;          // keepalive PING cadence on a cached session
+        var HTTP2_KEEPALIVE_DEADLINE_MS = 3000; // no PONG within this after a keepalive PING => the session is dead
 
         // H3: non-critical error helper. When isCritical is false, errors are swallowed
         // (log-only) instead of propagating to the caller. Returns true when swallowed
@@ -6293,13 +6295,40 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
 
         let authority = options.hostname;
         cache.from(self.serverInstance._cached);
-        let sessKey = "http2session:"+ authority;
+        // #P43 — per-authority session pool. Default 1 keeps the single key every
+        // consumer and test knows; N > 1 spreads this caller's calls over N sessions
+        // round-robin — on a k8s Service, which balances per CONNECTION (L4), that is
+        // N replicas instead of the one the first connection landed on. Resolved once
+        // at engine start from `server.query.http2SessionPool` (server.js, the #MS5 shape).
+        var _poolSize = (self.serverInstance._h2SessionPool > 1) ? ~~self.serverInstance._h2SessionPool : 1;
+        var _poolSlot = 0;
+        if (_poolSize > 1) {
+            if (!self.serverInstance._h2PoolCursor) { self.serverInstance._h2PoolCursor = {}; }
+            _poolSlot = (self.serverInstance._h2PoolCursor[authority] || 0) % _poolSize;
+            self.serverInstance._h2PoolCursor[authority] = _poolSlot + 1;
+        }
+        let sessKey = "http2session:"+ authority + (_poolSlot > 0 ? '#' + _poolSlot : '');
         let requestId = `${options[':method']}:${options[':path']}:${Date.now()}`; // For debugging
 
         // Session key tracker — stored on server instance (same scope as cache)
         if (!self.serverInstance._http2Sessions) {
             self.serverInstance._http2Sessions = [];
         }
+
+        // #B625 — identity check before ANY eviction. Every listener and retry branch
+        // below evicts by KEY, and a dead session's asynchronous 'close' / 'error' /
+        // 'goaway' (or the retry of an older attempt) must never remove the live session
+        // a later attempt cached under the same key — that was the orphan leak (audit
+        // F3: 148 + 160 ESTABLISHED sessions still open 186 s after a run, in no cache,
+        // keepalive ticking). Reads the raw engine Map (lib/cache stores `{value}`
+        // wrappers) so the check neither re-stamps the LRU clock nor depends on the
+        // module-level from() pointer.
+        var _isCached = function _isCached(key, session) {
+            var _map = self.serverInstance._cached;
+            var _entry = (_map && typeof _map.get === 'function') ? _map.get(key) : undefined;
+            if (!_entry) { return false; }
+            return (_entry === session) || (_entry.value === session);
+        };
 
         let client = cache.get(sessKey);
         // Checking client status: is closed or being closed
@@ -6320,12 +6349,12 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
             // Evict the oldest session if the cache has reached its limit
             if (self.serverInstance._http2Sessions.length >= HTTP2_SESSION_MAX) {
                 var _evictKey    = self.serverInstance._http2Sessions.shift();
-                var _evictClient = cache.get(_evictKey);
-                if (_evictClient && !_evictClient.destroyed) _evictClient.destroy();
+                // #B625 — through cache.delete() so the entry's cleanup runs: the evicted
+                // session's keepalive stops and it drains gracefully (close(), not the
+                // destroy() this used to do — an in-flight call on it still gets its answer).
                 cache.delete(_evictKey);
                 console.warn('[HTTP2] Session cache limit ('+ HTTP2_SESSION_MAX +') reached. Evicted oldest session: '+ _evictKey);
                 _evictKey    = null;
-                _evictClient = null;
             }
 
             client = browser.connect(authority, options);
@@ -6333,6 +6362,20 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
 
             // Optional but recommended on M4/Orbstack
             client.setTimeout(0); // disable the default timeout to keep session active
+
+            // #B625 — the cache owns "this session lost its slot": lib/cache runs the
+            // cleanup registered with set() on replace, LRU eviction, TTL expiry and
+            // delete alike. Stop the keepalive, drop the tracker entry and drain the
+            // session gracefully — close() lets in-flight streams finish and admits no
+            // new one; a session already closed or destroyed needs nothing. Never
+            // destroy() here: that is the retry paths' verdict on a session they measured dead.
+            var _onSessionEvicted = function _onSessionEvicted() {
+                if (client._ginaKeepalive) { clearInterval(client._ginaKeepalive); client._ginaKeepalive = null; }
+                _pingInterval = null;
+                var _evIdx = self.serverInstance._http2Sessions.indexOf(sessKey);
+                if (_evIdx !== -1) self.serverInstance._http2Sessions.splice(_evIdx, 1);
+                try { if (!client.closed && !client.destroyed) { client.close(); } } catch (_closeErr) {}
+            };
 
             client.on('error', (error) => {
                 // #H9 — the whole listener body is wrapped in try/catch so that a throw
@@ -6343,10 +6386,15 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
                     if (_pingInterval) { clearInterval(_pingInterval); _pingInterval = null; }
                     try { console.error( '`'+ (options && options[':path']) +'` : '+ (error && (error.stack || error.message) || error)); } catch (_logErr) {}
                     try {
-                        cache.delete(sessKey);
-                        var _errIdx = self.serverInstance._http2Sessions.indexOf(sessKey);
-                        if (_errIdx !== -1) self.serverInstance._http2Sessions.splice(_errIdx, 1);
-                        _errIdx = null;
+                        // #B625 — only OUR entry: a later attempt may have cached a live
+                        // replacement under this key, and this listener belongs to the
+                        // session that just failed, not to it.
+                        if (_isCached(sessKey, client)) {
+                            cache.delete(sessKey);
+                            var _errIdx = self.serverInstance._http2Sessions.indexOf(sessKey);
+                            if (_errIdx !== -1) self.serverInstance._http2Sessions.splice(_errIdx, 1);
+                            _errIdx = null;
+                        }
                     } catch (_cleanupErr) {
                         console.error('[HTTP2] Session cleanup failed in error handler: ' + (_cleanupErr.stack || _cleanupErr.message));
                     }
@@ -6406,6 +6454,11 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
 
             client.on('close', () => {
                 if (_pingInterval) { clearInterval(_pingInterval); _pingInterval = null; }
+                client._ginaKeepalive = null;
+                // #B625 — this 'close' runs asynchronously, often AFTER a retry has already
+                // cached a fresh session under the same key; evicting by key alone took that
+                // replacement with it (the audit's orphan leak, F3). Only our own entry goes.
+                if (!_isCached(sessKey, client)) { return; }
                 console.log('[CLIENT] Session expired or closed by server. Removing from cache.');
                 cache.delete(sessKey);
                 var _closeIdx = self.serverInstance._http2Sessions.indexOf(sessKey);
@@ -6417,13 +6470,15 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
                 // #H5 — log GOAWAY details for upstream connection debugging
                 console.warn('[http2] GOAWAY received — errorCode: ' + errorCode + ', lastStreamID: ' + lastStreamID + ', session: ' + sessKey);
                 if (_pingInterval) { clearInterval(_pingInterval); _pingInterval = null; }
+                client._ginaKeepalive = null;
+                if (!_isCached(sessKey, client)) { return; } // #B625 — never a later attempt's session
                 cache.delete(sessKey);
                 var _goawayIdx = self.serverInstance._http2Sessions.indexOf(sessKey);
                 if (_goawayIdx !== -1) self.serverInstance._http2Sessions.splice(_goawayIdx, 1);
                 _goawayIdx = null;
             });
 
-            cache.set(sessKey, client);
+            cache.set(sessKey, client, _onSessionEvicted); // #B625 — drains a session evicted by replace / LRU / the cap / delete
             self.serverInstance._http2Sessions.push(sessKey);
 
             // Proactive keepalive: send HTTP/2 PING frames to prevent OrbStack ARM64 (and
@@ -6437,39 +6492,55 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
             //      so the PONG callback becomes a ghost listener). The deadline evicts the
             //      dead session proactively so the next request uses a fresh connection
             //      instead of waiting for the 10s stream timeout.
-            _pingInterval = setInterval(function onHttp2Ping() {
+            _pingInterval = client._ginaKeepalive = setInterval(function onHttp2Ping() {
                 if (!client || client.destroyed || client.closed) {
                     clearInterval(_pingInterval);
-                    _pingInterval = null;
+                    _pingInterval = null; client._ginaKeepalive = null;
                     return;
                 }
                 var _pingDeadline = setTimeout(function onPingDeadline() {
-                    // PONG never arrived within 3s — connection is silently dead
+                    // PONG never arrived within the deadline — connection is silently dead
                     clearInterval(_pingInterval);
-                    _pingInterval = null;
+                    _pingInterval = null; client._ginaKeepalive = null;
                     console.warn('[HTTP2] PING timeout — evicting dead session proactively: '+ sessKey);
                     if (!client.destroyed) client.destroy();
-                    cache.delete(sessKey);
-                    var _pingDeadErrIdx = self.serverInstance._http2Sessions.indexOf(sessKey);
-                    if (_pingDeadErrIdx !== -1) self.serverInstance._http2Sessions.splice(_pingDeadErrIdx, 1);
-                    _pingDeadErrIdx = null;
-                }, 3000);
-                client.ping(function(err) {
+                    if (_isCached(sessKey, client)) { // #B625
+                        cache.delete(sessKey);
+                        var _pingDeadErrIdx = self.serverInstance._http2Sessions.indexOf(sessKey);
+                        if (_pingDeadErrIdx !== -1) self.serverInstance._http2Sessions.splice(_pingDeadErrIdx, 1);
+                        _pingDeadErrIdx = null;
+                    }
+                }, HTTP2_KEEPALIVE_DEADLINE_MS);
+                var _onKeepalivePong = function(err) {
                     clearTimeout(_pingDeadline); // PONG arrived — cancel the deadline
                     if (err) {
+                        // #B627 — a CANCELLED ping says nothing about the peer: node cancels a
+                        // ping past its outstanding limit (10) at once, and every pending ping
+                        // when the session is torn down. Skip this tick; a dead session is
+                        // caught by the deadline above or by the destroyed/closed check.
+                        if (err.code === 'ERR_HTTP2_PING_CANCEL') { return; }
                         clearInterval(_pingInterval);
-                        _pingInterval = null;
+                        _pingInterval = null; client._ginaKeepalive = null;
                         console.warn('[HTTP2] PING failed — evicting dead session proactively: '+ sessKey);
                         if (!client.destroyed) client.destroy();
-                        cache.delete(sessKey);
-                        var _pingErrIdx = self.serverInstance._http2Sessions.indexOf(sessKey);
-                        if (_pingErrIdx !== -1) self.serverInstance._http2Sessions.splice(_pingErrIdx, 1);
-                        _pingErrIdx = null;
+                        if (_isCached(sessKey, client)) { // #B625
+                            cache.delete(sessKey);
+                            var _pingErrIdx = self.serverInstance._http2Sessions.indexOf(sessKey);
+                            if (_pingErrIdx !== -1) self.serverInstance._http2Sessions.splice(_pingErrIdx, 1);
+                            _pingErrIdx = null;
+                        }
                     } else {
                         client._lastPongAt = Date.now(); // track for pre-flight freshness check
                     }
-                });
-            }, 5000);
+                };
+                try {
+                    client.ping(_onKeepalivePong);
+                } catch (_keepaliveThrow) {
+                    // Bun <= 1.3 throws a cancelled ping synchronously (node calls back) — same handling,
+                    // never an uncaught throw out of this interval.
+                    _onKeepalivePong(_keepaliveThrow);
+                }
+            }, HTTP2_KEEPALIVE_MS);
         }
 
 
@@ -6611,10 +6682,12 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
         try {
             req = client.request(headers);
         } catch (_reqErr) {
-            cache.delete(sessKey);
-            var _rqIdx = self.serverInstance._http2Sessions.indexOf(sessKey);
-            if (_rqIdx !== -1) self.serverInstance._http2Sessions.splice(_rqIdx, 1);
-            _rqIdx = null;
+            if (_isCached(sessKey, client)) { // #B625 — only our entry
+                cache.delete(sessKey);
+                var _rqIdx = self.serverInstance._http2Sessions.indexOf(sessKey);
+                if (_rqIdx !== -1) self.serverInstance._http2Sessions.splice(_rqIdx, 1);
+                _rqIdx = null;
+            }
             try { if (!client.destroyed) client.destroy(); } catch (_destroyErr) {}
             if (retryCount < HTTP2_MAX_RETRIES) {
                 console.warn('[HTTP2][RETRYING] Session '+ sessKey +' was gone before the request was sent ('+ (_reqErr && _reqErr.code || _reqErr) +') — retry '+ (retryCount + 1) +'/'+ HTTP2_MAX_RETRIES +' on a fresh session');
@@ -6677,6 +6750,10 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
         // (e.g. 502 Bad Gateway) are indistinguishable from JSON parse failures.
         req.on('response', function onResponseHeaders(respHeaders) {
             httpStatus = +respHeaders[':status'] || null;
+            // #B627 — a response is proof of life: a busy session never goes stale, so it
+            // never pre-flight-pings (the keepalive's 5 s cadence against the 3 s stale
+            // threshold used to make ~40% of calls ping first — audit F2).
+            client._lastPongAt = Date.now();
         });
 
         // Stream-level timeout — mirrors the HTTP/1 path (handleHTTP1ClientRequest line ~2744).
@@ -6690,9 +6767,14 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
             isFinished = true;
             console.warn('[HTTP2] Stream timeout ('+ (_streamTimeout > 1000 ? (_streamTimeout / 1000) + 's' : _streamTimeout + 'ms') +') on '+ options[':method'] +' '+ options[':path'] +' — evicting dead session (attempt '+ (retryCount + 1) +'/'+ (HTTP2_MAX_RETRIES + 1) +')');
             // Synchronous eviction ensures the retry below creates a fresh session.
-            cache.delete(sessKey);
-            var _tIdx = self.serverInstance._http2Sessions.indexOf(sessKey);
-            if (_tIdx !== -1) self.serverInstance._http2Sessions.splice(_tIdx, 1);
+            // #B625 — only our entry (a later attempt's session must survive). #B628 — the
+            // destroy() below still takes every sibling stream on this session with it;
+            // deliberately unchanged here, filed as a candidate.
+            if (_isCached(sessKey, client)) {
+                cache.delete(sessKey);
+                var _tIdx = self.serverInstance._http2Sessions.indexOf(sessKey);
+                if (_tIdx !== -1) self.serverInstance._http2Sessions.splice(_tIdx, 1);
+            }
             if (!client.destroyed) client.destroy(); // no error arg — suppresses session 'error' event
             // #B53 — only re-send non-idempotent methods when the caller opted in (replay-safe).
             if (retryCount < HTTP2_MAX_RETRIES && isRetryableMethod(options[':method'], options.retryUnsafe)) {
@@ -6732,6 +6814,35 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
             // A. Error object name: using 'error' (from function arg) instead of 'err'
             const errorCode = error.code || (error.cause ? error.cause.code : null);
 
+            // #B630 / #B631 — a request the peer or the runtime REFUSED before processing
+            // it is replay-safe for ANY method, so it is retried ahead of the #B53 gate:
+            // RFC 9113 §8.7 defines REFUSED_STREAM as closed "prior to any processing
+            // having occurred" — nghttp2 sends it for a stream a closing session will not
+            // take (rstCode 7), and a server at its stream limit does the same — and
+            // ERR_HTTP2_GOAWAY_SESSION is the runtime refusing to create the stream at all
+            // after a GOAWAY (an asynchronous stream error on node 24 / 26 and Bun 1.4;
+            // node 22 / 25 throw it synchronously into the #B612 catch above instead).
+            // Measured 2026-09-24: a call whose pre-flight PING crosses the server's
+            // graceful idle close (#B619) meets exactly this, and a POST failed unretried
+            // although nothing was processed. The session is NOT destroyed here: one
+            // closing on a GOAWAY is dropped by the cache read on re-entry (its own
+            // goaway/close listeners evict it), one that merely refused a stream is
+            // healthy and reused. The refused stream is already destroyed by the reset
+            // and its timer cleared with it (measured), so there is nothing to release.
+            var _neverProcessed = (errorCode === 'ERR_HTTP2_GOAWAY_SESSION')
+                || (errorCode === 'ERR_HTTP2_STREAM_ERROR' && req.rstCode === 7 /* NGHTTP2_REFUSED_STREAM */);
+            if (retryCount < HTTP2_MAX_RETRIES && _neverProcessed) {
+                isFinished = true;
+                options.queryData = options._body; // restore body for retry
+                var _npNext = retryCount + 1;
+                console.warn('[HTTP2][RETRYING] Request on '+ options[':path'] +' was refused before it was processed ('+ (errorCode === 'ERR_HTTP2_GOAWAY_SESSION' ? errorCode : 'REFUSED_STREAM') +') — retry '+ _npNext +'/'+ HTTP2_MAX_RETRIES +', any method');
+                if (_npNext > 1) {
+                    return setTimeout(function() {
+                        handleHTTP2ClientRequest(browser, options, callback, _npNext, isCritical);
+                    }, HTTP2_RETRY_DELAY_MS);
+                }
+                return handleHTTP2ClientRequest(browser, options, callback, _npNext, isCritical);
+            }
 
             // If the session closed exactly when we sent the request (Race Condition)
             // Retry with a fresh connection (up to HTTP2_MAX_RETRIES, with backoff)
@@ -6744,14 +6855,16 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
             // scene (audit 2026-09-24), every other one a 500 to the caller.
             if (retryCount < HTTP2_MAX_RETRIES && (errorCode === 'ERR_HTTP2_STREAM_ERROR' || errorCode === 'ERR_HTTP2_SESSION_ERROR' || errorCode === 'ECONNRESET') && isRetryableMethod(options[':method'], options.retryUnsafe)) {
                 isFinished = true; // Mark current attempt as done
-                cache.delete(sessKey);
-                // #B612 — drop the tracker entry too, as every other retry branch does: without
-                // it the key sat twice in _http2Sessions until the dead session's own close
-                // listener spliced one copy, and the HTTP2_SESSION_MAX shift() could then
-                // destroy the fresh replacement instead of a stale entry.
-                var _eIdx = self.serverInstance._http2Sessions.indexOf(sessKey);
-                if (_eIdx !== -1) self.serverInstance._http2Sessions.splice(_eIdx, 1);
-                _eIdx = null;
+                if (_isCached(sessKey, client)) { // #B625 — only our entry
+                    cache.delete(sessKey);
+                    // #B612 — drop the tracker entry too, as every other retry branch does: without
+                    // it the key sat twice in _http2Sessions until the dead session's own close
+                    // listener spliced one copy, and the HTTP2_SESSION_MAX shift() could then
+                    // destroy the fresh replacement instead of a stale entry.
+                    var _eIdx = self.serverInstance._http2Sessions.indexOf(sessKey);
+                    if (_eIdx !== -1) self.serverInstance._http2Sessions.splice(_eIdx, 1);
+                    _eIdx = null;
+                }
                 if (!client.destroyed) client.destroy();
                 options.queryData = options._body; // restore body for retry
                 var _eNext = retryCount + 1;
@@ -6837,9 +6950,11 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
             console.warn('[HTTP2] Premature stream close on '+ options[':method'] +' '+ options[':path'] +' — GOAWAY / session reset (attempt '+ (retryCount + 1) +'/'+ (HTTP2_MAX_RETRIES + 1) +')');
             // #B53 — only re-send non-idempotent methods when the caller opted in (replay-safe).
             if (retryCount < HTTP2_MAX_RETRIES && isRetryableMethod(options[':method'], options.retryUnsafe)) {
-                cache.delete(sessKey);
-                var _cIdx = self.serverInstance._http2Sessions.indexOf(sessKey);
-                if (_cIdx !== -1) self.serverInstance._http2Sessions.splice(_cIdx, 1);
+                if (_isCached(sessKey, client)) { // #B625 — only our entry
+                    cache.delete(sessKey);
+                    var _cIdx = self.serverInstance._http2Sessions.indexOf(sessKey);
+                    if (_cIdx !== -1) self.serverInstance._http2Sessions.splice(_cIdx, 1);
+                }
                 if (!client.destroyed) client.destroy();
                 options.queryData = options._body;
                 var _cNext = retryCount + 1;
@@ -6896,9 +7011,11 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
                 var _502Next = retryCount + 1;
                 console.warn('[HTTP2][RETRYING] 502 from '+ options[':authority'] + options[':path'] +' — retry '+ _502Next +'/'+ HTTP2_MAX_RETRIES +' in 2s');
                 setTimeout(function onHttp2RetryAfter502() {
-                    cache.delete(sessKey);
-                    var _rIdx = self.serverInstance._http2Sessions.indexOf(sessKey);
-                    if (_rIdx !== -1) self.serverInstance._http2Sessions.splice(_rIdx, 1);
+                    if (_isCached(sessKey, client)) { // #B625 — only our entry
+                        cache.delete(sessKey);
+                        var _rIdx = self.serverInstance._http2Sessions.indexOf(sessKey);
+                        if (_rIdx !== -1) self.serverInstance._http2Sessions.splice(_rIdx, 1);
+                    }
                     if (!client.destroyed) client.destroy();
                     options.queryData = options._body;
                     handleHTTP2ClientRequest(browser, options, callback, _502Next, isCritical);
@@ -7172,13 +7289,17 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
         var _staleSince = Date.now() - (client._lastPongAt || 0);
         if (_staleSince > HTTP2_PREFLIGHT_STALE_MS && !client.destroyed && !client.closed) {
             var _pfDone = false;
-            var _pfDeadline = setTimeout(function onPreflightDeadline() {
+            // The two per-caller outcomes, unchanged in shape: each caller keeps its own
+            // retry budget, its own callback and its own typed terminal.
+            var _onPreflightDeadline = function onPreflightDeadline() {
                 if (_pfDone) return;
                 _pfDone = true;
                 console.warn('[HTTP2] Pre-flight PING timeout ('+ HTTP2_PREFLIGHT_DEADLINE_MS +'ms) — session stale for '+ _staleSince +'ms, evicting: '+ sessKey);
-                cache.delete(sessKey);
-                var _pfIdx = self.serverInstance._http2Sessions.indexOf(sessKey);
-                if (_pfIdx !== -1) self.serverInstance._http2Sessions.splice(_pfIdx, 1);
+                if (_isCached(sessKey, client)) { // #B625 — N waiters evict once, never a later attempt's session
+                    cache.delete(sessKey);
+                    var _pfIdx = self.serverInstance._http2Sessions.indexOf(sessKey);
+                    if (_pfIdx !== -1) self.serverInstance._http2Sessions.splice(_pfIdx, 1);
+                }
                 if (!client.destroyed) client.destroy();
                 if (retryCount < HTTP2_MAX_RETRIES) {
                     options.queryData = options._body || body;
@@ -7199,17 +7320,22 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
                 } catch (_syncCbErr) {
                     return _ownSyncCbThrow(_syncCbErr);
                 }
-            }, HTTP2_PREFLIGHT_DEADLINE_MS);
-
-            client.ping(function onPreflightPong(err) {
+            };
+            var _onPreflightPong = function onPreflightPong(err) {
                 if (_pfDone) return;
                 _pfDone = true;
-                clearTimeout(_pfDeadline);
                 if (err) {
+                    // #B627 — a CANCELLED ping is inconclusive, never a dead session: node
+                    // cancels a ping past its outstanding limit at once, and every pending
+                    // ping when a session is torn down. Send anyway — on a session that IS
+                    // gone, request() throws and the #B612 catch retries on a fresh one.
+                    if (err.code === 'ERR_HTTP2_PING_CANCEL') { return _sendRequest(); }
                     console.warn('[HTTP2] Pre-flight PING error — evicting session: '+ sessKey +' ('+ (err.message || err) +')');
-                    cache.delete(sessKey);
-                    var _pfEIdx = self.serverInstance._http2Sessions.indexOf(sessKey);
-                    if (_pfEIdx !== -1) self.serverInstance._http2Sessions.splice(_pfEIdx, 1);
+                    if (_isCached(sessKey, client)) { // #B625
+                        cache.delete(sessKey);
+                        var _pfEIdx = self.serverInstance._http2Sessions.indexOf(sessKey);
+                        if (_pfEIdx !== -1) self.serverInstance._http2Sessions.splice(_pfEIdx, 1);
+                    }
                     if (!client.destroyed) client.destroy();
                     if (retryCount < HTTP2_MAX_RETRIES) {
                         options.queryData = options._body || body;
@@ -7234,7 +7360,42 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
                 // PONG received — session confirmed alive
                 client._lastPongAt = Date.now();
                 _sendRequest();
-            });
+            };
+            // #B627 — ONE pre-flight PING per session. The first caller to find it stale
+            // pings and arms the deadline; every caller arriving before the PONG joins the
+            // session's waiter list and is settled by that same PONG (or its failure).
+            // Before this each caller pinged with its own deadline: node cancels every
+            // ping past its outstanding limit (10) with ERR_HTTP2_PING_CANCEL, which was
+            // read as a dead session — 22 healthy-session evictions at c=50 (audit F2).
+            var _pfWaiter = { pong: _onPreflightPong, deadline: _onPreflightDeadline };
+            if (client._ginaPreflight) {
+                client._ginaPreflight.waiters.push(_pfWaiter);
+            } else {
+                var _pf = client._ginaPreflight = { waiters: [_pfWaiter] };
+                var _pfSettled = false;
+                var _pfSharedDeadline = setTimeout(function onSharedPreflightDeadline() {
+                    if (_pfSettled) return;
+                    _pfSettled = true;
+                    if (client._ginaPreflight === _pf) { client._ginaPreflight = null; }
+                    var _ws = _pf.waiters.splice(0);
+                    for (var _wi = 0; _wi < _ws.length; _wi++) { _ws[_wi].deadline(); }
+                }, HTTP2_PREFLIGHT_DEADLINE_MS);
+                var _pfSettle = function onSharedPreflightPong(pingErr) {
+                    if (_pfSettled) return;
+                    _pfSettled = true;
+                    clearTimeout(_pfSharedDeadline);
+                    if (client._ginaPreflight === _pf) { client._ginaPreflight = null; }
+                    var _ws = _pf.waiters.splice(0);
+                    for (var _wi = 0; _wi < _ws.length; _wi++) { _ws[_wi].pong(pingErr); }
+                };
+                try {
+                    client.ping(_pfSettle);
+                } catch (_pfThrow) {
+                    // A ping that never went out: Bun <= 1.3 THROWS a cancelled ping synchronously
+                    // (node calls back with it) — settle the waiters with it, never throw out of query().
+                    _pfSettle(_pfThrow);
+                }
+            }
         } else {
             // Session is fresh (validated within HTTP2_PREFLIGHT_STALE_MS) — proceed immediately
             _sendRequest();
