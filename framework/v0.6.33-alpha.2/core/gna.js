@@ -2265,9 +2265,13 @@ isBundleMounted(projects, bundlesPath, getContext('bundle'), function onBundleMo
                                 // later hand back a bare { _connection, getConnection } and the bundle
                                 // would 500 at call-time with a cryptic TypeError. Mirrors the
                                 // framework's existing fail-fast convention: the onInitialize path
-                                // (server.js ServerEngine catch -> process.exit(1)), async connectors
-                                // (proc.js uncaughtException -> SIGTERM), and connection errors
-                                // (onModelReady -> process.exit(1)).
+                                // (server.js ServerEngine catch -> process.exit(1)) and connection
+                                // errors (onModelReady -> process.exit(1)). #B617: a throw from the
+                                // model-building block itself is caught inside lib/model.js (done() ->
+                                // _abortModelLoading, same message) on EVERY connector. On an async
+                                // one it used to escape into the connector's promise chain and reach
+                                // only the unhandledRejection net above (logged, exit 0 — measured),
+                                // never proc.js as this comment once said.
                                 // Was: console.error('[ FRAMEWORK ] Model loading failed: ' + ...) +
                                 //      e.emit('complete', instance)  (swallow -> degraded boot).
                                 var _loadMsg = '[ FRAMEWORK ] Model loading failed — aborting boot: ' + (loadErr.stack || loadErr.message || loadErr);

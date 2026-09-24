@@ -100,6 +100,34 @@ var _unattachedEntities = function(modelObject, entitiesManager, instances) {
     return missing;
 };
 
+/**
+ * #B617 — end the boot on a model-loading failure, the #B57 way: an `emerg`
+ * line, the same text flushed synchronously to stderr, and exit code 1.
+ *
+ * The model-building block of `loadAllModels` runs inside the connector's own
+ * ready callback. On a synchronous connector (sqlite) a throw there reaches the
+ * #B57 catch in `core/gna.js`. On an asynchronous one (duckdb calls back from a
+ * `.then()`, couchbase emits `ready` inside an `async` function) the same throw
+ * became an unhandled rejection that `core/gna.js` only logs, so the boot
+ * stopped half-built and the process exited 0 (measured) or stayed up unbound.
+ * Catching it where it is raised gives every connector the same outcome.
+ *
+ * @private
+ * @param {Error|*} err - what the model-building block threw
+ * @returns {void} never returns: the process exits with code 1
+ *
+ * @example
+ * try { buildModels(); } catch (modelErr) { _abortModelLoading(modelErr); }
+ */
+var _abortModelLoading = function(err) {
+    var msg = '[ FRAMEWORK ] Model loading failed — aborting boot: ' + ( (err && (err.stack || err.message)) || err );
+    console.emerg(msg);
+    // boot-exit flush: process.exit() truncates async stdout/stderr on a pipe
+    // (e.g. bin/gina-container); fs.writeSync blocks until flushed.
+    try { fs.writeSync(2, msg + '\n'); } catch (_e) { /* best-effort */ }
+    process.exit(1);
+};
+
 function ModelUtil() {
     var self        = this;
     var cacheless   = (process.env.NODE_ENV_IS_DEV == 'false') ? false : true;
@@ -349,6 +377,14 @@ function ModelUtil() {
                     }
 
                     if ( t == _connectorCount ) {
+                        // #B617 — everything that builds the models below runs inside the
+                        // connector's ready callback, so a throw here (the uppercase guard, a
+                        // connector's entity-manager factory, an entity constructor) escaped
+                        // as an unhandled rejection on an async connector: logged only, boot
+                        // left half-built. End it the #B57 way instead. cb(), the boot's
+                        // continuation, stays OUTSIDE the try so a later boot failure is never
+                        // reported as a model failure. The body keeps its original indentation.
+                        try {
                         setContext('modelConnectors', modelConnectors);
 
                         var conn                = null
@@ -434,6 +470,9 @@ function ModelUtil() {
 
                         setContext('modelUtil', ModelUtil.instance, true);
                         if (foundInitError) process.exit(1);
+                        } catch (modelErr) {
+                            _abortModelLoading(modelErr);
+                        }
 
 
                         cb()
