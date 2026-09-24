@@ -27,6 +27,47 @@ var secrets         = lib.secrets;
 var i18n            = lib.i18n;
 var sessionLifetime = lib.sessionLifetime;
 
+/**
+ * The framework's env template (`core/template/conf/env.json`), parsed once
+ * per process and shared by every `Config` instance.
+ *
+ * #B610 — `new Config()` runs on every request (three times: `hasViews` and
+ * `loadBundleConfiguration` in core/server.js, `resolveRouteConfig` in
+ * core/router.js) and the constructor used to evaluate
+ * `requireJSON(<framework>/core/template/conf/env.json)` for BOTH `this.Env`
+ * and `this.Scope` on each construction. `requireJSON` has no cache, so that
+ * was six synchronous disk reads + parses per request in every bundle — 27%
+ * of a trivial JSON route's CPU. The template is read-only (every use is a
+ * field read: `defEnv`, `defScope`, `defExt`, `registeredEnvs`, the
+ * `${bundle}`/`${env}` lookups in `loadWithTemplate`), so one shared object
+ * is safe; `test/core/config-env-template-memo.test.js` pins that on a real
+ * boot. Lazy on purpose: `GINA_FRAMEWORK_DIR` is resolved by the first
+ * construction, exactly when it used to be — never at module load.
+ *
+ * @type {(object|null)}
+ * @private
+ */
+var _frameworkEnvTemplate = null;
+
+/**
+ * Returns the parsed framework env template, reading it on the first call only.
+ *
+ * @inner
+ * @private
+ * @returns {object} the parsed `core/template/conf/env.json`
+ *
+ * @example
+ * var tpl = getFrameworkEnvTemplate();
+ * tpl.defEnv;   // → 'dev'
+ * getFrameworkEnvTemplate() === tpl;   // → true (no second read)
+ */
+function getFrameworkEnvTemplate() {
+    if ( _frameworkEnvTemplate === null ) {
+        _frameworkEnvTemplate = requireJSON( getEnvVar('GINA_FRAMEWORK_DIR') +'/core/template/conf/env.json');
+    }
+    return _frameworkEnvTemplate;
+}
+
 
 /**
  * @module gina/core/config
@@ -446,7 +487,7 @@ function Config(opt, contextResetNeeded) {
      * @type {object}
      */
     this.Env = {
-        template : requireJSON( getEnvVar('GINA_FRAMEWORK_DIR') +'/core/template/conf/env.json'),
+        template : getFrameworkEnvTemplate(),
         load : function(callback) {
             loadWithTemplate(this.parent.userConf, this.template, function(err, envConf) {
                 // #B372 — loadWithTemplate calls back with an error and NO envConf (e.g. a
@@ -581,7 +622,7 @@ function Config(opt, contextResetNeeded) {
      * @author      Rhinostone <contact@gina.io>
      */
     this.Scope = {
-        template : requireJSON( getEnvVar('GINA_FRAMEWORK_DIR') +'/core/template/conf/env.json'),
+        template : getFrameworkEnvTemplate(),
         set : function(scope) {
             this.current = scope || process.env.NODE_SCOPE || this.template.defScope;
         },

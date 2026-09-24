@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'Every request no longer re-reads the framework''s environment template from disk. `Config` is constructed three times per request (route resolution, view detection and bundle-configuration lookup) and each construction parsed `core/template/conf/env.json` twice through `requireJSON`, which has no cache — six synchronous file reads and parses per request in every bundle, measured at 27% of a trivial JSON route''s CPU (twelve per bundle-to-bundle call). The template is now parsed once per process, on the first construction, and shared read-only by every instance; nothing observable changes except the cost. Pickup is a bundle restart (#B610)'
+time: 2026-09-24T05:06:45+01:00
