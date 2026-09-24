@@ -30900,15 +30900,34 @@ function Collection(content, options) {
     //         throw new Error('Could not evaluate condition `'+ condition +'`.\n' + err.stack );
     //     }
     // }
-    var CONDITION_RE = /^\s*(new\s+Date\("[^"]*"\)|"[^"]*"|-?\d+(?:\.\d+)?)\s*(===|!==|<=|>=|==|!=|<|>)\s*(new\s+Date\("[^"]*"\)|"[^"]*"|-?\d+(?:\.\d+)?)\s*$/;
+    // #B609 — the string operand now accepts JSON escapes (`\"`, `\\`, …) so a value
+    // containing a quote or backslash cannot break the grammar. Previously the operand
+    // was `"[^"]*"`, which no escaped quote could satisfy: a single row whose string
+    // value held a `"` threw and poisoned the whole query.
+    var CONDITION_RE = /^\s*(new\s+Date\("[^"]*"\)|"(?:\\.|[^"\\])*"|-?\d+(?:\.\d+)?)\s*(===|!==|<=|>=|==|!=|<|>)\s*(new\s+Date\("[^"]*"\)|"(?:\\.|[^"\\])*"|-?\d+(?:\.\d+)?)\s*$/;
     var parseOperand = function(s) {
         var m = s.match(/^\s*new\s+Date\("([^"]*)"\)\s*$/);
         if (m) return new Date(m[1]);
         var t = s.replace(/^\s+|\s+$/g, '');
-        if (/^"[^"]*"$/.test(t)) return t.slice(1, -1);
+        if (/^"(?:\\.|[^"\\])*"$/.test(t)) return JSON.parse(t);
         var n = Number(t);
         if (!isNaN(n) && t !== '') return n;
         throw new Error('Invalid operand: `'+ s +'`');
+    };
+    // #B609 — build a safe `<left><op><right>` condition for a STRING left operand:
+    // strip the full operator (every form the grammar admits, longest first), trim the
+    // compared value, tolerate a pre-quoted operand, and JSON-encode both sides so a
+    // quote/backslash in a value — or an operator character inside the operand — can no
+    // longer corrupt the expression. The numeric and datetime paths are left untouched.
+    var STRING_OP_RE = /^(===|!==|<=|>=|==|!=|<|>)/;
+    var buildStringCondition = function(left, filter) {
+        var fs = String(filter);
+        var m = fs.match(STRING_OP_RE);
+        if (!m) { return JSON.stringify(String(left)) + fs; }
+        var op = m[1];
+        var right = fs.slice(op.length).replace(/^\s+|\s+$/g, '');
+        if (/^"(?:\\.|[^"\\])*"$/.test(right)) { right = JSON.parse(right); }
+        return JSON.stringify(String(left)) + op + JSON.stringify(right);
     };
     var tryEval     = function(condition) {
         var m = (typeof(condition) == 'string') ? condition.match(CONDITION_RE) : null;
@@ -31179,16 +31198,15 @@ function Collection(content, options) {
                     && !/undefined|function/.test(typeof(_content))
                     && !searchOptionRules.skipEval
                 ) { // with operations
-                    let originalFilter = filter;
                     let condition = _content + filter;
                     if ( typeof(filter) == 'string' && typeof(_content) == 'string' ) {
-                        let comparedValue = filter.replace(/^(<=|>=|!==|!=|===|!==)/g, '');
-                        if ( typeof(_content) == 'string' && !/^\"(.*)\"$/.test(comparedValue) ) {
-                            filter = filter.replace(comparedValue, '\"'+ comparedValue + '\"');
-                        }
-                        condition = '\"'+_content+'\"' + filter;
-                        // restoring in case of datetime eval
-                        filter = originalFilter;
+                        // #B609 — was: quote `_content` and the partially-stripped filter,
+                        // then concat. That threw on a `"` in either operand, failed to strip
+                        // `==`/`>`/`<` (so the operator leaked into the operand), and kept a
+                        // leading space in the compared value (wrong rows). Build both operands
+                        // safely instead. `filter` is no longer mutated, so the datetime path
+                        // below still sees the original string.
+                        condition = buildStringCondition(_content, filter);
                     }
 
                     // looking for a datetime ?
@@ -31321,6 +31339,12 @@ function Collection(content, options) {
                                 ++matched;
                             }
 
+                        } else if (typeof(value) == 'string') {
+                            // #B609 — a string value must be JSON-encoded like the find() path;
+                            // `value + filter` (unquoted) threw for every string comparison here.
+                            if (tryEval(buildStringCondition(value, filter))) {
+                                ++matched;
+                            }
                         } else if (tryEval(value + filter)) {
 
                             ++matched;

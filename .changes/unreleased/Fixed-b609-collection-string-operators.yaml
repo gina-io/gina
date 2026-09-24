@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'The in-memory Collection''s `find()` and nested-path filters now compare string values with the `==`, `>` and `<` operators instead of throwing, and no longer break when a value or the filter contains a double quote or a backslash. Previously a single row whose string value held a double quote threw and failed the whole query; `==`, `>` and `<` were not recognised on strings (only `>=`, `<=`, `===` and `!==` were); and a space after the operator (such as `>= b`) was kept inside the operand and skewed the comparison. Both operands are now encoded before comparison; numeric and datetime comparisons are unchanged (#B609)'
+time: 2026-09-24T23:07:29+01:00
