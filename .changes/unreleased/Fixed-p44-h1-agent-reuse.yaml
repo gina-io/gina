@@ -1,3 +1,0 @@
-kind: Fixed
-body: '`self.query()` over HTTP/1.x now reuses its connections. It used to build a fresh keep-alive `Agent` on every call and discard it, so every call to a sibling bundle opened a new TCP connection, used it once and left it in TIME_WAIT for about 5 s — 500 calls opened 500 connections. One keep-alive `Agent` per scheme and pool settings is now cached on the engine instance and reused, so calls to the same upstream share pooled connections; TLS options still apply per request. Pickup: bundle restart, no re-bake (#P44)'
-time: 2026-09-25T00:55:58+01:00

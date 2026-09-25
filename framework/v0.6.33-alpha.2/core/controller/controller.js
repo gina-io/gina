@@ -5959,60 +5959,6 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
     };
 
     /**
-     * #P44 — one shared keep-alive Agent per (scheme + pool signature), cached on the
-     * engine instance (`self.serverInstance._h1Agents`) and reused across `self.query()`
-     * HTTP/1.x calls. Before, a fresh `new browser.Agent(options)` was built per call and
-     * discarded, so its keep-alive never helped: every hop opened a new TCP connection,
-     * used it once, and left it in TIME_WAIT (~5 s) — 500 calls measured 500 connections
-     * + 500 server-side TIME_WAIT. The cache lives on the engine instance so it survives
-     * dev-mode per-request hot-reload of this module (the HTTP/2 session cache is on the
-     * same home). TLS options (ca/rejectUnauthorized/cert/key) are NOT baked into the
-     * shared agent — they ride the per-request `options`, and Node's socket pool
-     * (`getName`) segregates connections by authority + TLS inside the one agent, so a
-     * baked ca can never override a different upstream's. gina's `options.protocol` (the
-     * transport-version string, e.g. 'http/1.1') IS carried into the agent and its key:
-     * Node's `request()` requires it to equal `agent.protocol`. A caller-supplied real Agent
-     * is honoured as an escape hatch (the default `agent:false` falls through).
-     *
-     * @inner
-     * @param {object} browser - HTTP/1.x client module (node:http or node:https)
-     * @param {object} options - Request options; `scheme`/pool keys pick the agent, TLS keys ride per-request
-     * @returns {object} a cached (or the caller's) http(s) Agent
-     */
-    var _getSharedHttp1Agent = function(browser, options) {
-        // A caller-supplied real Agent wins (escape hatch); the default agent:false falls through.
-        if (options.agent && typeof options.agent.addRequest === 'function') {
-            return options.agent;
-        }
-        var inst = self.serverInstance;
-        if (!inst._h1Agents) {
-            inst._h1Agents = {};
-        }
-        var poolOpts = {
-            keepAlive      : true,
-            keepAliveMsecs : (typeof options.keepAliveMsecs === 'number') ? options.keepAliveMsecs : 1000,
-            maxSockets     : (typeof options.maxSockets     === 'number') ? options.maxSockets     : 100,
-            maxFreeSockets : (typeof options.maxFreeSockets === 'number') ? options.maxFreeSockets : 10,
-            scheduling     : 'lifo'
-        };
-        // Node's request() requires options.protocol === agent.protocol, and gina's
-        // options.protocol is its transport-version string ('http/1.1'), not a URL protocol:
-        // the agent must carry the same value, or request() throws ERR_INVALID_PROTOCOL. The
-        // per-call agent this replaces inherited it from options. It never enters getName,
-        // so socket pooling is unaffected.
-        if (typeof options.protocol === 'string') {
-            poolOpts.protocol = options.protocol;
-        }
-        // Scheme from the module itself (http.globalAgent.protocol / https.globalAgent.protocol).
-        var scheme = (browser.globalAgent && browser.globalAgent.protocol) || (options.scheme || '');
-        var key = scheme + '|' + (poolOpts.protocol || '') + '|' + poolOpts.keepAliveMsecs + '|' + poolOpts.maxSockets + '|' + poolOpts.maxFreeSockets;
-        if (!inst._h1Agents[key]) {
-            inst._h1Agents[key] = new browser.Agent(poolOpts);
-        }
-        return inst._h1Agents[key];
-    };
-
-    /**
      * HTTP/1.x client request handler with the #B53 idempotency-gated retry.
      *
      * Sends an HTTP/1.x request to an upstream (inter-bundle `self.query()`) and
@@ -6086,9 +6032,8 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
         delete options.queryData;
 
 
-        // Shared Agent — reuse one cached keep-alive Agent per (scheme + pool signature)
-        // instead of building a fresh one per call (#P44); TLS rides the per-request options.
-        options.agent = _getSharedHttp1Agent(browser, options);
+        // Shared Agent
+        options.agent = new browser.Agent(options);
 
         const req = browser.request(options, function(res) {
 
