@@ -1,6 +1,7 @@
 var fs      = require('fs');
 
 var CmdHelper   = require('./../helper');
+var scopeName   = require('./inc/name');
 var console = lib.logger;
 
 /**
@@ -12,6 +13,10 @@ var console = lib.logger;
  * Usage:
  *  gina scope:add <scope> @<project>
  *  gina scope:add <scope>
+ *
+ * Every argument before `@<project>` that is not a flag must be a whole scope
+ * name (`inc/name.js`, #B626); the first one that is not ends the command with
+ * an error, before anything is written. Arguments after `@<project>` are not read.
  *
  * TODO - updateManifest()
  *
@@ -65,7 +70,14 @@ function Add(opt, cmd) {
 
                 return end( new Error('Missing argument @<project_name>'))
             }
-            else if (/^[a-z0-9_.]/.test(process.argv[i])) {
+            // #B626 — anything that is not a flag must be a whole scope name. This used to
+            // test the first character only, so `frontend/staging` (the retired
+            // <bundle>/<scope> form) was registered verbatim and `Staging` was dropped
+            // without a word. Flags are still left to the dispatcher.
+            else if ( !/^-/.test(process.argv[i]) ) {
+                if ( !scopeName.isValidScopeName(process.argv[i]) ) {
+                    return end( new Error(scopeName.describeInvalidScopeName(process.argv[i])) )
+                }
                 local.scope = process.argv[i];
                 scopes.push(process.argv[i]);
             }

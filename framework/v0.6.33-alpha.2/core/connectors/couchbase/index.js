@@ -163,13 +163,15 @@ function Couchbase(conn, infos) {
      * Precedence is unchanged: the connector entry's `scope` when it is truthy,
      * `NODE_SCOPE` otherwise — an empty `""` entry still falls back, as the
      * historical `infos.scope || process.env.NODE_SCOPE` did. The grammar
-     * `^[A-Za-z0-9_./-]+$` admits the scope names gina ships and documents
-     * (`local`, `beta`, `production`, `testing`, and both documented `scope:add`
-     * forms, `<scope>` and `<bundle>/<scope>`), and each of its characters is
-     * inert inside a single-quoted N1QL string literal, so the emitted statement
-     * is byte-identical to before for every scope that passes. `scope:add` checks
-     * only a name's first character, so a name outside the grammar can be
-     * registered — it is refused here, where it would reach statement text.
+     * `^[A-Za-z0-9_./-]+$` admits the scope names gina ships (`local`, `beta`,
+     * `production`, `testing`) and every name `scope:add` accepts, and each of its
+     * characters is inert inside a single-quoted N1QL string literal, so the
+     * emitted statement is byte-identical to before for every scope that passes.
+     * `/` stays admitted so that a scope registered under the retired
+     * `<bundle>/<scope>` form keeps booting (#B626). `scope:add` checks the whole
+     * name since #B626, but a name registered before that, or written into
+     * `projects.json` by hand, can still fall outside the grammar — it is refused
+     * here, where it would reach statement text.
      *
      * @param {*} configScope - The connector entry's `scope` (`connectors.json`).
      * @param {*} envScope - `process.env.NODE_SCOPE`.
@@ -181,7 +183,7 @@ function Couchbase(conn, infos) {
      * resolveScope(undefined, 'production'); // 'production'
      * resolveScope('beta', 'production');    // 'beta' — the connector entry wins
      * resolveScope('', 'local');             // 'local' — an empty entry falls back
-     * resolveScope(undefined, 'frontend/staging'); // 'frontend/staging' — the <bundle>/<scope> form
+     * resolveScope(undefined, 'frontend/staging'); // 'frontend/staging' — a name from the retired <bundle>/<scope> form
      * resolveScope('two words', 'local');    // throws — err.code === 'GINA_COUCHBASE_INVALID_SCOPE'
      */
     var resolveScope = function(configScope, envScope) {

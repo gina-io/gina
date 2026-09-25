@@ -254,7 +254,7 @@ describe('01 - resolveScope(): the scope is resolved once and validated', functi
         assert.equal(fn.length, 2, 'takes (configScope, envScope)');
     });
 
-    it('accepts the scope names gina ships and documents (incl. <bundle>/<scope>), and names of letters, digits, _ . - /', function () {
+    it('accepts the scope names gina ships, a legacy <bundle>/<scope> name, and names of letters, digits, _ . - /', function () {
         var fn = resolveScope();
         ['local', 'beta', 'production', 'testing', 'frontend/staging', 'my-scope.v2', 'Staging_1', '0'].forEach(function (s) {
             assert.equal(fn(undefined, s), s, s + ' passes through NODE_SCOPE');

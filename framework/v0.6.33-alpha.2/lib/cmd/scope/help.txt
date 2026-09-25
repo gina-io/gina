@@ -12,11 +12,13 @@
 
     $ gina scope:add <scope_name> @<project_name>
 
+    A scope applies to every bundle of the project. To deploy a bundle in some
+    scopes only, list them under the bundle's entry in the project's manifest.json:
 
-    Adding/refreshing scope to a bundle
-    ----------
+        "bundles": { "<bundle_name>": { ..., "scopes": ["local"] } }
 
-    $ gina scope:add <bundle_name>/<scope_name> @<project_name>
+    A scope name is made of letters, digits, `_`, `.` and `-`, and starts with a
+    lowercase letter, a digit, `_` or `.` (`.` and `..` are refused).
 
 
 [ Removing an existing scope ]
