@@ -55,7 +55,11 @@ function Rename(opt, cmd) {
         local.target = self.projectArgvList[1];
 
 
-        if ( isDefined('project', local.target) ) {
+        // #B651 — the check was inverted: it renamed only when the new name was
+        // ALREADY registered (running the rename onto another project) and refused
+        // every free name as taken
+        // was: if ( isDefined('project', local.target) ) {
+        if ( !isDefined('project', local.target) ) {
             rename()
         } else {
             console.error('New project name [ '+local.target+' ] is already taken !');
@@ -67,6 +71,11 @@ function Rename(opt, cmd) {
     /**
      * Moves the source directory, updates all config files with the new name,
      * rewrites port entries, and calls end.
+     *
+     * The directory keeps its parent and takes the new project name. A rename
+     * onto an existing directory is refused (exit 1) before anything moves.
+     * Port entries are renamed only where their project part equals the source
+     * name as a whole (#B651).
      *
      * @inner
      * @private
@@ -82,10 +91,20 @@ function Rename(opt, cmd) {
         }
 
         var folder = new _(self.projects[local.source].path)
-            , re = new RegExp("\/"+folder.toArray().last()+"$")
-            , target = folder.toUnixStyle().replace(re, '/'+ local.target)
+            // #B651 — no RegExp built from the folder name (a name holding `(` or
+            // `[` threw, and `.` matched any character)
+            // was: , re = new RegExp("\/"+folder.toArray().last()+"$")
+            // was: , target = folder.toUnixStyle().replace(re, '/'+ local.target)
+            , target = folder.toUnixStyle().replace(/\/[^\/]+$/, '/'+ local.target)
             , project = {}// local manifest.json
             , pack = {};// local pakage.json
+
+        // #B651 — never move the project onto an existing directory: the move is a
+        // copy then a delete, so it would mix this project into whatever is there
+        if ( fs.existsSync(target) ) {
+            console.error('Cannot rename [ '+ local.source +' ]: [ '+ target +' ] already exists');
+            process.exit(1)
+        }
 
 
 
@@ -129,36 +148,44 @@ function Rename(opt, cmd) {
 
 
             // renaming & update ports
+            // #B651 — rename exactly. A ports.json value is `<bundle>@<project>/<env>`
+            // and a ports.reverse.json key `<bundle>@<project>`. The previous code
+            // matched the source with an unescaped, unanchored RegExp and replaced
+            // `@<source>` across the whole reverse file as a string, so another
+            // project whose name starts with the source was renamed too; and it
+            // wrote the new value at `ports[protocol][port]` (no scheme), which left
+            // the old value in place and added a stray protocol-level key.
+            // was:
+            // var ports               = JSON.clone(self.portsData)
+            //     , portsReverse      = JSON.clone(self.portsReverseData)
+            //     , re                = null
+            //     , projectValue      = null
+            //     , portsReverseStr   = null
+            // ;
+            // portsReverseStr = JSON.stringify(portsReverse);
+            // for (var protocol in ports) {
+            //     for (var scheme in ports[protocol]) {
+            //         for (var port in ports[protocol][scheme]) {
+            //             re = new RegExp("\@"+ local.source +"\/");
+            //             if ( re.test(ports[protocol][scheme][port]) ) {
+            //                 projectValue = ( ports[protocol][scheme][port].split('/')[0] ).split('@')[1];
+            //                 ports[protocol][port] = ports[protocol][scheme][port].replace(re, "@"+ local.target +"/");
+            //                 portsReverseStr = portsReverseStr.replace( new RegExp('\@'+ projectValue, 'g'), '@'+ local.target );
+            //             }
+            //         }
+            //     }
+            // }
+            // portsReverse = JSON.parse(portsReverseStr);
             var ports               = JSON.clone(self.portsData)
-                , portsReverse      = JSON.clone(self.portsReverseData)
-                , re                = null
-                , projectValue      = null
-                , portsReverseStr   = null
+                , portsReverse      = renameReverseKeys(JSON.clone(self.portsReverseData), local.source, local.target)
             ;
-
-            portsReverseStr = JSON.stringify(portsReverse);
             for (var protocol in ports) {
-
                 for (var scheme in ports[protocol]) {
-
                     for (var port in ports[protocol][scheme]) {
-
-                        re = new RegExp("\@"+ local.source +"\/");
-
-                        if ( re.test(ports[protocol][scheme][port]) ) {
-
-                            projectValue = ( ports[protocol][scheme][port].split('/')[0] ).split('@')[1];
-
-                            ports[protocol][port] = ports[protocol][scheme][port].replace(re, "@"+ local.target +"/");
-
-
-                            portsReverseStr = portsReverseStr.replace( new RegExp('\@'+ projectValue, 'g'), '@'+ local.target );
-
-                        }
+                        ports[protocol][scheme][port] = renamePortValue(ports[protocol][scheme][port], local.source, local.target);
                     }
                 }
             }
-            portsReverse = JSON.parse(portsReverseStr);
 
 
             // now writing
@@ -167,6 +194,65 @@ function Rename(opt, cmd) {
 
             end(true)
         })
+    }
+
+    /**
+     * Renames the project part of one ports.json value, exactly.
+     *
+     * A value reads `<bundle>@<project>/<env>`; it is returned renamed only when its
+     * project part equals `source` as a whole (#B651 — no prefix match), and as it
+     * was otherwise, including any value that is not in that shape.
+     *
+     * @inner
+     * @private
+     * @param {*} value - A ports.json value
+     * @param {string} source - Project name to replace
+     * @param {string} target - New project name
+     * @returns {*} The renamed value, or `value` unchanged
+     *
+     * @example
+     *  renamePortValue('demo@app/dev', 'app', 'shop');  // 'demo@shop/dev'
+     *  renamePortValue('web@app2/dev', 'app', 'shop');  // 'web@app2/dev'
+     */
+    var renamePortValue = function(value, source, target) {
+        if ( typeof(value) != 'string' ) return value;
+        var at      = value.indexOf('@')
+            , slash = value.indexOf('/', at)
+        ;
+        if ( at < 0 || slash < 0 || value.substring(at + 1, slash) !== source ) return value;
+
+        return value.substring(0, at + 1) + target + value.substring(slash);
+    }
+
+    /**
+     * Renames the ports.reverse.json keys that belong to one project, exactly.
+     *
+     * A key reads `<bundle>@<project>`; only keys whose project part equals `source`
+     * as a whole are renamed (#B651 — another project whose name merely starts with
+     * `source` keeps its key). Key order is kept.
+     *
+     * @inner
+     * @private
+     * @param {object} portsReverse - Parsed ports.reverse.json
+     * @param {string} source - Project name to replace
+     * @param {string} target - New project name
+     * @returns {object} A new object with the renamed keys
+     *
+     * @example
+     *  renameReverseKeys({ 'demo@app': {}, 'web@app2': {} }, 'app', 'shop');
+     *  // { 'demo@shop': {}, 'web@app2': {} }
+     */
+    var renameReverseKeys = function(portsReverse, source, target) {
+        var renamed = {};
+        for (var key in portsReverse) {
+            var at = key.lastIndexOf('@');
+            if ( at > -1 && key.substring(at + 1) === source ) {
+                renamed[ key.substring(0, at + 1) + target ] = portsReverse[key];
+            } else {
+                renamed[key] = portsReverse[key];
+            }
+        }
+        return renamed;
     }
 
     /**

@@ -1,0 +1,3 @@
+kind: Fixed
+body: '`gina project:rename @<old> @<new>` refused every free name as already taken and renamed only onto a project that was already registered, and that rename damaged the port records: another project whose name began with the old one had its `ports.reverse.json` entries renamed too, and the renamed project kept its old name in `ports.json` beside stray entries. It now renames to a free name, refuses a registered name or an existing directory with exit `1` before anything moves, and renames port entries only where the project name matches exactly. (#B651)'
+time: 2026-09-25T05:52:55+01:00
