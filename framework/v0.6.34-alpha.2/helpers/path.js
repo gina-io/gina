@@ -1280,6 +1280,10 @@ function PathHelper() {
      * never observe a truncated destination and a failed copy never destroys
      * the previous content.
      *
+     * On failure the temp file is removed once its stream has closed, and only
+     * then does the callback run (#B649): its open runs on a worker thread and
+     * can create the file after the failure is reported.
+     *
      * @inner
      * @param {string} source
      * @param {string} destination
@@ -1294,24 +1298,42 @@ function PathHelper() {
 
         var _tmpTarget  = destination + '.' + process.pid + '.' + Math.random().toString(36).slice(2, 8) + '.tmp';
         var _settled    = false;
+        // #B649 — true once the temp stream has closed: only then is its open (an
+        // O_CREAT on a worker thread) known to be over, so only then does a reap
+        // find the file that open may have created
+        var _tmpClosed  = false;
 
         var sourceStream = fs.createReadStream(source);
         // #B227 — no direct write to the final name
         // was: var destinationStream = fs.createWriteStream(destination);
         var destinationStream = fs.createWriteStream(_tmpTarget);
+        // #B649 — registered before the pipe's 'close' handler below, so the flag
+        // is already set when that handler runs
+        destinationStream.once('close', function() { _tmpClosed = true });
 
         var onCopyError = function(err) {
             if (_settled) return;
             _settled = true;
             try { destinationStream.destroy() } catch (_e) {}
-            try { if ( fs.existsSync(_tmpTarget) ) fs.unlinkSync(_tmpTarget) } catch (_e) {}
             // #B227 — propagate a real Error (was a plain string, so callers
             // printing `err.stack` logged `undefined`); keep the historical
             // message prefix for log continuity
             if ( !(err instanceof Error) ) {
                 err = new Error('Error on Path.cp(...): could not copy `'+ source +'` to `'+ destination +'`');
             }
-            callback(err, i)
+            // #B649 — reap and settle only once the temp stream has closed. A source
+            // that fails at open can be reported before the temp file's own open has
+            // run, so checking for the file here could find nothing and leave the
+            // file that open created a moment later on disk (destroy() only closes
+            // the descriptor).
+            // was: try { if ( fs.existsSync(_tmpTarget) ) fs.unlinkSync(_tmpTarget) } catch (_e) {}
+            //      callback(err, i)
+            var reapAndSettle = function() {
+                try { fs.unlinkSync(_tmpTarget) } catch (_e) {} // ENOENT when the open never created it
+                callback(err, i)
+            };
+            if (_tmpClosed) return reapAndSettle();
+            destinationStream.once('close', reapAndSettle);
         };
 
         // #B227 — the source stream previously had NO error listener: an
