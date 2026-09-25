@@ -363,7 +363,7 @@ var jobId = self.inferAsync([{ role: 'user', content: prompt }], { connector: 'm
 
 ## Route radix trie
 
-`lib/routing/src/radix.js` — designed to be built once at startup from `routing.json` and never mutated at runtime. ⚠️ **NOT ACTIVE as of 0.6.33-alpha.2 (measured 2026-09-24):** `buildTrie()` is called only from `onRoutesLoaded()`, which nothing calls, so `Routing._tries` stays `{}`, `lookupTrie()` returns `null`, and every request is matched by the linear scan in `core/server.js` (per-candidate `JSON.clone` + `compareUrls`, a warm hit re-running both). Wiring it, with a runtime pin, is roadmap #P46 (the inter-bundle throughput arc).
+`lib/routing/src/radix.js` — designed to be built once at startup from `routing.json` and never mutated at runtime. ⚠️ **NOT ACTIVE as of 0.6.33 (measured 2026-09-24, re-checked at the 0.6.33 cut):** `buildTrie()` is called only from `onRoutesLoaded()`, which nothing calls, so `Routing._tries` stays `{}`, `lookupTrie()` returns `null`, and every request is matched by the linear scan in `core/server.js` (per-candidate `JSON.clone` + `compareUrls`, a warm hit re-running both). Wiring it, with a runtime pin, is roadmap #P46 (the inter-bundle throughput arc).
 
 - `createNode()` — `{ static: {}, param: null, names: [] }`
 - `insert(root, url, name)` — splits URL on `/`, static segments go to `node.static[s]`, `:param` segments to `node.param`
