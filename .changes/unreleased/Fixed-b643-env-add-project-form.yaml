@@ -1,0 +1,3 @@
+kind: Fixed
+body: '`gina env:add <env> @<project>` registered the environment on the project but never gave its bundles ports for it or wrote their `env.json` blocks, so the new environment could not start; it also printed nothing, and it hung wherever the CLI was started by its own path. It now gives every bundle of the project its own ports for the environment, writes the `env.json` blocks, prints `environment [ <env> ] created` and exits; a failure rolls its changes back. (#B643)'
+time: 2026-09-25T05:56:31+01:00

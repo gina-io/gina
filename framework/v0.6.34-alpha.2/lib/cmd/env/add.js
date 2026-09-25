@@ -90,8 +90,8 @@ function Add(opt, cmd) {
 
 
     /**
-     * Dispatches to addEnvToProject (project-scoped) or registerEnv (global),
-     * depending on whether a project name was supplied.
+     * Dispatches to addEnvToProjectAndBundles (project-scoped) or registerEnv
+     * (global), depending on whether a project name was supplied.
      *
      * @inner
      * @private
@@ -100,7 +100,9 @@ function Add(opt, cmd) {
     var saveEnvs = function(projectName) {
         try {
             if (projectName) {
-                return addEnvToProject();
+                // #B643 — was: return addEnvToProject(); — that name resolved to the
+                // projects.json writer declared further down, not to this orchestrator
+                return addEnvToProjectAndBundles();
             }
             registerEnv();
         } catch (err) {
@@ -112,10 +114,19 @@ function Add(opt, cmd) {
      * Loads the project manifest and existing port data, builds the port-ignore list,
      * and either writes env.json directly (no bundles) or delegates to addEnvToBundles.
      *
+     * Before the port scan it snapshots the projects (what rollback restores) and
+     * lists the new envs on the in-memory project, because the scan limit is sized
+     * from that list. The projects.json writer it ends with is `addEnvToProject`.
+     *
+     * #B643 — this orchestrator used to be declared as `addEnvToProject` too, the
+     * name of that writer; the later declaration won, so `env:add <env> @<project>`
+     * ran the writer alone (no manifest check, no env.json, no port scan, no
+     * message, no exit).
+     *
      * @inner
      * @private
      */
-    var addEnvToProject = function() {
+    var addEnvToProjectAndBundles = function() {
         var file    = _(self.projects[self.projectName].path + '/env.json')
             , ports = require(_(GINA_HOMEDIR + '/ports.json'))
         ;
@@ -142,6 +153,19 @@ function Add(opt, cmd) {
         self.portsList.sort();
         for (let b in self.project.bundles) {
             self.bundles.push(b)
+        }
+        // #B643 — what rollback restores: taken before anything below adds the new
+        // envs to the in-memory projects (the listing just below, and setPorts for
+        // every bundle), which rollback used to write back instead
+        self.projectsSnapshot = JSON.clone(self.projects);
+        // #B643 — list the new envs on the project before the port scan: the scan
+        // limit (getBundleScanLimit) is sized from this list, and setPorts only adds
+        // them once the first bundle's scan is done — so that scan came up short and
+        // the bundle's last slot was written as port 0 (`~~undefined`)
+        for (let n = 0; n < self.envs.length; ++n) {
+            if ( self.projects[self.projectName].envs.indexOf(self.envs[n]) < 0 ) {
+                self.projects[self.projectName].envs.push(self.envs[n])
+            }
         }
 
         // to env.json file
@@ -255,7 +279,8 @@ function Add(opt, cmd) {
         // to ~/.gina/projects.json
         for (; e < newEnvs.length; ++e) {
             if (envs.indexOf(newEnvs[e]) < 0 ) {
-                modified = true;
+                // #B643 — was: modified = true; (an undeclared implicit global,
+                // never read)
                 envs.push(newEnvs[e])
             }
         }
@@ -338,7 +363,8 @@ function Add(opt, cmd) {
 
     /**
      * Restores env.json, ports.json, ports.reverse.json, and projects.json to
-     * their pre-operation state, then exits with code 1.
+     * their pre-operation state, then exits with code 1. projects.json comes from
+     * the snapshot the orchestrator took before adding the new envs (#B643).
      *
      * @inner
      * @private
@@ -359,7 +385,8 @@ function Add(opt, cmd) {
             lib.generator.createFileFromDataSync(self.portsReverseData, self.portsReversePath);
 
             // restore projects.json
-            lib.generator.createFileFromDataSync(self.projects, self.projectConfigPath);
+            // #B643 — was: lib.generator.createFileFromDataSync(self.projects, self.projectConfigPath);
+            lib.generator.createFileFromDataSync(self.projectsSnapshot || self.projects, self.projectConfigPath);
 
             process.exit(1)
         };

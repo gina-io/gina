@@ -1770,14 +1770,22 @@ function CmdHelper(cmd, client, debug) {
     /**
      * Returns a sorted list of all port numbers currently registered in
      * ports.json and ports.reverse.json, excluding those already assigned to
-     * the current project's bundles.
+     * the current project's bundles. Both files are read from disk on every call
+     * (#B643), so a caller that scans once per bundle sees the ports it has just
+     * assigned.
      * Assigns itself to the global `getPortsList`.
      *
      * @global
      * @returns {string[]} Sorted array of port number strings
      */
     getPortsList = function() {
-        var ports = require(_(GINA_HOMEDIR + '/ports.json'));
+        // #B643 — read the registries from disk, not through require(): the cached
+        // copy stays stale after setPorts rewrites them whenever the home path holds
+        // a symlink (setPorts purges require.cache by the unresolved path, while the
+        // cache keys are realpaths), so a multi-bundle env:add gave every bundle the
+        // same new ports
+        // was: var ports = require(_(GINA_HOMEDIR + '/ports.json'));
+        var ports = requireJSON(_(GINA_HOMEDIR + '/ports.json', true));
         var portsList = []; // list of all ports to ignore whles scanning
         var protocols = cmd.projects[cmd.projectName].protocols;
         var schemes = cmd.projects[cmd.projectName].schemes;
@@ -1792,7 +1800,8 @@ function CmdHelper(cmd, client, debug) {
             }
         }
         // double checking
-        var portsReverse = require(_(GINA_HOMEDIR + '/ports.reverse.json'));
+        // #B643 — was: var portsReverse = require(_(GINA_HOMEDIR + '/ports.reverse.json'));
+        var portsReverse = requireJSON(_(GINA_HOMEDIR + '/ports.reverse.json', true));
         for (let bundle in portsReverse) {
             for (let env in portsReverse[bundle]) {
                 for (let protocole in portsReverse[bundle][env]) {
