@@ -381,6 +381,9 @@ var Config          = require('./config');
 var Router          = require('./router');
 var lib             = require('./../lib');
 var routingLib      = lib.routing;
+// #P46 — the cold routing loop's candidate index: which rules could match a request
+// (server-only; kept out of lib/routing/src/, which the pre-commit gate treats as bundled).
+var routeCandidates = require('./server.route-candidates');
 // #RC4 — the engine-agnostic render/output-cache read path (design f). One gen-0
 // instance (plain-required RenderCache survives refreshCore), pointed at the shared
 // Map per request via `from()`. Mirrors server.isaac.js's module-scope renderCache.
@@ -7653,8 +7656,9 @@ function Server(options) {
     /**
      * Routes one request inside the per-request store `handle()` opened: answers a
      * CORS preflight, tries the warm route cache (keyed `method:pathname`), falls back
-     * to the declaration-order scan of the bundle's routing table, then dispatches the
-     * rule that matched. Every method check uses the request's own method, whatever
+     * to the declaration-order scan of the bundle's routing table — restricted to the
+     * rules the candidate index says could match (#P46) — then dispatches the rule
+     * that matched. Every method check uses the request's own method, whatever
      * protocol the bundle is configured for (#B645).
      *
      * @inner
@@ -7899,15 +7903,16 @@ function Server(options) {
             isRoute = {}
         }
 
-        // Radix trie fast-path — build a candidate Set for this request so the
-        // linear scan can skip routes that cannot structurally match the URL.
-        // lookupTrie returns null when no trie is available → linear scan runs normally.
+        // #P46 — the rules that could match this request, from an index built once per
+        // routing table: the loop below skips every other rule. The set is a superset of
+        // what the loop accepts (see core/server.route-candidates.js); null — a path the
+        // index does not model — scans every rule, and an empty set means none can match.
+        // was: a lookup in lib/routing's radix trie, which nothing ever built (always null):
+        // var _trieHits = routingLib.lookupTrie(safeDecodeURI(pathname), bundle);
+        // if (_trieHits !== null && _trieHits.length > 0) { _trieCandidateSet = new Set(_trieHits); }
         var _trieCandidateSet = null;
         if (!hasCachedRoute) {
-            var _trieHits = routingLib.lookupTrie(safeDecodeURI(pathname), bundle); // #B30: malformed-%-safe — a bad escape here would otherwise reject the async dispatch promise → hung request
-            if (_trieHits !== null && _trieHits.length > 0) {
-                _trieCandidateSet = new Set(_trieHits);
-            }
+            _trieCandidateSet = routeCandidates.candidatesFor(routing, bundle, pathname, safeDecodeURI(pathname)); // #B30: malformed-%-safe — a bad escape here would otherwise reject the async dispatch promise → hung request
         }
 
         // #B422 — _reqMethodKey is computed above, before the getCached call, so the
