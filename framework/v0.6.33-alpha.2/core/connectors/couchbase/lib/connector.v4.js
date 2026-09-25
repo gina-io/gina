@@ -92,30 +92,34 @@ function Connector(dbString) {
         }
     };
 
-    /**
-     * arrayToValues
-     * Eg.: array like: ['a', 0.5, 'b', false]
-     * @param {array} arr
-     *
-     * @return {string} stringifyiedArray
-     */
-    var arrayToValues = function(arr) {
-        var val = '[';
-        for (let i=0, len=arr.length; i<len; i++) {
-            if ( /string/i.test( typeof(arr[i]) )) {
-                val += '"'+ arr[i] + '"'+',';
-                continue;
-            }
-            val += arr[i] +','
-        }
-
-        if ( typeof(arr.length) && arr.length > 0 ) {
-            val = val.substring(0, val.length-1);
-        }
-        val += ']';
-
-        return val;
-    };
+    // #B634 / #B623 — `arrayToValues` served only the retired REST query transport
+    // (`restQuery`, in connect() below): it spliced each string parameter between `"`
+    // with no escaping, so a `"` or `\` in a value corrupted the `args` body. Kept,
+    // commented out, for the record.
+    // /**
+    //  * arrayToValues
+    //  * Eg.: array like: ['a', 0.5, 'b', false]
+    //  * @param {array} arr
+    //  *
+    //  * @return {string} stringifyiedArray
+    //  */
+    // var arrayToValues = function(arr) {
+    //     var val = '[';
+    //     for (let i=0, len=arr.length; i<len; i++) {
+    //         if ( /string/i.test( typeof(arr[i]) )) {
+    //             val += '"'+ arr[i] + '"'+',';
+    //             continue;
+    //         }
+    //         val += arr[i] +','
+    //     }
+    //
+    //     if ( typeof(arr.length) && arr.length > 0 ) {
+    //         val = val.substring(0, val.length-1);
+    //     }
+    //     val += ']';
+    //
+    //     return val;
+    // };
 
     /**
      * connect
@@ -336,7 +340,12 @@ function Connector(dbString) {
                     return onError(cErr, cb)
                 }
                 conn.sdk        = sdk;
-                conn.useRestApi = local.options.useRestApi;
+                // #B634 — `useRestApi` selected the retired REST query transport (see
+                // below). The option is ignored; say so once per connector.
+                if ( /^true$/i.test(local.options.useRestApi) && !local.restApiWarned ) {
+                    local.restApiWarned = true;
+                    console.warn('[CONNECTOR][' + local.bundle +'][' + dbString.database +'] `useRestApi` is no longer supported and is ignored: queries go through the Couchbase SDK. Remove the option from connectors.json.');
+                }
 
                 // CB-SEC-1 / CB-SEC-2 fix: replaced exec(curl...) with http.request()
                 // — credentials sent via Authorization header, never in process list (ps aux)
@@ -360,77 +369,84 @@ function Connector(dbString) {
                 //     ];
                 //     exec(cmd.join(' '), { maxBuffer: maxQueryBuffer }, function onResult(resErr, resTxt, infos) { ... });
                 // };
-                // When conn.useRestApi == true
-                // https://docs.couchbase.com/server/current/n1ql-rest-query/index.html#Request
-                conn.restQuery = function(trigger, statement, queryParams, onQueryCallback) {
-                    var http = require('http');
-                    statement = statement.replace(/\'/g, '"');
-                    var postParts = ['statement=' + encodeURIComponent(statement)];
-                    if (queryParams.parameters && queryParams.parameters.length > 0) {
-                        postParts.push('args=' + encodeURIComponent(arrayToValues(queryParams.parameters)));
-                    }
-                    if (typeof(queryParams.scanConsistency) !== 'undefined') {
-                        postParts.push('scan_consistency=' + encodeURIComponent(queryParams.scanConsistency));
-                    }
-                    var postBody   = postParts.join('&');
-                    var hostParts  = dbString.host.split(/\,/g)[0].trim().split(':');
-                    var reqOptions = {
-                        hostname: hostParts[0],
-                        port    : parseInt(hostParts[1], 10) || 8093,
-                        path    : '/query/service',
-                        method  : 'POST',
-                        headers : {
-                            'Content-Type'  : 'application/x-www-form-urlencoded',
-                            'Content-Length': Buffer.byteLength(postBody),
-                            'Authorization' : 'Basic ' + Buffer.from(dbString.username + ':' + dbString.password).toString('base64')
-                        }
-                    };
-                    var req = http.request(reqOptions, function onResult(res) {
-                        var chunks = [];
-                        res.on('data', function(chunk) { chunks.push(chunk); });
-                        res.on('end', function() {
-                            var error = null;
-                            try {
-                                var result = JSON.parse(Buffer.concat(chunks).toString());
-                                var resErr = result.errors;
-                                var data   = {
-                                    rows: result.results,
-                                    meta: { requestId: result.requestID, status: result.status, metrics: result.metrics }
-                                };
-                                if (resErr) {
-                                    try {
-                                        error = new Error(resErr[0] ? resErr[0].msg : JSON.stringify(resErr));
-                                        error.stack = trigger;
-                                        onQueryCallback(error);
-                                    } catch (_err) { console.error(_err.stack); }
-                                    return;
-                                }
-                                try {
-                                    if (typeof(data) === 'undefined') { data = { rows: [] }; }
-                                    onQueryCallback(false, data.rows, data.meta);
-                                } catch (_err) {
-                                    _err.stack = '[ ' + trigger + '] onQueryCallbackError: \n\t- Did you leave any bad comments ?\n\t- Did you try to run your query ?\r\n'+ _err.stack;
-                                    console.error(_err.stack);
-                                }
-                            } catch (_err) { console.error(_err.stack); onQueryCallback(_err); }
-                        });
-                    });
-                    req.on('error', function(resErr) {
-                        try {
-                            var error = new Error('[CONNECTOR][' + local.bundle +'] query '+ trigger +' aborted\n'+ resErr.stack);
-                            console.error(error.stack);
-                            onQueryCallback(error);
-                        } catch (_err) { console.error(_err.stack); }
-                    });
-                    req.write(postBody);
-                    req.end();
-                };
+                // #B634 / #B623 — the REST query transport is RETIRED: every query goes
+                // through the SDK (`conn._cluster.query`, core/connectors/couchbase/index.js).
+                // It sent `Authorization: Basic` over plain http even on a `couchbases://`
+                // connection, took the port given in `host` (the key/value port) as the
+                // query port, rewrote every `'` in the statement to `"`, spliced parameters
+                // in unescaped (`arrayToValues`), had no timeout, and dropped the server's
+                // error codes. Kept, commented out, for the record:
+                // // When conn.useRestApi == true
+                // // https://docs.couchbase.com/server/current/n1ql-rest-query/index.html#Request
+                // conn.restQuery = function(trigger, statement, queryParams, onQueryCallback) {
+                //     var http = require('http');
+                //     statement = statement.replace(/\'/g, '"');
+                //     var postParts = ['statement=' + encodeURIComponent(statement)];
+                //     if (queryParams.parameters && queryParams.parameters.length > 0) {
+                //         postParts.push('args=' + encodeURIComponent(arrayToValues(queryParams.parameters)));
+                //     }
+                //     if (typeof(queryParams.scanConsistency) !== 'undefined') {
+                //         postParts.push('scan_consistency=' + encodeURIComponent(queryParams.scanConsistency));
+                //     }
+                //     var postBody   = postParts.join('&');
+                //     var hostParts  = dbString.host.split(/\,/g)[0].trim().split(':');
+                //     var reqOptions = {
+                //         hostname: hostParts[0],
+                //         port    : parseInt(hostParts[1], 10) || 8093,
+                //         path    : '/query/service',
+                //         method  : 'POST',
+                //         headers : {
+                //             'Content-Type'  : 'application/x-www-form-urlencoded',
+                //             'Content-Length': Buffer.byteLength(postBody),
+                //             'Authorization' : 'Basic ' + Buffer.from(dbString.username + ':' + dbString.password).toString('base64')
+                //         }
+                //     };
+                //     var req = http.request(reqOptions, function onResult(res) {
+                //         var chunks = [];
+                //         res.on('data', function(chunk) { chunks.push(chunk); });
+                //         res.on('end', function() {
+                //             var error = null;
+                //             try {
+                //                 var result = JSON.parse(Buffer.concat(chunks).toString());
+                //                 var resErr = result.errors;
+                //                 var data   = {
+                //                     rows: result.results,
+                //                     meta: { requestId: result.requestID, status: result.status, metrics: result.metrics }
+                //                 };
+                //                 if (resErr) {
+                //                     try {
+                //                         error = new Error(resErr[0] ? resErr[0].msg : JSON.stringify(resErr));
+                //                         error.stack = trigger;
+                //                         onQueryCallback(error);
+                //                     } catch (_err) { console.error(_err.stack); }
+                //                     return;
+                //                 }
+                //                 try {
+                //                     if (typeof(data) === 'undefined') { data = { rows: [] }; }
+                //                     onQueryCallback(false, data.rows, data.meta);
+                //                 } catch (_err) {
+                //                     _err.stack = '[ ' + trigger + '] onQueryCallbackError: \n\t- Did you leave any bad comments ?\n\t- Did you try to run your query ?\r\n'+ _err.stack;
+                //                     console.error(_err.stack);
+                //                 }
+                //             } catch (_err) { console.error(_err.stack); onQueryCallback(_err); }
+                //         });
+                //     });
+                //     req.on('error', function(resErr) {
+                //         try {
+                //             var error = new Error('[CONNECTOR][' + local.bundle +'] query '+ trigger +' aborted\n'+ resErr.stack);
+                //             console.error(error.stack);
+                //             onQueryCallback(error);
+                //         } catch (_err) { console.error(_err.stack); }
+                //     });
+                //     req.write(postBody);
+                //     req.end();
+                // };
 
                 // open bucket
                 console.debug('[CONNECTOR][' + local.bundle +'][' + dbString.database +'] Connecting to bucket `'+ dbString.bucketName +'`');
                 var bucketConn = conn.bucket(dbString.bucketName);
                 bucketConn.sdk = sdk;
-                bucketConn.useRestApi = local.options.useRestApi;
+                // bucketConn.useRestApi = local.options.useRestApi; // #B634 — the REST transport is retired
                 // Get a reference to the default collection, required only for older Couchbase server versions
                 // defaultCollection = bucketConn.defaultCollection();
                 // default scope

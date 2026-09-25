@@ -1302,10 +1302,12 @@ function Couchbase(conn, infos) {
                      * to every in-flight caller of the same method.
                      *
                      * @inner
-                     * @param {string} trigger - `N1QL:<entity>#<method>`; the REST transport's
-                     *   correlation label and the observability event name. NOT a call identity.
-                     * @param {object} queryParams - forwarded to `restQuery` when the REST
-                     *   transport is enabled (`conn.useRestApi`).
+                     * @param {string} trigger - `N1QL:<entity>#<method>`; the observability
+                     *   event name (it was also the retired REST transport's correlation
+                     *   label). NOT a call identity.
+                     * @param {object} queryParams - the query options; no longer read here
+                     *   since the REST transport was retired (#B634) — the SDK call below
+                     *   uses the closure's `queryOptions`, the same object.
                      * @param {function(*, *, *): void} onQueryCallback - `(err, data, meta)`
                      *   terminal for both branches of the dispatch.
                      * @returns {void}
@@ -1338,10 +1340,14 @@ function Couchbase(conn, infos) {
                         // mixed-call-form orders settle correctly), but as a mutable flag on the
                         // shared entity it was a standing hazard with no remaining purpose.
 
-                        if ( /^true$/i.test(conn.useRestApi) ) {
-                            conn._cluster.restQuery(trigger, query, queryParams, onQueryCallback);
-                            return;
-                        }
+                        // #B634 / #B623 — the REST transport branch is retired: every query
+                        // goes through the SDK below, whatever `useRestApi` says (the connector
+                        // logs one warning when it is set). It read:
+                        //
+                        //     if ( /^true$/i.test(conn.useRestApi) ) {
+                        //         conn._cluster.restQuery(trigger, query, queryParams, onQueryCallback);
+                        //         return;
+                        //     }
 
                         // #B431 — two-argument .then(onResult, onError), NOT .catch(...).then(...).
                         // A .catch() handler that returns normally RESOLVES the promise it
