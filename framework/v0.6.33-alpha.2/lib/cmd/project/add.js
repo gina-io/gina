@@ -2,12 +2,15 @@ var fs          = require('fs');
 var os          = require('os');
 var util        = require('util');
 var execSync    = require('child_process').execSync;
+var execFileSync = require('child_process').execFileSync;
 var promisify   = util.promisify;
 
 var CmdHelper   = require('./../helper');
 var Shell       = lib.Shell;
 var console     = lib.logger;
 var scan        = require('../port/inc/scan');
+var scopeName   = require('../scope/inc/name');
+var envName     = require('../env/inc/name');
 
 /**
  * @module gina/lib/cmd/project/add
@@ -47,8 +50,22 @@ function Add(opt, cmd) {
      * Parses argv flags, ensures the project directory exists, creates package.json,
      * manifest.json, and env.json, optionally adding scope/env via sub-commands.
      *
+     * On `project:add`, a `--scope` / `--env` value the shared name rules reject
+     * (`scope/inc/name.js`, `env/inc/name.js`) is refused before anything is written,
+     * exit 1 (#B640). `project:import` skips that check: the CLI bootstrap only lets
+     * through a value the registered project already lists, so nothing is registered
+     * there, and a name registered before the rules existed keeps importing. A valid
+     * value that is not registered yet is registered by a `scope:add` / `env:add` child,
+     * spawned from an argument vector — never through a shell string.
+     *
      * @inner
      * @private
+     *
+     * @example
+     *  // gina project:add @myproject --path=/srv/myproject --scope=staging --env=qa
+     *  // → registers `staging` and `qa` if missing, then the project
+     *  // gina project:add @myproject --path=/srv/myproject --scope='x;touch y'
+     *  // → '"x;touch y" is not a valid scope name: …', exit 1, nothing written
      */
     var init = function() {
 
@@ -75,6 +92,25 @@ function Add(opt, cmd) {
             if ( /\-\-path\=/.test(process.argv[i]) ) {
                 self.projectLocation = process.argv[i].split(/\=/)[1];
                 self.projectManifestPath = _(self.projectLocation + '/manifest.json', true);
+            }
+        }
+
+        // #B640 — refuse an invalid --scope / --env value before anything is written.
+        // Either value only registers a missing scope or environment, through the
+        // `scope:add` / `env:add` child below. The child applies the same rule, but it
+        // used to run after the project had been registered, leaving it half-added.
+        // Not on `project:import` (the task is argv[2], as the helper reads it): an
+        // import needs a registered project, and the CLI bootstrap has already refused
+        // any value that project does not list, so no child can run there — while a
+        // name registered before these rules existed must keep importing.
+        if ( !/\:import/i.test(process.argv[2]) ) {
+            if ( self.scope && !scopeName.isValidScopeName(self.scope) ) {
+                console.error( scopeName.describeInvalidScopeName(self.scope) );
+                process.exit(1)
+            }
+            if ( self.env && !envName.isValidEnvName(self.env) ) {
+                console.error( envName.describeInvalidEnvName(self.env) );
+                process.exit(1)
             }
         }
 
@@ -138,11 +174,13 @@ function Add(opt, cmd) {
                 };
                 // A PATH-resolved `gina` is not guaranteed to exist or to be this
                 // install — invoke the running install's own CLI instead.
-                let cmd = '"'+ process.execPath +'" "'+ require('path').resolve(__dirname, '../../../../..', 'bin/cli') +'" scope:add '+ self.scope;
-                console.warn('['+ self.task +'] running: '+ cmd);
-                // With inherited stdio, execSync returns null — the child's output
-                // already reached the console; do not read the return value.
-                execSync( cmd , execOptions);
+                let cli = require('path').resolve(__dirname, '../../../../..', 'bin/cli');
+                let args = [cli, 'scope:add', self.scope];
+                console.warn('['+ self.task +'] running: '+ process.execPath +' '+ args.join(' '));
+                // #B640 — no shell: the value is its own argument, so shell syntax in it
+                // is never run. With inherited stdio the call returns null — the child's
+                // output already reached the console; do not read the return value.
+                execFileSync(process.execPath, args, execOptions);
                 self.scopes.push(self.scope);
             } catch (scopeErr) {
                 console.error('[scope]['+ self.scope +'] could not be set: '+ (scopeErr.message || scopeErr));
@@ -168,11 +206,13 @@ function Add(opt, cmd) {
                 };
                 // A PATH-resolved `gina` is not guaranteed to exist or to be this
                 // install — invoke the running install's own CLI instead.
-                let cmd = '"'+ process.execPath +'" "'+ require('path').resolve(__dirname, '../../../../..', 'bin/cli') +'" env:add '+ self.env;
-                console.warn('['+ self.task +'] running: '+ cmd);
-                // With inherited stdio, execSync returns null — the child's output
-                // already reached the console; do not read the return value.
-                execSync( cmd , execOptions);
+                let cli = require('path').resolve(__dirname, '../../../../..', 'bin/cli');
+                let args = [cli, 'env:add', self.env];
+                console.warn('['+ self.task +'] running: '+ process.execPath +' '+ args.join(' '));
+                // #B640 — no shell: the value is its own argument, so shell syntax in it
+                // is never run. With inherited stdio the call returns null — the child's
+                // output already reached the console; do not read the return value.
+                execFileSync(process.execPath, args, execOptions);
                 self.envs.push(self.env);
             } catch (envErr) {
                 console.error('[env]['+ self.env +'] could not be set: '+ (envErr.message || envErr));
