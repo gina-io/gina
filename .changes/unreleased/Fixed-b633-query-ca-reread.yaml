@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'An https `self.query()` no longer reads its CA file from disk on every call. Each call re-read the file named by `server.credentials.ca` (or the call''s `ca` option), about 25 µs per call, and on HTTP/2 even when the call reused a cached session and never needed it. The file is now read once and kept for the life of the bundle; each call checks it with one `stat`, and a file that changed on disk (a Kubernetes Secret volume update replaces it) is read again and used by the very next call, as before. A missing or unreadable CA file fails the call with the same error as before. Pickup: bundle restart, no re-bake (#B633)'
+time: 2026-09-25T02:35:13+01:00

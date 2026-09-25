@@ -6050,6 +6050,59 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
         return agent;
     };
 
+    // #B633 — cap on cached CA files per process, the same bound as the agent cache. The CA
+    // paths a bundle uses come from its configuration and are a handful in practice.
+    var QUERY_CA_MAX = 50;
+
+    /**
+     * #B633 — the CA bundle at `caPath`, read from disk only when the file changed.
+     *
+     * Every https `self.query()` used to re-read its CA file: `query()` clones its options per
+     * call, so `options.ca` starts as a path each time — ~25 µs per call, and on HTTP/2 even
+     * when a cached session made the CA unnecessary. The read Buffer is now cached on the
+     * engine instance (`self.serverInstance._caCache`, a Map keyed by path, LRU-capped at
+     * `QUERY_CA_MAX`) and revalidated with one `fs.statSync` per call: the same inode, size,
+     * modification time and change time return the cached Buffer, any difference reads the
+     * file again. A CA rotated on disk — a Kubernetes Secret volume update replaces the file —
+     * is therefore still used by the next call, as before. A stat that fails falls back to the
+     * plain read, so a missing or unreadable file throws exactly the error it threw before;
+     * nothing is cached for it.
+     *
+     * @inner
+     * @param {string} caPath - Path to the CA bundle file
+     * @returns {Buffer} the file's content — the same Buffer while the file is unchanged
+     */
+    var _readQueryCa = function(caPath) {
+        var st;
+        try {
+            st = fs.statSync(caPath);
+        } catch (statErr) {
+            return fs.readFileSync(caPath); // the pre-#B633 read, and its error, unchanged
+        }
+        var inst = self.serverInstance;
+        if (!(inst._caCache instanceof Map)) {
+            inst._caCache = new Map();
+        }
+        var hit = inst._caCache.get(caPath);
+        if (
+            hit
+            && hit.ino === st.ino && hit.size === st.size
+            && hit.mtimeMs === st.mtimeMs && hit.ctimeMs === st.ctimeMs
+        ) {
+            // LRU touch: a CA in use is never the one evicted
+            inst._caCache.delete(caPath);
+            inst._caCache.set(caPath, hit);
+            return hit.buf;
+        }
+        var buf = fs.readFileSync(caPath);
+        inst._caCache.delete(caPath);
+        if (inst._caCache.size >= QUERY_CA_MAX) {
+            inst._caCache.delete(inst._caCache.keys().next().value);
+        }
+        inst._caCache.set(caPath, { buf: buf, ino: st.ino, size: st.size, mtimeMs: st.mtimeMs, ctimeMs: st.ctimeMs });
+        return buf;
+    };
+
     /**
      * HTTP/1.x client request handler with the #B53 idempotency-gated retry.
      *
@@ -6095,7 +6148,7 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
         else if ( /https/.test(options.scheme) ) {
             try {
                 if ( !/-----BEGIN/.test(options.ca) ) {
-                    options.ca = fs.readFileSync(options.ca);
+                    options.ca = _readQueryCa(options.ca); // #B633 — re-read only when the file changed
                 }
             } catch(err) {
                 try {
@@ -6359,7 +6412,7 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
         else if ( /https/.test(options.scheme) ) {
             try {
                 if ( !/-----BEGIN/.test(options.ca) ) {
-                    options.ca = fs.readFileSync(options.ca);
+                    options.ca = _readQueryCa(options.ca); // #B633 — re-read only when the file changed
                 }
             } catch(err) {
                 try {
