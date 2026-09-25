@@ -12,7 +12,9 @@ var fs          = require('fs');
 var os          = require("os");
 var util        = require('util');
 var promisify   = util.promisify;
-var { execSync } = require('child_process');
+// #B663 (2026-09-25) — children are started from argument vectors, never from a shell command line.
+// var { execSync } = require('child_process');
+var { execFileSync } = require('child_process');
 
 // Framework lib registry is intentionally not loaded here — see checkIfGinaIsAlreadyInstalled.
 var helpers = null;
@@ -61,6 +63,21 @@ try {
 function PreInstall() {
     var self = {};
 
+    /**
+     * Resolves the install context: the platform, whether the install is global or
+     * local, the reset flag, npm's default prefix (the #B126-guarded probe), the
+     * target prefix (`--prefix=`, `npm_config_prefix`, or INIT_CWD for a local
+     * install), the running user, and whether gina is already installed under that
+     * prefix (`npm list`).
+     *
+     * Both npm probes run from argument vectors, without a shell (#B663): a prefix,
+     * or npm itself, under a path containing a space reaches npm whole.
+     *
+     * @inner
+     * @private
+     * @returns {void}
+     * @throws {Error} On win32, which is not supported yet
+     */
     var configure = function() {
 
         // TODO - handle windows case
@@ -84,8 +101,11 @@ function PreInstall() {
         // npmrc) is irrelevant. Unguarded, the refusal killed the whole
         // install. npm exports the effective prefix to the lifecycle env, so
         // fall back to it; last resort: the node-derived default prefix.
+        // #B663 (2026-09-25) — an argument vector, no shell: `$(which npm)` split an npm
+        // installed under a path containing a space, so the probe failed and fell back.
+        // self.defaultPrefix  = execSync('$(which npm) config get prefix --quiet').toString().replace(/\n$/g, '');
         try {
-            self.defaultPrefix  = execSync('$(which npm) config get prefix --quiet').toString().replace(/\n$/g, '');
+            self.defaultPrefix  = execFileSync('npm', ['config', 'get', 'prefix', '--quiet']).toString().replace(/\n$/g, '');
         } catch (probeErr) {
             self.defaultPrefix  = process.env.npm_config_prefix
                                 || require('path').resolve(process.execPath, '..', '..');
@@ -185,11 +205,18 @@ function PreInstall() {
 
         var pkg = null, pkgObj = null, cmd = null;
         try {
-            cmd = 'npm list gina --long --json --prefix='+ self.prefix;
+            // #B663 (2026-09-25) — an argument vector, no shell: the prefix was spliced in
+            // unquoted, so a prefix containing a space never found an installed gina.
+            // cmd = 'npm list gina --long --json --prefix='+ self.prefix;
+            // if (self.isGlobalInstall) {
+            //     cmd += ' -g';
+            // }
+            // pkg = execSync(cmd).toString().replace(/\n$/g, '');
+            cmd = ['list', 'gina', '--long', '--json', '--prefix='+ self.prefix];
             if (self.isGlobalInstall) {
-                cmd += ' -g';
+                cmd.push('-g');
             }
-            pkg = execSync(cmd).toString().replace(/\n$/g, '');
+            pkg = execFileSync('npm', cmd).toString().replace(/\n$/g, '');
             self.optionalPrefix = JSON.parse(pkg).dependencies.gina.config.optionalPrefix.replace(/^\~/, getUserHome());
 
             pkgObj = JSON.parse(pkg);
@@ -338,15 +365,29 @@ function PreInstall() {
         done();
     }
 
+    /**
+     * Creates `~/.gina` when it is missing, then resolves (and creates when needed)
+     * the tmp, run and log directories for the target prefix.
+     *
+     * @inner
+     * @private
+     * @param {function(Error=)} done - Continuation; called with an error to abort the install
+     * @returns {void}
+     */
     self.checkRequiredFolders = function(done) {
 
         var ginaHomeDir = getUserHome() + ((isWin32()) ? '\\.gina': '/.gina');
         if (!existsSync(ginaHomeDir) ) {
             fs.mkdirSync(ginaHomeDir);
 
-            var cmd = 'chown -R $(whoami) '+ ginaHomeDir;
-            console.debug('Running: '+ cmd);
-            execSync(cmd);
+            // #B663 (2026-09-25) — removed: a no-op that could only fail. This process has
+            // just created the directory, so it already belongs to the user `whoami` names
+            // (measured: uid, gid and mode unchanged by the chown); and the path was spliced
+            // into a shell command line unquoted, so a home path containing a space made it
+            // throw — exit 1, failing `npm install -g gina` on a first install.
+            // var cmd = 'chown -R $(whoami) '+ ginaHomeDir;
+            // console.debug('Running: '+ cmd);
+            // execSync(cmd);
         }
 
         // check for `/usr/local/tmp` or `/tmp`

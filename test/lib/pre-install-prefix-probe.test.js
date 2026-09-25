@@ -18,6 +18,12 @@
  * `-g --prefix` lifecycle) and, last resort, the node-derived default prefix
  * (`path.resolve(process.execPath, '..', '..')`).
  *
+ * Since #B663 the probe is an argument vector — `execFileSync('npm', ['config',
+ * 'get', 'prefix', '--quiet'])`, no shell: the `$(which npm)` form split an npm
+ * installed under a path containing a space. The §01 pins read comment-stripped
+ * source, so the pre-#B663 line kept as a comment can neither satisfy them nor
+ * count as a second probe.
+ *
  * Sections:
  *   01 — source pins: probe-inside-try + fallback chain, in BOTH scripts
  *   02 — behavioural replica against a refusing npm SHIM (deterministic — no
@@ -40,7 +46,14 @@ var REPO     = path.join(__dirname, '..', '..');
 var PRE_SRC  = fs.readFileSync(path.join(REPO, 'script/pre_install.js'),  'utf8');
 var POST_SRC = fs.readFileSync(path.join(REPO, 'script/post_install.js'), 'utf8');
 
-var PROBE_CMD = "config get prefix --quiet";
+// the scripts without their whole-line comments (the pins below read these)
+function activeSource(src) {
+    return src.split('\n').filter(function(l) { return !/^\s*(\/\/|\*|\/\*)/.test(l); }).join('\n');
+}
+var PRE_ACTIVE  = activeSource(PRE_SRC);
+var POST_ACTIVE = activeSource(POST_SRC);
+
+var PROBE_CMD = "['config', 'get', 'prefix', '--quiet']";
 
 
 function assertGuardedProbe(src, label) {
@@ -66,11 +79,11 @@ function assertGuardedProbe(src, label) {
 describe('01 - guarded prefix-probe source pins (#B126)', function() {
 
     it('pre_install.js guards the probe with the fallback chain', function() {
-        assertGuardedProbe(PRE_SRC, 'pre_install');
+        assertGuardedProbe(PRE_ACTIVE, 'pre_install');
     });
 
     it('post_install.js guards the identical probe the same way', function() {
-        assertGuardedProbe(POST_SRC, 'post_install');
+        assertGuardedProbe(POST_ACTIVE, 'post_install');
     });
 
     it('neither script keeps an UNGUARDED bare-assignment probe', function() {
@@ -100,7 +113,7 @@ describe('02 - refusal fallback behaviour — refusing-shim replica (#B126)', fu
     fs.writeFileSync(path.join(okDir, 'npm'), '#!/bin/sh\necho "/opt/some/prefix"\nexit 0\n');
     fs.chmodSync(path.join(okDir, 'npm'), 448);
 
-    var BASE_PATH = '/usr/bin:/bin'; // `which` + `sh` for the $(which npm) form
+    var BASE_PATH = '/usr/bin:/bin'; // `which` + `sh` for the pre-#B663 $(which npm) form the sanity and SUBTRACT arms run
 
     // Verbatim-shaped replica of the shipped guarded block (locked to the real
     // scripts by the §01 pins); env parameterized so each case controls the
@@ -112,7 +125,7 @@ describe('02 - refusal fallback behaviour — refusing-shim replica (#B126)', fu
             _env.npm_config_prefix = env.npm_config_prefix;
         }
         try {
-            defaultPrefix = cp.execSync("$(which npm) config get prefix --quiet", { env: _env }).toString().replace(/\n$/g, '');
+            defaultPrefix = cp.execFileSync('npm', ['config', 'get', 'prefix', '--quiet'], { env: _env }).toString().replace(/\n$/g, '');
         } catch (probeErr) {
             defaultPrefix = _env.npm_config_prefix
                           || require('path').resolve(process.execPath, '..', '..');

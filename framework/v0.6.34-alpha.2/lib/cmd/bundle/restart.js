@@ -1,6 +1,8 @@
 var fs          = require('fs');
 const { runMain } = require('module');
-var exec        = require('child_process').exec;
+// #B663 (2026-09-25) — execFile: bundle:stop and bundle:start run from argument vectors, without a shell.
+// var exec        = require('child_process').exec;
+var execFile    = require('child_process').execFile;
 
 var CmdHelper   = require('./../helper');
 var console     = lib.logger;
@@ -33,10 +35,16 @@ function Restart(opt, cmd) {
     /**
      * Validates configuration and triggers single-bundle or bulk restart.
      *
+     * Takes the runtime and CLI script paths off `process.argv` as an argument pair
+     * (`self.cliArgv`), and keeps the `--` flags it was given as a list
+     * (`self.inheritedArgv`), for the stop and start children, which run without
+     * a shell (#B663).
+     *
      * @inner
      * @private
      * @param {object} opt - Parsed command-line options
      * @param {object} cmd - The cmd dispatcher object
+     * @returns {(boolean|void)} false when the CLI is not configured
      */
     var init = function(opt, cmd) {
         // import CMD helpers
@@ -45,7 +53,10 @@ function Restart(opt, cmd) {
         // check CMD configuration
         if (!isCmdConfigured()) return false;
 
-        self.cmdStr = process.argv.splice(0, 2).join(' ');
+        // #B663 (2026-09-25) — the runtime and CLI script paths stay an argument pair: the
+        // children run without a shell (the pair was joined into a command line).
+        // self.cmdStr = process.argv.splice(0, 2).join(' ');
+        self.cliArgv = process.argv.splice(0, 2);
 
         self.inheritedArgv = [];
         for (let i = 0, len = process.argv.length; i < len; i++) {
@@ -54,7 +65,8 @@ function Restart(opt, cmd) {
             }
         }
 
-        self.inheritedArgv =  self.inheritedArgv.join(' ');
+        // #B663 (2026-09-25) — kept as a list: each flag reaches bundle:start as one argument.
+        // self.inheritedArgv =  self.inheritedArgv.join(' ');
 
         // start all bundles
         opt.onlineCount = 0;
@@ -76,11 +88,17 @@ function Restart(opt, cmd) {
     /**
      * Executes a stop-then-start sequence for one bundle, optionally in bulk.
      *
+     * `bundle:stop` and `bundle:start` run as two `execFile` children of the same
+     * runtime and CLI script, each from an argument vector, without a shell (#B663).
+     * The start runs only once the stop has succeeded, and only the start gets the
+     * inherited `--` flags and the debug flag.
+     *
      * @inner
      * @private
      * @param {object} opt - Parsed command-line options (includes client, debugPort)
-     * @param {object} cmd - Overwritten internally with the shell command string
+     * @param {object} cmd - Overwritten internally with a display string of the two commands (the debug line; nothing runs it)
      * @param {number} [bundleIndex] - When provided, performs a bulk restart at this index
+     * @returns {void}
      */
     var restart = function(opt, cmd, bundleIndex) {
 
@@ -120,44 +138,95 @@ function Restart(opt, cmd) {
                 //console.debug(' OPTIONS => ', opt.debugPort, opt.debugBrkEnabled);
                 //console.info('running: gina bundle:restart '+ bundle + '@' + self.projectName);
                 msg = 'Restarting, please wait ...';
-                cmd = '$gina bundle:stop ' + bundle + ' @' + self.projectName + ' && $gina bundle:start ' + bundle + ' @' + self.projectName;
-                if (self.inheritedArgv != '') {
-                    cmd += ' '+ self.inheritedArgv;
-                }
+                // #B663 (2026-09-25) — two argument vectors run without a shell: bundle:stop, then
+                // bundle:start only once the stop has succeeded (what the shell's `&&` did). The
+                // command line spliced the CLI path, the bundle and project names and every
+                // inherited `--` flag in unquoted, so a path containing a space broke the restart
+                // and shell syntax in a flag ran.
+                // cmd = '$gina bundle:stop ' + bundle + ' @' + self.projectName + ' && $gina bundle:start ' + bundle + ' @' + self.projectName;
+                // if (self.inheritedArgv != '') {
+                //     cmd += ' '+ self.inheritedArgv;
+                // }
+                // if (opt.debugPort) {
+                //     cmd += ' --inspect';
+                //     if (opt.debugBrkEnabled) {
+                //         cmd += '-brk'
+                //     }
+                //     cmd += '='+ opt.debugPort;
+                //     msg = 'You should now start your debug session on port #'+opt.debugPort;
+                // }
+                // cmd = cmd.replace(/\$(gina)/g, self.cmdStr);
+                var stopArgv  = [self.cliArgv[1], 'bundle:stop', bundle, '@' + self.projectName];
+                var startArgv = [self.cliArgv[1], 'bundle:start', bundle, '@' + self.projectName].concat(self.inheritedArgv);
                 if (opt.debugPort) {
-                    cmd += ' --inspect';
-                    if (opt.debugBrkEnabled) {
-                        cmd += '-brk'
-                    }
-                    cmd += '='+ opt.debugPort;
+                    startArgv.push('--inspect' + (opt.debugBrkEnabled ? '-brk' : '') + '=' + opt.debugPort);
                     msg = 'You should now start your debug session on port #'+opt.debugPort;
                 }
-                cmd = cmd.replace(/\$(gina)/g, self.cmdStr);
+                // for the debug line only: nothing runs this string
+                cmd = [self.cliArgv[0]].concat(stopArgv).join(' ') + ' && ' + [self.cliArgv[0]].concat(startArgv).join(' ');
 
                 console.debug('Executing: '+cmd);
 
                 opt.client.write('\n\r'+msg +'\n');
 
-                // If it is stuck, the problem is not here ... cmd.start should be a good start
-                exec(cmd, function(err, stdout, stderr) {
-
-                    if (err) {
-                        error = err.toString();
-                        console.error(error);
-                        //opt.notStopped.push(bundle + '@' + self.projectName);
-                        return setTimeout(() => {
-                            end(opt, cmd, isBulkRestart, bundleIndex, true)
-                        }, 250); // 500
-                    }
-
-                    // retrieve messages from the parent stdout
-                    if (stdout) {
-                        console.log(stdout.replace(/\n\rTrying to.*/gm, ''));
-                    }
-                    setTimeout(() => {
-                        //opt.client.write('  => bundle [ ' + bundle + '@' + self.projectName + ' ] restarted on port #'+ bundlePort+' :D\n');
-                        end(opt, cmd, isBulkRestart, bundleIndex)
+                /**
+                 * Ends this bundle's restart on a failed step: logs the error, then moves on
+                 * to the next bundle (bulk restart) or exits 1.
+                 *
+                 * @inner
+                 * @private
+                 * @param {Error} err - The failed child's error
+                 * @returns {object} The pending timer
+                 */
+                var onFailed = function(err) {
+                    error = err.toString();
+                    console.error(error);
+                    //opt.notStopped.push(bundle + '@' + self.projectName);
+                    return setTimeout(() => {
+                        end(opt, cmd, isBulkRestart, bundleIndex, true)
                     }, 250); // 500
+                };
+
+                // If it is stuck, the problem is not here ... cmd.start should be a good start
+                // #B663 (2026-09-25) — replaced by the two execFile calls below.
+                // exec(cmd, function(err, stdout, stderr) {
+                //
+                //     if (err) {
+                //         error = err.toString();
+                //         console.error(error);
+                //         //opt.notStopped.push(bundle + '@' + self.projectName);
+                //         return setTimeout(() => {
+                //             end(opt, cmd, isBulkRestart, bundleIndex, true)
+                //         }, 250); // 500
+                //     }
+                //
+                //     // retrieve messages from the parent stdout
+                //     if (stdout) {
+                //         console.log(stdout.replace(/\n\rTrying to.*/gm, ''));
+                //     }
+                //     setTimeout(() => {
+                //         //opt.client.write('  => bundle [ ' + bundle + '@' + self.projectName + ' ] restarted on port #'+ bundlePort+' :D\n');
+                //         end(opt, cmd, isBulkRestart, bundleIndex)
+                //     }, 250); // 500
+                // })
+                execFile(self.cliArgv[0], stopArgv, function onStopped(err, stopStdout) {
+                    if (err) {
+                        return onFailed(err);
+                    }
+                    execFile(self.cliArgv[0], startArgv, function onStarted(err, startStdout) {
+                        if (err) {
+                            return onFailed(err);
+                        }
+                        // retrieve messages from the parent stdout
+                        var stdout = (stopStdout || '') + (startStdout || '');
+                        if (stdout) {
+                            console.log(stdout.replace(/\n\rTrying to.*/gm, ''));
+                        }
+                        setTimeout(() => {
+                            //opt.client.write('  => bundle [ ' + bundle + '@' + self.projectName + ' ] restarted on port #'+ bundlePort+' :D\n');
+                            end(opt, cmd, isBulkRestart, bundleIndex)
+                        }, 250); // 500
+                    })
                 })
             })//EO isRealApp
         }

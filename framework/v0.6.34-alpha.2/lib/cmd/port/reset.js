@@ -1,5 +1,6 @@
 const fs            = require('fs');
-const { execSync }  = require('child_process');
+// #B663 (2026-09-25) — no child process any more: reset() reads the bundle list in-process.
+// const { execSync }  = require('child_process');
 
 var console     = lib.logger;
 var CmdHelper   = require('./../helper');
@@ -88,17 +89,33 @@ function Reset(opt, cmd) {
      * Removes all existing port entries for the project from ports.json and
      * ports.reverse.json, then calls addBundlePorts to re-assign fresh ports.
      *
+     * The project's bundle names come from the manifest loadAssets() has already
+     * loaded (`self.bundlesByProject[<project>]`, the `manifest.json` `bundles`
+     * keys that `bundle:list` prints), in-process: no child process, no shell (#B663).
+     *
      * @inner
      * @private
+     * @returns {void}
      */
     var reset = function() {
         // get bundles list
-        var bundlesCollection = null, out = null;
-        try {
-            out = execSync('$(which gina) bundle:list @'+ self.projectName +' --format=json').toString().replace(/(\n|\r)$/, '').split(/(\n|\r)/g);
-            out = out[out.length-1];
-            bundlesCollection = JSON.parse(out);
-        } catch (err) {}// silently ...
+        // #B663 (2026-09-25) — read in-process instead of a `$(which gina) bundle:list …` child
+        // run through a shell: with no `gina` on PATH, or `gina` under a path containing a
+        // space, the child failed, the catch swallowed it, and the loop below died on a null
+        // list (TypeError, exit 1) before anything was written. The child also ran whichever
+        // `gina` PATH found first, without this process's GINA_HOMEDIR, and the project name
+        // reached the shell unquoted.
+        // var bundlesCollection = null, out = null;
+        // try {
+        //     out = execSync('$(which gina) bundle:list @'+ self.projectName +' --format=json').toString().replace(/(\n|\r)$/, '').split(/(\n|\r)/g);
+        //     out = out[out.length-1];
+        //     bundlesCollection = JSON.parse(out);
+        // } catch (err) {}// silently ...
+        var bundlesCollection = [];
+        var projectBundles = self.bundlesByProject[self.projectName] || {};
+        for (let bundleName in projectBundles) {
+            bundlesCollection.push({ bundle: bundleName, project: self.projectName });
+        }
 
         // remove definitions from port.reverse.json & port.json
         var i       = 0
