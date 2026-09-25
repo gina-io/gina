@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
       # #S6 — Backs up the local pre-commit hook (#S5) and the publish-boundary
       # gate in prepare_version.js (#S3). Fails the build if any tracked path
@@ -40,7 +40,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
       # #S7 — CI mirror of the pre-commit hook's content-scan section.
       # While #S6 catches LOCAL-TOOL PATHS (file names), #S7 catches

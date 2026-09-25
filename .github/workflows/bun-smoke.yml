@@ -96,10 +96,10 @@ jobs:
         bun: [oven/bun:1.4.2, oven/bun:1.3.14]
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
       - name: Use Node.js (pack the tarball + run the smoke orchestrator)
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: 24
 
@@ -123,12 +123,12 @@ jobs:
         node: [22, 24, 26]
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
       # The orchestrator itself runs on ONE fixed Node (packs the tarball,
       # drives docker); the version under test is the container image below.
       - name: Use Node.js (pack the tarball + run the smoke orchestrator)
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: 24
 
@@ -151,10 +151,10 @@ jobs:
           - { image: 'oven/bun:1.3.14',  runtime: 'bun'  }   # must NOT advertise — two-sided expectation
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
       - name: Use Node.js (pack the candidate)
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: 24
 

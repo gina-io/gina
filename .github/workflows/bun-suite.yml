@@ -74,13 +74,13 @@ jobs:
         bun: [oven/bun:1.4.2]
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
       # node_modules are installed on the RUNNER (Linux, this uid) exactly as
       # test.yml does, then bind-mounted into the Bun container at the SAME
       # absolute path so the node_modules/gina self-symlink resolves inside.
       - name: Use Node.js (installs dependencies, runs the gate)
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: 24
 
@@ -144,7 +144,7 @@ jobs:
       # A red needs the full console (which failure, what it printed); keep it.
       - name: Upload the run artifacts on failure
         if: failure()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: bun-suite-${{ strategy.job-index }}
           path: /tmp/bun-suite/
