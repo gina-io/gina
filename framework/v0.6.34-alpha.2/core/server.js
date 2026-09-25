@@ -5381,9 +5381,28 @@ function Server(options) {
             //     request.url = self.conf[self.appName][self.env].server.webroot
             // }
 
+            // #B668 — the express engine keeps the query string in `request.url`
+            // (isaac rewrites it to the bare path before dispatch, server.isaac.js):
+            // strip it here — after every `/_gina` handler above, which read
+            // `?key=` off the full URL, and before the webroot filter, the statics
+            // and the routing loop below, which compare `request.url` against rule
+            // and file paths, so a query-carrying URL never matched a rule or a
+            // static on this engine. The engine's parse is materialised on
+            // `request.query` first: the server.express.js accessor reads the URL
+            // lazily (#B666), and reading it inside this layer means a throwing
+            // `query parser` is a 500 through Express's own catch, never a process
+            // exit. `request.originalUrl` keeps the full URL.
+            if ( /^express/.test(self.engine) ) {
+                var _exQuery = request.query;
+                var _exQi    = request.url.indexOf('?');
+                if ( _exQi > -1 ) {
+                    request.url = request.url.substring(0, _exQi);
+                }
+                _exQuery = null; _exQi = null;
+            }
 
             // webroot filter
-            var isWebrootHandledByRouting = ( self.conf[self.appName][self.env].server.webroot == request.url && !fs.existsSync( _(self.conf[self.appName][self.env].publicPath +'/index.html', true) ) ) ? true : false;
+            var isWebrootHandledByRouting =( self.conf[self.appName][self.env].server.webroot == request.url && !fs.existsSync( _(self.conf[self.appName][self.env].publicPath +'/index.html', true) ) ) ? true : false;
             // webrootAutoredirect case
             if (
                 request.url == '/'
