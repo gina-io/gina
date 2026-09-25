@@ -9,7 +9,7 @@
 //   "database" : "${bundle}",
 //   "username" : "appuser",
 //   "password" : "secret",
-//   "ping"     : "2m"
+//   "pingInterval" : "2m"
 // }
 //
 // For local overrides without touching this file:

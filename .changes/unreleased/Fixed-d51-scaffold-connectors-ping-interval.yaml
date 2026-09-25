@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'The `connectors.json` a new bundle is scaffolded with showed the Couchbase keep-alive interval as `ping`, a key the connector ignores. Its example now names `pingInterval`, the key the connector reads (default `2m`, used while `keepAlive` is on, as it is by default). (#D51)'
+time: 2026-09-25T06:27:45+01:00
