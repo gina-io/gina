@@ -384,8 +384,8 @@ A cold audit of the Couchbase connector identified two critical security vulnera
 
 | Status | Feature | Version | Target |
 | --- | --- | --- | --- |
-| ✅ | **Credential exposure in process list (`restQuery`)** — The `useRestApi: true` path built a shell command containing `-u username:password` passed to `exec()`. Plaintext credentials were visible in `ps aux` for the duration of the call. Fixed: replaced `exec()` with `execFile()` — credentials passed as positional arguments, never in the shell string. | `0.2.0` | 2026-03-27 |
-| ✅ | **Shell command injection in `restQuery`** — The same `exec()` path joined the N1QL statement and query parameters into a single shell string. Metacharacters (`$`, `;`, `&`, `|`, backtick) in parameters were not neutralised. Fixed: same change as above — `execFile()` eliminates the shell entirely. | `0.2.0` | 2026-03-27 |
+| ✅ | **Credential exposure in process list (`restQuery`)** — The `useRestApi: true` path built a shell command containing `-u username:password` passed to `exec()`. Plaintext credentials were visible in `ps aux` for the duration of the call. Fixed: replaced `exec()` with `http.request()` — credentials travel in an `Authorization` header, and no shell or child process is involved. | `0.2.0` | 2026-03-27 |
+| ✅ | **Shell command injection in `restQuery`** — The same `exec()` path joined the N1QL statement and query parameters into a single shell string. Metacharacters (`$`, `;`, `&`, `|`, backtick) in parameters were not neutralised. Fixed: same change as above — `http.request()` involves no shell at all. | `0.2.0` | 2026-03-27 |
 
 ### High — Bugs
 
