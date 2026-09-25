@@ -194,14 +194,14 @@ declare global {
     function safeDecodeURIComponent(str: string): string;
     /** Crash-safe `decodeURI` — returns the input string unchanged on a malformed `%` escape. */
     function safeDecodeURI(str: string): string;
-    /** Parse a form/body string (urlencoded or JSON) into a nested object (PHP-style `foo[bar][0]` keys). */
-    function formatDataFromString(bodyStr: string | object): object;
+    /** Parse a form/body string (urlencoded, or a JSON document) into a nested object (bracket-notation `foo[bar][0]` keys nest); `undefined` for an invalid JSON document. */
+    function formatDataFromString(bodyStr: string | object): object | undefined;
     /**
      * Nest ONE bracket-notation key path (`item[0][id]`) into the accumulator
      * object at depth `k` (callers pass `0`); assigns `value` at the leaf.
      * Mutates and returns the accumulator.
      */
-    function nestBracketNotationKey(obj: object | any[], key: string, k: number, value: any): object | any[];
+    function nestBracketNotationKey(obj: object | any[], key: string[], k: number, value: any): object | any[];
 
     // -- Env helpers --
 

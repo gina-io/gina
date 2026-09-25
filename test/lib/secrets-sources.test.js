@@ -75,8 +75,11 @@ describe('01 - export surface and wiring', function () {
         assert.equal(typeof secrets.resolveBundleSrc, 'function');
     });
 
-    it('main.js instantiates the sources factory over its own getRequiredKeys (no load cycle)', function () {
-        assert.match(MAIN_SRC, /var\s+sources\s*=\s*require\(\s*['"]\.\/sources['"]\s*\)\(\s*getRequiredKeys\s*\)/);
+    it('main.js instantiates the sources factory over its own getRequiredKeys + getMalformedReferences (no load cycle)', function () {
+        // Realigned 2026-09-22 (operator-approved, #B583): the factory takes the
+        // malformed-reference enumerator as a second primitive, so the CLI walk
+        // reports what boot refuses without requiring ./main back.
+        assert.match(MAIN_SRC, /var\s+sources\s*=\s*require\(\s*['"]\.\/sources['"]\s*\)\(\s*getRequiredKeys\s*,\s*getMalformedReferences\s*\)/);
     });
 
     it('main.js re-exports the four walk members from the sources instance', function () {
@@ -113,8 +116,10 @@ describe('01 - export surface and wiring', function () {
 
 describe('02 - walk structure pins (sources.js)', function () {
 
-    it('sources.js is a factory over the key-enumeration primitive', function () {
-        assert.match(SOURCES_SRC, /module\.exports\s*=\s*function\s+sourcesFactory\s*\(\s*getRequiredKeys\s*\)/);
+    it('sources.js is a factory over the two enumeration primitives (keys + malformed references)', function () {
+        // Realigned 2026-09-22 (operator-approved, #B583): the declaration form
+        // of the same structural change the §01 call-site pin covers.
+        assert.match(SOURCES_SRC, /module\.exports\s*=\s*function\s+sourcesFactory\s*\(\s*getRequiredKeys\s*,\s*getMalformedReferences\s*\)/);
     });
 
     it('sources.js requires lib/merge relatively (server-side only; installs JSON.clone)', function () {
@@ -192,6 +197,15 @@ function writeFixtureTree() {
     // second file requiring an already-seen key: provenance must accumulate both labels
     fs.writeFileSync(path.join(T, 'src/demo/config/connectors.json'),
         '{ "cred": "${secret:APP_KEY}" }');
+    // #B583 — a MALFORMED whole-value reference (lowercase key): the walk must
+    // list it with its file, never as a required key. No valid key in this
+    // file, so every key / provenance assertion above stays untouched.
+    fs.writeFileSync(path.join(T, 'src/demo/config/broken.json'),
+        '{ "db": { "password": "${secret:db_password}" }, "fine": "literal" }');
+    // scope-only file carrying one (a VALID key padded with whitespace):
+    // attributed to the scope layer, and only visible to the scoped walk.
+    fs.writeFileSync(path.join(T, 'shared/config_production/bad.json'),
+        '{ "token": "${secret:PROD_TOKEN} " }');
     // skipped by the walk, present on disk (the can-fire controls read them raw)
     fs.writeFileSync(path.join(T, 'shared/config/.ghost.json'), '{ "g": "${secret:GHOST_KEY}" }');
     fs.writeFileSync(path.join(T, 'shared/config/app copy.json'), '{ "c": "${secret:COPYCAT_KEY}" }');
@@ -352,5 +366,48 @@ describe('07 - the leaf readers', function () {
         assert.equal(secrets.resolveBundleSrc(m, 'demo'), 'src/demo');
         assert.equal(secrets.resolveBundleSrc(m, 'zz'), 'zz');
         assert.equal(secrets.resolveBundleSrc(null, 'demo'), 'demo');
+    });
+});
+
+// ---------------------------------------------------------------------------
+// 08 — #B583: malformed references ride the walk beside the keys
+// ---------------------------------------------------------------------------
+
+describe('08 - #B583 malformed references ride the walk beside the keys', function () {
+
+    var BROKEN = { file: 'src/demo/config/broken.json', path: 'db.password', ref: '${secret:db_password}' };
+    var SCOPED = { file: 'shared/config_production/bad.json', path: 'token', ref: '${secret:PROD_TOKEN} ' };
+
+    it('every bundle entry carries a `malformed` list — empty for a clean bundle', function () {
+        var r = secrets.getProjectRequiredKeys(T, {});
+        assert.deepEqual(r.bundles[1].malformed, []);          // zz: clean
+    });
+
+    it('lists a malformed whole-value reference with its file + path + text, and NOT as a key', function () {
+        // can-fire control: the literal IS on disk
+        assert.ok(fs.readFileSync(path.join(T, 'src/demo/config/broken.json'), 'utf8').indexOf('db_password') > -1);
+        var r = secrets.getProjectRequiredKeys(T, {});
+        assert.deepEqual(r.bundles[0].malformed, [BROKEN]);
+        assert.equal(r.bundles[0].byKey.db_password, undefined, 'a malformed reference is not a required key');
+        assert.deepEqual(Object.keys(r.bundles[0].byKey), ['BOTH_KEY', 'SHARED_KEY', 'APP_KEY'], 'the key roster is untouched');
+    });
+
+    it('a scope-only file carrying one is attributed to the scope layer and folds into EVERY bundle (shared first)', function () {
+        var r = secrets.getProjectRequiredKeys(T, { scope: 'production' });
+        assert.deepEqual(r.bundles[0].malformed, [SCOPED, BROKEN]);
+        assert.deepEqual(r.bundles[1].malformed, [SCOPED], 'shared entries fold into the second bundle too');
+        assert.equal(r.bundles[0].byKey.PROD_TOKEN, undefined, 'a padded VALID key is still not a key');
+    });
+
+    it('the unscoped walk does not see the scope-only file (control for the arm above)', function () {
+        var r = secrets.getProjectRequiredKeys(T, {});
+        assert.deepEqual(r.bundles[1].malformed, []);
+    });
+
+    it('the bundle filter carries the list too, and repeated walks do not accumulate', function () {
+        var first  = secrets.getProjectRequiredKeys(T, { bundle: 'demo' });
+        var second = secrets.getProjectRequiredKeys(T, { bundle: 'demo' });
+        assert.deepEqual(first.bundles[0].malformed, [BROKEN]);
+        assert.deepEqual(second.bundles[0].malformed, [BROKEN]);
     });
 });

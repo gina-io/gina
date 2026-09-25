@@ -1,0 +1,393 @@
+name: Release
+
+# gina's WHOLE npm release chain on a fresh GitHub-hosted runner — the prepare
+# gates, the framework-dir rename, the bundle build, the `Release vX.Y.Z`
+# commit, the stage upload, and post_publish.js (tag, `master` merge, GitHub
+# Release, version bump, the nested alpha stage) — authenticated by OIDC
+# trusted publishing: no npm token exists anywhere in this repository.
+#
+# Nothing is PUBLISHED by this workflow. `npm stage publish` uploads TWO staged
+# versions (the stable and its nested alpha) that a human approves on npmjs.com
+# with 2FA — the same gate as a local cut. The trust config on npmjs.com is
+# STAGE-ONLY and bound to this file's name plus the `release` environment,
+# whose deployment-branch policy admits `develop` only: a run from any other
+# ref is refused by GitHub before a token can be minted, and a token minted
+# without the environment claim is refused by npm.
+#
+# Operating model — every cut is dispatched TWICE, from the same develop tip:
+#   1. dry_run=true (the default): every gate, the rename, the build, a local
+#      Release commit through the repo hooks and the OIDC exchange run; nothing
+#      is uploaded and nothing is pushed (a stable prepare pushes nothing, and
+#      every post_publish.js phase early-returns under --dry-run).
+#   2. dry_run=false, once the rehearsal is green.
+#
+# Every pre-flight gate fires BEFORE the first irreversible act, the stage
+# POST. A push made with GITHUB_TOKEN creates no workflow run, so the second
+# job dispatches the push-triggered workflows on the new master and develop
+# tips (release checklist step 12-bis).
+#
+# Design of record: the #R10 phase-2 records (local, not shipped); the
+# operator-facing steps are in the stable release checklist.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'The STABLE version to cut, X.Y.Z (develop must be at X.Y.Z-alpha.N)'
+        required: true
+        type: string
+      dry_run:
+        description: 'Rehearse only: run every gate, the rename, the build and the OIDC exchange — upload and push nothing'
+        required: true
+        type: boolean
+        default: true
+
+# One release at a time, and NEVER cancelled once running: a kill between the
+# tag push and the version bump leaves a half-shipped release (tag pushed,
+# master merged, no bump, no alpha). A third dispatch cancels the still-PENDING
+# second one, which never started — that is the wanted semantics.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+# The repository default is `read`, and a `permissions:` block sets every
+# unlisted scope to `none`. Each job declares exactly what it needs.
+permissions: {}
+
+env:
+  RELEASE_VERSION: ${{ inputs.version }}
+  # The ONLY carrier of the dry-run choice. It must never be named
+  # npm_config_dry_run or NPM_CONFIG_DRY_RUN: the release scripts test the
+  # PRESENCE of the lowercase form, which npm itself sets from the CLI flag,
+  # and an env-set NPM_CONFIG_DRY_RUN would make npm skip the upload while the
+  # scripts ran the REAL post-upload chain.
+  RELEASE_DRY_RUN: ${{ inputs.dry_run }}
+
+jobs:
+  release:
+    name: Stage ${{ inputs.version }}${{ inputs.dry_run && ' (dry run)' || '' }}
+    runs-on: ubuntu-latest
+    environment: release
+    # A cut is two builds and two uploads plus git — bundle-freshness does one
+    # build in under 10 minutes. Generous on purpose: a timeout kill is the
+    # mid-chain cancellation described above.
+    timeout-minutes: 60
+    permissions:
+      id-token: write   # lets npm request the OIDC token
+      contents: write   # the tag, master and develop pushes + the GitHub Release
+      actions: read     # the CI-green pre-flight lists this commit's runs
+    outputs:
+      master_sha: ${{ steps.post.outputs.master_sha }}
+      develop_sha: ${{ steps.post.outputs.develop_sha }}
+
+    steps:
+      - name: Checkout develop (a branch — the chain's seven checkouts assume a non-detached HEAD)
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          ref: develop
+          fetch-depth: 0
+          fetch-tags: true
+          # persist-credentials keeps its default (true): the release scripts
+          # push the tag, master and develop with the job token.
+
+      - name: Pre-flight — the input, the ref, the commit
+        run: |
+          set -euo pipefail
+          v="$RELEASE_VERSION"
+          echo "$v" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' \
+            || { echo "::error::version '$v' is not a stable X.Y.Z — alpha cuts are not run from this workflow"; exit 1; }
+          branch=$(git rev-parse --abbrev-ref HEAD)
+          [ "$branch" = develop ] || { echo "::error::HEAD is '$branch', expected develop"; exit 1; }
+          # An explicit `ref:` checkout is NOT pinned to the dispatched commit — it
+          # takes develop's tip at fetch time. Release exactly what was dispatched.
+          head=$(git rev-parse HEAD)
+          [ "$head" = "$GITHUB_SHA" ] \
+            || { echo "::error::develop moved between the dispatch ($GITHUB_SHA) and the checkout ($head) — dispatch again against the tip you verified"; exit 1; }
+          # tagAndMerge runs `git checkout master`, which needs origin/master present.
+          git fetch --no-tags origin +refs/heads/master:refs/remotes/origin/master
+          git rev-parse --verify -q origin/master >/dev/null || { echo "::error::origin/master does not resolve"; exit 1; }
+          pkg=$(node -p "require('./package.json').version")
+          case "$pkg" in
+            "$v"-alpha.*) ;;
+            *) echo "::error::package.json is at $pkg — a stable $v is cut from its alpha line, $v-alpha.N (Flow A)"; exit 1 ;;
+          esac
+          echo "cutting $v from develop@$head (package.json $pkg)"
+
+      - name: Pre-flight — tags, changelog, registry, the master merge, workflow files
+        run: |
+          set -euo pipefail
+          v="$RELEASE_VERSION"
+          if git rev-parse -q --verify "refs/tags/v$v" >/dev/null; then echo "::error::tag v$v already exists in the checkout"; exit 1; fi
+          if git ls-remote --exit-code --tags origin "refs/tags/v$v" >/dev/null 2>&1; then echo "::error::tag v$v already exists on origin (tagAndMerge would die after the upload)"; exit 1; fi
+          # The README-freshness gate passes VACUOUSLY on a tagless checkout: assert the previous stable tag is here.
+          prev=$(git tag --list 'v*' --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1 || true)
+          [ -n "$prev" ] || { echo "::error::no previous stable tag in the checkout — the README gate would pass vacuously"; exit 1; }
+          echo "previous stable tag: $prev"
+          [ -f ".changes/$v.md" ] || { echo "::error::.changes/$v.md is missing — batch the changelog first (tagAndMerge would silently skip the GitHub Release)"; exit 1; }
+          if ls .changes/unreleased/*.yaml >/dev/null 2>&1; then echo "::error::.changes/unreleased/ still holds fragments — batch them into .changes/$v.md"; exit 1; fi
+          if npm view "gina@$v" version >/dev/null 2>&1; then echo "::error::gina@$v is already on the registry"; exit 1; fi
+          # tagAndMerge merges the tag into master AFTER the upload — the worst place to meet a conflict.
+          if ! git merge-tree --write-tree --name-only origin/master HEAD >/dev/null; then
+            echo "::error::merging develop into master would CONFLICT — resolve on develop before cutting:"
+            git merge-tree --write-tree --name-only origin/master HEAD || true
+            exit 1
+          fi
+          # GitHub refuses a GITHUB_TOKEN push only when a NEW commit in it itself
+          # changes a workflow file (the token has no `workflows` scope). Measured on a
+          # throwaway repo (#R10 G2b, 2026-09-24): a bot merge whose workflow files
+          # equal the incoming side's was ALLOWED; the bot's own workflow-editing
+          # commit was REFUSED. The release scripts never write .github/, so the master
+          # merge is the only bot commit that can carry workflow content, and it must
+          # reproduce develop's .github/workflows/ exactly. Any other result (master
+          # carrying workflow content of its own, or a merge producing content found on
+          # neither side) is an unmeasured shape, refused here before the upload.
+          # Fail closed on its own: this must not lean on `set -e`, which bash ignores
+          # in some contexts (measured by the harness that validated this gate).
+          t=$(git merge-tree --write-tree origin/master HEAD) \
+            || { echo "::error::git merge-tree could not compute the master merge"; exit 1; }
+          wf=$(git diff --name-only "$t" HEAD -- .github/workflows/) \
+            || { echo "::error::could not compare the master merge's workflow files with develop's"; exit 1; }
+          if [ -n "$wf" ]; then
+            echo "::error::the master merge would hold workflow content that develop does not have — a GITHUB_TOKEN push carrying it may be refused. Cut this one locally (phase 1):"
+            echo "$wf"
+            exit 1
+          fi
+
+      - name: Pre-flight — CI green on this exact commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # Every run on this SHA must have concluded success, and the always-on
+          # workflows must be present. Runtime Smoke and Bun Suite are
+          # path-filtered on push and may legitimately be absent. This workflow's
+          # own runs (the rehearsal, this run) are excluded.
+          gh run list --repo "$GITHUB_REPOSITORY" --commit "$GITHUB_SHA" --limit 50 \
+            --json workflowName,status,conclusion,event > "$RUNNER_TEMP/runs.json"
+          node -e '
+            const runs = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"))
+              .filter(r => r.workflowName !== "Release");
+            for (const r of runs) console.log(`${r.workflowName}: ${r.status}/${r.conclusion} (${r.event})`);
+            const bad = runs.filter(r => r.status !== "completed" || r.conclusion !== "success");
+            const present = new Set(runs.map(r => r.workflowName));
+            const missing = ["Tests", "Security", "Bundle Freshness", "E2E", "Vendored CVE Scan"].filter(w => !present.has(w));
+            if (bad.length) { console.error("::error::not green on this commit: " + bad.map(r => r.workflowName + " (" + r.status + "/" + r.conclusion + ")").join(", ")); process.exit(1); }
+            if (missing.length) { console.error("::error::no run found on this commit for: " + missing.join(", ") + " — wait for CI, or check that the SHA has runs"); process.exit(1); }
+            console.log("CI green on " + process.env.GITHUB_SHA + " (" + runs.length + " runs)");
+          ' "$RUNNER_TEMP/runs.json"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: '22'
+          # No registry-url: it would write an .npmrc with a placeholder token.
+          # The measured-working OIDC shape has no token configured anywhere.
+
+      - name: Set up Java 21 — BEFORE the Closure installer, which picks the jar by the java on PATH
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Toolchain — npm 11.19.1, brotli, root + framework dependencies, Closure jars
+        run: |
+          set -euo pipefail
+          node -e 'const [a, b] = process.versions.node.split(".").map(Number); if (a < 22 || (a === 22 && b < 14)) { console.error("node " + process.versions.node + " is below the trusted-publishing floor 22.14.0"); process.exit(1); }'
+          npm i -g npm@11.19.1
+          [ "$(npm --version)" = 11.19.1 ] || { echo "::error::npm is $(npm --version), expected 11.19.1"; exit 1; }
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq brotli
+          npm ci --ignore-scripts
+          ln -sf "$(pwd)" node_modules/gina
+          # The framework dir is named after the TRACKED alpha, never after the version being cut.
+          fw=$(git ls-files -- framework/ | cut -d/ -f2 | sort -u)
+          if [ "$(printf '%s\n' "$fw" | wc -l)" -ne 1 ] || [ ! -f "framework/$fw/package.json" ]; then
+            echo "::error::expected exactly one tracked framework/v* dir with a package.json, got: $fw"; exit 1
+          fi
+          (cd "framework/$fw" && npm install --ignore-scripts)
+          bash "framework/$fw/core/asset/plugin/lib/js/install-closure-compiler.sh"
+          # The build is SILENT on a missing jar — it would re-compress a stale gina.min.js.
+          [ -f "framework/$fw/core/asset/plugin/lib/js/compiler.jar" ] || { echo "::error::compiler.jar is missing after the installer"; exit 1; }
+          echo "framework dir: $fw · node $(node --version) · npm $(npm --version) · $(java -version 2>&1 | head -1)"
+
+      - name: Git identity + the repository hooks
+        run: |
+          set -euo pipefail
+          # The chain's commits (Release, version bumps, the master merge, the
+          # alpha's temp-branch commit) are made by automation and say so.
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          # The same pre-commit / commit-msg guards as a local cut (post_install
+          # installs this path locally; --ignore-scripts skipped it here).
+          git config core.hooksPath .githooks
+
+      - name: Private-token sidecar — from the environment secret to the gitignored, npmignored path the prepack gate reads
+        env:
+          PRIVATE_TOKENS_JSON: ${{ secrets.PRIVATE_TOKENS_JSON }}
+        run: |
+          set -euo pipefail
+          [ -n "$PRIVATE_TOKENS_JSON" ] || { echo "::error::the PRIVATE_TOKENS_JSON environment secret is not set — the prepack gate would fail closed (STABLE PUBLISH BLOCKED)"; exit 1; }
+          printf '%s' "$PRIVATE_TOKENS_JSON" | base64 -d > script/.private-tokens.json
+          node -e 'JSON.parse(require("fs").readFileSync("script/.private-tokens.json", "utf8"))' \
+            || { echo "::error::the decoded sidecar is not valid JSON"; exit 1; }
+          git check-ignore -q script/.private-tokens.json \
+            || { echo "::error::script/.private-tokens.json is not gitignored — refusing to keep it on disk"; exit 1; }
+          echo "sidecar in place ($(wc -c < script/.private-tokens.json) bytes, gitignored)"
+
+      - name: Flow A — set the stable version, then assert the tree is exactly ' M package.json'
+        run: |
+          set -euo pipefail
+          npm pkg set version="$RELEASE_VERSION"
+          st=$(git status --porcelain)
+          if [ "$st" != " M package.json" ]; then
+            echo "::error::the tree is not exactly ' M package.json' — the release scripts' git add --all would sweep this into the Release commit:"
+            echo "$st"
+            exit 1
+          fi
+          echo "package.json → $RELEASE_VERSION"
+
+      - name: npm stage publish
+        env:
+          GH_TOKEN: ${{ github.token }}   # tagAndMerge's `gh release create`
+        run: |
+          set -euo pipefail
+          flags="--loglevel=verbose"
+          if [ "$RELEASE_DRY_RUN" = "true" ]; then flags="$flags --dry-run"; fi
+          echo "npm stage publish $flags"
+          set +e
+          npm stage publish $flags 2>&1 | tee "$RUNNER_TEMP/publish.log"
+          rc=${PIPESTATUS[0]}
+          set -e
+          echo "NPM_EXIT=$rc" | tee -a "$RUNNER_TEMP/publish.log"
+
+      - name: Readings + verdict (counted from the log — a dry run exits 0 even when the exchange FAILED)
+        if: always()
+        run: |
+          set -euo pipefail
+          L="$RUNNER_TEMP/publish.log"
+          [ -f "$L" ] || { echo "::error::no publish log — the stage step never ran"; exit 1; }
+          c() { grep -cF "$1" "$L" || true; }
+          ex=$(c 'oidc Successfully retrieved and set token')
+          exf=$(c 'oidc Failed token exchange request')
+          st=$(c '(staged with id')
+          rc=$(grep -oE 'NPM_EXIT=[0-9]+' "$L" | tail -1 | cut -d= -f2)
+          {
+            echo "## Stage $RELEASE_VERSION$( [ "$RELEASE_DRY_RUN" = "true" ] && echo ' (dry run)' )"
+            echo "- OIDC exchanges: $ex succeeded / $exf failed"
+            echo "- staged: $st · npm exit: ${rc:-none}"
+            echo '```'
+            grep -E 'staged with id|npm notice (name|version|shasum|integrity|total files|package size)|\[tagAndMerge\]|\[bumpVersion\]|\[publishAlpha\]|\[syncDocs\]|\[prepack\]|\[prepare\]|\[release-state\]|npm (error|ERR)|verbose oidc|npm warn' "$L" | head -150
+            echo '```'
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+          if [ "$RELEASE_DRY_RUN" = "true" ]; then want_ex=1; want_st=0; else want_ex=2; want_st=2; fi
+          if [ "$ex" -eq 0 ] && [ "$exf" -eq 0 ]; then
+            echo "::error::no OIDC exchange line at all — the exchange was SKIPPED silently (not detected as GitHub Actions? id-token: write missing?); re-run with --loglevel=silly to see why"
+          fi
+          if [ "${rc:-1}" != 0 ] || [ "$ex" -ne "$want_ex" ] || [ "$st" -ne "$want_st" ]; then
+            echo "::error::expected npm exit 0, $want_ex OIDC exchange(s), $want_st staged version(s) — got exit ${rc:-none}, $ex exchange(s), $st staged"
+            exit 1
+          fi
+          echo "VERDICT OK: $ex exchange(s), $st staged, exit $rc"
+
+      - name: Post-state — the tag, the master merge, develop's bump, the GitHub Release
+        id: post
+        if: ${{ inputs.dry_run == false }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          v="$RELEASE_VERSION"
+          git fetch origin +refs/heads/master:refs/remotes/origin/master +refs/heads/develop:refs/remotes/origin/develop "+refs/tags/v$v:refs/tags/v$v"
+          tag=$(git rev-parse "v$v^{commit}")
+          master=$(git rev-parse origin/master)
+          second=$(git rev-parse -q --verify origin/master^2 2>/dev/null || true)
+          if [ "$master" != "$tag" ] && [ "$second" != "$tag" ]; then
+            echo "::error::origin/master ($master) neither is nor merges the tag v$v ($tag)"; exit 1
+          fi
+          dev=$(git show origin/develop:package.json | node -p 'JSON.parse(require("fs").readFileSync(0, "utf8")).version')
+          IFS=. read -r X Y Z <<< "$v"
+          want="$X.$Y.$((Z + 1))-alpha.2"
+          [ "$dev" = "$want" ] || { echo "::error::origin/develop is at $dev, expected $want (the stable's bump to alpha.1, then the nested alpha's own bump to alpha.2)"; exit 1; }
+          gh release view "v$v" --repo "$GITHUB_REPOSITORY" --json tagName,isDraft,isPrerelease \
+            --jq '"GitHub Release " + .tagName + " (draft=" + (.isDraft|tostring) + ", prerelease=" + (.isPrerelease|tostring) + ")"'
+          echo "master_sha=$master" >> "$GITHUB_OUTPUT"
+          echo "develop_sha=$(git rev-parse origin/develop)" >> "$GITHUB_OUTPUT"
+          {
+            echo "- tag v$v → $tag"
+            echo "- master → $master"
+            echo "- develop → $(git rev-parse origin/develop) ($dev)"
+            echo "- approve BOTH staged versions on npmjs.com (Staged Packages): the stable FIRST, then the alpha"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  post-cut-ci:
+    name: 12-bis — the push workflows on the new master and develop tips
+    needs: release
+    # Separate on purpose: least privilege, and it can be re-run alone — the
+    # release job must NEVER be re-run (post_publish.js re-tags and re-merges).
+    if: ${{ needs.release.result == 'success' && inputs.dry_run == false }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      actions: write   # POST .../workflows/{id}/dispatches
+      contents: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      MASTER_SHA: ${{ needs.release.outputs.master_sha }}
+      DEVELOP_SHA: ${{ needs.release.outputs.develop_sha }}
+
+    steps:
+      - name: Dispatch every push-triggered workflow on master and develop, then wait for all of them
+        run: |
+          set -euo pipefail
+          # The seven workflows a credentialed push fires; e2e-cross-engine is
+          # on-demand by its own design and is deliberately not here. Path
+          # filters do not apply to workflow_dispatch, so all seven run.
+          workflows="test.yml e2e.yml bundle-freshness.yml bun-smoke.yml bun-suite.yml security.yml vendored-cve.yml"
+          ids=(); labels=(); expect=()
+          for ref in master develop; do
+            if [ "$ref" = master ]; then sha="$MASTER_SHA"; else sha="$DEVELOP_SHA"; fi
+            for wf in $workflows; do
+              t0=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+              out=$(gh workflow run "$wf" --ref "$ref" 2>&1) || { echo "::error::dispatching $wf on $ref failed: $out"; exit 1; }
+              # gh >= 2.87 prints the created run's URL; fall back to discovery.
+              id=$(printf '%s\n' "$out" | grep -oE 'runs/[0-9]+' | head -1 | cut -d/ -f2 || true)
+              if [ -z "$id" ]; then
+                for _ in 1 2 3 4 5 6 7 8 9 10 11 12; do
+                  sleep 5
+                  id=$(gh run list --workflow "$wf" --branch "$ref" --event workflow_dispatch --limit 3 --json databaseId,createdAt \
+                        --jq "map(select(.createdAt >= \"$t0\")) | .[0].databaseId // empty")
+                  [ -n "$id" ] && break
+                done
+              fi
+              [ -n "$id" ] || { echo "::error::no run id for $wf on $ref"; exit 1; }
+              ids+=("$id"); labels+=("$wf@$ref"); expect+=("$sha")
+              echo "dispatched $wf on $ref → run $id"
+            done
+          done
+
+          deadline=$((SECONDS + 50 * 60))
+          fail=0
+          echo "## 12-bis" >> "$GITHUB_STEP_SUMMARY"
+          echo "| workflow | run | head | conclusion |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          for i in "${!ids[@]}"; do
+            id=${ids[$i]}; label=${labels[$i]}; want=${expect[$i]}
+            while :; do
+              line=$(gh run view "$id" --json status,conclusion,headSha --jq '[.status, (.conclusion // "-"), .headSha] | join(" ")')
+              read -r status conclusion head <<< "$line"
+              [ "$status" = completed ] && break
+              [ "$SECONDS" -lt "$deadline" ] || { echo "::error::timed out waiting for $label (run $id)"; exit 1; }
+              sleep 20
+            done
+            verdict=OK
+            if [ "$head" != "$want" ]; then verdict="WRONG HEAD ($head)"; fail=1; fi
+            if [ "$conclusion" != success ]; then verdict="$conclusion"; fail=1; fi
+            echo "$label run $id → $conclusion (head $head) $verdict"
+            echo "| $label | $id | ${head:0:9} | $conclusion |" >> "$GITHUB_STEP_SUMMARY"
+          done
+          if [ "$fail" -ne 0 ]; then
+            echo "::error::12-bis is RED — a 'cancelled' here is usually a human push into a cancel-in-progress group during the wait: re-run THIS job only, never the release job"
+            exit 1
+          fi
+          echo "12-bis GREEN: every workflow succeeded on master@${MASTER_SHA:0:9} and develop@${DEVELOP_SHA:0:9}"

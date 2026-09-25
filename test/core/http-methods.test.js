@@ -368,7 +368,10 @@ describe('08 - HTTP methods: PATCH body parsing logic (inline replica)', functio
                         body = body.replace(/\+/g, ' ');
                     }
                     if (body.substring(0, 1) === '?') body = body.substring(1);
-                    try { bodyStr = decodeURIComponent(body); } catch (e) { bodyStr = body; }
+                    // #B588 — the site hands the body over VERBATIM now (no whole-body decode, no
+                    // quoted-token pass of its own); the three replace() lines below model the
+                    // data helper's DOCUMENT-branch casting, which is where the coercion lives.
+                    bodyStr = body;
                     bodyStr = bodyStr
                         .replace(/"false"/g, false)
                         .replace(/"true"/g, true)
@@ -680,7 +683,10 @@ describe("12 - body parser: '+' → space decoding for application/x-www-form-ur
     });
 
     // Pure-logic replica of the corrected body-parser transform shared across
-    // POST/PUT/PATCH branches (the +→space step plus decodeURIComponent).
+    // POST/PUT/PATCH branches: the gated +→space step and the leading-? strip. Since
+    // #B588 the site hands the body to the data helper VERBATIM — the helper decodes
+    // each key and value exactly once, after the split — so the replica no longer
+    // decodes (it used to model the whole-body decode #B588 removed).
     function parseBodyAfterFix(body, contentType) {
         if (typeof body !== 'string') return body;
         if (/multipart\/form-data;/.test(contentType || '')) return body;
@@ -688,8 +694,13 @@ describe("12 - body parser: '+' → space decoding for application/x-www-form-ur
             body = body.replace(/\+/g, ' ');
         }
         if (body.substring(0, 1) === '?') body = body.substring(1);
-        try { return decodeURIComponent(body); } catch (e) { return body; }
+        return body;
     }
+
+    // The real data helper, for the arms that follow a %20 through to the parsed object
+    // (same idiom as §19 below and test/lib/format-data-from-string.test.js).
+    require(path.join(FW, 'helpers', 'data', 'src', 'main'))();
+    var formatDataFromString = global.formatDataFromString;
 
     // Positive cases — urlencoded path
 
@@ -698,14 +709,16 @@ describe("12 - body parser: '+' → space decoding for application/x-www-form-ur
         assert.strictEqual(bodyStr, 'name=Hello World');
     });
 
-    it("urlencoded body 'name=Hello%20World' still decodes to 'name=Hello World' (decodeURIComponent path)", function() {
+    it("urlencoded body 'name=Hello%20World': the site leaves %20 in place, the data helper decodes it once (#B588)", function() {
         var bodyStr = parseBodyAfterFix('name=Hello%20World', 'application/x-www-form-urlencoded');
-        assert.strictEqual(bodyStr, 'name=Hello World');
+        assert.strictEqual(bodyStr, 'name=Hello%20World');
+        assert.deepEqual(formatDataFromString(bodyStr), { name: 'Hello World' });
     });
 
-    it('urlencoded body: mixed + and %20 both decode to space', function() {
+    it('urlencoded body: + becomes a space at the site, %20 in the helper — both reach the app as a space', function() {
         var bodyStr = parseBodyAfterFix('a=Hello+World&b=Hi%20there', 'application/x-www-form-urlencoded');
-        assert.strictEqual(bodyStr, 'a=Hello World&b=Hi there');
+        assert.strictEqual(bodyStr, 'a=Hello World&b=Hi%20there');
+        assert.deepEqual(formatDataFromString(bodyStr), { a: 'Hello World', b: 'Hi there' });
     });
 
     it('URLSearchParams.toString() output → urlencoded branch yields decoded space', function() {
@@ -1359,13 +1372,9 @@ describe('19 - body parser: XML bodies reach the application verbatim (#FIN1)', 
                 if ( request.body.substring(0,1) == '?' ) {
                     request.body = request.body.substring(1);
                 }
-                try { bodyStr = decodeURIComponent(request.body); } catch (e) { bodyStr = request.body; }
-                if ( /(\"false\"|\"true\"|\"on\")/.test(bodyStr) ) {
-                    bodyStr = bodyStr.replace(/\"false\"/g, false).replace(/\"true\"/g, true).replace(/\"on\"/g, true);
-                }
-                if ( /(\"null\")/i.test(bodyStr) ) {
-                    bodyStr = bodyStr.replace(/\"null\"/ig, null);
-                }
+                // #B588 — verbatim body: the site no longer decodes it as a whole nor runs the
+                // quoted-token pass (the helper decodes once per pair; the casting is a document feature)
+                bodyStr = request.body;
                 obj = formatDataFromString(bodyStr);
                 request.post = obj;
             }
@@ -1500,15 +1509,17 @@ describe('19 - body parser: XML bodies reach the application verbatim (#FIN1)', 
 
     // ── 19d — controls: the legacy and JSON paths are untouched ──
 
-    it('CONTROL: urlencoded bodies still decode, coerce and nest exactly as before', function() {
+    it('CONTROL: urlencoded bodies still nest as before; raw quotes are now kept (#B588)', function() {
         var req = postBranch('user[name]=Ada&user[age]=37&ok="true"', 'application/x-www-form-urlencoded');
         assert.equal(req.body.user.name, 'Ada');
         assert.equal(req.body.user.age, '37');
-        // Measured, not assumed: the server-level coercion rewrites the raw TEXT
-        // ok="true" -> ok=true, and the data helper then reads that as the plain
-        // string 'true'. Asserting the measured value is the point — this control
-        // exists to show the legacy path is byte-for-byte unchanged by #FIN1.
-        assert.equal(req.body.ok, 'true');
+        // Measured, not assumed: since #B588 the site hands the body to the data
+        // helper verbatim and a urlencoded pair is never coerced, so the raw-quoted
+        // ok="true" reaches the app WITH its quotes (six characters) — a real boot
+        // returns the same (container-boot-request-parsing 01.5). Before #B588 the
+        // site's text pass rewrote the raw TEXT to ok=true and the helper read the
+        // plain string 'true'. This control shows the #FIN1 arm leaves that path alone.
+        assert.equal(req.body.ok, '"true"');
         assert.equal(typeof req.body.ok, 'string');
     });
 

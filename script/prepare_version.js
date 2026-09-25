@@ -471,11 +471,37 @@ function PrepareVersion() {
         console.debug('GINA_HOMEDIR: ', ginaHomeDir);
         console.debug('isWin32: ', isWin32());
 
-        var mainConfigPath = ginaHomeDir +'/main.json';
-        var mainConfig = require(mainConfigPath);
+        // #R10 phase 2 — the local state store is OPTIONAL, so a release can
+        // run on a machine that never installed gina (a CI runner). The
+        // decision lives in resolve_release_state.js, where it is unit-tested:
+        // the version comes from the store's def_framework when main.json
+        // exists, else from the single git-tracked framework/v* dir, and the
+        // release root is ALWAYS this checkout. It used to be read from
+        // settingsConfig.dir, which let a stale value put the rename and the
+        // release commit in one tree while the build and `npm pack` used
+        // another — or fail outright with MODULE_NOT_FOUND.
+        var resolveReleaseState = require('./resolve_release_state');
+        var trackedFrameworkLs  = '';
+        try {
+            trackedFrameworkLs = execSync('git ls-files -- framework/', { cwd: self.gina }).toString();
+        } catch (lsErr) {
+            // left empty: resolved below as "no tracked framework dir" — or,
+            // with a store, as "nothing to cross-check def_framework against"
+        }
         var package = require(pack);
-        var selectedVersion = mainConfig.def_framework.replace(/^v/, '');
-        var targetedVersion = package.version.replace(/^v/, '');
+        var resolved = resolveReleaseState.resolve({
+            ginaHomeDir          : ginaHomeDir,
+            repoRoot             : self.gina,
+            packageVersion       : package.version,
+            trackedFrameworkDirs : resolveReleaseState.parseTrackedFrameworkDirs(trackedFrameworkLs)
+        });
+        if (!resolved.ok) {
+            resolveReleaseState.renderFailure(resolved);
+            return done(new Error('release state could not be resolved (' + resolved.reason + ')'));
+        }
+
+        var selectedVersion = resolved.selectedVersion;
+        var targetedVersion = resolved.targetedVersion;
         // Versions are already in sync (post_publish bumped and committed everything).
         // Just load the framework so helpers/lib are available for the steps below.
         if (selectedVersion == targetedVersion) {
@@ -490,15 +516,8 @@ function PrepareVersion() {
         console.debug('Selected version : ', selectedVersion);
         console.debug('Targeted version : ', targetedVersion);
 
-
-
         // setting up requirements
-        var shortVersion = selectedVersion.split('.');
-        shortVersion.splice(2);
-        shortVersion = shortVersion.join('.');
-        var settingsConfigPath  = ginaHomeDir+'/'+shortVersion+'/settings.json';
-        var settingsConfig      = require(settingsConfigPath);
-        var ginaPath            = settingsConfig.dir;
+        var ginaPath            = resolved.ginaPath;
         self.ginaPath = ginaPath;
 
         frameworkPath       = ginaPath +'/framework/v'+selectedVersion;
@@ -519,75 +538,71 @@ function PrepareVersion() {
             }
         }
 
-        // update selected version & requirements
-        shortVersion = targetedVersion.split('.');
-        shortVersion.splice(2);
-        shortVersion = shortVersion.join('.');
-        if ( typeof(mainConfig.frameworks[shortVersion]) == 'undefined' ) {
-            mainConfig.frameworks[shortVersion] = [];
-            // create settings.json for the new version
-
-        }
-        if ( mainConfig.frameworks[shortVersion].indexOf(targetedVersion) < 0 ) {
-            mainConfig.frameworks[shortVersion].push(targetedVersion)
-        }
-
-
-        settingsConfigPath  = ginaHomeDir+'/'+shortVersion+'/settings.json';
-        settingsConfig      = require(settingsConfigPath);
-
-        // setting def_framework on BOTH stores. Mirrors post_publish.bumpVersion
-        // (post_publish.js:413-421) which writes settings.def_framework alongside
-        // settings.version. Without the settings-side assignment, the prepare run
-        // leaves settings.json's def_framework at its previous value, producing
-        // a `version:<new> + def_framework:<old>` split inside settings.json (and
-        // in gina.db's settings/<short> blob via StateStore) that surfaces the next
-        // time getSelectedVersion (or anything else reading settings.def_framework)
-        // runs against the wrong framework dir.
-        mainConfig.def_framework     = targetedVersion;
-        settingsConfig.version       = targetedVersion;
-        settingsConfig.def_framework = targetedVersion;
-        ginaPath                    = settingsConfig.dir;
-        self.ginaPath = ginaPath;
-        // backup of folder version to archives
-
-
-
-        // console.debug('mainConfig: ', JSON.stringify(mainConfig, null, 2));
-        // console.debug('settingsConfig: ', JSON.stringify(settingsConfig, null, 2));
-
-        // saving local config
-        lib.generator.createFileFromDataSync(JSON.stringify(mainConfig, null, 2), mainConfigPath);
-        lib.generator.createFileFromDataSync(JSON.stringify(settingsConfig, null, 2), settingsConfigPath);
-
-
         var frameworkPathObj    =  new _(frameworkPath, true);
         console.debug('source path is: '+ frameworkPath);
 
-        var destination = _(ginaHomeDir +'/archives/framework/v'+targetedVersion, true);
-        console.debug('destination path is: '+ destination.toString());
-        if ( new _(destination).existsSync() ) {
-            new _(destination).rmSync();
-        }
-        var err = false;
+        if (resolved.hasStore) {
+            // update selected version & requirements
+            var mainConfig      = resolved.mainConfig;
+            var settingsConfig  = resolved.settingsConfig;
+            var shortVersion    = resolved.shortVersion;
+            if ( typeof(mainConfig.frameworks[shortVersion]) == 'undefined' ) {
+                mainConfig.frameworks[shortVersion] = [];
+                // create settings.json for the new version
 
-        // since we cannot yet promissify directly PathObject.cp()
-        // var f = function(destination, cb) {
-        //     frameworkPathObj.cp(destination, cb);
-        // };
-        // await promisify(f)(destination)
-        //     .catch( function onCopyError(_err) {
-        //         err = _err;
-        //     })
-        //     .then( function onCopy(_destination) {
-        //         console.debug('Copy to '+ _destination +': done');
-        //     });
-        try {
-            await frameworkPathObj.cp(destination)
-        } catch (err) {
-            if (err) {
-                throw err;
             }
+            if ( mainConfig.frameworks[shortVersion].indexOf(targetedVersion) < 0 ) {
+                mainConfig.frameworks[shortVersion].push(targetedVersion)
+            }
+
+            // setting def_framework on BOTH stores. Mirrors post_publish.bumpVersion,
+            // which writes settings.def_framework alongside settings.version.
+            // Without the settings-side assignment, the prepare run
+            // leaves settings.json's def_framework at its previous value, producing
+            // a `version:<new> + def_framework:<old>` split inside settings.json (and
+            // in gina.db's settings/<short> blob via StateStore) that surfaces the next
+            // time getSelectedVersion (or anything else reading settings.def_framework)
+            // runs against the wrong framework dir.
+            mainConfig.def_framework     = targetedVersion;
+            settingsConfig.version       = targetedVersion;
+            settingsConfig.def_framework = targetedVersion;
+
+            // console.debug('mainConfig: ', JSON.stringify(mainConfig, null, 2));
+            // console.debug('settingsConfig: ', JSON.stringify(settingsConfig, null, 2));
+
+            // saving local config
+            lib.generator.createFileFromDataSync(JSON.stringify(mainConfig, null, 2), resolved.mainConfigPath);
+            lib.generator.createFileFromDataSync(JSON.stringify(settingsConfig, null, 2), resolved.settingsConfigPath);
+
+            // backup of folder version to archives
+            var destination = _(ginaHomeDir +'/archives/framework/v'+targetedVersion, true);
+            console.debug('destination path is: '+ destination.toString());
+            if ( new _(destination).existsSync() ) {
+                new _(destination).rmSync();
+            }
+            var err = false;
+
+            // since we cannot yet promissify directly PathObject.cp()
+            // var f = function(destination, cb) {
+            //     frameworkPathObj.cp(destination, cb);
+            // };
+            // await promisify(f)(destination)
+            //     .catch( function onCopyError(_err) {
+            //         err = _err;
+            //     })
+            //     .then( function onCopy(_destination) {
+            //         console.debug('Copy to '+ _destination +': done');
+            //     });
+            try {
+                await frameworkPathObj.cp(destination)
+            } catch (err) {
+                if (err) {
+                    throw err;
+                }
+            }
+        } else {
+            console.info('[prepare] No gina state store at ' + ginaHomeDir + ' — resolved v' + selectedVersion
+                + ' from the git-tracked framework dir; the store update and the archive copy are skipped.');
         }
 
 
@@ -631,7 +646,7 @@ function PrepareVersion() {
             lib.generator.createFileFromDataSync(JSON.stringify(package, null, 2), pack);
 
             // keeping framework/v{targetedVersion}/package.json version in lockstep
-            // with the dir name. The file is gitignored and moved byte-for-byte by
+            // with the dir name. The file is git-tracked and moved byte-for-byte by
             // the renameSync above, so its version field stays at the prior (pre-cut)
             // value — drifting away from the framework dir name and shipping a stale
             // version in the published tarball's sub-manifest. Sibling to
@@ -716,19 +731,20 @@ function PrepareVersion() {
     self.setupScriptCWD = function(done) {
         var currentWorkingDir = process.cwd();
         if ( self.ginaPath != currentWorkingDir ) {
-            // Verify target is a git repo before chdir — a stale ~/.gina/<release>/settings.json
-            // `dir` field (e.g. pointing at a vanished smoke-test path) would otherwise wedge the
-            // publish at pushChangesToGitIfNeeded with a misleading "No branch selected" error.
+            // Verify target is a git repo before chdir. self.ginaPath is the checkout
+            // this script runs from (resolve_release_state.js), so the failure left
+            // to catch is a tree that is not a git checkout at all (e.g. an extracted
+            // tarball), which would otherwise wedge the publish at
+            // pushChangesToGitIfNeeded with a misleading "No branch selected" error.
             if ( !fs.existsSync(self.ginaPath) ) {
                 return done( new Error(
-                    '[CWD] gina path `'+ self.ginaPath +'` (from ~/.gina/'+ self.release +'/settings.json `dir` field) '
-                    + 'does not exist. Reset it to the canonical gina install path and retry.'
+                    '[CWD] gina path `'+ self.ginaPath +'` (the checkout this release runs from) does not exist.'
                 ));
             }
             if ( !fs.existsSync(self.ginaPath + '/.git') ) {
                 return done( new Error(
-                    '[CWD] gina path `'+ self.ginaPath +'` (from ~/.gina/'+ self.release +'/settings.json `dir` field) '
-                    + 'is not a git repository. Reset it to the canonical gina install path and retry.'
+                    '[CWD] gina path `'+ self.ginaPath +'` (the checkout this release runs from) '
+                    + 'is not a git repository. Run the release from a git checkout of gina.'
                 ));
             }
             console.debug('Changing current working dir from `'+ currentWorkingDir +'` to `'+ self.ginaPath +'`');

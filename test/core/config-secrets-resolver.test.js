@@ -16,6 +16,7 @@
  *   09 — getResolvedPaths tracking                (spec test #8)
  *   10 — custom backend override
  *   11 — source-inspection: wired into framework
+ *   15 — #B583 malformed whole-value references are REFUSED (never passed through)
  */
 
 'use strict';
@@ -288,10 +289,16 @@ describe('07 - mixed-string passthrough (no substitution attempted)', function (
         assert.equal(conf.url, 'https://${secret:GINA_SECRET_HOST}/path');
     });
 
-    it('placeholder followed by trailing whitespace passes through', function () {
+    it('placeholder followed by trailing whitespace is REFUSED, not passed through (#B583 realignment)', function () {
+        // Realigned 2026-09-22 (operator-approved): a whole-value token padded
+        // with whitespace is nothing but a broken reference, so resolve() now
+        // REFUSES it — it still never substitutes it (the anchoring rule
+        // stands) and it no longer hands the literal to a consumer as a
+        // credential (the #B583 defect). Fixture unchanged; only the expected
+        // disposition flipped. §15 covers the whole class.
         var conf = { x: '${secret:GINA_SECRET_HOST} ' };
-        secrets.resolve(conf);
-        assert.equal(conf.x, '${secret:GINA_SECRET_HOST} ');
+        assert.throws(function () { secrets.resolve(conf); }, /Secret reference malformed at `x`/);
+        assert.equal(conf.x, '${secret:GINA_SECRET_HOST} ', 'never substituted — the anchoring rule stands');
     });
 
     it('mixed-string is NOT recorded in getResolvedPaths', function () {
@@ -745,5 +752,215 @@ describe('14 - env backend framework-environment tier (#B156)', function () {
             'strip control: the stripped source must still carry the code under test');
         assert.doesNotMatch(code, /getEnvVar\(key\)\s*\)?\s*\|\|/,
             'a truthy NON-STRING from the framework tier must not short-circuit process.env');
+    });
+});
+
+
+// ---------------------------------------------------------------------------
+// 15 — #B583: a MALFORMED whole-value reference is REFUSED, never passed through
+// ---------------------------------------------------------------------------
+// A value that is nothing but a `${secret:…}` token — exactly the token, or
+// the token padded with whitespace — whose key breaks `^[A-Z_][A-Z0-9_]*$`
+// used to be passed through UNCHANGED and reached its consumer as a literal
+// credential (a database driver authenticated with the placeholder text,
+// silently). resolve() now throws on it, naming the config path and the
+// grammar; the offending text rides a non-enumerable `_ginaSecretRef` (the
+// #B42 policy). Mixed content keeps its documented passthrough.
+
+describe('15 - #B583 malformed whole-value references are refused', function () {
+
+    var MALFORMED = [
+        ['a lowercase key',                      '${secret:db_password}'],
+        ['a dotted key',                         '${secret:db.primary.password}'],
+        ['an empty key',                         '${secret:}'],
+        ['a key starting with a digit',          '${secret:1STARTS_WITH_DIGIT}'],
+        ['a hyphenated key',                     '${secret:DB-PASSWORD}'],
+        ['a key with inner whitespace',          '${secret: DB_PASSWORD }'],
+        ['a VALID key with trailing whitespace', '${secret:DB_PASSWORD} '],
+        ['a VALID key with leading whitespace',  ' ${secret:DB_PASSWORD}'],
+        ['a VALID key with a trailing newline',  '${secret:DB_PASSWORD}\n']
+    ];
+    // Passthrough controls: the anchoring rule and the documented mixed-content
+    // contract are untouched; `${SECRET:X}` is a differently-spelled namespace
+    // the framework does not claim to interpret.
+    var PASSTHROUGH = [
+        'https://${secret:DB_PASSWORD}/v1',
+        '${secret:B583_A}-${secret:B583_B}',
+        'prefix-${secret:DB_PASSWORD}-suffix',
+        '${secret:B583_A}B}',
+        '${SECRET:DB_PASSWORD}',
+        'literal',
+        ''
+    ];
+    var VALID = ['${secret:DB_PASSWORD}', '${secret:B583_A}', '${secret:_B583_P}', '${secret:B583_K_1}'];
+
+    var _saved;
+    beforeEach(function () {
+        // Every valid key is SET, so only the grammar decides an outcome below:
+        // a refusal cannot be a missing-key throw in disguise.
+        _saved = process.env.DB_PASSWORD;
+        process.env.DB_PASSWORD = 'set-so-only-the-grammar-decides';
+        process.env.B583_A = 'a'; process.env.B583_B = 'b'; process.env._B583_P = 'p'; process.env.B583_K_1 = 'k';
+        delete process.env.B583_MISSING;
+    });
+    afterEach(function () {
+        if (typeof _saved === 'undefined') delete process.env.DB_PASSWORD; else process.env.DB_PASSWORD = _saved;
+        delete process.env.B583_A; delete process.env.B583_B; delete process.env._B583_P; delete process.env.B583_K_1;
+        delete process.env.B583_MISSING;
+    });
+
+    function capture(fn) {
+        try { fn(); } catch (e) { return e; }
+        return null;
+    }
+
+    it('exports MALFORMED_RE, a RegExp built FROM SECRET_RE (the key grammar has one home)', function () {
+        assert.ok(secrets.MALFORMED_RE instanceof RegExp);
+        assert.ok(secrets.MALFORMED_RE.source.indexOf(secrets.SECRET_RE.source) > -1,
+            'MALFORMED_RE must embed SECRET_RE so the two cannot disagree about the grammar');
+    });
+
+    MALFORMED.forEach(function (arm) {
+        it('MALFORMED_RE matches ' + arm[0], function () {
+            assert.equal(secrets.MALFORMED_RE.test(arm[1]), true);
+        });
+    });
+
+    it('MALFORMED_RE rejects every valid placeholder and every passthrough string (control)', function () {
+        VALID.concat(PASSTHROUGH).forEach(function (v) {
+            assert.equal(secrets.MALFORMED_RE.test(v), false, JSON.stringify(v) + ' must not read as malformed');
+        });
+    });
+
+    MALFORMED.forEach(function (arm) {
+        it('resolve() THROWS on ' + arm[0] + ' and leaves the value untouched', function () {
+            var conf = { db: { password: arm[1] } };
+            var err  = capture(function () { secrets.resolve(conf); });
+            assert.ok(err, 'resolve must throw — the pre-fix bytes passed this value through as a credential');
+            assert.match(err.message, /^Secret reference malformed at `db\.password`: /);
+            assert.equal(conf.db.password, arm[1], 'never substituted, never rewritten');
+        });
+    });
+
+    it('the message names the config PATH and the key grammar — never the offending text', function () {
+        var conf = { connectors: { db: { password: '${secret:db.primary.password}' } } };
+        var err  = capture(function () { secrets.resolve(conf); });
+        assert.ok(err);
+        assert.match(err.message, /at `connectors\.db\.password`/);
+        assert.match(err.message, /\^\[A-Z_\]\[A-Z0-9_\]\*\$/, 'the grammar is what the author needs');
+        assert.equal(err.message.indexOf('db.primary.password'), -1, 'the boot log is user-facing: no reference text');
+        assert.equal(err.message.indexOf('${secret:db.primary'), -1);
+    });
+
+    it('the offending text rides a non-enumerable _ginaSecretRef (debug logging only), and no _ginaSecretKey', function () {
+        var err = capture(function () { secrets.resolve({ x: '${secret:lower}' }); });
+        assert.ok(err);
+        assert.equal(err._ginaSecretRef, '${secret:lower}');
+        assert.ok(Object.keys(err).indexOf('_ginaSecretRef') < 0, 'non-enumerable, like _ginaSecretKey (#B42)');
+        assert.equal(JSON.stringify(err).indexOf('lower'), -1, 'a serialised error carries no reference text');
+        assert.equal(typeof err._ginaSecretKey, 'undefined', 'not a missing-key error — it names no key');
+    });
+
+    it('array elements are refused too, with the bracketed path', function () {
+        var conf = { items: ['${secret:DB_PASSWORD}', '${secret:bad}'] };
+        var err  = capture(function () { secrets.resolve(conf); });
+        assert.ok(err);
+        assert.match(err.message, /at `items\[1\]`/);
+        assert.equal(conf.items[1], '${secret:bad}');
+    });
+
+    it('first-error-wins in walk order: a malformed reference met first outranks a missing key met later', function () {
+        var err = capture(function () { secrets.resolve({ a: '${secret:lower}', b: '${secret:B583_MISSING}' }); });
+        assert.ok(err);
+        assert.match(err.message, /^Secret reference malformed/);
+    });
+
+    it('a missing key met first still throws the generic error — the #B42 contract is untouched', function () {
+        var err = capture(function () { secrets.resolve({ a: '${secret:B583_MISSING}', b: '${secret:lower}' }); });
+        assert.ok(err);
+        assert.equal(err.message, 'Secret resolution failed');
+        assert.equal(err._ginaSecretKey, 'B583_MISSING');
+    });
+
+    it('control: every passthrough string still passes through unchanged, and every valid placeholder still resolves', function () {
+        PASSTHROUGH.forEach(function (v) {
+            var conf = { v: v };
+            secrets.resolve(conf);
+            assert.equal(conf.v, v);
+        });
+        var ok = { a: '${secret:DB_PASSWORD}', b: '${secret:B583_A}' };
+        secrets.resolve(ok);
+        assert.equal(ok.a, 'set-so-only-the-grammar-decides');
+        assert.equal(ok.b, 'a');
+    });
+
+    it('getMalformedReferences lists every malformed value with its path, in walk order — read-only, non-throwing', function () {
+        var conf = {
+            db    : { password: '${secret:lower}' },
+            api   : { key: '${secret:B583_MISSING}', url: 'https://${secret:DB_PASSWORD}/v1' },   // unset VALID key: enumeration never throws
+            items : ['${secret:DB_PASSWORD}', ' ${secret:PADDED}']
+        };
+        var before = JSON.stringify(conf);
+        assert.deepStrictEqual(secrets.getMalformedReferences(conf), [
+            { path: 'db.password', ref: '${secret:lower}' },
+            { path: 'items[1]',    ref: ' ${secret:PADDED}' }
+        ]);
+        assert.equal(JSON.stringify(conf), before, 'read-only');
+    });
+
+    it('getMalformedReferences returns [] for a clean config and for non-object inputs', function () {
+        assert.deepStrictEqual(secrets.getMalformedReferences({ a: '${secret:DB_PASSWORD}', u: 'https://${secret:H}/x' }), []);
+        assert.deepStrictEqual(secrets.getMalformedReferences({}), []);
+        assert.deepStrictEqual(secrets.getMalformedReferences(null), []);
+        assert.deepStrictEqual(secrets.getMalformedReferences('${secret:lower}'), []);
+    });
+
+    it('getRequiredKeys never lists a malformed key — it names no usable key', function () {
+        assert.deepStrictEqual(
+            secrets.getRequiredKeys({ a: '${secret:db_password}', b: '${secret:DB_PASSWORD}', c: ' ${secret:PADDED}' }),
+            ['DB_PASSWORD']
+        );
+    });
+
+    it('consistency: resolve() refuses exactly the values getMalformedReferences reports', function () {
+        MALFORMED.forEach(function (arm) {
+            assert.equal(secrets.getMalformedReferences({ x: arm[1] }).length, 1, arm[0] + ' must be enumerated');
+            assert.ok(capture(function () { secrets.resolve({ x: arm[1] }); }), arm[0] + ' must be refused');
+        });
+        VALID.concat(PASSTHROUGH).forEach(function (v) {
+            assert.equal(secrets.getMalformedReferences({ x: v }).length, 0, JSON.stringify(v) + ' must not be enumerated');
+            assert.equal(capture(function () { secrets.resolve({ x: v }); }), null, JSON.stringify(v) + ' must not be refused');
+        });
+    });
+
+    // ---- core/config.js: the catch names the reference at debug level ------
+
+    it('core/config.js: the secretErr catch relays the path-naming message + _ginaSecretRef at debug level (source pin)', function () {
+        var CONFIG_SRC = fs.readFileSync(path.join(FW, 'core/config.js'), 'utf8');
+        var catchSlice = CONFIG_SRC.slice(
+            CONFIG_SRC.indexOf('catch (secretErr)'),
+            CONFIG_SRC.indexOf('return callback(secretErr)')
+        );
+        assert.ok(catchSlice.length > 0, 'catch site found');
+        assert.ok(catchSlice.indexOf('secretErr._ginaSecretRef') > -1, 'the malformed branch reads the non-enumerable reference');
+        assert.ok(catchSlice.indexOf('secretErr.message') > -1, 'the malformed branch relays the path-naming message');
+        // the #B42 composition survives beside it, byte-for-byte
+        assert.ok(catchSlice.indexOf("Secret resolution failed for `'") > -1, 'the #B42 line stays');
+    });
+
+    it('replica: the malformed branch composes message + reference + bundle/env:scope', function () {
+        // Replica of the #B583 branch at the catch site.
+        function buildMalformedDebugMsg(err, bundle, env, scope) {
+            return '[CONFIG][loadBundleConfig] ' + err.message
+                + ' — reference `' + err._ginaSecretRef
+                + '` in `' + bundle + '/' + env + ':' + scope + '` configuration';
+        }
+        var err = new Error('Secret reference malformed at `content.connectors.db.password`: KEY must match ^[A-Z_][A-Z0-9_]*$');
+        Object.defineProperty(err, '_ginaSecretRef', { value: '${secret:db_password}', enumerable: false });
+        var msg = buildMalformedDebugMsg(err, 'demo', 'dev', 'local');
+        assert.ok(msg.indexOf('content.connectors.db.password') > -1, 'debug names the path');
+        assert.ok(msg.indexOf('${secret:db_password}') > -1, 'debug names the reference — that surface is not user-facing');
+        assert.ok(msg.indexOf('demo/dev:local') > -1, 'debug names the bundle/env:scope');
+        assert.equal(msg.indexOf('undefined'), -1);
     });
 });

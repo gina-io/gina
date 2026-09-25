@@ -33,10 +33,12 @@
  *
  * Plus a third gate that fires BEFORE the scan starts:
  *
- *   3. Stable-publish gate: if `npm_command=publish` AND `npm_config_tag=latest`
- *      (i.e. `npm publish` without `--tag alpha`) AND the maintainer-local
- *      sidecar `script/.private-tokens.json` is missing, fail closed before
- *      the scan starts. This prevents a fresh-clone or restored-machine
+ *   3. Stable-publish gate: if `npm_command` is `publish` OR `stage` (a plain
+ *      `npm publish`, or `npm stage publish` — which runs this hook at STAGE
+ *      time, before the version is approved) AND `npm_config_tag=latest`
+ *      (i.e. no `--tag alpha`) AND the maintainer-local sidecar
+ *      `script/.private-tokens.json` is missing, fail closed before the scan
+ *      starts. This prevents a fresh-clone, restored-machine or CI-runner
  *      stable publish from silently shipping with content-level scanning
  *      disabled. Alpha publish, npm pack, and contributor `npm install`
  *      flows continue to no-op silently — path-level scanning still runs.
@@ -50,8 +52,8 @@
  * Exit codes:
  *   0  — pack listing and contents are clean
  *   1  — leakage detected, check itself errored (fail closed), OR
- *        stable-publish gate triggered (sidecar missing on `npm publish`
- *        without `--tag alpha`)
+ *        stable-publish gate triggered (sidecar missing on `npm publish` /
+ *        `npm stage publish` without `--tag alpha`)
  */
 
 var execSync = require('child_process').execSync;
@@ -149,14 +151,20 @@ function scanContent(filePath) {
 }
 
 // Stable-publish gate (§92 follow-up (a)). Fires BEFORE the scan starts.
-// `npm publish` without `--tag alpha` (i.e. tag=latest) requires the
+// A stable publish without `--tag alpha` (i.e. tag=latest) requires the
 // maintainer-local sidecar to be present; otherwise the content-level
 // scan would be silently disabled, and the publish could ship leaked
-// tokens. Alpha publish, npm pack, and contributor flows are unaffected
-// — path-level scanning still runs in those cases.
+// tokens. Both publish modes count: `npm publish` runs this hook with
+// `npm_command=publish`, `npm stage publish` (#R10 phase 1) runs it at
+// STAGE time with `npm_command=stage` (measured) — until 2026-09-23 only
+// the first was gated, so a staged stable publish from a machine without
+// the sidecar sailed through with the scan silently off. Alpha publish,
+// npm pack, and contributor flows are unaffected — path-level scanning
+// still runs in those cases.
 var sidecarPath = path.join(__dirname, '.private-tokens.json');
+var STABLE_PUBLISH_COMMANDS = { publish: true, stage: true };
 if (
-    process.env.npm_command === 'publish'
+    STABLE_PUBLISH_COMMANDS[process.env.npm_command] === true
     && (process.env.npm_config_tag === 'latest' || !process.env.npm_config_tag)
     && !fs.existsSync(sidecarPath)
 ) {

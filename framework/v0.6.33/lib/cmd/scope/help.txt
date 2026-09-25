@@ -1,0 +1,47 @@
+******************************
+* Scope command lines e.g.     *
+******************************
+
+
+[ Adding a new scope ]
+
+    Adding/refreshing scope to a project
+    ----------
+
+    To add a new scope or to refresh an existing one, use the following command line.
+
+    $ gina scope:add <scope_name> @<project_name>
+
+    A scope applies to every bundle of the project. To deploy a bundle in some
+    scopes only, list them under the bundle's entry in the project's manifest.json:
+
+        "bundles": { "<bundle_name>": { ..., "scopes": ["local"] } }
+
+    A scope name is made of letters, digits, `_`, `.` and `-`, and starts with a
+    lowercase letter, a digit, `_` or `.`. `.`, `..` and the name of a property
+    every object inherits, such as `constructor`, are refused.
+
+
+[ Removing an existing scope ]
+
+    $ gina scope:remove <scope_name> @<project_name>
+
+
+[ Listing all scopes inside your project ]
+
+    $ gina scope:list @<project_name>
+
+    or to list all projects scopes
+
+    $ gina scope:list
+
+
+[ Setting the default scope ]
+
+    $ gina scope:use <scope_name> @<project_name>
+
+
+[ Linking a scope to the local or production slot ]
+
+    $ gina scope:link-local <scope_name> @<project_name>
+    $ gina scope:link-production <scope_name> @<project_name>

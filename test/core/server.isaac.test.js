@@ -416,36 +416,74 @@ describe('04b - HTTP/2 session metrics: counter logic', function() {
 });
 
 
-// 07 — HTTP/2 rapid-reset rate limiter source structure (#H9)
-describe('07 - HTTP/2 rapid-reset rate limiter source structure (#H9)', function() {
+// 07 — HTTP/2 rapid-reset guard wiring (#H9, re-scoped by #B611; #B614)
+// The counting policy lives in core/server.isaac.rapid-reset.js and is tested LIVE
+// against a bare node:http2 server in test/core/h2-rapid-reset-guard.test.js (the
+// former §07b sliding-window replica cases run there against the real function).
+// This section pins how server.isaac.js wires it: the resolved limit, the legacy-key
+// warning, the per-stream attach inside the session 'stream' listener, and the two
+// hooks that own the metrics and the GOAWAY teardown.
+describe('07 - HTTP/2 rapid-reset guard wiring in the session stream listener (#H9 / #B611 / #B614)', function() {
 
     function getSrc() { return src || (src = fs.readFileSync(SOURCE, 'utf8')); }
+    function stripLineComments(text) {
+        return text.split('\n').filter(function (l) { return !/^\s*\/\//.test(l); }).join('\n');
+    }
 
-    it('source defaults maxStreamsPerSecond to 200', function() {
-        assert.ok(
-            getSrc().indexOf('_h2Opts.maxStreamsPerSecond || 200') > -1,
-            'expected `_h2Opts.maxStreamsPerSecond || 200` — configurable rapid-reset rate limit'
-        );
-    });
-
-    it('source tracks a per-session rolling window (_streamWindowStart / _streamWindowCount)', function() {
+    it('source requires the guard module and resolves the limit from http2Options.maxStreamResetsPerSecond', function() {
         var s = getSrc();
-        assert.ok(s.indexOf('session._streamWindowStart') > -1, 'expected `session._streamWindowStart` window state');
-        assert.ok(s.indexOf('session._streamWindowCount') > -1, 'expected `session._streamWindowCount` window state');
+        assert.ok(s.indexOf("var _rapidReset      = require('./server.isaac.rapid-reset');") > -1, 'expected the guard module require');
+        assert.ok(s.indexOf('var _maxResetsPerSec = _rapidReset.resolveMaxResetsPerSecond(_h2Opts);') > -1,
+            'expected the limit resolved by the module from the http2Options block');
     });
 
-    it('source resets the rolling window when 1000ms have elapsed', function() {
-        assert.ok(
-            getSrc().indexOf('session._streamWindowStart) >= 1000') > -1,
-            'expected a `>= 1000` rolling-window reset check'
-        );
+    it('source no longer counts NEW streams (#B611): no live window state on the stream count, no maxStreamsPerSecond fallback', function() {
+        var live = stripLineComments(getSrc());
+        assert.equal(live.indexOf('session._streamWindowCount'), -1, 'the new-stream window counter is gone');
+        assert.equal(live.indexOf('maxStreamsPerSecond || 200'), -1, 'the old key is not read as the limit');
+        assert.ok(getSrc().indexOf('maxStreamsPerSecond || 200') > -1,
+            'control: the retired line survives as a `// replaced:` comment, so the strip above is a real strip');
     });
 
-    it('source breaches when the window count exceeds _maxStreamsPerSec', function() {
-        assert.ok(
-            getSrc().indexOf('session._streamWindowCount > _maxStreamsPerSec') > -1,
-            'expected `session._streamWindowCount > _maxStreamsPerSec` breach check'
-        );
+    it('source warns once at engine creation when the pre-0.6.33 key maxStreamsPerSecond is still set, and does not honour it', function() {
+        var s = getSrc();
+        var warnIdx = s.indexOf("if (typeof _h2Opts.maxStreamsPerSecond !== 'undefined') {");
+        assert.ok(warnIdx > -1, 'expected the legacy-key presence check');
+        var warnBlock = s.slice(warnIdx, warnIdx + 700);
+        assert.ok(warnBlock.indexOf('is no longer read') > -1, 'the warning says the key is no longer read');
+        assert.ok(warnBlock.indexOf('maxStreamResetsPerSecond') > -1, 'the warning names the replacement key');
+        var resolveIdx = s.indexOf('_rapidReset.resolveMaxResetsPerSecond(_h2Opts)');
+        assert.ok(resolveIdx > -1 && resolveIdx < warnIdx, 'the limit is resolved by the module BEFORE the warning (the old key never feeds it)');
+    });
+
+    it('source passes the runtime\'s own reset-limit knobs through only as a pair (streamResetBurst + streamResetRate)', function() {
+        var s = getSrc();
+        var idx = s.indexOf("if (typeof _h2Opts.streamResetBurst === 'number' && typeof _h2Opts.streamResetRate === 'number') {");
+        assert.ok(idx > -1, 'both knobs gated together — node applies neither unless both are set');
+        var block = s.slice(idx, idx + 300);
+        assert.ok(block.indexOf('http2Options.streamResetBurst = _h2Opts.streamResetBurst;') > -1);
+        assert.ok(block.indexOf('http2Options.streamResetRate  = _h2Opts.streamResetRate;') > -1);
+    });
+
+    it('source arms the guard on every stream inside the session stream listener, before the goaway listener', function() {
+        var s = getSrc();
+        var streamIdx = s.indexOf("session.on('stream'");
+        var attachIdx = s.indexOf('_rapidReset.attach(session, stream, _maxResetsPerSec, {', streamIdx);
+        var goawayIdx = s.indexOf("session.on('goaway'", streamIdx);
+        assert.ok(streamIdx > -1 && attachIdx > streamIdx && goawayIdx > attachIdx,
+            'expected `_rapidReset.attach(session, stream, _maxResetsPerSec, {…})` between the stream and goaway listeners');
+    });
+
+    it('source feeds rstCount from the guard\'s onReset hook — the rstCode EVENT listener is gone (#B614: rstCode is a property, that listener never fired)', function() {
+        var s = getSrc();
+        var attachIdx = s.indexOf('_rapidReset.attach(session, stream, _maxResetsPerSec, {');
+        var hooks = s.slice(attachIdx, attachIdx + 1200);
+        var resetIdx = hooks.indexOf('onReset  : function onClientReset() {');
+        assert.ok(resetIdx > -1, 'expected the onReset hook');
+        assert.ok(hooks.indexOf('_h2Metrics.rstCount++', resetIdx) > -1, 'onReset increments rstCount');
+        assert.equal(stripLineComments(s).indexOf("stream.on('rstCode'"), -1, 'no live rstCode event listener');
+        assert.ok(s.indexOf("stream.on('rstCode')") > -1 || s.indexOf('`rstCode` is a property') > -1,
+            'control: the retired listener is named in a comment at the site, so the strip above is a real strip');
     });
 
     it('source sends GOAWAY with NGHTTP2_ENHANCE_YOUR_CALM on breach', function() {
@@ -467,11 +505,12 @@ describe('07 - HTTP/2 rapid-reset rate limiter source structure (#H9)', function
         assert.ok(getSrc().indexOf('rapidResetBlocked') > -1, 'expected a `rapidResetBlocked` counter');
     });
 
-    it('source increments rapidResetBlocked on breach', function() {
-        assert.ok(
-            getSrc().indexOf('_h2Metrics.rapidResetBlocked++') > -1,
-            'expected `_h2Metrics.rapidResetBlocked++` in the breach branch'
-        );
+    it('source increments rapidResetBlocked on breach, inside the guard\'s onBreach hook', function() {
+        var s = getSrc();
+        var breachIdx = s.indexOf('onBreach : function onRapidResetBreach(count, limit) {');
+        assert.ok(breachIdx > -1, 'expected the onBreach hook');
+        var blockedIdx = s.indexOf('_h2Metrics.rapidResetBlocked++', breachIdx);
+        assert.ok(blockedIdx > -1 && (blockedIdx - breachIdx) < 200, 'expected `_h2Metrics.rapidResetBlocked++` inside the onBreach hook');
     });
 
     it('source exposes rapidResetBlocked in the /_gina/info http2 payload', function() {
@@ -481,118 +520,43 @@ describe('07 - HTTP/2 rapid-reset rate limiter source structure (#H9)', function
         );
     });
 
-    it('source warns in the [ SERVER ] style on breach', function() {
+    it('source warns in the [ SERVER ] style on breach, naming client stream resets', function() {
         assert.ok(
             getSrc().indexOf('[ SERVER ] HTTP/2 rapid-reset rate limit exceeded') > -1,
             'expected a `[ SERVER ] HTTP/2 rapid-reset rate limit exceeded` console.warn'
         );
+        assert.ok(getSrc().indexOf('client stream resets in <1s (limit') > -1, 'the warning counts client stream resets, not streams');
+    });
+
+    it('source warns once at engine creation on Bun when the pass-through pair is set — Bun has no frame-level reset limit, so the pair is inert there (#B615)', function() {
+        var s = getSrc();
+        var idx = s.indexOf("if (_rapidReset.RUNTIME_IS_BUN && typeof _h2Opts.streamResetBurst === 'number' && typeof _h2Opts.streamResetRate === 'number') {");
+        assert.ok(idx > -1, 'expected the Bun-gated pair check');
+        var block = s.slice(idx, idx + 600);
+        assert.ok(block.indexOf('are ignored on this runtime') > -1, 'the warning says the runtime ignores the pair');
+        assert.ok(block.indexOf('maxStreamResetsPerSecond') > -1, 'the warning names the limit that does apply');
+        var requireIdx = s.indexOf("var _rapidReset      = require('./server.isaac.rapid-reset');");
+        assert.ok(requireIdx > -1 && requireIdx < idx, 'the guard module is required before the check reads RUNTIME_IS_BUN');
+    });
+
+    it('the settings templates carry the new key and not the retired one', function() {
+        var tplPath = path.join(require('../fw'), 'core', 'template', 'conf', 'settings.json');
+        var bpPath  = path.join(require('../fw'), 'core', 'template', 'boilerplate', 'bundle', 'config', 'settings.server.json');
+        var tpl = fs.readFileSync(tplPath, 'utf8');
+        var bp  = fs.readFileSync(bpPath, 'utf8');
+        assert.ok(tpl.indexOf('"maxStreamResetsPerSecond": 200') > -1, 'conf/settings.json ships maxStreamResetsPerSecond: 200');
+        assert.equal(tpl.indexOf('"maxStreamsPerSecond":'), -1, 'conf/settings.json no longer ships the retired key');
+        assert.ok(bp.indexOf('"maxStreamResetsPerSecond": 200') > -1, 'the boilerplate example names the new key');
+        assert.equal(bp.indexOf('"maxStreamsPerSecond":'), -1, 'the boilerplate example no longer names the retired key');
+        assert.ok(tpl.indexOf('"maxConcurrentStreams": 256') > -1, 'control: the sibling key is still there');
     });
 
 });
 
-
-// 07b — HTTP/2 rapid-reset rate limiter pure logic
-describe('07b - HTTP/2 rapid-reset rate limiter: sliding-window logic', function() {
-
-    // Replica of the #H9 maxStreamsPerSecond fallback in server.isaac.js
-    function resolveMaxStreamsPerSec(optionsHttp2Options) {
-        var _h2Opts = (optionsHttp2Options && typeof optionsHttp2Options === 'object') ? optionsHttp2Options : {};
-        return _h2Opts.maxStreamsPerSecond || 200;
-    }
-
-    // Replica of the #H9 rolling-1s-window counter in session.on('stream').
-    // `session` is a plain object mutated in place (mirrors session._streamWindowStart
-    // / session._streamWindowCount); `now` is the injected timestamp. Returns true on
-    // breach — the real code then sends GOAWAY(ENHANCE_YOUR_CALM) + closes the session.
-    function onStream(session, now, maxStreamsPerSec) {
-        if (typeof session._streamWindowStart === 'undefined' || (now - session._streamWindowStart) >= 1000) {
-            session._streamWindowStart = now;
-            session._streamWindowCount = 0;
-        }
-        session._streamWindowCount++;
-        return session._streamWindowCount > maxStreamsPerSec;
-    }
-
-    it('default maxStreamsPerSecond is 200 when http2Options is absent or not an object', function() {
-        assert.equal(resolveMaxStreamsPerSec(undefined), 200);
-        assert.equal(resolveMaxStreamsPerSec(null), 200);
-        assert.equal(resolveMaxStreamsPerSec('string'), 200);
-        assert.equal(resolveMaxStreamsPerSec({}), 200);
-    });
-
-    it('honours a custom maxStreamsPerSecond from settings.json', function() {
-        assert.equal(resolveMaxStreamsPerSec({ maxStreamsPerSecond: 50 }), 50);
-        assert.equal(resolveMaxStreamsPerSec({ maxStreamsPerSecond: 1000 }), 1000);
-    });
-
-    it('a maxStreamsPerSecond of 0 is treated as falsy and falls back to 200', function() {
-        // `|| 200` coerces 0 to the default — consistent with the sibling #H3/#H7
-        // options (maxSessionRejectedStreams, maxSessionInvalidFrames). An operator
-        // cannot disable the limiter by setting it to 0; the 200 default is the floor.
-        assert.equal(resolveMaxStreamsPerSec({ maxStreamsPerSecond: 0 }), 200);
-    });
-
-    it('the first stream initialises the window and does not breach', function() {
-        var session = {};
-        assert.equal(onStream(session, 1000, 5), false);
-        assert.equal(session._streamWindowStart, 1000);
-        assert.equal(session._streamWindowCount, 1);
-    });
-
-    it('streams up to the limit within one window do not breach', function() {
-        var session = {};
-        for (var i = 0; i < 5; i++) {
-            assert.equal(onStream(session, 1000, 5), false, 'stream ' + (i + 1) + ' must not breach');
-        }
-        assert.equal(session._streamWindowCount, 5);
-    });
-
-    it('the stream past the limit within one window breaches (count > max)', function() {
-        var session = {};
-        for (var i = 0; i < 5; i++) { onStream(session, 1000, 5); }
-        assert.equal(onStream(session, 1000, 5), true, '6th stream in a window with limit 5 must breach');
-        assert.equal(session._streamWindowCount, 6);
-    });
-
-    it('the window resets after 1000ms — count starts over, no breach', function() {
-        var session = {};
-        for (var i = 0; i < 5; i++) { onStream(session, 1000, 5); }
-        assert.equal(onStream(session, 2000, 5), false, 'first stream of a fresh window must not breach');
-        assert.equal(session._streamWindowStart, 2000);
-        assert.equal(session._streamWindowCount, 1);
-    });
-
-    it('the window boundary is inclusive — exactly 1000ms elapsed resets (>= 1000)', function() {
-        var session = {};
-        onStream(session, 1000, 5);   // window starts at 1000
-        onStream(session, 1999, 5);   // 1999 - 1000 = 999 < 1000 -> same window
-        assert.equal(session._streamWindowCount, 2);
-        onStream(session, 2000, 5);   // 2000 - 1000 = 1000 >= 1000 -> new window
-        assert.equal(session._streamWindowStart, 2000);
-        assert.equal(session._streamWindowCount, 1);
-    });
-
-    it('a sustained flood breaches once per over-limit stream; a quiet next window does not', function() {
-        var session = {};
-        var window1Breaches = 0;
-        for (var i = 0; i < 10; i++) { if (onStream(session, 1000, 5)) { window1Breaches++; } }
-        assert.equal(window1Breaches, 5, 'streams 6-10 in window 1 each breach');
-        var window2Breaches = 0;
-        for (var j = 0; j < 3; j++) { if (onStream(session, 2000, 5)) { window2Breaches++; } }
-        assert.equal(window2Breaches, 0, 'window 2 is under the limit');
-        assert.equal(session._streamWindowCount, 3);
-    });
-
-    it('per-session windows are independent — one session flooding does not breach another', function() {
-        var sessionA = {};
-        var sessionB = {};
-        for (var i = 0; i < 6; i++) { onStream(sessionA, 1000, 5); }
-        assert.equal(onStream(sessionB, 1000, 5), false, 'session B is unaffected by session A flooding');
-        assert.equal(sessionA._streamWindowCount, 6);
-        assert.equal(sessionB._streamWindowCount, 1);
-    });
-
-});
+// 07b — the sliding-window cases that used to run here against a replica now run in
+// test/core/h2-rapid-reset-guard.test.js against the real core/server.isaac.rapid-reset.js
+// (pure window step + live bare-http2 arms). Kept as a pointer so a grep for the old
+// section title lands here.
 
 
 // ─── X-Forwarded-Prefix capture (per-request, not process-global) ────────────
@@ -3398,4 +3362,196 @@ describe('18b - #B365 binding logic — pure-seam replica', function() {
             done();
         });
     });
+});
+
+
+// 07b — #B619: the server-side idle close (node only)
+describe('07b - #B619: idle HTTP/2 sessions are closed gracefully by the server after http2Options.sessionIdleTimeout (node only)', function() {
+
+    function getSrc() { return src || (src = fs.readFileSync(SOURCE, 'utf8')); }
+    function stripLineComments(text) {
+        return text.split('\n').filter(function (l) { return !/^\s*\/\//.test(l); }).join('\n');
+    }
+    var RUNTIME_IS_BUN = !!(process.versions && process.versions.bun);
+
+    it('source pins: the timeout handler closes unconditionally — no live activeStreams gate (the property does not exist), an idempotency guard, the retired gate kept as a comment', function() {
+        var s = getSrc();
+        assert.equal(stripLineComments(s).indexOf('session.activeStreams'), -1, 'no live read of session.activeStreams — undefined === 0 never closed anything');
+        assert.ok(s.indexOf('if (session.activeStreams === 0) { session.close(); } else { session.setTimeout(sessionTimeout); }') > -1,
+            'control: the retired gate survives as a `// replaced:` comment, so the strip above is a real strip');
+        var tIdx = s.indexOf("session.on('timeout', () => {");
+        assert.ok(tIdx > -1, 'expected the session timeout listener');
+        var block = s.slice(tIdx, tIdx + 1200);
+        assert.ok(block.indexOf('if (session.closed || session.destroyed) { return; }') > -1,
+            'the handler returns early on a session already closing — the timer re-arms while an open stream drains (measured), close() is idempotent, the log line is not');
+        var closeIdx = block.indexOf('session.close();');
+        assert.ok(closeIdx > -1, 'expected `session.close();` in the timeout handler');
+        assert.equal(stripLineComments(block.slice(0, closeIdx)).indexOf('activeStreams'), -1, 'nothing gates the close on a stream count');
+        assert.equal(stripLineComments(block.slice(0, closeIdx)).indexOf('session.setTimeout(sessionTimeout)'), -1, 'the handler no longer re-arms the timer itself');
+        assert.ok(block.indexOf('[ SERVER ] HTTP/2 session idle for ') > -1 && block.indexOf('console.info(') > -1,
+            'the idle close is logged once at info level in the [ SERVER ] style');
+    });
+
+    it('source pins: sessionIdleTimeout is read through parseTimeout with a 120000 default, 0 disables the timer, out-of-range values warn and fall back', function() {
+        var s = getSrc();
+        assert.ok(s.indexOf('var _sessionIdleTimeout = 120000;') > -1, 'the default is 120000 ms');
+        assert.ok(s.indexOf('parseTimeout(_h2Opts.sessionIdleTimeout)') > -1, 'the key is read through parseTimeout ("120s", 120000)');
+        var rangeIdx = s.indexOf('_parsedIdleTimeout > 2147483647');
+        assert.ok(rangeIdx > -1, 'a value above the timer ceiling is refused (node clamps it to 1 ms)');
+        var rangeBlock = s.slice(rangeIdx - 200, rangeIdx + 500);
+        assert.ok(rangeBlock.indexOf('!isFinite(_parsedIdleTimeout)') > -1 && rangeBlock.indexOf('_parsedIdleTimeout < 0') > -1,
+            'NaN / Infinity / negative values are refused too — parseTimeout passes any number through');
+        assert.ok(rangeBlock.indexOf('http2Options.sessionIdleTimeout must be a timeout between 0 (disabled) and 2147483647 ms') > -1, 'the warning names the key and the range');
+        assert.ok(s.indexOf('let sessionTimeout = _sessionIdleTimeout;') > -1, 'the per-session timer reads the resolved value');
+        var gateIdx = s.indexOf('if (sessionTimeout > 0) {');
+        var armIdx  = s.indexOf('session.setTimeout(sessionTimeout);');
+        assert.ok(gateIdx > -1 && armIdx > gateIdx && (armIdx - gateIdx) < 120, '0 disables: the timer is armed only inside the `> 0` gate');
+        assert.equal(stripLineComments(s).indexOf('let sessionTimeout = 120000;'), -1, 'the hard-coded literal is gone from live code');
+        assert.ok(s.indexOf('let sessionTimeout = 120000;') > -1, 'control: the literal survives in the `// replaced:` comment');
+    });
+
+    it('source pins: on Bun the timeout resolves to 0 and a set key warns once, after the guard module is required (the #B615 pattern)', function() {
+        var s = getSrc();
+        var idx = s.indexOf('if (_rapidReset.RUNTIME_IS_BUN) {');
+        assert.ok(idx > -1, 'expected the Bun branch');
+        var block = s.slice(idx, idx + 900);
+        assert.ok(block.indexOf("typeof _h2Opts.sessionIdleTimeout !== 'undefined'") > -1, 'the warning fires only when a bundle set the key');
+        assert.ok(block.indexOf('sessionIdleTimeout is ignored on this runtime') > -1, 'the warning says the runtime ignores the key');
+        assert.ok(block.indexOf('_sessionIdleTimeout = 0;') > -1, 'the timeout resolves to 0 on Bun — no close, the pre-0.6.33 behaviour');
+        var requireIdx = s.indexOf("var _rapidReset      = require('./server.isaac.rapid-reset');");
+        assert.ok(requireIdx > -1 && requireIdx < idx, 'the guard module is required before the branch reads RUNTIME_IS_BUN');
+        var resolveIdx = s.indexOf('var _sessionIdleTimeout = 120000;');
+        assert.ok(resolveIdx > -1 && resolveIdx < idx, 'the Bun override comes AFTER the parse, so a Bun bundle still gets the range warning for a bad value');
+    });
+
+    it('source pins: the close-handler comment names the idle timeout instead of the old "60s of inactivity" claim', function() {
+        var s = getSrc();
+        assert.equal(s.indexOf('This is normal after 60s of inactivity'), -1, 'the 60 s claim is gone (the timer was 120 s and never closed anything)');
+        var closeIdx = s.indexOf("session.on('close', () => {");
+        assert.ok(closeIdx > -1 && s.slice(closeIdx, closeIdx + 400).indexOf('sessionIdleTimeout') > -1, 'the close handler names http2Options.sessionIdleTimeout');
+    });
+
+    // ── live: the REAL `server.on('session', …)` handler bytes, extracted from the
+    // engine source and attached to a bare node:http2 server with every closed-over
+    // identifier injected (the shape of query-h2-session-lifecycle.test.js § 10).
+    function extractSessionHandler(s) {
+        var start   = s.indexOf("server.on('session', (session) => {");
+        var arrowAt = s.indexOf('(session) => {', start);
+        var errAt   = s.indexOf("session.on('error', (err) => {", arrowAt);
+        var end     = s.indexOf('\n        });\n', errAt); // the `});` closing server.on('session', …)
+        assert.ok(start > -1 && errAt > start && end > errAt, 'the session handler is found');
+        return s.slice(arrowAt, end + '\n        }'.length);
+    }
+    function harness(idleMs) {
+        var http2 = require('node:http2');
+        var logs = { info: [], warn: [], error: [], log: [], debug: [] };
+        var fakeConsole = {};
+        Object.keys(logs).forEach(function(k) { fakeConsole[k] = function() { logs[k].push(Array.prototype.join.call(arguments, ' ')); }; });
+        var metrics = { activeSessions: 0, totalStreams: 0, goawayCount: 0, rstCount: 0, rapidResetBlocked: 0, extendedConnect: 0 };
+        var rapidReset = require(path.join(require('../fw'), 'core', 'server.isaac.rapid-reset.js'));
+        var handler = new Function('_h2Metrics', '_rapidReset', '_maxResetsPerSec', '_sessionIdleTimeout', 'http2', 'console',
+            'return (' + extractSessionHandler(getSrc()) + ');')(metrics, rapidReset, 200, idleMs, http2, fakeConsole);
+        var server = http2.createServer();
+        var sessions = [];
+        server.on('session', function(s) { sessions.push(s); });
+        server.on('session', handler);
+        server.on('stream', function(stream, headers) {
+            stream.on('error', function() {});
+            stream.respond({ ':status': 200 });
+            if (headers[':path'] === '/hold') { setTimeout(function() { try { stream.end('done'); } catch (e) {} }, 700); }
+            else { stream.end('ok'); }
+        });
+        return new Promise(function(res) {
+            server.listen(0, '127.0.0.1', function() {
+                res({ server: server, port: server.address().port, metrics: metrics, logs: logs,
+                      stop: function() { sessions.forEach(function(s) { try { s.destroy(); } catch (e) {} }); try { server.close(); } catch (e) {} } });
+            });
+        });
+    }
+    function sleep(ms) { return new Promise(function(r) { setTimeout(r, ms); }); }
+    async function waitFor(cond, ms) {
+        var until = Date.now() + ms;
+        while (Date.now() < until) { if (cond()) return true; await sleep(5); }
+        return cond();
+    }
+    function get(client, p) {
+        return new Promise(function(res) {
+            var out = { status: null, body: '', error: null };
+            var r;
+            try { r = client.request({ ':path': p, ':method': 'GET' }); } catch (e) { out.error = e.code; return res(out); }
+            r.on('response', function(h) { out.status = h[':status']; });
+            r.on('data', function(d) { out.body += d; });
+            r.on('error', function(e) { out.error = e.code; });
+            r.on('close', function() { res(out); });
+            r.end();
+        });
+    }
+
+    it('live: an idle session is closed gracefully after the timeout — once, even while it drains an open stream (the timer re-arms) — and the stream finishes', async function() {
+        if (RUNTIME_IS_BUN) return; // the idle close is node-only (#B619): the timeout resolves to 0 on Bun
+        var http2 = require('node:http2');
+        var h = await harness(300);
+        var client = http2.connect('http://127.0.0.1:' + h.port);
+        client.on('error', function() {});
+        var goaway = null; client.on('goaway', function(code) { goaway = { code: code, at: Date.now() }; });
+        var t0 = Date.now();
+        try {
+            var hold = get(client, '/hold'); // the response ends at 700 ms — the timer fires at 300 and again at 600
+            assert.ok(await waitFor(function() { return goaway !== null; }, 1500), 'the server closed the idle session: a GOAWAY reached the client');
+            assert.equal(goaway.code, 0, 'GOAWAY(NO_ERROR) — a graceful close');
+            assert.ok(goaway.at - t0 >= 250 && goaway.at - t0 < 650, 'closed at the first timer fire (~300 ms), not at the stream end — got ' + (goaway.at - t0) + ' ms');
+            var r = await hold;
+            assert.equal(r.status, 200);
+            assert.equal(r.body, 'done', 'the open stream finished on its own after the close');
+            assert.ok(await waitFor(function() { return h.metrics.activeSessions === 0; }, 1000), 'activeSessions went back to 0 through the close handler');
+            var idleLines = h.logs.info.filter(function(l) { return l.indexOf('HTTP/2 session idle for 300 ms') > -1; });
+            assert.equal(idleLines.length, 1, 'the idle close was logged ONCE although the timer fired again at ~600 ms on the draining session (the idempotency guard)');
+            assert.ok(h.logs.warn.some(function(l) { return l.indexOf('TCP Connection closed') > -1; }), 'control: the close handler ran (its warn line)');
+        } finally {
+            try { client.destroy(); } catch (e) {}
+            h.stop();
+        }
+    });
+
+    it('live: a busy session is never closed — each request refreshes the timer', async function() {
+        if (RUNTIME_IS_BUN) return; // node-only (#B619)
+        var http2 = require('node:http2');
+        var h = await harness(300);
+        var client = http2.connect('http://127.0.0.1:' + h.port);
+        client.on('error', function() {});
+        var goaway = null; client.on('goaway', function(code) { goaway = { code: code }; });
+        try {
+            for (var i = 0; i < 8; i++) { var r = await get(client, '/'); assert.equal(r.status, 200); await sleep(100); }
+            assert.equal(goaway, null, 'no GOAWAY in 800 ms of requests every 100 ms against a 300 ms timeout');
+            assert.equal(h.metrics.activeSessions, 1, 'the session is still counted active');
+            try { client.destroy(); } catch (e) {}
+            assert.ok(await waitFor(function() { return h.metrics.activeSessions === 0; }, 1000), 'control: destroying the client decrements the counter');
+        } finally {
+            try { client.destroy(); } catch (e) {}
+            h.stop();
+        }
+    });
+
+    it('live: sessionIdleTimeout 0 disables the close', async function() {
+        if (RUNTIME_IS_BUN) return; // node-only (#B619)
+        var http2 = require('node:http2');
+        var h = await harness(0);
+        var client = http2.connect('http://127.0.0.1:' + h.port);
+        client.on('error', function() {});
+        var goaway = null; client.on('goaway', function(code) { goaway = { code: code }; });
+        try {
+            var r = await get(client, '/');
+            assert.equal(r.status, 200);
+            await sleep(700);
+            assert.equal(goaway, null, 'no GOAWAY after 700 ms idle with the timer disabled');
+            assert.equal(h.metrics.activeSessions, 1);
+            assert.equal(h.logs.info.length, 0, 'nothing logged');
+            try { client.destroy(); } catch (e) {}
+            assert.ok(await waitFor(function() { return h.metrics.activeSessions === 0; }, 1000), 'control: the close handler still runs');
+        } finally {
+            try { client.destroy(); } catch (e) {}
+            h.stop();
+        }
+    });
+
 });

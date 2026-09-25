@@ -8,6 +8,11 @@ test/core/config-env-overlay.test.js :: #D45 §02 — the environment overlay wi
 test/core/config-env-overlay.test.js :: #D45 §02 — the environment overlay wins on every key it declares :: a nested object merges key by key, the environment winning per key
 test/core/config-env-overlay.test.js :: #D45 §02 — the environment overlay wins on every key it declares :: an environment array REPLACES the base array rather than being unioned into it
 test/core/config-env-overlay.test.js :: #D45 §02 — the environment overlay wins on every key it declares :: keys only one side declares survive from both sides
+test/core/config-env-template-memo.test.js :: #B610 §02 — one boot plus fifty per-request constructions read the template once :: fifty per-request constructions read it zero more times
+test/core/config-env-template-memo.test.js :: #B610 §02 — one boot plus fifty per-request constructions read the template once :: the boot is real (a Config booted and resolved the bundle env)
+test/core/config-env-template-memo.test.js :: #B610 §02 — one boot plus fifty per-request constructions read the template once :: the boot itself reads the template exactly once
+test/core/config-env-template-memo.test.js :: #B610 §02 — one boot plus fifty per-request constructions read the template once :: the counter counts (instrument control): projects.json was read during the boot
+test/core/config-env-template-memo.test.js :: #B610 §02 — one boot plus fifty per-request constructions read the template once :: the shared template is not mutated by the per-request merges (accumulation control)
 test/core/config-session-lifetime.test.js :: session lifetime — the config boot seam :: CONTROL: a bundle with no security.json resolves to null, not an empty policy
 test/core/config-session-lifetime.test.js :: session lifetime — the config boot seam :: a declared policy reaches the slot the router reads
 test/core/config-session-lifetime.test.js :: session lifetime — the config boot seam :: a security.json with no session keys also resolves to null

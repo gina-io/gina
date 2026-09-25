@@ -763,3 +763,212 @@ describe('09 - session-store v3/v4: constructor requires options.db (#B167)', fu
     });
 
 });
+
+
+// ─── 10 — destroy() treats an absent session as deleted (#B577) ──────────────
+//
+// express-session's `regenerate()` destroys the CURRENT sid before it issues a
+// new one, and forwards the store's error verbatim. A sid that was never
+// persisted (`saveUninitialized: false`, first visit) is absent from the
+// bucket, so a store that reports that absence as a failure fails every login
+// that rotates the session. The contract pinned here: absence is a successful
+// delete, and EVERY other error still reaches the callback — a looser match
+// would let a logout report a session gone that survived.
+//
+// The rejections are built like the SDK's own: 3.2.7 and 4.1.3 both declare
+// `class CouchbaseError extends Error` with `this.name = this.constructor.name`
+// and `class DocumentNotFoundError extends CouchbaseError`. Results are captured
+// and asserted AFTER the store settles: the store wraps its callback in
+// `settleOnce`, which swallows a throwing callback, so an assertion made inside
+// the callback could never fail the test.
+
+describe('10 - session-store v3/v4: destroy() treats an absent session as deleted (#B577)', function () {
+
+    /**
+     * SDK-shaped error classes. `name` is set from the constructor exactly as
+     * the SDK does; `NamelessNotFound` models an SDK that stops doing so, where
+     * only the constructor still carries the class name.
+     *
+     * @returns {object} the error classes, keyed by role.
+     * @inner
+     */
+    function sdkErrors() {
+        class CouchbaseError extends Error {
+            constructor(message) {
+                super(message);
+                this.name = this.constructor.name;
+            }
+        }
+        class DocumentNotFoundError extends CouchbaseError {
+            constructor() { super('document not found'); }
+        }
+        class DesignDocumentNotFoundError extends CouchbaseError {
+            constructor() { super('design document not found'); }
+        }
+        class TimeoutError extends CouchbaseError {
+            constructor() { super('timeout'); }
+        }
+        // No `this.name` assignment, so `name` falls back to Error.prototype's.
+        var NamelessNotFound = (function () {
+            class DocumentNotFoundError extends Error {}
+            return DocumentNotFoundError;
+        })();
+
+        return {
+            DocumentNotFoundError       : DocumentNotFoundError,
+            DesignDocumentNotFoundError : DesignDocumentNotFoundError,
+            TimeoutError                : TimeoutError,
+            NamelessNotFound            : NamelessNotFound
+        };
+    }
+
+    /**
+     * Run the extracted `destroy()` against a stand-in client whose `remove()`
+     * returns `outcome()`, capturing every callback invocation. Resolves a grace
+     * window after the first call, so a second settle is still observed, or
+     * after a bounded guard when the callback never fires, so a hang reads as a
+     * failure instead of stalling the suite.
+     *
+     * @param   {function} destroy      - the extracted method.
+     * @param   {function} outcome      - returns the promise `remove()` yields.
+     * @param   {boolean}  withCallback - false drives the callback-less form.
+     * @returns {Promise<{calls: Array, removed: Array, timedOut: boolean}>}
+     * @inner
+     */
+    function drive(destroy, outcome, withCallback) {
+        return new Promise(function (resolve) {
+            var calls   = []
+                , removed = []
+            ;
+            var store = {
+                prefix : 'sess:',
+                client : {
+                    remove: function (id) {
+                        removed.push(id);
+                        return outcome();
+                    }
+                }
+            };
+            var guard = setTimeout(function () {
+                resolve({ calls: calls, removed: removed, timedOut: true });
+            }, 2000);
+            var settle = function () {
+                setTimeout(function () {
+                    clearTimeout(guard);
+                    resolve({ calls: calls, removed: removed, timedOut: false });
+                }, 50);
+            };
+
+            if (!withCallback) {
+                destroy.call(store, 'abc');
+                settle();
+                return;
+            }
+            destroy.call(store, 'abc', function () {
+                calls.push(Array.prototype.slice.call(arguments));
+                if (calls.length === 1) { settle(); }
+            });
+        });
+    }
+
+    [ ['v3', STORE_V3], ['v4', STORE_V4] ].forEach(function (pair) {
+
+        var label = pair[0]
+            , file  = pair[1]
+        ;
+
+        describe(label, function () {
+
+            var destroy, E;
+            before(function () {
+                destroy = extractMethod(fs.readFileSync(file, 'utf8'), 'CouchbaseStore.prototype.destroy');
+                E       = sdkErrors();
+            });
+
+            // — the contract: absence is a successful delete —
+
+            it('an absent document (DocumentNotFoundError) settles fn(null), exactly once', async function () {
+                var r = await drive(destroy, function () { return Promise.reject(new E.DocumentNotFoundError()); }, true);
+                assert.equal(r.timedOut, false, 'the callback must be invoked');
+                assert.deepEqual(r.removed, ['sess:abc'], 'the prefixed id must still be removed');
+                assert.equal(r.calls.length, 1, 'settled exactly once');
+                assert.strictEqual(r.calls[0][0], null, 'an absent session is a successful delete, not an error');
+            });
+
+            it('absence is recognised when only the constructor carries the class name', async function () {
+                var r = await drive(destroy, function () { return Promise.reject(new E.NamelessNotFound()); }, true);
+                assert.equal(r.calls.length, 1, 'settled exactly once');
+                assert.strictEqual(r.calls[0][0], null, 'the constructor name alone must identify the absence');
+            });
+
+            it('absence is recognised when only `name` carries the class name (a plain object)', async function () {
+                var r = await drive(destroy, function () {
+                    return Promise.reject({ name: 'DocumentNotFoundError', message: 'document not found' });
+                }, true);
+                assert.equal(r.calls.length, 1, 'settled exactly once');
+                assert.strictEqual(r.calls[0][0], null, 'the name alone must identify the absence');
+            });
+
+            // — controls: every other outcome is unchanged —
+
+            it('control: a successful remove still settles fn(null), exactly once', async function () {
+                var r = await drive(destroy, function () { return Promise.resolve({ cas: '1' }); }, true);
+                assert.equal(r.calls.length, 1, 'settled exactly once');
+                assert.strictEqual(r.calls[0][0], null, 'the MutationResult must never reach fn (#CB-BUG-4)');
+            });
+
+            it('control: a timeout still reaches fn as the same error', async function () {
+                var err = new E.TimeoutError();
+                var r   = await drive(destroy, function () { return Promise.reject(err); }, true);
+                assert.equal(r.calls.length, 1, 'settled exactly once');
+                assert.strictEqual(r.calls[0][0], err, 'a real failure must not be reported as a delete');
+            });
+
+            it('control: a class whose name merely CONTAINS the target still fails (DesignDocumentNotFoundError)', async function () {
+                var err = new E.DesignDocumentNotFoundError();
+                var r   = await drive(destroy, function () { return Promise.reject(err); }, true);
+                assert.equal(r.calls.length, 1, 'settled exactly once');
+                assert.strictEqual(r.calls[0][0], err, 'the match must be exact, never a substring');
+            });
+
+            it('control: a plain Error whose MESSAGE says "document not found" still fails', async function () {
+                var err = new Error('document not found');
+                var r   = await drive(destroy, function () { return Promise.reject(err); }, true);
+                assert.equal(r.calls.length, 1, 'settled exactly once');
+                assert.strictEqual(r.calls[0][0], err, 'the message is not an identity — only the class is');
+            });
+
+            it('control: a non-object rejection still reaches fn verbatim', async function () {
+                var r = await drive(destroy, function () { return Promise.reject('boom'); }, true);
+                assert.equal(r.calls.length, 1, 'settled exactly once');
+                assert.strictEqual(r.calls[0][0], 'boom');
+            });
+
+            it('control: an error whose name getter throws still reaches fn — the check never escapes', async function () {
+                var err = new Error('opaque');
+                Object.defineProperty(err, 'name', { get: function () { throw new Error('getter-boom'); } });
+                var r = await drive(destroy, function () { return Promise.reject(err); }, true);
+                assert.equal(r.timedOut, false, 'a throwing getter must not leave fn uncalled');
+                assert.equal(r.calls.length, 1, 'settled exactly once');
+                assert.strictEqual(r.calls[0][0], err);
+            });
+
+            it('control: a callback-less destroy of an absent session leaves no rejection unhandled', async function () {
+                var unhandled   = [];
+                var onUnhandled = function (reason) { unhandled.push(reason); };
+                var r;
+                process.on('unhandledRejection', onUnhandled);
+                try {
+                    r = await drive(destroy, function () { return Promise.reject(new E.DocumentNotFoundError()); }, false);
+                } finally {
+                    process.removeListener('unhandledRejection', onUnhandled);
+                }
+                assert.deepEqual(r.removed, ['sess:abc'], 'the remove must still be issued');
+                assert.equal(unhandled.length, 0, 'no rejection may escape the store');
+            });
+
+        });
+
+    });
+
+});

@@ -568,6 +568,13 @@
                   "default": "30s"
                 }
               }
+            },
+            "http2SessionPool": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50,
+              "description": "HTTP/2 client sessions query() keeps per upstream authority (#P43). Default 1 = one multiplexed session per `hostname:port`, the pre-0.6.33 behaviour. A pool of N opens N sessions, filled round-robin call by call, so a per-connection (L4) balancer — a Kubernetes Service with no HTTP-aware ingress — spreads the calls over N upstream connections. Capped at 50, the client's per-process session cap (a larger pool would make the cap evict a live session on every new connection). Any other value (0, a float, a string, above 50) refuses the boot. Resolved once at engine start — a change needs a bundle restart.",
+              "default": 1
             }
           }
         }

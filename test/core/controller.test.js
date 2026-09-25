@@ -3360,7 +3360,20 @@ describe('29 - query: settled HTTP/2 stream released at every non-retry terminal
 
     // ---- source structure ----
 
-    it('the #B52 _finalizeStream helper is defined inside _sendRequest with an idempotency guard + the three release ops, in order', function() {
+    // #B613 (2026-09-24) — the helper used to end with a guarded `req.close()`. At the
+    // `end` terminal `req.closed` is still false, so that close() put an RST_STREAM(NO_ERROR)
+    // on the wire after EVERY completed response and nghttp2's own reset rate limit on the
+    // target (1,000 burst, 33/s) GOAWAY'd the cached session with INTERNAL_ERROR after
+    // ~1,000 calls. The release is the timeout cancel + the listener drop — a settled
+    // stream closes itself within milliseconds (measured) — so the pins below assert the
+    // two ops AND the ABSENCE of a live close() inside the helper. The helper's raw text
+    // keeps the retired line as a `// replaced:` comment, so the absence is asserted on the
+    // comment-stripped source with the raw text as the control that the strip is real.
+    function stripLineComments(text) {
+        return text.split('\n').filter(function (l) { return !/^\s*\/\//.test(l); }).join('\n');
+    }
+
+    it('the #B52 _finalizeStream helper is defined inside _sendRequest with an idempotency guard + the two release ops, in order — and no close() (#B613)', function() {
         var h2Start = src.indexOf('var handleHTTP2ClientRequest = function(');
         assert.ok(h2Start > -1, 'expected the handleHTTP2ClientRequest anchor');
         var helperIdx = src.indexOf('var _finalizeStream = function _finalizeStream()', h2Start);
@@ -3370,21 +3383,25 @@ describe('29 - query: settled HTTP/2 stream released at every non-retry terminal
         var flagIdx    = src.indexOf('_finalized = true;', guardIdx);
         var timeoutIdx = src.indexOf('req.setTimeout(0)', flagIdx);
         var listenIdx  = src.indexOf('req.removeAllListeners()', timeoutIdx);
-        var closeIdx   = src.indexOf('req.close()', listenIdx);
+        var endIdx     = src.indexOf('};', listenIdx);
         assert.ok(guardIdx   > helperIdx,  'helper early-returns when already finalized');
         assert.ok(flagIdx    > guardIdx,   'helper sets the _finalized flag before the release ops');
         assert.ok(timeoutIdx > flagIdx,    'helper cancels the stream timeout via setTimeout(0)');
         assert.ok(listenIdx  > timeoutIdx, 'helper removes the stream listeners');
-        assert.ok(closeIdx   > listenIdx,  'helper closes the stream last');
+        assert.ok(endIdx     > listenIdx,  'the helper body ends after the listener drop');
+
+        var liveBody = stripLineComments(src.slice(helperIdx, endIdx));
+        assert.equal(liveBody.indexOf('req.close('), -1,
+            '#B613: no live req.close() inside the helper — it sent an RST_STREAM after every completed response');
+        assert.ok(src.slice(helperIdx - 1200, endIdx).indexOf('req.close()') > -1,
+            'control: the retired close() survives as a `// replaced:` comment above the helper, so the strip above is a real strip');
     });
 
-    it('the helper releases defensively — each op in try/catch, close() guarded against an already-closed/destroyed stream', function() {
+    it('the helper releases defensively — each remaining op in try/catch', function() {
         var helperIdx = src.indexOf('var _finalizeStream = function _finalizeStream()');
         var body = src.slice(helperIdx, helperIdx + 400);
         assert.match(body, /try \{ req\.setTimeout\(0\); \} catch/,        'setTimeout(0) is try/caught');
         assert.match(body, /try \{ req\.removeAllListeners\(\); \} catch/, 'removeAllListeners() is try/caught');
-        assert.match(body, /try \{ if \(!req\.closed && !req\.destroyed\) \{ req\.close\(\); \} \} catch/,
-            'close() is guarded on !req.closed && !req.destroyed and try/caught');
     });
 
     it('_finalizeStream() is invoked at exactly the five non-retry terminals', function() {
@@ -3417,7 +3434,8 @@ describe('29 - query: settled HTTP/2 stream released at every non-retry terminal
 
     // ---- pure logic: idempotent, never-throwing finalize replica ----
 
-    // Mirrors _finalizeStream: a one-shot release of a settled HTTP/2 stream.
+    // Mirrors _finalizeStream: a one-shot release of a settled HTTP/2 stream —
+    // timeout cancel + listener drop, and (since #B613) no close().
     function makeFinalizer(req) {
         var finalized = false;
         return function finalize() {
@@ -3425,7 +3443,6 @@ describe('29 - query: settled HTTP/2 stream released at every non-retry terminal
             finalized = true;
             try { req.setTimeout(0); } catch (e) {}
             try { req.removeAllListeners(); } catch (e) {}
-            try { if (!req.closed && !req.destroyed) { req.close(); } } catch (e) {}
         };
     }
 
@@ -3443,12 +3460,12 @@ describe('29 - query: settled HTTP/2 stream released at every non-retry terminal
         };
     }
 
-    it('finalize replica: releases the stream once (cancels timeout, clears listeners, closes)', function() {
+    it('finalize replica: releases the stream once (cancels timeout, clears listeners) and never closes it (#B613)', function() {
         var req = makeReqSpy();
         makeFinalizer(req)();
         assert.strictEqual(req._timeout, 0,           'stream timeout cancelled via setTimeout(0)');
         assert.strictEqual(req._listenersCleared, 1,  'listeners removed once');
-        assert.strictEqual(req._closed, 1,            'stream closed once');
+        assert.strictEqual(req._closed, 0,            '#B613: no close() — a close() at the end terminal sent an RST_STREAM the target counted as a rapid reset');
     });
 
     it('finalize replica: repeated invocations are a no-op (the _finalized idempotency guard)', function() {
@@ -3456,24 +3473,14 @@ describe('29 - query: settled HTTP/2 stream released at every non-retry terminal
         var finalize = makeFinalizer(req);
         finalize(); finalize(); finalize();
         assert.strictEqual(req._listenersCleared, 1, 'listeners removed exactly once across repeated calls');
-        assert.strictEqual(req._closed, 1,           'stream closed exactly once across repeated calls');
-    });
-
-    it('finalize replica: skips close() on an already-closed or destroyed stream', function() {
-        var closedReq = makeReqSpy({ closed: true });
-        makeFinalizer(closedReq)();
-        assert.strictEqual(closedReq._closed, 0,           'no close() on an already-closed stream');
-        assert.strictEqual(closedReq._listenersCleared, 1, 'listeners still cleared');
-        var destroyedReq = makeReqSpy({ destroyed: true });
-        makeFinalizer(destroyedReq)();
-        assert.strictEqual(destroyedReq._closed, 0,        'no close() on a destroyed stream');
+        assert.strictEqual(req._closed, 0,           'still no close() across repeated calls');
     });
 
     it('finalize replica: never throws even if a release op throws (cleanup must not break the response path)', function() {
         var req = makeReqSpy();
-        req.close = function() { throw new Error('stream already torn down'); };
+        req.removeAllListeners = function() { throw new Error('stream already torn down'); };
         assert.doesNotThrow(function() { makeFinalizer(req)(); });
-        assert.strictEqual(req._listenersCleared, 1, 'the listeners op ran before the throwing close()');
+        assert.strictEqual(req._timeout, 0, 'the timeout op ran before the throwing listener drop');
     });
 
     // ---- subtract: finalize at the terminal is what releases the stranding listeners ----
@@ -4763,7 +4770,7 @@ describe('40a - #B399 query delivery seams own an async callback rejection: sour
         // #B475 — the two per-transport facades collapsed into ONE per-call adapter
         assert.equal(countOf(src, '_ownAsyncCbRejection(cb(data))'), 1, 'adapter data-status branch');
         assert.equal(countOf(src, '_ownAsyncCbRejection(cb(err, data))'), 1, 'adapter success branch');
-        assert.equal(countOf(src, '_ownAsyncCbRejection(callback('), 21, 'every direct delivery expression (query prep incl. the #B479 nested-render refusal and the two #B489 body refusals + both transport bodies)');
+        assert.equal(countOf(src, '_ownAsyncCbRejection(callback('), 22, 'every direct delivery expression (query prep incl. the #B479 nested-render refusal and the two #B489 body refusals + both transport bodies + the #B612 pre-send session-gone terminal in _sendRequest)');
     });
 
     it('the ONE fluent delivery adapter registers the guard inside the sync-guard try (#B475: both per-transport facades are gone)', function() {

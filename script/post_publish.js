@@ -32,7 +32,14 @@ var lib         = null;
  * */
 function PostPublish() {
     var self    = {
-        isWin32: isWin32()
+        isWin32: isWin32(),
+        // written by configure() when the script is run directly with `--tag=`
+        // or `-m` (npm lifecycle runs pass the tag as npm_config_tag instead);
+        // without this declaration that direct run threw a TypeError
+        git : {
+            tag: 'latest',
+            msg: null
+        }
     };
 
     var configure = function() {
@@ -243,10 +250,13 @@ function PostPublish() {
             // and `gina@0.3.9` stable publishes (registry hadn't propagated the
             // just-published version yet), shipped a mismatched `package.json` /
             // `package-lock.json` pair, and broke the next Vercel `npm ci`. The retry
-            // (4 attempts, sleeps `[5, 15, 30, 30]` between failures) covers a ~80s
-            // window — registry consistency typically settles inside that. Final
-            // failure still emits the existing `console.warn` so the rest of the
-            // publish chain continues.
+            // (4 attempts; it sleeps 5 + 15 + 30 s after the first three failures and
+            // never sleeps the schedule's last entry) covers a ~50 s window — registry
+            // consistency typically settles inside that. A STAGED cut never resolves
+            // inside it (the version is not installable until approved), so the
+            // fail-closed revert below fires by design there. Final failure still
+            // emits the existing `console.warn` so the rest of the publish chain
+            // continues.
             try {
                 execSync('$(which npm) pkg set devDependencies.gina="^' + self.publishedVersion + '"');
 
@@ -280,14 +290,21 @@ function PostPublish() {
 
                     if (depState.devDep) {
                         execSync('$(which npm) pkg set devDependencies.gina="' + depState.devDep + '"');
-                        console.warn('[syncDocs] reverted devDependencies.gina to ' + depState.devDep + ' to match the unregenerated lockfile — content will deploy; the docs version badge may lag until a follow-up bump:');
-                        console.warn('[syncDocs]   cd ~/Sites/gina/docs/repo && npm pkg set devDependencies.gina="^' + self.publishedVersion + '" && npm install --package-lock-only --ignore-scripts && git commit -am "Updating package-lock for gina@' + self.publishedVersion + '" && git checkout main && git merge --ff-only develop && git push origin main && git checkout develop');
+                        // The printed recipe was run against a replica of the docs topology
+                        // (test/lib/post-publish-docs-recovery.test.js pins its shape).
+                        // main and develop are SHA-diverged, so it lands the ONE catch-up
+                        // commit on main by cherry-pick — a merge would also ship whatever
+                        // develop took since the cut — and does so from a temporary
+                        // worktree, so the operator's checkout never leaves develop.
+                        console.warn('[syncDocs] reverted devDependencies.gina to ' + depState.devDep + ' to match the unregenerated lockfile. The content still deploys, but the docs API reference is generated from the INSTALLED gina, so it shows the locked version until the pin is caught up. Once the registry serves gina@' + self.publishedVersion + ' (on a staged cut: after its approval), run this one line. It commits the pin on develop, then cherry-picks that single commit onto main from a temporary worktree (main and develop are SHA-diverged, so a fast-forward cannot work, and a full merge would also ship anything develop took since the cut):');
+                        console.warn('[syncDocs]   cd ~/Sites/gina/docs/repo && git checkout develop && git pull --ff-only origin develop && npm pkg set devDependencies.gina="^' + self.publishedVersion + '" && npm install --package-lock-only --ignore-scripts && git commit -m "Updating the gina devDependency to ^' + self.publishedVersion + ' after the stable publish" -- package.json package-lock.json && git push origin develop && C=$(git rev-parse HEAD) && git worktree add /tmp/docs-main main && git -C /tmp/docs-main pull --ff-only origin main && git -C /tmp/docs-main cherry-pick "$C" && git -C /tmp/docs-main push origin main; s=$?; git worktree remove --force /tmp/docs-main; [ "$s" = 0 ]');
                     }
 
                     if (!depState.mergeToMain) {
                         docsMergeSafe = false;
-                        console.warn('[syncDocs] could not read the locked gina version — skipping the develop→main merge to avoid shipping a mismatched pair. Manual recovery (regenerate the lockfile on develop, then ff-merge to main):');
-                        console.warn('[syncDocs]   cd ~/Sites/gina/docs/repo && npm pkg set devDependencies.gina="^' + self.publishedVersion + '" && npm install --package-lock-only --ignore-scripts && git commit -am "Updating package-lock for gina@' + self.publishedVersion + '" && git checkout main && git merge --ff-only develop && git push origin main && git checkout develop');
+                        console.warn('[syncDocs] could not read the locked gina version — skipping the develop→main merge to avoid shipping a mismatched pair. Manual recovery once the registry serves gina@' + self.publishedVersion + ', in order: the first line regenerates the lockfile and commits the pair on develop, the second merges develop into main from a temporary worktree. Run the second before develop takes the docs of the next release, since a merge ships everything develop carries:');
+                        console.warn('[syncDocs]   cd ~/Sites/gina/docs/repo && git checkout develop && git pull --ff-only origin develop && npm pkg set devDependencies.gina="^' + self.publishedVersion + '" && npm install --package-lock-only --ignore-scripts && git commit -m "Updating the gina devDependency to ^' + self.publishedVersion + ' after the stable publish" -- package.json package-lock.json && git push origin develop');
+                        console.warn('[syncDocs]   cd ~/Sites/gina/docs/repo && git worktree add /tmp/docs-main main && git -C /tmp/docs-main pull --ff-only origin main && git -C /tmp/docs-main merge --no-edit develop && git -C /tmp/docs-main push origin main; s=$?; git worktree remove --force /tmp/docs-main; [ "$s" = 0 ]');
                     }
                 }
             } catch (lockErr) {
@@ -442,26 +459,39 @@ function PostPublish() {
         var mainConfigPath = _(ginaHomeDir + '/main.json', true);
         var settingsConfigPath = _(ginaHomeDir + '/' + shortVersion + '/settings.json', true);
 
-        try {
-            var mainConfig = requireJSON(mainConfigPath);
-            mainConfig.def_framework = newVersion;
-            if (mainConfig.frameworks[shortVersion].indexOf(newVersion) < 0) {
-                mainConfig.frameworks[shortVersion].push(newVersion);
+        // #R10 phase 2 — the state store is optional: a release can run on a
+        // machine that never installed gina (a CI runner). Each file is checked
+        // before it is read because requireJSON() ends the process on a missing
+        // file (console.emerg + process.exit) — the catch blocks below never saw
+        // that error, so a store-less run died here, after the upload.
+        if ( fs.existsSync(mainConfigPath) ) {
+            try {
+                var mainConfig = requireJSON(mainConfigPath);
+                mainConfig.def_framework = newVersion;
+                if (mainConfig.frameworks[shortVersion].indexOf(newVersion) < 0) {
+                    mainConfig.frameworks[shortVersion].push(newVersion);
+                }
+                new _(mainConfigPath).rmSync();
+                lib.generator.createFileFromDataSync(JSON.stringify(mainConfig, null, 2), mainConfigPath);
+            } catch (e) {
+                console.warn('Could not update ' + mainConfigPath + ': ' + e.message);
             }
-            new _(mainConfigPath).rmSync();
-            lib.generator.createFileFromDataSync(JSON.stringify(mainConfig, null, 2), mainConfigPath);
-        } catch (e) {
-            console.warn('Could not update ' + mainConfigPath + ': ' + e.message);
+        } else {
+            console.info('[bumpVersion] No gina state store file at ' + mainConfigPath + ' — skipped.');
         }
 
-        try {
-            var settingsConfig = requireJSON(settingsConfigPath);
-            settingsConfig.version = newVersion;
-            settingsConfig.def_framework = newVersion;
-            new _(settingsConfigPath).rmSync();
-            lib.generator.createFileFromDataSync(JSON.stringify(settingsConfig, null, 2), settingsConfigPath);
-        } catch (e) {
-            console.warn('Could not update ' + settingsConfigPath + ': ' + e.message);
+        if ( fs.existsSync(settingsConfigPath) ) {
+            try {
+                var settingsConfig = requireJSON(settingsConfigPath);
+                settingsConfig.version = newVersion;
+                settingsConfig.def_framework = newVersion;
+                new _(settingsConfigPath).rmSync();
+                lib.generator.createFileFromDataSync(JSON.stringify(settingsConfig, null, 2), settingsConfigPath);
+            } catch (e) {
+                console.warn('Could not update ' + settingsConfigPath + ': ' + e.message);
+            }
+        } else {
+            console.info('[bumpVersion] No gina state store file at ' + settingsConfigPath + ' — skipped.');
         }
 
         // Rename the framework directory
@@ -484,7 +514,7 @@ function PostPublish() {
         lib.generator.createFileFromDataSync(JSON.stringify(packObj, null, 2), pack);
 
         // Update framework/v{new}/package.json version field
-        // The file is gitignored and moves with the renameSync above, so its
+        // The file is git-tracked and moves with the renameSync above, so its
         // version field stays at whatever it was last set to — drifting away
         // from the framework dir name. Rewrite it so a local dev environment
         // stays consistent with the root package.json after each bump.
@@ -618,6 +648,32 @@ function PostPublish() {
         done();
     }
 
+    /**
+     * publishAlpha - Publishes the freshly bumped alpha in a NESTED npm lifecycle
+     *
+     * Runs only on a STABLE cut (alpha cuts early-return: they already are the alpha).
+     * bumpVersion has already written the next alpha version, so this re-reads
+     * package.json to get it. The nested call re-enters the whole lifecycle —
+     * prepare -> prepack -> PUT/stage -> postpublish -> this script again with
+     * isAlpha true — which is what performs the alpha's own bump and branch cleanup.
+     *
+     * The publish MODE and the npm BINARY are both taken from the environment npm
+     * gives a lifecycle script, rather than hard-coded or left to PATH:
+     *   - `npm_command` is `stage` under `npm stage publish`, `publish` otherwise, so
+     *     the nested alpha always matches the cut the operator actually started and a
+     *     staged cut can never publish its alpha outright past the approval gate.
+     *   - `npm_execpath` is the npm currently running this script; reusing it means a
+     *     stage-capable parent cannot hand the child a stage-incapable npm.
+     * Falls back to a PATH-resolved bare `npm` when `npm_execpath` is unset, so this is
+     * never worse than the previous behaviour. `--tag alpha` reaches `npm_config_tag`
+     * under a staged publish too, so prepare_version.js's alpha temp-branch path is
+     * unaffected (measured).
+     *
+     * This step is fail-fast: its catch does `return done(err)`, which the chain turns
+     * into process.exit(1), aborting cleanupPublishBranch and end.
+     *
+     * @param {function} done - Callback
+     */
     self.publishAlpha = function(done) {
 
         // Skip on dry-run
@@ -634,11 +690,24 @@ function PostPublish() {
         var alphaVersion = packObj.version;
         console.info('[publishAlpha] Publishing ' + alphaVersion + ' with tag alpha');
 
+        // Mirror the parent's publish mode, and reuse the parent's own npm.
+        var npmVerb = (process.env.npm_command === 'stage') ? 'stage publish' : 'publish';
+        var npmBin  = process.env.npm_execpath;
+        var publishCmd = ( npmBin )
+            ? '"' + process.execPath + '" "' + npmBin + '" ' + npmVerb + ' --tag alpha'
+            : 'npm ' + npmVerb + ' --tag alpha';
+        // A staged alpha is NOT installable until a human approves it — say so, or the
+        // log claims a release that has not happened.
+        var doneVerb = ( npmVerb === 'stage publish' )
+            ? 'Staged (awaiting approval \u2014 NOT yet installable)'
+            : 'Published to npm';
+        console.info('[publishAlpha] Mode: npm ' + npmVerb + ' (npm_command=' + (process.env.npm_command || 'unset') + ')');
+
         var initialDir = process.cwd();
         process.chdir(self.gina);
         try {
-            execSync('npm publish --tag alpha', { stdio: 'inherit' });
-            console.info('[publishAlpha] Published ' + alphaVersion + ' to npm with tag alpha');
+            execSync(publishCmd, { stdio: 'inherit' });
+            console.info('[publishAlpha] ' + doneVerb + ': ' + alphaVersion + ' with tag alpha');
         } catch (err) {
             process.chdir(initialDir);
             return done(err);

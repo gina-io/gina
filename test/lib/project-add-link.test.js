@@ -479,7 +479,7 @@ describe('10 - project:add --scope/--env children run the self-resolved CLI with
                 blk.indexOf("resolve(__dirname, '../../../../..', 'bin/cli')") > -1,
                 'expected the 5-up self-resolved bin/cli (the linkGina idiom)'
             );
-            assert.ok(blk.indexOf("'\" "+ task +" '+") > -1, 'expected the '+ task +' task on the self-resolved CLI');
+            assert.ok(blk.indexOf("'"+ task +"', self."+ name +"]") > -1, 'expected the '+ task +' task and the value as their own argv elements on the self-resolved CLI (#B640)');
         });
 
         it('['+ name +'] no longer shells out to a PATH-resolved `gina`', function() {
@@ -492,7 +492,7 @@ describe('10 - project:add --scope/--env children run the self-resolved CLI with
         it('['+ name +'] does not dereference the inherited-stdio execSync return', function() {
             var blk = stripComments(blkFn());
             assert.ok(blk.indexOf('.toString()') < 0, 'the null-return dereference must be gone');
-            assert.ok(blk.indexOf('execSync( cmd , execOptions);') > -1, 'expected the bare execSync call');
+            assert.ok(blk.indexOf('execFileSync(process.execPath, args, execOptions);') > -1, 'expected the bare execFileSync call — an argument vector, no shell (#B640)');
         });
 
         it('['+ name +'] the catch surfaces the child error instead of a bare mislabel', function() {

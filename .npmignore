@@ -20,6 +20,9 @@ examples
 doc
 script/prepare.js
 test/workspace
+# Playwright output dirs (gitignored, so git status never shows them — measured shipping in 0.6.32, #B581)
+test-results/
+playwright-report/
 framework/v*/node_modules
 framework/v*/core/asset/plugin/lib
 framework/v*/core/asset/plugin/src
@@ -38,6 +41,7 @@ script/post_publish.js
 script/prepare_version.js
 script/check_readme_freshness.js
 script/check_bun_suite.js
+script/resolve_release_state.js
 
 # Local-only — never publish (prefix globs cover backup/variant filenames too)
 .claude*
