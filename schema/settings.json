@@ -328,12 +328,12 @@
         },
         "protocol": {
           "type": "string",
-          "description": "HTTP protocol version.",
+          "description": "HTTP protocol version. Defaults to the project's protocol (\"http/1.1\" unless changed; \"http/2.0\" in gina-init containers). HTTP/2 needs \"http/2.0\"; set it together with scheme.",
           "enum": ["http/2.0", "http/1.1"]
         },
         "scheme": {
           "type": "string",
-          "description": "URL scheme. Use \"https\" for HTTP/2 (required) or \"http\" for HTTP/1.1 only.",
+          "description": "URL scheme. Defaults to the project's scheme (\"http\" unless changed; \"https\" in gina-init containers). With protocol \"http/2.0\", \"https\" serves HTTP/2 over TLS and \"http\" serves cleartext HTTP/2 (h2c, behind a TLS-terminating proxy); with \"http/1.1\", \"https\" serves HTTPS over HTTP/1.1. Set it together with protocol.",
           "enum": ["https", "http"]
         },
         "requireHttps": {
