@@ -71,7 +71,11 @@ function LinkLocal(opt, cmd) {
             process.exit(1)
         }
 
-        link(process.argv[3], self.projects, self.target)
+        link(process.argv[3], self.projects, self.target);
+        // #B648 — end the process here: link() writes synchronously, and wherever
+        // bin/cli has bound its MQ listener (an npm install, whose argv[1] ends in
+        // gina/bin/cli) nothing else would, so the command hung after its write.
+        process.exit(0)
     }
 
     /**

@@ -1,0 +1,3 @@
+kind: Fixed
+body: '`gina scope:link-local`, `scope:link-production` and `env:link-dev` hung after a successful change when gina was installed from npm: they updated `projects.json` and then never exited, because nothing ended the process while the CLI log listener was open. They now exit once the change is written. (#B648)'
+time: 2026-09-25T04:30:20+01:00
