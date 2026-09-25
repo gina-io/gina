@@ -7364,6 +7364,12 @@ function Server(options) {
      * `Access-Control-Request-Method` header, and configured allowed-origin
      * lists. Sets `request.isPreflightRequest` accordingly.
      *
+     * The method read is the request's own (`request.method`), whatever protocol
+     * the bundle is configured for — an HTTP/1.1 request served by an http/2.0
+     * bundle carries no `:method` pseudo-header (#B645). A detected preflight is
+     * rewritten to the requested method: through the pseudo-header on an HTTP/2
+     * request, through `request.method` otherwise.
+     *
      * @inner
      * @private
      * @param {object} request - Incoming request object (mutated with `isPreflightRequest`)
@@ -7384,7 +7390,12 @@ function Server(options) {
             corsMethod = config.server.response.header['access-control-allow-methods'];
         }
 
-        var method                          = ( /http\/2/.test(config.server.protocol) ) ? request.headers[':method'] : request.method
+        // #B645 — the method is the REQUEST's own. Reading the `:method` pseudo-header because the
+        // BUNDLE is configured for http/2.0 gave `undefined` for an HTTP/1.1 request served through
+        // the allowHTTP1 fallback (a direct client, or a proxy speaking HTTP/1.1 upstream), so an
+        // HTTP/1.1 preflight was never recognised. Node sets `request.method` on both protocols.
+        // was: var method = ( /http\/2/.test(config.server.protocol) ) ? request.headers[':method'] : request.method
+        var method                          = request.method || request.headers[':method']
             //, reMethod                      = new RegExp(method, 'i')
             , reAccessAllowMethod           = new RegExp('(' + corsMethod.replace(/\,\s+|\s+\,|\,/g, '|') +')', 'i')
             // preflight support - conditions required
@@ -7409,7 +7420,11 @@ function Server(options) {
         if (isPreflightRequest) { // update request/response
             method                      = request.headers['access-control-request-method'];
             // updating to avoid conflict with requested route
-            if ( /http\/2/.test(config.server.protocol) ) {
+            // #B645 — keyed on the request, not on the bundle's configured protocol: only an HTTP/2
+            // request carries the pseudo-header (and on it `request.method` reads that header), so
+            // an HTTP/1.1 request on an http/2.0 bundle takes the else branch.
+            // was: if ( /http\/2/.test(config.server.protocol) ) {
+            if ( typeof(request.headers[':method']) != 'undefined' ) {
                 request.headers[':method'] = method;
             } else {
                 request.method = method
@@ -7635,6 +7650,23 @@ function Server(options) {
         });
     };
 
+    /**
+     * Routes one request inside the per-request store `handle()` opened: answers a
+     * CORS preflight, tries the warm route cache (keyed `method:pathname`), falls back
+     * to the declaration-order scan of the bundle's routing table, then dispatches the
+     * rule that matched. Every method check uses the request's own method, whatever
+     * protocol the bundle is configured for (#B645).
+     *
+     * @inner
+     * @private
+     * @param {object} req - Incoming request (HTTP/1.x, or the HTTP/2 compatibility request)
+     * @param {object} res - Server response
+     * @param {function} next - Next middleware
+     * @param {string} bundle - Bundle name
+     * @param {string} pathname - Request path
+     * @param {object} config - The bundle's Config instance
+     * @returns {Promise<void>}
+     */
     var _handleDispatch = async function(req, res, next, bundle, pathname, config) {
 
         // #FI — request setup time (header parsing, CORS, Inspector endpoint checks)
@@ -7688,9 +7720,16 @@ function Server(options) {
         // headers object, so headers written here reach the client on every JSON response.
         completeHeaders(null, req, res);
 
+        // #B645 — the method is the REQUEST's own. It was read from the `:method` pseudo-header
+        // whenever the BUNDLE was configured for http/2.0, but an HTTP/1.1 request served through
+        // the allowHTTP1 fallback carries none: `method` was `undefined`, the regexp below matched
+        // every method, the static-URL rules answered any method, and the wrong rule became the
+        // warm route-cache answer for later clients of that method and path. Node sets
+        // `req.method` for HTTP/1 and HTTP/2 requests alike.
         var params      = {}
             , _routing  = {}
-            , method    = ( /http\/2/.test(self.conf[self.appName][self.env].server.protocol) ) ? req.headers[':method'] : req.method
+            // was: , method = ( /http\/2/.test(self.conf[self.appName][self.env].server.protocol) ) ? req.headers[':method'] : req.method
+            , method    = req.method || req.headers[':method']
             , reMethod  = new RegExp(method, 'i')
         ;
         try {
