@@ -1187,8 +1187,9 @@ function PathHelper() {
      * @param {Array} [excluded] - Filenames (strings) or RegExps to skip
      *
      * @callback callback
-     * @param {boolean|Error} err - `false` on success, an `Error` on failure
-     *                              (was a plain string pre-#B227)
+     * @param {boolean|Error} err - `false` on success, an `Error` with a string
+     *                              `stack` on failure (was a plain string
+     *                              pre-#B227; could lack `stack` on Bun, #B654)
      * @param {string} source
      * @param {number} i
      * */
@@ -1290,8 +1291,9 @@ function PathHelper() {
      * @param {number} i - Caller's iteration cursor, passed back untouched
      *
      * @callback callback
-     * @param {boolean|Error} err - `false` on success, an `Error` on failure
-     *                              (was a plain string pre-#B227)
+     * @param {boolean|Error} err - `false` on success, an `Error` with a string
+     *                              `stack` on failure (was a plain string
+     *                              pre-#B227; could lack `stack` on Bun, #B654)
      * @param {number} i
      * */
     var copyFile = function(source, destination, i, callback) {
@@ -1320,6 +1322,12 @@ function PathHelper() {
             // message prefix for log continuity
             if ( !(err instanceof Error) ) {
                 err = new Error('Error on Path.cp(...): could not copy `'+ source +'` to `'+ destination +'`');
+            }
+            // #B654 — Bun (1.3, 1.4) reports stream errors as an Error with no
+            // `stack` at all, and callers print `err.stack`: give it one, keeping
+            // the error itself (its `code` and message)
+            else if ( typeof(err.stack) != 'string' ) {
+                try { Error.captureStackTrace(err) } catch (_e) {}
             }
             // #B649 — reap and settle only once the temp stream has closed. A source
             // that fails at open can be reported before the temp file's own open has

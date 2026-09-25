@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'On Bun, a failed file copy through the path helper reported an Error with no `stack`, so callers that print `err.stack` printed `undefined`. The error now always carries a stack, and keeps its code and message. (#B654)'
+time: 2026-09-25T06:00:09+01:00
