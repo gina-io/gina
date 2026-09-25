@@ -47,8 +47,32 @@ function Add(opt, cmd) {
     ;
 
     /**
+     * Returns the value of a `--<name>=<value>` argument: everything after the
+     * FIRST `=`, so a value may itself hold `=`. The name must start the argument,
+     * so a flag spelled inside another flag's value (`--path=/srv/a--scope=b`) is
+     * not read as that flag (#B644).
+     *
+     * @inner
+     * @private
+     * @param {string} arg - One `process.argv` element
+     * @param {string} name - The flag name, without the leading `--`
+     * @returns {?string} The value (possibly empty), or null when `arg` is not that flag
+     *
+     * @example
+     *  flagValue('--path=/srv/a=b/app', 'path')     // → '/srv/a=b/app'
+     *  flagValue('--path=/srv/a--scope=b', 'scope') // → null
+     */
+    var flagValue = function(arg, name) {
+        var prefix = '--' + name + '=';
+        return ( typeof(arg) == 'string' && arg.indexOf(prefix) === 0 ) ? arg.substring(prefix.length) : null;
+    }
+
+    /**
      * Parses argv flags, ensures the project directory exists, creates package.json,
      * manifest.json, and env.json, optionally adding scope/env via sub-commands.
+     *
+     * Each flag is read by flagValue(): its name must start the argument and its
+     * value is everything after the first `=` (#B644).
      *
      * On `project:add`, a `--scope` / `--env` value the shared name rules reject
      * (`scope/inc/name.js`, `env/inc/name.js`) is refused before anything is written,
@@ -72,25 +96,32 @@ function Add(opt, cmd) {
         // import CMD helpers
         new CmdHelper(self, opt.client, { port: opt.debugPort, brkEnabled: opt.debugBrkEnabled });
 
+        // #B644 — the flags used to be matched anywhere in an argument, and their
+        // values taken as the text between the first and the second `=`. So a value
+        // holding `=` was cut short (`--scope=a=b` registered `a`; on a fresh registry
+        // a `--path` holding `=` sent the manifest to the cut directory, exit 1), and
+        // a `--path` value containing `--scope=` or `--env=` was read as that flag too.
         for (let i=3, len=process.argv.length; i<len; i++) {
-            if ( /\-\-start\-port\-from\=/.test(process.argv[i]) ) {
-                self.startFrom = process.argv[i].split(/\=/)[1]
+            let value = null;
+
+            if ( (value = flagValue(process.argv[i], 'start-port-from')) !== null ) {
+                self.startFrom = value
             }
 
-            if ( /\-\-homedir\=/.test(process.argv[i]) ) {
-                self.projectHomedir = process.argv[i].split(/\=/)[1]
+            if ( (value = flagValue(process.argv[i], 'homedir')) !== null ) {
+                self.projectHomedir = value
             }
 
-            if ( /\-\-scope\=/.test(process.argv[i]) ) {
-                self.scope = process.argv[i].split(/\=/)[1]
+            if ( (value = flagValue(process.argv[i], 'scope')) !== null ) {
+                self.scope = value
             }
 
-            if ( /\-\-env\=/.test(process.argv[i]) ) {
-                self.env = process.argv[i].split(/\=/)[1]
+            if ( (value = flagValue(process.argv[i], 'env')) !== null ) {
+                self.env = value
             }
 
-            if ( /\-\-path\=/.test(process.argv[i]) ) {
-                self.projectLocation = process.argv[i].split(/\=/)[1];
+            if ( (value = flagValue(process.argv[i], 'path')) !== null ) {
+                self.projectLocation = value;
                 self.projectManifestPath = _(self.projectLocation + '/manifest.json', true);
             }
         }
@@ -152,7 +183,8 @@ function Add(opt, cmd) {
             console.warn('[ package.json ] already exists in this location: '+ file + '\nUpdating package.json...');
             // Merge existing package.json with framework template; createPackageFile calls end()
             // which writes projects.json and calls process.exit(0). Without this, the process
-            // hangs indefinitely because MQSpeaker keeps the event loop alive.
+            // hangs wherever bin/cli has bound its MQ log listener, which keeps the event loop
+            // alive (the MQ speaker's socket is unref'd).
             createPackageFile( file.toString(), true );
         }
 
@@ -535,6 +567,10 @@ function Add(opt, cmd) {
      * Writes the project entry to projects.json, runs addBundlePorts and
      * addBundleToManifest in import mode, links gina, and exits the process.
      *
+     * `def_scope` / `def_env` are written from the project's current defaults (the
+     * registry's, for a new project): `--scope` / `--env` only register a missing
+     * scope or environment, and never change them — `scope:use` / `env:use` do (#B644).
+     *
      * @inner
      * @private
      * @param {boolean} [created] - When true, use all available protocols/schemes (new project)
@@ -555,14 +591,19 @@ function Add(opt, cmd) {
             process.exit(1)
         }
 
-        if ( /^$true/i.test(local.imported) ) {
-            if (self.scope) {
-                self.defaultScope = self.scope
-            }
-            if (self.env) {
-                self.defaultEnv = self.env
-            }
-        }
+        // #B644 — this import-only branch never ran: `/^$true/` cannot match (`$`
+        // asserts the end of the input before `true`). It stays off: `--scope` /
+        // `--env` register a missing scope or environment (the children in init()),
+        // and a project's defaults are changed with `scope:use` / `env:use`. Reviving
+        // it would change the defaults every `project:import --scope/--env` writes.
+        // if ( /^$true/i.test(local.imported) ) {
+        //     if (self.scope) {
+        //         self.defaultScope = self.scope
+        //     }
+        //     if (self.env) {
+        //         self.defaultEnv = self.env
+        //     }
+        // }
 
         projects[self.projectName] = {
             "path"              : self.projectLocation,
@@ -654,7 +695,9 @@ function Add(opt, cmd) {
                 error = ginaModule.rmSync();
 
                 if (error instanceof Error) {
-                    console.error(err.stack);
+                    // #B644 — this printed `err`, which does not exist here: a failed
+                    // removal died on a ReferenceError instead of reporting itself.
+                    console.error(error.stack);
                     process.exit(1);
                 } else {
                     linkGina(onError, onSuccess)

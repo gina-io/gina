@@ -422,8 +422,11 @@ function CmdHelper(cmd, client, debug) {
                     else if ( /^project\:import/i.test(cmd.task) ) {
                         let newHomeDir = _(getUserHome() +'/.'+ cmd.projectName, true);
                         let pathArg = argv.find(arg => arg.startsWith('--path=')) || null;
+                        // #B644 — the value is everything after the FIRST `=`: `split('=')[1]`
+                        // cut a path holding `=` short, and the import then refused the cut
+                        // path as one that "no longer exists".
                         let pathValue = pathArg
-                                ? pathArg.split('=')[1].replace(/['"]/g, '')
+                                ? pathArg.substring('--path='.length).replace(/['"]/g, '')
                                 : null;
                         if ( pathValue && pathValue != cmd.projectLocation ) {
                             // Making sure the prefix is the right one
