@@ -99,7 +99,7 @@
     }
   },
   "scripts": {
-    "test": "node --test --test-timeout=120000 $GINA_TEST_FLAGS test/core/*.test.js test/lib/*.test.js test/bin/*.test.js test/integration/helper.test.js test/integration/container-boot.test.js test/integration/container-boot-init-failure.test.js test/integration/container-boot-request-parsing.test.js test/integration/container-boot-route-method.test.js test/integration/logger-log-integrity.test.js framework/v*/test/unit/*.test.js",
+    "test": "node --test --test-timeout=120000 $GINA_TEST_FLAGS test/core/*.test.js test/lib/*.test.js test/bin/*.test.js test/integration/helper.test.js test/integration/container-boot.test.js test/integration/container-boot-init-failure.test.js test/integration/container-boot-request-parsing.test.js test/integration/container-boot-route-method.test.js test/integration/container-boot-route-confusion.test.js test/integration/logger-log-integrity.test.js framework/v*/test/unit/*.test.js",
     "test:coverage": "GINA_TEST_FLAGS=--experimental-test-coverage npm test",
     "pretest:e2e": "playwright install chromium",
     "test:e2e": "playwright test test/e2e",

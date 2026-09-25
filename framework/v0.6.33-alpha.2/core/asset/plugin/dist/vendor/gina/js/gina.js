@@ -6355,6 +6355,28 @@ function Routing() {
     // When exceeded, the oldest entry (insertion order) is evicted first.
     var MAX_CACHED_ROUTES = 5000;
 
+    /**
+     * Own-property test for a lookup keyed by a name the client may choose (#B650). A plain
+     * `obj[key]` read also resolves `Object.prototype` members, so a query key named
+     * `toString` or `valueOf` read as a requirement the rule declares.
+     *
+     * `Object.prototype.hasOwnProperty.call`, not `Object.hasOwn`: this file is also bundled
+     * for the browser.
+     *
+     * @inner
+     * @private
+     * @param {object} obj - the object to test (a rule's `requirements` or `param`)
+     * @param {string} key - the key to look for
+     * @returns {boolean} true when `obj` itself carries `key`
+     *
+     * @example
+     * hasOwn({ id: '/^[0-9]+$/' }, 'id');       // => true
+     * hasOwn({ id: '/^[0-9]+$/' }, 'toString'); // => false
+     */
+    var hasOwn = function(obj, key) {
+        return obj !== null && typeof(obj) != 'undefined' && Object.prototype.hasOwnProperty.call(obj, key);
+    };
+
 
     self.allowedMethodsString   = self.allowedMethods.join(',');
 
@@ -6713,7 +6735,9 @@ function Routing() {
                         continue;
                     }
                     let _key = uRo[p].substring(1);
-                    if ( typeof(params.requirements[_key]) == 'undefined' ) {
+                    // #B650 — a requirement counts only when the rule declares it itself.
+                    // was: if ( typeof(params.requirements[_key]) == 'undefined' ) {
+                    if ( !hasOwn(params.requirements, _key) || typeof(params.requirements[_key]) == 'undefined' ) {
                         continue;
                     }
                     let condition = params.requirements[_key];
@@ -6753,7 +6777,13 @@ function Routing() {
             //     console.debug('passed '+ params.rule);
             // }
             for (let p in request[method]) {
-                if ( typeof(params.requirements[p]) != 'undefined' && uRo.indexOf(':' + p) < 0 ) {
+                // #B650 — `p` is a key the CLIENT chose, so only a requirement the rule itself
+                // declares may count. A query key named like an Object.prototype member
+                // (toString, valueOf, ...) read as a declared requirement, and each such key
+                // replaced one leading URL segment below: a request reached a rule whose path
+                // differs from its own, past any path-based control applied outside the rule.
+                // was: if ( typeof(params.requirements[p]) != 'undefined' && uRo.indexOf(':' + p) < 0 ) {
+                if ( hasOwn(params.requirements, p) && typeof(params.requirements[p]) != 'undefined' && uRo.indexOf(':' + p) < 0 ) {
                     uRo[uRoCount] = ':' + p;
                     ++uRoCount;
 
@@ -7023,8 +7053,12 @@ function Routing() {
             key     = _param[matched].substring(1);
 
             // No requirements defined for this param — accept any non-empty segment
-            if ( typeof(params.requirements) == 'undefined' || typeof(params.requirements[key]) == 'undefined' ) {
-                if ( typeof(params.param[key]) != 'undefined' && typeof(request.params) != 'undefined' && urlVal ) {
+            // #B650 — a requirement or a param counts only when the rule declares it itself:
+            // an inherited Object.prototype member is neither.
+            // was: if ( typeof(params.requirements) == 'undefined' || typeof(params.requirements[key]) == 'undefined' ) {
+            // was:     if ( typeof(params.param[key]) != 'undefined' && typeof(request.params) != 'undefined' && urlVal ) {
+            if ( typeof(params.requirements) == 'undefined' || typeof(params.requirements[key]) == 'undefined' || !hasOwn(params.requirements, key) ) {
+                if ( typeof(params.param[key]) != 'undefined' && hasOwn(params.param, key) && typeof(request.params) != 'undefined' && urlVal ) {
                     request.params[key] = urlVal;
                     if ( typeof(request[requestMethod][key]) == 'undefined' ) {
                         request[requestMethod][key] = urlVal;
@@ -7093,10 +7127,14 @@ function Routing() {
                 tested = new RegExp(params.requirements[key]).test(urlVal);
             }
 
+            // #B650 — the binding also requires the rule's OWN param and requirement
+            // (was: the same test without the two hasOwn() terms).
             if (
                 typeof(params.param[key]) != 'undefined' &&
+                hasOwn(params.param, key) &&
                 typeof(params.requirements) != 'undefined' &&
                 typeof(params.requirements[key]) != 'undefined' &&
+                hasOwn(params.requirements, key) &&
                 typeof(request.params) != 'undefined' &&
                 tested
             ) {
