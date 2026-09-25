@@ -5087,6 +5087,12 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
      *   pre-transport failure (missing host, unreadable certificate, open
      *   circuit, nested-render refusal) — and on success `cb(false, data)`.
      *
+     * The success `data` is the upstream body as the client parsed it — a
+     * JSON-shaped body becomes an object, anything else stays a string — and
+     * is the same over HTTP/1.1 and HTTP/2: a body without `status` arrives
+     * without one. Before #P47 F6 the HTTP/2 client added `status: 200` to such
+     * a body and logged a warn on every call.
+     *
      * A query issued while the controller is rendering from another required
      * controller (`renderingStack` deeper than one frame — the required
      * controller shares the caller's options object) is refused without
@@ -6349,7 +6355,9 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
      * before sending on a cached session whose last PONG is older than HTTP2_PREFLIGHT_STALE_MS.
      * Retries up to HTTP2_MAX_RETRIES times on transient failures (timeout, stream error,
      * premature close, 502, pre-flight failure) with HTTP2_RETRY_DELAY_MS backoff on 2nd+ retry.
-     * ECONNREFUSED is never retried.
+     * ECONNREFUSED is never retried. A JSON-shaped response body is parsed and delivered as
+     * it came, exactly like the HTTP/1.1 handler does: no `status` is added to a body that has
+     * none (#P47 F6).
      *
      * @inner
      * @param {object}   browser     - HTTP/2 client module (node:http2)
@@ -7211,11 +7219,19 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
             if (typeof data === 'string' && /^(\{|%7B|\[{)|\[\]/.test(data)) {
                 try {
                     data = JSON.parse(data);
-                    if (typeof data.status === 'undefined') {
-                        const currentRule = local.options.rule || local.req.routing.rule;
-                        console.warn(`[${currentRule}] Response status code is undefined: switching to 200`);
-                        data.status = 200;
-                    }
+                    // #P47 F6 — the parsed body is delivered as it came, like the HTTP/1.1
+                    // client does. A body without `status` used to be logged ("Response status
+                    // code is undefined: switching to 200") and stamped `data.status = 200` on
+                    // every call: the same upstream answer then reached an HTTP/2 caller with
+                    // one key more than an HTTP/1.1 caller, `self.forward()` relayed that key
+                    // into the end client's body, and on a JSON string body (`"[]"`) the stamp
+                    // threw in strict mode and turned the success into a 500. The branch below
+                    // already reads an absent `status` as success, so nothing depended on it.
+                    // replaced: if (typeof data.status === 'undefined') {
+                    // replaced:     const currentRule = local.options.rule || local.req.routing.rule;
+                    // replaced:     console.warn(`[${currentRule}] Response status code is undefined: switching to 200`);
+                    // replaced:     data.status = 200;
+                    // replaced: }
                 } catch (err) {
                     data = { status: 500, error: err };
                     console.error('[HTTP2] JSON Parse Error:', err);
