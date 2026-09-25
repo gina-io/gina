@@ -18,7 +18,8 @@
         "bundles": { "<bundle_name>": { ..., "scopes": ["local"] } }
 
     A scope name is made of letters, digits, `_`, `.` and `-`, and starts with a
-    lowercase letter, a digit, `_` or `.` (`.` and `..` are refused).
+    lowercase letter, a digit, `_` or `.`. `.`, `..` and the name of a property
+    every object inherits, such as `constructor`, are refused.
 
 
 [ Removing an existing scope ]

@@ -3,6 +3,7 @@ var fs      = require('fs');
 var CmdHelper   = require('./../helper');
 var console     = lib.logger;
 var scan        = require('../port/inc/scan.js');
+var envName     = require('./inc/name');
 
 /**
  * @module gina/lib/cmd/env/add
@@ -14,6 +15,9 @@ var scan        = require('../port/inc/scan.js');
  * Usage:
  *  gina env:add <env> @<project>
  *  gina env:add <env>
+ *
+ * Every name is checked whole against the environment-name rule
+ * (`./inc/name.js`, #B639) before anything is written.
  *
  * TODO - updateManifest()
  *
@@ -67,7 +71,14 @@ function Add(opt, cmd) {
 
                 return end( new Error('Missing argument @<project_name>'))
             }
-            else if (/^[a-z0-9_.]/.test(process.argv[i])) {
+            // #B639 — anything that is not a flag must be a whole environment name. This
+            // used to test the first character only, so `frontend/staging` (the retired
+            // <bundle>/<env> form) was registered verbatim and `Staging` was dropped
+            // without a word. Flags are still left to the dispatcher.
+            else if ( !/^-/.test(process.argv[i]) ) {
+                if ( !envName.isValidEnvName(process.argv[i]) ) {
+                    return end( new Error(envName.describeInvalidEnvName(process.argv[i])) )
+                }
                 local.env = process.argv[i];
                 envs.push(process.argv[i]);
             }
