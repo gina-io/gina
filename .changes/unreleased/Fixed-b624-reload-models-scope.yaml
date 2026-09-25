@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'After a Couchbase reconnect rebuilds the models, each connector now receives the scope declared on its `connectors.json` entry, as it does at boot. The rebuild used to omit it, so a connector whose entry declares a scope other than `NODE_SCOPE` switched to `NODE_SCOPE` for the documents it stamps and the queries it filters. (#B624)'
+time: 2026-09-25T01:22:42+01:00

@@ -559,12 +559,29 @@ function ModelUtil() {
 
 
     /**
-     * Reload modes
-     * cacheless mode only
+     * Rebuilds every connector's entity manager and entity classes on the live
+     * connections: the reload twin of the `done()` step in `loadAllModels`.
      *
-     * @param {obj} conf
-     * @callback cb
-     * */
+     * Callers: the couchbase connectors' reconnect paths (`onPing` in
+     * `core/connectors/couchbase/lib/connector.v4.js` and `connector.v3.js`), and
+     * `Config#refreshModels` (`core/config.js`), which nothing in the framework
+     * calls. It does not serve a dev-mode (cacheless) reload.
+     *
+     * Each connector factory receives the same `{ model, bundle, database, scope }`
+     * infos as at boot. #B624: the reload used to omit `scope`, so a connector whose
+     * entry declares one fell back to `NODE_SCOPE` after a reload.
+     *
+     * @param {object} conf - the bundle's env conf: `conf.content.connectors` and `conf.modelsPath`
+     * @param {function(Error|false)} cb - receives `false` once the rebuild completes. A
+     *   connector factory that throws passes its error to `cb` and the loop carries on,
+     *   so `cb` then also receives `false` (known, not fixed).
+     * @returns {void}
+     *
+     * @example
+     * modelUtil.reloadModels(conf, function(err) {
+     *     if (err) console.error(err.stack);
+     * });
+     */
     this.reloadModels = function(conf, cb) {
 
         if ( typeof(conf.content['connectors']) != 'undefined' && conf.content['connectors'] != null ) {
@@ -606,7 +623,8 @@ function ModelUtil() {
                     delete require.cache[require.resolve(_(connectorPath + '/index.js', true))];//child
                     try {
                         //entitiesManager = new require( _(conf.modelsPath + '/index.js', true) )(conn)[name](conn, { model: name, bundle: bundle, database: conf.content['connectors'][name].database });
-                        entitiesManager = require( _(connectorPath + '/index.js', true) )(conn, { model: name, bundle: bundle, database: conf.content['connectors'][name].database });
+                        // #B624 — the same infos as the boot call in loadAllModels' done(), scope included.
+                        entitiesManager = require( _(connectorPath + '/index.js', true) )(conn, { model: name, bundle: bundle, database: conf.content['connectors'][name].database, scope: conf.content['connectors'][name].scope });
                     } catch (err) {
                         cb(err)
                     }
@@ -814,7 +832,7 @@ function ModelUtil() {
                 }
 
                 //console.debug(parent+'->getEntity('+shortName+')');
-                if ( self.models[bundle][model][shortName] /**&& !cacheless*/) { // cacheless is filtered thanks to self.reloadModels(...)
+                if ( self.models[bundle][model][shortName] /**&& !cacheless*/) { // the !cacheless filter is disabled; reloadModels() does not serve a cacheless reload (#B624)
                     //return self.models[bundle][model][shortName]
                     return self.entitiesCollection[bundle][model][shortName]
                 } else {
