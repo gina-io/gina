@@ -65,7 +65,28 @@ function projectEntry() {
 
 var setupError = null;
 
-before(function () {
+/**
+ * A free TCP port on the loopback, for the children's MQ listener.
+ *
+ * @inner
+ * @returns {Promise<number>}
+ */
+function freePort() {
+    return new Promise(function (resolve, reject) {
+        var srv = require('net').createServer();
+        srv.once('error', reject);
+        srv.listen(0, '127.0.0.1', function () {
+            var port = srv.address().port;
+            srv.close(function () { resolve(port); });
+        });
+    });
+}
+
+before(async function () {
+    // The children's own MQ port: on CI every CLI child competes for the default
+    // 8125, and a child that finds it taken never becomes the listener, which
+    // would make the CONTROL below fail for a reason unrelated to the fix.
+    CHILD_ENV.GINA_MQ_PORT = String(await freePort());
     fs.mkdirSync(FAKE_HOME, { recursive: true });
     fs.symlinkSync(path.resolve(__dirname, '../..'), LINK);
     var r = runCli(['project:add', '@' + PROJECT, '--path=' + path.join(FAKE_HOME, PROJECT)]);
