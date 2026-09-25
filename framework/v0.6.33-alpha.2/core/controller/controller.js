@@ -5958,6 +5958,98 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
         return SAFE_HTTP_METHODS[ String(method || '').toUpperCase() ] === true;
     };
 
+    // #P44 — cap on cached HTTP/1.x agents per process (all upstreams together), the same
+    // bound as the HTTP/2 session cache. Inter-bundle traffic reaches a handful of upstreams
+    // and never meets it; a caller querying many distinct hosts is bounded by it.
+    var H1_AGENT_MAX = 50;
+    // Options that decide WHERE and HOW a socket connects. Baked into each upstream's agent,
+    // exactly as the per-call `new browser.Agent(options)` this replaces baked them: in Node's
+    // `createSocket` the agent's own options win over the request's, and gina's
+    // `options.hostname` holds the full configured URL (`scheme://host:port`), so the socket
+    // reaches the right upstream only because the agent carries the bare `host`.
+    var H1_AGENT_SOCKET_KEYS = [
+        'protocol', 'host', 'port', 'localAddress', 'family', 'socketPath',
+        'ca', 'cert', 'key', 'pfx', 'passphrase', 'rejectUnauthorized', 'servername',
+        'ciphers', 'secureProtocol', 'minVersion', 'maxVersion'
+    ];
+
+    /**
+     * #P44 — one keep-alive Agent per UPSTREAM, cached on the engine instance
+     * (`self.serverInstance._h1Agents`, a Map) and reused across `self.query()` HTTP/1.x
+     * calls. Before, a fresh `new browser.Agent(options)` was built per call and discarded,
+     * so its keep-alive never helped: every hop opened a new TCP connection and left it in
+     * TIME_WAIT (500 calls measured 500 connections).
+     *
+     * One agent per upstream, never one shared across upstreams: the agent carries that
+     * upstream's socket options (`H1_AGENT_SOCKET_KEYS` — the bare `host`, gina's
+     * transport-version `protocol`, the TLS material), because Node lets the agent's options
+     * win when it opens a socket. The key is Node's own pool key (`getName`: host, port, TLS)
+     * plus the protocol and the pool settings, so two upstreams — or one host reached with two
+     * CAs — never share an agent. Per-request fields (path, method, headers, body) are never
+     * baked, so a long-lived agent holds no request data.
+     *
+     * The cache lives on the engine instance so it survives dev-mode per-request hot-reload
+     * of this module (the HTTP/2 session cache has the same home). It is LRU, capped at
+     * `H1_AGENT_MAX`; an evicted agent is retired gracefully — its idle sockets close now,
+     * a request still in flight on it completes, and its socket is then closed rather than
+     * pooled. A caller's own `options.agent` is ignored, as the per-call code ignored it:
+     * gina's transport-version `protocol` (`'http/1.1'`) only matches an agent built from
+     * these options, so any other agent would fail the call with `ERR_INVALID_PROTOCOL`.
+     *
+     * @inner
+     * @param {object} browser - HTTP/1.x client module (node:http or node:https)
+     * @param {object} options - Request options, after `query()` resolved the upstream
+     * @returns {object} the upstream's cached http(s) Agent
+     */
+    var _getSharedHttp1Agent = function(browser, options) {
+        var inst = self.serverInstance;
+        if (!(inst._h1Agents instanceof Map)) {
+            inst._h1Agents = new Map();
+        }
+        var baked = {
+            keepAlive      : true,
+            keepAliveMsecs : (typeof options.keepAliveMsecs === 'number') ? options.keepAliveMsecs : 1000,
+            maxSockets     : (typeof options.maxSockets     === 'number') ? options.maxSockets     : 100,
+            maxFreeSockets : (typeof options.maxFreeSockets === 'number') ? options.maxFreeSockets : 10,
+            scheduling     : 'lifo'
+        };
+        for (var ki = 0; ki < H1_AGENT_SOCKET_KEYS.length; ++ki) {
+            var sk = H1_AGENT_SOCKET_KEYS[ki];
+            if (typeof options[sk] !== 'undefined') {
+                baked[sk] = options[sk];
+            }
+        }
+        var key = ((browser.globalAgent && browser.globalAgent.protocol) || '')
+            + '|' + (baked.protocol || '')
+            + '|' + baked.keepAliveMsecs + '|' + baked.maxSockets + '|' + baked.maxFreeSockets
+            + '|' + browser.Agent.prototype.getName.call(browser.globalAgent, baked);
+        var agent = inst._h1Agents.get(key);
+        if (agent) {
+            // LRU touch: a busy upstream is never the one evicted
+            inst._h1Agents.delete(key);
+            inst._h1Agents.set(key, agent);
+            return agent;
+        }
+        if (inst._h1Agents.size >= H1_AGENT_MAX) {
+            var oldestKey = inst._h1Agents.keys().next().value;
+            var evicted   = inst._h1Agents.get(oldestKey);
+            inst._h1Agents.delete(oldestKey);
+            // Retire gracefully: a socket freed from now on is closed, not pooled, and the
+            // idle ones close now. Requests already in flight on it are untouched.
+            evicted.keepSocketAlive = function() { return false; };
+            var freeKeys = Object.keys(evicted.freeSockets);
+            for (var fi = 0; fi < freeKeys.length; ++fi) {
+                var idle = evicted.freeSockets[freeKeys[fi]].slice();
+                for (var si = 0; si < idle.length; ++si) {
+                    idle[si].destroy();
+                }
+            }
+        }
+        agent = new browser.Agent(baked);
+        inst._h1Agents.set(key, agent);
+        return agent;
+    };
+
     /**
      * HTTP/1.x client request handler with the #B53 idempotency-gated retry.
      *
@@ -6032,8 +6124,9 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
         delete options.queryData;
 
 
-        // Shared Agent
-        options.agent = new browser.Agent(options);
+        // Shared Agent — reuse this upstream's cached keep-alive Agent instead of building a
+        // fresh one per call (#P44); it carries the same socket options the per-call agent did.
+        options.agent = _getSharedHttp1Agent(browser, options);
 
         const req = browser.request(options, function(res) {
 
