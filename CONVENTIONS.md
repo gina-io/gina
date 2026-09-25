@@ -587,7 +587,7 @@ Two flag names are reserved by the framework's global CLI parser and must **not*
 | Implicit globals injected by `gna.js` | Everywhere | Not statically analysable | #M8 |
 | `typeof(x)` with parentheses | Everywhere | Style inconsistency | — |
 | `"use strict"` absent from ~60% of files | Everywhere | Sloppy mode bugs | #M9 |
-| `eval()` in install script | `script/pre_install.js:222` | Low-risk but code smell | — |
+| `eval()` in release scripts | `script/prepare_version.js`, `script/post_publish.js` (not published to npm) | Low-risk but code smell | — |
 | Circular dep `utils/helper ↔ lib/logger` | `lib/index.js:32` | Import order fragility | — |
 | Commented-out code preserved in large blocks | `context.js`, `controller.render-json.js` | Dead code maintenance burden | — |
 | Incomplete `reps` dict in `getCoreEnv` | `lib/cmd/helper.js` | whisper silently leaves `${placeholder}` unresolved | — |
