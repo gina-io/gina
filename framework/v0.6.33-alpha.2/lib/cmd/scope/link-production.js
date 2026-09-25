@@ -23,8 +23,10 @@ function LinkProduction(opt, cmd) {
     var self = {};
 
     /**
-     * Resolves the project name from argv or cwd, validates the scope,
-     * and delegates to link.
+     * Resolves the project name from argv or cwd, checks that the project is
+     * registered, then validates the scope against it, and delegates to link.
+     * A missing or unregistered project is refused with a message, exit 1 —
+     * checked before the lookup that used to crash on it (#B641).
      *
      * @inner
      * @private
@@ -47,25 +49,29 @@ function LinkProduction(opt, cmd) {
             }
         }
 
-        if ( typeof(process.argv[3]) != 'undefined' ) {
-            if ( !self.projects[self.name].scopes.inArray(process.argv[3]) ) {
-                console.error('Scope [ '+process.argv[3]+' ] not found');
-                process.exit(1)
-            }
-        } else {
-            console.error('Missing argument in [ gina scope:use <scope> ]');
+        if ( typeof(process.argv[3]) == 'undefined' ) {
+            console.error('Missing argument in [ gina scope:link-production <scope> [@<project_name>] ]');
             process.exit(1)
         }
 
+        // #B641 — check the project before looking the scope up in it: the lookup used
+        // to run first, so a missing or unregistered project crashed with a TypeError
+        // instead of reaching the two messages below.
         if ( typeof(self.name) == 'undefined' ) {
             console.error('Project name is required: @<project_name>');
             process.exit(1)
-        } else if ( typeof(self.name) != 'undefined' && isDefined(self.name) ) {
-            link(process.argv[3], self.projects, self.target)
-        } else {
+        }
+        if ( !isDefined(self.name) ) {
             console.error('[ '+self.name+' ] is not a valid project name.');
             process.exit(1)
         }
+
+        if ( !self.projects[self.name].scopes.inArray(process.argv[3]) ) {
+            console.error('Scope [ '+process.argv[3]+' ] not found');
+            process.exit(1)
+        }
+
+        link(process.argv[3], self.projects, self.target)
     }
 
     /**
