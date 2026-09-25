@@ -18,7 +18,7 @@ MVC framework for Node.js and Bun with built-in HTTP/2, multi-bundle architectur
 | HTTP/2 server | Built-in `isaac` engine — TLS, h2c, ALPN, HTTP/1.1 fallback, 103 Early Hints, RFC 9218 request priorities, CVE-hardened |
 | Multi-bundle | One project, N independent bundles with shared config and project layer |
 | Scope isolation | `local` / `beta` / `production` — per-request and per-record |
-| MVC routing | `routing.json` — declare routes in config, not code; O(m) radix trie lookup |
+| MVC routing | `routing.json` — declare routes in config, not code; an index built once per routing table narrows each cold match to the rules the URL could reach, and a hot path is served from the route cache |
 | Async/await | Controller actions can be `async`; rejections routed to `throwError` automatically |
 | WebSockets | WS routes in `routing.json` (`"method": "ws"` + channel handlers, `:param` paths); WebSocket-over-HTTP/2 (RFC 8441) |
 | ORM / entities | EventEmitter-based entity system; SQL files auto-wired to entity methods |

@@ -361,20 +361,18 @@ var jobId = self.inferAsync([{ role: 'user', content: prompt }], { connector: 'm
 
 ---
 
-## Route radix trie
+## Route candidate index (#P46)
 
-`lib/routing/src/radix.js` — designed to be built once at startup from `routing.json` and never mutated at runtime. ⚠️ **NOT ACTIVE as of 0.6.33 (measured 2026-09-24, re-checked at the 0.6.33 cut):** `buildTrie()` is called only from `onRoutesLoaded()`, which nothing calls, so `Routing._tries` stays `{}`, `lookupTrie()` returns `null`, and every request is matched by the linear scan in `core/server.js` (per-candidate `JSON.clone` + `compareUrls`, a warm hit re-running both). Wiring it, with a runtime pin, is roadmap #P46 (the inter-bundle throughput arc).
+`core/server.route-candidates.js` (server-only, since 0.6.34): on every request the warm route cache does not know, `_handleDispatch` asks it which rules could match; the declaration-order `for…in` scan skips every other rule. The loop, its order and every per-rule check are unchanged, so the first match still wins.
 
-- `createNode()` — `{ static: {}, param: null, names: [] }`
-- `insert(root, url, name)` — splits URL on `/`, static segments go to `node.static[s]`, `:param` segments to `node.param`
-- `lookup(root, pathname)` — O(m) candidate lookup (m = segment count); strips query string before matching; returns `string[]` of route name candidates
-- `_match()` — static child has priority over param (more specific), but param is always tried when present; both may appear in results
-- **Candidate set**: `lookup()` returns structural matches only; semantic validation (HTTP method, `requirements`, param extraction) remains in `compareUrls()` and `parseRouting()`
-- `Routing.buildTrie(routing, bundle)` is wired in `onRoutesLoaded()` after `config.setRouting()` — a function with no caller (its last call was removed in 2019), which is why the trie has never run in a shipped release
-- `Routing.lookupTrie(pathname, bundle)` returns `null` when no trie is available (safe full-scan fallback)
-- In `handle()`: `_trieCandidateSet = new Set(trieHits)` used with `Set.has(name)` to skip non-candidates in the `for…in` loop
-- Falls back silently to the full linear scan when trie is absent or lookup returns no hits
-
+- Built once per routing table OBJECT and bundle (`WeakMap`) on the first cold request — ~0.3–0.5 ms at 60–380 rules; a lookup costs ~0.14 µs. Nothing adds or removes a rule in that table after boot (per-request writes go to copies), so the index never goes stale; a replaced table object is indexed anew.
+- A SUPERSET of what the loop accepts, never a subset: comma variants split untrimmed (as `compareUrls` does); a `:` ANYWHERE in a segment is a parameter (inline `page:number` included — `hasParams` tests `/\:/`); a static segment is compared exactly; every rule is ALSO indexed by its raw `url` string and looked up with the raw pathname (the loop's `pathname == routing[name].url` clause: a comma list, a `%XX` escape).
+- `always` rules (evaluated for every request the index models): two or more OWN `requirements` not bound as a whole `:key` segment (for GET/DELETE `parseRouting` writes each such request key over the compared segments from index 0, so two or more replace real path segments), one such key on a variant not starting with `/`, a variant with surrounding whitespace / `?` / `#`, a url that is not a string.
+- `null` (scan every rule — the pre-0.6.34 behaviour) for a path not starting with `/`, holding `?` or `#` (express keeps the query in the pathname; isaac strips it), or with an empty segment after the leading `/` (`/`, a trailing `/`, `//`: a parameter whose requirement accepts `''` matches an empty segment). An EMPTY set means no rule can match: the 404 costs no scan.
+- A skipped rule no longer runs `compareUrls`: its `validator::` requirements are not evaluated for that request (a malformed one no longer 500s other URLs; a `validator::{ query }` sends no backend request), and on a 404/405 `req.params` no longer carries values it used to capture.
+- Proof: `test/core/server-route-candidates.test.js` runs ONE copy of the loop with and without the index over a catalogue of every rule shape plus seeded tables — same winner, status and follow-up status on every arm; a sabotaged index diverges (the harness can fail). `test/integration/container-boot-route-candidates.test.js` boots isaac and pins the winners and prompt 404s for prototype-named paths.
+- Measured on the routing step (loop copy, real `compareUrls`, loaded host), 380 rules: a late static rule 441 → 14 µs, a late parameter rule 360 → 15 µs, a 404 509 → 12 µs; 60 rules: 64 → 4 µs.
+- Why not `lib/routing/src/radix.js`: its `static` map is a plain object (`/constructor` resolves an inherited member and throws), only a LEADING `:` is a parameter, and it strips/trims what `compareUrls` compares; `Routing.buildTrie` never ran (its only caller, `onRoutesLoaded()`, has had no caller since 2019) and `lookupTrie` is no longer called. The index lives under `core/` because the pre-commit gate classes `lib/routing/src/` as browser-bundled source.
 ---
 
 ## HTTP/2 settings & metrics
