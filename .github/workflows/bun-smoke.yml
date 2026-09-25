@@ -61,6 +61,9 @@ on:
       - '.github/workflows/bun-smoke.yml'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   bun-smoke:
     name: Bun container smoke (${{ matrix.bun }})

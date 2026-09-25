@@ -57,6 +57,9 @@ on:
       - '.github/workflows/bun-suite.yml'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   bun-suite:
     name: node:test suite under bun test (${{ matrix.bun }})
