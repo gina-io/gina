@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'The `/_gina/info` HTTP/2 `rstCount` metric had read 0 since it shipped: the server listened for a `rstCode` event on every stream, and `rstCode` is a stream property, not an event. It now counts the streams the client cut short before the response completed — the signal the rapid-reset guard counts (#B614)'
-time: 2026-09-24T16:28:28+01:00

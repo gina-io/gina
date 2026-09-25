@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'A model-loading failure on an asynchronous connector now aborts the boot with exit code 1 and the reason on stderr, as it already did on a synchronous one. An entity file the class-name check rejects (a name starting with a digit or an underscore), or an entity constructor that throws, on a connector such as DuckDB or Couchbase did not stop the boot: depending on the connector, the failure was logged as an unhandled promise rejection, reported as a failure to connect and retried, or swallowed, and the bundle never listened. Under `gina-container` a DuckDB bundle exited with code 0, a success status. It now ends with `[ FRAMEWORK ] Model loading failed — aborting boot: <cause>` (#B617)'
-time: 2026-09-25T00:24:07+01:00

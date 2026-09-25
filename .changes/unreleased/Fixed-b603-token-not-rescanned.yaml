@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'A referenced value that itself contains a `$` followed by another field''s name (`abc$email` in a password whose confirmation is checked with `$password === $passwordConfirm`) is no longer substituted a second time: the rule set was resolved one field at a time, re-reading the whole text after each splice, and the two-argument `is` form re-read the resolved condition once more — so such a value could never be confirmed, and, worse, two different values could compare equal (`abc$zeta x` confirmed `abcZ x` when a sibling field `zeta` held `Z`). Every `$` token is now resolved in one pass and the value is compared exactly as typed. Pickup: restart AND re-bake. (#B603)'
-time: 2026-09-24T04:03:19+01:00

@@ -1,3 +1,0 @@
-kind: Added
-body: '`server.query.http2SessionPool` (settings.json; an integer from 1 to 50, default 1): how many HTTP/2 client sessions `self.query()` keeps per upstream authority. The default keeps one multiplexed session per `hostname:port`, as before. A pool of N opens N sessions, filled round-robin call by call, so a per-connection (L4) balancer — a Kubernetes Service with no HTTP-aware ingress — spreads the calls over N upstream connections instead of pinning every call to the one pod behind the first connection. Any other value refuses the boot; the value is resolved once at engine start, so a change needs a bundle restart. Pickup: bundle restart, no re-bake (#P43)'
-time: 2026-09-24T23:12:28+01:00

@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'In a route `validator::` requirement or a fluent `is()` call, a `$field` token followed by a parenthesis or an operator — `($password) === ($passwordConfirm)`, `$a===$b` — now resolves; it used to resolve only when whitespace or the end of the condition followed it, so the condition was refused and the field read invalid. A field name holding a bracket or another RegExp character (`$pw[0]`, `$a+b`) resolves too. The rule is now the same on every path: the longest field name wins, a token ends at the first character outside `A-Z a-z 0-9 _ -`, and a `$` naming no field stays literal. (#B604)'
-time: 2026-09-24T04:03:20+01:00

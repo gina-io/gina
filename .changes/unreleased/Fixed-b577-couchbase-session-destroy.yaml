@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'With the Couchbase session store, logging in no longer answers 500 when the visitor''s pre-login session was never saved (for example with `saveUninitialized: false`). Logging in rotates the session, which first deletes the old one, and the store reported deleting a session that is not in the bucket as an error, so the login failed through `req.login()` and through Passport 0.6 or later. Deleting an absent session is now a successful delete, as it already was on every other session store gina ships; any other error, such as a timeout, still fails (#B577)'
-time: 2026-09-22T21:06:15+01:00

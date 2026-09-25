@@ -1,3 +1,0 @@
-kind: Fixed
-body: '`gina scope:link-local`, `scope:link-production` and `env:link-dev` could hang after a successful change: they updated `projects.json` but never exited, and when the CLI was started by its own path (`node <gina>/bin/cli …`, as CI and scripts do) its open log listener kept the process alive. The same commands typed through the installed `gina` launcher were not affected. They now exit once the change is written. (#B648)'
-time: 2026-09-25T04:30:20+01:00

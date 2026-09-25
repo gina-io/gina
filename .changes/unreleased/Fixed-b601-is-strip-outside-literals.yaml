@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'An `is` comparison no longer ignores parentheses and the word `return` inside the compared values: two values differing only by those characters (`ab(cd` and `ab)cd`, `myreturnpass` and `mypass`) compared as equal, in the browser, on the server and in route `validator::` requirements. Parentheses written around a condition''s operands are still accepted. Pickup: restart AND re-bake. (#B601)'
-time: 2026-09-24T00:12:53+01:00

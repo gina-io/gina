@@ -1,3 +1,0 @@
-kind: Fixed
-body: '`gina project:add` could lose a scope or an environment it had just registered. With `--scope` or `--env` naming one that did not exist yet, the command started linking gina into the new project and, while that step was still running, registered the new names with `scope:add` and `env:add`. Each of these commands rewrites the registry files in `~/.gina`, so on some runs the new name was missing afterwards from `main.json` or from the project entry in `projects.json`, and the state store logged `database is locked`. The link step now starts only once the rest of the command has finished. (#B647)'
-time: 2026-09-25T03:49:42+01:00
