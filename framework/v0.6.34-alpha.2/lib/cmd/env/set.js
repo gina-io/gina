@@ -42,6 +42,10 @@ function Set(opt, cmd){
 
         if (modified)
             save(self.settings, self.target);
+        // #B653 — no key to set: nothing ended the process, so it hung wherever
+        // the CLI holds its MQ listener (the #B648 class)
+        else
+            end();
     };
 
     /**

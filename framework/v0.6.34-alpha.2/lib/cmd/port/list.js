@@ -215,7 +215,11 @@ function List(opt, cmd) {
                 return end('Saved to `'+ filename +'`');
             }
 
-            return process.stdout.write(data);
+            // #B653 — exit once the data is handed to the OS: this returned with
+            // nothing ending the process, which hung wherever the CLI holds its
+            // MQ listener (the #B648 class)
+            // was: return process.stdout.write(data);
+            return process.stdout.write(data, function() { end() });
         }
 
         if ( /^json$/.test(self.format) ) {
@@ -225,11 +229,16 @@ function List(opt, cmd) {
                 var filename = targetObj.toString();
                 // save to ~/.gina/ports.reverse.json
                 lib.generator.createFileFromDataSync( data, filename );
-                console.log('Saved to `'+ filename +'`');
-                return;
+                // #B653 — end like the conf branch above (this returned with
+                // nothing ending the process)
+                // was: console.log('Saved to `'+ filename +'`');
+                // was: return;
+                return end('Saved to `'+ filename +'`');
             }
 
-            return process.stdout.write(data);
+            // #B653 — exit once the data is handed to the OS (see above)
+            // was: return process.stdout.write(data);
+            return process.stdout.write(data, function() { end() });
         }
 
 

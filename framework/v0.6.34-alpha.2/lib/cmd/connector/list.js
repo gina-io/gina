@@ -76,7 +76,9 @@ function List(opt, cmd) {
                 return;
             }
             listAll();
-            return;
+            // #B653 — was: return; — nothing ended the process, which hung
+            // wherever the CLI holds its MQ listener (the #B648 class)
+            return exitWhenFlushed();
         }
 
         if ( typeof(self.projects[self.projectName]) == 'undefined' ) {
@@ -98,7 +100,23 @@ function List(opt, cmd) {
             listProjectOnly(self.projectName);
         }
 
-        process.exit(0);
+        // #B653 — was: process.exit(0); — the JSON listings are written with
+        // process.stdout.write, which a pipe takes asynchronously
+        exitWhenFlushed();
+    };
+
+    /**
+     * Exits 0 once everything written to stdout has been handed to the OS.
+     *
+     * The JSON listings are written with `process.stdout.write`, which a pipe takes
+     * asynchronously, so exiting straight after it could cut a listing larger than
+     * the pipe buffer; the all-projects listing did not exit at all (#B653).
+     *
+     * @inner
+     * @private
+     */
+    var exitWhenFlushed = function() {
+        process.stdout.write('', function() { process.exit(0) });
     };
 
     /**

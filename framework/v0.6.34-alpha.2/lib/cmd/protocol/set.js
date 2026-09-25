@@ -250,6 +250,9 @@ function Set(opt, cmd) {
                 rl.clearLine();
                 console.log('Exiting protocol setup');
                 //rl.close();
+                // #B653 — reached on cancel (and on end of input): nothing ended the
+                // process, so it hung wherever the CLI holds its MQ listener
+                process.exit(0);
             });
 
             rl.prompt();

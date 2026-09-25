@@ -68,6 +68,10 @@ function Reset(opt, cmd) {
         if ( self.projectName && isDefined('project', self.projectName) ) {
             loadAssets();
             reset()
+        } else {
+            // #B653 — no registered project to reset: nothing ended the process,
+            // so it hung wherever the CLI holds its MQ listener (the #B648 class)
+            process.exit(0)
         }
         // if (self.projectName && isDefined(self.projectName) && !self.name) {
         //     listProjectOnly()

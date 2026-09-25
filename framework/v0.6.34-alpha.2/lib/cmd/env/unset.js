@@ -39,6 +39,10 @@ function Unset(opt, cmd){
 
         if (modified)
             save(self.settings, self.target)
+
+        // #B653 — nothing ended the process here, so it hung wherever the CLI
+        // holds its MQ listener (the #B648 class)
+        process.exit(0)
     }
 
     /**
