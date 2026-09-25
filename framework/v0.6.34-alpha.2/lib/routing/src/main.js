@@ -31,9 +31,9 @@ function Routing() {
     if ( typeof(Routing.initialized) == 'undefined' ) {
         Routing.initialized     = true;
         Routing.instance        = self;
-        Routing._cached         = [];
-        Routing._cachedRoutes   = {};
-        Routing._tries          = {};   // radix tries, keyed by bundle name
+        // Warm route cache: routeId (`METHOD:pathname`) -> { name, routing }, kept in
+        // insertion order — see self.cache() for the eviction rule.
+        Routing._cached         = new Map();
     } else {
         self = self.getInstance();
         return self;
@@ -177,42 +177,57 @@ function Routing() {
     // }
 
     /**
-     * Cache route information to be retrieved later
+     * Cache a matched route so that later requests with the same `METHOD:pathname`
+     * take the warm path. One `Map`: a lookup and an eviction cost O(1) at any size.
      *
-     * @param {string} routeId - e.g.: GET:/index
+     * The first write to a key wins — a key already cached is left untouched, so a
+     * key a legitimate request warmed keeps answering later requests. At
+     * `MAX_CACHED_ROUTES` entries the OLDEST key is evicted first (FIFO by insertion
+     * order; a hit never moves an entry). Only the rule's name and object are kept:
+     * `params` and `methodParams` — the request's route params and data bag, a POST
+     * body included — are accepted for the call signature and not stored.
+     *
+     * @param {string} routeId - `METHOD:pathname`, e.g. `GET:/index`
      * @param {string} name - route name
      * @param {object} routeObject - routing[name]
-     * @param {object} params - route params
-     * @param {object} methodParams - GET|PUT ...
+     * @param {object} [params] - the matched request's route params (not stored)
+     * @param {object} [methodParams] - the matched request's data bag (not stored)
+     * @returns {void}
+     *
+     * @example
+     * routingLib.cache('GET:/invoice/42', 'invoice@api', routing['invoice@api']);
      */
     self.cache = function(routeId, name, routeObject, params, methodParams) {
-        if ( Routing._cached.indexOf(routeId) == -1 ) {
+        if ( !Routing._cached.has(routeId) ) {
             // FIFO eviction: when at capacity, drop the oldest entry before inserting
-            if ( Routing._cached.length >= MAX_CACHED_ROUTES ) {
-                self.invalidateCached(Routing._cached[0]);
+            if ( Routing._cached.size >= MAX_CACHED_ROUTES ) {
+                self.invalidateCached( Routing._cached.keys().next().value );
             }
-            Routing._cached.push(routeId);
-            Routing._cachedRoutes[routeId] = {
+            Routing._cached.set(routeId, {
                 name            : name,
-                routing         : routeObject,
-                params          : params,
-                methodParams    : methodParams
-            };
+                routing         : routeObject
+            });
         }
     }
 
     /**
-     * Get cached route information to be retrieved later
+     * Look a request up in the warm route cache. A hit re-runs `compareUrls()`
+     * against a clone of the cached rule, so requirements are re-evaluated on every
+     * hit (#B422: an entry is a candidate; the verdict is the result's `.past`). A
+     * miss returns `null` synchronously.
      *
-     * @param {string} routeId - e.g.: GET:/index
-     * @param {string} name - route name
-     * @param {object} routeObject - routing[name]
-     * @param {object} params - route params
+     * @param {string} routeId - `METHOD:pathname`, e.g. `GET:/index`
+     * @param {object} req - the incoming request
+     * @returns {Promise<object>|null} `compareUrls()`'s result on a hit, `null` on a miss
+     *
+     * @example
+     * var found = routingLib.getCached(req.method + ':' + pathname, req);
+     * if ( found ) { found = await found; if ( found.past ) { dispatch(req.routing); } }
      */
     self.getCached = function(routeId, req) {
-        if ( Routing._cached.indexOf(routeId) > -1 ) {
+        var cachedRoute = Routing._cached.get(routeId);
+        if ( cachedRoute ) {
 
-            var cachedRoute = Routing._cachedRoutes[routeId];
             var method      = req.method.toLowerCase();
 
 
@@ -284,12 +299,17 @@ function Routing() {
         return null
     }
 
+    /**
+     * Remove one key from the warm route cache; a key that is not cached is a no-op.
+     *
+     * @param {string} routeId - `METHOD:pathname`
+     * @returns {void}
+     *
+     * @example
+     * routingLib.invalidateCached('GET:/invoice/42');
+     */
     self.invalidateCached = function(routeId) {
-        if ( Routing._cached.indexOf(routeId) > -1 ) {
-            // routeObject
-            Routing._cached.splice( Routing._cached.indexOf(routeId), 1);
-            delete Routing._cachedRoutes[routeId];
-        }
+        Routing._cached.delete(routeId);
     }
 
     /**
@@ -1912,49 +1932,6 @@ function Routing() {
             return route
         }
     }
-
-    // ── Radix trie — O(m) route candidate lookup ─────────────────────────────
-
-    /**
-     * Build a radix trie for fast route lookup for the given bundle.
-     * Called from onRoutesLoaded() once the routing config is ready.
-     * Safe to call multiple times — each call replaces the previous trie.
-     *
-     * @param {object} routing - full routing map (all bundles)
-     * @param {string} bundle  - bundle name to index
-     */
-    self.buildTrie = function(routing, bundle) {
-        if (isGFFCtx) return; // trie is server-side only
-        var radix = require('./radix');
-        var root  = radix.createNode();
-        for (var name in routing) {
-            var r = routing[name];
-            if (!r || typeof r !== 'object') continue;
-            if (r.bundle !== bundle) continue;
-            // url can be a string ("url1, url2") or an array
-            var rawUrls = Array.isArray(r.url) ? r.url : String(r.url).split(',');
-            for (var i = 0; i < rawUrls.length; i++) {
-                var u = rawUrls[i].trim();
-                if (u) radix.insert(root, u, name);
-            }
-        }
-        Routing._tries[bundle] = root;
-    };
-
-    /**
-     * Return candidate route names for a pathname using the pre-built radix trie.
-     * Returns null when no trie is available for the bundle (safe fall-through
-     * to the linear scan in that case).
-     *
-     * @param {string} pathname - decoded request pathname
-     * @param {string} bundle   - bundle name
-     * @returns {string[]|null}
-     */
-    self.lookupTrie = function(pathname, bundle) {
-        if (!Routing._tries || !Routing._tries[bundle]) return null;
-        var radix = require('./radix');
-        return radix.lookup(Routing._tries[bundle], pathname);
-    };
 
     return self
 }

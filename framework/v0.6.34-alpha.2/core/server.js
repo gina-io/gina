@@ -1270,7 +1270,7 @@ function Server(options) {
             // WS dispatch happens in the engine's extended-CONNECT handler — these
             // routes never reach handle()/router.route (the `:4816` method filter +
             // the method-keyed route cache keep a `ws` route from matching an HTTP
-            // request, and the radix-trie candidate is method-filtered in the loop).
+            // request, and a route-index candidate is still method-filtered in the loop).
             var _wsRouting           = serverOpt.routing || {};
             var _wsRegistered        = {};
             var _wsUnsupportedWarned = false;
@@ -2936,9 +2936,6 @@ function Server(options) {
 
             config.setRouting(apps[i], env, scope, routing);
             config.setReverseRouting(apps[i], env, scope, reverseRouting);
-
-            // Build radix trie for this bundle — enables O(m) candidate lookup in handle()
-            routingLib.buildTrie(routing, apps[i]);
 
             if (apps[i] == self.appName) {
                 self.routing        = routing;
@@ -7935,7 +7932,7 @@ function Server(options) {
                     break;
                 }
 
-                // Radix trie fast-path: skip routes that cannot match this URL structure
+                // Route candidate index (#P46): skip rules that cannot match this URL structure
                 if ( _trieCandidateSet !== null && !_trieCandidateSet.has(name) ) continue;
 
                 // Ignoring routes out of scope
@@ -7972,8 +7969,9 @@ function Server(options) {
 
                 // Early method filter — skip routes whose single HTTP method cannot
                 // match the request.  This avoids the expensive async compareUrls()
-                // call for obvious method mismatches (the main dev-mode perf win,
-                // since the routing cache is cleared on every request in cacheless mode).
+                // call for obvious method mismatches on the cold path. (The warm route
+                // cache is NOT cleared per request in any mode: `routingLib` is bound
+                // once at module scope, so its entries persist until evicted.)
                 // Multi-method routes (e.g. "get,post") are NOT filtered here.
                 var _routeMethod = routing[name].method;
                 if ( !/\,/.test(_routeMethod) && !reMethod.test(_routeMethod) ) {
