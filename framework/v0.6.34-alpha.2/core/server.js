@@ -200,6 +200,108 @@ function ownCount(container) {
     return Object.prototype.count.call(container);
 }
 
+/**
+ * #B662 — may a `GET` be served by a routing rule that declares `DELETE`?
+ *
+ * The popin and link plugins send an anchor click as a `GET` XHR, and a rule declared
+ * `DELETE` has served such a request since 2021 by rewriting the request method before
+ * the action runs. Granted to ANY `GET`, that rewrite let a cross-site navigation that
+ * carries a `SameSite=Lax` session cookie run a `DELETE` action, and on the Express
+ * engine it also slipped past the Csrf plugin, which runs before dispatch and sees a
+ * safe `GET`. The override is now granted only to a request that:
+ *
+ *  1. is an XHR (`X-Requested-With: XMLHttpRequest`, read into `req.isXMLRequest`) — a
+ *     navigation, an `<img>` or a `<form>` cannot send that header, and a cross-origin
+ *     page can send it only through a CORS preflight; and
+ *  2. is not a browser cross-origin request (`lib.admin.isCrossOriginWrite`):
+ *     `Sec-Fetch-Site` `same-origin` or `none` passes, `same-site` and `cross-site` are
+ *     refused, an `Origin` that differs from the host is refused, and a request with no
+ *     browser signal at all (curl, a server-side `self.query()`) passes.
+ *
+ * The second condition is needed because a bundle whose `access-control-allow-origin` is
+ * empty answers a preflight by reflecting the request's origin with credentials, which
+ * lets a cross-site XHR carry the header. `Sec-Fetch-Site` is a forbidden header name,
+ * so page script cannot forge it.
+ *
+ * @inner
+ * @param {object} req - The request being dispatched (`isXMLRequest`, `headers`).
+ * @returns {boolean} `true` when the `GET` may be served as a `DELETE`.
+ * @example
+ * isGetToDeleteOverrideAllowed({ isXMLRequest: true,  headers: { 'sec-fetch-site': 'same-origin' } }); // true
+ * isGetToDeleteOverrideAllowed({ isXMLRequest: true,  headers: { 'sec-fetch-site': 'cross-site' } });  // false
+ * isGetToDeleteOverrideAllowed({ isXMLRequest: false, headers: {} });                                  // false
+ */
+var isGetToDeleteOverrideAllowed = function(req) {
+    return req.isXMLRequest === true && !lib.admin.isCrossOriginWrite(req);
+};
+
+/**
+ * Does a routing rule's `method` declaration list a given method?
+ *
+ * A rule's `method` is one method or a comma-separated list (`"GET,POST"`); the match is
+ * exact per item and case-insensitive, so `"POST,DELETE"` lists `DELETE` but `"GET"`
+ * does not list `HEAD`.
+ *
+ * @inner
+ * @param {string} ruleMethod - The rule's `method` value.
+ * @param {string} method - The method to look for.
+ * @returns {boolean} `true` when the list names `method`.
+ * @example
+ * ruleListsMethod('POST,DELETE', 'delete'); // true
+ * ruleListsMethod('GET', 'HEAD');           // false
+ */
+var ruleListsMethod = function(ruleMethod, method) {
+    if ( typeof(ruleMethod) != 'string' ) {
+        return false;
+    }
+    var wanted = String(method).toUpperCase();
+    var listed = ruleMethod.toUpperCase().split(',');
+    for (var i = 0; i < listed.length; ++i) {
+        if ( listed[i].trim() === wanted ) {
+            return true;
+        }
+    }
+    return false;
+};
+
+/**
+ * #B659 — the value of the `Allow` field a `405` carries (RFC 9110 §15.5.6: a `405` MUST
+ * list the methods the resource supports).
+ *
+ * Built from the method lists of the rules whose URL matched but refused the request,
+ * in declaration order, deduplicated and upper-cased. `HEAD` follows `GET` wherever `GET`
+ * appears, since every rule that serves `GET` serves `HEAD` (#B667).
+ *
+ * @inner
+ * @param {string[]} ruleMethods - The `method` values of the refusing rules.
+ * @returns {string} The field value, e.g. `"GET, HEAD, POST"`.
+ * @example
+ * buildAllowHeader(['GET,POST']);              // 'GET, HEAD, POST'
+ * buildAllowHeader(['POST,DELETE', 'delete']); // 'POST, DELETE'
+ */
+var buildAllowHeader = function(ruleMethods) {
+    var out = [];
+    var add = function(m) {
+        if ( m && out.indexOf(m) < 0 ) {
+            out.push(m);
+        }
+    };
+    for (var i = 0; i < ruleMethods.length; ++i) {
+        if ( typeof(ruleMethods[i]) != 'string' ) {
+            continue;
+        }
+        var listed = ruleMethods[i].toUpperCase().split(',');
+        for (var j = 0; j < listed.length; ++j) {
+            var m = listed[j].trim();
+            add(m);
+            if ( m === 'GET' ) {
+                add('HEAD');
+            }
+        }
+    }
+    return out.join(', ');
+};
+
 var parseByteSize = function(value) {
     if ( typeof(value) == 'number' ) { return value * 1024 * 1024; } // bare number = MB
     if ( typeof(value) != 'string' ) { return NaN; }
@@ -7537,6 +7639,8 @@ function Server(options) {
             return;
         }
         var isMethodAllowed = null, hostname = null, _methodMismatch405msg = null;
+        // #B659 — the method lists of the URL-matched rules that refused the request (the 405's Allow)
+        var _methodMismatchAllow = [];
 
         // #B84 — per-request culture negotiation, shared by the cold (loop-match)
         // and warm (cached-route fast-path) paths. The cached fast-path breaks the
@@ -7764,7 +7868,11 @@ function Server(options) {
                     if ( /^head$/i.test(req.method) && /^get$/i.test(_routeMethod) ) {
                         /* fall through to compareUrls */
                     // Exception — GET → DELETE method override
-                    } else if ( /^get$/i.test(req.method) && /^delete$/i.test(_routeMethod) ) {
+                    // #B662 — granted only to an XHR that is not a browser cross-origin request
+                    // (isGetToDeleteOverrideAllowed); any other GET on a DELETE-only rule gets the
+                    // documented single-method 404, so a cross-site navigation cannot reach the action.
+                    // was: } else if ( /^get$/i.test(req.method) && /^delete$/i.test(_routeMethod) ) {
+                    } else if ( /^get$/i.test(req.method) && /^delete$/i.test(_routeMethod) && isGetToDeleteOverrideAllowed(req) ) {
                         /* fall through to compareUrls */
                     } else {
                         continue;
@@ -7775,6 +7883,13 @@ function Server(options) {
                 method = routing[name].method;
                 if ( /\,/.test( method ) && reMethod.test(method) ) {
                     method = req.method
+                // #B667 — HEAD is served by every rule that serves GET (RFC 9110 §9.1), a `:param`
+                // URL and a method list included. lib/routing refuses a `:param` match whose rule
+                // method differs from the request's (fitsWithRequirements), so a HEAD on a GET
+                // `/items/:id` answered 404, and a HEAD on a "GET,POST" rule answered 405. Matching
+                // the rule as HEAD compares head with head, as the warm route cache already does.
+                } else if ( /^head$/i.test(req.method) && ruleListsMethod(method, 'GET') ) {
+                    method = 'HEAD';
                 }
 
                 // Preparing params to relay to the router.
@@ -7849,11 +7964,19 @@ function Server(options) {
                         if ( /^head$/i.test(req.method) && /^get$/i.test(_routing.method) ) {
                             isMethodAllowed = true;
                         // Exception - Method override
-                        } else if ( /get/i.test(req.method) && /delete/i.test(_routing.method) ) {
+                        // #B662 — the same gate as the early filter above. #B660 — the request becomes
+                        // the literal DELETE, never the rule's whole method list: a GET on a
+                        // "POST,DELETE" rule used to hand the action req.method === "POST,DELETE".
+                        // was: } else if ( /get/i.test(req.method) && /delete/i.test(_routing.method) ) {
+                        // was:     console.debug('ignoring case request.method[GET] on routing.method[DELETE]');
+                        // was:     req.method = _routing.method;
+                        } else if ( /^get$/i.test(req.method) && ruleListsMethod(_routing.method, 'DELETE') && isGetToDeleteOverrideAllowed(req) ) {
                             console.debug('ignoring case request.method[GET] on routing.method[DELETE]');
-                            req.method = _routing.method;
+                            req.method = 'DELETE';
                             isMethodAllowed = true;
                         } else {
+                            // #B659 — the refusing rule's methods feed the 405's Allow field
+                            _methodMismatchAllow.push(_routing.method);
                             // URL matched but method didn't — keep looking for a route that matches both.
                             _methodMismatch405msg = 'Method Not Allowed.\n `'+req.url+'` does not support `' + req.method.toUpperCase() + '`';
                             continue;
@@ -7967,6 +8090,12 @@ function Server(options) {
         }
 
         if (!matched && _methodMismatch405msg) {
+            // #B659 — RFC 9110 §15.5.6: a 405 MUST carry Allow, the methods the resource does
+            // support. Set before throwError: its HTTP/1 writeHead merges the headers set so far,
+            // and its HTTP/2 respond folds response.getHeaders() in.
+            if ( !res.headersSent ) {
+                res.setHeader('allow', buildAllowHeader(_methodMismatchAllow));
+            }
             return throwError(res, 405, _methodMismatch405msg, next);
         }
 
