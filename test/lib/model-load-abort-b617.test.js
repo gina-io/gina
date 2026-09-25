@@ -6,9 +6,11 @@
  *
  * `lib/model.js` builds the models inside the connector's own ready callback.
  * On sqlite that callback runs in-line, so a throw there reached the #B57 catch
- * in `core/gna.js` and the process exited 1. On duckdb the callback runs inside a
- * `.then()`, and couchbase emits `ready` inside an `async` function, so the same
- * throw became an unhandled promise REJECTION that `core/gna.js` only logs.
+ * in `core/gna.js` and the process exited 1. On an asynchronous connector the
+ * throw stayed inside the driver's callback chain instead: duckdb (a `.then()`
+ * callback) turned it into an unhandled promise REJECTION that `core/gna.js` only
+ * logs, and the couchbase SDK 4.x re-delivered it to its connect callback as a
+ * connection error (read from the SDK source).
  * Measured 2026-09-25 through the real `bin/gina-container`: a duckdb bundle
  * whose entity file is `_temp.js` exited 0 (a success status) in 790 ms, never
  * bound its port, and left stderr empty; the same file on sqlite exited 1 with
