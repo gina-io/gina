@@ -463,6 +463,43 @@ describe('06 - bulkInsert carries the same guarantees', function () {
         assert.match(settles[0], /^rejected:/);
         assert.match(settles[0], /boom-bi/);
     });
+
+    // #B616 — bulkInsert wrote the bucket name bare into `INSERT INTO <bucket>` and
+    // `RETURNING <bucket>.*`, so a legal dashed bucket (`beer-sample`) produced a
+    // statement N1QL cannot parse. Self-contained: its own entity from the real
+    // factory, on its own bucket directory under TMP (removed by the file's after()).
+    it('#B616 - the bucket name is written as an escaped identifier', async function () {
+        await quiesce();
+        var modelDir = path.join(TMP, 'bundle/models/beer-sample');
+        fs.mkdirSync(path.join(modelDir, 'entities'), { recursive: true });
+        fs.mkdirSync(path.join(modelDir, 'n1ql/thing'), { recursive: true });
+        fs.writeFileSync(path.join(modelDir, 'entities/thing.js'),
+            'function Thing(conn) {}\nmodule.exports = Thing;\n');
+        fs.writeFileSync(path.join(modelDir, 'n1ql/thing/getRecord.sql'),
+            '/**\n * getRecord\n * @param {string} $key\n */\nSELECT t.* FROM `beer-sample` t USE KEYS $key\n');
+
+        var Couchbase = require(CONN_SRC);
+        var dashed    = new Couchbase(conn, { database: 'beer-sample', model: 'model616', bundle: 'bundle', scope: 'local' });
+        var mu        = new ModelUtil();
+        mu.setConnection('bundle', 'model616', conn);
+        mu.setModelEntity('bundle', 'model616', 'Thing', dashed.Thing);
+        new dashed.Thing(conn);
+        var ent616 = EntitySuper[EntitySuper.key('bundle', 'model616', 'Thing')].instance;
+
+        var w = bounded(ent616.bulkInsert({ k616: { values: { a: 1 } } }), 1500);
+        await tick();
+        var q = findPending('"k616"').q;
+        ok('"k616"', [{ id: 'k616' }]);
+        var r = await w;
+
+        // instrument: this is the statement of THIS call, and it settled
+        assert.equal(r.status, 'ok');
+        assert.ok(q.indexOf('VALUES ("k616"') > -1, 'harness: captured the wrong statement: ' + q);
+        // the fix
+        assert.equal(q.indexOf('INSERT INTO `beer-sample` (KEY, VALUE)'), 0, q);
+        assert.ok(q.indexOf('\nRETURNING `beer-sample`.*;') > -1, q);
+        assert.equal(q.indexOf('INSERT INTO beer-sample'), -1, 'the bare name must be gone: ' + q);
+    });
 });
 
 describe('07 - the shared-emitter mechanisms are removed, not merely bypassed (source pins)', function () {

@@ -1646,7 +1646,11 @@ function Couchbase(conn, infos) {
             }
 
 
-            var queryString = 'INSERT INTO '+ this.database +' (KEY, VALUE)';
+            // #B616 — the bucket name is an identifier in the statement text, and N1QL
+            // needs a name such as `beer-sample` escaped: backtick it, doubling any
+            // backtick inside. One keyspace string serves both clauses and the log copy.
+            var keyspace = '`' + String(this.database).replace(/`/g, '``') + '`';
+            var queryString = 'INSERT INTO '+ keyspace +' (KEY, VALUE)';
             var recCount = 0;
             for (let id in rec) {
                 if ( typeof(rec[id].values) == 'undefined' )
@@ -1665,7 +1669,7 @@ function Couchbase(conn, infos) {
             }
 
             queryString = queryString.substring(0, queryString.length-1);
-            queryString += '\nRETURNING '+ this.database +'.*;';
+            queryString += '\nRETURNING '+ keyspace +'.*;';
 
 
             // starting SDK v3, the query is the raw N1QL string (prepared-statement
@@ -1688,7 +1692,7 @@ function Couchbase(conn, infos) {
                 // `inspector.queries.captureValues` opts back in to the full statement.
                 var _biStatementForLog = paramRedact.captureValues()
                     ? statement
-                    : 'INSERT INTO ' + this.database + ' (KEY, VALUE) -- ' + recCount + ' record(s) [values redacted]';
+                    : 'INSERT INTO ' + keyspace + ' (KEY, VALUE) -- ' + recCount + ' record(s) [values redacted]';
                 console.debug('[ ' + trigger +' ] '+_biStatementForLog);
 
                 var _biAlsStore = process.gina && process.gina._queryALS ? process.gina._queryALS.getStore() : null;

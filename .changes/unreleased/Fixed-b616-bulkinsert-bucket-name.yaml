@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'A Couchbase entity `bulkInsert` now writes the bucket name into its statement as an escaped identifier, so it works on a bucket whose name needs escaping in N1QL, such as `beer-sample`. The name used to go into `INSERT INTO` and `RETURNING` bare, and a dash, which Couchbase allows in a bucket name, made the statement fail to parse. The statement text changes for every bucket (the name is now backtick-quoted); the query means the same. (#B616)'
+time: 2026-09-25T01:29:17+01:00
