@@ -2269,9 +2269,12 @@ isBundleMounted(projects, bundlesPath, getContext('bundle'), function onBundleMo
                                 // errors (onModelReady -> process.exit(1)). #B617: a throw from the
                                 // model-building block itself is caught inside lib/model.js (done() ->
                                 // _abortModelLoading, same message) on EVERY connector. On an async
-                                // one it used to escape into the connector's promise chain and reach
-                                // only the unhandledRejection net above (logged, exit 0 — measured),
-                                // never proc.js as this comment once said.
+                                // one it used to stay inside the driver's callback chain and never
+                                // reach this catch: duckdb's reached only the unhandledRejection net
+                                // above (logged, exit 0 — measured); the couchbase SDK 4.x handed it
+                                // back to its connect callback as a connection error (read from the
+                                // SDK source). For the drivers read it never reached proc.js, as this
+                                // comment once said; postgresql's driver was not read.
                                 // Was: console.error('[ FRAMEWORK ] Model loading failed: ' + ...) +
                                 //      e.emit('complete', instance)  (swallow -> degraded boot).
                                 var _loadMsg = '[ FRAMEWORK ] Model loading failed — aborting boot: ' + (loadErr.stack || loadErr.message || loadErr);

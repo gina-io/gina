@@ -1910,10 +1910,12 @@ function Couchbase(conn, infos) {
     // rather than at the top of the factory so every factory-level `var x = function`
     // above is already assigned. A refusal ends the boot through the explicit terminal
     // (the gna.js port-guard / #B57 idiom) instead of a bare throw: this factory runs
-    // inside the model layer's ready handler, which an async connector reaches from a
-    // connect() nothing awaits, so a throw here surfaces as an unhandled rejection that
-    // is only logged (read from the code, #B617) — and the bundle would keep booting
-    // with every query built on a scope it should have refused.
+    // inside the model layer's ready handler, which this connector reaches from inside
+    // the SDK's connect callback, and the SDK 4.x hands a throw from that callback back
+    // to the same callback as a connection error — logged as a failure to connect and
+    // retried, the bundle never listening (read from the SDK 4.1.3 source, #B617).
+    // lib/model.js's done() has caught such a throw since #B617 too; this terminal
+    // keeps the refusal's own message and GINA_COUCHBASE_INVALID_SCOPE code.
     var resolvedScope = null;
     try {
         resolvedScope = resolveScope(infos.scope, process.env.NODE_SCOPE);

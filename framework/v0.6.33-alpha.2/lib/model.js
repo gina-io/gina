@@ -106,10 +106,15 @@ var _unattachedEntities = function(modelObject, entitiesManager, instances) {
  *
  * The model-building block of `loadAllModels` runs inside the connector's own
  * ready callback. On a synchronous connector (sqlite) a throw there reaches the
- * #B57 catch in `core/gna.js`. On an asynchronous one (duckdb calls back from a
- * `.then()`, couchbase emits `ready` inside an `async` function) the same throw
- * became an unhandled rejection that `core/gna.js` only logs, so the boot
- * stopped half-built and the process exited 0 (measured) or stayed up unbound.
+ * #B57 catch in `core/gna.js`. On an asynchronous one it stayed inside the
+ * driver's callback chain, never reached that catch, and the boot stopped
+ * half-built without failing. How it surfaced depended on the driver: duckdb (a
+ * `.then()` callback) turned it into an unhandled rejection that `core/gna.js`
+ * only logs, and the process exited 0 (measured); the couchbase SDK 4.x calls
+ * its connect callback from a promise wrapper whose `.catch` calls the same
+ * callback again with the error, so it was logged as a failure to connect and
+ * retried (read from the SDK 4.1.3 source); mysql2 absorbs it inside its
+ * packet handler with no log line (read from the mysql2 3.23.3 source).
  * Catching it where it is raised gives every connector the same outcome.
  *
  * @private
@@ -378,12 +383,14 @@ function ModelUtil() {
 
                     if ( t == _connectorCount ) {
                         // #B617 — everything that builds the models below runs inside the
-                        // connector's ready callback, so a throw here (the uppercase guard, a
-                        // connector's entity-manager factory, an entity constructor) escaped
-                        // as an unhandled rejection on an async connector: logged only, boot
-                        // left half-built. End it the #B57 way instead. cb(), the boot's
-                        // continuation, stays OUTSIDE the try so a later boot failure is never
-                        // reported as a model failure. The body keeps its original indentation.
+                        // connector's ready callback, so on an async connector a throw here (the
+                        // uppercase guard, a connector's entity-manager factory, an entity
+                        // constructor) stayed inside the driver's callback chain — logged as an
+                        // unhandled rejection, re-delivered as a connection error, or swallowed,
+                        // depending on the driver — and the boot was left half-built. End it the
+                        // #B57 way instead. cb(), the boot's continuation, stays OUTSIDE the try
+                        // so a later boot failure is never reported as a model failure. The body
+                        // keeps its original indentation.
                         try {
                         setContext('modelConnectors', modelConnectors);
 
