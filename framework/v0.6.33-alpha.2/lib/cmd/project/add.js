@@ -601,22 +601,29 @@ function Add(opt, cmd) {
 
         var ginaModule = new _( self.projectLocation +'/node_modules/gina',true );
 
-        if ( !ginaModule.existsSync() ) {
-            linkGina(onError, onSuccess)
-        } else if ( /^true$/i.test(GINA_GLOBAL_MODE) ) {
-
-            error = ginaModule.rmSync();
-
-            if (error instanceof Error) {
-                console.error(err.stack);
-                process.exit(1);
-            } else {
+        // #B647 — link only once init() has finished its synchronous scaffold. For a
+        // new project, end() is reached from createPackageFile() before init() runs the
+        // --scope / --env children and writes manifest.json / env.json. Starting the
+        // asynchronous `link` child here let it run alongside them, and concurrent CLI
+        // processes lose each other's state writes (a new scope dropped from main.json).
+        setImmediate(function linkOnceScaffolded() {
+            if ( !ginaModule.existsSync() ) {
                 linkGina(onError, onSuccess)
-            }
+            } else if ( /^true$/i.test(GINA_GLOBAL_MODE) ) {
 
-        } else {
-            onSuccess()
-        }
+                error = ginaModule.rmSync();
+
+                if (error instanceof Error) {
+                    console.error(err.stack);
+                    process.exit(1);
+                } else {
+                    linkGina(onError, onSuccess)
+                }
+
+            } else {
+                onSuccess()
+            }
+        });
     }
 
     /**
