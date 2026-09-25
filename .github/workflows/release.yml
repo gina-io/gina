@@ -132,11 +132,23 @@ jobs:
             git merge-tree --write-tree --name-only origin/master HEAD || true
             exit 1
           fi
-          # A GITHUB_TOKEN push that creates or updates .github/workflows/** is refused
-          # (the token has no `workflows` scope) — and the master merge would carry these.
-          wf=$(git diff --name-only origin/master...HEAD -- .github/workflows/ || true)
+          # GitHub refuses a GITHUB_TOKEN push only when a NEW commit in it itself
+          # changes a workflow file (the token has no `workflows` scope). Measured on a
+          # throwaway repo (#R10 G2b, 2026-09-24): a bot merge whose workflow files
+          # equal the incoming side's was ALLOWED; the bot's own workflow-editing
+          # commit was REFUSED. The release scripts never write .github/, so the master
+          # merge is the only bot commit that can carry workflow content, and it must
+          # reproduce develop's .github/workflows/ exactly. Any other result (master
+          # carrying workflow content of its own, or a merge producing content found on
+          # neither side) is an unmeasured shape, refused here before the upload.
+          # Fail closed on its own: this must not lean on `set -e`, which bash ignores
+          # in some contexts (measured by the harness that validated this gate).
+          t=$(git merge-tree --write-tree origin/master HEAD) \
+            || { echo "::error::git merge-tree could not compute the master merge"; exit 1; }
+          wf=$(git diff --name-only "$t" HEAD -- .github/workflows/) \
+            || { echo "::error::could not compare the master merge's workflow files with develop's"; exit 1; }
           if [ -n "$wf" ]; then
-            echo "::error::workflow files changed since the last cut — the runner's push to master would be refused. Cut this one locally (phase 1):"
+            echo "::error::the master merge would hold workflow content that develop does not have — a GITHUB_TOKEN push carrying it may be refused. Cut this one locally (phase 1):"
             echo "$wf"
             exit 1
           fi
