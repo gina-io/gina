@@ -8865,6 +8865,13 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
      * dispatched via `renderCustomError` are consumer-owned — what the
      * template renders from `req.params.errorObject` is the consumer's call.
      *
+     * #B670 — a stack passed AS the message (`throwError(res, 500, err.stack)`,
+     * `throwError(500, err.stack)`, or an errorObj whose `title` / `message` /
+     * `error` holds one) is treated like the `stack` field: outside local scope
+     * the JSON body, the fallback HTML page and the data a custom error page
+     * receives keep only its message line, and the full text goes to the
+     * #ERRREF log line below. A caller's `msg` object is cut on a copy.
+     *
      * #ERRREF — every JSON error body additionally carries a top-level
      * `ref`: a short incident ref minted per error (or honoured from a
      * relay-safe producer-set `ref` on the error object / msg), present in
@@ -9311,6 +9318,15 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
                 var _errDetail = errorObject.stack || errorObject.message
                     || ( ( errorObject.error && typeof(errorObject.error) === 'object' ) ? JSON.stringify(errorObject.error) : errorObject.error )
                     || '';
+                // #B670 — the egress gate below cuts a stack-bearing title/message/error
+                // to its first line outside local scope, so that text must be in this
+                // line in full. It already is, unless a hand-built object's own `stack`
+                // was logged in its place.
+                for (var _dk = 0, _detailKeys = ['title', 'message', 'error']; _dk < _detailKeys.length; ++_dk) {
+                    if ( typeof(errorObject[_detailKeys[_dk]]) == 'string' && /\n\s+at\s/.test(errorObject[_detailKeys[_dk]]) && String(_errDetail).indexOf(errorObject[_detailKeys[_dk]]) < 0 ) {
+                        _errDetail += '\n'+ errorObject[_detailKeys[_dk]];
+                    }
+                }
                 if ( msg && typeof(msg) == 'object' && msg.cause ) {
                     _errDetail += '\ncaused by: '+ ( msg.cause.stack || msg.cause.message || msg.cause );
                 }
@@ -9323,6 +9339,20 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
                 // ginaToolbar.update('data-xhr', XHRData)).
                 if (!_isLocalScope && errorObject && errorObject.stack) {
                     delete errorObject.stack;
+                }
+                // #B670 — a stack passed AS the message (`throwError(res, 500, err.stack)`,
+                // the 2-arg form, or an errorObj whose `message` / `error` holds one)
+                // carries the frames the gate above strips from the `stack` field.
+                // Outside local scope the wire keeps its message line only — the same
+                // rule as #B131 on the server-side twin; the pairing line above logged
+                // the full text. Written inline: test/core/error-ref.test.js runs this
+                // window as extracted bytes, where a module-level helper is out of reach.
+                if (!_isLocalScope && errorObject) {
+                    for (var _wk = 0, _wireKeys = ['title', 'message', 'error']; _wk < _wireKeys.length; ++_wk) {
+                        if ( typeof(errorObject[_wireKeys[_wk]]) == 'string' && /\n\s+at\s/.test(errorObject[_wireKeys[_wk]]) ) {
+                            errorObject[_wireKeys[_wk]] = errorObject[_wireKeys[_wk]].split('\n')[0];
+                        }
+                    }
                 }
 
                 var errOutput = null, output = errorObject.toString();
@@ -9382,7 +9412,50 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
                     var _logMsg = errorObject.stack || errorObject.message
                         || (typeof(errorObject.error) === 'object' ? JSON.stringify(errorObject.error) : errorObject.error)
                         || JSON.stringify(errorObject);
+                    // #B670 — when the caller passed a stack AS the message, `stack` above is
+                    // the throwError callsite: add the error's own text, which is logged
+                    // nowhere else and is cut from the page below outside local scope.
+                    for (var _lk = 0, _logKeys = ['title', 'message', 'error']; _lk < _logKeys.length; ++_lk) {
+                        if ( typeof(errorObject[_logKeys[_lk]]) == 'string' && /\n\s+at\s/.test(errorObject[_logKeys[_lk]]) && String(_logMsg).indexOf(errorObject[_logKeys[_lk]]) < 0 ) {
+                            _logMsg += '\n'+ errorObject[_logKeys[_lk]];
+                        }
+                    }
                     console.error('[ ref '+ _errRef +' ][ req '+ ( ( req && req._ginaReqId ) || '-' ) +' ] '+ req.method +' [ '+ errorObject.status +' ] '+ req.url + '\n'+ _logMsg);
+                } else if ( msg && typeof(msg) == 'object' ) {
+                    // #B670 — the (res, code, errorObj) shape reaches this branch with no
+                    // errorObject, so no line paired the ref the page renders. Log the
+                    // caller's own text against it, like the line above.
+                    var _msgLog = '';
+                    for (var _mk = 0, _msgKeys = ['stack', 'message', 'error', 'title']; _mk < _msgKeys.length; ++_mk) {
+                        if ( typeof(msg[_msgKeys[_mk]]) == 'string' && msg[_msgKeys[_mk]] && _msgLog.indexOf(msg[_msgKeys[_mk]]) < 0 ) {
+                            _msgLog += ( _msgLog ? '\n' : '' ) + msg[_msgKeys[_mk]];
+                        }
+                    }
+                    console.error('[ ref '+ _errRef +' ][ req '+ ( ( req && req._ginaReqId ) || '-' ) +' ] '+ req.method +' [ '+ code +' ] '+ req.url + ( _msgLog ? '\n'+ _msgLog : '' ));
+                }
+
+                // #B670 — outside local scope the page (the inline fallback page, or a
+                // custom error page through `page.data` and `req.params.errorObject`)
+                // keeps only the message line of a stack-bearing title/message/error,
+                // like the JSON wire; the ref lines above logged the full text.
+                // `errorObject` is cut in place, as the JSON branch's stack gate already
+                // edits it; the caller's `msg` is replaced by a copy, never written.
+                if ( !_isLocalScope ) {
+                    var _msgCopy = null;
+                    for (var _pk = 0, _pageKeys = ['title', 'message', 'error']; _pk < _pageKeys.length; ++_pk) {
+                        if ( errorObject && typeof(errorObject) == 'object' && typeof(errorObject[_pageKeys[_pk]]) == 'string' && /\n\s+at\s/.test(errorObject[_pageKeys[_pk]]) ) {
+                            errorObject[_pageKeys[_pk]] = errorObject[_pageKeys[_pk]].split('\n')[0];
+                        }
+                        if ( msg && typeof(msg) == 'object' && typeof(msg[_pageKeys[_pk]]) == 'string' && /\n\s+at\s/.test(msg[_pageKeys[_pk]]) ) {
+                            if ( !_msgCopy ) {
+                                _msgCopy = { title: msg.title, error: msg.error, message: msg.message, stack: msg.stack };
+                            }
+                            _msgCopy[_pageKeys[_pk]] = msg[_pageKeys[_pk]].split('\n')[0];
+                        }
+                    }
+                    if ( _msgCopy ) {
+                        msg = _msgCopy;
+                    }
                 }
 
                  // intercept none HTML mime types
