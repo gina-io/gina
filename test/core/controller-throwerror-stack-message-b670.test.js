@@ -120,6 +120,14 @@ describe('#B670 §01 — where the cuts sit in controller-side throwError', func
             'JSON cut, JSON pairing completion, HTML ref-line completion, HTML page cut (errorObject + msg)');
     });
 
+    it('redirect()\'s call-site list is written as V8 frames, the shape the cut recognises', function () {
+        var all = live(CTL_RAW);
+        assert.equal(countOf(all, "__stack.splice(1).toString().split(',').join('\\n')"), 0,
+            'the prefix-less join is gone from live code');
+        assert.ok(all.indexOf("__stack.splice(1).map(function (c) { return '    at '+ c; }).join('\\n')") > -1,
+            'each call site is written as a `    at` frame');
+    });
+
     it('the caller\'s msg is never written — a copy replaces it', function () {
         ['msg.title =', 'msg.message =', 'msg.error ='].forEach(function (w) {
             assert.equal(countOf(T, w), 0, 'no assignment into the caller\'s object: ' + w);
@@ -191,7 +199,14 @@ function makeDriver(isLocal) {
         var origError = logger.error;
         logger.error = function () { logs.push(Array.prototype.slice.call(arguments).join(' ')); };
         try {
-            inst.throwError.apply(inst, argsFn(res));
+            if (opts.invoke) {
+                // another controller method that ends in throwError (e.g. redirect());
+                // its synchronous part runs before the first await, so the body is set here
+                var p = opts.invoke(inst);
+                if (p && typeof p.catch == 'function') p.catch(function () {});
+            } else {
+                inst.throwError.apply(inst, argsFn(res));
+            }
         } finally {
             logger.error = origError;
         }
@@ -201,6 +216,15 @@ function makeDriver(isLocal) {
 }
 
 function stackOf(token) { return new Error(token).stack; }
+/** redirect() reads the routing through the `gina` context before it validates its arguments */
+function seedGinaContext() {
+    var ctx = getContext('gina');
+    if (!ctx || !ctx.config || typeof ctx.config.getRouting != 'function') {
+        setContext('gina', { config: { getRouting: function () { return {}; } } });
+    }
+}
+function redirectBadFlag(inst) { return inst.redirect('/elsewhere', 'maybe'); }
+var CALLSITE_PATH = /\((?:\/|node:)[^)\n]*:\d+:\d+\)/;
 function firstLine(s) { return s.split('\n')[0]; }
 function json(r) { return JSON.parse(r.body); }
 function anyFrame(obj) {
@@ -287,6 +311,22 @@ describe('#B670 §02 — NON-local scope: the wire carries the message line, the
         assert.ok(h.logs.some(function (l) { return l.indexOf(inner) > -1; }), 'the HTML ref line logs the pasted stack');
     });
 
+    // redirect(url, <non-boolean>) builds its message from gina's `__stack` global:
+    // raw V8 CallSite objects, whose toString() has no `at ` prefix — so the text
+    // escaped the cut and shipped every absolute path (measured live, 9 paths).
+    it('redirect(url, <non-boolean>): its call-site list leaves no path on the wire, and is logged', function () {
+        seedGinaContext();
+        var j = drive({ xhr: true, invoke: redirectBadFlag });
+        var w = json(j);
+        assert.equal(w.message, 'RedirectError: @param `ignoreWebRoot` must be a boolean');
+        assert.ok(!CALLSITE_PATH.test(j.body), 'no call-site path on the wire: ' + j.body.slice(0, 300));
+        assert.equal(j.logs.length, 1, 'ONE pairing line');
+        assert.ok(CALLSITE_PATH.test(j.logs[0]), 'the call sites are logged');
+        var h = drive({ xhr: false, invoke: redirectBadFlag });
+        assert.ok(h.body.indexOf('RedirectError: @param `ignoreWebRoot` must be a boolean') > -1, 'the sentence is shown');
+        assert.ok(!CALLSITE_PATH.test(h.body), 'no call-site path on the page');
+    });
+
     it('the caller\'s object is not rewritten (JSON and HTML)', function () {
         var s = stackOf('b670-caller');
         var o1 = { error: 'short', message: s };
@@ -319,6 +359,14 @@ describe('#B670 §02 — LOCAL scope: the wire is unchanged (the dev toolbar rea
         assert.equal(w.message, s);
         var w2 = json(drive({ xhr: true }, function (res) { return [res, 500, new Error('b670-local-err')]; }));
         assert.ok(typeof w2.stack == 'string' && FRAME.test(w2.stack), 'local keeps the stack field');
+    });
+
+    it('redirect(url, <non-boolean>): local scope keeps the call sites, now as V8 frames', function () {
+        seedGinaContext();
+        var w = json(drive({ xhr: true, invoke: redirectBadFlag }));
+        assert.equal(w.message.indexOf('RedirectError: @param `ignoreWebRoot` must be a boolean\n'), 0);
+        assert.ok(FRAME.test(w.message), 'the call sites read as `    at` frames: ' + w.message.slice(0, 200));
+        assert.ok(CALLSITE_PATH.test(w.message), 'and still name their files (dev toolbar)');
     });
 
     it('HTML 3-arg: the page still shows the frames', function () {

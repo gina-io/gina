@@ -3284,7 +3284,12 @@ function SuperController(options) {
                     ignoreWebRoot = false
                 } else {
                     res = local.res;
-                    var stack = __stack.splice(1).toString().split(',').join('\n');
+                    // #B670 — `__stack` returns raw V8 CallSite objects, whose toString() has no
+                    // `    at ` prefix: joined as-is, the list escaped throwError's non-local cut
+                    // and shipped every absolute path to the client. Written as V8 frames, the
+                    // cut recognises it and the ref line keeps it whole.
+                    // was: var stack = __stack.splice(1).toString().split(',').join('\n');
+                    var stack = __stack.splice(1).map(function (c) { return '    at '+ c; }).join('\n');
                     self.throwError(res, 500, new Error('RedirectError: @param `ignoreWebRoot` must be a boolean\n' + stack));
                     return;
                 }
