@@ -3029,35 +3029,93 @@ function FormValidatorUtil(data, $fields, xhrOptions, fieldsSet, culture) {
                     if ( typeof(local.errorLabels[v]) == 'undefined' ) {
                         local.errorLabels[v] = 'Condition not satisfied';
                     }
-                    // converting Buffer to string
-                    if ( isGFFCtx ) {
-                        //userValidatorError = String.fromCharCode.apply(null, new Uint16Array(gina.forms.validators[v].data));
-                        userValidator = bufferToString(gina.forms.validators[v].data); // ok
-                        var passedContext = 'var validationContext = this.getValidationContext(),isGFFCtx = validationContext.isGFFCtx,self = validationContext.self,local = validationContext.local,replace = validationContext.replace;';
-                        userValidator = userValidator.replace(/(\)\s+\{|\)\{){1}/, '$&\n\t'+ passedContext);
-
-                        //userValidator += '\n//#sourceURL='+ v +'.js';
-                    } else {
-                        userValidator = gina.forms.validators[v].toString();
-                    }
-
-                    // #M21c — Pattern B eval surface (trust-model invariant)
+                    // #M21c — Pattern B trust-model invariant, kept by #M21d
                     // Load-bearing: user-defined validator function bodies are registered on
                     // `gina.forms.validators` from disk-loaded `bundle/validators/<name>/main.js`
                     // files at framework boot. Trust assumption: the source of `userValidator`
                     // is always disk-sourced at boot — never request-time input (req.*, request.*,
-                    // form values, URL params). End-user data MUST NOT reach this eval.
+                    // form values, URL params). End-user data MUST NOT reach this compile step.
                     // Invariant pinned by test/lib/validator-scs1i.test.js (zero write sites for
                     // `gina.forms.validators` in framework source; zero request-time identifiers
                     // around the userValidator source chain).
-                    self[el][v] = eval('(' + userValidator + ')\n//# sourceURL='+ v +'.js');
-                    //self[el][v] = Function('errorMessage', 'errorStack', userValidator);
+                    if ( isGFFCtx ) {
+                        // converting Buffer to string
+                        userValidator = bufferToString(gina.forms.validators[v].data); // ok
+                        var passedContext = 'var validationContext = this.getValidationContext(),isGFFCtx = validationContext.isGFFCtx,self = validationContext.self,local = validationContext.local,replace = validationContext.replace;';
+                        userValidator = userValidator.replace(/(\)\s+\{|\)\{){1}/, '$&\n\t'+ passedContext);
+                        // #M21d — compiled by the browser as an inline <script>, the way the
+                        // bootstrap that delivered the source was; no dynamic-code call remains.
+                        // The prologue spliced above hands the body self/local/isGFFCtx/replace
+                        // through this.getValidationContext(), so the function needs no lexical
+                        // scope from this file. Compiled once per validator per page.
+                        self[el][v] = compileUserValidator(v, userValidator);
+                    } else if ( typeof(gina.forms.validators[v]) === 'function' ) {
+                        // A function registered on the context is used as it is: the former
+                        // source round-trip (toString, then a dynamic compile) produced an
+                        // equivalent function minus its closure.
+                        self[el][v] = gina.forms.validators[v];
+                    } else {
+                        // Custom validators run in the browser only: the server-side
+                        // registration path is not wired (`hasUserValidators()` reads
+                        // `getContext('gina').forms`, which nothing sets server-side), so a
+                        // source-shaped registration cannot be compiled here — stated instead
+                        // of a dead compile step.
+                        throw new Error('[UserFormValidator] custom validators run in the browser only — the server-side registration path is not wired (see the validation-rules reference, "Custom validators")');
+                    }
                 }
             } catch (userValidatorError) {
                 throw new Error('[UserFormValidator] Could not evaluate: `'+ filename +'`\n'+userValidatorError.stack);
             }
         }
     } // EO addField(el, value)
+
+    /**
+     * Compiles one custom validator's source into a function by inserting it into the
+     * document as an inline `<script>` (#M21d) — the same channel that delivered the
+     * source to the page (`gina.forms` is parsed from the framework's inline bootstrap),
+     * so a page that renders at all can compile it: with no CSP, under `'unsafe-inline'`,
+     * or under a nonce policy (the script copies the nonce off an existing nonced script
+     * element). No `'unsafe-eval'` is needed, and no dynamic-code call remains in the
+     * bundle. The compiled function lands on `gina.forms.compiledValidators[name]`, a
+     * sibling of the source registry that stays read-only for the framework (#M21c).
+     * Browser-side only: the server branch above throws before reaching it.
+     *
+     * The script element executes synchronously on insertion and is removed right after,
+     * so nothing stays in the DOM. `//# sourceURL=<name>.js` keeps the validator visible
+     * in DevTools under its own name (the "Extra Scripts" affordance noted above).
+     *
+     * @param   {string} name   - Validator name (`gina.forms.validators` key).
+     * @param   {string} source - The function source, prologue already spliced in.
+     * @returns {function} The compiled validator.
+     * @throws  {Error} When the browser did not compile it — a SyntaxError in the file
+     *      (reported on the console by the browser, with the file's own name) or a CSP
+     *      that refuses inline scripts, in which case nothing gina renders runs either.
+     * @inner
+     *
+     * @example
+     * // a page seeded with gina.forms.validators.isSiren (a Buffer-shaped source)
+     * var fn = compileUserValidator('isSiren', 'function FormValidateIsSiren(errorMessage, errorStack) { ... }');
+     * typeof fn; // 'function'
+     * gina.forms.compiledValidators.isSiren === fn; // true — reused for every field on the page
+     */
+    function compileUserValidator(name, source) {
+        var registry = gina.forms.compiledValidators = gina.forms.compiledValidators || {};
+        if ( typeof(registry[name]) !== 'function' ) {
+            var doc     = document;
+            var script  = doc.createElement('script');
+            var nonced  = doc.querySelector('script[nonce]');
+            if ( nonced && nonced.nonce ) {
+                script.nonce = nonced.nonce;
+            }
+            script.text = 'gina.forms.compiledValidators[' + JSON.stringify(name) + '] = (' + source + ');\n//# sourceURL=' + name + '.js';
+            (doc.head || doc.documentElement).appendChild(script);
+            script.parentNode.removeChild(script);
+            if ( typeof(registry[name]) !== 'function' ) {
+                throw new Error('the browser did not compile it — look for a SyntaxError or a Content-Security-Policy report in the console');
+            }
+        }
+        return registry[name];
+    }
 
 
     for (let el in self) {

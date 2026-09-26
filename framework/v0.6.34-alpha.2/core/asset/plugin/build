@@ -319,6 +319,19 @@ cmd="$rjs_bin -o $SCRIPT_PATH/src/vendor/gina/$filename"
 echo -e "Running: ${cmd}"
 eval $cmd
 
+# No dynamic code in the bundle (#M21d): two vendored libraries the r.js output
+# inlines carry an unreachable eval/Function call (RequireJS `req.exec`, engine.io's
+# global-object shim); each is replaced by an exact-match rewrite that fails the
+# build if the upstream text moved, then the output is asserted clean. The prod
+# build asserts the Closure output too (below). Deviation from upstream documented
+# in lib/js/no-dynamic-code.js.
+rjs_out="$SCRIPT_PATH/dist/vendor/gina/js/gina.js"
+if [ "${build_env}" == "dev" ]; then
+    rjs_out="$SCRIPT_PATH/dist/vendor/gina/js/gina.min.js"
+fi
+node $SCRIPT_PATH/lib/js/no-dynamic-code.js patch "$rjs_out" || exit 1
+node $SCRIPT_PATH/lib/js/no-dynamic-code.js assert "$rjs_out" || exit 1
+
 
 # Skip for dev
 if [ ! "${build_env}" == "dev" ]; then
@@ -328,6 +341,7 @@ if [ ! "${build_env}" == "dev" ]; then
     cmd="$java_bin -jar $SCRIPT_PATH/lib/js/compiler.jar --formatting=SINGLE_QUOTES --compilation_level SIMPLE_OPTIMIZATIONS --jscomp_warning=es5Strict --js $SCRIPT_PATH/dist/vendor/gina/js/gina.js --create_source_map $SCRIPT_PATH/dist/vendor/gina/js/gina.min.js.map --js_output_file $SCRIPT_PATH/dist/vendor/gina/js/gina.min.js"
     echo -e "Running: ${cmd}"
     eval $cmd
+    node $SCRIPT_PATH/lib/js/no-dynamic-code.js assert "$SCRIPT_PATH/dist/vendor/gina/js/gina.min.js" || exit 1
 fi
 
 
