@@ -8100,6 +8100,18 @@ function Server(options) {
         }
 
         if (matched) {
+            // #B675 — a HEAD served by a GET rule runs the GET action in full (RFC 9110 §9.3.2),
+            // but processRequestData keeps a HEAD's params in `req.head` and clears `req.get`, so a
+            // GET action reading `req.get.<param>` threw on the undefined bag and answered 500.
+            // Expose the settled `req.head` as `req.get` — the same object, so the action sees the
+            // URL and query params a GET would. It sits here, after route matching and the restore
+            // above, because the loop rebuilds `req[method]` for each rule and a warm route-cache
+            // hit breaks out before the merge block. `req.head`, `req.getParam()` and
+            // `req.getParams()` are unchanged, and `req.method` stays HEAD.
+            if ( /^head$/i.test(req.method) && typeof(req.head) == 'object' && req.head !== null ) {
+                req.get = req.head;
+            }
+
             // #RC4 — render/output-cache redis L2 read (design f). Runs AFTER route
             // matching (so req.routing.cache is materialised → uncached GETs pay nothing)
             // and BEFORE both dispatch paths. On a hit it serves + returns, skipping the
