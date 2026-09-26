@@ -2990,7 +2990,8 @@ function Server(options) {
      */
     var getAssets = function (bundleConf, layoutStr, swig, data) {
 
-        // layout search for <link|source|script|img>
+        // layout search for <link|source|script|img>; this is an asset-tag scan over the bundle's own
+        // layout template, not an HTML sanitizer — codeql[js/bad-tag-filter]
         var layoutAssets        = layoutStr.match(/<link .*?<\/link>|<link .*?(rel\=\"(stylesheet|icon|manifest|(.*)\-icon))(.*)|<source .*?(type\=\"(image))(.*)|<script.*?<\/script>|<img .*?(.*)/g) || [];
 
         var assets      = {}
