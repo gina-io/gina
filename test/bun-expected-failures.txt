@@ -70,3 +70,9 @@ test/lib/runtime.test.js :: 05 - utils/runtime: runtimeBinary under Node :: retu
 test/lib/runtime.test.js :: 06 - utils/runtime: runtimeBinary under Bun :: falls back to Bun.which("bun") when execPath is not recognisably bun
 test/lib/swig-filters.test.js :: 03 - getWebroot context-lookup fix (#B26) :: MEASUREMENT: the old body throws "Cannot read properties of undefined (reading 'getConf')"
 test/lib/validator-label-degrade.test.js :: 06 - compileError no longer dies on a placeholder-less backend error :: replica: the guarded shape returns the error verbatim; the pre-fix shape throws
+test/lib/validator-m21d.test.js :: 02 — the shipped compileUserValidator under jsdom (#M21d) :: 02.1 compiles a prologue-spliced source into gina.forms.compiledValidators and returns it
+test/lib/validator-m21d.test.js :: 02 — the shipped compileUserValidator under jsdom (#M21d) :: 02.2 the compiled function sees the scope contract through this.getValidationContext() and validates
+test/lib/validator-m21d.test.js :: 02 — the shipped compileUserValidator under jsdom (#M21d) :: 02.3 compiles once per page: a second call for the same name returns the same function
+test/lib/validator-m21d.test.js :: 02 — the shipped compileUserValidator under jsdom (#M21d) :: 02.4 copies the page nonce onto the compile script when a nonced script exists
+test/lib/validator-m21d.test.js :: 02 — the shipped compileUserValidator under jsdom (#M21d) :: 02.5 sets no nonce when the page has none
+test/lib/validator-m21d.test.js :: 02 — the shipped compileUserValidator under jsdom (#M21d) :: 02.6 a source the browser cannot compile is refused with the documented message, nothing registered
