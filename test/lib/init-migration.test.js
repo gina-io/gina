@@ -31,31 +31,42 @@ function clone(obj) {
 
 /**
  * Inline simulation of the checkIfMain migration block.
- * Mirrors the exact logic in init.js:
- *   - finds the most recent previous short version via parseFloat
- *   - copies all namespaced keys (objects whose subkey matches prevShort)
- *   - skips '_comment' and 'def_framework'
- *   - seeds frameworks[release] from the template data entry
+ * Mirrors the exact logic in init.js (#B680):
+ *   - finds the most recent previous short version via parseFloat, among the
+ *     frameworks keys other than the release itself and '_comment', and only
+ *     keys shaped like a short version ('0.6', '1.0' — never 'latest')
+ *   - copies a namespaced key (an object whose subkey matches prevShort) only
+ *     when it has no entry for the release yet — idempotent, and independent of
+ *     frameworks[release], which a registrar may have written first
+ *   - skips '_comment', 'def_framework' and 'frameworks'
+ *   - seeds frameworks[release] from the template data entry only when absent
+ *
+ * @param {object} mainConfig - Parsed main.json (mutated in place)
+ * @param {string} release - The running short version, e.g. '0.2'
+ * @param {object} templateData - The whispered template (`frameworks` only here)
+ * @returns {object} mainConfig
  */
 function runMainMigration(mainConfig, release, templateData) {
-    if (typeof(mainConfig['frameworks'][release]) !== 'undefined') {
-        return mainConfig; // no migration needed
-    }
-
     var _prevShort = null;
     for (var _fk in mainConfig['frameworks']) {
-        if (_fk === '_comment') continue;
+        if (_fk === '_comment' || _fk === release || !/^\d+\.\d+$/.test(_fk)) continue;
         if (!_prevShort || parseFloat(_fk) > parseFloat(_prevShort)) _prevShort = _fk;
     }
 
     if (_prevShort) {
         for (var _mk in mainConfig) {
-            if (_mk === '_comment' || _mk === 'def_framework') continue;
+            if (_mk === '_comment' || _mk === 'def_framework' || _mk === 'frameworks') continue;
             var _mv = mainConfig[_mk];
-            if (_mv !== null && typeof _mv === 'object' && !Array.isArray(_mv) && typeof(_mv[_prevShort]) !== 'undefined') {
+            if (
+                _mv !== null && typeof _mv === 'object' && !Array.isArray(_mv)
+                && typeof(_mv[_prevShort]) !== 'undefined'
+                && typeof(_mv[release]) === 'undefined'
+            ) {
                 mainConfig[_mk][release] = clone(_mv[_prevShort]);
             }
         }
+    }
+    if (typeof(mainConfig['frameworks'][release]) === 'undefined') {
         mainConfig['frameworks'][release] = clone(templateData['frameworks'][release] || []);
     }
 
@@ -320,6 +331,103 @@ describe('init.js checkIfMain migration — behaviour', function() {
         cfg['archs']['0.2'].push('s390x');
         assert.deepEqual(cfg['archs']['0.1'], ['arm64', 'x64'],
             '0.1 archs must not be affected by mutation of 0.2 copy');
+    });
+
+    // #B680 — a registrar (bin/cli's bundle|project:start sync, a gina-container
+    // boot, post_install's end()) can write frameworks[<new short>] without migrating.
+    it('#B680: frameworks[0.2] registered first — the dicts still migrate and the registrar entry is kept', function() {
+        var cfg = makeMainConfig('0.1');
+        cfg['frameworks']['0.2'] = ['0.2.0'];
+        runMainMigration(cfg, '0.2', makeTemplateData('0.2', '0.2.0-alpha.1'));
+        assert.equal(cfg['def_culture']['0.2'], 'en_CM', 'def_culture["0.2"] must be migrated');
+        assert.equal(cfg['def_timezone']['0.2'], 'Africa/Douala');
+        assert.deepEqual(cfg['archs']['0.2'], ['arm64', 'x64']);
+        assert.deepEqual(cfg['frameworks']['0.2'], ['0.2.0'],
+            'the registrar entry must not be replaced by the template seed');
+    });
+
+    it('#B680: fills only the dicts that lack the release — an existing release entry is never overwritten', function() {
+        var cfg = makeMainConfig('0.1');
+        cfg['def_culture']['0.2'] = 'fr_FR';
+        runMainMigration(cfg, '0.2', makeTemplateData('0.2', '0.2.0-alpha.1'));
+        assert.equal(cfg['def_culture']['0.2'], 'fr_FR', 'an entry already present for the release is kept');
+        assert.equal(cfg['def_scope']['0.2'], 'local', 'a dict without the release entry is filled');
+    });
+
+    it('#B680: a non-numeric frameworks key (latest) is never taken as the previous short', function() {
+        var cfg = makeMainConfig('0.1');
+        // 'latest' inserted FIRST: the old selection took the first key and never
+        // replaced it, since parseFloat('0.1') > NaN is false.
+        cfg['frameworks'] = { 'latest': ['vlatest'], '0.1': ['0.1.8-alpha.1'] };
+        cfg['def_culture']['latest'] = 'xx_XX';
+        runMainMigration(cfg, '0.2', makeTemplateData('0.2', '0.2.0-alpha.1'));
+        assert.equal(cfg['def_culture']['0.2'], 'en_CM', 'migrated from 0.1, not from latest');
+        assert.equal(cfg['def_scope']['0.2'], 'local');
+    });
+
+    it('#B680: a second run on a migrated file changes nothing (idempotent)', function() {
+        var cfg = makeMainConfig('0.1');
+        runMainMigration(cfg, '0.2', makeTemplateData('0.2', '0.2.0-alpha.1'));
+        var once = clone(cfg);
+        runMainMigration(cfg, '0.2', makeTemplateData('0.2', '0.2.0-alpha.1'));
+        assert.deepEqual(cfg, once);
+    });
+
+});
+
+
+// ─── (b2) checkIfMain — #B680 / #B681 source structure ───────────────────────
+
+describe('init.js checkIfMain — #B680 / #B681 source structure', function() {
+
+    // Every pin reads inside checkIfMain only: from its declaration to the next
+    // step's, each literal asserted unique so the slice cannot drift.
+    var START = 'self.checkIfMain = function(done) {';
+    var END   = 'self.checkArch = function(done) {';
+
+    function checkIfMainBody() {
+        assert.equal(src.split(START).length, 2, 'checkIfMain declaration must be unique');
+        assert.equal(src.split(END).length, 2, 'checkArch declaration must be unique');
+        return src.slice(src.indexOf(START), src.indexOf(END));
+    }
+
+    it('#B680: the previous short excludes the release and keys that are not short versions', function() {
+        assert.ok(
+            checkIfMainBody().indexOf("if (_fk === '_comment' || _fk === self.release || !/^\\d+\\.\\d+$/.test(_fk)) continue;") > -1,
+            'expected the release and non-numeric keys to be skipped when picking the previous short'
+        );
+    });
+
+    it('#B680: a dict is copied only when it has the previous short and lacks the release', function() {
+        assert.match(
+            checkIfMainBody(),
+            /typeof\(_mv\[_prevShort\]\) !== 'undefined'\s*&&\s*typeof\(_mv\[self\.release\]\) === 'undefined'/,
+            'expected the copy to be gated on the release entry being missing'
+        );
+    });
+
+    it('#B680: frameworks is never copied from the previous short', function() {
+        assert.ok(
+            checkIfMainBody().indexOf("_mk === 'def_framework' || _mk === 'frameworks'") > -1,
+            'expected frameworks to be skipped by the copy loop'
+        );
+    });
+
+    it('#B680: the frameworks[release] guard wraps only the template seed, not the migration', function() {
+        assert.match(
+            checkIfMainBody(),
+            /if \(typeof\(mainConfig\['frameworks'\]\[self\.release\]\) === 'undefined'\) \{\s*mainConfig\['frameworks'\]\[self\.release\] = JSON\.clone\(data\['frameworks'\]\[self\.release\] \|\| \[\]\);\s*\}/,
+            'expected the frameworks[release] guard to hold the seed alone'
+        );
+    });
+
+    it('#B681: main.json leaves the require cache after the commit, before the later readers', function() {
+        var body   = checkIfMainBody();
+        var commit = 'lib.generator.createFileFromDataSync(mainConfig, target);';
+        var drop   = 'delete require.cache[require.resolve(target)];';
+        assert.equal(body.split(commit).length, 2, 'the commit must be unique in checkIfMain');
+        assert.equal(body.split(drop).length, 2, 'the cache drop must be unique in checkIfMain');
+        assert.ok(body.indexOf(drop) > body.indexOf(commit), 'the cache drop must follow the commit');
     });
 
 });

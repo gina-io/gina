@@ -330,6 +330,30 @@ function Initialize(opt) {
         done()
     }
 
+    /**
+     * Creates or updates `~/.gina/main.json` for the running release, then exports
+     * the release's culture, timezone, log level, prefix and global-mode defaults.
+     *
+     * On the first run of a new short version (a minor crossing, e.g. 0.6 → 0.7),
+     * every per-version dict (`def_culture`, `archs`, `cultures`, …) that has no
+     * entry for the release gets a copy of the previous short version's entry, and
+     * `frameworks[<release>]` is seeded from the template when absent. Only missing
+     * entries are filled, so the step is idempotent, and it runs whether or not a
+     * registrar (bin/cli's start sync, gina-container, post_install) wrote
+     * `frameworks[<release>]` first (#B680).
+     *
+     * After the commit, `main.json` is dropped from Node's require cache, so the
+     * later steps that `require()` it read the migrated file (#B681).
+     *
+     * @private
+     * @param {function} done - Step callback; called with the error only when a
+     *        missing `main.json` cannot be created. Any other failure throws, and
+     *        the `begin()` chain exits the process.
+     * @returns {void}
+     * @example
+     * // A 0.6 main.json read by 0.7.0: def_culture {'0.6':'fr_FR'} gains '0.7':'fr_FR'
+     * // and the step logs `Migrating main.json: 0.6 → 0.7`; a second run changes nothing.
+     */
     self.checkIfMain = function(done) {
         console.debug('Checking main...');
         var source      = getPath('gina').root + '/resources/home/main.json';
@@ -362,27 +386,48 @@ function Initialize(opt) {
         mainConfig      = whisper(dic, mainConfig);
 
         // MIGRATION — first run on a new short version (e.g. 0.1 → 0.2, 0.5 → 1.0).
-        // If the new release key is absent, copy all namespaced keys from the most recent
-        // previous short version. Downgrade is free: old keys are never removed from main.json,
-        // so switching back just re-reads the already-present keys.
-        if (typeof(mainConfig['frameworks'][self.release]) === 'undefined') {
-            var _prevShort = null;
-            for (var _fk in mainConfig['frameworks']) {
-                if (_fk === '_comment') continue;
-                if (!_prevShort || parseFloat(_fk) > parseFloat(_prevShort)) _prevShort = _fk;
-            }
-            if (_prevShort) {
-                console.info('Migrating main.json: ' + _prevShort + ' → ' + self.release);
-                for (var _mk in mainConfig) {
-                    if (_mk === '_comment' || _mk === 'def_framework') continue;
-                    var _mv = mainConfig[_mk];
-                    if (_mv !== null && typeof _mv === 'object' && !Array.isArray(_mv) && typeof(_mv[_prevShort]) !== 'undefined') {
-                        mainConfig[_mk][self.release] = JSON.clone(_mv[_prevShort]);
-                    }
+        // Every per-version dict with no entry for the new release gets a copy of the
+        // entry of the most recent previous short version. Downgrade is free: old keys
+        // are never removed from main.json, so switching back just re-reads the
+        // already-present keys.
+        //
+        // #B680 — the trigger is a dict MISSING the release, not frameworks[release]
+        // being absent: bin/cli's bundle|project:start sync, every gina-container boot
+        // and post_install's end() (after a framework:set that failed) register
+        // frameworks[<new short>] without migrating, which used to skip this migration
+        // for good, leave def_culture[release] undefined, and make defCulture.split()
+        // below throw on every later command.
+        // For the same reason the previous short is picked among the OTHER short
+        // versions: the release itself may already be registered, and a key such as
+        // `latest` is not a short version. Only missing entries are filled, so a file
+        // that is already migrated is left as it is.
+        var _prevShort = null;
+        for (var _fk in mainConfig['frameworks']) {
+            if (_fk === '_comment' || _fk === self.release || !/^\d+\.\d+$/.test(_fk)) continue;
+            if (!_prevShort || parseFloat(_fk) > parseFloat(_prevShort)) _prevShort = _fk;
+        }
+        if (_prevShort) {
+            var _migrated = 0;
+            for (var _mk in mainConfig) {
+                // frameworks is seeded below, never copied: frameworks[<prev>] lists the
+                // previous short's versions, not this one's.
+                if (_mk === '_comment' || _mk === 'def_framework' || _mk === 'frameworks') continue;
+                var _mv = mainConfig[_mk];
+                if (
+                    _mv !== null && typeof _mv === 'object' && !Array.isArray(_mv)
+                    && typeof(_mv[_prevShort]) !== 'undefined'
+                    && typeof(_mv[self.release]) === 'undefined'
+                ) {
+                    if (!_migrated) console.info('Migrating main.json: ' + _prevShort + ' → ' + self.release);
+                    mainConfig[_mk][self.release] = JSON.clone(_mv[_prevShort]);
+                    ++_migrated;
                 }
-                // Seed the frameworks array for the new release from the template (current version only)
-                mainConfig['frameworks'][self.release] = JSON.clone(data['frameworks'][self.release] || []);
             }
+        }
+        // Seed the frameworks array for the new release from the template (current version
+        // only) — only when absent, so an entry a registrar wrote first is kept.
+        if (typeof(mainConfig['frameworks'][self.release]) === 'undefined') {
+            mainConfig['frameworks'][self.release] = JSON.clone(data['frameworks'][self.release] || []);
         }
         // END MIGRATION
 
@@ -465,6 +510,18 @@ function Initialize(opt) {
 
         // commit
         lib.generator.createFileFromDataSync(mainConfig, target);
+        // #B681 — the later steps read main.json with require(), and Node's require
+        // cache still holds the object read at the top of this step: the file as it
+        // was before whisper() and the migration (whisper returns a new object, so the
+        // cached one never changes). On a minor crossing checkArch then found no
+        // archs[<release>] and the first command exited 1. Dropping the entry makes
+        // their next require() read the file just written. Once per process: init's
+        // check chain runs from onComplete only, never per online command.
+        try {
+            delete require.cache[require.resolve(target)];
+        } catch (cacheErr) {
+            console.debug('Could not drop '+ target +' from the require cache: '+ (cacheErr.message || cacheErr));
+        }
 
         process.env.TZ = defTimezone;
         process.env.LOG_LEVEL = defLogLevel;
