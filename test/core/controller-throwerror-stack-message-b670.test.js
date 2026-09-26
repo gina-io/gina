@@ -265,6 +265,28 @@ describe('#B670 §02 — NON-local scope: the wire carries the message line, the
         assert.ok(r.logs[0].indexOf(a) > -1, 'and so is the stack it carried as its message');
     });
 
+    // The shape most of gina's own callers use (the query-callback and render
+    // delegate sites): an Error built as `new Error('<sentence>\n' + err.stack)`,
+    // so the stack sits inside the Error's MESSAGE, not in its `stack` field.
+    it('an Error whose message carries a pasted stack: cut on both branches, logged whole', function () {
+        var inner = stackOf('b670-inner-cause');
+        var mk = function () { return new Error('Controller Query Exception\n' + inner); };
+        var j = drive({ xhr: true }, function (res) { return [res, 500, mk()]; });
+        var w = json(j);
+        assert.ok(!anyFrame(w), 'no stack-bearing field on the wire: ' + j.body.slice(0, 300));
+        assert.equal(w.message, 'Controller Query Exception');
+        assert.ok(j.logs[0].indexOf(inner) > -1, 'the pasted stack is logged');
+        var one = drive({ xhr: true }, function () { return [new Error('outer one-arg\n' + inner)]; });
+        var w1 = json(one);
+        assert.ok(!anyFrame(w1), '1-arg form: no stack-bearing field on the wire: ' + one.body.slice(0, 300));
+        assert.equal(w1.error, 'outer one-arg');
+        assert.equal(w1.message, 'outer one-arg');
+        var h = drive({ xhr: false }, function (res) { return [res, 500, mk()]; });
+        assert.ok(!FRAME.test(h.body), 'no frame on the page');
+        assert.ok(h.body.indexOf('Controller Query Exception') > -1, 'the sentence is still shown');
+        assert.ok(h.logs.some(function (l) { return l.indexOf(inner) > -1; }), 'the HTML ref line logs the pasted stack');
+    });
+
     it('the caller\'s object is not rewritten (JSON and HTML)', function () {
         var s = stackOf('b670-caller');
         var o1 = { error: 'short', message: s };
