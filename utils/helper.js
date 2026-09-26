@@ -424,14 +424,41 @@ function MainHelper(opt) {
     }
 
     /**
+     * getArgvDir
+     * Directory holding each bundle's saved start argv (`<bundle>@<project>.argv`):
+     * written by the `gina` wrapper at every `bundle:start` / `bundle:restart`, read
+     * back by `gina tail --follow` to restart a crashed bundle. It is
+     * `<GINA_HOMEDIR>/run` — the framework home from the framework env or the shell,
+     * else `$HOME/.gina`, as `bin/cli` resolves it — created `0700` when absent.
+     * Never the shared tmp dir: the caller executes that file's first token, and a
+     * tmp dir other users of the host can write lets them plant or pre-own it (#B676).
+     *
+     * @returns {string} Path of the argv dir
+     * @example
+     *   var file = getArgvDir() + '/api@myproject.argv';
+     */
+    getArgvDir = function() {
+        var home = getEnvVar('GINA_HOMEDIR') || process.env.GINA_HOMEDIR || (getUserHome() + '/.gina');
+        var dir  = home + '/run';
+        if ( !fs.existsSync(dir) ) {
+            fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+        }
+        return dir
+    }
+
+    /**
      * getBundleStartingArgv
-     * Reads the saved start argv for `<bundle>@<project>` from the tmp dir so a
-     * crashed bundle can be live-restarted (see `gina tail --follow`).
+     * Reads the saved start argv for `<bundle>@<project>` from the argv dir
+     * (`getArgvDir()`) so a crashed bundle can be live-restarted (see
+     * `gina tail --follow`, which executes the first token of the returned argv).
      *
      * `bundle`/`project` are treated as untrusted (they may be parsed from log
      * content): values containing path separators or `..` traversal are rejected
-     * and the resolved path is confined to the tmp dir. Returns `null` when the
-     * input is unsafe or no saved-argv file exists.
+     * and the resolved path is confined to the argv dir. The file itself is
+     * trusted by OWNERSHIP, never by content (#B676): on POSIX it must be a
+     * regular file owned by the current uid that group/other cannot write, or it
+     * is refused with a warning. Returns `null` when the input is unsafe, no
+     * saved-argv file exists, or the file fails that ownership check.
      *
      * @param {string} bundle  - Bundle name (sanitized; path separators rejected)
      * @param {string} project - Project name (sanitized; path separators rejected)
@@ -441,10 +468,10 @@ function MainHelper(opt) {
     getBundleStartingArgv = function(bundle, project) {
         // #SEC - `bundle`/`project` can originate from parsed log content (the
         // `gina tail --follow` auto-restart path), so treat them as untrusted: strip
-        // backticks/whitespace, then reject anything that could escape the tmp dir
+        // backticks/whitespace, then reject anything that could escape the argv dir
         // (path separators or `..` traversal). The returned value is later executed
         // by the caller, so a crafted descriptor must NOT redirect the lookup to a
-        // file outside the tmp dir.
+        // file outside the argv dir.
         bundle  = ('' + bundle).replace(/(`|\s+)/g, '');
         project = ('' + project).replace(/(`|\s+)/g, '');
 
@@ -456,16 +483,39 @@ function MainHelper(opt) {
             return null;
         }
 
-        var tmpDir   = _(getTmpDir(), true);
-        var filename = _(tmpDir +'/'+ bundle +'@'+ project +'.argv', true);
+        // #B676 — was: the lookup ran in the shared tmp dir, where another user of the host could
+        // plant the file or pre-own it; the file now lives in the user-owned argv dir.
+        // var tmpDir   = _(getTmpDir(), true);
+        // var filename = _(tmpDir +'/'+ bundle +'@'+ project +'.argv', true);
+        var argvDir  = _(getArgvDir(), true);
+        var filename = _(argvDir +'/'+ bundle +'@'+ project +'.argv', true);
 
-        // defense-in-depth: resolved path must stay under the tmp dir
-        if ( ('' + filename).indexOf('' + tmpDir) !== 0 ) {
+        // defense-in-depth: resolved path must stay under the argv dir
+        if ( ('' + filename).indexOf('' + argvDir) !== 0 ) {
             return null;
         }
 
         var content = null;
         if ( fs.existsSync(filename) ) {
+            // #B676 — the file is trusted by OWNERSHIP, never by content: the caller executes its
+            // first token. Refuse, loudly, a file that is not a regular file owned by this uid, or
+            // that group/other can write (POSIX only; win32 has no uid).
+            if ( typeof process.getuid === 'function' ) {
+                var st = null;
+                try { st = fs.statSync('' + filename); } catch (statErr) { return null; }
+                if ( !st.isFile() || st.uid !== process.getuid() || (st.mode & 0o022) !== 0 ) {
+                    var refusal = '[getBundleStartingArgv] refusing `' + filename + '`: expected a regular file owned by uid '
+                        + process.getuid() + ' and not writable by group/other (found uid ' + st.uid
+                        + ', mode ' + (st.mode & 0o777).toString(8) + ')';
+                    // `console` is this file's logger, null until init() loads it — fall back to stderr
+                    if ( console && typeof console.warn === 'function' ) {
+                        console.warn(refusal);
+                    } else {
+                        process.stderr.write(refusal + '\n');
+                    }
+                    return null;
+                }
+            }
             delete require.cache[require.resolve(filename)];
             content = ''+fs.readFileSync(filename);
             content = content.replace(/\,/g, ' ');

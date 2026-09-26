@@ -1,4 +1,4 @@
-var { describe, it, before, beforeEach, afterEach } = require('node:test');
+var { describe, it, before, after, beforeEach, afterEach } = require('node:test');   // `after`: #B676 §12 scratch-home teardown
 var assert = require('node:assert/strict');
 var EventEmitter = require('events');
 var fs = require('fs');
@@ -520,13 +520,32 @@ describe('11 - getVendorsConfig / setVendorsConfig', function () {
 // 12 — getBundleStartingArgv
 describe('12 - getBundleStartingArgv', function () {
 
+    // #B676 — the reader resolves its dir from GINA_HOMEDIR (`getArgvDir()` = `<home>/run`).
+    // The test process runs no bin/cli bootstrap, so the framework env carries no GINA_HOMEDIR
+    // and the helper falls back to process.env: point it at a scratch home so no fixture is
+    // ever written into the real `~/.gina/run`. `before()` only prepares state — every
+    // discriminating assertion lives in its own `it()`.
+    var _argvScratchHome = null;
+    var _argvPrevEnvHome = null;
+    before(function () {
+        _argvPrevEnvHome = process.env.GINA_HOMEDIR;
+        _argvScratchHome = fs.mkdtempSync(path.join(os.tmpdir(), 'gina-argv-home-'));
+        process.env.GINA_HOMEDIR = _argvScratchHome;
+    });
+    after(function () {
+        if (typeof _argvPrevEnvHome === 'undefined') { delete process.env.GINA_HOMEDIR; }
+        else { process.env.GINA_HOMEDIR = _argvPrevEnvHome; }
+        try { fs.rmSync(_argvScratchHome, { recursive: true, force: true }); } catch (e) {}
+    });
+
     it('returns null for non-existing bundle argv file', function () {
         var result = getBundleStartingArgv('nonexistent', 'nonexistent');
         assert.equal(result, null);
     });
 
-    it('reads argv from tmp file when present', function () {
-        var tmpDir = getTmpDir();
+    it('reads argv from the argv-dir file when present', function () {
+        // #B676 — fixture written where the reader looks: getArgvDir(), no longer getTmpDir()
+        var tmpDir = getArgvDir();
         var argvFile = path.join(tmpDir, 'testargv@testproj.argv');
         fs.writeFileSync(argvFile, 'node,cli,bundle:start,testargv,@testproj');
 
@@ -561,7 +580,7 @@ describe('12 - getBundleStartingArgv', function () {
     });
 
     it('does not reach a real file via a separator-bearing name (subtract control)', function () {
-        var tmpDir   = getTmpDir();
+        var tmpDir   = getArgvDir();   // #B676 — the reader's dir
         var argvFile = path.join(tmpDir, 'safedecoy@p.argv');
         fs.writeFileSync(argvFile, 'node,cli,bundle:start,safedecoy,@p');
         try {
@@ -578,7 +597,7 @@ describe('12 - getBundleStartingArgv', function () {
     });
 
     it('accepts benign names with dots and dashes (no false rejection)', function () {
-        var tmpDir   = getTmpDir();
+        var tmpDir   = getArgvDir();   // #B676 — the reader's dir
         var argvFile = path.join(tmpDir, 'my-bundle@my.proj.argv');
         fs.writeFileSync(argvFile, 'node,cli,bundle:start,my-bundle,@my.proj');
         try {
@@ -587,6 +606,96 @@ describe('12 - getBundleStartingArgv', function () {
             assert.ok(result.includes('bundle:start'));
         } finally {
             fs.unlinkSync(argvFile);
+        }
+    });
+});
+
+
+// 12b — #B676: the saved-argv file is trusted by OWNERSHIP, never by content or location.
+// `gina tail --follow` executes the file's first token, so the reader must (a) look only in a
+// user-owned dir (`<GINA_HOMEDIR>/run`), never the shared tmp dir another host user can write,
+// and (b) refuse a file that is not a regular file owned by this uid, or that group/other can
+// write. Every arm below FAILS on the pre-#B676 bytes (no getArgvDir; reader in getTmpDir;
+// no stat guard) and passes on the fix; the one arm labelled CONTROL is green on both.
+describe('12b - getBundleStartingArgv trusts the file by ownership (#B676)', function () {
+
+    var posix = (typeof process.getuid === 'function');
+
+    // Same scratch home as §12: that suite's before/after pair is scoped to §12 and has
+    // restored process.env.GINA_HOMEDIR by the time this one runs, so without its own pair
+    // every arm below resolves the REAL `~/.gina/run` and the first path.join()s undefined.
+    var _scratchHome12b = null;
+    var _prevEnvHome12b = null;
+    before(function () {
+        _prevEnvHome12b = process.env.GINA_HOMEDIR;
+        _scratchHome12b = fs.mkdtempSync(path.join(os.tmpdir(), 'gina-argv-home-'));
+        process.env.GINA_HOMEDIR = _scratchHome12b;
+    });
+    after(function () {
+        if (typeof _prevEnvHome12b === 'undefined') { delete process.env.GINA_HOMEDIR; }
+        else { process.env.GINA_HOMEDIR = _prevEnvHome12b; }
+        try { fs.rmSync(_scratchHome12b, { recursive: true, force: true }); } catch (e) {}
+    });
+
+    it('getArgvDir() is <GINA_HOMEDIR>/run, exists, and is not the tmp dir', function () {
+        assert.equal(typeof getArgvDir, 'function', 'getArgvDir must be a global helper');
+        var dir = getArgvDir();
+        assert.equal(dir, path.join(process.env.GINA_HOMEDIR, 'run'));
+        assert.ok(fs.existsSync(dir), 'getArgvDir() creates its dir');
+        assert.notEqual(path.resolve(dir), path.resolve(getTmpDir()), 'the argv dir must not be the tmp dir');
+    });
+
+    it('CONTROL - a missing file still reads null (green before and after the fix)', function () {
+        assert.equal(getBundleStartingArgv('never-written', 'nowhere'), null);
+    });
+
+    it('ignores a file planted in the tmp dir — the old location (subtract control)', function () {
+        var decoy = path.join(getTmpDir(), 'oldloc@p.argv');
+        fs.writeFileSync(decoy, 'node,cli,bundle:start,oldloc,@p');
+        try {
+            assert.equal(getBundleStartingArgv('oldloc', 'p'), null, 'a tmp-dir file must not be read');
+        } finally {
+            fs.unlinkSync(decoy);
+        }
+    });
+
+    it('reads a 0600 file owned by this uid, and refuses the same file once group/other can write it', function () {
+        if (!posix) { return; }
+        var file = path.join(getArgvDir(), 'owned@p.argv');
+        fs.writeFileSync(file, 'node,cli,bundle:start,owned,@p', { mode: 0o600 });
+        try {
+            var ok = getBundleStartingArgv('owned', 'p');                 // the discriminating half
+            assert.equal(typeof ok, 'string');
+            assert.ok(ok.includes('bundle:start'));
+            fs.chmodSync(file, 0o666);
+            assert.equal(getBundleStartingArgv('owned', 'p'), null, 'a group/other-writable file must be refused');
+            fs.chmodSync(file, 0o644);
+            assert.equal(typeof getBundleStartingArgv('owned', 'p'), 'string', '0644 (no group/other write bit) still reads');
+        } finally {
+            fs.unlinkSync(file);
+        }
+    });
+
+    it('refuses a file owned by another uid (fs.statSync stubbed to report a foreign owner)', function () {
+        if (!posix) { return; }
+        var file = path.join(getArgvDir(), 'foreign@p.argv');
+        fs.writeFileSync(file, 'node,cli,bundle:start,foreign,@p', { mode: 0o600 });
+        var realStatSync = fs.statSync;
+        try {
+            assert.equal(typeof getBundleStartingArgv('foreign', 'p'), 'string', 'own file reads (discriminating half)');
+            // utils/helper.js holds the shared `fs` module object, so a stub on it is what the reader calls.
+            fs.statSync = function (p) {
+                var st = realStatSync.apply(fs, arguments);
+                if (('' + p).indexOf('foreign@p.argv') > -1) {
+                    var uid = st.uid + 1;
+                    return { isFile: function () { return st.isFile(); }, uid: uid, mode: st.mode };
+                }
+                return st;
+            };
+            assert.equal(getBundleStartingArgv('foreign', 'p'), null, 'a foreign-owned file must be refused');
+        } finally {
+            fs.statSync = realStatSync;
+            fs.unlinkSync(file);
         }
     });
 });

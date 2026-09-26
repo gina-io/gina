@@ -3154,12 +3154,25 @@ gna.getRunDir = getRunDir;
 gna.getTmpDir = getTmpDir;
 
 /**
- * Read the saved startup argv for a given bundle@project — used by
- * `gina bundle:restart` to re-issue the exact same start command.
+ * Resolve the argv dir — `<GINA_HOMEDIR>/run`, created `0700` when absent —
+ * where each bundle's start argv is saved for the `gina tail --follow` crash
+ * restart. Never the shared tmp dir: that restart executes the file's first token.
+ *
+ * @returns {string} Argv-dir path
+ * @example
+ *   var dir = getArgvDir();
+ */
+gna.getArgvDir = getArgvDir;
+
+/**
+ * Read the saved startup argv for a given bundle@project from the argv dir
+ * (`getArgvDir()`) — used by `gina tail --follow` to restart a crashed bundle
+ * with the exact same start command. On POSIX the file must be a regular file
+ * owned by the current user that group/other cannot write, or it is refused.
  *
  * @param {string} bundle  - Bundle name
  * @param {string} project - Project name
- * @returns {string|null} Space-separated argv, or `null` when no file exists
+ * @returns {string|null} Space-separated argv, or `null` when no usable file exists
  * @example
  *   var argv = getBundleStartingArgv('myApp', 'demo');
  */

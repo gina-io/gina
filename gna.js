@@ -86,6 +86,7 @@ module.exports = {
     get getLogDir()             { return global.getLogDir; },
     get getRunDir()             { return global.getRunDir; },
     get getTmpDir()             { return global.getTmpDir; },
+    get getArgvDir()            { return global.getArgvDir; },
     get getBundleStartingArgv() { return global.getBundleStartingArgv; },
     get getVendorsConfig()      { return global.getVendorsConfig; },
     get setVendorsConfig()      { return global.setVendorsConfig; },

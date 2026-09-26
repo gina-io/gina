@@ -155,6 +155,47 @@ describe('04 - bin/gina: NODE_ARGV env write is Bun-safe', function() {
 
 
 // ---------------------------------------------------------------------------
+// 07 — #B676: the saved start argv is written to the user-owned argv dir (`getArgvDir()` =
+// `<GINA_HOMEDIR>/run`) with mode 0600, never to the shared tmp dir: `gina tail --follow`
+// executes that file's first token, and a tmp dir another host user can write let them plant
+// or pre-own it. Pins are read on the argv branch only (from the helper require to the
+// `require(cliBin)` hand-off), comment-stripped for the negative so the `// was:` record of
+// the old `getTmpDir()` line cannot satisfy or defeat it; the raw slice keeps that record as
+// the anti-vacuity control. Red-first: 07.1-07.3 fail on the pre-#B676 bytes, 07.4 is a
+// control that is green on both.
+describe('07 - bin/gina: the .argv file lives in the argv dir, mode 0600 (#B676)', function() {
+
+    var startIdx = ginaSrc.indexOf("var help        = require(__dirname + '/../utils/helper.js');");
+    var endIdx   = ginaSrc.indexOf('require(cliBin);', startIdx);
+    var rawBlock = (startIdx > -1 && endIdx > startIdx) ? ginaSrc.slice(startIdx, endIdx) : '';
+    var codeBlock = rawBlock.split('\n').map(function (l) { return l.replace(/\/\/.*$/, ''); }).join('\n');
+
+    it('slices the argv branch (both anchors present, in order)', function() {
+        assert.ok(startIdx > -1, 'helper require anchor not found');
+        assert.ok(endIdx > startIdx, 'require(cliBin) anchor not found after the helper require');
+    });
+
+    it('07.1 resolves the file under getArgvDir()', function() {
+        assert.match(codeBlock, /var argvDir\s*=\s*getArgvDir\(\);/, 'expected var argvDir = getArgvDir();');
+        assert.match(codeBlock, /var argFilename\s*=\s*argvDir\s*\+/, 'argFilename must be built from argvDir');
+    });
+
+    it('07.2 no longer resolves it under getTmpDir() (comment-stripped)', function() {
+        assert.ok(codeBlock.indexOf('getTmpDir()') < 0, 'getTmpDir() must not be called on the argv branch');
+    });
+
+    it('07.3 writes the file with mode 0600', function() {
+        assert.match(codeBlock, /fs\.writeFileSync\(argFilename,\s*process\.env\.NODE_ARGV,\s*\{\s*mode:\s*0o600\s*\}\)/,
+            'expected fs.writeFileSync(argFilename, process.env.NODE_ARGV, { mode: 0o600 })');
+    });
+
+    it('07.4 CONTROL - the raw branch still names getTmpDir (the comment strip is what makes 07.2 meaningful)', function() {
+        assert.ok(rawBlock.indexOf('getTmpDir') > -1, 'the raw slice must still carry the getTmpDir record');
+    });
+});
+
+
+// ---------------------------------------------------------------------------
 // 05 — behaviour: the array->string coercion the .argv persistence relies on,
 //      and its round-trip through getBundleStartingArgv's comma->space read.
 // ---------------------------------------------------------------------------

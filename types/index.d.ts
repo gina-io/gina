@@ -1267,6 +1267,7 @@ declare namespace gina {
     const encodeRFC5987ValueChars: typeof globalThis.encodeRFC5987ValueChars;
     const filterArgs: typeof globalThis.filterArgs;
     const formatDataFromString: typeof globalThis.formatDataFromString;
+    const getArgvDir: typeof globalThis.getArgvDir;
     const getBundleStartingArgv: typeof globalThis.getBundleStartingArgv;
     const getContext: typeof globalThis.getContext;
     const getDefined: typeof globalThis.getDefined;
