@@ -2354,7 +2354,6 @@ function ServerEngineClass(options) {
             // never set, controller falls back to bundle's internal webroot).
             if (request.headers['x-forwarded-prefix']) {
                 var _xfp = String(request.headers['x-forwarded-prefix']).trim();
-                _xfp = _xfp.replace(/\/+$/, '');
                 if (_xfp.length > 0 && _xfp.charAt(0) !== '/') {
                     _xfp = '/' + _xfp;
                 }
@@ -2366,6 +2365,12 @@ function ServerEngineClass(options) {
                 if ( _xfp.length > 255 || !/^[A-Za-z0-9._~\/%-]*$/.test(_xfp) ) {
                     _xfp = '';
                 }
+                // #B679 — the length+charset gate above runs BEFORE this trim: `/\/+$/` backtracks
+                // quadratically on a long run of slashes (measured on a booted bundle: a 15 KB
+                // header ~100–170 ms of CPU per request; the regex alone ~8 s at the 64 KB the
+                // HTTP/2 header-list cap admits), and this block runs on every request — so a
+                // >255 value is zeroed above, before the regex ever sees it.
+                _xfp = _xfp.replace(/\/+$/, '');
                 if (_xfp.length > 0) {
                     request._ginaProxyPrefix = _xfp;
                 }

@@ -168,6 +168,27 @@ describe('proxy-header-injection — #B367 forwarded-header sanitisation at inge
             assert.match(block, /_xfp\.length\s*>\s*255\s*\|\|\s*!\/\^\[/,
                 'the prefix block must reject on length AND charset before use');
         });
+
+        // #B679 — the trailing-slash trim `/\/+$/` backtracks quadratically on a long run of
+        // slashes (a 15 KB header cost 100–170 ms per request on a booted bundle; the regex alone
+        // ~8 s at the 64 KB the HTTP/2 header-list cap admits), and the block runs on every request.
+        // The length+charset gate must therefore run BEFORE that trim, so a >255 value is zeroed
+        // before the regex ever sees it. Pinned by ORDER inside the block, comment-stripped so this
+        // comment and the fix's own cannot satisfy it: on the pre-#B679 bytes the gate sits AFTER
+        // the replace and the arm is red.
+        it('01f - the length+charset gate runs BEFORE the trailing-slash trim (#B679)', function() {
+            var i = isaacSrc.indexOf("if (request.headers['x-forwarded-prefix'])");
+            assert.ok(i > -1, 'x-forwarded-prefix block not found');
+            var end = isaacSrc.indexOf('request._ginaProxyPrefix = _xfp;', i);
+            assert.ok(end > i, 'x-forwarded-prefix assign not found');
+            var block = isaacSrc.slice(i, end).split('\n').map(function (l) { return l.replace(/\/\/.*$/, ''); }).join('\n');
+            var gate    = block.indexOf('_xfp.length > 255');
+            var replace = block.indexOf("_xfp.replace(/\\/+$/, '')");
+            assert.ok(gate > -1,    'the 255-char cap must be present in the block');
+            assert.ok(replace > -1, 'the trailing-slash trim must be present in the block');
+            assert.ok(gate < replace,
+                'the length+charset gate must run BEFORE the trailing-slash trim (gate at ' + gate + ', replace at ' + replace + ')');
+        });
     });
 
     describe('02 - router.js twin source pins', function() {

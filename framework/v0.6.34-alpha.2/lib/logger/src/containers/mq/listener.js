@@ -12,6 +12,14 @@ function MQListener(opt, cb) {
     var sessions        = {};
     // tels to the listener when and to whom forward payloads
     var forwardList     = {}; // for all flows but `speaker` (report)
+    // #B678 — a payload's `request` names a flow key on `forwardList` and, for `report`/`respond`, a
+    // method on `self`. Only OWN keys may count: an inherited name (`__proto__`, `constructor`,
+    // `hasOwnProperty`…) or the `name` field reached `.indexOf` on a non-array or a call on a
+    // non-function and threw out of the 'data' handler — an uncaught exception that ended the daemon
+    // process hosting this listener (measured). A request name is a short identifier; anything else
+    // is refused before it can become a key.
+    var hasOwn        = function (o, k) { return Object.prototype.hasOwnProperty.call(o, k); };
+    var isRequestName = function (r) { return typeof r === 'string' && /^[A-Za-z][A-Za-z0-9_-]{0,63}$/.test(r) && !(r in Object.prototype); };
     // will be in memory until the framework is stopped
     // TODO - remove specific `bundle` or `CLI` config when the process is terminated
     var sharedConfig    = { loggers: {}};
@@ -134,10 +142,10 @@ function MQListener(opt, cb) {
                 if (
                     this.request != 'report'
                     && forwardList
-                    && typeof(forwardList[this.request]) != 'undefined'
+                    && hasOwn(forwardList, this.request)   // #B678 — own key only
                 ) {
                     forwardId = forwardList[this.request].indexOf(this.sessionId);
-                    if ( forwardId > -1 && typeof(forwardList[this.request]) != 'undefined') {
+                    if ( forwardId > -1 && hasOwn(forwardList, this.request) ) {   // #B678 — own key only
                         forwardList[this.request].splice(forwardId, 1);
                     }
                 }
@@ -151,7 +159,7 @@ function MQListener(opt, cb) {
                 if (
                     this.request != 'report'
                     && forwardList
-                    && typeof(forwardList[this.request]) != 'undefined'
+                    && hasOwn(forwardList, this.request)   // #B678 — own key only
                 ) {
                     forwardId = forwardList[this.request].indexOf(this.sessionId);
                     if ( forwardId > -1 ) {
@@ -205,10 +213,15 @@ function MQListener(opt, cb) {
                             }
 
                             if (pl.request && !this.request) {
+                                if ( !isRequestName(pl.request) ) {
+                                    // #B678 — refuse the frame, keep the connection and the process
+                                    console.warn('[MQListener] ignoring payload with an invalid request name');
+                                    continue;
+                                }
                                 this.request = pl.request;
                                 // forward to all but `speakers`
                                 if ( this.request != 'report' ) {
-                                    if ( typeof(forwardList[this.request]) == 'undefined' ) {
+                                    if ( !hasOwn(forwardList, this.request) ) {
                                         forwardList[this.request] = []
                                     }
                                     if ( forwardList[this.request].indexOf(this.sessionId) < 0 ) {
@@ -225,7 +238,9 @@ function MQListener(opt, cb) {
 
                             if ( this.request && this.sessionId ) {
 
-                                if ( typeof(self[this.request]) != 'undefined' ) {
+                                // #B678 — dispatch only to an OWN method (`report`, `respond`); any other
+                                // request name is a flow key and gets the plain respond below
+                                if ( hasOwn(self, this.request) && typeof(self[this.request]) == 'function' ) {
                                     self[this.request](this.sessionId, pl);
                                     continue;
                                 }
