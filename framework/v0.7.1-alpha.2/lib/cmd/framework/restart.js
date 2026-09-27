@@ -150,9 +150,10 @@ function Restart(opt, cmd) {
     // restartRunningBunldes()) is removed with that helper. Neither was ever called: the
     // one call, METHOD #1 in restart() above, was already commented out. The helper ran
     // `bundle:restart` from a shell command line built from pid-file names, and the design
-    // could not be revived as it stood: bin/gina's `--restart-pid` handling drops the node
-    // path from its argv instead of the flag. Running bundles survive a framework restart
-    // anyway (framework:stop leaves them running). The removed code is in git history.
+    // could not be revived as it stood: bin/gina's `--restart-pid` handling dropped the node
+    // path from its argv instead of the flag (#B689 removed that handling). Running bundles
+    // survive a framework restart anyway (framework:stop leaves them running). The removed
+    // code is in git history.
 
 
     /**

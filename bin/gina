@@ -31,8 +31,6 @@ const {spawn}       = require('child_process');
 const {execSync}    = require('child_process');
 var runtime         = require(__dirname + '/../utils/runtime.js');
 
-var restartPid      = null;
-
 function runAsSubProcess() {
 
     var argv            =  Array.from(process.argv);
@@ -91,11 +89,8 @@ function runAsSubProcess() {
             // Docker considerations: All signals except for SIGKILL and SIGSTOP can be intercepted by the process.
             // Ref.: https://medium.com/@gchudnov/trapping-signals-in-docker-containers-7a57fdda7d86
             console.info('Gina server started with PID `'+ child.pid +'`');
-            // Sending kill command to parent restart process
-            if (restartPid) {
-                // We can't just use process.kill() here ...
-                process.stdout.write('[ quit ]\n');
-            }
+            // #B689 — the `[ quit ]` line written here for a `--restart-pid` start is removed
+            // (see runCMD).
 
             // Docker fix - 2022-08-20
             process.exit(0);
@@ -158,24 +153,14 @@ function runAsSubProcess() {
 */
 function runCMD() {
     var argv = Array.from(process.argv);
-    // BO - filter restartPid
-    var r = 0;
-    for (let i=0, len=process.argv.length; i<len; i++) {
-        let arg = process.argv[i];
-        if ( /\-\-restart\-pid/.test(arg) ) {
-            restartPid = ~~(arg.split(/\=/)[1]);
-            r = i;
-            break;
-        }
-
-    }
-    r = null;
-    if (restartPid) {
-        console.debug('removing `--restart-pid`: '+ restartPid);
-        // removing `--restart-pid`
-        Array.prototype.splice.call(process.argv, r, 1);
-    }
-    // EO - filter restartPid
+    // #B689 (2026-09-27) — the `--restart-pid=<pid>` filter that stood here, and the `[ quit ]`
+    // line it gated in runAsSubProcess(), are removed. They served framework:restart's METHOD #1
+    // (a detached `gina start --restart-pid=<pid>`), which was never called and which #B665 S1
+    // removed; nothing read `[ quit ]`. The filter reset its index to null after its search, so
+    // the splice removed argv[0] (the runtime path) instead of the flag: `start --restart-pid=N`
+    // started the daemon without `start`, and any other command reached bin/cli shifted by one.
+    // A typed `--restart-pid` is now passed on like any other flag. The removed code is in git
+    // history.
 
     if ( /^(start|framework:start)$/.test(argv[2]) ) {
         try {
