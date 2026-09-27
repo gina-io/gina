@@ -47,6 +47,12 @@ function SetupClass(req, res, next){
      * Will replace all `\n` by `<br/>`
      *  e.g.:
      *      {{ contact.address | nl2br }}
+     *  With `settings.swig.autoescape: true` (this scaffold's setting) nl2br escapes the text
+     *  and keeps the `<br/>` as markup: no `| safe` needed.
+     *
+     * [ | safe ]
+     * With `settings.swig.autoescape: true`, mark a variable that carries HTML on purpose:
+     *      {{ gina.csrfInput | safe }}
      */
 
 
@@ -75,8 +81,9 @@ function SetupClass(req, res, next){
 
     //     /*
     //     * markdown filter
-    //     * Usage:
-    //     *      <p>{{ 'once **upon** a time\nthere was a princess' | markdown('strong','em') }}"</p>
+    //     * Usage (`| safe` keeps the HTML as markup when autoescape is on — only for markdown you trust,
+    //     * the converter does not sanitize it):
+    //     *      <p>{{ 'once **upon** a time\nthere was a princess' | markdownToHtml | safe }}</p>
     //     *
     //     * @param {string} text - markdown text string
     //     *

@@ -18,6 +18,9 @@
  *       `req.csrfToken`, the value the Csrf plugin sets): `{{ gina.csrfInput }}` is raw in off
  *       mode and escaped in the `true` boot — the 0.8.0 flip hazard every template must adapt to —
  *       while `{{ gina.csrfInput | safe }}` is raw in every mode (the documented form).
+ *   05  the #B359 boot warning ("settings.swig.autoescape is not set …, the default becomes
+ *       true in 0.8.0") is printed exactly once when the key is unset, never when it is set.
+ *   06  (once) a freshly scaffolded bundle's settings.json sets `swig.autoescape: true`.
  *
  * Isolation: the container-boot-head-b675.test.js shape — a throwaway HOME under os.tmpdir(),
  * its own port window (10200; a bundle takes six ports), project:rm + rmSync at teardown. Seam:
@@ -71,6 +74,10 @@ var MODES = [
 var skip = false, skipReason = '', setupError = null;
 var bundlePort = null, webroot = '/' + BUNDLE + '/';
 var results = {};   // mode name -> { status, body, out }
+var scaffoldSettings = null;   // the bundle's settings.json exactly as bundle:add wrote it
+
+/** The #B359 boot warning a swig bundle gets when settings.swig.autoescape is unset. */
+var UNSET_WARNING = '[ SWIG ] settings.swig.autoescape is not set for [ ' + BUNDLE + ' ]';
 
 
 // ---------------------------------------------------------------------------
@@ -225,6 +232,7 @@ describe('27 - container-boot-swig-autoescape — a real swig render with settin
         var portsReversePath = path.join(GINA_HOME, 'ports.reverse.json');
         var key = BUNDLE + '@' + PROJ;
         if (!fs.existsSync(portsReversePath) || !readJSON(portsReversePath)[key]) { setupError = 'bundle:add did not register ' + key; return; }
+        try { scaffoldSettings = fs.readFileSync(path.join(PROJ_DIR, 'src', BUNDLE, 'config', 'settings.json'), 'utf8'); } catch (e) { scaffoldSettings = null; }
         var va = runCli(['view:add', BUNDLE, '@' + PROJ]);
         if (!fs.existsSync(path.join(PROJ_DIR, 'src', BUNDLE, 'templates', 'html', 'layouts', 'main.html'))) {
             setupError = 'view:add did not install the templates: ' + (va.stdout + va.stderr).slice(-800); return;
@@ -299,5 +307,25 @@ describe('27 - container-boot-swig-autoescape — a real swig render with settin
             assert.equal(part(body, 'b359-csrf-safe'), RAW_INPUT);
             assert.equal(part(body, 'b359-csrf-bare'), mode.name === 'true' ? ESC_INPUT : RAW_INPUT);
         });
+
+        it('05 - ' + mode.name + ': the "autoescape is not set" boot warning appears ' + (mode.name === 'absent' ? 'exactly once' : 'never'), function (t) {
+            if (!ready(t)) { return; }
+            rendered(mode.name);
+            var out = results[mode.name].out;
+            assert.ok(/\[ SERVER \]|\[ FRAMEWORK \]/.test(out), 'the boot output was captured (control)');
+            // count log RECORDS (lines): a JSON record carries the text twice, in `message` and `msg`
+            var records = out.split('\n').filter(function (l) { return l.indexOf(UNSET_WARNING) > -1; });
+            assert.equal(records.length, mode.name === 'absent' ? 1 : 0, out.slice(-1500));
+            if (mode.name === 'absent') {
+                assert.ok(out.indexOf('The default becomes true in 0.8.0') > -1, 'the warning names the flip release');
+            }
+        });
+    });
+
+    it('06 - a freshly scaffolded bundle sets settings.swig.autoescape: true (#B359 prep)', function (t) {
+        if (!ready(t)) { return; }
+        assert.ok(scaffoldSettings, 'bundle:add wrote settings.json');
+        var parsed = JSON.parse(stripLineComments(scaffoldSettings));
+        assert.deepEqual(parsed.swig, { autoescape: true });
     });
 });

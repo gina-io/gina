@@ -10,5 +10,11 @@
         "date": "${dateFormat}",
         // https://en.wikipedia.org/wiki/List_of_tz_database_time_zones — e.g. Africa/Douala, America/New_York, Europe/Paris
         "timeZone": "${timeZone}"
+    },
+    // Swig output auto-escaping, an XSS defence: `true` HTML-escapes every {{ x }}.
+    // Mark a variable that carries HTML on purpose with `| safe`, e.g. {{ gina.csrfInput | safe }}.
+    // A bundle that leaves it unset renders unescaped until 0.8.0, which makes `true` the default.
+    "swig": {
+        "autoescape": true
     }
 }

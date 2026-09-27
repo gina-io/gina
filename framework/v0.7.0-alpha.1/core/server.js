@@ -1105,6 +1105,49 @@ function Server(options) {
         }
     };
 
+    /**
+     * #B359 prep — whether the "autoescape is not set" boot warning was already emitted for
+     * this bundle (once per bundle process, whatever calls initSwigEngine).
+     *
+     * @type {boolean}
+     * @private
+     */
+    var _swigAutoescapeUnsetWarned = false;
+
+    /**
+     * #B359 prep — whether a bundle renders pages through swig, read from its config: the
+     * settings-level engine (`settings.render.engine`, `swig` when absent) or any
+     * templates.json section whose `ext` is `.swig` (the #M11 extension-keyed dispatch;
+     * the `.njk` twin of this scan is in initNunjucksEngine). A nunjucks-only bundle still
+     * reaches initSwigEngine (the framework error template is swig) but renders none of its
+     * own pages through swig. Self-contained: it reads only its argument.
+     *
+     * @inner
+     * @private
+     * @param {object} conf - Bundle/env configuration object
+     * @returns {boolean} true when the bundle's own pages can render through swig
+     *
+     * @example
+     *   rendersSwig({ content: { settings: {} } });                               // true (default engine)
+     *   rendersSwig({ content: { settings: { render: { engine: 'nunjucks' } } } }); // false
+     */
+    var rendersSwig = function(conf) {
+        var _content  = (conf && conf.content) || {};
+        var _settings = _content.settings || {};
+        var _engine   = (_settings.render && _settings.render.engine) || 'swig';
+        if (_engine === 'swig') {
+            return true;
+        }
+        var _tpls = _content.templates || {};
+        for (var _section in _tpls) {
+            var _ext = _tpls[_section] && _tpls[_section].ext;
+            if ( _ext && /^\.?swig$/i.test(String(_ext)) ) {
+                return true;
+            }
+        }
+        return false;
+    };
+
     var initSwigEngine = function(conf) {
         // Resolve the swig module for this bundle. First call per process
         // honours the opt-in in conf.content.settings.swig (useProject,
@@ -1129,6 +1172,18 @@ function Server(options) {
         if ( typeof(_swigSettings.autoescape) != 'undefined'
             && typeof(_swigSettings.autoescape) != 'boolean' ) {
             throw new Error('[ SWIG ] settings.swig.autoescape must be a boolean (got: '+ JSON.stringify(_swigSettings.autoescape) +')');
+        }
+        // #B359 prep — the default becomes `true` in 0.8.0, which escapes every `{{ x }}` a
+        // template does not mark `| safe`. A bundle that renders swig and leaves the key
+        // unset is told once at boot; setting it either way (true or false) silences it.
+        if ( typeof(_swigSettings.autoescape) == 'undefined' && !_swigAutoescapeUnsetWarned && rendersSwig(conf) ) {
+            _swigAutoescapeUnsetWarned = true;
+            console.warn(
+                '[ SWIG ] settings.swig.autoescape is not set for [ '+ self.appName +' ]: Swig output ({{ x }}) is not HTML-escaped. '
+                + 'The default becomes true in 0.8.0. Set it explicitly to keep this bundle\'s behaviour and silence this warning: '
+                + 'true escapes output (a variable that carries HTML on purpose then needs | safe, e.g. {{ gina.csrfInput | safe }}); '
+                + 'false keeps output unescaped. See https://gina.io/docs/reference/settings#swig'
+            );
         }
         var swigOptions = {
             // was: autoescape: ( typeof(conf.autoescape) != 'undefined') ? conf.autoescape: false,

@@ -970,7 +970,7 @@
         },
         "autoescape": {
           "type": "boolean",
-          "description": "Whether swig auto-escapes variable output (`{{ x }}`) by default, passed to swig.setDefaults({ autoescape }). Defaults to false today; set true to HTML-escape variable output as an XSS defense — nunjucks defaults to true (see settings.nunjucks.autoescape).",
+          "description": "Whether swig auto-escapes variable output (`{{ x }}`) by default, passed to swig.setDefaults({ autoescape }). Defaults to false until 0.8.0, which makes true the default; since 0.7.0 a bundle that renders swig and leaves this unset gets a boot warning, and new bundles are scaffolded with true. Set true to HTML-escape variable output as an XSS defense (mark a variable that carries HTML on purpose with `| safe`) — nunjucks defaults to true (see settings.nunjucks.autoescape).",
           "default": false
         }
       }
