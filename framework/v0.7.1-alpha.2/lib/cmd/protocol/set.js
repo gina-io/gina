@@ -4,6 +4,7 @@ var rl = readline.createInterface({ input: process.stdin, output: process.stdout
 var CmdHelper = require('./../helper');
 var console = lib.logger;
 var scan = require('../port/inc/scan');
+var escapeRegex = require('./../bundle/inc/name-rewrite').escapeRegex;
 
 /**
  * Set a protocol to your project
@@ -308,7 +309,9 @@ function Set(opt, cmd) {
         projectConfig[self.projectName].protocols       = self.protocols;
         projectConfig[self.projectName].schemes         = self.schemes;
 
-        var re      = new RegExp('\@'+ self.projectName +'$', '');
+        // #B665 — the project name is matched literally: a `.` matched any character.
+        // was: var re      = new RegExp('\@'+ self.projectName +'$', '');
+        var re      = new RegExp('@' + escapeRegex(self.projectName) + '$', '');
         var bundles = self.bundles;
         var envs    = self.envs;
 
@@ -519,7 +522,9 @@ function Set(opt, cmd) {
         //var bundles = self.bundles;
         var envs            = self.envs;
         var scopes          = self.scopes;
-        var re              = new RegExp('\@'+ self.projectName +'$', '');
+        // #B665 — the project name is matched literally: a `.` matched any character.
+        // was: var re              = new RegExp('\@'+ self.projectName +'$', '');
+        var re              = new RegExp('@' + escapeRegex(self.projectName) + '$', '');
         var ports           = JSON.clone(local.ports);
         var portsReverse    = JSON.clone(local.portsReverse);
         if ( typeof(ports[protocol]) == 'undefined' ) {

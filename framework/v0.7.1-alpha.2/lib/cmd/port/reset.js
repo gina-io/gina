@@ -5,6 +5,7 @@ const fs            = require('fs');
 var console     = lib.logger;
 var CmdHelper   = require('./../helper');
 var scan        = require('../port/inc/scan');
+var escapeRegex = require('./../bundle/inc/name-rewrite').escapeRegex;
 const { setFips } = require('crypto');
 
 /**
@@ -131,7 +132,11 @@ function Reset(opt, cmd) {
             for (let protocol in ports) {
                 for (let scheme in ports[protocol]) {
                     for (let p in ports[protocol][scheme]) {
-                        let re = new RegExp('^'+ bundle +'@'+ project);
+                        // #B665 — the names are matched literally, and the project must end at
+                        // the `/` that follows it: `^api@shop` matched `api@shopping/dev`, whose
+                        // ports went with this bundle's.
+                        // was: let re = new RegExp('^'+ bundle +'@'+ project);
+                        let re = new RegExp('^' + escapeRegex(bundle +'@'+ project +'/'));
                         if ( re.test( ports[protocol][scheme][p]) ) {
                             delete self.portsData[protocol][scheme][p]
                         }
@@ -321,7 +326,11 @@ function Reset(opt, cmd) {
 
                                         // ports
                                         portValue = local.bundle +'@'+ self.projectName +'/'+ envs[e];
-                                        re = new RegExp(portValue);
+                                        // #B665 — matched as one whole JSON string of the registry text:
+                                        // unescaped and unanchored, `api@shop/dev` was found inside
+                                        // `"myapi@shop/devel"`, so its assignment was skipped as existing.
+                                        // was: re = new RegExp(portValue);
+                                        re = new RegExp(escapeRegex(JSON.stringify(portValue)));
 
 
                                         if ( !re.test(portsListStr) ) {

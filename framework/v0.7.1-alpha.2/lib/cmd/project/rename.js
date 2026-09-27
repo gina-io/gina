@@ -2,6 +2,7 @@ var fs          = require('fs');
 
 var CmdHelper   = require('./../helper');
 var console     = lib.logger;
+var projectNameRule = require('./inc/name');
 
 /**
  * @module gina/lib/cmd/project/rename
@@ -35,6 +36,9 @@ function Rename(opt, cmd) {
     /**
      * Validates that exactly two project tokens are provided, then delegates to rename.
      *
+     * The new name must pass the project-name rule (`inc/name.js`), or the rename is
+     * refused before anything moves, exit 1 (#B665).
+     *
      * @inner
      * @private
      */
@@ -53,6 +57,14 @@ function Rename(opt, cmd) {
 
         local.source = self.projectName;
         local.target = self.projectArgvList[1];
+
+        // #B665 — the new name must pass the project-name rule (`inc/name.js`): the CLI
+        // bootstrap checks only its first character. It is always a new name, since a
+        // registered one is refused as taken below.
+        if ( !projectNameRule.isValidProjectName(local.target) ) {
+            console.error( projectNameRule.describeInvalidProjectName(local.target) );
+            process.exit(1)
+        }
 
 
         // #B651 — the check was inverted: it renamed only when the new name was

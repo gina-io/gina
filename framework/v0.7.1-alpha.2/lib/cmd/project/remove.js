@@ -1,5 +1,6 @@
 var fs          = require('fs');
 var CmdHelper   = require('./../helper');
+var escapeRegex = require('./../bundle/inc/name-rewrite').escapeRegex;
 var readline    = require('readline');
 var rl          = readline.createInterface(process.stdin, process.stdout);
 
@@ -168,7 +169,10 @@ function Remove(opt, cmd) {
 
                 for (var port in ports[protocol][scheme]) {
 
-                    re = new RegExp("\@"+ self.projectName +"\/");
+                    // #B665 — the project name is matched literally: a `.` matched any
+                    // character, so removing `my.app` also removed the ports of `my-app`.
+                    // was: re = new RegExp("\@"+ self.projectName +"\/");
+                    re = new RegExp('@' + escapeRegex(self.projectName) + '/');
 
                     if ( re.test(ports[protocol][scheme][port]) ) {
                         // reverse ports

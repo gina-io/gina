@@ -247,7 +247,8 @@ function PreInstall() {
 
                 // OK ... found installed gina but on a different prefix
                 // In this case, let's assume that it is not really installed
-                if ( !new RegExp('^'+ self.prefix).test(hasFoundGina.dependencies.gina.path) ) {
+                // was: if ( !new RegExp('^'+ self.prefix).test(hasFoundGina.dependencies.gina.path) ) {
+                if ( !new RegExp('^'+ escapeRegex(self.prefix)).test(hasFoundGina.dependencies.gina.path) ) {
                     self.isGinaInstalled = false;
                 }
             }
@@ -597,6 +598,24 @@ function PreInstall() {
         return (process.platform === 'win32') ? true : false;
     };
 
+    /**
+     * Escapes the regular-expression metacharacters of `s`, so an install prefix is
+     * matched as the literal path it is (#B665): a prefix holding `+` or `[` threw and
+     * failed the install, and its `.` matched any character. The same one-liner as
+     * `lib/cmd/bundle/inc/name-rewrite.js`'s `escapeRegex`, kept here because this script
+     * runs before a framework directory can be relied on.
+     *
+     * @inner
+     * @param {string} s - A path
+     * @returns {string} `s` with every metacharacter backslash-escaped
+     *
+     * @example
+     *  new RegExp('^' + escapeRegex('/opt/c++/.npm-global')).test('/opt/c++/.npm-global/var') // → true
+     */
+    var escapeRegex = function(s) {
+        return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    };
+
     var existsSync = function(path) {
         if ( fs.accessSync && typeof(fs.accessSync) != 'undefined' ) {
             try {
@@ -644,7 +663,9 @@ function PreInstall() {
         // Means `/usr/local/var/lock` or `/usr/local/var/run` by default.
         var runDir = (isWin32()) ? getUserHome() + '\\.gina\\run' : prefix+'/var/lock';
 
-        if ( !isWin32() && new RegExp('^'+ prefix).test(runDir) && !isWritableSync(prefix) ) {
+        // #B665 — the prefix is matched literally (see escapeRegex): a `c++` prefix threw here.
+        // was: if ( !isWin32() && new RegExp('^'+ prefix).test(runDir) && !isWritableSync(prefix) ) {
+        if ( !isWin32() && new RegExp('^'+ escapeRegex(prefix)).test(runDir) && !isWritableSync(prefix) ) {
             runDir = getUserHome() +'/.gina/run';
             if ( !existsSync(runDir) ) {
                 fs.mkdirSync(runDir)
@@ -717,14 +738,16 @@ function PreInstall() {
                     prefix+'/var/tmp'
                 ;
 
-                if ( new RegExp('^'+ prefix).test(tmpDir) && !isWritableSync(prefix) ) {
+                // was: if ( new RegExp('^'+ prefix).test(tmpDir) && !isWritableSync(prefix) ) {
+                if ( new RegExp('^'+ escapeRegex(prefix)).test(tmpDir) && !isWritableSync(prefix) ) {
                     tmpDir = getUserHome() +'/.gina/tmp';
                     if ( !existsSync(tmpDir) ) {
                         fs.mkdirSync(tmpDir)
                     }
                 }
 
-                if ( new RegExp('^'+ prefix +'/var').test(tmpDir) && !existsSync(prefix+'/var') ) {
+                // was: if ( new RegExp('^'+ prefix +'/var').test(tmpDir) && !existsSync(prefix+'/var') ) {
+                if ( new RegExp('^'+ escapeRegex(prefix +'/var')).test(tmpDir) && !existsSync(prefix+'/var') ) {
                     fs.mkdirSync(prefix+'/var');
                 }
             }
@@ -775,7 +798,8 @@ function PreInstall() {
                 prefix+'/var/log'
             ;
 
-            if ( new RegExp('^'+ prefix).test(logDir) && !isWritableSync(prefix) ) {
+            // was: if ( new RegExp('^'+ prefix).test(logDir) && !isWritableSync(prefix) ) {
+            if ( new RegExp('^'+ escapeRegex(prefix)).test(logDir) && !isWritableSync(prefix) ) {
                 logDir = getUserHome() +'/.gina/log';
                 if ( !existsSync(logDir) ) {
                     fs.mkdirSync(logDir)
@@ -784,7 +808,8 @@ function PreInstall() {
                 return logDir
             }
 
-            if ( new RegExp('^'+ prefix +'/var').test(logDir) && !existsSync(prefix+'/var') ) {
+            // was: if ( new RegExp('^'+ prefix +'/var').test(logDir) && !existsSync(prefix+'/var') ) {
+            if ( new RegExp('^'+ escapeRegex(prefix +'/var')).test(logDir) && !existsSync(prefix+'/var') ) {
                 fs.mkdirSync(prefix+'/var');
             }
 

@@ -4,6 +4,7 @@ var console = lib.logger;
 var CmdHelper = require('./../helper');
 var scan      = require('./../port/inc/scan');
 var nameRewrite = require('./inc/name-rewrite');
+var bundleNameRule = require('./inc/name');
 
 /**
  * @module gina/lib/cmd/bundle/copy
@@ -355,6 +356,9 @@ function Copy(opt, cmd) {
      * ports, copies the source tree, rewrites the name footprint, allocates the
      * port matrix, and registers the manifest entry.
      *
+     * A destination the manifest does not hold yet must pass the bundle-name rule
+     * (`inc/name.js`), before the dry-run report and before anything is written (#B665).
+     *
      * @inner
      * @private
      */
@@ -375,6 +379,16 @@ function Copy(opt, cmd) {
         }
         if ( !isValidName(dest) ) {
             console.error('[ '+ dest +' ] is not a valid bundle name.');
+            process.exit(1);
+            return;
+        }
+        // #B665 — the whole new name must pass the bundle-name rule (`inc/name.js`):
+        // isValidName() checks only its first character. A name the manifest already
+        // holds, as an own key (a destination overwritten under --force), keeps working.
+        var destRegistered = !!(self.projectData && self.projectData.bundles)
+            && Object.prototype.hasOwnProperty.call(self.projectData.bundles, dest);
+        if ( !destRegistered && !bundleNameRule.isValidBundleName(dest) ) {
+            console.error( bundleNameRule.describeInvalidBundleName(dest) );
             process.exit(1);
             return;
         }

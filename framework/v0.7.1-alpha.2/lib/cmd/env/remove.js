@@ -2,6 +2,7 @@ var fs          = require('fs');
 
 var CmdHelper   = require('./../helper');
 var console = lib.logger;
+var escapeRegex = require('./../bundle/inc/name-rewrite').escapeRegex;
 
 /**
  * @module gina/lib/cmd/env/remove
@@ -111,7 +112,10 @@ function Remove(opt, cmd) {
             , envs = requireJSON(envsPath);
 
 
-        var patt = new RegExp("\@"+ self.projectName +"/"+ env +"$");
+        // #B665 — the project and environment names are matched literally: a `.` matched
+        // any character, so removing `dev` from `my.app` also removed `my-app`'s entries.
+        // was: var patt = new RegExp("\@"+ self.projectName +"/"+ env +"$");
+        var patt = new RegExp('@' + escapeRegex(self.projectName +'/'+ env) + '$');
         for (let protocol in ports) {
             for (let scheme  in ports[protocol]) {
                 for (let p in ports[protocol][scheme]) {
@@ -122,7 +126,8 @@ function Remove(opt, cmd) {
             }
         }
 
-        patt = new RegExp("\@"+ self.projectName +"$");
+        // was: patt = new RegExp("\@"+ self.projectName +"$");
+        patt = new RegExp('@' + escapeRegex(self.projectName) + '$');
         for (let bundle in portsReverse) {
             if ( patt.test(bundle) ) {
                 for (let e in portsReverse[bundle]) {

@@ -11,6 +11,8 @@ var console     = lib.logger;
 var scan        = require('../port/inc/scan');
 var scopeName   = require('../scope/inc/name');
 var envName     = require('../env/inc/name');
+var projectNameRule = require('./inc/name');
+var escapeRegex = require('./../bundle/inc/name-rewrite').escapeRegex;
 
 /**
  * @module gina/lib/cmd/project/add
@@ -68,6 +70,31 @@ function Add(opt, cmd) {
     }
 
     /**
+     * Whether `name` is already registered in the framework's `projects.json`, as an own
+     * key: a name every object inherits (`constructor`) is never a registration. `init()`
+     * reads the registry itself because the CLI bootstrap (`isCmdConfigured()`) loads it
+     * only later. A missing or unreadable registry counts as no registration, so the
+     * project-name rule then applies.
+     *
+     * @inner
+     * @private
+     * @param {string} name - Project name, without its `@`
+     * @returns {boolean} True when `projects.json` holds `name` as an own key
+     *
+     * @example
+     *  isRegisteredProject('myproject')   // → true once `gina project:add @myproject` has run
+     *  isRegisteredProject('constructor') // → false: an inherited property is not a registration
+     */
+    var isRegisteredProject = function(name) {
+        try {
+            var registry = requireJSON(_(GINA_HOMEDIR + '/projects.json', true));
+            return !!registry && Object.prototype.hasOwnProperty.call(registry, name);
+        } catch (err) {
+            return false;
+        }
+    }
+
+    /**
      * Parses argv flags, ensures the project directory exists, creates package.json,
      * manifest.json, and env.json, optionally adding scope/env via sub-commands.
      *
@@ -82,6 +109,10 @@ function Add(opt, cmd) {
      * value that is not registered yet is registered by a `scope:add` / `env:add` child,
      * spawned from an argument vector — never through a shell string.
      *
+     * The project name itself gets the same treatment on `project:add` (#B665): a name
+     * not registered yet must pass the project-name rule (`inc/name.js`), or it is refused
+     * before anything is written, exit 1. A registered name, and `project:import`, skip it.
+     *
      * @inner
      * @private
      *
@@ -90,6 +121,8 @@ function Add(opt, cmd) {
      *  // → registers `staging` and `qa` if missing, then the project
      *  // gina project:add @myproject --path=/srv/myproject --scope='x;touch y'
      *  // → '"x;touch y" is not a valid scope name: …', exit 1, nothing written
+     *  // gina project:add @My.Project --path=/srv/my-project
+     *  // → '"My.Project" is not a valid project name: …', exit 1, nothing written
      */
     var init = function() {
 
@@ -142,6 +175,18 @@ function Add(opt, cmd) {
             if ( self.env && !envName.isValidEnvName(self.env) ) {
                 console.error( envName.describeInvalidEnvName(self.env) );
                 process.exit(1)
+            }
+
+            // #B665 — a NEW project name must pass the project-name rule (`inc/name.js`)
+            // before anything is written: the CLI bootstrap below checks only its first
+            // character, and creates the `--path` directory. A name already registered
+            // keeps working, so re-running `project:add` on it goes on as before.
+            if ( /^@/.test(process.argv[3]) ) {
+                let candidate = process.argv[3].substring(1);
+                if ( !isRegisteredProject(candidate) && !projectNameRule.isValidProjectName(candidate) ) {
+                    console.error( projectNameRule.describeInvalidProjectName(candidate) );
+                    process.exit(1)
+                }
             }
         }
 
@@ -884,7 +929,11 @@ function Add(opt, cmd) {
 
                                         // ports
                                         portValue = local.bundle +'@'+ self.projectName +'/'+ envs[e];
-                                        re = new RegExp(portValue);
+                                        // #B665 — matched as one whole JSON string of the registry text:
+                                        // unescaped and unanchored, `api@shop/dev` was found inside
+                                        // `"myapi@shop/devel"`, so its assignment was skipped as existing.
+                                        // was: re = new RegExp(portValue);
+                                        re = new RegExp(escapeRegex(JSON.stringify(portValue)));
 
 
                                         if ( !re.test(portsListStr) ) {

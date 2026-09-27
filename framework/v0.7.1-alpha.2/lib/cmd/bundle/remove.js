@@ -4,6 +4,7 @@ var rl          = readline.createInterface(process.stdin, process.stdout);
 
 var CmdHelper   = require('./../helper');
 var console     = lib.logger;
+var escapeRegex = require('./inc/name-rewrite').escapeRegex;
 
 /**
  * @module gina/lib/cmd/bundle/remove
@@ -218,7 +219,10 @@ function Remove(opt, cmd) {
         for (let protocol in ports) {
             for (let scheme in ports[protocol]) {
                 for (let port in ports[protocol][scheme]) {
-                    re = new RegExp(bundle +"\@"+ self.projectName +"\/");
+                    // #B665 — the names are matched literally, from the start of the value:
+                    // `api@shop/` matched `myapi@shop/dev`, whose ports went with this bundle's.
+                    // was: re = new RegExp(bundle +"\@"+ self.projectName +"\/");
+                    re = new RegExp('^' + escapeRegex(bundle +'@'+ self.projectName +'/'));
                     if ( re.test(ports[protocol][scheme][port]) ) {
                         delete ports[protocol][scheme][port];
                     }
@@ -227,7 +231,9 @@ function Remove(opt, cmd) {
         }
 
         for (let bundleAddress in portsReverse) {
-            re = new RegExp(bundle +"\@"+ self.projectName);
+            // #B665 — the whole key, literally: `api@shop` matched `myapi@shop` and `api@shopping`.
+            // was: re = new RegExp(bundle +"\@"+ self.projectName);
+            re = new RegExp('^' + escapeRegex(bundle +'@'+ self.projectName) + '$');
             if ( re.test(bundleAddress) ) {
                 delete portsReverse[bundleAddress];
             }

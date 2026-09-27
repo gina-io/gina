@@ -14,6 +14,7 @@ var runtime     = require(__dirname + '/../../../../../utils/runtime.js');
 // #B691 (2026-09-27) — picks a bundle's warn-and-above boot lines out of its stdout for the
 // client. Relative path: the bare `lib/<name>` form is unavailable in CLI/daemon scope.
 var bootLines   = require('./inc/boot-lines');
+var escapeRegex = require('./inc/name-rewrite').escapeRegex;
 // `lib` is previously defiened as this file is required by anoth
 // For user output
 var terminal    = lib.logger;
@@ -449,7 +450,11 @@ function Start(opt, cmd) {
                     var checkCaseCount = 2
                         // The 2 flags we need to free the child.stdout if we do not want the command to wait for a timeout
                         // NB.: you can place flag by using terminal.notice
-                        , checkCaseRe = new RegExp('('+bundle + '@' + self.projectName + ' mounted !|Bundle started !)', 'g')
+                        // #B665 — the name is matched literally: `a+b` never matched its own
+                        // `mounted !` line, so the start never counted the bundle as mounted and
+                        // killed it after its timeout, and a `(` threw.
+                        // was: , checkCaseRe = new RegExp('('+bundle + '@' + self.projectName + ' mounted !|Bundle started !)', 'g')
+                        , checkCaseRe = new RegExp('('+ escapeRegex(bundle + '@' + self.projectName) + ' mounted !|Bundle started !)', 'g')
                         , url = null
                         , debuggerOn = null
                     ;

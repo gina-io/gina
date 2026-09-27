@@ -3,6 +3,9 @@ var fs = require('fs');
 var CmdHelper = require('./../helper');
 var console = lib.logger;
 var Collection = lib.Collection;
+// #B665 — every name below is matched literally: a `.` matched any character, and a `+`
+// or `(` in a registered name broke the listing or threw.
+var escapeRegex = require('./../bundle/inc/name-rewrite').escapeRegex;
 
 /**
  * @module gina/lib/cmd/port/list
@@ -278,7 +281,8 @@ function List(opt, cmd) {
             let protocols   = project.protocols;
             let schemes     = project.schemes;
 
-            re = new RegExp('\@' + projectName + '\/', '');// searching by projectName
+            // was: re = new RegExp('\@' + projectName + '\/', '');// searching by projectName
+            re = new RegExp('@' + escapeRegex(projectName) + '/', '');// searching by projectName
             str += '------------------------------------\n\r';
             if (!project.exists || project.exists && protocols.length == 0) {
                 str += '?! '
@@ -315,7 +319,8 @@ function List(opt, cmd) {
                             continue;
                         }
 
-                        let re2 = new RegExp(_bundle +'\@' + projectName + '\/'+ _env, '');// searching by projectName
+                        // was: let re2 = new RegExp(_bundle +'\@' + projectName + '\/'+ _env, '');// searching by projectName
+                        let re2 = new RegExp(escapeRegex(_bundle +'@' + projectName + '/'+ _env), '');// searching by projectName
                         // if (re.test(self.portsData[protocol][scheme][port]) ) {
                         if (re2.test(self.portsData[protocol][scheme][port])) {
                             found = true;
@@ -391,7 +396,8 @@ function List(opt, cmd) {
                     continue;
                 }
                 str += '  [ ' + scheme + ' ]\n\r';
-                re = new RegExp('\@' + self.projectName + '\/', '');// searching by projectName
+                // was: re = new RegExp('\@' + self.projectName + '\/', '');// searching by projectName
+                re = new RegExp('@' + escapeRegex(self.projectName) + '/', '');// searching by projectName
                 for (let port in self.portsData[protocol][scheme]) {
                     let bundleEnv = self.portsData[protocol][scheme][port].replace(re, ':').split(/\:/);
                     let _bundle = bundleEnv[0];
@@ -400,7 +406,8 @@ function List(opt, cmd) {
                         continue;
                     }
 
-                    let re2 = new RegExp(_bundle +'\@' + self.projectName + '\/'+ _env, '');// searching by projectName
+                    // was: let re2 = new RegExp(_bundle +'\@' + self.projectName + '\/'+ _env, '');// searching by projectName
+                    let re2 = new RegExp(escapeRegex(_bundle +'@' + self.projectName + '/'+ _env), '');// searching by projectName
                     if (re2.test(self.portsData[protocol][scheme][port])) {
 
                         str += '\n\r    - ' + port + '  ' + self.portsData[protocol][scheme][port].replace(re, ' (') + ')';
@@ -460,14 +467,16 @@ function List(opt, cmd) {
                 let bundle = self.name;
                 found = false;
                 // re = new RegExp('^' + bundle + '\@', '');// searching by bundle name
-                re = new RegExp('^' + bundle + '\@' + self.projectName + '\/', '');// searching by projectName
+                // was: re = new RegExp('^' + bundle + '\@' + self.projectName + '\/', '');// searching by projectName
+                re = new RegExp('^' + escapeRegex(bundle + '@' + self.projectName + '/'), '');// searching by projectName
                 for (let port in self.portsData[protocol][scheme]) {
 
                     let bundleEnv = self.portsData[protocol][scheme][port].replace(re, '\:').split(/\:/);
                     let _bundle = bundleEnv[0] || bundle;
                     let _env = bundleEnv[1];
 
-                    let re2 = new RegExp(_bundle +'\@' + self.projectName + '\/'+ _env, '');// searching by <bundle>@<projectName>
+                    // was: let re2 = new RegExp(_bundle +'\@' + self.projectName + '\/'+ _env, '');// searching by <bundle>@<projectName>
+                    let re2 = new RegExp(escapeRegex(_bundle +'@' + self.projectName + '/'+ _env), '');// searching by <bundle>@<projectName>
                     if (re2.test(self.portsData[protocol][scheme][port])) {
                         str +=  '    ' +scheme+ ' ' + port + '  ' + bundle + ' ' + self.portsData[protocol][scheme][port].replace(re, '').replace(/[-_a-z 0-9]+\//i, '(') + ')';
                         found = true;

@@ -6,6 +6,7 @@ var rl          = readline.createInterface({ input: process.stdin, output: proce
 var CmdHelper   = require('./../helper');
 var console     = lib.logger;
 var scan        = require('../port/inc/scan');
+var bundleNameRule = require('./inc/name');
 
 
 /**
@@ -51,8 +52,17 @@ function Add(opt, cmd) {
     /**
      * Parses --start-port-from option, validates project/bundle args, and starts addition.
      *
+     * Every name of the list that the project's manifest does not hold yet must pass the
+     * bundle-name rule (`inc/name.js`), checked for the whole list before the first bundle
+     * is added, so a refused name leaves nothing written (#B665). A name the manifest
+     * already holds keeps working (`--import`, `--replace`).
+     *
      * @inner
      * @private
+     *
+     * @example
+     *  // gina bundle:add api 'a$b' @myproject
+     *  // → '"a$b" is not a valid bundle name: …', exit 1, `api` not added either
      */
     var init = function() {
 
@@ -125,6 +135,20 @@ function Add(opt, cmd) {
         // }
 
         if ( isDefined('project', self.projectName) ) {
+            // #B665 — every NEW bundle name must pass the bundle-name rule (`inc/name.js`),
+            // checked for the whole list before the first bundle is added: addBundles()
+            // checks only a name's first character, one bundle at a time, after the
+            // bundles before it are written. A name the manifest already holds, as an own
+            // key, keeps working.
+            for (let n = 0, nLen = self.bundles.length; n < nLen; n++) {
+                let candidate = self.bundles[n];
+                let registered = !!(self.projectData && self.projectData.bundles)
+                    && Object.prototype.hasOwnProperty.call(self.projectData.bundles, candidate);
+                if ( !registered && !bundleNameRule.isValidBundleName(candidate) ) {
+                    console.error( bundleNameRule.describeInvalidBundleName(candidate) );
+                    return process.exit(1)
+                }
+            }
             addBundles(0);
         } else {
             //console.error('[ '+ self.projectName+' ] is not an existing project');

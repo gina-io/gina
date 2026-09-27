@@ -5,10 +5,6 @@
 
 [ Add a new project ]
 
-    You have 2 ways of creating your project
-
-    1st method
-    ----------
     $ gina project:add @<project_name> [ --path=/var/www/<project_name> ] (if no path given, will take the current)
 
     where `/var/www/<project_name>` is the destination path
@@ -21,10 +17,10 @@
     where `~/.<project_name>/v2` is the project homedir path
     If you do not specifiy a `.<project_name>` for the `--homedir` argument , gina will reuse the one you used with `@<project_name>`
 
-    2nd method
-    ----------
-    From current project path : project name will be by default the current project folder name
-    $ gina project:add
+    A project name is made of letters, digits, `_`, `.` and `-`, and starts with a
+    lowercase letter, a digit, `_` or `.`. `.`, `..` and the name of a property every
+    object inherits, such as `constructor`, are refused. A name registered before this
+    rule existed keeps working.
 
 
 [ Import an existing project ]
@@ -83,6 +79,8 @@
 
     $ gina project:rename @<project_name> @<new_project_name>
 
+    The new name follows the naming rule of `project:add`.
+
 
 [ Move project ]
 
@@ -120,3 +118,5 @@
 
     N.B.: node_modules is not in the backup — run `npm install` afterwards.
     Pass --force to overwrite an already-registered name or a non-empty target.
+    A new name follows the naming rule of `project:add`, checked before anything
+    is extracted.

@@ -14,6 +14,11 @@
     Or
     $ gina bundle:add <bundle_name> @<project_name> --start-port-from=<port_number>
 
+    A bundle name is made of letters, digits, `_`, `.` and `-`, and starts with a
+    lowercase letter, a digit, `_` or `.`. `.`, `..` and the name of a property every
+    object inherits, such as `constructor`, are refused. A name registered before this
+    rule existed keeps working.
+
 
     Excluding specific ports from the scan
     ----------
@@ -32,6 +37,8 @@
     Adding multiple
     ----------
     $ gina bundle:add <bundle_name_1> <bundle_name_2> <bundle_name_3> @<project_name>
+
+    Every name is checked before the first bundle is added.
 
 
     When the bundle already exists
@@ -62,6 +69,8 @@
 
     $ gina bundle:copy <source_bundle_name> <new_bundle_name> @<project_name>
 
+    The new name follows the naming rule of `bundle:add`.
+
     Alias
     ----------
     $ gina bundle:cp <source_bundle_name> <new_bundle_name> @<project_name>
@@ -91,6 +100,8 @@
     stopped first.
 
     $ gina bundle:rename <old_bundle_name> <new_bundle_name> @<project_name>
+
+    The new name follows the naming rule of `bundle:add`.
 
     Preview without writing anything
     ----------

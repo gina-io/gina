@@ -4,6 +4,7 @@ var cp   = require('child_process');
 
 var CmdHelper = require('./../helper');
 var console   = lib.logger;
+var projectNameRule = require('./inc/name');
 
 /**
  * @module gina/lib/cmd/project/restore
@@ -66,6 +67,11 @@ function Restore(opt, cmd) {
      * `--to`, validates the archive and the (name / target) conflicts, then runs
      * the restore.
      *
+     * A name not registered yet must pass the project-name rule (`inc/name.js`) before
+     * the archive is touched (#B665): the `project:add` child that registers it would
+     * refuse it only after the tree is extracted. A registered name (restored over under
+     * `--force`) keeps working.
+     *
      * @inner
      * @private
      */
@@ -77,6 +83,19 @@ function Restore(opt, cmd) {
         local.project = self.projectName;
         if ( local.project == null ) {
             console.error('project:restore requires a project name: gina project:restore @<name> <archive.zip> --to=/path');
+            process.exit(1);
+            return;
+        }
+
+        // #B665 — a name not registered yet must pass the project-name rule (`inc/name.js`)
+        // BEFORE the archive is extracted: the `project:add` child that registers it would
+        // refuse it only after the tree is written. A registered name, as an own key
+        // (restored over under --force), keeps working.
+        if (
+            !Object.prototype.hasOwnProperty.call(self.projects || {}, local.project)
+            && !projectNameRule.isValidProjectName(local.project)
+        ) {
+            console.error( projectNameRule.describeInvalidProjectName(local.project) );
             process.exit(1);
             return;
         }

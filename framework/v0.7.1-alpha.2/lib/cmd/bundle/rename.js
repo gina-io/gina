@@ -3,6 +3,7 @@ var console = lib.logger;
 
 var CmdHelper   = require('./../helper');
 var nameRewrite = require('./inc/name-rewrite');
+var bundleNameRule = require('./inc/name');
 
 /**
  * @module gina/lib/cmd/bundle/rename
@@ -350,6 +351,9 @@ function Rename(opt, cmd) {
      * (unless `--dry-run`) moves the directory, rewrites the name footprint, and
      * rekeys every registry surface — all snapshot-guarded for rollback.
      *
+     * A new name the manifest does not hold yet must pass the bundle-name rule
+     * (`inc/name.js`), before the dry-run report and before anything moves (#B665).
+     *
      * @inner
      * @private
      */
@@ -370,6 +374,16 @@ function Rename(opt, cmd) {
         }
         if ( !isValidName(dest) ) {
             console.error('[ '+ dest +' ] is not a valid bundle name.');
+            process.exit(1);
+            return;
+        }
+        // #B665 — the whole new name must pass the bundle-name rule (`inc/name.js`):
+        // isValidName() checks only its first character. A name the manifest already
+        // holds, as an own key (a destination overwritten under --force), keeps working.
+        var destRegistered = !!(self.projectData && self.projectData.bundles)
+            && Object.prototype.hasOwnProperty.call(self.projectData.bundles, dest);
+        if ( !destRegistered && !bundleNameRule.isValidBundleName(dest) ) {
+            console.error( bundleNameRule.describeInvalidBundleName(dest) );
             process.exit(1);
             return;
         }

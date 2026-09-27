@@ -9,6 +9,7 @@ var merge       = lib.merge;
 var inherits    = lib.inherits;
 var Collection  = lib.Collection;
 var helpers     = require( getPath('gina').helpers);
+var escapeRegex = require('./bundle/inc/name-rewrite').escapeRegex;
 /**
  * @module gina/lib/cmd/helper
  */
@@ -450,19 +451,27 @@ function CmdHelper(cmd, client, debug) {
                                 return false;
                             }
                             cmd.projects[cmd.projectName].def_prefix = realGinaPrefix;
+                            // #B665 — the old paths are matched literally and the new ones
+                            // inserted verbatim: a path holding `(` or `[` failed its own prefix
+                            // test, a `.` matched any character, and a `$&` in the new path
+                            // expanded to the matched text.
                             let oldHomedir          = cmd.projects[cmd.projectName].homedir;
-                            let reOldHomedir        = new RegExp('^'+ oldHomedir);
+                            // was: let reOldHomedir        = new RegExp('^'+ oldHomedir);
+                            let reOldHomedir        = new RegExp('^' + escapeRegex(oldHomedir));
                             let oldProjectPath      = cmd.projects[cmd.projectName].path;
-                            let reOldProjectPath    = new RegExp('^'+ oldProjectPath);
+                            // was: let reOldProjectPath    = new RegExp('^'+ oldProjectPath);
+                            let reOldProjectPath    = new RegExp('^' + escapeRegex(oldProjectPath));
                             for ( let p in cmd.projects[cmd.projectName] ) {
                                 if ( typeof(cmd.projects[cmd.projectName][p]) == 'string' ) {
                                     if ( reOldHomedir.test(cmd.projects[cmd.projectName][p]) ) {
-                                        cmd.projects[cmd.projectName][p] = cmd.projects[cmd.projectName][p].replace(reOldHomedir, newHomeDir);
+                                        // was: cmd.projects[cmd.projectName][p] = cmd.projects[cmd.projectName][p].replace(reOldHomedir, newHomeDir);
+                                        cmd.projects[cmd.projectName][p] = cmd.projects[cmd.projectName][p].replace(reOldHomedir, function() { return newHomeDir; });
                                         continue;
                                     }
 
                                     if ( reOldProjectPath.test(cmd.projects[cmd.projectName][p]) ) {
-                                        cmd.projects[cmd.projectName][p] = cmd.projects[cmd.projectName][p].replace(reOldProjectPath, pathValue);
+                                        // was: cmd.projects[cmd.projectName][p] = cmd.projects[cmd.projectName][p].replace(reOldProjectPath, pathValue);
+                                        cmd.projects[cmd.projectName][p] = cmd.projects[cmd.projectName][p].replace(reOldProjectPath, function() { return pathValue; });
                                         continue;
                                     }
                                 }
@@ -521,7 +530,10 @@ function CmdHelper(cmd, client, debug) {
                 if  ( isValidName(cmd.bundles[0]) ) {
                     cmd.name = cmd.bundles[0]
                 } else {
-                    console.error('[ ' + cmd.name + ' ] is not a valid bundle name.');
+                    // #B665 — name the rejected bundle: `cmd.name` is set only on success,
+                    // so the message read `[ undefined ]`.
+                    // was: console.error('[ ' + cmd.name + ' ] is not a valid bundle name.');
+                    console.error('[ ' + cmd.bundles[0] + ' ] is not a valid bundle name.');
                     process.exit(1)
                 }
             } // else, might be a bulk operation: look for `isBulkOperation`
@@ -1184,7 +1196,11 @@ function CmdHelper(cmd, client, debug) {
             //console.debug('[ ConfigAssetsLoaderHelper ] Loaded bundles list\n'+ JSON.stringify(cmd.bundles, null, 4));
 
             // protocols & schemes list: for the project
-            re = new RegExp('\@' + cmd.projectName, '');
+            // #B665 — the project name is matched literally and must end at the `/` that
+            // follows it in a `<bundle>@<project>/<env>` value: `@shop` matched the ports
+            // of `@shopping/...`, which then counted as this project's.
+            // was: re = new RegExp('\@' + cmd.projectName, '');
+            re = new RegExp('@' + escapeRegex(cmd.projectName) + '/', '');
 
             for (let protocol in ports) {
                 if ( typeof(cmd.portsData[protocol]) == 'undefined')
@@ -1341,10 +1357,14 @@ function CmdHelper(cmd, client, debug) {
         var hasProject = false, re = null;
         if ( cmd.projectName != null && typeof(cmd.projects[cmd.projectName]) != 'undefined' ) {
             hasProject = true;
-            re = new RegExp('\@'+ cmd.projectName +'\/', '');
+            // #B665 — the names are matched literally, and a bundle's from the start of the
+            // value: `api@shop/` matched `myapi@shop/dev`.
+            // was: re = new RegExp('\@'+ cmd.projectName +'\/', '');
+            re = new RegExp('@' + escapeRegex(cmd.projectName) + '/', '');
 
             if ( cmd.name != null ) {
-                re = new RegExp(cmd.name + '\@'+ cmd.projectName +'\/', '');
+                // was: re = new RegExp(cmd.name + '\@'+ cmd.projectName +'\/', '');
+                re = new RegExp('^' + escapeRegex(cmd.name + '@' + cmd.projectName + '/'), '');
             }
         }
 
@@ -1997,14 +2017,21 @@ function CmdHelper(cmd, client, debug) {
 
 
                     let stringifiedScheme = JSON.stringify(ports[protocol][scheme]);
-                    let patt = new RegExp(bundle +'@'+ cmd.projectName +'/'+ env);
+                    // #B665 — the assignment is matched as one whole JSON string of the
+                    // scheme's text: unescaped and unanchored, `api@shop/dev` was found
+                    // inside `"api@shop/devel"` or `"myapi@shop/dev"`, and the port of the
+                    // first such value in the text was taken over for this one.
+                    // was: let patt = new RegExp(bundle +'@'+ cmd.projectName +'/'+ env);
+                    let patt = new RegExp(escapeRegex(JSON.stringify(bundle +'@'+ cmd.projectName +'/'+ env)));
                     let found = false;
                     let portToAssign = null;
                     // do not override if existing
                     if ( patt.test(stringifiedScheme) ) { // there can multiple matches
                         found = true;
                         // reusing the same for portsReverse
-                        let re = new RegExp('([0-9]+)\"\:(|\s+)\"('+ bundle +'\@'+ cmd.projectName +'\/'+ env +')', 'g');
+                        // was: let re = new RegExp('([0-9]+)\"\:(|\s+)\"('+ bundle +'\@'+ cmd.projectName +'\/'+ env +')', 'g');
+                        // (`\s` in that string literal is a plain `s`)
+                        let re = new RegExp('([0-9]+)":(|\\s+)(' + escapeRegex(JSON.stringify(bundle +'@'+ cmd.projectName +'/'+ env)) + ')', 'g');
                         let m;
                         while ((m = re.exec(stringifiedScheme)) !== null) {
                             // This is necessary to avoid infinite loops with zero-width matches
