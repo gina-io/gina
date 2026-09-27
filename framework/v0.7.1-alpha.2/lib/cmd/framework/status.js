@@ -1,9 +1,12 @@
 var fs          = require('fs');
 const {spawn}       = require('child_process');
-const {execSync}    = require('child_process');
+// #B665 S2 (2026-09-27) — no shell: the daemons are listed through inc/ps-titles.js, and a pid's
+// liveness is checked with process.kill(pid, 0).
+// const {execSync}    = require('child_process');
 //const { debug } = require('console');
 
 var CmdHelper   = require('./../helper');
+var psTitles    = require('./inc/ps-titles');
 var console     = lib.logger;
 /**
  * @module gina/lib/cmd/framework/status
@@ -46,41 +49,43 @@ function Status(opt, cmd) {
     }
 
     /**
-     * Discovers processes matching `gina-v*` that are not tracked by PID files
-     * and writes PID files for them, or kills any zombie processes.
+     * Discovers the current user's framework daemons (`gina-v<version>` titles)
+     * that are not tracked by PID files and writes PID files for them, or kills
+     * any zombie processes. The listing comes from `inc/ps-titles.js`, which runs
+     * `ps` without a shell and accepts only a daemon title (#B677).
      * @inner
      * @private
      * @param {string[]} pidFiles - Array of PID filenames already found in GINA_RUNDIR
      */
     var checkUnregistered = function(pidFiles) {
         // Those not in file
-        var list = execSync("ps -ef | grep -v grep | grep 'gina-v' | awk '{print $2\" \"$8\" \"$9}'").toString().replace(/\n$/, '').split(/\n/g);
-
-
-        if (!list.length || list[0] == "") {
-            return;
-        }
+        // #B677 (2026-09-27) — the current user's processes only, and a daemon title only:
+        // `ps -ef` listed every user's processes, and any `gina-`-titled process's title became
+        // a pid-file name that `_()` normalises, so `gina-v/../../x` wrote outside the run
+        // directory. `ps` runs from an argument vector (#B665 S2).
+        // was: var list = execSync("ps -ef | grep -v grep | grep 'gina-v' | awk '{print $2\" \"$8\" \"$9}'").toString().replace(/\n$/, '').split(/\n/g);
+        var list = psTitles.listOwnDaemons();
 
         // console.debug('pids list ', list);
         for (let p=0, len=list.length; p<len; p++) {
-            if ( !/^\d+\s+gina\-/.test(list[p]) ) {
-                continue;
-            }
-
-            let pidArr = list[p].split(/\s/);
-            let pid = pidArr[0];
-            let title = pidArr[1];
-            let isZombie = ( typeof(pidArr[2]) != 'undefined' && /defunct/.test(pidArr[2]) ) ? true : false;
+            let pid = list[p].pid;
+            let title = list[p].title;
 
             // remove defunct process
-            if (isZombie) {
-                execSync("kill -9 "+ pid);
+            if (list[p].zombie) {
+                // was: execSync("kill -9 "+ pid);
+                try {
+                    process.kill(pid, 'SIGKILL');
+                } catch (killErr) {
+                    console.debug('Could not signal defunct process '+ pid +': '+ killErr.message);
+                }
                 continue;
             }
 
             let file = title +'.pid';
             if ( pidFiles.indexOf( file ) < 0) {
-                fs.writeFileSync( _(GINA_RUNDIR +'/'+ file, true), pid );
+                // a string: writeFileSync refuses a number
+                fs.writeFileSync( _(GINA_RUNDIR +'/'+ file, true), ''+ pid );
                 pidFiles.push(title +'.pid');
             }
         }
@@ -88,7 +93,9 @@ function Status(opt, cmd) {
     }
 
     /**
-     * Reads PID files and prints running framework versions to the logger.
+     * Reads PID files and prints running framework versions to the logger. On
+     * macOS and Linux a pid is running when `process.kill(pid, 0)` succeeds or
+     * fails with EPERM; any other pid file is removed.
      * @inner
      * @private
      * @param {object} opt
@@ -116,12 +123,24 @@ function Status(opt, cmd) {
             }
 
             if ( !isWin32() ) {
+                // #B665 S2 (2026-09-27) — liveness in-process, as framework:init's checkRunningPids:
+                // the pid file's content reached `ps -a <content>` through sh, and on a host
+                // without `ps` (a slim container image) every live framework pid file was
+                // removed. EPERM means alive (another user's process); ESRCH, or content that is
+                // not a pid, removes the file, as a failing `ps -a` did.
+                // was: let found = execSync("ps -a "+ pid).toString().replace(/\n$/, '').split(/\n/g);
+                var n = psTitles.parsePid(pid);
                 try {
-                    let found = execSync("ps -a "+ pid).toString().replace(/\n$/, '').split(/\n/g);
+                    if (n === null) {
+                        throw new Error('not a pid: '+ pid);
+                    }
+                    process.kill(n, 0);
                 } catch (err) {
-                    console.debug('file to remove: '+ _(GINA_RUNDIR +'/'+ file));
-                    fs.unlinkSync(_(GINA_RUNDIR +'/'+ file));
-                    continue;
+                    if ( !err || err.code !== 'EPERM' ) {
+                        console.debug('file to remove: '+ _(GINA_RUNDIR +'/'+ file));
+                        fs.unlinkSync(_(GINA_RUNDIR +'/'+ file));
+                        continue;
+                    }
                 }
             }
 

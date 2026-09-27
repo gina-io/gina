@@ -317,9 +317,10 @@ describe('07 - framework start/restart invoke the self-resolved bin/gina wrapper
     });
 
     it('restart.js uses ginaBin at its two sites (start, stop); the dead bundle:restart helper is gone (#B665)', function() {
-        // comment-stripped: #B665 removed the never-called start() and restartRunningBunldes()
+        // comment-stripped: #B665 removed the never-called start() and restartRunningBunldes(),
+        // and #B665 S2 moved both sites from double-quoted command lines to argument vectors
         var live = stripComments(RESTART_SRC);
-        var m = live.match(/'"'\+ process\.execPath \+'" "'\+ ginaBin \+'"/g) || [];
+        var m = live.match(/execFileSync\(process\.execPath, \[ginaBin, '(start|stop)', '@' \+ self\.version\]\)/g) || [];
         assert.equal(m.length, 2, 'expected the start and stop self-resolved invocations in restart.js, got ' + m.length);
         assert.ok(live.indexOf('restartRunningBunldes') < 0, 'the dead bundle:restart helper is removed');
         assert.ok(live.indexOf('var start = ') < 0, 'the dead start() is removed');

@@ -197,8 +197,11 @@ function detectDarwin() {
 
         if (!fs.existsSync(plistPath)) return 'safari';
 
-        var raw = child.execSync(
-            'plutil -convert json -o - "' + plistPath + '"'
+        // #B665 S2 (2026-09-27) — an argument vector: the path reaches plutil whole.
+        // was: var raw = child.execSync(
+        // was:     'plutil -convert json -o - "' + plistPath + '"'
+        var raw = child.execFileSync(
+            'plutil', ['-convert', 'json', '-o', '-', plistPath]
           , { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }
         );
         var plist    = JSON.parse(raw);
@@ -225,8 +228,11 @@ function detectDarwin() {
  */
 function detectLinux() {
     try {
-        var desktop = child.execSync(
-            'xdg-settings get default-web-browser 2>/dev/null'
+        // #B665 S2 (2026-09-27) — no shell; stderr is piped, as `2>/dev/null` discarded it.
+        // was: var desktop = child.execSync(
+        // was:     'xdg-settings get default-web-browser 2>/dev/null'
+        var desktop = child.execFileSync(
+            'xdg-settings', ['get', 'default-web-browser']
           , { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }
         ).trim().toLowerCase();
         for (var prefix in DESKTOP_MAP) {
@@ -283,10 +289,17 @@ function detectDefaultBrowser() {
  */
 function hasBin(bin) {
     try {
-        var cmd = (os.platform() === 'win32')
-            ? 'where ' + bin + ' 2>nul'
-            : 'which ' + bin + ' 2>/dev/null';
-        child.execSync(cmd, { stdio: ['pipe', 'pipe', 'pipe'] });
+        // #B665 S2 (2026-09-27) — `which` from an argument vector on macOS and Linux; Windows
+        // keeps `where` through cmd.exe (#B694).
+        // var cmd = (os.platform() === 'win32')
+        //     ? 'where ' + bin + ' 2>nul'
+        //     : 'which ' + bin + ' 2>/dev/null';
+        // child.execSync(cmd, { stdio: ['pipe', 'pipe', 'pipe'] });
+        if (os.platform() === 'win32') {
+            child.execSync('where ' + bin + ' 2>nul', { stdio: ['pipe', 'pipe', 'pipe'] });
+        } else {
+            child.execFileSync('which', [bin], { stdio: ['pipe', 'pipe', 'pipe'] });
+        }
         return true;
     } catch (e) { return false; }
 }
@@ -320,12 +333,14 @@ function resolveWindowsPath(winDef) {
 }
 
 /**
- * Build the shell command to open a URL in a specific browser.
+ * Build the launch that opens a URL in a specific browser: an argument vector
+ * (`bin` + `args`, run without a shell) on macOS and Linux, and a `start`
+ * command line (`cmd`, run through cmd.exe) on Windows (#B665, #B694).
  *
  * @inner
  * @param {string} shortName - Browser short name from BROWSERS
  * @param {string} url - The URL to open
- * @returns {{ cmd: string, appMode: boolean }|null}
+ * @returns {{ bin: string, args: string[], appMode: boolean }|{ cmd: string, appMode: boolean }|null}
  */
 function buildLaunchCmd(shortName, url) {
     var browser  = BROWSERS[shortName];
@@ -345,14 +360,19 @@ function buildLaunchCmd(shortName, url) {
             // regular navigation, ignoring --app=.
             var binPath = '/Applications/' + platDef.app + '.app/Contents/MacOS/' + platDef.app;
             if (!fs.existsSync(binPath)) return null;
+            // #B665 S2 (2026-09-27) — an argument vector: the URL reaches the browser whole.
+            // was: cmd     : '"' + binPath + '" --app="' + url + '"'
             return {
-                cmd     : '"' + binPath + '" --app="' + url + '"'
+                bin     : binPath
+              , args    : ['--app=' + url]
               , appMode : true
             };
         }
         // Non-app-mode browsers (Firefox, Safari): use `open -a`
+        // was: cmd     : 'open -a "' + platDef.app + '" "' + url + '"'
         return {
-            cmd     : 'open -a "' + platDef.app + '" "' + url + '"'
+            bin     : 'open'
+          , args    : ['-a', platDef.app, url]
           , appMode : false
         };
     }
@@ -364,10 +384,12 @@ function buildLaunchCmd(shortName, url) {
             if (hasBin(bins[i])) { bin = bins[i]; break; }
         }
         if (!bin) return null;
-        var linuxArgs = browser.appMode
-            ? bin + ' --app="' + url + '"'
-            : bin + ' "' + url + '"';
-        return { cmd: linuxArgs, appMode: browser.appMode };
+        // #B665 S2 (2026-09-27) — an argument vector: the URL reaches the browser whole.
+        // var linuxArgs = browser.appMode
+        //     ? bin + ' --app="' + url + '"'
+        //     : bin + ' "' + url + '"';
+        // return { cmd: linuxArgs, appMode: browser.appMode };
+        return { bin: bin, args: browser.appMode ? ['--app=' + url] : [url], appMode: browser.appMode };
     }
 
     if (platform === 'win32') {
@@ -381,6 +403,28 @@ function buildLaunchCmd(shortName, url) {
     }
 
     return null;
+}
+
+/**
+ * Opens a URL in the system default browser: `open` on macOS and `xdg-open`
+ * elsewhere, each from an argument vector, and `start` through cmd.exe on
+ * Windows (#B665, #B694). Used by both fallbacks of `inspector:open`.
+ *
+ * @inner
+ * @param {string} url - The URL to open
+ * @returns {void}
+ * @example
+ * openInDefaultBrowser('http://localhost:3100/_gina/inspector/');
+ */
+function openInDefaultBrowser(url) {
+    var platform = os.platform();
+    if (platform === 'win32') {
+        child.exec('start "" "' + url + '"');
+    } else if (platform === 'darwin') {
+        child.execFile('open', [url]);
+    } else {
+        child.execFile('xdg-open', [url]);
+    }
 }
 
 
@@ -613,12 +657,14 @@ function Open(opt, cmd) {
                 'No app-mode browser found. '
                 + 'Opening in system default browser.'
             );
-            var fallbackCmd = (os.platform() === 'win32')
-                ? 'start "" "' + url + '"'
-                : (os.platform() === 'darwin')
-                    ? 'open "' + url + '"'
-                    : 'xdg-open "' + url + '"';
-            child.exec(fallbackCmd);
+            // #B665 S2 (2026-09-27) — openInDefaultBrowser(): an argument vector on macOS and Linux
+            // var fallbackCmd = (os.platform() === 'win32')
+            //     ? 'start "" "' + url + '"'
+            //     : (os.platform() === 'darwin')
+            //         ? 'open "' + url + '"'
+            //         : 'xdg-open "' + url + '"';
+            // child.exec(fallbackCmd);
+            openInDefaultBrowser(url);
             process.exit(0);
             return;
         }
@@ -630,18 +676,32 @@ function Open(opt, cmd) {
         );
         console.log(url);
 
-        child.exec(launch.cmd, function (err) {
+        // #B665 S2 (2026-09-27) — the launch runs from an argument vector on macOS and Linux;
+        // Windows keeps its `start` command line (#B694).
+        // child.exec(launch.cmd, function (err) {
+        //     if (err) {
+        //         console.warn('Browser launch failed, trying system default.');
+        //         var fallback = (os.platform() === 'win32')
+        //             ? 'start "" "' + url + '"'
+        //             : (os.platform() === 'darwin')
+        //                 ? 'open "' + url + '"'
+        //                 : 'xdg-open "' + url + '"';
+        //         child.exec(fallback);
+        //     }
+        //     process.exit(0);
+        // });
+        var onLaunched = function (err) {
             if (err) {
                 console.warn('Browser launch failed, trying system default.');
-                var fallback = (os.platform() === 'win32')
-                    ? 'start "" "' + url + '"'
-                    : (os.platform() === 'darwin')
-                        ? 'open "' + url + '"'
-                        : 'xdg-open "' + url + '"';
-                child.exec(fallback);
+                openInDefaultBrowser(url);
             }
             process.exit(0);
-        });
+        };
+        if (launch.cmd) {
+            child.exec(launch.cmd, onLaunched);
+        } else {
+            child.execFile(launch.bin, launch.args, onLaunched);
+        }
     };
 
     init();

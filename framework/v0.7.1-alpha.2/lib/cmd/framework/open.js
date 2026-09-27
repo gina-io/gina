@@ -33,32 +33,56 @@ function Open(opt, cmd) {
     var init = function(){
         var openCmd = (GINA_IS_WIN32) ?  'start' : 'open';
 
+        // #B665 S2 (2026-09-27) — the directory was appended to a command line, so a path
+        // holding a space was split in two.
+        /**
+         * Opens `dir` with the OS command. On macOS and Linux the directory is one
+         * argument; Windows keeps `start` through cmd.exe, a builtin (#B694).
+         * @inner
+         * @private
+         * @param {string} dir - The directory to open
+         * @returns {void}
+         */
+        var openDir = function (dir) {
+            if (GINA_IS_WIN32) {
+                child.exec(openCmd + ' ' + dir);
+            } else {
+                child.execFile(openCmd, [dir]);
+            }
+        };
+
         switch (process.argv[3]) {
             case 'service':
             case 'services':
-                child.exec(openCmd + ' ' + GINA_DIR + '/services');
+                // was: child.exec(openCmd + ' ' + GINA_DIR + '/services');
+                openDir(GINA_DIR + '/services');
                 break;
 
             case 'gina':
             case 'framework':
-                child.exec(openCmd + ' ' + GINA_DIR);
+                // was: child.exec(openCmd + ' ' + GINA_DIR);
+                openDir(GINA_DIR);
                 break;
 
             case 'tmp':
-                child.exec(openCmd + ' ' + GINA_TMPDIR);
+                // was: child.exec(openCmd + ' ' + GINA_TMPDIR);
+                openDir(GINA_TMPDIR);
                 break;
 
             case 'log':
-                child.exec(openCmd + ' ' + GINA_LOGDIR);
+                // was: child.exec(openCmd + ' ' + GINA_LOGDIR);
+                openDir(GINA_LOGDIR);
                 break;
 
             case 'run':
-                child.exec(openCmd + ' ' + GINA_RUNDIR);
+                // was: child.exec(openCmd + ' ' + GINA_RUNDIR);
+                openDir(GINA_RUNDIR);
                 break;
 
             case 'home':
                 if ( fs.existsSync(GINA_HOMEDIR) ) {
-                    child.exec(openCmd + ' ' +  GINA_HOMEDIR)
+                    // was: child.exec(openCmd + ' ' +  GINA_HOMEDIR)
+                    openDir(GINA_HOMEDIR)
                 } else {
                     console.log((GINA_IS_WIN32) ? 'gina: sorry, no %USERPROFILE% found' : 'gina: sorry, no $HOME found')
                 }

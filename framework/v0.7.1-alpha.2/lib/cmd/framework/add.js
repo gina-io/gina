@@ -3,6 +3,8 @@ var fs       = require('fs');
 var nodePath = require('path');
 var os       = require('os');
 var execSync = require('child_process').execSync;
+// #B665 S2 (2026-09-27) — pack and extract run from argument vectors on macOS and Linux.
+var execFileSync = require('child_process').execFileSync;
 // `lib` is injected as a global by the framework bootstrap — this file is
 // required by the cmd dispatcher (lib/cmd/framework/init.js) in a scope where
 // `lib` already exists (same as update.js / reset.js use it at top level).
@@ -259,6 +261,27 @@ function Add(opt) {
     };
 
     /**
+     * Run a command synchronously from an argument vector, without a shell,
+     * surfacing stdout. Throws on non-zero exit (caught by the step that called
+     * it). Used on macOS and Linux; Windows keeps `run()`, because Node does not
+     * start `npm.cmd` without a shell (#B665, #B694).
+     *
+     * @inner
+     * @private
+     * @param {string} bin - The executable
+     * @param {string[]} args - Its arguments, each passed whole
+     * @param {string} [cwd]
+     * @returns {void}
+     * @example
+     * runArgv('tar', ['-xzf', '/tmp/My Dir/gina-0.7.0.tgz', '-C', '/tmp/My Dir']);
+     */
+    var runArgv = function (bin, args, cwd) {
+        console.info('[framework:add] running: ' + [bin].concat(args).join(' ') + (cwd ? '  (cwd: ' + cwd + ')' : ''));
+        var out = execFileSync(bin, args, cwd ? { cwd: cwd } : undefined);
+        if (out) { var s = out.toString().trim(); if (s) console.debug(s); }
+    };
+
+    /**
      * Orchestrate the pipeline.
      *
      * @inner
@@ -341,7 +364,14 @@ function Add(opt) {
         try {
             if (fs.existsSync(tmpDir)) fs.rmSync(tmpDir, { recursive: true, force: true });
             fs.mkdirSync(tmpDir, { recursive: true });
-            run(npmBin() + ' pack gina@' + version + ' --pack-destination ' + JSON.stringify(tmpDir));
+            // #B665 S2 (2026-09-27) — an argument vector on macOS and Linux, so the temp dir
+            // reaches npm whole (JSON quoting left `$` and backticks to the shell). Windows
+            // keeps its command line (#B694).
+            if (process.platform === 'win32') {
+                run(npmBin() + ' pack gina@' + version + ' --pack-destination ' + JSON.stringify(tmpDir));
+            } else {
+                runArgv(npmBin(), ['pack', 'gina@' + version, '--pack-destination', tmpDir]);
+            }
         } catch (e) {
             fail('could not download gina@' + version + ' from npm (unpublished version or network error): '
                 + (e.message || e));
@@ -354,7 +384,12 @@ function Add(opt) {
 
         // --- 2. extract -----------------------------------------------------
         try {
-            run('tar -xzf ' + JSON.stringify(tgz) + ' -C ' + JSON.stringify(tmpDir));
+            // #B665 S2 (2026-09-27) — an argument vector on macOS and Linux (#B694: Windows unchanged)
+            if (process.platform === 'win32') {
+                run('tar -xzf ' + JSON.stringify(tgz) + ' -C ' + JSON.stringify(tmpDir));
+            } else {
+                runArgv('tar', ['-xzf', tgz, '-C', tmpDir]);
+            }
         } catch (e) {
             fail('could not extract ' + tgz + ': ' + (e.message || e));
             return;

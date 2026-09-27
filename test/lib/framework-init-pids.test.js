@@ -22,7 +22,7 @@
  *
  * Covers:
  *   (a) source structure — process.kill(pid, 0) liveness (no `ps` shell-out in
- *       the block, while execSync legitimately survives elsewhere in the file),
+ *       the block, while execFileSync legitimately survives elsewhere in the file),
  *       trimmed + parsed pid, EPERM-as-alive, the rmSync prune, the run-dir
  *       enumeration + dotfile skip
  *   (b) the prune decision (pure-logic replica) incl. the trailing-newline
@@ -66,8 +66,9 @@ describe('01 - checkRunningPids source structure', function() {
         var clean = stripComments(blk);
         assert.ok(clean.indexOf('ps -p') < 0, 'expected no `ps -p` shell-out in checkRunningPids');
         assert.ok(clean.indexOf('execSync(') < 0, 'expected no execSync(...) call in checkRunningPids');
-        // execSync legitimately survives elsewhere in init.js (e.g. the npm-prefix lookup).
-        assert.ok(src.indexOf('execSync') > -1, 'execSync import/use must remain elsewhere in init.js');
+        // execFileSync legitimately survives elsewhere in init.js (the npm-prefix lookup, an
+        // argument vector since #B665 S2); comment-stripped, so a kept `was:` line cannot pass it.
+        assert.ok(stripComments(src).indexOf('execFileSync(') > -1, 'execFileSync import/use must remain elsewhere in init.js');
     });
 
     it('reads the pid trimmed and parsed (so a trailing newline cannot break it)', function() {

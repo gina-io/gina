@@ -2,7 +2,8 @@
 // const { execSync } = require('child_process');
 const { execFileSync } = require('child_process');
 var fs = require('fs');
-var exec = require('child_process').exec;
+// #B665 S2 (2026-09-27) — the SIGKILL is sent with process.kill, not through sh.
+// var exec = require('child_process').exec;
 
 var CmdHelper = require('./../helper');
 // #B665 (2026-09-27) — the ps fallback matches the names as literal text
@@ -76,6 +77,8 @@ function Stop(opt, cmd) {
 
     /**
      * Reads the bundle PID file and sends SIGKILL, or falls back to ps lookup.
+     * Only a positive integer is read as a pid (#B693), and the signal is sent
+     * with `process.kill`, not through a shell (#B665).
      * The fallback runs `ps -ef` without a shell and keeps the first process whose
      * title is exactly `gina: <bundle>@<project>`, ending at whitespace or the end
      * of the line, skipping lines that name `grep` (#B665).
@@ -110,7 +113,11 @@ function Stop(opt, cmd) {
             var pidPath = _(GINA_RUNDIR +'/'+ bundle +'@'+ self.projectName +'.pid', true);
             try {
                 proc = fs.readFileSync(_(GINA_RUNDIR+'/'+bundle + '@' + self.projectName +'.pid')).toString().replace(/\n/g, '');
-                proc = parseInt(proc);
+                // #B693 (2026-09-27) — only a positive integer is a pid: parseInt made `-1` a
+                // broadcast to every process the user may signal, and `12abc` pid 12. Anything
+                // else reads as "is not running", as NaN did.
+                // was: proc = parseInt(proc);
+                proc = ( /^[1-9]\d*$/.test(proc.trim()) ) ? parseInt(proc.trim(), 10) : null;
 
             } catch(err) {
                 isSpecialCase = true;
@@ -151,7 +158,17 @@ function Stop(opt, cmd) {
                 //console.debug('\n'+ row.join('\n'));
                 //console.debug('kill -TERM ', proc, arr);
 
-                exec('kill -9 ' + proc, function(err, data) {
+                // #B665 S2 (2026-09-27) — the SIGKILL is sent in-process: `kill -9 <pid>` ran through
+                // sh. Its outcome is handled on the next turn of the event loop, as the exec
+                // callback was, and a failed signal (ESRCH, EPERM) is the callback's error.
+                // was: exec('kill -9 ' + proc, function(err, data) {
+                var killErr = null;
+                try {
+                    process.kill(proc, 'SIGKILL');
+                } catch (e) {
+                    killErr = e;
+                }
+                setImmediate(function(err) {
                     // just in case
                     if ( new _(pidPath).existsSync() ) {
                         isSpecialCase = true;
@@ -174,7 +191,7 @@ function Stop(opt, cmd) {
                             end(opt, cmd, isBulkStop, bundleIndex)
                         }
                     }
-                })
+                }, killErr)
             } else { // not running
                 //console.info('Bundle `' + bundle + '@' + self.projectName + '` is not running');
                 opt.client.write('  [ ' + bundle + '@' + self.projectName + ' ] is not running\n');

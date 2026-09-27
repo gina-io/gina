@@ -1,7 +1,9 @@
 var fs          = require('fs');
 // #B665 (2026-09-27) — only the removed start() used spawn.
 // const {spawn}       = require('child_process');
-const {execSync}    = require('child_process');
+// #B665 S2 (2026-09-27) — execFileSync: bin/gina start and stop run from argument vectors.
+// const {execSync}    = require('child_process');
+const {execFileSync}    = require('child_process');
 const util = require('util');
 
 var CmdHelper   = require('./../helper');
@@ -90,7 +92,7 @@ function Restart(opt, cmd) {
 
     /**
      * Runs stop(), then starts the framework through this install's `bin/gina start`
-     * (execSync).
+     * (execFileSync, from an argument vector).
      * @inner
      * @private
      * @param {object} opt
@@ -110,7 +112,9 @@ function Restart(opt, cmd) {
             var out = null;
             try {
                 // was: out = execSync('$(which gina) start @'+self.version).toString();
-                out = execSync('"'+ process.execPath +'" "'+ ginaBin +'" start @'+self.version).toString();
+                // #B665 S2 (2026-09-27) — an argument vector: the version reaches bin/gina whole.
+                // was: out = execSync('"'+ process.execPath +'" "'+ ginaBin +'" start @'+self.version).toString();
+                out = execFileSync(process.execPath, [ginaBin, 'start', '@' + self.version]).toString();
                 console.debug('out => ', out);
                 // TODO - retrieve running bundles with its options & restart
             } catch (err) {
@@ -138,7 +142,9 @@ function Restart(opt, cmd) {
         var out = null;
         try {
             // was: out = execSync('$(which gina) stop @'+self.version).toString();
-            out = execSync('"'+ process.execPath +'" "'+ ginaBin +'" stop @'+self.version).toString();
+            // #B665 S2 (2026-09-27) — an argument vector: the version reaches bin/gina whole.
+            // was: out = execSync('"'+ process.execPath +'" "'+ ginaBin +'" stop @'+self.version).toString();
+            out = execFileSync(process.execPath, [ginaBin, 'stop', '@' + self.version]).toString();
             console.debug('out => ', out);
         } catch (err) {
             throw err;

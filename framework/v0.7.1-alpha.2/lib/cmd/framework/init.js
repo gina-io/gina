@@ -4,7 +4,9 @@
 var fs              = require('fs');
 var EventEmitter    = require('events').EventEmitter;
 var e               = new EventEmitter();
-const { execSync }  = require('child_process');
+// #B665 S2 (2026-09-27) — execFileSync: the npm prefix fallback runs from an argument vector.
+// const { execSync }  = require('child_process');
+const { execFileSync }  = require('child_process');
 const { arch }      = require('os');
 var util            = require('util');
 var promisify       = util.promisify;
@@ -359,7 +361,10 @@ function Initialize(opt) {
         var source      = getPath('gina').root + '/resources/home/main.json';
         var target      = self.opt.homedir + '/main.json';
         var version     = 'v' + getEnvVar('GINA_VERSION');
-        var prefix      = getEnvVar('GINA_PREFIX') || execSync('$(which npm) config get prefix --quiet').toString().replace(/\n$/g, '');
+        // #B665 S2 (2026-09-27) — an argument vector, no shell (the utils/helper.js probes' form):
+        // `$(which npm)` split an npm installed under a path holding a space.
+        // was: var prefix      = getEnvVar('GINA_PREFIX') || execSync('$(which npm) config get prefix --quiet').toString().replace(/\n$/g, '');
+        var prefix      = getEnvVar('GINA_PREFIX') || execFileSync('npm', ['config', 'get', 'prefix', '--quiet']).toString().replace(/\n$/g, '');
         var globalMode  = getEnvVar('GINA_GLOBAL_MODE');
 
         var data = require(source);

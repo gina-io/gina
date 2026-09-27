@@ -1,5 +1,7 @@
 var os      = require('os');
-var exec    = require('child_process').exec;
+// #B665 S2 (2026-09-27) — execFile: the directory reaches `open` as one argument.
+// var exec    = require('child_process').exec;
+var execFile = require('child_process').execFile;
 /**
  * @module gina/lib/cmd/framework/dot
  */
@@ -30,7 +32,8 @@ function Dot(){
     }
 
     /**
-     * Opens `target` in a new Terminal.app window (macOS only).
+     * Opens `target` in a new Terminal.app window (macOS only), passing it to
+     * `open` as one argument.
      * @inner
      * @private
      * @param {string} target - Absolute path to open
@@ -40,8 +43,11 @@ function Dot(){
         switch (platform) {
             case 'darwin':
                 console.info('About to open: ', target);
-                cmd = 'open -a Terminal.app ' + target;
-                exec(cmd)
+                // #B665 S2 (2026-09-27) — an argument vector: a path holding a space was split in
+                // two on the command line (and `cmd` was an implicit global).
+                // was: cmd = 'open -a Terminal.app ' + target;
+                // was: exec(cmd)
+                execFile('open', ['-a', 'Terminal.app', target]);
                 break;
         }
     }

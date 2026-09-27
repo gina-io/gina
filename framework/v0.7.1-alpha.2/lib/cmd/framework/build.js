@@ -4,7 +4,9 @@
  */
 var fs          = require('fs');
 const {spawn}       = require('child_process');
-const {execSync}    = require('child_process');
+// #B665 S2 (2026-09-27) — execFileSync: the build script receives each argument whole.
+// const {execSync}    = require('child_process');
+const {execFileSync}    = require('child_process');
 var util        = require('util');
 var promisify   = util.promisify;
 
@@ -93,16 +95,29 @@ function Build(opt, cmd){
     }
 
 
+    /**
+     * Runs the plugin build script (`core/asset/plugin/build`) with the
+     * command's own arguments, each passed to it whole (#B665).
+     *
+     * @param {function} done - Called once the script has exited successfully
+     * @returns {void}
+     * @example
+     * // gina framework:build --env=prod  →  <core>/asset/plugin/build --env=prod
+     */
     self.buildFrontPlugin = function(done) {
         var argv        = process.argv.slice(3);
         var bashScript  = _(GINA_CORE +'/asset/plugin/build', true);// jshint ignore:line
-        if (Array.isArray(argv) && argv.length > 0) {
-            bashScript += " "+argv.join(" ")
-        }
+        // #B665 S2 (2026-09-27) — the script runs from an argument vector, so each argument
+        // reaches it whole: they were joined into one command line for sh, which split them
+        // at spaces again and ran any shell syntax they held.
+        // if (Array.isArray(argv) && argv.length > 0) {
+        //     bashScript += " "+argv.join(" ")
+        // }
         console.debug('Used arguments ', argv.join(" "));
         console.debug('Running: '+ bashScript);
 
-        console.log(execSync(bashScript).toString());
+        // was: console.log(execSync(bashScript).toString());
+        console.log(execFileSync(bashScript, argv).toString());
         done()
     }
 
