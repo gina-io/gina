@@ -11,3 +11,11 @@ updates:
       - dependency-name: "*"
         update-types: ["version-update:semver-patch"]
     open-pull-requests-limit: 5
+
+  # Keeps the SHA-pinned actions in .github/workflows/*.yml current: Dependabot
+  # bumps the commit hash and the trailing "# vX.Y.Z" comment together.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5

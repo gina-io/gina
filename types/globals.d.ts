@@ -219,7 +219,9 @@ declare global {
     function getLogDir(): string;
     function getRunDir(): string;
     function getTmpDir(): string;
-    /** Read the saved startup argv for `bundle@project` (used by `bundle:restart`), or `null`. */
+    /** Resolve the argv dir — `<GINA_HOMEDIR>/run`, created `0700` when absent — where each bundle's start argv is saved for the `gina tail --follow` crash restart. Never the shared tmp dir. */
+    function getArgvDir(): string;
+    /** Read the saved startup argv for `bundle@project` from the argv dir (used by the `gina tail --follow` crash restart), or `null` — also when, on POSIX, the file is not a regular file owned by the current user that group/other cannot write. */
     function getBundleStartingArgv(bundle: string, project: string): string | null;
     /** Read a vendor config loaded via `setVendorsConfig` (omit `vendor` for the whole map). */
     function getVendorsConfig(vendor?: string): object | undefined;

@@ -28,11 +28,11 @@
         },
         "requirements": {
           "type": "object",
-          "description": "Validation patterns for URL parameters. Keys match :param names. Values are regex strings (prefixed with \"/\") or validator references (prefixed with \"validator::\").",
+          "description": "Validation patterns for URL parameters. Keys match :param names. Values are regex strings (prefixed with \"/\") or validator references (prefixed with \"validator::\"). A regex is tested as a partial match when a request is matched, so anchor it with ^…$ to constrain the whole value (the bundle warns at boot about one that is not anchored); requirements are not applied when a URL is built.",
           "additionalProperties": {
             "type": "string"
           },
-          "examples": [{ "id": "/^[0-9a-f]{8}-/i" }, { "slug": "/^[a-z0-9-]+$/" }]
+          "examples": [{ "id": "/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i" }, { "slug": "/^[a-z0-9-]+$/" }]
         },
         "param": {
           "type": "object",

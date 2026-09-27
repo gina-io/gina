@@ -210,8 +210,13 @@ function runCMD() {
         && /\@/.test(process.argv[4])
     ) {
         var help        = require(__dirname + '/../utils/helper.js');
-        var tmpPath     = getTmpDir();
-        var argFilename = tmpPath +'/'+ process.env.NODE_BUNDLE +'@'+ process.env.NODE_PROJECT +'.argv';
+        // #B676 — was: the file went to the shared tmp dir, where another user of the host could
+        // create it first (this write then fails, and `gina tail --follow` later runs their file).
+        // It now goes to the user-owned argv dir, mode 0600; the reader refuses any other owner.
+        // var tmpPath     = getTmpDir();
+        // var argFilename = tmpPath +'/'+ process.env.NODE_BUNDLE +'@'+ process.env.NODE_PROJECT +'.argv';
+        var argvDir     = getArgvDir();
+        var argFilename = argvDir +'/'+ process.env.NODE_BUNDLE +'@'+ process.env.NODE_PROJECT +'.argv';
 
         // Bun-safety: Node coerces an array assigned to an env var to a comma-
         // joined string; Bun leaves it a real array (object), so the writeFileSync
@@ -224,15 +229,14 @@ function runCMD() {
         }
 
         try {
-            fs.writeFileSync(argFilename, process.env.NODE_ARGV );
+            fs.writeFileSync(argFilename, process.env.NODE_ARGV, { mode: 0o600 });
         } catch (err) {
-            // bin/gina's `console` is the global console (no lib.logger here), which
-            // has no `.emerg` on either runtime; emerg would itself throw. (This
-            // catch is unreachable on Node, where the write above never throws.)
+            // global console here (no `.emerg` on either runtime). Reachable: EACCES/EPERM when the
+            // file exists and this user cannot write it — the crash restart then finds no usable file.
             console.error(err);
         }
         help    = null;
-        tmpPath = null;
+        argvDir = null;
     }
 
     require(cliBin);

@@ -20,7 +20,9 @@
  *     and every request hangs (measured — a deterministic container-boot
  *     timeout on the first, unconditional-regex attempt);
  *   - the adapter shadows `query` on `app.request` with a writable own DATA
- *     property (no-op on 4, restores gina's owns-the-parse contract on 5);
+ *     property (no-op on 4, restores gina's owns-the-parse contract on 5)
+ *     — since #B666 an ACCESSOR whose setter keeps that contract and whose
+ *     getter materialises the engine parse (see express-query-b666.test.js);
  *   - the adapter logs the detected express version and WARNS (never refuses)
  *     outside the verified range >= 4 < 6.
  *
@@ -92,13 +94,19 @@ describe('01 - server.js catch-all mount (#B211)', function () {
 // ---------------------------------------------------------------------------
 describe('02 - adapter query shadow + version range (#B211)', function () {
 
-    it('shadows query on the per-app request prototype as a writable DATA property', function () {
-        assert.ok(ADAPTER_ST.indexOf("Object.defineProperty(app.request, 'query'") > -1,
+    it('shadows query on the per-app request prototype with an ACCESSOR whose setter keeps assignment alive (#B666)', function () {
+        // #B666 realigned this pin (landing gate, 2026-09-25): the #B211 writable DATA
+        // property became a get/set accessor — the setter stores a writable own
+        // property, so the strict-mode pipeline assignments still work; the getter
+        // materialises the engine's own parse on Express 5 (express-query-b666.test.js).
+        assert.ok(ADAPTER_ST.indexOf("Object.defineProperty(app.request, 'query', queryAccessorDescriptor(app.request));") > -1,
             'the query shadow is what keeps the strict-mode pipeline assignments alive on Express 5');
-        var block = ADAPTER_ST.slice(ADAPTER_ST.indexOf("Object.defineProperty(app.request, 'query'"));
-        block = block.slice(0, block.indexOf('})') + 2);
-        assert.ok(/writable\s*:\s*true/.test(block), 'the shadow must be writable');
-        assert.ok(/configurable\s*:\s*true/.test(block), 'the shadow must stay configurable');
+        var start = ADAPTER_ST.indexOf('function queryAccessorDescriptor(');
+        assert.ok(start > -1, 'the descriptor factory must exist');
+        var block = ADAPTER_ST.slice(start, ADAPTER_ST.indexOf('\n}\n', start));
+        assert.ok(/set:\s*function \(value\)/.test(block), 'the accessor must have a setter');
+        assert.ok(/get:\s*function \(\)/.test(block), 'the accessor must have a getter');
+        assert.ok(/configurable:\s*true/.test(block), 'the accessor must stay configurable');
     });
 
     it('reads and logs the detected express version with the supported range', function () {
@@ -154,7 +162,7 @@ describe('03 - replica: prototype-getter assignment physics', function () {
         assert.throws(function () { req.query = undefined; }, TypeError);
     });
 
-    it('the writable data-property shadow restores assignment (the shipped fix shape)', function () {
+    it('the writable data-property shadow restores assignment (the #B211 shape — #B666 keeps its setter semantics behind an accessor)', function () {
         var proto = makeExpress5LikeProto();
         // app.request in express is Object.create(<proto with getter>) — the shadow
         // lands on that intermediate object, exactly as the adapter does it

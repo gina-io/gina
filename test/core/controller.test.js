@@ -2964,7 +2964,8 @@ describe('24 - query: exhausted 502 retries surface a BAD_GATEWAY error, not suc
     //      exhausted-502 branch, then the legacy fall-through success path) ----
 
     function onEnd502Replica(httpStatus, retryCount, MAX, body, mode) {
-        // mode: 'fixed' (post-#B34) | 'prefix' (pre-#B34, no exhausted-502 branch)
+        // mode: 'fixed' (the current code: post-#B34, post-#P47 F6) | 'prefix' (pre-#B34:
+        // no exhausted-502 branch, and the status-200 stamp that #P47 F6 removed)
         var out = { dispatch: null, payload: null };
         function callback(err, d) {
             out.dispatch = (err === false || err == null) ? 'success' : 'error';
@@ -2980,11 +2981,12 @@ describe('24 - query: exhausted 502 retries surface a BAD_GATEWAY error, not suc
             callback({ code: 'BAD_GATEWAY', status: 502, retryable: false, retryCount: retryCount });
             return out;
         }
-        // legacy fall-through (success path) — JSON-shaped body without `.status` -> 200
+        // legacy fall-through (success path) — a JSON-shaped body is parsed; only the
+        // older code (`prefix`) stamped `.status` 200 onto a body without one
         var data = body;
         if (typeof data === 'string' && /^(\{|%7B|\[{)|\[\]/.test(data)) {
             data = JSON.parse(data);
-            if (typeof data.status === 'undefined') data.status = 200;
+            if (mode === 'prefix' && typeof data.status === 'undefined') data.status = 200;
         }
         if (data && typeof data === 'object' && data.status && !/^2/.test(data.status)) {
             callback(data);            // genuine non-2xx in the body
@@ -3015,10 +3017,11 @@ describe('24 - query: exhausted 502 retries surface a BAD_GATEWAY error, not suc
         assert.strictEqual(r.dispatch, 'retry');
     });
 
-    it('fixed: a genuine 200 JSON body without status still succeeds (legacy fallback intact)', function() {
+    it('fixed: a genuine 200 JSON body without status succeeds and is delivered without a status (#P47 F6)', function() {
         var r = onEnd502Replica(200, 0, 2, '{"ok":1}', 'fixed');
         assert.strictEqual(r.dispatch, 'success');
-        assert.strictEqual(r.payload.status, 200); // the undefined-status->200 fallback is correct here
+        assert.strictEqual(r.payload.status, undefined); // no status is added (#P47 F6)
+        assert.strictEqual(r.payload.ok, 1);
     });
 
     it('subtract: pre-fix exhausted 502 (JSON body) was reported as SUCCESS with status forced to 200', function() {

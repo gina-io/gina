@@ -255,7 +255,7 @@ test('§06 lib/inherits: zero require() in code — the gen-0-captured + per-req
     // pushes NO child Module onto its gen-0 (evicted-but-retained) module — so those
     // sites cannot reopen the residual. Measured: +0 children over 200 reqs on the real
     // module vs a +200 leaking control (the routing per-request methods are likewise
-    // safe — their only in-method require is the non-HOT ./radix, a permanent cache-hit).
+    // safe — they carry no in-method require at all since the radix trie was removed).
     // If a require() is EVER added to inherits, this pin trips: re-check whether the
     // target is a HOT (_require'd) lib before updating the pin — a HOT-sibling require
     // would reintroduce #B32-residual for the router/couchbase per-request sites.

@@ -1,0 +1,57 @@
+# OpenSSF Scorecard (#S9): scores the repository's supply-chain practices, publishes
+# the result to api.scorecard.dev and uploads the findings to code scanning.
+#
+# The Scorecard API verifies this file before it accepts published results: no
+# top-level env or defaults, no write permission at the top level, and the job below
+# may only use `uses:` steps from its allow-list (checkout, scorecard-action,
+# upload-artifact, upload-sarif, harden-runner) on a hosted Ubuntu runner.
+# The action refuses any push outside the default branch, so it runs on master only.
+name: Scorecard
+
+on:
+  push:
+    branches: [master]
+  schedule:
+    # Weekly, Tuesday 05:43 UTC — keeps the Maintained check current.
+    - cron: '43 5 * * 2'
+  # The Branch-Protection check re-runs when a protection rule changes.
+  branch_protection_rule:
+  workflow_dispatch:
+
+permissions: read-all
+
+jobs:
+  analysis:
+    name: Scorecard analysis
+    runs-on: ubuntu-latest
+    permissions:
+      # Upload the SARIF to code scanning.
+      security-events: write
+      # Sign the results published to the Scorecard API.
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+
+      - name: Run Scorecard
+        uses: ossf/scorecard-action@2d1146689b8cda280b9bc96326124645441f03bc # v2.4.4
+        with:
+          results_file: results.sarif
+          results_format: sarif
+          # With publishing on, the action also prints results.json — the aggregate
+          # score — to this step's log.
+          publish_results: true
+
+      - name: Keep the SARIF as an artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: scorecard-sarif
+          path: results.sarif
+          retention-days: 5
+
+      - name: Upload to code scanning
+        uses: github/codeql-action/upload-sarif@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
+        with:
+          sarif_file: results.sarif

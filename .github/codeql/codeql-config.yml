@@ -1,0 +1,14 @@
+# CodeQL configuration merged into code-scanning DEFAULT SETUP through the
+# `github-codeql-config-file` repository property.
+#
+# Excluded on purpose:
+#   - the built browser-bundle copies under dist/: every alert there repeats the same rule on
+#     the same source line of a src/ file, which stays scanned (65 of 65, measured);
+#   - the test suites.
+# NOT excluded: framework/v*/core/asset/plugin/src/vendor/gina/ — despite its name that is the
+# framework's own client source (the RequireJS alias directory), not third-party code.
+name: "gina default-setup overlay"
+paths-ignore:
+  - "framework/v*/core/asset/plugin/dist/**"
+  - "test/**"
+  - "framework/v*/test/**"

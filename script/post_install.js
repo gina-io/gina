@@ -13,7 +13,10 @@ var fs          = require('fs');
 var os          = require("os");
 var util        = require('util');
 var promisify   = util.promisify;
-const { execSync } = require('child_process');
+// #B663 (2026-09-25) — execFileSync added: a child whose arguments carry a path is
+// started from an argument vector, never from a shell command line.
+// const { execSync } = require('child_process');
+const { execSync, execFileSync } = require('child_process');
 var runtime     = require(__dirname + '/../utils/runtime.js');
 
 
@@ -111,6 +114,21 @@ function PostInstall() {
 
     var self = {};
 
+    /**
+     * Resolves the install context: the platform, whether the install is global or
+     * local, the reset flag, npm's default prefix (the #B126-guarded probe), the
+     * target prefix (`--prefix=`, `npm_config_prefix`, or INIT_CWD for a local
+     * install), and the installed gina version and paths (`npm list`, or this
+     * package's own `package.json` for a local install).
+     *
+     * Both npm probes run from argument vectors, without a shell (#B663): a prefix,
+     * or npm itself, under a path containing a space reaches npm whole.
+     *
+     * @inner
+     * @private
+     * @returns {void}
+     * @throws {Error} On win32, which is not supported yet
+     */
     var configure = function() {
 
         // TODO - handle windows case
@@ -135,8 +153,11 @@ function PostInstall() {
         // whichever lifecycle phase ran the probe first. npm exports the
         // effective prefix to the lifecycle env, so fall back to it; last
         // resort: the node-derived default prefix.
+        // #B663 (2026-09-25) — an argument vector, no shell: `$(which npm)` split an npm
+        // installed under a path containing a space, so the probe failed and fell back.
+        // self.defaultPrefix  = execSync('$(which npm) config get prefix --quiet').toString().replace(/\n$/g, '');
         try {
-            self.defaultPrefix  = execSync('$(which npm) config get prefix --quiet').toString().replace(/\n$/g, '');
+            self.defaultPrefix  = execFileSync('npm', ['config', 'get', 'prefix', '--quiet']).toString().replace(/\n$/g, '');
         } catch (probeErr) {
             self.defaultPrefix  = process.env.npm_config_prefix
                                 || require('path').resolve(process.execPath, '..', '..');
@@ -253,11 +274,18 @@ function PostInstall() {
         self.gina = __dirname +'/..';
         var pkg = null, pkgObj = null, cmd = null;
         try {
-            cmd = 'npm list gina --long --json --prefix='+ self.prefix;
+            // #B663 (2026-09-25) — an argument vector, no shell: the prefix was spliced in
+            // unquoted, so a prefix containing a space never found the installed gina.
+            // cmd = 'npm list gina --long --json --prefix='+ self.prefix;
+            // if (self.isGlobalInstall) {
+            //     cmd += ' -g';
+            // }
+            // pkg = execSync(cmd).toString().replace(/\n$/g, '');
+            cmd = ['list', 'gina', '--long', '--json', '--prefix='+ self.prefix];
             if (self.isGlobalInstall) {
-                cmd += ' -g';
+                cmd.push('-g');
             }
-            pkg = execSync(cmd).toString().replace(/\n$/g, '');
+            pkg = execFileSync('npm', cmd).toString().replace(/\n$/g, '');
             self.optionalPrefix = JSON.parse(pkg).dependencies.gina.config.optionalPrefix.replace(/^\~/, getUserHome());
             pkgObj = JSON.parse(pkg);
             self.optionalPrefix = pkgObj.dependencies.gina.config.optionalPrefix.replace(/^\~/, getUserHome());
@@ -704,6 +732,16 @@ function PostInstall() {
      * Updated user's profile
      * Will edit ~/.profile, check and add if needed path to Gina binary
      *
+     * On a global install, creates `~/.profile` when it is missing and appends a
+     * block that puts `<prefix>/bin` on PATH, unless the profile already names it.
+     * Neither step starts a shell on a path (#B663): the profile is created with
+     * `fs`, and it is no longer `source`d — that ran in a bash child that exited at
+     * once, so it never reached the user's shell; a new shell reads the profile.
+     *
+     * @inner
+     * @private
+     * @param {function(Error=)} done - Continuation; called with an error to abort the install
+     * @returns {Promise<void>}
      */
     self.updateUserProfile = async function(done) {
 
@@ -717,14 +755,23 @@ function PostInstall() {
         var profilePath = getUserHome() + '/.profile';
         var profilePathObj = new _(profilePath);
         if ( !profilePathObj.existsSync() ) {
-            cmd = 'touch '+ profilePath;
-            await promisify(run)(cmd, { cwd: _(self.versionPath), tmp: _(getTmpDir(), true), outToProcessSTD: true, shell: "/bin/bash"})
-                .catch(function onError(err){
-                    if (err) {
-                        console.warn('Try to run: sudo ' + cmd);
-                        return done(err);
-                    }
-                });
+            // #B663 (2026-09-25) — created with fs: helpers/task.js `run()` starts its child
+            // without a shell and splits the command line on spaces, so `touch <home with a
+            // space>/.profile` failed and aborted the install (exit 1).
+            // cmd = 'touch '+ profilePath;
+            // await promisify(run)(cmd, { cwd: _(self.versionPath), tmp: _(getTmpDir(), true), outToProcessSTD: true, shell: "/bin/bash"})
+            //     .catch(function onError(err){
+            //         if (err) {
+            //             console.warn('Try to run: sudo ' + cmd);
+            //             return done(err);
+            //         }
+            //     });
+            try {
+                fs.appendFileSync(profilePath, '');
+            } catch (err) {
+                console.warn('Could not create `'+ profilePath +'`');
+                return done(err);
+            }
         }
 
         var inFile = null;
@@ -748,13 +795,17 @@ function PostInstall() {
             inFile = null;
 
             // we need to source/update ~/.profile
-            try {
-                cmd = "source "+ profilePath;
-                console.info('Running: '+ cmd);
-                execSync(cmd, {shell: "/bin/bash"});
-            } catch (err) {
-                return done(err)
-            }
+            // #B663 (2026-09-25) — removed: the `source` ran in a bash child that exited at once,
+            // so it never updated the user's shell, and the path was spliced in unquoted, so a
+            // home path containing a space made it throw — exit 1. A new shell reads the profile.
+            // try {
+            //     cmd = "source "+ profilePath;
+            //     console.info('Running: '+ cmd);
+            //     execSync(cmd, {shell: "/bin/bash"});
+            // } catch (err) {
+            //     return done(err)
+            // }
+            console.info('Added `'+ patt +'` to PATH in `'+ profilePath +'`');
         }
 
         done()
@@ -830,6 +881,20 @@ function PostInstall() {
     }
 
 
+    /**
+     * Last install step: restores archived framework versions as symlinks, sets the
+     * git hooks path in a gina clone, runs `gina framework:set` for the global mode
+     * and the npm prefix, syncs `def_framework` and `def_global_mode` in
+     * `~/.gina/main.json`, and writes the MIDDLEWARE file.
+     *
+     * The two `framework:set` calls run the gina binary on this runtime from argument
+     * vectors, without a shell (#B663).
+     *
+     * @inner
+     * @private
+     * @param {function(Error=)} done - Continuation; called with an error to abort the install
+     * @returns {void}
+     */
     self.end = function(done) {
 
         restoreSymlinks();
@@ -861,16 +926,25 @@ function PostInstall() {
 
         var cmd = null;
         try {
-            cmd = ginaBinanry + ' framework:set --global-mode='+ self.isGlobalInstall;
-            console.info('Running: '+ cmd);
-            console.debug(execSync(cmd));
+            // #B663 (2026-09-25) — argument vectors run on this runtime, no shell: the binary
+            // path was spliced in unquoted, so under a path containing a space both calls
+            // failed and were skipped without a word (the catch below).
+            // cmd = ginaBinanry + ' framework:set --global-mode='+ self.isGlobalInstall;
+            // console.info('Running: '+ cmd);
+            // console.debug(execSync(cmd));
+            cmd = [ginaBinanry, 'framework:set', '--global-mode='+ self.isGlobalInstall];
+            console.info('Running: '+ cmd.join(' '));
+            console.debug(execFileSync(process.execPath, cmd));
             // Always use defaultPrefix (npm config get prefix) for the global
             // settings — self.prefix gets overridden to INIT_CWD for local
             // installs (line 154), which would corrupt ~/.gina/*/settings.json
             // with the project directory instead of the npm global prefix.
-            cmd = ginaBinanry + ' framework:set --prefix='+ self.defaultPrefix;
-            console.info('Running: '+ cmd);
-            console.debug(execSync(cmd));
+            // cmd = ginaBinanry + ' framework:set --prefix='+ self.defaultPrefix;
+            // console.info('Running: '+ cmd);
+            // console.debug(execSync(cmd));
+            cmd = [ginaBinanry, 'framework:set', '--prefix='+ self.defaultPrefix];
+            console.info('Running: '+ cmd.join(' '));
+            console.debug(execFileSync(process.execPath, cmd));
         } catch (err) {
             //return done(err)
         }

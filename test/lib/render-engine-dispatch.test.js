@@ -1142,10 +1142,12 @@ describe('03k - #TPL1 Tier-2 compiled-template cache + #B25 ALS render-context i
         var gsStart = RENDER_SWIG_ASYNC_SRC.indexOf('function getSwigEngine');
         assert.ok(gsStart > 0, 'getSwigEngine present');
         var block = RENDER_SWIG_ASYNC_SRC.slice(gsStart, gsStart + 2000);
-        assert.match(block, /registerGinaFilters\(engine,\s*SwigFilters,\s*throwError\)/);
-        // and the once-registered registerGinaFilters takes the context-free shape
-        assert.match(RENDER_SWIG_ASYNC_SRC, /function\s+registerGinaFilters\(engine,\s*SwigFilters,\s*throwError\)/);
-        assert.match(RENDER_SWIG_ASYNC_SRC, /SwigFilters\(\{\s*options:\s*\{\},\s*isProxyHost:\s*false,\s*throwError:\s*throwError\s*\}\)/);
+        assert.match(block, /registerGinaFilters\(engine,\s*SwigFilters,\s*throwError,\s*\(autoescape === true\)\)/);
+        // and the once-registered registerGinaFilters takes the context-free shape; the one
+        // value it passes is the engine's own autoescape mode (#B359 prep: nl2br is flagged
+        // .safe and escapes its input exactly when the engine escapes)
+        assert.match(RENDER_SWIG_ASYNC_SRC, /function\s+registerGinaFilters\(engine,\s*SwigFilters,\s*throwError,\s*autoescape\)/);
+        assert.match(RENDER_SWIG_ASYNC_SRC, /SwigFilters\(\{\s*options:\s*\{\},\s*isProxyHost:\s*false,\s*throwError:\s*throwError,\s*autoescape:\s*\(autoescape === true\)\s*\}\)/);
     });
 
     it('swig-async getSwigEngine returns { engine, compiled:Map } (engine + compiled-fn memo)', function () {

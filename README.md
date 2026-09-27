@@ -2,7 +2,7 @@
 
 [![npm version](https://img.shields.io/npm/v/gina)](https://www.npmjs.com/package/gina) [![npm downloads](https://img.shields.io/npm/dm/gina)](https://www.npmjs.com/package/gina) [![GitHub stars](https://img.shields.io/github/stars/gina-io/gina)](https://github.com/gina-io/gina/stargazers) [![Tests](https://github.com/gina-io/gina/actions/workflows/test.yml/badge.svg)](https://github.com/gina-io/gina/actions/workflows/test.yml) [![Socket](https://img.shields.io/badge/Socket-view%20analysis-blue)](https://socket.dev/npm/package/gina) [![Node.js >= 22](https://img.shields.io/badge/node-%3E%3D%2022-brightgreen)](https://nodejs.org) [![Bun >= 1.2](https://img.shields.io/badge/Bun-%3E%3D%201.2-brightgreen)](https://bun.sh) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-> **Documentation:** [gina.io/docs](https://gina.io/docs/) · **Issues:** [GitHub](https://github.com/gina-io/gina/issues) · **Changelog:** [CHANGELOG.md](./CHANGELOG.md)
+> **Documentation:** [gina.io/docs](https://gina.io/docs/) · **Issues:** [GitHub](https://github.com/gina-io/gina/issues) · **Changelog:** [CHANGELOG.md](./CHANGELOG.md) · **Security:** [SECURITY.md](./SECURITY.md)
 
 MVC framework for Node.js and Bun with built-in HTTP/2, multi-bundle architecture, and scope-based data isolation — no Express dependency.
 
@@ -18,7 +18,7 @@ MVC framework for Node.js and Bun with built-in HTTP/2, multi-bundle architectur
 | HTTP/2 server | Built-in `isaac` engine — TLS, h2c, ALPN, HTTP/1.1 fallback, 103 Early Hints, RFC 9218 request priorities, CVE-hardened |
 | Multi-bundle | One project, N independent bundles with shared config and project layer |
 | Scope isolation | `local` / `beta` / `production` — per-request and per-record |
-| MVC routing | `routing.json` — declare routes in config, not code; O(m) radix trie lookup |
+| MVC routing | `routing.json` — declare routes in config, not code; an index built once per routing table narrows each cold match to the rules the URL could reach, and a hot path is served from the route cache |
 | Async/await | Controller actions can be `async`; rejections routed to `throwError` automatically |
 | WebSockets | WS routes in `routing.json` (`"method": "ws"` + channel handlers, `:param` paths); WebSocket-over-HTTP/2 (RFC 8441) |
 | ORM / entities | EventEmitter-based entity system; SQL files auto-wired to entity methods |
@@ -67,86 +67,68 @@ open https://localhost:3100
 
 > **npm 12+** blocks install scripts by default, and gina's post-install bootstraps `~/.gina` and the framework dependencies. Install with `npm install -g gina@latest --allow-scripts=gina`, or allow it once for all global installs with `npm config set allow-scripts=gina --location=user`. (Not needed on npm ≤ 11.)
 
-## What's in 0.6.33
+## What's in 0.7.0
 
-> **Restart your bundles *and* rebuild them.** Eight of this release's commits
-> are browser-bundled — the request-parsing security fixes, the validator's
-> referenced-value and token fixes, the in-memory Collection and the routing
-> fix — so `gina.min.js` changed and `gina bundle:restart` alone leaves the old
+> **Restart your bundles *and* rebuild them.** Two changes are browser-bundled —
+> custom form validators now compile without `eval`, and the warm route cache is
+> one map — so `gina.min.js` changed and `gina bundle:restart` alone leaves the old
 > client running. Rebuild each consuming bundle, then restart.
 
-> **No settings reset.** `0.6.33` is a patch — the `shortVersion` stays `0.6`,
-> so your `~/.gina/0.6/settings.json` is untouched. (`0.6.0` was the reset.)
+> **A new minor version — check what carries over to `~/.gina/0.7`.** On an npm
+> install, the install writes `~/.gina/0.7/settings.json` from its template, so
+> `port`, `debug_port`, `mq_port`, `host_v4`, `bind_host`, `hostname`, `rundir`,
+> `logdir`, `tmpdir` and the log level start from their defaults: re-apply them
+> with `gina framework:set`. With Bun, a `gina-container` image or a git checkout,
+> those nine carry over from `~/.gina/0.6/settings.json` and only the log level
+> resets. Culture, timezone, default environment and scope carry over on every
+> path. A `^0.6.x` dependency range does not resolve `0.7.0` — widen it to
+> `^0.7.0`.
 
-> **Read before upgrading — some changes can stop a bundle or change an
-> answer.** A malformed `${secret:…}` reference now refuses the bundle (run
-> `gina secrets:check` first); a throw from `onInitialize` and a model that fails
-> to load on an asynchronous connector now abort the boot; a Couchbase `$scope`
-> outside `^[A-Za-z0-9_./-]+$` refuses the boot; `http2Options.maxStreamsPerSecond`
-> is no longer read (rename it `maxStreamResetsPerSecond`); `useRestApi` on a
-> Couchbase connector is ignored; `scope:add` and `env:add` refuse names they
-> used to drop silently; and on an `http/2.0` bundle an HTTP/1.1 client using a
-> method a route does not declare now gets 404 (405 on a multi-method route).
-> The [migration notes](https://gina.io/docs/migration) list every behaviour
-> change.
+> **Read before upgrading — some changes can change an answer.** A plain `GET`
+> no longer runs an action whose route is `DELETE`: the popin and link plugins'
+> same-origin XHR anchors keep working, but any other client must send a real
+> `DELETE`. `project:rename` refuses a registered name, `project:add` and
+> `project:import` read `--path`, `--scope` and `--env` whole, a `405` now
+> carries `Allow`, and a `HEAD` is served by every `GET` route. The scaffolded
+> Couchbase keep-alive key is `pingInterval`, not `ping` — check your
+> `connectors.json`. And plan for `0.8.0`: Swig's `autoescape` default becomes
+> `true`; a bundle that leaves it unset now says so at boot. The
+> [migration notes](https://gina.io/docs/migration) list every behaviour change.
 
-**The request-parsing and inter-bundle release.** Nine security fixes lead it.
-One unauthenticated GET could stop a bundle process, an encoded `&` or `=` in a
-form field could add or override other fields, a parse failure wrote the raw
-body or query to the log, and a top-level `__proto__` field swapped the parsed
-request object's prototype. On an `http/2.0` bundle an HTTP/1.1 request skipped
-every route's method check, and a query key named like an inherited object
-member could reach another route. The Couchbase connector no longer writes
-values into statement text unvalidated and its plaintext REST transport is
-retired, and `project:add` no longer runs `--scope` / `--env` through a shell.
-The inter-bundle throughput arc makes `self.query()` hold up under sustained
-traffic: the framework's env template is parsed once per process instead of six
-times per request, the HTTP/2 rapid-reset guard counts client resets instead of
-new streams, client sessions no longer reset every stream, leak or storm
-pre-flight PINGs, a request refused before processing is retried for any method,
-HTTP/1.1 calls reuse their connections, and `server.query.http2SessionPool`
-spreads calls over several sessions. The `is` validation rule now compares
-referenced values exactly as typed, with one `$field` token grammar everywhere
-([gh#77](https://github.com/gina-io/gina/issues/77)). Full detail in
-[CHANGELOG.md](./CHANGELOG.md).
+**The hardening and throughput release.** Seven security fixes lead it: a `GET`
+could run a route's `DELETE` action for another site; on Express 5 one body-less
+request could stop a bundle; a stack passed as an error message reached the
+client; `gina tail --follow` could re-run another local user's program; a long
+`X-Forwarded-Prefix` header could tie up an isaac bundle; a malformed frame could
+stop the framework daemon; and the browser bundle no longer carries any
+dynamic-code call. The inter-bundle throughput arc closes with a route candidate
+index and a one-map warm route cache, and `0.7.0` prepares Swig's move to escaped
+output by default in `0.8.0`. Full detail in [CHANGELOG.md](./CHANGELOG.md).
 
-- **Security — one GET request could stop the bundle (#B591).** A bracket-notation field name whose non-last segment is numeric while its container is not an array (`0[a]=1`) threw inside the nesting helper, and on the `inheritedData` query path nothing caught it: one unauthenticated `GET /any-url?inheritedData=0%5Ba%5D%3D1` exited the bundle process. A urlencoded body with the same name answered 500, and the validator's browser twin broke the submission. Such a segment now creates a plain object slot.
-- **Security — an encoded `&` or `=` in a form field can no longer add or override other fields (#B588).** A urlencoded POST, PUT or PATCH body was percent-decoded as a whole before it was split, so `bio=hi%26role%3Dadmin` arrived as a second `role` field. The body now follows the standard form algorithm — split on `&`, then at the first `=`, each name and value decoded exactly once — which also keeps a raw `=` inside a value and a typed `100%25` as typed.
-- **Security — a parse failure no longer writes the request body or query to the log (#B590).** The data helper's parse-failure lines printed the whole document at error level — a password or a token included, and in the browser console too — and the isaac query parser warned with the value. They now log the input's length, its first character and the error's name, never the value or the parse message.
-- **Security — a top-level field named `__proto__`, `constructor` or `prototype` is dropped (#B592).** Assigned flat, a JSON-valued `__proto__` pair swapped the prototype of the parsed request object, so `req.post.<key>` could read an attacker-chosen value that `Object.keys` and `hasOwnProperty` could not see. The process-wide pollution was already closed by #B446; this is the per-request object.
-- **Security — the Couchbase connector no longer writes caller or configuration values into statement text unvalidated (#B608).** A `$N` inside `SEARCH()` is now bound as a query parameter instead of being spliced in as an unescaped string literal; a `$N` used as a field-path segment must be a dotted identifier path or the query is refused (`GINA_COUCHBASE_INVALID_FIELD_PATH`); and the `$scope` / `_scope` value is resolved once at load and must match `^[A-Za-z0-9_./-]+$`, or the bundle refuses to boot.
-- **Security — the Couchbase connector's REST query transport is retired (#B634, #B623).** `useRestApi: true` sent every N1QL query over plain HTTP with the cluster credentials in an `Authorization: Basic` header — even on a `couchbases://` entry — and rewrote quotes and inserted parameters unescaped. The option is now ignored with one warning, and those queries go through the Couchbase SDK.
-- **Security — `project:add` no longer runs `--scope` / `--env` through a shell (#B640).** An unregistered name was registered through a shell command line with the value spliced in unquoted, so shell syntax in it ran as the user running `project:add` — an exposure for automation that builds those flags from data it does not control. Both values are now checked against the name rules before anything is written, and the child commands start from an argument vector.
-- **Security — on an `http/2.0` bundle, an HTTP/1.1 request is held to each route's method (#B645).** Such a bundle also answers HTTP/1.1 — a client that does not negotiate HTTP/2, or a reverse proxy such as nginx's `proxy_pass` — and the router read the method from the HTTP/2 `:method` pseudo-header, which an HTTP/1.1 request does not carry, so every method passed: a GET reached a POST-only action, and the wrong action could be left in the route cache for later HTTP/2 clients. A wrong method now gets 404 (405 on a multi-method route), and an HTTP/1.1 CORS preflight is answered 204.
-- **Security — a query key named like an inherited object member can no longer reach another route (#B650).** For a GET or DELETE on a route that declares `requirements`, a key such as `toString` or `valueOf` was found by a plain property read and counted as a requirement; each such key replaced a leading segment of the compared URL, so a request could reach a route whose path differs from its own — bypassing a path-based control applied outside the route, such as a reverse-proxy location rule. Only requirements a route declares itself count now. Every release since `0.1.0` was affected.
-- **Added — `server.query.http2SessionPool` (#P43).** How many HTTP/2 client sessions `self.query()` keeps per upstream (1 to 50, default 1, as before). A pool of N is filled round-robin, so a per-connection load balancer — a Kubernetes Service with no HTTP-aware ingress — spreads the calls over N connections instead of pinning them all to one pod.
-- **Changed — the HTTP/2 rapid-reset guard counts client resets; `maxStreamsPerSecond` becomes `maxStreamResetsPerSecond` (#B611).** The Isaac guard (CVE-2023-44487) counted new streams per session, so above 200 calls per second a sibling bundle's own multiplexed `self.query()` calls tripped it and every in-flight call failed with a 500. It now counts the streams a client cuts short. The old key is no longer read — a bundle still setting it gets one boot warning and the default — and `streamResetBurst` / `streamResetRate` pass through to the runtime's own reset limit. Not a vulnerability fix: the protection stays; it no longer fires on the framework's own traffic.
-- **Changed — `scope:add` checks the whole name; the `<bundle>/<scope>` form is retired (#B626).** A name is made of letters, digits, `_`, `.` and `-`, starts with a lowercase letter, a digit, `_` or `.`, and is not `.`, `..` or the name of an inherited object member such as `constructor`; a name that fails used to be dropped without a message and is now refused. The `<bundle>/<scope>` form never limited a scope to one bundle — it registered a scope literally named `<bundle>/<scope>` — and is refused with a pointer to the `scopes` allow-list in `manifest.json`. Registered scopes are unchanged.
-- **Changed — `env:add` checks the whole name; the `<bundle>/<env>` form is retired (#B639).** The same rules as `scope:add`, and `global` — which already names the overlay that applies to every environment — is refused as well. Registered environments are unchanged.
-- **Fixed — a throw from `onInitialize` aborts the boot loudly (#B576).** A synchronous throw, or the rejection of an `async` callback's promise, before `'complete'` now exits 1 with the reason on stderr. It used to leave a bundle listening on nothing: `bundle:start` waited out its timeout, and a `gina-container` process could exit 0.
-- **Fixed — a model that fails to load on an asynchronous connector aborts the boot (#B617).** A rejected entity file or a throwing entity constructor on DuckDB or Couchbase was logged as a rejection, retried as a connection failure, or swallowed — and a DuckDB bundle under `gina-container` exited 0. It now ends the boot with exit code 1, as a synchronous connector already did.
-- **Fixed — a malformed `${secret:…}` reference refuses the bundle at config load (#B583).** A key breaking `^[A-Z_][A-Z0-9_]*$` — lowercase, dotted, empty or padded — used to pass through, so the literal placeholder reached its consumer as a credential. It is now refused like a missing key; `gina secrets:check` names every offending entry, so run it before restarting on this release.
-- **Fixed — logging in with the Couchbase session store no longer fails when the pre-login session was never saved (#B577).** Rotating the session deleted an absent document and the store reported that as an error, failing `req.login()` and Passport 0.6 or later; deleting an absent session is now a success, as on every other session store gina ships.
-- **Fixed — a query value holding a percent-escape no longer empties the whole query (#B589).** A GET or HEAD value holding `%0A`, `%22`, `%5C` or `%25` was decoded twice, turning the serialized query document into invalid JSON — `req.get` came back empty — and `100%2525` became `100%`. The same path serves the browser validator and every route declaring a DTO, where a JSON body value holding `%22` could leave the action with no payload.
-- **Fixed — two data-helper type declarations match the runtime (#B588).** `nestBracketNotationKey` takes the bracket path as an array, and `formatDataFromString` returns `object | undefined`. Type-check only.
-- **Fixed — a referenced value is compared exactly as typed (#B600, #B601, #B602).** In an `is` condition such as `$password === $passwordConfirm`, a double quote, a backslash or a line break in a value stopped the validation pass (the browser form could not submit, the server threw); parentheses and the word `return` inside a value were ignored (`ab(cd` matched `ab)cd`); and a value with no ASCII letter or digit (`!!!`) never matched.
-- **Fixed — every `$field` token follows one grammar (#B603, #B604, #B606).** In an `is` condition, a route `validator::` requirement, a fluent `is()` call and a `query` rule's `data`: one pass, the longest field name wins, a token ends at the first character outside `A-Z a-z 0-9 _ -`, and a `$` naming no field stays literal — so `abc$email` is no longer substituted a second time, `($password) === ($passwordConfirm)` resolves, and `$passwordConfirm` in `query` data is no longer read as `$password` followed by `Confirm`.
-- **Fixed — the in-memory Collection compares strings with `==`, `>` and `<`, and a quote no longer breaks a query (#B609).** A row whose string value held a `"` threw and failed the whole `find()`; `==`, `>` and `<` were not recognised on strings; and a space after the operator skewed the comparison. Both operands are now encoded before they are compared; numeric and datetime comparisons are unchanged.
-- **Fixed — every request re-read the framework's env template from disk (#B610).** Six synchronous reads and parses per request in every bundle — measured at 27% of a trivial JSON route's CPU — are now one parse per process.
-- **Fixed — bundle-to-bundle HTTP/2 calls no longer die after about 1,000 calls, and a call cut by a GOAWAY is retried (#B612, #B613).** The client reset every completed stream, which the target's runtime counted against its reset limit until it closed the session with `GOAWAY(INTERNAL_ERROR)`. A safe-method call cut by a GOAWAY is now retried on a fresh session, and a session gone before the send is retried for any method.
-- **Fixed — the `/_gina/info` `rstCount` metric was always 0 (#B614).** It now counts the streams a client cuts short.
-- **Fixed — bundle-to-bundle HTTP/2 sessions no longer leak, and the pre-flight PING no longer storms (#B625, #B627).** Evictions are identity-checked, so a dead session's late event no longer evicts its live replacement (which leaked, keepalive ticking); a replaced or evicted session is closed gracefully; one pre-flight PING serves every waiting caller; and a cancelled PING no longer counts as a dead session.
-- **Fixed — the boot warmup (`server.warmup`) keeps its HTTP/2 sessions on Node.js (#B629).** Its PING went out while the session was still connecting and the cancel tore the session down; it is now sent once the session is connected.
-- **Fixed — a request refused before the upstream processed it is retried for any method (#B630, #B631).** `REFUSED_STREAM` and an asynchronous `ERR_HTTP2_GOAWAY_SESSION` are re-sent within the retry budget, so a POST no longer fails with a 503 when nothing was processed.
-- **Fixed — the Isaac server closes idle HTTP/2 sessions (#B619).** Its 120 s idle timer tested a property that does not exist and re-armed forever. An idle session now closes gracefully after `http2Options.sessionIdleTimeout` (default 120 s; `0` disables it). Node.js only.
-- **Fixed — bundle-to-bundle HTTP/1.1 calls reuse their connections (#P44).** Each call built its own connection pool and threw it away, so 500 calls opened 500 connections; calls to one upstream now share one keep-alive pool, and `maxSockets` (default 100) now limits the concurrent connections to one upstream.
-- **Fixed — an https bundle-to-bundle call no longer reads its CA file on every call (#B633).** The file is read once and read again only when it changes on disk, so a Kubernetes Secret update is still picked up by the next call.
-- **Fixed — a Couchbase reconnect keeps each connector's declared `scope` (#B624).** The model rebuild omitted it, switching the connector to `NODE_SCOPE` for the documents it stamps and the queries it filters.
-- **Fixed — `bulkInsert` escapes the bucket name (#B616).** A bucket such as `beer-sample` made the statement fail to parse; the name is now backtick-quoted.
-- **Fixed — `project:add` no longer loses a scope or environment it has just registered (#B647).** Its link step raced the `scope:add` / `env:add` children over the registry files; it now starts once the rest of the command has finished.
-- **Fixed — `scope:link-local`, `scope:link-production` and `env:link-dev` no longer crash without a registered project (#B641).** They print the missing or unknown project name and exit 1 instead of a stack trace.
-- **Fixed — the same three commands exit after a successful change (#B648).** Started by the CLI's own path (`node <gina>/bin/cli …`, as CI jobs and scripts run it), they wrote the change and then hung on the CLI's open log listener; the installed `gina` launcher was not affected.
-- **Fixed — the published package no longer carries end-to-end test artifacts (#B581).** Two Playwright `error-context.md` snapshots shipped in `0.6.32` and `0.6.33-alpha.1` — test fixtures only, no credentials and no local paths; `test-results/` and `playwright-report/` are now excluded from the tarball.
+- **Security — a `GET` no longer runs a `DELETE` action for another site (#B662).** So that the popin and link plugins could send their anchors as a `GET`, the router served any `GET` to a `DELETE` route as a `DELETE`, for any client: a cross-site navigation carrying the visitor's session cookie could run it — on the Express engine even with the Csrf plugin adopted, and on either engine without it, since the Session plugin's default `SameSite=Lax` cookie is sent on a top-level navigation. The override is now granted only to a same-origin XHR (`X-Requested-With: XMLHttpRequest`, `Sec-Fetch-Site` of `same-origin` or `none`, no foreign `Origin`); any other `GET` answers 404, or 405 on a route whose methods include `DELETE`.
+- **Security — on Express 5, one body-less request no longer stops the bundle (#B666).** A `DELETE`, or a `POST`, `PUT` or `PATCH` without a body, on any URL and with no authentication, found `request.query` undefined, and the resulting TypeError exited the process. `request.query` is now an accessor that materialises Express's own parse on first read. Express 4 and the default isaac engine were never affected; `0.6.9` to `0.6.33` were.
+- **Security — a stack passed as an error message no longer reaches the client (#B670).** `self.throwError(res, 500, err.stack)`, or an error whose `message`, `error` or `title` holds a stack, put file paths and frames in the JSON body and on the built-in error page in every scope. Outside the local scope such a value now keeps only its first line in the response, and the full text goes to the server log line that carries the incident ref.
+- **Security — `gina tail --follow` no longer re-runs a start command from the shared tmp directory (#B676).** The command a crash restart re-runs is now saved as `~/.gina/run/<bundle>@<project>.argv` (mode 0600) and re-run only from a regular file owned by the current user that group and other cannot write; where `/tmp` is shared, another local user could create the old file first. Restart `gina tail`, then start each bundle once so its file is written in the new place.
+- **Security — a long `X-Forwarded-Prefix` header no longer ties up an isaac bundle (#B679).** The trailing-slash trim backtracked quadratically on a long run of slashes and ran before the 255-character cap, so one request with a 15 KB header cost about 100–170 ms of CPU. The cap now runs first. `0.3.10` to `0.6.33` were affected.
+- **Security — a malformed frame on the log listener no longer stops the framework daemon (#B678).** A frame on port 8125 whose `request` names an inherited object member, such as `__proto__`, threw out of the socket handler and ended the daemon, which also serves the command socket on 8124; the listener now dispatches only short identifiers to its own methods. It binds loopback by default, so only a local process could reach it. Pickup: a framework restart.
+- **Security — the browser bundle carries no dynamic-code call (#M21d).** A custom form validator is compiled by the browser as an inline script carrying the page's CSP nonce instead of through `eval` — the same `this.getValidationContext()` contract, and no `'unsafe-eval'` needed — and the two unreachable calls in the bundled RequireJS and engine.io-client are rewritten at build time. Nothing changes for a validator file that follows the reference.
+- **Added — a boot warning when Swig `autoescape` is not set; `true` becomes the default in `0.8.0` (#B359).** Rendered output does not change in `0.7.0`. Set `settings.swig.autoescape` explicitly to silence it: `false` keeps today's output; with `true`, mark HTML you trust with `| safe` — `{{ gina.csrfInput | safe }}` first, or every form POST fails CSRF. New bundles are scaffolded with `"autoescape": true`.
+- **Added — a boot warning for routing `requirements` regexes that are not anchored (#B360).** A requirement is tested as a partial match, so `"/[0-9]+/"` accepts `123abc`. Anchor each listed pattern (`"/^[0-9]+$/"`); nothing is rewritten for you, and requirements are not applied when a URL is built.
+- **Changed — routing tests only the routes whose URL could match (#P46).** A per-table candidate index skips the rules a request's URL cannot match — a late rule on a 380-rule table went from about 440 µs to about 14 µs — so a skipped rule's `validator::` requirement is no longer evaluated for that request.
+- **Changed — the warm route cache is one map and keeps only the matched rule (#P46).** A lookup and an eviction cost the same at any size, and an entry no longer keeps the first request's parameters and data — a login form's body included — for the life of the process.
+- **Changed — `self.query()` over HTTP/2 no longer adds `status: 200` (#P47).** An upstream JSON body without a `status` arrives as sent, as it always did over HTTP/1.1, with no warning per call; treat an absent `status` as success.
+- **Fixed — the first gina commands after a minor-version upgrade no longer fail (#B680, #B681).** When `bundle:start`, `bundle:restart`, `project:start`, `project:restart` or a `gina-container` boot ran first, every later command exited `1` (`reading 'split'`) until `main.json` was repaired by hand, and the first command after any minor upgrade failed once (`reading 'indexOf'`). Installs that skip npm's install scripts were exposed. CLI only.
+- **Fixed — with `autoescape: true`, Swig pages keep their CSS and JavaScript (#B690).** gina's injected `<link>` and `<script>` tags rendered as visible text; they are now injected with `| safe`, and `nl2br` keeps its line breaks. Output with escaping off is unchanged.
+- **Fixed — a `405` carries `Allow`, and a `HEAD` works on every `GET` route (#B659, #B667).** The `Allow` header lists the methods of the routes whose URL matched; a `HEAD` on a parameterised URL used to answer 404, and on a route declaring several methods 405.
+- **Fixed — a `HEAD` gives the action `req.get` (#B675).** A `GET` action reading `req.get.<param>` answered 500 on `HEAD`; `req.get` is now the same object as `req.head`.
+- **Fixed — on the Express engine, a URL carrying a query string resolves (#B668).** `GET /items?page=2` and a cache-busted static such as `/css/app.css?v=3` answered 404 on Express 4 and 5; the query is now stripped before routing and statics, as on isaac.
+- **Fixed — `env:add <env> @<project>` makes the environment ready to start (#B643).** It registered the environment but gave no bundle ports for it; it now allocates them, writes the `env.json` blocks, prints a confirmation and exits.
+- **Fixed — `project:add` and `project:import` read `--path`, `--scope` and `--env` whole (#B644).** A value holding `=` was cut at its second `=`.
+- **Fixed — `project:rename` renames to a free name and refuses a taken one (#B651).** It refused every free name, and renamed port records of any project whose name began with the old one.
+- **Fixed — six more commands exit after their work (#B653).** Started by the CLI's own path, as CI and scripts run it, `port:reset` with no project, `env:unset`, `env:set` with no key, `port:list --format=json|conf`, `connector:list` without a project and a cancelled `protocol:set` prompt never ended.
+- **Fixed — a path with a space no longer breaks the install, `port:reset` or `bundle:restart` (#B663).** The install scripts, `port:reset` and `bundle:restart` no longer run their commands through a shell, so a home directory or npm prefix with a space works, and `port:reset` no longer needs `gina` on your `PATH`.
+- **Fixed — a failed copy no longer leaves a temporary file behind, and reports a stack on Bun (#B649, #B654).**
+- **Fixed — the scaffolded Couchbase keep-alive interval is `pingInterval` (#D51).** The example named `ping`, a key the connector ignores — check your `connectors.json`.
 
 ## Documentation
 

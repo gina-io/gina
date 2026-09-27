@@ -610,16 +610,15 @@ describe('X-Forwarded-Prefix capture & normalisation (per-request)', function() 
     it("source assigns the normalised value to request._ginaProxyPrefix (per-request)", function() {
         var anchor = src.indexOf("request.headers['x-forwarded-prefix']");
         assert.ok(anchor > -1, 'x-forwarded-prefix read site not found');
-        // #B367 widened 600 -> 1000: the injection charset gate and its rationale
-        // comment now sit between the header read and the assignment. The assignment
-        // itself is unchanged and still per-request; only the distance grew. (This is
-        // the proximity-window brittleness jsdoc.md documents — prefer a structural
-        // anchor over a char-distance window when this next needs touching.)
-        var windowEnd = Math.min(src.length, anchor + 1000);
-        var block = src.slice(anchor, windowEnd);
+        // #B679 replaced the char-distance window (which the #B367 change widened
+        // 600 -> 1000 and this fix's reorder then outgrew) with a STRUCTURAL anchor,
+        // per this file's own guidance: `request._ginaProxyPrefix` is written ONLY in
+        // this block (the :626 negative pin keeps the process-global out), so its first
+        // occurrence at or after the header read IS this block's per-request assignment.
+        var assignIdx = src.indexOf('request._ginaProxyPrefix', anchor);
         assert.ok(
-            block.indexOf('request._ginaProxyPrefix') > -1,
-            'expected request._ginaProxyPrefix assignment near the x-forwarded-prefix read (per-request, not process-global)'
+            assignIdx > -1,
+            'expected request._ginaProxyPrefix assignment after the x-forwarded-prefix read (per-request, not process-global)'
         );
     });
 
@@ -652,8 +651,14 @@ describe('X-Forwarded-Prefix capture & normalisation (per-request)', function() 
 
     it("source strips trailing slashes via /\\/+$/ replace", function() {
         var anchor = src.indexOf("request.headers['x-forwarded-prefix']");
-        var windowEnd = Math.min(src.length, anchor + 600);
-        var block = src.slice(anchor, windowEnd);
+        assert.ok(anchor > -1, 'x-forwarded-prefix read site not found');
+        // #B679 — structural window (header read → the block's _ginaProxyPrefix assignment)
+        // instead of a fixed char count: the fix reorders the block so the trim runs AFTER
+        // the length/charset gate, which pushed the replace past the old 600-char window. The
+        // trim must still exist, and still before the assignment — which this bound enforces.
+        var assignIdx = src.indexOf('request._ginaProxyPrefix', anchor);
+        assert.ok(assignIdx > anchor, 'x-forwarded-prefix assignment not found after the read');
+        var block = src.slice(anchor, assignIdx);
         assert.ok(
             /\.replace\(\s*\/\\\/\+\$\/\s*,\s*''\s*\)/.test(block),
             'expected `.replace(/\\/+$/, \'\')` to strip trailing slashes from the header value'
@@ -669,10 +674,16 @@ describe('X-Forwarded-Prefix capture & normalisation (per-request)', function() 
     function normaliseXfp(headerValue) {
         if (!headerValue) return undefined;
         var xfp = String(headerValue).trim();
-        xfp = xfp.replace(/\/+$/, '');
+        // #B679 — mirror the live block's order: prepend the leading slash, then the
+        // length+charset gate, then the trailing-slash trim (the gate runs BEFORE the
+        // trim so a >255 value is zeroed before the quadratic /\/+$/ ever sees it).
         if (xfp.length > 0 && xfp.charAt(0) !== '/') {
             xfp = '/' + xfp;
         }
+        if (xfp.length > 255 || !/^[A-Za-z0-9._~\/%-]*$/.test(xfp)) {
+            xfp = '';
+        }
+        xfp = xfp.replace(/\/+$/, '');
         if (xfp.length > 0) return xfp;
         return undefined;
     }

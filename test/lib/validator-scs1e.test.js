@@ -515,21 +515,22 @@ describe('09 — #SCS1e source-inspection guards', function () {
         assert.ok(/_scsSegments/.test(FORM_VAL_SRC), 'bracket-walker segments should be present');
     });
 
-    it('form-validator.js: the one deferred eval site remains live (intentional)', function () {
+    it('form-validator.js: the last deferred eval site is cleared by #M21d (zero live eval in the file)', function () {
         // The previously-deferred eval(condition) site was cleared by #M21b
         // (replaced with explicit throw documenting supported condition shapes).
-        // The user-validator-function-body eval remains live — it is the
-        // Pattern B site that #M21c reframed to accept-and-document after a
-        // consumer survey re-verification surfaced a live consuming bundle that
-        // uses a user-defined validator-function-body eval.
+        // The user-validator-function-body eval — the Pattern B site #M21c kept
+        // under its trust model — was cleared by #M21d: the browser now compiles
+        // the body as an inline <script> (compileUserValidator), so no live eval
+        // is left anywhere in the engine.
         var live = stripLineComments(FORM_VAL_SRC);
         assert.ok(
             !/isValid\s*=\s*eval\s*\(\s*condition\s*\)/.test(live),
             'previously deferred eval(condition) should be cleared by #M21b'
         );
         assert.ok(
-            /eval\s*\(\s*['"]\(['"]\s*\+\s*userValidator/.test(live),
-            'deferred user-validator-function-body eval should remain (Pattern B / #M21c)'
+            !/(^|[^\w.$])eval\s*\(/.test(live) &&
+            /compileUserValidator\s*\(\s*v\s*,\s*userValidator\s*\)/.test(live),
+            'the user-validator-function-body eval should be cleared by #M21d (compileUserValidator in its place)'
         );
     });
 });

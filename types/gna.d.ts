@@ -123,8 +123,14 @@ interface GinaExports {
     /** Resolve the tmp directory — `GINA_TMPDIR` / `os.tmpdir()` with fallback to prefix `var/tmp`. */
     getTmpDir: typeof globalThis.getTmpDir;
     /**
-     * Read the saved startup argv for a given bundle@project — used by `gina bundle:restart` to
-     * re-issue the exact same start command.
+     * Resolve the argv dir — `<GINA_HOMEDIR>/run`, created `0700` when absent — where each
+     * bundle's start argv is saved for the `gina tail --follow` crash restart.
+     */
+    getArgvDir: typeof globalThis.getArgvDir;
+    /**
+     * Read the saved startup argv for a given bundle@project from the argv dir (`getArgvDir()`)
+     * — used by `gina tail --follow` to restart a crashed bundle with the exact same start
+     * command.
      */
     getBundleStartingArgv: typeof globalThis.getBundleStartingArgv;
     /** Read a vendor config loaded via `setVendorsConfig`. */

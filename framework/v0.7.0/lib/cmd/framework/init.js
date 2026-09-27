@@ -1,0 +1,1279 @@
+/**
+ * @module gina/lib/cmd/framework/init
+ */
+var fs              = require('fs');
+var EventEmitter    = require('events').EventEmitter;
+var e               = new EventEmitter();
+const { execSync }  = require('child_process');
+const { arch }      = require('os');
+var util            = require('util');
+var promisify       = util.promisify;
+
+var console         = lib.logger;
+var Domain          = lib.Domain;
+var ginaPath        = getPath('gina').root;
+var help            = require(ginaPath + '/utils/helper');
+// var helpers         = require(getPath('gina').helpers, true);
+
+
+var aliases = require( getPath('gina').lib + '/cmd/aliases.json' );
+/**
+ * Runs the framework initialisation/validation sequence before executing a command.
+ * Validation checks (`self.check*`) are run in declaration order via the async `begin()` loop.
+ * When all checks pass, emits `init#complete` with a `run` callback.
+ * For online (socket) commands, emits `init#listen` immediately.
+ *
+ * @class Initialize
+ * @constructor
+ * @param {object} opt - Parsed command-line options
+ * @param {object} [opt.client] - Socket client for terminal output (online commands only)
+ * @param {string[]} opt.argv - Full argv array
+ * @param {string} opt.homedir - Path to the Gina home directory
+ * @param {string} opt.frameworkPath - Absolute path to the framework directory
+ * @param {string} opt.pack - Path to package.json
+ * @fires Initialize#init:complete
+ * @fires Initialize#init:listen
+ */
+function Initialize(opt) {
+
+    var self = {}, local = {};
+    /**
+     * Stores opt and starts the begin() loop.
+     * @inner
+     * @private
+     * @param {object} opt
+     */
+    var init = function(opt) {
+        self.opt = opt;
+        begin()
+    }
+
+
+    /**
+     * Bebin Checking - Will run checking tasks in order of declaration
+     * */
+    // var begin = function() {
+    //     var i = 0;
+    //     var funcs = [];
+    //     for (var t in self) {
+    //         if( typeof(self[t]) == 'function') {
+    //             var func = 'self.' + t + '()';
+    //             console.debug('Running [ ' + func + ' ]');
+    //             eval(func);// jshint ignore:line
+    //             ++i
+    //         }
+
+    //         if ( i == self.functionCount() ) {
+    //             e.emit('init#complete', false, run, self.opt);
+    //             break
+    //         }
+    //     }
+    // }
+
+    /**
+     * Iterates over `self.*` functions in declaration order, executing each via promisify().
+     * Emits `init#complete` when all checks have passed.
+     * @inner
+     * @private
+     * @param {number} [i=0] - Current function index
+     */
+    var begin = async function(i) {
+        i = (typeof(i) == 'undefined') ? 0 : i;
+        //console.debug('i is ', i);
+        var n = 0, funct = null, functName = null;
+        for (let t in self) {
+            if ( typeof(self[t]) == 'function') {
+                if (n == i) {
+                    // #SCS1b (2026-04-23) — hold the function reference directly instead
+                    //                        of building a `'self.' + t` string for eval.
+                    functName = t;
+                    funct     = self[t];
+                    console.debug('Running [ self.' + functName + '() ]');
+                    break;
+                }
+                n++;
+            }
+        }
+
+        // to handle sync vs async to allow execution in order of declaration
+        if (funct) {
+            // #SCS1b (2026-04-23) — replaced `eval('async function on<Name>...')` chain
+            //                        scaffolding with a direct promisify + try/await/catch
+            //                        so Socket no longer flags `Uses eval`. Semantics
+            //                        unchanged: promisify → await → error ⇒ console.error
+            //                        + process.exit(1) → recurse to begin(i+1). The
+            //                        per-function `on<Name>` stack-label is lost; functName
+            //                        is logged above instead.
+            // eval('async function on'+functName+'(){ await promisify('+ funct + ')().catch(function(e){ console.error(e.toString()); process.exit(1);}).then(function(){ begin('+(i+1)+')});}; on'+functName+'();'); // jshint ignore:line
+            (async function() {
+                try {
+                    await promisify(funct)();
+                } catch (e) {
+                    console.error(e.toString());
+                    process.exit(1);
+                    return;
+                }
+                begin(i + 1);
+            })();
+        } else if ( i == self.functionCount() ) {
+            e.emit('init#complete', false, run, self.opt);
+        }
+    }
+
+
+    /**
+     * Resolves command aliases (e.g. `rm` → `remove`) by looking up the aliases registry.
+     * @inner
+     * @private
+     * @param {object} task - Task descriptor with `topic` and `action` properties
+     * @returns {object} The task with the action resolved to its canonical name
+     */
+    var checkForAliases = function(task) {
+        try {
+            // var aliasArr = aliases[task.topic].toArray();
+            var aliasObj = aliases[task.topic];
+            if (
+                typeof(aliases) != 'undefined'
+                && typeof(aliasObj) != 'undefined'
+                && typeof(aliasObj[task.action]) != 'undefined'
+            ) {
+                task.action = aliasObj[task.action]
+            }
+        } catch (err) {}
+
+        return task
+    }
+
+    /**
+     * Resolves the command file path, optionally cache-busts in dev mode, and executes it.
+     * @inner
+     * @private
+     * @param {object} opt
+     * @param {object} [cmd]
+     */
+    var run = function(opt, cmd) {
+        opt.task = checkForAliases(opt.task);
+
+        // The resolved topic/action pair becomes the `require()` path below, and
+        // for an online command it is supplied by the caller over the framework
+        // socket. Constrain both segments to the shipped command namespace so a
+        // name can only ever resolve INSIDE `lib/cmd/`. Every command group
+        // directory and action file gina ships matches this pattern, including
+        // the synthetic `framework:-V` / `framework:--version` forms; anything
+        // carrying a path separator or a `..` segment does not.
+        var isSafeCmdSegment = function (segment) {
+            return /^[A-Za-z0-9_-]+$/.test( String(segment) );
+        };
+        var isKnownNamespace = isSafeCmdSegment(opt.task.topic) && isSafeCmdSegment(opt.task.action);
+
+        var filename ='/cmd/' + opt.task.topic + '/' + opt.task.action + '.js'
+        // A segment outside that namespace resolves to '' — which never exists —
+        // so it falls into the same "not a valid command" branch as an unknown
+        // action below, and can never reach require().
+        var path = isKnownNamespace ? getPath('gina').lib + filename : '';
+
+        // Unknown command → print a clean, actionable message instead of a raw
+        // `Cannot find module` stack. `bin/cli` already rejects an unknown GROUP
+        // cleanly; this covers a known group with an unknown ACTION — e.g.
+        // `gina framework:connector`, `gina connector` (auto-prefixed to the same
+        // `framework:connector`), or `gina -V` (→ `framework:-V`). A genuine error
+        // thrown from inside a real handler still falls through to the try/catch
+        // below and keeps its stack for debugging.
+        if ( !fs.existsSync(path) ) {
+            var cmdName   = opt.task.topic + ':' + opt.task.action;
+            var groupHelp = getPath('gina').lib + '/cmd/' + opt.task.action + '/help.txt';
+            var lines     = [ "gina: '" + cmdName + "' is not a valid command." ];
+
+            // Did-you-mean: the unknown action is itself a real command group
+            // (same test `gina help <group>` uses). Covers the `connector` case.
+            if ( /^[a-z][a-z0-9-]*$/.test(opt.task.action) && fs.existsSync(groupHelp) ) {
+                lines.push('');
+                lines.push("'" + opt.task.action + "' is a command group. Try:  gina help " + opt.task.action);
+            }
+
+            lines.push('');
+            lines.push("Run 'gina help' for all commands, or 'gina help " + opt.task.topic + "' for the " + opt.task.topic + " group.");
+
+            var message = lines.join('\n');
+            console.error(message);
+            if (opt.client) {
+                opt.client.write(message + '\n');
+            }
+
+            // Online runs inside the long-lived daemon serving every client, so
+            // exiting here would drop the control plane. End this client instead.
+            if ( opt.isOnlineCommand ) {
+                if (opt.client) { opt.client.end(); }
+                return;
+            }
+            process.exit(1);
+            return;
+        }
+
+        try {
+            if ( GINA_ENV_IS_DEV || process.env.NODE_ENV_IS_DEV ) {
+                delete require.cache[require.resolve(path)];
+            }
+            require(path)(opt, cmd)
+        } catch(err) {
+            console.crit('Gina has some troubles with this command: gina '+ opt.argv.slice(2).join(' ') +'\n'+ err.stack);
+            if (opt.client) {
+                opt.client.write('Gina has some troubles with this command: gina '+ opt.argv.slice(2).join(' ') +'\n' + err.stack);
+            }
+            process.exit(1);
+        }
+    }
+
+    self.checkIfHome = function(done) {
+        var path = self.opt.homedir;
+        console.debug('Checking home... [ '+ path +' ]');
+
+        if ( !getEnvVar('GINA_HOMEDIR') ) {
+            setEnvVar('GINA_HOMEDIR', path)
+        } else {
+            path = self.opt.homedir = getEnvVar('GINA_HOMEDIR')
+        }
+
+        if ( !fs.existsSync(path) ) {
+            try {
+                fs.mkdirSync(path, '0775')
+            } catch (err) {
+                // console.error(err.stack);
+                // process.exit(1)
+                return done(err)
+            }
+        }
+
+        done()
+    }
+
+
+    self.checkIfVersionDir = function(done) {
+
+        var version = require(self.opt.pack).version;
+
+        if ( !getEnvVar('GINA_VERSION') ) {
+            setEnvVar('GINA_VERSION', version)
+        } else {
+            version = getEnvVar('GINA_VERSION')
+        }
+
+        if ( !getEnvVar('GINA_SHORT_VERSION') ) {
+            var shortVersion = version.split('.');
+            shortVersion.splice(2);
+            shortVersion = shortVersion.join('.');
+            setEnvVar('GINA_SHORT_VERSION', shortVersion);
+        }
+
+
+        var release = version.split('.').splice(0,2).join(".");
+        setEnvVar('GINA_RELEASE', release, true);
+        var releasePath = self.opt.homedir + '/' + release;
+        self.release = self.opt.release = release;
+
+        console.debug('Checking version path... [ '+ releasePath +' ]');
+
+        if ( !fs.existsSync(releasePath) ) {
+            try {
+                fs.mkdirSync(releasePath, '0775')
+            } catch (err) {
+                // console.error(err.stack);
+                // process.exit(1)
+                return done(err)
+            }
+        }
+        done()
+    }
+
+    /**
+     * Ensures the framework-dir `MIDDLEWARE` file exists before the command runs.
+     *
+     * `MIDDLEWARE` is normally written by `script/post_install.js` at install time,
+     * but it is gitignored + npmignored, so any environment that skips the install
+     * lifecycle never receives it — most notably the Bun runtime (`bun add -g`
+     * blocks dependency postinstalls by default), and also containers / fresh
+     * clones. Its readers (`version.js`, `core/config.js`) then crash or fall back
+     * to `'none'`. This step recreates it (idempotent, and ahead of the command
+     * dispatch in the `begin()` chain) with the same default content
+     * `post_install.js` writes: `isaac@<version>`.
+     *
+     * Runtime-agnostic: on a normal install the file already exists, so the create
+     * branch never runs and behaviour is byte-identical. Creation is best-effort —
+     * a read-only framework directory leaves the file absent and `version.js`
+     * degrades to its `'none'` fallback. It must never pass an error to `done()`:
+     * the `begin()` chain treats a step error as fatal (`process.exit(1)`).
+     *
+     * @private
+     * @param {function} done - Step callback; always invoked with no argument.
+     * @returns {void}
+     */
+    self.checkIfMiddlewareFile = function(done) {
+        var middlewareFileObj = new _( opt.frameworkPath + '/MIDDLEWARE');
+        console.debug('Checking for: '+ middlewareFileObj.toString());
+        if ( !middlewareFileObj.existsSync() ) {
+            console.debug('Did not find '+ middlewareFileObj.toString());
+            // The install lifecycle didn't run (Bun blocks postinstalls by default;
+            // also containers / fresh clones). Recreate MIDDLEWARE so the downstream
+            // readers get the real value instead of crashing. Best-effort: a
+            // read-only framework dir leaves it absent and version.js degrades to
+            // 'none'. Must NOT done(err) here — begin() treats that as fatal.
+            try {
+                var version    = getEnvVar('GINA_VERSION')
+                              || require(opt.frameworkPath + '/package.json').version;
+                var middleware = 'isaac@' + version; // post_install.js default (its express branch is dead code)
+                fs.writeFileSync( middlewareFileObj.toString(), middleware );
+                console.debug('Created '+ middlewareFileObj.toString() +' ('+ middleware +')');
+            } catch (writeErr) {
+                console.debug('Could not create '+ middlewareFileObj.toString() +': '+ (writeErr.message || writeErr));
+            }
+        }
+        done()
+    }
+
+    /**
+     * Creates or updates `~/.gina/main.json` for the running release, then exports
+     * the release's culture, timezone, log level, prefix and global-mode defaults.
+     *
+     * On the first run of a new short version (a minor crossing, e.g. 0.6 → 0.7),
+     * every per-version dict (`def_culture`, `archs`, `cultures`, …) that has no
+     * entry for the release gets a copy of the previous short version's entry, and
+     * `frameworks[<release>]` is seeded from the template when absent. Only missing
+     * entries are filled, so the step is idempotent, and it runs whether or not a
+     * registrar (bin/cli's start sync, gina-container, post_install) wrote
+     * `frameworks[<release>]` first (#B680).
+     *
+     * After the commit, `main.json` is dropped from Node's require cache, so the
+     * later steps that `require()` it read the migrated file (#B681).
+     *
+     * @private
+     * @param {function} done - Step callback; called with the error only when a
+     *        missing `main.json` cannot be created. Any other failure throws, and
+     *        the `begin()` chain exits the process.
+     * @returns {void}
+     * @example
+     * // A 0.6 main.json read by 0.7.0: def_culture {'0.6':'fr_FR'} gains '0.7':'fr_FR'
+     * // and the step logs `Migrating main.json: 0.6 → 0.7`; a second run changes nothing.
+     */
+    self.checkIfMain = function(done) {
+        console.debug('Checking main...');
+        var source      = getPath('gina').root + '/resources/home/main.json';
+        var target      = self.opt.homedir + '/main.json';
+        var version     = 'v' + getEnvVar('GINA_VERSION');
+        var prefix      = getEnvVar('GINA_PREFIX') || execSync('$(which npm) config get prefix --quiet').toString().replace(/\n$/g, '');
+        var globalMode  = getEnvVar('GINA_GLOBAL_MODE');
+
+        var data = require(source);
+        var dic = {
+            'release' : self.release,
+            'version' : version,
+            'prefix' : prefix,
+            'global_mode': globalMode
+        };
+        data = whisper(dic, data);
+
+
+        if ( !fs.existsSync(target) ) {
+            try {
+                lib.generator.createFileFromDataSync(data, target)
+            } catch (err) {
+                // console.error(err.stack);
+                // process.exit(1)
+                return done(err)
+            }
+        }
+        // update if needed : like the version number ...
+        var mainConfig  = require(target);
+        mainConfig      = whisper(dic, mainConfig);
+
+        // MIGRATION — first run on a new short version (e.g. 0.1 → 0.2, 0.5 → 1.0).
+        // Every per-version dict with no entry for the new release gets a copy of the
+        // entry of the most recent previous short version. Downgrade is free: old keys
+        // are never removed from main.json, so switching back just re-reads the
+        // already-present keys.
+        //
+        // #B680 — the trigger is a dict MISSING the release, not frameworks[release]
+        // being absent: bin/cli's bundle|project:start sync, every gina-container boot
+        // and post_install's end() (after a framework:set that failed) register
+        // frameworks[<new short>] without migrating, which used to skip this migration
+        // for good, leave def_culture[release] undefined, and make defCulture.split()
+        // below throw on every later command.
+        // For the same reason the previous short is picked among the OTHER short
+        // versions: the release itself may already be registered, and a key such as
+        // `latest` is not a short version. Only missing entries are filled, so a file
+        // that is already migrated is left as it is.
+        var _prevShort = null;
+        for (var _fk in mainConfig['frameworks']) {
+            if (_fk === '_comment' || _fk === self.release || !/^\d+\.\d+$/.test(_fk)) continue;
+            if (!_prevShort || parseFloat(_fk) > parseFloat(_prevShort)) _prevShort = _fk;
+        }
+        if (_prevShort) {
+            var _migrated = 0;
+            for (var _mk in mainConfig) {
+                // frameworks is seeded below, never copied: frameworks[<prev>] lists the
+                // previous short's versions, not this one's.
+                if (_mk === '_comment' || _mk === 'def_framework' || _mk === 'frameworks') continue;
+                var _mv = mainConfig[_mk];
+                if (
+                    _mv !== null && typeof _mv === 'object' && !Array.isArray(_mv)
+                    && typeof(_mv[_prevShort]) !== 'undefined'
+                    && typeof(_mv[self.release]) === 'undefined'
+                ) {
+                    if (!_migrated) console.info('Migrating main.json: ' + _prevShort + ' → ' + self.release);
+                    mainConfig[_mk][self.release] = JSON.clone(_mv[_prevShort]);
+                    ++_migrated;
+                }
+            }
+        }
+        // Seed the frameworks array for the new release from the template (current version
+        // only) — only when absent, so an entry a registrar wrote first is kept.
+        if (typeof(mainConfig['frameworks'][self.release]) === 'undefined') {
+            mainConfig['frameworks'][self.release] = JSON.clone(data['frameworks'][self.release] || []);
+        }
+        // END MIGRATION
+
+        // check if new definitions after update
+        for (let k in data) {
+            if ( typeof(mainConfig[k]) == 'undefined' ) {
+                mainConfig[k] = ( typeof(data[k]) == 'object' ) ? JSON.clone(data[k]) : data[k];
+            }
+        }
+        // arch
+        mainConfig.archs = merge(mainConfig.archs, data.archs, true);
+        // envs - must inherit from user
+        mainConfig.envs = merge(mainConfig.envs, data.envs);
+        // scopes - must inherit from user
+        mainConfig.scopes = merge(mainConfig.scopes, data.scopes);
+
+        // updating protocols, schemes, cultures, log_levels
+        mainConfig.protocols    = merge(mainConfig.protocols, data.protocols, true);
+        mainConfig.schemes      = merge(mainConfig.schemes, data.schemes, true);
+        // cultures - must inherit from user
+        mainConfig.cultures     = merge(mainConfig.cultures||{}, data.cultures);
+        mainConfig.log_levels   = merge(mainConfig.log_levels||{}, data.log_levels, true);
+
+
+        // don't remove def_protocol
+        var defProtocol     = (mainConfig['def_protocol']) ? mainConfig['def_protocol'][self.release] : data.def_protocol[self.release];
+        var defScheme       = (mainConfig['def_scheme']) ? mainConfig['def_scheme'][self.release] : data.def_scheme[self.release];
+        var defCulture      = (mainConfig['def_culture']) ? mainConfig['def_culture'][self.release] : data.def_culture[self.release];
+        var defTimezone     = (mainConfig['def_timezone']) ? mainConfig['def_timezone'][self.release] : data.def_timezone[self.release];
+        // Derive iso_short from the language prefix of the resolved culture (e.g. en_CM → en)
+        var defIsoShort     = defCulture.split('_')[0];
+        // Derive date format from the resolved culture via Intl — fallback to yyyy/mm/dd
+        var defDate         = (mainConfig['def_date']) ? mainConfig['def_date'][self.release] : data.def_date[self.release];
+        if (typeof Intl !== 'undefined' && typeof Intl.DateTimeFormat.prototype.formatToParts === 'function') {
+            var _refDate = new Date(2013, 3, 5);
+            var _parts = Intl.DateTimeFormat(defCulture.replace('_', '-'), {
+                year: 'numeric', month: '2-digit', day: '2-digit'
+            }).formatToParts(_refDate);
+            defDate = _parts.map(function(p) {
+                if (p.type === 'year')  return 'yyyy';
+                if (p.type === 'month') return 'mm';
+                if (p.type === 'day')   return 'dd';
+                return p.value.replace(/[^\x20-\x7E]/g, '');
+            }).join('');
+        }
+        var defLogLevel     = (mainConfig['def_log_level']) ? mainConfig['def_log_level'][self.release] : data.def_log_level[self.release];
+        var defPrefix       = (mainConfig['def_prefix']) ? mainConfig['def_prefix'][self.release] : data.def_prefix[self.release];
+        var defGlobalMode   = (mainConfig['def_global_mode']) ? mainConfig['def_global_mode'][self.release] : data.def_global_mode[self.release];
+
+
+        if ( mainConfig.protocols[self.release].indexOf(defProtocol) < 0 )
+            mainConfig.protocols[self.release].push(defProtocol);
+
+        if ( mainConfig.schemes[self.release].indexOf(defScheme) < 0 )
+            mainConfig.schemes[self.release].push(defScheme);
+
+        if ( mainConfig.cultures[self.release].indexOf(defCulture) < 0 )
+            mainConfig.cultures[self.release].push(defCulture);
+
+
+        // Update only when needed
+        if (!mainConfig.def_culture)
+            mainConfig.def_culture = data.def_culture;
+
+        if (!mainConfig.def_timezone)
+            mainConfig.def_timezone = data.def_timezone;
+
+        if (!mainConfig.def_log_level)
+            mainConfig.def_log_level = data.def_log_level;
+
+        if (!mainConfig.def_prefix)
+            mainConfig.def_prefix = data.def_prefix;
+
+        if (!mainConfig.def_global_mode)
+            mainConfig.def_global_mode = data.def_global_mode;
+
+        mainConfig.protocols[self.release].sort();
+        mainConfig.schemes[self.release].sort();
+        mainConfig.cultures[self.release].sort();
+
+        // commit
+        lib.generator.createFileFromDataSync(mainConfig, target);
+        // #B681 — the later steps read main.json with require(), and Node's require
+        // cache still holds the object read at the top of this step: the file as it
+        // was before whisper() and the migration (whisper returns a new object, so the
+        // cached one never changes). On a minor crossing checkArch then found no
+        // archs[<release>] and the first command exited 1. Dropping the entry makes
+        // their next require() read the file just written. Once per process: init's
+        // check chain runs from onComplete only, never per online command.
+        try {
+            delete require.cache[require.resolve(target)];
+        } catch (cacheErr) {
+            console.debug('Could not drop '+ target +' from the require cache: '+ (cacheErr.message || cacheErr));
+        }
+
+        process.env.TZ = defTimezone;
+        process.env.LOG_LEVEL = defLogLevel;
+
+        setEnvVar('GINA_CULTURES', mainConfig.cultures[self.release]);
+        setEnvVar('GINA_CULTURE', defCulture);
+        setEnvVar('GINA_TIMEZONE', defTimezone);
+        // Attenion: remove this part in case of troubles
+        setEnvVar('GINA_PREFIX', defPrefix);
+        setEnvVar('GINA_GLOBAL_MODE', defGlobalMode);
+
+        done()
+    }
+
+    /**
+     * Check arch
+     *
+     * */
+    self.checkArch = function(done) {
+
+        var currentArch = process.arch;
+        switch (process.arch) {
+            case 'x64':
+                currentArch = 'amd64'
+                break;
+            case 'armv7l':
+                currentArch = 'armhf'
+                break;
+            case 'x86':
+                currentArch = 'i386'
+                break;
+            default:
+                break;
+        }
+
+        var currentPlatform = process.platform;
+        // ignored for framework:set
+        var mainConfig = require( self.opt.homedir + '/main.json' );
+        var defaultMainConfig = requireJSON( getPath('gina').root + '/resources/home/main.json' );
+        //has registered arch ?
+        var arch        = getEnvVar('GINA_ARCH') || mainConfig['def_arch'][self.release] || null; // arch by default
+        if ( typeof(mainConfig.archs) == 'undefined' ) {
+            mainConfig.archs = {};
+            mainConfig.archs[self.release] = defaultMainConfig.archs['${release}'];
+            mainConfig['def_arch'] = {}
+            mainConfig['def_arch'][self.release] = currentArch;
+            isUpdateNeeded = true;
+        }
+        if ( mainConfig.archs[self.release].indexOf(arch) < 0 ) {
+            console.error('Arch [ ' + arch + ' ] not registered. Gina is not support your architecture `'+ process.arch +'` at this moment.');
+            process.exit(1);
+        }
+        var platform    = getEnvVar('GINA_PLATFORM') || mainConfig['def_platform'][self.release] || null; // arch by default
+        if ( typeof(mainConfig.platforms) == 'undefined' ) {
+            mainConfig.platforms = {};
+            mainConfig.platforms[self.release] = defaultMainConfig.platforms['${release}'];
+            mainConfig['def_platform'] = {}
+            mainConfig['def_platform'][self.release] = currentPlatform;
+            isUpdateNeeded = true;
+        }
+        if ( mainConfig.platforms[self.release].indexOf(platform) < 0 ) {
+            console.error('Platform [ ' + platform + ' ] not registered. Gina is not support your platform `'+ process.platform +'` at this moment.');
+            process.exit(1);
+        }
+        var isUpdateNeeded = false;
+        if (arch != currentArch) {
+            // updating arch
+            arch = currentArch;
+            if ( mainConfig.archs[self.release].indexOf(arch) < 0 ) {
+                console.error('Arch [ ' + arch + ' ] not registered. Gina is not support your architecture `'+ process.arch +'` at this moment.');
+                process.exit(1);
+            }
+
+            isUpdateNeeded = true;
+            mainConfig['def_arch'][self.release] = arch;
+        }
+        if (platform != currentPlatform) {
+            // updating platform
+            platform = currentPlatform;
+            if ( mainConfig.platforms[self.release].indexOf(platform) < 0 ) {
+                console.error('Platform [ ' + arch + ' ] not registered. Gina is not support your platform `'+ process.platform +'` at this moment.');
+                process.exit(1);
+            }
+
+            isUpdateNeeded = true;
+            mainConfig['def_platform'][self.release] = platform;
+        }
+
+
+        // has arch & platform ?
+        if (
+            isUpdateNeeded
+            ||
+            typeof(mainConfig['def_arch']) == 'undefined'
+            ||
+            typeof(mainConfig['def_platform']) == 'undefined'
+            ||
+            typeof(mainConfig['def_arch']) != 'undefined'
+            && typeof(mainConfig['def_arch'][self.release]) != 'undefined'
+            && mainConfig.archs[self.release].indexOf(mainConfig['def_arch'][self.release]) < 0
+            ||
+            typeof(mainConfig['def_platform']) != 'undefined'
+            && typeof(mainConfig['def_platform'][self.release]) != 'undefined'
+            && mainConfig.platforms[self.release].indexOf(mainConfig['def_platform'][self.release]) < 0
+        ) {
+            var target = _(self.opt.homedir +'/main.json');
+            lib.generator.createFileFromDataSync(
+                mainConfig,
+                target
+            )
+        }
+
+        // TODO - Scanning project
+
+        done()
+    }
+
+    /**
+     * Checking ports
+     *
+     **/
+    self.checkIfPorts = function(done) {
+        console.debug('Checking ports...');
+        var mainConfig  = require(self.opt.homedir + '/main.json');
+        var target = _(self.opt.homedir +'/ports.json');
+
+        if ( !fs.existsSync(target)) {
+
+            var protocols   = mainConfig.protocols[self.release]
+                , schemes   = mainConfig.schemes[self.release]
+                , ports     = {};
+
+            for (let p = 0, pLen = protocols.length; p < pLen; ++p) {
+                ports[protocols[p]] = {};
+                for (let s = 0, sLen = schemes.length; s < sLen; ++s) {
+                    ports[protocols[p]][schemes[s]] = {}
+                }
+            }
+            lib.generator.createFileFromDataSync(
+                ports,
+                target
+            )
+        }
+
+        done()
+    }
+
+    /**
+     * Checking ports.reverse
+     *
+     **/
+    self.checkIfPortsReverse = function(done) {
+        console.debug('Checking ports.reverse...');
+        var target = _(self.opt.homedir +'/ports.reverse.json');
+
+        if ( !fs.existsSync(target) ) {
+            lib.generator.createFileFromDataSync(
+                {},
+                target
+            )
+        }
+
+        done()
+    }
+
+
+
+
+    /**
+     * Checking settings, defining constants
+     * Also done during bin/cmd::init() ... so if you change here ...
+     **/
+
+    self.checkIfSettings = function(done) {
+        console.debug('Checking framework settings...');
+        var main            = require( _(self.opt.homedir + '/main.json', true) )
+            , version       = getEnvVar('GINA_VERSION')
+            , defFramework  = getEnvVar('GINA_DEF_FRAMEWORK') || main['def_framework']
+            , prefix        = getEnvVar('GINA_PREFIX') || (main['def_prefix'] && main['def_prefix'][self.release])
+            , globalMode    = getEnvVar('GINA_GLOBAL_MODE') || (main['def_global_mode'] && main['def_global_mode'][self.release])
+            , arch          = getEnvVar('GINA_ARCH') || (main['def_arch'] && main['def_arch'][self.release])
+            , platform      = getEnvVar('GINA_PLATFORM') || (main['def_platform'] && main['def_platform'][self.release])
+            , env           = getEnvVar('GINA_ENV') || (main['def_env'] && main['def_env'][self.release])
+            , scope         = getEnvVar('GINA_SCOPE') || (main['def_scope'] && main['def_scope'][self.release])
+            , settings      = requireJSON( _( getPath('gina').root + '/resources/home/settings.json', true ) )
+            , userSettings  = {}
+            , target        = _(self.opt.homedir +'/'+ self.release +'/settings.json', true)
+        ;
+
+        // case of port & debug_port updated
+        var targetObj = new _(target);
+        var localUserSettings = null;
+        if ( targetObj.existsSync() ) {
+            localUserSettings = requireJSON(target);
+            // post_install.js copies resources/home/settings.json (which has ${...} placeholders)
+            // into ~/.gina/<shortVersion>/settings.json before init.js runs. On a shortVersion
+            // bump the file therefore exists but is an unresolved template — detect this by
+            // checking whether the port field is still a placeholder string, and treat it the
+            // same as "file absent" so the migration block below runs.
+            if (typeof(localUserSettings['port']) === 'string' && localUserSettings['port'].indexOf('${') === 0) {
+                localUserSettings = null;
+            }
+        }
+        if (!localUserSettings) {
+            // MIGRATION: seed user-customisable values from the previous release's settings.json
+            // so port, hostname, logdir, tmpdir, rundir, and log_level survive a short-version
+            // bump. All assignments are env-var-gated so CLI flags or a prior checkIfSettings
+            // run take precedence. On a fresh install no previous version exists — defaults apply.
+            var _prevShortForSettings = null;
+            for (var _sfk in main['frameworks']) {
+                if (_sfk === '_comment' || _sfk === self.release) continue;
+                if (!_prevShortForSettings || parseFloat(_sfk) > parseFloat(_prevShortForSettings)) {
+                    _prevShortForSettings = _sfk;
+                }
+            }
+            if (_prevShortForSettings) {
+                var _prevSettingsPath = _(self.opt.homedir + '/' + _prevShortForSettings + '/settings.json', true);
+                if (fs.existsSync(_prevSettingsPath)) {
+                    var _prevSettings = requireJSON(_prevSettingsPath);
+                    var _settingsMigrationMap = {
+                        'port'       : 'GINA_PORT',
+                        'debug_port' : 'GINA_DEBUG_PORT',
+                        'mq_port'    : 'GINA_MQ_PORT',
+                        'host_v4'    : 'GINA_HOST_V4',
+                        'bind_host'  : 'GINA_BIND_HOST',
+                        'hostname'   : 'GINA_HOSTNAME',
+                        'logdir'     : 'GINA_LOGDIR',
+                        'tmpdir'     : 'GINA_TMPDIR',
+                        'rundir'     : 'GINA_RUNDIR',
+                        'log_level'  : 'GINA_LOG_LEVEL'
+                    };
+                    for (var _smk in _settingsMigrationMap) {
+                        if (!getEnvVar(_settingsMigrationMap[_smk]) && typeof(_prevSettings[_smk]) !== 'undefined') {
+                            setEnvVar(_settingsMigrationMap[_smk], _prevSettings[_smk]);
+                        }
+                    }
+                }
+            }
+            // END MIGRATION
+            localUserSettings = JSON.clone(settings);
+        }
+
+        if ( !getEnvVar('GINA_DEF_FRAMEWORK') && targetObj.existsSync() ) {
+            if ( typeof(localUserSettings.def_framework) != 'undefined' ) {
+                setEnvVar('GINA_DEF_FRAMEWORK', localUserSettings.def_framework);
+            }
+        }
+
+        if ( !getEnvVar('GINA_PORT') && targetObj.existsSync() ) {
+            if ( typeof(localUserSettings.port) != 'undefined' ) {
+                setEnvVar('GINA_PORT', ~~localUserSettings.port);
+            }
+        }
+        if ( !getEnvVar('GINA_DEBUG_PORT') && targetObj.existsSync() ) {
+            if ( typeof(localUserSettings.debug_port) != 'undefined' ) {
+                setEnvVar('GINA_DEBUG_PORT', ~~localUserSettings.debug_port);
+            }
+        }
+        if ( !getEnvVar('GINA_MQ_PORT') && targetObj.existsSync() ) {
+            if ( typeof(localUserSettings.mq_port) != 'undefined' ) {
+                setEnvVar('GINA_MQ_PORT', ~~localUserSettings.mq_port);
+            }
+        }
+        if ( !getEnvVar('GINA_HOST_V4') && targetObj.existsSync() ) {
+            if ( typeof(localUserSettings.host_v4) != 'undefined' ) {
+                setEnvVar('GINA_HOST_V4', localUserSettings.host_v4);
+            }
+        }
+        // #B161 — bind_host was the only connection key WITHOUT a disk -> env
+        // read-back here, so the regeneration below (dic + createFileFromDataSync)
+        // reverted a value written by `gina framework:set --bind-host=` to the
+        // default on the very next CLI invocation. Mirror the host_v4 block
+        // above so the persisted value survives. The `${` guard skips the
+        // unresolved template placeholder a fresh/broken install may carry.
+        if ( !getEnvVar('GINA_BIND_HOST') && targetObj.existsSync() ) {
+            if ( typeof(localUserSettings.bind_host) != 'undefined' && String(localUserSettings.bind_host).indexOf('${') < 0 ) {
+                setEnvVar('GINA_BIND_HOST', localUserSettings.bind_host);
+            }
+        }
+        if ( !getEnvVar('GINA_HOSTNAME') && targetObj.existsSync() ) {
+            if ( typeof(localUserSettings.hostname) != 'undefined' ) {
+                setEnvVar('GINA_HOSTNAME', localUserSettings.hostname);
+            }
+        }
+
+
+        // updated on framework start : you never know which user is going to start gina (root ? sudo ? regular user)
+        // user settings override is passed through argv while using `gina framework:set` : —-logdir=value  —-tmpdir=value —-rundir=value —-homedir=value
+
+        var uid     = process.getuid()
+            , gid   = process.getgid();
+
+        try {
+
+            /**
+             * Before updateing here, if you have new settings,
+             * make sure to complete : self.checkIfMain()
+             */
+
+            // Check GINA_HOST_V4 for changes in case of k8s environement
+            // Get current host IP, compare with getEnvVar('GINA_HOST_V4')
+            // IF changed: setEnvVar('GINA_HOST_V4', new_host_v4)
+
+            var dic = {
+                'prefix' : prefix,
+                'global_mode': globalMode,
+                'version' : version,
+                'def_framework': defFramework,
+                'arch' : arch,
+                'platform': platform,
+                'env' : env,
+                'env_is_dev' : (main['dev_env'][self.release] == env) ? true : false,
+                'dev_env' : main['dev_env'][self.release],
+                'scope' : scope,
+                'local_scope': main['local_scope'][self.release],
+                'scope_is_local' : (main['local_scope'][self.release] == scope) ? true : false,
+                'scope_is_production' : (main['production_scope'][self.release] == scope) ? true : false,
+                'production_scope': main['production_scope'][self.release],
+                'culture' : getEnvVar('GINA_CULTURE'),
+                'iso_short': (getEnvVar('GINA_CULTURE') || 'en_CM').split('_')[0],
+                'date' : (function() {
+                    var _c = getEnvVar('GINA_CULTURE') || 'en_CM';
+                    var _d = main['def_date'] ? main['def_date'][self.release] : 'yyyy/mm/dd';
+                    if (typeof Intl !== 'undefined' && typeof Intl.DateTimeFormat.prototype.formatToParts === 'function') {
+                        var _p = Intl.DateTimeFormat(_c.replace('_', '-'), { year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date(2013, 3, 5));
+                        _d = _p.map(function(x) { if (x.type==='year') return 'yyyy'; if (x.type==='month') return 'mm'; if (x.type==='day') return 'dd'; return x.value.replace(/[^\x20-\x7E]/g,''); }).join('');
+                    }
+                    return _d;
+                }()),
+                'timezone' : getEnvVar('GINA_TIMEZONE'),
+                'node_version': process.version,
+                'port' : getEnvVar('GINA_PORT') || 8124, // TODO - scan for the next available port
+                'debug_port' : getEnvVar('GINA_DEBUG_PORT') || process.debugPort || 9339,
+                'host_v4' : getEnvVar('GINA_HOST_V4') || '127.0.0.1',
+                // Bind address for the framework control sockets — loopback by
+                // default; widen deliberately to expose them beyond this host.
+                'bind_host' : getEnvVar('GINA_BIND_HOST') || '127.0.0.1',
+                'mq_port' : getEnvVar('GINA_MQ_PORT') || 8125,
+                'hostname' : getEnvVar('GINA_HOSTNAME') || 'localhost',
+                'user' : process.env.USER,
+                'uid' : uid,
+                'gid' : gid,
+                'dir': getPath('gina').root,
+                'home_dir' : _( getUserHome(), true ),
+                'run_dir' : _( getRunDir(), true ),
+                'tmp_dir' : _( getTmpDir(), true ),
+                'log_dir' : _( getLogDir(), true ),
+                'log_level' : getEnvVar('GINA_LOG_LEVEL') || (main['def_log_level'] && main['def_log_level'][self.release]) || 'info'
+            };
+
+            settings = whisper(dic, settings);
+            settings = merge(userSettings, settings);
+            self.settings = settings;
+
+            setEnvVar('GINA_PORT', settings['port']);
+            setEnvVar('GINA_DEBUG_PORT', settings['debug_port']);
+            // setEnvVar('GINA_MQ_PORT', settings['mq_port']);
+            // setEnvVar('GINA_HOST_V4', settings['host_v4']);
+            // setEnvVar('GINA_HOSTNAME', settings['hostname']);
+            setEnvVar('GINA_ENV_IS_DEV', settings['env_is_dev']);
+            setEnvVar('GINA_SCOPE_IS_LOCAL', settings['scope_is_local']);
+            setEnvVar('GINA_SCOPE_IS_PRODUCTION', settings['scope_is_production']);
+
+            console.debug('Framework env is: ', env);
+
+            lib.generator.createFileFromDataSync(
+                settings,
+                target
+            )
+        } catch (err) {
+            // console.error(err.stack);
+            // process.exit(1)
+            return done(err)
+        }
+
+        done()
+    }
+
+    /**
+     * Checking projects
+     *
+     **/
+     self.checkIfProjects = function(done) {
+        console.debug('Checking projects...');
+        var main    = requireJSON( self.opt.homedir + '/main.json' );
+        var target  = _(self.opt.homedir +'/projects.json', true);
+
+        if ( !fs.existsSync(target) ) {
+            lib.generator.createFileFromDataSync(
+                {},
+                target
+            )
+        }
+
+        var projects = requireJSON(target);
+        var newProjects = JSON.clone(projects);
+        for (let name in projects) {
+            let project = projects[name];
+            for (let prop in main) {
+                // Skip only when the project already has a live value.
+                // `typeof null === 'object'`, so null must be tested explicitly —
+                // without this, a project saved with a null field (from a previous
+                // run where main[prop][self.release] was undefined) never gets healed.
+                if ( typeof(project[prop]) != 'undefined' && project[prop] !== null ) continue;
+                //if ( !Array.isArray(main[prop][self.release]) ) continue;
+
+                if ( !newProjects[name][prop] /**&& Array.isArray(main[prop][self.release])*/ ) {
+                    newProjects[name][prop] = null;
+                }
+
+                try {
+                    if ( typeof(main[prop][self.release]) != 'undefined' && !/string/i.test(main[prop][self.release])) {
+                        newProjects[name][prop] = JSON.clone(main[prop][self.release])
+                    }
+                    else if ( typeof(main[prop]) != 'undefined' ) {
+                        newProjects[name][prop] = main[prop]
+                    }
+                } catch (err) {
+                    return done(err)
+                }
+            }
+        }
+
+        //console.debug('----> ', JSON.stringify(newProjects, null, 2));
+        lib.generator.createFileFromDataSync(
+            newProjects,
+            target
+        );
+
+        var argv = process.argv;
+        for (let i=0, len=argv.length; i<len; i++) {
+            if (/^\@/.test(argv[i]) ) {
+                local.projectName = argv[i].substring(1);
+                if ( typeof(newProjects[local.projectName]) != 'undefined' ) {
+                    local.projectData = newProjects[local.projectName];
+                }
+                continue;
+            }
+
+            if ( /^\-\-scope\=/.test(argv[i]) ) {
+                local.scope = argv[i].split(/\=/)[1];
+                continue;
+            }
+
+            if ( /^\-\-env\=/.test(argv[i]) ) {
+                local.env = argv[i].split(/\=/)[1];
+                continue;
+            }
+        }
+
+        done()
+    }
+
+    /**
+     * Check env
+     *
+     * */
+    self.checkEnv = function(done) {
+        // ignored for framework:set
+        //if (self.opt.task.Action != 'set' && self.opt.task.topic != 'framework') {
+        var err     = null;
+        var main    = require( self.opt.homedir + '/main.json' );
+        //has registered env ?
+        // dev by default
+        var env     = getEnvVar('GINA_ENV') || (main['def_env'] && main['def_env'][self.release]);
+        var readFromMainConf = true;
+        if ( typeof(local.projectData) != 'undefined' && local.env) {
+            readFromMainConf = false;
+            env = local.env;
+        }
+
+        switch (readFromMainConf) {
+            case false:
+                var projectData = JSON.clone(local.projectData);
+                if ( projectData.envs.indexOf(env) < 0 ) {
+                    err = new Error('Environment [ ' + env + ' ] not registered. See [ man gina-env ].');
+                    return done(err)
+                }
+
+                // has dev env ?
+                if (
+                    typeof(projectData['dev_env']) == 'undefined'
+                    ||
+                    typeof(projectData['dev_env']) != 'undefined'
+                    && typeof(projectData['dev_env']) != 'undefined'
+                    && projectData.envs.indexOf(env) < 0
+                ) {
+                    err = new Error('the framework has no dev env linked to any' +
+                                    'environment to gina\'s.\nUse: $ gina env:link-dev <your_new_dev_env>');
+
+                    return done(err)
+                }
+                break;
+
+            default:
+                if ( main.envs[self.release].indexOf(env) < 0 ) {
+                    err = new Error('Environment [ ' + env + ' ] not registered. See [ man gina-env ].');
+                    return done(err)
+                }
+
+                // has dev env ?
+                if (
+                    typeof(main['dev_env']) == 'undefined'
+                    || typeof(main['dev_env']) != 'undefined'
+                    && typeof(main['dev_env'][self.release]) != 'undefined'
+                    && main.envs[self.release].indexOf(main['dev_env'][self.release]) < 0
+                ) {
+                    err = new Error('the framework has no dev env linked to any' +
+                                    'environment to gina\'s.\nUse: $ gina env:link-dev <your_new_dev_env>');
+
+                    return done(err)
+                }
+                break;
+        }
+        err                 = null;
+        main                = null;
+        readFromMainConf    = null;
+        env                 = null;
+
+        done()
+    }
+
+    /**
+     * Check scope
+     *
+     * */
+    self.checkScope = function(done) {
+        // ignored for framework:set
+        var err     = null;
+        var main    = require( self.opt.homedir + '/main.json' );
+        //has registered scope ?
+        // scope by default
+        var scope   = getEnvVar('GINA_SCOPE') || (main['def_scope'] && main['def_scope'][self.release]);
+        var readFromMainConf = true;
+        if ( typeof(local.projectData) != 'undefined' && local.scope) {
+            readFromMainConf = false;
+            scope = local.scope;
+        }
+
+        switch (readFromMainConf) {
+            case false:
+                var projectData = JSON.clone(local.projectData);
+                if ( projectData.scopes.indexOf(scope) < 0 ) {
+                    err = new Error('Scope [ ' + scope + ' ] not registered. See [ man gina-scope ].');
+                    return done(err)
+                }
+
+                // has local scope ?
+                if (
+                    typeof(projectData['local_scope']) == 'undefined'
+                    ||
+                    typeof(projectData['local_scope']) != 'undefined'
+                    && typeof(projectData['local_scope']) != 'undefined'
+                    && projectData.scopes.indexOf(scope) < 0
+                ) {
+
+                    err = new Error('the framework has no local scope linked to any ' +
+                                    'scope to gina\'s.\nUse: $ gina scope:link-local <your_new_local_scope>');
+
+                    return done(err)
+                }
+
+                // has production scope ?
+                if (
+                    typeof(projectData['production_scope']) == 'undefined'
+                    ||
+                    typeof(projectData['production_scope']) != 'undefined'
+                    && typeof(projectData['production_scope']) != 'undefined'
+                    && projectData.scopes.indexOf(scope) < 0
+                ) {
+
+                    err = new Error('the framework has no production scope linked to any ' +
+                                    'scope to gina\'s.\nUse: $ gina scope:link-production <your_new_production_scope>');
+
+                    return done(err)
+                }
+
+                projectData = null;
+                break;
+
+            default:
+                if ( main.scopes[self.release].indexOf(scope) < 0 ) {
+                    err = new Error('Scope [ ' + scope + ' ] not registered. See [ man gina-scope ].');
+                    return done(err)
+                }
+
+                // has local scope ?
+                if (
+                    typeof(main['local_scope']) == 'undefined'
+                    ||
+                    typeof(main['local_scope']) != 'undefined'
+                    && typeof(main['local_scope'][self.release]) != 'undefined'
+                    && main.scopes[self.release].indexOf(main['local_scope'][self.release]) < 0
+                ) {
+                    // process.exit(1)
+                    err = new Error('the framework has no local scope linked to any ' +
+                                    'scope to gina\'s.\nUse: $ gina scope:link-local <your_new_local_scope>');
+
+                    return done(err)
+                }
+                // has production scope ?
+                if (
+                    typeof(main['production_scope']) == 'undefined'
+                    ||
+                    typeof(main['production_scope']) != 'undefined'
+                    && typeof(main['production_scope'][self.release]) != 'undefined'
+                    && main.scopes[self.release].indexOf(main['production_scope'][self.release]) < 0
+                ) {
+                    // process.exit(1)
+                    err = new Error('the framework has no production scope linked to any ' +
+                                    'scope to gina\'s.\nUse: $ gina scope:link-production <your_new_production_scope>');
+
+                    return done(err)
+                }
+                break;
+        }
+        err                 = null;
+        main                = null;
+        readFromMainConf    = null;
+        scope               = null;
+
+
+        done()
+    }
+
+    self.checkIfCertificatesDir = function(done) {
+        var certsDir = new _( getEnvVar('GINA_HOMEDIR') + '/certificates', true);
+        var theRSARootCertsDir = new _(certsDir.toString() + '/RSARootCerts', true);
+        var scopesDir = new _(certsDir.toString() + '/scopes', true);
+
+        if ( !certsDir.existsSync() ) {
+            certsDir.mkdirSync()
+        }
+        if ( !theRSARootCertsDir.existsSync() ) {
+            theRSARootCertsDir.mkdirSync()
+        }
+        if ( !scopesDir.existsSync() ) {
+            scopesDir.mkdirSync()
+        }
+
+        var mainConfig = require( _(self.opt.homedir + '/main.json', true) );
+        var scopes = mainConfig.scopes[self.release];
+
+        for (let i = 0, len = scopes.length; i < len; i++) {
+            let scopeDir = new _( scopesDir.toString() +'/'+ scopes[i], true);
+            if ( !scopeDir.existsSync() ) {
+                scopeDir.mkdirSync()
+            }
+        }
+
+        done()
+    }
+
+
+    self.readSettings = function(done) {
+        for (let s in self.settings) {
+            if (!/^\_/.test(s) && !getEnvVar('GINA_' + s.toUpperCase()) ) {
+                setEnvVar('GINA_' + s.toUpperCase(), self.settings[s])
+            }
+        }
+
+        done();
+    }
+
+    /**
+     * Checking PIDs for cleanup
+     *
+     **/
+    self.checkRunningPids = function(done) {
+        console.debug('Checking PIDs for cleanup...');
+        if ( /true/.test(getEnvVar('GINA_IS_WIN32')) ) {
+            console.debug(' Skipping for windows...');
+        }
+        var err         = null;
+        var runDirObj   = new _( getEnvVar('GINA_RUNDIR'), true );
+        var runDir      = runDirObj.toString();
+
+        if ( runDirObj.existsSync() ) {
+            console.debug('Run dir: ', runDir );
+            var files = fs.readdirSync(runDir);
+            for (let f in files) {
+                if ( /^\./.test(files[f]) ) {
+                    continue;
+                }
+                let filenameObj = new _( runDir +'/'+ files[f], true );
+                let filename = filenameObj.toString();
+                // Liveness via process.kill(pid, 0) instead of a `ps` shell-out:
+                // ps-independent (works on minimal images without procps, and under
+                // Bun) and parses/trims the pid so a trailing newline can't break the
+                // check. Mirrors lib/cmd/framework/reset.js detectRunning.
+                let pid = null;
+                try {
+                    pid = parseInt(String(fs.readFileSync(filename)).trim(), 10);
+                } catch (readErr) {
+                    // An unreadable run dir entry must never abort the whole init
+                    // chain: a nested directory throws EISDIR, an entry removed by a
+                    // concurrent prune throws ENOENT, an unreadable one EACCES. Skip
+                    // it instead of throwing out of the loop — and deliberately do NOT
+                    // prune it, since the rmSync branches below are only safe for
+                    // entries whose content was actually read.
+                    console.debug('Skipping unreadable run dir entry `'+ filename +'` ['+ ( readErr && readErr.code || readErr ) +']');
+                    continue;
+                }
+                if (!pid || isNaN(pid)) {
+                    filenameObj.rmSync();
+                    continue;
+                }
+                let isRunning = false;
+                try {
+                    process.kill(pid, 0);
+                    isRunning = true;
+                } catch (err) {
+                    // EPERM ⇒ process exists but not ours (be conservative, keep it);
+                    // ESRCH ⇒ stale pidfile, prune it.
+                    if (err && err.code === 'EPERM') {
+                        isRunning = true;
+                    }
+                }
+
+                if (!isRunning) {
+                    filenameObj.rmSync();
+                    continue;
+                }
+
+
+                console.debug('Process file location: '+ filename +' ['+ pid +'] ['+ isRunning +']');
+            } // EO for (let f in files) {
+        } else {
+            console.warn('Run directory `'+ runDir +'` not found !')
+        }
+
+        done()
+    }
+
+    self.end = function(done) {
+        defineDefault(process.gina);
+        done()
+    }
+
+    return {
+        onComplete: function(callback) {
+            e.once('init#complete', function(err, run, opt) {
+                callback(err, run, opt)
+            });
+            init(opt)
+        },
+        onListen: function(callback) {
+            e.once('init#listen', function(err, run, opt) {
+                callback(err, run, opt)
+            });
+            e.emit('init#listen', false, run, opt)
+        }
+    }
+}
+module.exports = Initialize;
