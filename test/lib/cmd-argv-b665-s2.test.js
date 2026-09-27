@@ -7,7 +7,8 @@
  * `framework:add`'s pack and extract steps, `gina .` (`framework:dot`), `framework:open`,
  * `inspector:open`, and the npm prefix probes in utils/helper.js and `framework:init`. The win32 branches are
  * unchanged (#B694): `start` is a cmd.exe builtin, and Node does not start npm.cmd without a
- * shell.
+ * shell. The isaac engine's brotli and gzip compressions of the routing files, which run at every
+ * boot, take the same shape (core/server.isaac.js).
  *
  * Two defects ride along:
  * - #B677: `framework:status` listed every user's processes and turned any `gina-`-titled
@@ -246,6 +247,28 @@ describe('01j - framework/init.js: the npm prefix fallback from an argument vect
         has(SRC, "getEnvVar('GINA_PREFIX') || execFileSync('npm', ['config', 'get', 'prefix', '--quiet'])", 'the probe');
         hasNot(SRC, '$(which npm)', 'a shell probe');
         hasNot(SRC, 'execSync(', 'any execSync');
+    });
+});
+
+describe('01k - core/server.isaac.js: brotli and gzip from argument vectors', function () {
+
+    var SRC = live(fs.readFileSync(path.join(FW, 'core/server.isaac.js'), 'utf8'));
+
+    it('finds the binaries with which, from an argument vector', function () {
+        has(SRC, "const { execFileSync, execFile } = require('child_process');", 'the require');
+        has(SRC, "brotliBin = execFileSync( 'which', ['brotli'] ).toString().trim();", 'the brotli lookup');
+        has(SRC, "gZipBin = execFileSync( 'which', ['gzip'] ).toString().trim();", 'the gzip lookup');
+        hasNot(SRC, "execSync( 'which ", 'a shell lookup');
+    });
+
+    it('compresses routing.json and routing.stripped.json without a shell', function () {
+        var br = SRC.split("execFile(brotliBin, ['--best', _(targetDir +'/'+ targetFile, true)], function(brCmdErr, stdout) {").length - 1;
+        var gz = SRC.split("execFile(gZipBin, ['-9', '-k', _(targetDir +'/'+ targetFile, true)], function(gzCmdErr, stdout) {").length - 1;
+        assert.equal(br, 2, 'expected the brotli call for both routing files, got ' + br);
+        assert.equal(gz, 2, 'expected the gzip call for both routing files, got ' + gz);
+        hasNot(SRC, 'exec(cmd,', 'the shell calls');
+        hasNot(SRC, "+' --best '+", 'the brotli command line');
+        hasNot(SRC, "+' -9 -k '+", 'the gzip command line');
     });
 });
 
@@ -581,5 +604,26 @@ describe('03f - live: listOwnDaemons over the real `ps -f -U <uid>` (#B677)', { 
     it('CONTROL - the old pipeline over the real `ps -ef` did pass the hostile title', function () {
         var titles = preChangeTitles(execFileSync('ps', ['-ef'], { maxBuffer: 64 * 1024 * 1024 }).toString());
         assert.ok(titles.indexOf(badT) > -1, 'the fixture is live: ' + JSON.stringify(titles.filter(function (x) { return x.indexOf(tag) > -1; })));
+    });
+});
+
+describe('03g - isaac compression: the cache path is one argument', function () {
+
+    var FILE = path.join(TMP, 'My Cache', 'demo', 'config', 'routing.json');
+
+    it('execFile(bin, [flag, file]) passes a path holding a space whole', function (t, done) {
+        execFile(SPACED_FAKE, ['--best', FILE], { env: ENV }, function (err) {
+            assert.ifError(err);
+            assert.deepEqual(takeCalls(), [['--best', FILE]]);
+            done();
+        });
+    });
+
+    it('SUBTRACT - the command line split the path at the space', function (t, done) {
+        exec(PLAIN_FAKE + ' --best ' + FILE, { env: ENV }, function (err) {
+            assert.ifError(err);
+            assert.deepEqual(takeCalls(), [['--best'].concat(FILE.split(' '))], 'the path arrived in pieces');
+            done();
+        });
     });
 });

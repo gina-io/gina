@@ -6,7 +6,10 @@ const fs                    = require('fs');
 const crypto                = require('crypto');
 const nodePath              = require('path'); // #B179: used for path-traversal boundary enforcement
 const os                    = require('os');   // maintenance status payload: pid + hostname (per-process identity)
-const { execSync, exec }    = require('child_process');
+// #B665 S2 (2026-09-27) — execFileSync / execFile: the brotli and gzip lookups and compressions
+// run from argument vectors, so the cache path reaches them whole.
+// const { execSync, exec }    = require('child_process');
+const { execFileSync, execFile } = require('child_process');
 const {EventEmitter}        = require('events');
 // #B10 fix: engine.io is only needed when options.ioServer is configured (WebSocket support).
 // Require it lazily so bundles without WebSocket support don't crash if engine.io is absent.
@@ -389,14 +392,16 @@ function ServerEngineClass(options) {
         // Checking if brotli is installed
         var brotliBin = null;
         try {
-            brotliBin = execSync( 'which brotli' ).toString().trim();
+            // was: brotliBin = execSync( 'which brotli' ).toString().trim();
+            brotliBin = execFileSync( 'which', ['brotli'] ).toString().trim();
         } catch (binErr) {
             // Means that it is not installed.
         }
         // Checking if gzip is installed
         var gZipBin = null;
         try {
-            gZipBin = execSync( 'which gzip' ).toString().trim();
+            // was: gZipBin = execSync( 'which gzip' ).toString().trim();
+            gZipBin = execFileSync( 'which', ['gzip'] ).toString().trim();
         } catch (binErr) {
             // Means that it is not installed.
         }
@@ -410,7 +415,7 @@ function ServerEngineClass(options) {
         let targetFile  = null
             , fd        = null
             , buffer    = null
-            , cmd       = null
+            // , cmd       = null   (#B665 S2: the compressions take argument vectors)
             , brFileObj = null
             , gzFileObj = null
         ;
@@ -435,10 +440,12 @@ function ServerEngineClass(options) {
                         brFileObj.rmSync();
                     }
                     // Creating a new br version
-                    cmd = brotliBin +' --best '+ _(targetDir +'/'+ targetFile, true);
+                    // #B665 S2 (2026-09-27) — an argument vector: the cache path reaches brotli whole.
+                    // was: cmd = brotliBin +' --best '+ _(targetDir +'/'+ targetFile, true);
                     // replaced: execSync — async exec to avoid blocking event loop during startup (#P32)
                     // console.debug( execSync( cmd ).toString() );
-                    exec(cmd, function(brCmdErr, stdout) {
+                    // was: exec(cmd, function(brCmdErr, stdout) {
+                    execFile(brotliBin, ['--best', _(targetDir +'/'+ targetFile, true)], function(brCmdErr, stdout) {
                         if (brCmdErr) { console.error('[ SERVER ] brotli compression error: ' + (brCmdErr.stack || brCmdErr.message)); return; }
                         if (stdout) console.debug(stdout.toString().trim());
                     });
@@ -459,10 +466,12 @@ function ServerEngineClass(options) {
                         gzFileObj.rmSync();
                     }
                     // Creating a new gz version
-                    cmd = gZipBin +' -9 -k '+ _(targetDir +'/'+ targetFile, true);
+                    // #B665 S2 (2026-09-27) — an argument vector: the cache path reaches gzip whole.
+                    // was: cmd = gZipBin +' -9 -k '+ _(targetDir +'/'+ targetFile, true);
                     // replaced: execSync — async exec to avoid blocking event loop during startup (#P32)
                     // console.debug( execSync( cmd ).toString() );
-                    exec(cmd, function(gzCmdErr, stdout) {
+                    // was: exec(cmd, function(gzCmdErr, stdout) {
+                    execFile(gZipBin, ['-9', '-k', _(targetDir +'/'+ targetFile, true)], function(gzCmdErr, stdout) {
                         if (gzCmdErr) { console.error('[ SERVER ] gzip compression error: ' + (gzCmdErr.stack || gzCmdErr.message)); return; }
                         if (stdout) console.debug(stdout.toString().trim());
                     });
@@ -491,8 +500,9 @@ function ServerEngineClass(options) {
                     if ( brFileObj.existsSync() ) {
                         brFileObj.rmSync();
                     }
-                    cmd = brotliBin +' --best '+ _(targetDir +'/'+ targetFile, true);
-                    exec(cmd, function(brCmdErr, stdout) {
+                    // was: cmd = brotliBin +' --best '+ _(targetDir +'/'+ targetFile, true);
+                    // was: exec(cmd, function(brCmdErr, stdout) {
+                    execFile(brotliBin, ['--best', _(targetDir +'/'+ targetFile, true)], function(brCmdErr, stdout) {
                         if (brCmdErr) { console.error('[ SERVER ] brotli compression error: ' + (brCmdErr.stack || brCmdErr.message)); return; }
                         if (stdout) console.debug(stdout.toString().trim());
                     });
@@ -508,8 +518,9 @@ function ServerEngineClass(options) {
                     if ( gzFileObj.existsSync() ) {
                         gzFileObj.rmSync();
                     }
-                    cmd = gZipBin +' -9 -k '+ _(targetDir +'/'+ targetFile, true);
-                    exec(cmd, function(gzCmdErr, stdout) {
+                    // was: cmd = gZipBin +' -9 -k '+ _(targetDir +'/'+ targetFile, true);
+                    // was: exec(cmd, function(gzCmdErr, stdout) {
+                    execFile(gZipBin, ['-9', '-k', _(targetDir +'/'+ targetFile, true)], function(gzCmdErr, stdout) {
                         if (gzCmdErr) { console.error('[ SERVER ] gzip compression error: ' + (gzCmdErr.stack || gzCmdErr.message)); return; }
                         if (stdout) console.debug(stdout.toString().trim());
                     });
