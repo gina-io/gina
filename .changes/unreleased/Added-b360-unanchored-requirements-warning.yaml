@@ -1,3 +1,0 @@
-kind: Added
-body: 'A bundle now warns once at boot, in one line, about the routing `requirements` regexes that are not anchored at both ends, such as `"/[0-9]+/"`. A requirement is tested as a partial match when a request is matched, so that one accepts `123abc`: anchor it (`"/^[0-9]+$/"`) to constrain the whole value, or write an intended partial match in full (`"/^pk_.*$/"`). A pattern with the `m` flag counts as not anchored, and each alternative of a `|` must be anchored. Requirements are never changed, and they are not applied when a URL is built: `lib.routing.getRoute()`, its `toUrl()` and the `getUrl` template filter put parameter values into the path as given. Pick it up with a bundle restart. (#B360)'
-time: 2026-09-27T02:58:27+01:00

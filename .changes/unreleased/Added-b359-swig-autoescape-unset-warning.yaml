@@ -1,3 +1,0 @@
-kind: Added
-body: 'A Swig bundle that leaves `settings.swig.autoescape` unset now gets a warning at boot, once, naming 0.8.0: in 0.8.0 the default becomes `true`, which HTML-escapes every `{{ x }}` a template does not mark `| safe`. Set the key explicitly to keep your bundle''s behaviour and silence the warning: `true` to escape (then mark a variable that carries HTML on purpose with `| safe`, for example `{{ gina.csrfInput | safe }}`), or `false` to keep output unescaped. A bundle whose own pages render only through Nunjucks is not warned. New bundles created with `gina bundle:add` now set `"swig": { "autoescape": true }` in their `settings.json`. Rendered output does not change in 0.7.0. Pick it up with a bundle restart. (#B359)'
-time: 2026-09-27T02:54:09+01:00
