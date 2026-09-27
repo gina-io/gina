@@ -162,6 +162,11 @@ function run(prologue, params, files, ctx, args) {
     return out;
 }
 
+// The TypeError's message names the failing read; V8 and JavaScriptCore (Bun) word it differently:
+// "Cannot read properties of null (reading 'replace')" vs "null is not an object (evaluating 'file.replace')".
+var RE_REPLACE     = /reading 'replace'|evaluating 'file\.replace'/;
+var RE_GETFILENAME = /reading 'getFileName'|evaluating '__stack\[i\]\.getFileName'/;
+
 function noThrow(out) {
     assert.equal(out.threw, null, 'must not throw, threw: ' + (out.threw && out.threw.message));
 }
@@ -395,21 +400,21 @@ describe('02 - the extracted resolver prologues, run', function () {
         it('CONTROL — getConfig(), npm-install frames: nine stack reads, then a TypeError at `file.replace`', function () {
             var out = run(PRE_FIX_GETCONFIG, 'bundle, confName', NM_FRAMES, ctxFixture(), []);
             assert.ok(out.threw instanceof TypeError, 'threw a TypeError');
-            assert.match(out.threw.message, /reading 'replace'/);
+            assert.match(out.threw.message, RE_REPLACE);
             assert.equal(out.reads, 9);
         });
 
         it('CONTROL — getLib(lib), npm-install frames: nine stack reads, then the same TypeError', function () {
             var out = run(PRE_FIX_GETLIB, 'bundle, lib', NM_FRAMES, ctxFixture(), ['x']);
             assert.ok(out.threw instanceof TypeError, 'threw a TypeError');
-            assert.match(out.threw.message, /reading 'replace'/);
+            assert.match(out.threw.message, RE_REPLACE);
             assert.equal(out.reads, 9);
         });
 
         it('CONTROL — a stack shorter than ten frames threw earlier, at `__stack[i].getFileName`', function () {
             var out = run(PRE_FIX_GETCONFIG, 'bundle, confName', NM_SHORT, ctxFixture(), [null, 'app']);
             assert.ok(out.threw instanceof TypeError, 'threw a TypeError');
-            assert.match(out.threw.message, /reading 'getFileName'/);
+            assert.match(out.threw.message, RE_GETFILENAME);
             assert.equal(out.reads, 3);
         });
 
