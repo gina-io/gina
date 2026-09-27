@@ -1,6 +1,8 @@
 var fs              = require('fs');
 const {spawn}       = require('child_process');
-const {execSync}    = require('child_process');
+// #B665 (2026-09-27) — execFileSync: link-node-modules runs from an argument vector, without a shell.
+// const {execSync}    = require('child_process');
+const { execFileSync } = require('child_process');
 var CmdHelper       = require('./../helper');
 var console        = lib.logger;
 /**
@@ -71,6 +73,9 @@ var console        = lib.logger;
 
     /**
      * Creates or updates the gina symlink inside the project's node_modules directory.
+     * When the project's `node_modules` is a symlink to a missing target, it first
+     * re-links it through a `link-node-modules` child of the running runtime and CLI,
+     * run from an argument vector without a shell (#B665).
      * @inner
      * @private
      * @param {object} opt
@@ -109,7 +114,10 @@ var console        = lib.logger;
                 var cli = require('path').resolve(__dirname, '../../../../..', 'bin/cli');
                 console.debug('[link] Running: '+ process.execPath +' '+ cli +' link-node-modules @'+ self.projectName);
                 try {
-                    execSync('"'+ process.execPath +'" "'+ cli +'" link-node-modules @'+ self.projectName);
+                    // #B665 (2026-09-27) — an argument vector, without a shell: the project name
+                    // reached `sh` unquoted.
+                    // was: execSync('"'+ process.execPath +'" "'+ cli +'" link-node-modules @'+ self.projectName);
+                    execFileSync(process.execPath, [cli, 'link-node-modules', '@' + self.projectName]);
                 } catch (linkErr) {
                     var errOutput = (linkErr.stderr) ? linkErr.stderr.toString().trim() : (linkErr.message || linkErr.stack);
                     console.warn('[link] '+ errOutput);

@@ -1,5 +1,6 @@
 var fs          = require('fs');
-const {spawn}       = require('child_process');
+// #B665 (2026-09-27) — only the removed start() used spawn.
+// const {spawn}       = require('child_process');
 const {execSync}    = require('child_process');
 const util = require('util');
 
@@ -88,7 +89,8 @@ function Restart(opt, cmd) {
     }
 
     /**
-     * Runs stop() then starts the framework via execSync/spawn.
+     * Runs stop(), then starts the framework through this install's `bin/gina start`
+     * (execSync).
      * @inner
      * @private
      * @param {object} opt
@@ -99,8 +101,8 @@ function Restart(opt, cmd) {
         // if previous debug session
         setTimeout(() => {
 
-            // METHOD #1
-            // start(opt);
+            // METHOD #1 — a detached spawn that also restarted every running bundle. It was
+            // never enabled, and was removed with its start() (#B665, see below stop()).
 
 
             // METHOD #2
@@ -143,68 +145,14 @@ function Restart(opt, cmd) {
         }
     }
 
-    /**
-     * Spawns `gina start` as a detached child process.
-     * Must be detached because the original start script uses `process.kill(..., 'SIGABRT')`.
-     * @inner
-     * @private
-     * @param {object} opt
-     */
-    var start = async function(opt) {
-        console.debug('continue with start now');
-        try {
-            // var child = spawn('gina', ['start', '@'+self.version],
-            var child = spawn('gina', ['start', '@'+self.version, '--restart-pid='+ process.pid],
-                {
-                    detached: true
-                }
-            );
-
-            var frameworkPid = null;
-            child.stdout.setEncoding('utf8');
-            child.stdout.on('data', function(data) {
-                //process.stdout.write(data);
-                if ( new RegExp('Gina server started with PID','gi').test(data) ) {
-                    restartRunningBunldes();
-                    frameworkPid = data.match(/\`\d+\`/)[0];
-                    process.stdout.write('Gina server started with PID '+ frameworkPid + '\r\n');
-                }
-
-                if ( /\[ quit \]/.test(data) ) {
-                    // TODO - restart all running bundles
-                    end()
-                }
-            });
-
-            child.stderr.setEncoding('utf8');
-            var error = null;
-            child.stderr.on('data', function(err) {
-                error = err.toString();
-                console.error(error);
-            });
-
-        } catch (err) {
-            throw err;
-        }
-    }
-
-    /**
-     * Restarts all bundles found running in GINA_RUNDIR after the framework resumes.
-     * @inner
-     * @private
-     */
-    var restartRunningBunldes = function() {
-        var list = fs.readdirSync(_(GINA_RUNDIR, true));
-        for (let i=0, len=list.length; i<len; i++ ) {
-            let file = list[i];
-            if (/^\./.test(file) || !/\.pid$/.test(file) || /^gina\-/.test(file) || /(minion)/.test(file) ) {
-                continue;
-            }
-            // process.stdout.write('\ngina bundle:restart '+ file.replace(/\.pid$/, '').replace(/\@/, ' @') + '\n');
-            // was: execSync('$(which gina) bundle:restart '+ ...) — PATH-resolved self-invocation
-            execSync('"'+ process.execPath +'" "'+ ginaBin +'" bundle:restart '+ file.replace(/\.pid$/, '').replace(/\@/, ' @'));
-        }
-    }
+    // #B665 (2026-09-27) — start() (METHOD #1: a detached `gina start --restart-pid=<pid>`
+    // spawn whose stdout handler restarted every running bundle through
+    // restartRunningBunldes()) is removed with that helper. Neither was ever called: the
+    // one call, METHOD #1 in restart() above, was already commented out. The helper ran
+    // `bundle:restart` from a shell command line built from pid-file names, and the design
+    // could not be revived as it stood: bin/gina's `--restart-pid` handling drops the node
+    // path from its argv instead of the flag. Running bundles survive a framework restart
+    // anyway (framework:stop leaves them running). The removed code is in git history.
 
 
     /**

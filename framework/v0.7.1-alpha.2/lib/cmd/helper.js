@@ -1,4 +1,6 @@
 const { execSync } = require('child_process');
+// #B665 (2026-09-27) — execFileSync: the auto-link children run from argument vectors.
+const { execFileSync } = require('child_process');
 var fs          = require('fs');
 var os          = require('os');
 const { promisify } = require('util');
@@ -67,6 +69,9 @@ function CmdHelper(cmd, client, debug) {
         // Params forward: when a command line is running another command line
         // E.g: gina link or gina link-node-modules
         paramsStringified: '',
+        // The same params as a list, one argument each: the argument vector the
+        // link and link-node-modules children run from, without a shell (#B665)
+        paramsArgv: [],
         nodeParams : [],
         debugPort: debug.port,
         debugBrkEnabled: debug.brkEnabled,
@@ -136,7 +141,10 @@ function CmdHelper(cmd, client, debug) {
     /**
      * Parses process.argv for `--key[=value]` tokens.
      * Tokens listed in the command group's arguments.json are stored in
-     * cmd.params; all other `--` tokens go to cmd.nodeParams (forwarded to Node).
+     * cmd.params, and forwarded as `--key=value` both in cmd.paramsStringified
+     * (a string, for display) and in cmd.paramsArgv (one list entry per token:
+     * the argument vector of the auto-link children, #B665); all other `--`
+     * tokens go to cmd.nodeParams (forwarded to Node).
      * Also detects --inspect-brk and sets cmd.debugBrkEnabled accordingly.
      *
      * @inner
@@ -203,6 +211,7 @@ function CmdHelper(cmd, client, debug) {
                 if ( cmdArguments.indexOf('--' + arr[0]) > -1 ) {
                     cmd.params[arr[0]] = arr[1];
                     cmd.paramsStringified += ' --' + arr[0] +'='+ arr[1];
+                    cmd.paramsArgv.push('--' + arr[0] +'='+ arr[1]);
                 } else {
                     cmd.nodeParams.push('--' + arr[0] +'='+ arr[1]);
                 }
@@ -212,6 +221,7 @@ function CmdHelper(cmd, client, debug) {
                 if ( cmdArguments.indexOf(process.argv[a]) > -1 ) {
                     cmd.params[ process.argv[a].replace(/--/, '') ] = true;
                     cmd.paramsStringified += ' '+process.argv[a] +'='+ true;
+                    cmd.paramsArgv.push(process.argv[a] +'='+ true);
                 } else {
                     cmd.nodeParams.push(process.argv[a]);
                 }
@@ -1235,7 +1245,11 @@ function CmdHelper(cmd, client, debug) {
                     var _linkEnv = Object.assign({}, process.env, { GINA_HOMEDIR: GINA_HOMEDIR });
                     console.info('[helper] Running: '+ process.execPath +' '+ selfCli +' link-node-modules @'+cmd.projectName +cmd.paramsStringified);
                     try {
-                        execSync('"'+ process.execPath +'" "'+ selfCli +'" link-node-modules @'+cmd.projectName +cmd.paramsStringified, { env: _linkEnv });// +' --inspect-gina'
+                        // #B665 (2026-09-27) — an argument vector, without a shell: the project name
+                        // and every forwarded flag reached `sh` unquoted, so a value holding a space
+                        // was split and shell syntax in a flag ran.
+                        // was: execSync('"'+ process.execPath +'" "'+ selfCli +'" link-node-modules @'+cmd.projectName +cmd.paramsStringified, …);
+                        execFileSync(process.execPath, [selfCli, 'link-node-modules', '@' + cmd.projectName].concat(cmd.paramsArgv), { env: _linkEnv });
                     } catch (linkErr) {
                         var linkErrOutput = (linkErr.stderr) ? linkErr.stderr.toString().trim() : (linkErr.message || linkErr.stack);
                         console.error(linkErrOutput);
@@ -1244,7 +1258,9 @@ function CmdHelper(cmd, client, debug) {
 
                     console.info('[helper] Running: '+ process.execPath +' '+ selfCli +' link @'+cmd.projectName +cmd.paramsStringified);
                     try {
-                        console.debug(execSync('"'+ process.execPath +'" "'+ selfCli +'" link @'+cmd.projectName +cmd.paramsStringified, { env: _linkEnv }).toString().trim());// +' --inspect-gina'
+                        // #B665 (2026-09-27) — the same argument vector as link-node-modules above.
+                        // was: console.debug(execSync('"'+ process.execPath +'" "'+ selfCli +'" link @'+cmd.projectName +cmd.paramsStringified, …).toString().trim());
+                        console.debug(execFileSync(process.execPath, [selfCli, 'link', '@' + cmd.projectName].concat(cmd.paramsArgv), { env: _linkEnv }).toString().trim());
                     } catch (err) {
                         var errOutput = (err.stderr) ? err.stderr.toString().trim() : (err.message || err.stack);
                         console.emerg(errOutput);

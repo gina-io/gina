@@ -1,9 +1,26 @@
-const { execSync } = require('child_process');
+// #B665 (2026-09-27) — execFileSync: the ps fallback lists processes without a shell.
+// const { execSync } = require('child_process');
+const { execFileSync } = require('child_process');
 var fs = require('fs');
 var exec = require('child_process').exec;
 
 var CmdHelper = require('./../helper');
+// #B665 (2026-09-27) — the ps fallback matches the names as literal text
+var escapeRegex = require('./inc/name-rewrite').escapeRegex;
 var console = lib.logger;
+
+/**
+ * Output cap for the `ps -ef` listing of the missing-pid-file fallback, which is
+ * read whole since the shell pipeline that filtered it is gone: Node's 1 MB
+ * default could be exceeded on a host running many processes with long command
+ * lines (#B665).
+ *
+ * @constant
+ * @inner
+ * @type {number}
+ */
+var PS_MAX_BUFFER = 64 * 1024 * 1024;
+
 /**
  * @module gina/lib/cmd/bundle/stop
  */
@@ -59,6 +76,9 @@ function Stop(opt, cmd) {
 
     /**
      * Reads the bundle PID file and sends SIGKILL, or falls back to ps lookup.
+     * The fallback runs `ps -ef` without a shell and keeps the first process whose
+     * title is exactly `gina: <bundle>@<project>`, ending at whitespace or the end
+     * of the line, skipping lines that name `grep` (#B665).
      * @inner
      * @private
      * @param {object} opt
@@ -95,9 +115,28 @@ function Stop(opt, cmd) {
             } catch(err) {
                 isSpecialCase = true;
                 // Some how pid file could have been deleted leaving a zombie process running
-                var list = execSync("ps -ef | grep -v grep | grep 'gina: "+ bundle + '@' + self.projectName +"' | awk '{print $2\" \"$8$9}'").toString().replace(/\n$/, '').split(/\n/g);
-                if (list.length && list[0] != '') {
-                    proc = ~~list[0].split(/\s+/)[0];
+                // #B665 (2026-09-27) — `ps` runs from an argument vector, without a shell, and its
+                // listing is filtered here: the names reached a `ps | grep | awk` command line
+                // single-quoted, so a `'` in a name broke out into the shell. The title must end
+                // at whitespace or the end of the line, so `api@shop` no longer matches the
+                // process of `api@shopping` (measured on macOS and Linux); lines naming `grep`
+                // are skipped as `grep -v grep` did.
+                // was: var list = execSync("ps -ef | grep -v grep | grep 'gina: "+ bundle + '@' + self.projectName +"' | awk '{print $2\" \"$8$9}'").toString().replace(/\n$/, '').split(/\n/g);
+                var titleRe = new RegExp('gina: ' + escapeRegex(bundle + '@' + self.projectName) + '(\\s|$)');
+                var psOut = '';
+                try {
+                    psOut = execFileSync('ps', ['-ef'], { maxBuffer: PS_MAX_BUFFER }).toString();
+                } catch (psErr) {
+                    // no `ps` (a slim container image): nothing matches, as before; a `ps` that
+                    // failed after printing keeps what it printed, as the pipeline did
+                    psOut = (psErr && psErr.stdout) ? psErr.stdout.toString() : '';
+                }
+                var list = psOut.split(/\n/).filter(function(line) {
+                    return line.indexOf('grep') < 0 && titleRe.test(line);
+                });
+                if (list.length) {
+                    // column 2 of `ps -ef` is the PID
+                    proc = ~~list[0].trim().split(/\s+/)[1];
                 } else {
                     error = err.toString();
                     console.debug(error);

@@ -36,6 +36,11 @@
  * inherited stdio, so reading it misreported every successful child as a
  * failure and exited 1).
  *
+ * #B665 moved the §05 / §06 / §11b children to argument vectors (execFileSync /
+ * execFile, no shell) and removed the never-called restartRunningBunldes()
+ * copies (§07); those pins read comment-stripped source, because the pre-change
+ * lines survive as `was:` comments that the raw source would still match.
+ *
  * Run standalone:
  *   node --test test/lib/project-add-link.test.js
  */
@@ -196,7 +201,9 @@ describe('05 - framework:link stale-node_modules repair uses the self-resolved C
     });
 
     it('invokes the running install\'s own CLI via process.execPath', function() {
-        assert.ok(LINK_SRC.indexOf('execSync(\'"\'+ process.execPath +\'" "\'+ cli +\'" link-node-modules @\'+ self.projectName)') > -1);
+        // #B665: an argument vector; comment-stripped, because the pre-change command line
+        // survives as a `was:` comment the raw source would still match
+        assert.ok(stripComments(LINK_SRC).indexOf("execFileSync(process.execPath, [cli, 'link-node-modules', '@' + self.projectName])") > -1);
     });
 
     it('resolves the CLI path from __dirname, targeting bin/cli', function() {
@@ -212,15 +219,18 @@ describe('05 - framework:link stale-node_modules repair uses the self-resolved C
         assert.ok(fs.existsSync(resolved));
     });
 
-    it('the execSync is wrapped in try/catch routing the failure through end() — the dead instanceof check is gone', function() {
-        var tryIdx   = LINK_SRC.indexOf('try {');
-        var execIdx  = LINK_SRC.indexOf('execSync(\'"\'+ process.execPath');
-        var catchIdx = LINK_SRC.indexOf('catch (linkErr)');
-        assert.ok(tryIdx > -1 && execIdx > tryIdx && catchIdx > execIdx, 'expected try { execSync(...) } catch (linkErr)');
-        assert.match(LINK_SRC.slice(catchIdx, catchIdx + 400), /return end\(new Error\(errOutput\), 'error'\)/);
+    it('the execFileSync is wrapped in try/catch routing the failure through end() — the dead instanceof check is gone', function() {
+        // #B665: all three indices read the comment-stripped source (the kept `was:` line
+        // would otherwise satisfy the exec anchor)
+        var live     = stripComments(LINK_SRC);
+        var tryIdx   = live.indexOf('try {');
+        var execIdx  = live.indexOf('execFileSync(process.execPath');
+        var catchIdx = live.indexOf('catch (linkErr)');
+        assert.ok(tryIdx > -1 && execIdx > tryIdx && catchIdx > execIdx, 'expected try { execFileSync(...) } catch (linkErr)');
+        assert.match(live.slice(catchIdx, catchIdx + 400), /return end\(new Error\(errOutput\), 'error'\)/);
         // execSync never RETURNS an Error — the old `err = execSync(...); if (err instanceof Error)` was dead code
         assert.ok(
-            stripComments(LINK_SRC).indexOf('err = execSync') < 0,
+            live.indexOf('err = execSync') < 0,
             'the dead `err = execSync(...)` assignment shape must not come back'
         );
     });
@@ -239,7 +249,10 @@ describe('06 - CmdHelper auto-link invokes the running install\'s own CLI', func
     var HELPER_PATH = path.join(FW, 'lib/cmd/helper.js');
     var HELPER_SRC = fs.readFileSync(HELPER_PATH, 'utf8');
     var blockIdx = HELPER_SRC.indexOf('// linking node-modules & gina');
-    var BLOCK = (blockIdx > -1) ? HELPER_SRC.slice(blockIdx, blockIdx + 3500) : '';
+    // bounded by the next anchor, as §11 is: a fixed 3500-character window no longer
+    // reaches the `link` call once #B665's comments grew the block
+    var endIdx = HELPER_SRC.indexOf('cmd.protocols.sort()', blockIdx);
+    var BLOCK = (blockIdx > -1 && endIdx > blockIdx) ? HELPER_SRC.slice(blockIdx, endIdx) : '';
 
     it('the auto-link block exists', function() {
         assert.ok(blockIdx > -1, 'anchor `// linking node-modules & gina` not found in helper.js');
@@ -260,17 +273,20 @@ describe('06 - CmdHelper auto-link invokes the running install\'s own CLI', func
     });
 
     it('link-node-modules runs via process.execPath in a try/catch — the dead instanceof check is gone', function() {
-        var execIdx  = BLOCK.indexOf('execSync(\'"\'+ process.execPath +\'" "\'+ selfCli +\'" link-node-modules @\'+cmd.projectName');
-        var catchIdx = BLOCK.indexOf('catch (linkErr)');
-        assert.ok(execIdx > -1 && catchIdx > execIdx, 'expected try { execSync(node cli link-node-modules) } catch (linkErr)');
+        // #B665: an argument vector, the forwarded flags as a list; comment-stripped, because
+        // the pre-change command line survives as a `was:` comment
+        var live     = stripComments(BLOCK);
+        var execIdx  = live.indexOf("execFileSync(process.execPath, [selfCli, 'link-node-modules', '@' + cmd.projectName].concat(cmd.paramsArgv)");
+        var catchIdx = live.indexOf('catch (linkErr)');
+        assert.ok(execIdx > -1 && catchIdx > execIdx, 'expected try { execFileSync(node, [cli, link-node-modules, …]) } catch (linkErr)');
         assert.ok(
-            stripComments(BLOCK).indexOf('err = execSync') < 0,
+            live.indexOf('err = execSync') < 0,
             'the dead `err = execSync(...)` assignment shape must not come back'
         );
     });
 
     it('the follow-up `link` call also runs via process.execPath + selfCli', function() {
-        assert.ok(BLOCK.indexOf('execSync(\'"\'+ process.execPath +\'" "\'+ selfCli +\'" link @\'+cmd.projectName') > -1);
+        assert.ok(stripComments(BLOCK).indexOf("execFileSync(process.execPath, [selfCli, 'link', '@' + cmd.projectName].concat(cmd.paramsArgv)") > -1);
     });
 
 });
@@ -300,17 +316,19 @@ describe('07 - framework start/restart invoke the self-resolved bin/gina wrapper
         );
     });
 
-    it('restart.js uses ginaBin at all three sites (start, stop, bundle:restart)', function() {
-        var m = RESTART_SRC.match(/'"'\+ process\.execPath \+'" "'\+ ginaBin \+'"/g) || [];
-        assert.ok(m.length >= 3, 'expected >= 3 self-resolved invocations in restart.js, got ' + m.length);
+    it('restart.js uses ginaBin at its two sites (start, stop); the dead bundle:restart helper is gone (#B665)', function() {
+        // comment-stripped: #B665 removed the never-called start() and restartRunningBunldes()
+        var live = stripComments(RESTART_SRC);
+        var m = live.match(/'"'\+ process\.execPath \+'" "'\+ ginaBin \+'"/g) || [];
+        assert.equal(m.length, 2, 'expected the start and stop self-resolved invocations in restart.js, got ' + m.length);
+        assert.ok(live.indexOf('restartRunningBunldes') < 0, 'the dead bundle:restart helper is removed');
+        assert.ok(live.indexOf('var start = ') < 0, 'the dead start() is removed');
     });
 
-    it('start.js resolves ginaBin and uses it for bundle:restart', function() {
-        assert.match(
-            START_SRC,
-            /var ginaBin = require\('path'\)\.resolve\(__dirname,\s*'\.\.\/\.\.\/\.\.\/\.\.\/\.\.'\s*,\s*'bin\/gina'\)/
-        );
-        assert.ok(START_SRC.indexOf('\'"\'+ process.execPath +\'" "\'+ ginaBin +\'" bundle:restart \'') > -1);
+    it('start.js carries no restartRunningBunldes and no execSync (the dead copy is removed, #B665)', function() {
+        var live = stripComments(START_SRC);
+        assert.ok(live.indexOf('restartRunningBunldes') < 0, 'the dead helper is removed');
+        assert.ok(live.indexOf('execSync') < 0, 'no execSync left in start.js');
     });
 
     it('the __dirname-resolved bin/gina exists and bin/gina self-locates its cli from __dirname', function() {
@@ -578,7 +596,7 @@ describe('11 - CmdHelper auto-link children receive the re-exported home', funct
         // sits above the composition and would otherwise match first.
         var live = stripComments(BLOCK);
         var envIdx  = live.indexOf('var _linkEnv');
-        var execIdx = live.indexOf('execSync(');
+        var execIdx = live.indexOf('execFileSync(');   // #B665: the children run through execFileSync
         assert.ok(envIdx > -1 && execIdx > envIdx);
     });
 
@@ -590,9 +608,11 @@ describe('11b - project start/stop/restart delegations receive the re-exported h
         var FILE_PATH = path.join(FW, 'lib/cmd/project/' + name + '.js');
         var FILE_SRC = fs.readFileSync(FILE_PATH, 'utf8');
 
-        it('[' + name + '] the exec options carry maxBuffer plus the composed env', function() {
+        it('[' + name + '] the execFile options carry maxBuffer plus the composed env', function() {
+            // #B665: the delegation runs through execFile; comment-stripped, because the
+            // pre-change exec line survives as a `was:` comment
             assert.ok(
-                FILE_SRC.indexOf('exec(_cmd, { maxBuffer: 1024 * 500, env: Object.assign({}, process.env, { GINA_HOMEDIR: GINA_HOMEDIR }) }') > -1,
+                stripComments(FILE_SRC).indexOf('execFile(self.cliArgv[0], argv, { maxBuffer: 1024 * 500, env: Object.assign({}, process.env, { GINA_HOMEDIR: GINA_HOMEDIR }) }') > -1,
                 'expected the delegated bundle:' + name + ' child to receive the re-exported home'
             );
         });

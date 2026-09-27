@@ -3,7 +3,8 @@
  * @module gina/lib/cmd/framework/start
  */
 var fs      = require('fs');
-const {execSync}    = require('child_process');
+// #B665 (2026-09-27) — only the removed restartRunningBunldes() used execSync.
+// const {execSync}    = require('child_process');
 var help    = require( getPath('gina').root + '/utils/helper');// jshint ignore:line
 // var child   = require('child_process');
 var lib     = require( getPath('gina').lib );// jshint ignore:line
@@ -51,33 +52,14 @@ function Start(opt){
         self.bundles    = [];
 
         cleanPIDs();
-        // restartRunningBunldes();
+        // #B665 (2026-09-27) — restartRunningBunldes() is removed: this call was already
+        // commented out (its own TODO said it did not work with execSync), and it ran
+        // `bundle:restart` from a shell command line built from pid-file names. The removed
+        // code is in git history.
 
         console.notice('Framework ready for connections\n');
 
     };
-
-    // TODO  - not working with execSync ... should try with spawn, like or restart
-    /**
-     * Restarts any bundles that were running before the framework stopped.
-     * @inner
-     * @private
-     */
-    var restartRunningBunldes = function() {
-        var list = fs.readdirSync(_(GINA_RUNDIR, true));// jshint ignore:line
-        for (let i=0, len=list.length; i<len; i++ ) {
-            let file = list[i];
-            if (/^\./.test(file) || !/\.pid$/.test(file) || /^gina\-/.test(file) || /(minion)/.test(file) ) {
-                continue;
-            }
-            // process.stdout.write('\ngina bundle:restart '+ file.replace(/\.pid$/, '').replace(/\@/, ' @') + '\n');
-            // was: execSync('$(which gina) bundle:restart '+ ...) — PATH-resolved self-invocation;
-            // bin/gina is resolved from this file's own location instead (the PATH may carry
-            // no gina or a different install than the one running this command).
-            var ginaBin = require('path').resolve(__dirname, '../../../../..', 'bin/gina');
-            execSync('"'+ process.execPath +'" "'+ ginaBin +'" bundle:restart '+ file.replace(/\.pid$/, '').replace(/\@/, ' @'));
-        }
-    }
 
     /**
      * Removes stale framework PID files from GINA_RUNDIR that do not match the current PID.

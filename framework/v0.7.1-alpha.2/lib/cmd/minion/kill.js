@@ -1,9 +1,13 @@
-const { execSync } = require('child_process');
+// #B665 (2026-09-27) — execFileSync: the ps sweep lists processes without a shell.
+// const { execSync } = require('child_process');
+const { execFileSync } = require('child_process');
 var fs      = require('fs');
 var console = lib.logger;
 var fmt     = lib.cmdStatusFormat;
 
 var CmdHelper = require('./../helper');
+// #B665 (2026-09-27) — the ps sweep matches the project name as literal text
+var escapeRegex = require('./../bundle/inc/name-rewrite').escapeRegex;
 
 /**
  * Grace period (ms) between the first SIGTERM and the follow-up SIGKILL for
@@ -14,6 +18,17 @@ var CmdHelper = require('./../helper');
  * @type {number}
  */
 var KILL_GRACE_MS = 1500;
+
+/**
+ * Output cap for the `ps -ef` listing of the orphan sweep, which is read whole
+ * since the shell pipeline that filtered it is gone: Node's 1 MB default could
+ * be exceeded on a host running many processes with long command lines (#B665).
+ *
+ * @constant
+ * @inner
+ * @type {number}
+ */
+var PS_MAX_BUFFER = 64 * 1024 * 1024;
 
 /**
  * @module gina/lib/cmd/minion/kill
@@ -116,7 +131,8 @@ function Kill(opt, cmd) {
     /**
      * Builds the kill set for the project by unioning two sources:
      *   1. run-dir pidfiles (`<bundle>@<project>.pid`) whose process is alive;
-     *   2. a `ps` sweep for live `gina: <bundle>@<project>` titles (orphans).
+     *   2. a `ps` sweep for live `gina: <bundle>@<project>` titles (orphans):
+     *      `ps -ef` run without a shell, its lines filtered here (#B665).
      * Targets are keyed by PID so a process tracked by both sources is counted
      * once. Stale pidfiles (file present, process gone) are collected separately
      * for clean-up. The handler's own PID / parent PID are never targeted.
@@ -168,31 +184,42 @@ function Kill(opt, cmd) {
 
         // --- ps pass (POSIX only) ---
         if ( !isWin32() ) {
+            // Match `gina: <bundle>@<project>` precisely: the trailing
+            // (\s|$) boundary stops `@foo` matching project `foobar`.
+            // #B665 (2026-09-27) — `ps` runs from an argument vector, without a shell, and its
+            // listing is filtered here: the project name reached a single-quoted `grep -E`
+            // command line unescaped, so a `'` in it broke out into the shell and a `.` in it
+            // matched any character. Lines naming `grep` are skipped as `grep -v grep` did;
+            // column 2 of `ps -ef` is the PID, its last column the `<bundle>@<project>` title.
+            // was: var psCmd = "ps -ef | grep -v grep | grep -E 'gina: [^ ]+@" + self.projectName + "([[:space:]]|$)' | awk '{print $2\"|\"$NF}'";
+            // was: var out   = execSync(psCmd).toString().replace(/\n$/, '');
+            var titleRe = new RegExp('gina: [^ ]+@' + escapeRegex(self.projectName) + '(\\s|$)');
+            var out     = '';
             try {
-                // Match `gina: <bundle>@<project>` precisely: the trailing
-                // ([[:space:]]|$) boundary stops `@foo` matching project `foobar`.
-                var psCmd = "ps -ef | grep -v grep | grep -E 'gina: [^ ]+@" + self.projectName + "([[:space:]]|$)' | awk '{print $2\"|\"$NF}'";
-                var out   = execSync(psCmd).toString().replace(/\n$/, '');
-                if ( out.length > 0 ) {
-                    var lines = out.split(/\n/);
-                    for (var j = 0; j < lines.length; j++) {
-                        var parts = lines[j].split(/\|/);
-                        var pid   = ~~parts[0];
-                        if ( !pid || pid === process.pid || pid === process.ppid ) {
-                            continue;
-                        }
-                        var titleTail = parts[1] || '';        // <bundle>@<project>
-                        var psAt      = titleTail.lastIndexOf('@');
-                        var psBundle  = (psAt > 0) ? titleTail.substring(0, psAt) : titleTail;
-                        if ( targets[pid] ) {
-                            targets[pid].sources.push('ps');
-                        } else {
-                            targets[pid] = { bundle: psBundle, pid: pid, sources: ['ps'] };
-                        }
-                    }
-                }
+                out = execFileSync('ps', ['-ef'], { maxBuffer: PS_MAX_BUFFER }).toString();
             } catch (e) {
-                // grep exits non-zero when nothing matches -> no orphans, fine.
+                // no `ps` (a slim container image) -> no orphans, fine; a `ps` that failed
+                // after printing keeps what it printed, as the pipeline did
+                out = (e && e.stdout) ? e.stdout.toString() : '';
+            }
+            var lines = out.split(/\n/);
+            for (var j = 0; j < lines.length; j++) {
+                if ( lines[j].indexOf('grep') > -1 || !titleRe.test(lines[j]) ) {
+                    continue;
+                }
+                var cols      = lines[j].trim().split(/\s+/);
+                var pid       = ~~cols[1];
+                if ( !pid || pid === process.pid || pid === process.ppid ) {
+                    continue;
+                }
+                var titleTail = cols[cols.length - 1] || '';        // <bundle>@<project>
+                var psAt      = titleTail.lastIndexOf('@');
+                var psBundle  = (psAt > 0) ? titleTail.substring(0, psAt) : titleTail;
+                if ( targets[pid] ) {
+                    targets[pid].sources.push('ps');
+                } else {
+                    targets[pid] = { bundle: psBundle, pid: pid, sources: ['ps'] };
+                }
             }
         }
 

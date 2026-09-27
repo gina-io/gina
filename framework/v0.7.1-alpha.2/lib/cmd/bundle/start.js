@@ -2,6 +2,8 @@ const fs            = require('fs');
 const { EventEmitter }  = require('events');
 const { spawn }     = require('child_process');
 const { execSync }  = require('child_process');
+// #B665 (2026-09-27) — execFileSync: the reinstall's framework:link step runs from an argument vector.
+const { execFileSync } = require('child_process');
 const util = require('util');
 const promisify = require('util').promisify;
 
@@ -84,8 +86,10 @@ function Start(opt, cmd) {
 
     /**
      * Checks if the project's node_modules need to be reinstalled due to an arch/platform mismatch.
-     * Reinstalls via `npm install` (or `bun install` under Bun) if needed, then
-     * calls cb(false) to proceed.
+     * Reinstalls via `npm install` (or `bun install` under Bun) if needed, re-links
+     * gina with this install's own `bin/gina framework:link`, run under the current
+     * runtime from an argument vector without a shell (#B665), then calls cb(false)
+     * to proceed.
      * @inner
      * @private
      * @param {object} opt
@@ -193,14 +197,18 @@ function Start(opt, cmd) {
             var result = null; resultError = false;
             try {
                 result = execSync(npmCmd).toString();
-                var ginaBin = execSync('which gina').toString().trim();
-                // Run the gina bin under the current runtime so a no-node Bun image
-                // can't fail on the `#!/usr/bin/env node` shebang. Under Node, linkCmd
-                // is byte-identical to the previous direct invocation (zero Node delta).
-                var linkCmd = runtime.isBun()
-                                  ? runtime.runtimeBinary() +' '+ ginaBin +' framework:link @'+ self.projectName
-                                  : ginaBin +' framework:link @'+ self.projectName;
-                execSync(linkCmd);
+                // #B665 (2026-09-27) — this install's own bin/gina, run from an argument vector,
+                // without a shell: `which gina` could find no gina or a different install, and
+                // the project name reached `sh` unquoted. runtimeBinary() keeps the Bun
+                // behaviour (the running Bun binary, so a no-node image never meets the
+                // `#!/usr/bin/env node` shebang); under Node it returns the running node.
+                // was: var ginaBin = execSync('which gina').toString().trim();
+                // was: var linkCmd = runtime.isBun()
+                // was:                   ? runtime.runtimeBinary() +' '+ ginaBin +' framework:link @'+ self.projectName
+                // was:                   : ginaBin +' framework:link @'+ self.projectName;
+                // was: execSync(linkCmd);
+                var ginaBin = require('path').resolve(__dirname, '../../../../..', 'bin/gina');
+                execFileSync(runtime.runtimeBinary(process.execPath), [ginaBin, 'framework:link', '@' + self.projectName]);
             } catch (err) {
                 resultError = err;
             }
