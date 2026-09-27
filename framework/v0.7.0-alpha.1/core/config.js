@@ -16,6 +16,8 @@ var Events          = require('events');
 var EventEmitter    = require('events').EventEmitter;
 var locales         = require('./locales');
 var lib             = require('./../lib');
+// #B360 — the unanchored-`requirements` boot warning (server-side only; reads routing, never rewrites it)
+var requirementsAnchor = require('./config.requirements-anchor');
 var Domain          = lib.Domain;
 var domainLib       = new Domain();
 var merge           = lib.merge;
@@ -2539,6 +2541,19 @@ function Config(opt, contextResetNeeded) {
                 } else {
                     routing[rule].url = ( localHasWebRoot && routing[rule].url.length > 1) ? localWroot + routing[rule].url.substring(1) : ((localHasWebRoot && routing[rule].url.length == 1) ? localWroot : routing[rule].url);
                 }
+            }
+        }
+
+        // #B360 — a regex requirement is tested as a partial (search) match when a request is
+        // matched, so `/[0-9]+/` accepts `123abc`. One warning per bundle lists the regex
+        // requirements not anchored at both ends. Only the bundle this process runs (or every
+        // bundle of a standalone process) is judged, as for `settings.log.redact` below, so a
+        // bundle is not warned about its siblings. The routing table is read, never rewritten.
+        var _requirementsApply = ( bundle === self.startingApp ) || ( self.Host && typeof(self.Host.isStandalone) == 'function' && self.Host.isStandalone() === true );
+        if ( _requirementsApply ) {
+            var _unanchored = requirementsAnchor.findUnanchoredRequirements(routing);
+            if ( _unanchored.length > 0 ) {
+                console.warn( requirementsAnchor.formatUnanchoredWarning(bundle, _unanchored) );
             }
         }
 

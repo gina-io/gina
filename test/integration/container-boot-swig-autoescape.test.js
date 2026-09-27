@@ -1,5 +1,5 @@
 /**
- * #B359 prep + #B690 — a real swig render through a booted bundle, with
+ * #B359 prep + #B690 + #B360 — a real swig render through a booted bundle, with
  * `settings.swig.autoescape` set to true, set to false, and left unset (three boots).
  *
  * Swig's `autoescape` default flips to true in 0.8.0; 0.7.0 ships the non-breaking prep. This
@@ -21,6 +21,10 @@
  *   05  the #B359 boot warning ("settings.swig.autoescape is not set …, the default becomes
  *       true in 0.8.0") is printed exactly once when the key is unset, never when it is set.
  *   06  (once) a freshly scaffolded bundle's settings.json sets `swig.autoescape: true`.
+ *   07  (#B360) each boot prints ONE unanchored-requirements record naming the route whose
+ *       requirement is `/[0-9]+/` and not the one whose requirement is `/^[0-9]+$/`.
+ *   08  (#B360) the contract that warning describes, live: `/[0-9]+/` lets `123abc` through
+ *       (a partial match), `/^[0-9]+$/` answers 404 for it and 200 for `123` (the control).
  *
  * Isolation: the container-boot-head-b675.test.js shape — a throwaway HOME under os.tmpdir(),
  * its own port window (10200; a bundle takes six ports), project:rm + rmSync at teardown. Seam:
@@ -78,6 +82,10 @@ var scaffoldSettings = null;   // the bundle's settings.json exactly as bundle:a
 
 /** The #B359 boot warning a swig bundle gets when settings.swig.autoescape is unset. */
 var UNSET_WARNING = '[ SWIG ] settings.swig.autoescape is not set for [ ' + BUNDLE + ' ]';
+/** The #B360 boot warning: one line for the bundle, listing its unanchored requirements. */
+var ANCHOR_WARNING = '[CONFIG][loadBundleConfig] [ ' + BUNDLE + ' ] 1 routing requirement is not anchored at both ends';
+/** Requested after the page in every boot: the partial match the #B360 warning is about. */
+var EXTRA_PATHS = ['b360/loose/123abc', 'b360/tight/123abc', 'b360/tight/123'];
 
 
 // ---------------------------------------------------------------------------
@@ -125,13 +133,17 @@ function installFixture() {
     var rf = path.join(src, 'config', 'routing.json');
     var r = JSON.parse(stripLineComments(fs.readFileSync(rf, 'utf8')));
     r.b359page = { namespace: 'content', url: '/b359/page', method: 'GET', param: { control: 'b359page' } };
+    // #B360 — one requirement a partial match can satisfy, one anchored at both ends
+    r.b360loose = { namespace: 'content', url: '/b360/loose/:id', method: 'GET', requirements: { id: '/[0-9]+/' },   param: { control: 'b360item', id: ':id' } };
+    r.b360tight = { namespace: 'content', url: '/b360/tight/:id', method: 'GET', requirements: { id: '/^[0-9]+$/' }, param: { control: 'b360item', id: ':id' } };
     fs.writeFileSync(rf, JSON.stringify(r, null, 2));
 
     var cf = path.join(src, 'controllers', 'controller.content.js');
     var s = fs.readFileSync(cf, 'utf8');
     var anchor = '    this.home = function(req, res) {';
     if (s.split(anchor).length !== 2) { throw new Error('controller anchor count ' + (s.split(anchor).length - 1)); }
-    var action = "    this.b359page = function(req, res) { self.render({ msg: '<i>m</i>', text: '<b>x</b>\\ny' }); };\n";
+    var action = "    this.b359page = function(req, res) { self.render({ msg: '<i>m</i>', text: '<b>x</b>\\ny' }); };\n"
+        + "    this.b360item = function(req, res) { self.renderJSON({ id: req.get.id }); };\n";
     fs.writeFileSync(cf, s.replace(anchor, action + anchor));
 
     fs.writeFileSync(path.join(src, 'templates', 'html', 'content', 'b359page.html'), [
@@ -182,10 +194,13 @@ async function bootRenderStop() {
         await sleep(POLL_INTERVAL_MS);
     }
     var res = { status: null, body: '', err: 'the bundle did not come up: exit ' + JSON.stringify(exit) + '\n' + out.slice(-2000) };
+    var extra = {};
     if (up) {
         await sleep(300);
         res = await get('b359/page');
+        for (var i = 0; i < EXTRA_PATHS.length; ++i) { extra[EXTRA_PATHS[i]] = await get(EXTRA_PATHS[i]); }
     }
+    res.extra = extra;
     if (alive()) {
         try { child.kill('SIGTERM'); } catch (e) { /* ignore */ }
         var until = Date.now() + 12000;
@@ -327,5 +342,26 @@ describe('27 - container-boot-swig-autoescape — a real swig render with settin
         assert.ok(scaffoldSettings, 'bundle:add wrote settings.json');
         var parsed = JSON.parse(stripLineComments(scaffoldSettings));
         assert.deepEqual(parsed.swig, { autoescape: true });
+    });
+
+    it('07 - the unanchored-requirement boot warning: one record, naming only the unanchored requirement (#B360)', function (t) {
+        if (!ready(t)) { return; }
+        MODES.forEach(function (mode) {
+            rendered(mode.name);
+            var records = results[mode.name].out.split('\n').filter(function (l) { return l.indexOf(ANCHOR_WARNING) > -1; });
+            assert.equal(records.length, 1, mode.name + ': ' + results[mode.name].out.slice(-1500));
+            // the routing table keys carry their `@<bundle>` suffix by the time the loader judges them
+            assert.ok(records[0].indexOf('b360loose@' + BUNDLE + ' { id: /[0-9]+/ }') > -1, records[0]);
+            assert.equal(records[0].indexOf('b360tight'), -1, 'the anchored requirement is not named');
+        });
+    });
+
+    it('08 - the contract the warning describes, live: /[0-9]+/ accepts 123abc, /^[0-9]+$/ answers 404 (#B360)', function (t) {
+        if (!ready(t)) { return; }
+        var extra = results.absent.extra;
+        assert.equal(extra['b360/loose/123abc'].status, 200, JSON.stringify(extra['b360/loose/123abc']));
+        assert.equal(JSON.parse(extra['b360/loose/123abc'].body).id, '123abc', 'the partial match let the whole value through');
+        assert.equal(extra['b360/tight/123abc'].status, 404, 'the anchored requirement refuses it');
+        assert.equal(extra['b360/tight/123'].status, 200, 'CONTROL — the anchored route matches a whole-digit value');
     });
 });
