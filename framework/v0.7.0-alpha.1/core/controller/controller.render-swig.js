@@ -22,6 +22,46 @@ var releaseBanner = require('./release-banner');
 var blacklistRe       = /[<>]/g;
 
 /**
+ * #B690 — the asset placeholders this delegate injects into the layout. Their values
+ * (`data.page.view.stylesheets` / `.scripts`) are the `<link>` / `<script>` tags gina
+ * builds from templates.json, so they are injected with `| safe`: under
+ * `settings.swig.autoescape: true` a bare placeholder rendered every injected tag as
+ * visible text and the page lost its CSS and JS. With autoescape off (the default until
+ * 0.8.0) `safe` passes its input through, so the output is unchanged. The render-nunjucks
+ * delegate documents the same `| safe` form for a layout that places them itself.
+ *
+ * @constant
+ * @type {string}
+ * @private
+ */
+var STYLESHEETS_PLACEHOLDER = '{{ page.view.stylesheets | safe }}';
+/**
+ * #B690 — see STYLESHEETS_PLACEHOLDER.
+ *
+ * @constant
+ * @type {string}
+ * @private
+ */
+var SCRIPTS_PLACEHOLDER     = '{{ page.view.scripts | safe }}';
+/**
+ * #B690 — a layout that already holds the stylesheets placeholder, bare or with `| safe`
+ * (its own, or one injected by an earlier pass), is not injected a second time.
+ *
+ * @constant
+ * @type {RegExp}
+ * @private
+ */
+var STYLESHEETS_PLACED_RE   = /\{\{\s+(page\.view\.stylesheets)(\s*\|\s*safe)?\s+\}\}/;
+/**
+ * #B690 — the scripts twin of STYLESHEETS_PLACED_RE (single spaces, as before).
+ *
+ * @constant
+ * @type {RegExp}
+ * @private
+ */
+var SCRIPTS_PLACED_RE       = /\{\{ page\.view\.scripts(\s*\|\s*safe)? \}\}/;
+
+/**
  * Lazily construct the process-wide render-context AsyncLocalStorage, parked on
  * `process.gina` so it survives dev-mode `require.cache` eviction of this
  * delegate (mirrors `process.gina._reqALS` / `_queryALS`). This is the SAME
@@ -1460,8 +1500,8 @@ module.exports = async function render(userData, displayInspector, errOptions, d
         }
 
         // adding stylesheets
-        if (!isWithoutLayout && data.page.view.stylesheets && !/\{\{\s+(page\.view\.stylesheets)\s+\}\}/.test(layout) ) {
-            layout = layout.replace(/\<\/head\>/i, '\n\t{{ page.view.stylesheets }}\n</head>')
+        if (!isWithoutLayout && data.page.view.stylesheets && !STYLESHEETS_PLACED_RE.test(layout) ) {
+            layout = layout.replace(/\<\/head\>/i, '\n\t'+ STYLESHEETS_PLACEHOLDER +'\n</head>')
         }
 
         if (hasViews() && isWithoutLayout) {
@@ -1623,18 +1663,18 @@ module.exports = async function render(userData, displayInspector, errOptions, d
             layout.replace('{{ page.view.scripts }}', '');
             // placed in the HEAD excepted when rendering a partial or when `isDeferModeEnabled` == true
             if (isLoadingPartial) {
-                if ( !/\{\{ page\.view\.scripts \}\}/.test(layout) ) {
-                    layout += '\t{{ page.view.scripts }}';
+                if ( !SCRIPTS_PLACED_RE.test(layout) ) {
+                    layout += '\t'+ SCRIPTS_PLACEHOLDER;
                 }
             } else {
                 // placed in the HEAD
                 if ( isDeferModeEnabled  ) {
-                    layout = layout.replace(/\<\/head\>/i, '\t{{ page.view.scripts }}\n\t</head>');
+                    layout = layout.replace(/\<\/head\>/i, '\t'+ SCRIPTS_PLACEHOLDER +'\n\t</head>');
                 }
                 // placed in the BODY
                 else {
-                    if ( !/\{\{ page\.view\.scripts \}\}/.test(layout) ) {
-                        layout = layout.replace(/\<\/body\>/i, '\t{{ page.view.scripts }}\n</body>');
+                    if ( !SCRIPTS_PLACED_RE.test(layout) ) {
+                        layout = layout.replace(/\<\/body\>/i, '\t'+ SCRIPTS_PLACEHOLDER +'\n</body>');
                     }
                     if (hasExternalsPlugins) {
                         for (let i =0, len = localOptions.template.externalPlugins.length; i<len; i++) {
@@ -1679,8 +1719,8 @@ module.exports = async function render(userData, displayInspector, errOptions, d
             // adding javascripts
             layout.replace('{{ page.view.scripts }}', '');
             if (isLoadingPartial) {
-                if ( !/\{\{ page\.view\.scripts \}\}/.test(layout) ) {
-                    layout += '\t{{ page.view.scripts }}\n';
+                if ( !SCRIPTS_PLACED_RE.test(layout) ) {
+                    layout += '\t'+ SCRIPTS_PLACEHOLDER +'\n';
                 }
                 if (
                     !localOptions.template.javascriptsExcluded
@@ -1696,14 +1736,14 @@ module.exports = async function render(userData, displayInspector, errOptions, d
                 // placed in the HEAD
                 if (
                     isDeferModeEnabled && /\<\/head\>/i.test(layout)
-                    && !/\{\{ page\.view\.scripts \}\}/.test(layout)
+                    && !SCRIPTS_PLACED_RE.test(layout)
                 ) { // placed in the HEAD
-                    layout = layout.replace(/\<\/head\>/i, '\t{{ page.view.scripts }}\n\t</head>');
+                    layout = layout.replace(/\<\/head\>/i, '\t'+ SCRIPTS_PLACEHOLDER +'\n\t</head>');
                 }
                 // placed in the BODY
                 else {
-                    if ( !/\{\{ page\.view\.scripts \}\}/.test(layout) ) {
-                        layout = layout.replace(/\<\/body\>/i, '\t{{ page.view.scripts }}\n</body>');
+                    if ( !SCRIPTS_PLACED_RE.test(layout) ) {
+                        layout = layout.replace(/\<\/body\>/i, '\t'+ SCRIPTS_PLACEHOLDER +'\n</body>');
                     }
                     if (hasExternalsPlugins) {
                         for (let i =0, len = localOptions.template.externalPlugins.length; i<len; i++) {

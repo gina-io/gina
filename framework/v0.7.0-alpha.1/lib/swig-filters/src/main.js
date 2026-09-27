@@ -428,9 +428,94 @@ function SwigFilters(conf) {
         }
     }
 
+    /**
+     * Whether the bundle's swig output is auto-escaped, read from the argument this
+     * factory is first called with (the factory is a first-call singleton: later calls
+     * return the first call's filters). Three shapes reach it: the boot call
+     * `{ options: <bundle env conf> }` (settings under `options.content`), the
+     * per-request call `{ options: <render localOptions> }` (settings under
+     * `options.conf.content`), and the async delegate's `{ options: {}, autoescape }`,
+     * which passes its engine's own value because its options are empty.
+     *
+     * @inner
+     * @private
+     * @param {object} [c] - The factory argument
+     * @returns {boolean} true only when the bundle sets `settings.swig.autoescape: true`
+     *
+     * @example
+     *   resolveAutoescape({ options: { content: { settings: { swig: { autoescape: true } } } } }); // true
+     *   resolveAutoescape({ options: {} }); // false
+     */
+    var resolveAutoescape = function(c) {
+        if ( !c || typeof(c) != 'object' ) {
+            return false;
+        }
+        if ( typeof(c.autoescape) == 'boolean' ) {
+            return c.autoescape;
+        }
+        var _opts = c.options, _content = null;
+        if ( _opts && _opts.content ) {
+            _content = _opts.content;
+        } else if ( _opts && _opts.conf && _opts.conf.content ) {
+            _content = _opts.conf.content;
+        }
+        var _swig = _content && _content.settings && _content.settings.swig;
+        return !!( _swig && _swig.autoescape === true );
+    };
+
+    /**
+     * HTML-escape a string exactly as swig's own `e` / `escape` filter does in html
+     * mode (`@rhinostone/swig` lib/filters.js): idempotent on the five entities it
+     * produces, so text that is already escaped is not escaped twice.
+     *
+     * @inner
+     * @private
+     * @param {string} input - Text to escape
+     * @returns {string} The escaped text
+     *
+     * @example
+     *   escapeHtml('<b>&amp;</b>'); // '&lt;b&gt;&amp;&lt;/b&gt;'
+     */
+    var escapeHtml = function(input) {
+        return input.replace(/&(?!amp;|lt;|gt;|quot;|#39;)/g, '&amp;')
+            .replace(/[<>"']/g, function(ch) {
+                return ch === '<' ? '&lt;' : ch === '>' ? '&gt;' : ch === '"' ? '&quot;' : '&#39;';
+            });
+    };
+
+    // #B359 prep — resolved once, from the first call's argument (see resolveAutoescape).
+    var _autoescape = resolveAutoescape(conf);
+
+    /**
+     * Replace every newline in a text with an HTML line break.
+     *
+     * When the bundle sets `settings.swig.autoescape: true`, swig escapes the output of
+     * every `{{ }}` unless a filter in its chain is flagged `.safe`, which rendered the
+     * `<br/>` as visible text. In that mode nl2br escapes its INPUT with swig's own HTML
+     * escape and is flagged `.safe`, so the text is escaped once and the line breaks stay
+     * markup; the `replacement` argument is template text and is used as written. With
+     * autoescape off (the default until 0.8.0) nl2br does not escape and is not flagged,
+     * so its output is unchanged.
+     *
+     * @memberof SwigFilters
+     * @param {string} text - The text to convert
+     * @param {string} [replacement='<br/>'] - What each newline becomes
+     * @returns {string} The text with its newlines replaced
+     *
+     * @example
+     *   {{ contact.address | nl2br }}
+     *   // autoescape off: "1 Main St\n<b>x</b>" -> "1 Main St<br/><b>x</b>"
+     *   // autoescape on:  "1 Main St\n<b>x</b>" -> "1 Main St<br/>&lt;b&gt;x&lt;/b&gt;"
+     */
     self.nl2br = function(text, replacement) {
         replacement = ( typeof( replacement ) != 'undefined' ) ? replacement : '<br/>';
+        if ( _autoescape && typeof(text) == 'string' ) {
+            text = escapeHtml(text);
+        }
         return text.replace(/(\n|\r)/g, replacement);
+    }
+    if ( _autoescape ) {
+        self.nl2br.safe = true;
     }
 
     /**
