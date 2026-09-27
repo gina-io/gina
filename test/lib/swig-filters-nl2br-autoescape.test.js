@@ -41,6 +41,7 @@ var FW = require('../fw');
 
 var SF_PATH  = process.env.GINA_SWIG_FILTERS_SRC || path.join(FW, 'lib/swig-filters/src/main.js');
 var RS_PATH  = process.env.GINA_RENDER_SWIG_SRC  || path.join(FW, 'core/controller/controller.render-swig.js');
+var RSA_PATH = process.env.GINA_RENDER_SWIG_ASYNC_SRC || path.join(FW, 'core/controller/controller.render-swig-async.js');
 
 var swigLib    = require('@rhinostone/swig');
 var swigEscape = require('@rhinostone/swig/lib/filters').escape;
@@ -267,5 +268,39 @@ describe('#B690 — the asset placeholders the default swig delegate injects', f
         // an absent value renders nothing in both forms
         var empty = { page: { view: {} } };
         assert.equal(new swigLib.Swig({ autoescape: true, cache: false }).render(tpl, { locals: empty }), '<head></head><body></body>');
+    });
+});
+
+describe('#B359 prep — the async swig delegate passes its engine\'s autoescape mode to the filters', function () {
+    var A = fs.readFileSync(RSA_PATH, 'utf8');
+
+    it('getSwigEngine hands registerGinaFilters the engine\'s own mode, and the factory receives it', function () {
+        assert.ok(A.indexOf('registerGinaFilters(engine, SwigFilters, throwError, (autoescape === true));') > -1);
+        assert.ok(A.indexOf('function registerGinaFilters(engine, SwigFilters, throwError, autoescape) {') > -1);
+        assert.ok(A.indexOf("SwigFilters({ options: {}, isProxyHost: false, throwError: throwError, autoescape: (autoescape === true) });") > -1);
+    });
+
+    it('driven: registerGinaFilters lifted from the source registers an nl2br that matches the engine (fresh factory each time)', function () {
+        // The function body references only its parameters, so lifting it is faithful.
+        var m = A.match(/function registerGinaFilters\(engine, SwigFilters, throwError, autoescape\) \{[\s\S]*?\n\}/);
+        assert.ok(m, 'registerGinaFilters found');
+        var registerGinaFilters = new Function('return ' + m[0])();
+        var priorFW = global.GINA_FRAMEWORK_DIR, priorU = global._;
+        global.GINA_FRAMEWORK_DIR = FW;
+        if (typeof global._ !== 'function') { global._ = function (p) { return String(p); }; }
+        try {
+            [true, false].forEach(function (ae) {
+                delete require.cache[require.resolve(SF_PATH)];
+                var Factory = require(SF_PATH);
+                var engine  = new swigLib.Swig({ autoescape: ae, cache: false });
+                registerGinaFilters(engine, Factory, function () {}, ae);
+                var out = engine.render('{{ x | nl2br }}', { locals: { x: '<b>x</b>\ny' } });
+                assert.equal(out, ae ? '&lt;b&gt;x&lt;/b&gt;<br/>y' : '<b>x</b><br/>y', 'engine autoescape ' + ae);
+            });
+        } finally {
+            delete require.cache[require.resolve(SF_PATH)];
+            if (typeof priorFW === 'undefined') { delete global.GINA_FRAMEWORK_DIR; } else { global.GINA_FRAMEWORK_DIR = priorFW; }
+            if (typeof priorU === 'undefined') { delete global._; } else { global._ = priorU; }
+        }
     });
 });

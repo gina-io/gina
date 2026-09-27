@@ -133,7 +133,7 @@ function getSwigEngine(swigMod, templateRoot, loader, autoescape, SwigFilters, t
         });
         // #B25 / #TPL1 Tier-2 — register the gina filters ONCE on the shared
         // engine (context-free; per-request context flows via _renderALS).
-        registerGinaFilters(engine, SwigFilters, throwError);
+        registerGinaFilters(engine, SwigFilters, throwError, (autoescape === true));
         process.gina._swigEngines[key] = {
             engine:   engine,
             compiled: new Map()
@@ -227,15 +227,19 @@ function computeIsProxyHost(req, localOptions) {
  * shared filter table can't bleed one request's context into another's
  * interleaved async render (#B25). The build-time conf is therefore empty —
  * everything flows through the ALS store stamped by the render `.run()` wrap.
+ * The one exception is the engine's autoescape mode (#B359 prep): nl2br escapes
+ * its input and is flagged `.safe` only when the engine escapes, and the empty
+ * options cannot say so, so it is passed explicitly.
  *
  * @inner
  * @param {*}        engine      - The per-bundle swig engine instance
  * @param {function} SwigFilters - The SwigFilters factory (from `deps`)
  * @param {function} throwError  - `self.throwError`, carried for the singleton-fallback path
+ * @param {boolean}  [autoescape=false] - The engine's own autoescape mode
  * @returns {void}
  */
-function registerGinaFilters(engine, SwigFilters, throwError) {
-    var filters = SwigFilters({ options: {}, isProxyHost: false, throwError: throwError });
+function registerGinaFilters(engine, SwigFilters, throwError, autoescape) {
+    var filters = SwigFilters({ options: {}, isProxyHost: false, throwError: throwError, autoescape: (autoescape === true) });
 
     for (var name in filters) {
         if (typeof filters[name] === 'function' && name !== 'getConfig') {
