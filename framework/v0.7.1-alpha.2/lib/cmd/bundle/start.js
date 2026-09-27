@@ -11,6 +11,9 @@ var CmdHelper   = require('./../helper');
 // Runtime detection (Bun vs Node) for the PM-aware reinstall below. Required by a
 // plain relative path (the bare `lib/<name>` form is unavailable in CLI/daemon scope).
 var runtime     = require(__dirname + '/../../../../../utils/runtime.js');
+// #B691 (2026-09-27) — picks a bundle's warn-and-above boot lines out of its stdout for the
+// client. Relative path: the bare `lib/<name>` form is unavailable in CLI/daemon scope.
+var bootLines   = require('./inc/boot-lines');
 // `lib` is previously defiened as this file is required by anoth
 // For user output
 var terminal    = lib.logger;
@@ -265,7 +268,8 @@ function Start(opt, cmd) {
 
 
     /**
-     * Spawns the bundle process, monitors stdout for start/error signals, and calls end().
+     * Spawns the bundle process, monitors stdout for start/error signals, passes the
+     * bundle's warn-and-above boot lines on to the client (#B691), and calls end().
      * @inner
      * @private
      * @param {object} opt
@@ -450,6 +454,10 @@ function Start(opt, cmd) {
                         , debuggerOn = null
                     ;
                     var port = '', errorFound = false;
+                    // #B691 (2026-09-27) — one filter per spawned bundle. The MQ listener keeps no
+                    // backlog, so a line the bundle logs while it boots reaches only a `gina tail`
+                    // attached before it: the bundle's warn-and-above boot lines go to this client too.
+                    var bootLineFilter = bootLines.createBootLineFilter(), bootLinesShown = false;
                     child.stdout.on('data', function(data) {
                         // terminal.log(data);
 
@@ -457,6 +465,20 @@ function Start(opt, cmd) {
                         // Without this guard, every runtime emerg log (written to stdout by the logger's
                         // 'default' container) triggers child.kill('SIGKILL') and silences the error.
                         if (isStarting) return;
+
+                        // #B691 — pass the bundle's warn-and-above boot lines on to the client, ahead
+                        // of the checks below, so a warning comes before the started or aborted line.
+                        // The first one starts a new line: `Trying to start bundle [ … ]` ends without
+                        // one. A fault here must never break a start.
+                        try {
+                            var _bootEntries = bootLineFilter.push(data);
+                            if ( _bootEntries.length && !opt.client.destroyed ) {
+                                opt.client.write( (bootLinesShown ? '' : '\n') + _bootEntries.join('\n') + '\n' );
+                                bootLinesShown = true;
+                            }
+                        } catch (bootLinesErr) {
+                            terminal.debug('[bundle:start] boot lines not passed on: '+ bootLinesErr.message);
+                        }
 
                         // handle errors
                         if ( /EADDRINUSE.*port/i.test(data) && !errorFound ) {
