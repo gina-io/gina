@@ -1537,7 +1537,13 @@ function SuperController(options) {
             // initSwigEngine.
             var _swigAutoescape = false;
             try {
-                var _tSwig = ( getConfig()[local.options.conf.bundle][local.options.conf.env].content.settings.swig ) || {};
+                // #B695 — was: read through the global `getConfig()`, whose caller-file
+                // walk threw on every request under an npm install; this catch then
+                // turned auto-escaping off while the bundle had it on. The request's
+                // own conf is the same object (router.js builds `options.conf` from
+                // the bundle's envConf[bundle][env] and shares its `settings`).
+                // var _tSwig = ( getConfig()[local.options.conf.bundle][local.options.conf.env].content.settings.swig ) || {};
+                var _tSwig = ( local.options.conf.content.settings.swig ) || {};
                 _swigAutoescape = ( _tSwig.autoescape === true );
             } catch (_swigAeErr) {
                 _swigAutoescape = false;

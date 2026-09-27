@@ -402,6 +402,44 @@ function ContextHelper(contexts) {
     }
 
     /**
+     * callerFileSegments
+     *
+     * Path segments of the first stack frame outside `node_modules`, without its
+     * `.js` extension — how `getConfig(<falsy>, confName)` and `getLib(lib)` tell
+     * which bundle the calling file belongs to: `ctx.bundles` is matched against
+     * these segments, last first.
+     *
+     * #B695 — the resolvers used to read `__stack` inside the loop, one full stack
+     * capture per frame examined (up to nine), and when no frame outside
+     * `node_modules` existed they called `.replace` on `null`. Under an npm install
+     * every framework file sits under `node_modules`, so a call made from framework
+     * code threw. The resolver now captures the stack ONCE and passes it here, and
+     * a stack without such a frame yields `[]`: no bundle segment matches, and the
+     * resolver takes its ordinary no-match path.
+     *
+     * @inner
+     * @private
+     * @param {Array<object>} stack - The resolver's own `__stack` (V8 CallSite
+     *   objects), evaluated in the resolver so that index 0 is the resolver's frame
+     * @returns {Array<string>} The file's path segments, or `[]` when every
+     *   examined frame (indices 1 to 9) is under `node_modules` or missing
+     *
+     * @example
+     * // inside a resolver — `__stack` is evaluated there, so stack[0] is the resolver
+     * var a = callerFileSegments(__stack);
+     * // e.g. [ '', 'srv', 'shop', 'src', 'api', 'controllers', 'controller' ], or []
+     * */
+    var callerFileSegments = function(stack) {
+        for (let i = 1, len = 10; i < len; ++i) {
+            var stackFileName = ( stack && stack[i] ) ? stack[i].getFileName() : null;
+            if ( stackFileName && !/node_modules/.test(stackFileName) ) {
+                return stackFileName.replace('.js', '').split('/');
+            }
+        }
+        return [];
+    };
+
+    /**
      * resolveBundlesConf
      *
      * Resolve the per-bundle/per-env configuration container. `bundlesConfiguration.conf`
@@ -429,12 +467,33 @@ function ContextHelper(contexts) {
     /**
      * getConfig
      *
-     * Get bundle JSON configuration
+     * Get bundle JSON configuration.
      *
+     * Three call shapes resolve the bundle differently:
+     * - `getConfig()` and `getConfig(confName)` — no bundle named: the running
+     *   bundle (`ctx.bundle`). No stack is read.
+     * - `getConfig(bundle, confName)` — the named bundle.
+     * - `getConfig(<falsy>, confName)` — the bundle whose files make the call: the
+     *   first stack frame outside `node_modules` is matched against the project's
+     *   bundles (one stack capture, #B695). When no frame qualifies, or none
+     *   matches, no bundle resolves and the call fails clean (emerg-log +
+     *   `undefined`).
+     *
+     * #B695 — until 0.7.1 the stack walk ran for every shape and threw under an
+     * npm install (every framework frame sits under `node_modules`), so a
+     * no-argument call from framework code failed there.
      *
      * @param {string} [ bundle ] - Bundle name
-     * @param {string} confName  - Config name (bundle/config/filename without extension)
+     * @param {string} [ confName ] - Config name (bundle/config/filename without extension)
+     * @returns {object|undefined} The config content named by `confName`, or the
+     *   whole `[bundle][env]` container (plus `bundle`, `env`, `scope`,
+     *   `projectName`, `bundles`) when `confName` is omitted; `undefined` when no
+     *   configuration can be resolved in the calling context
      *
+     * @example
+     * var conf    = getConfig();               // the running bundle's container
+     * var app     = getConfig('app');          // its config/app.json
+     * var routing = getConfig('api', 'routing');
      * */
     getConfig = function(bundle, confName) {
         // R2: test mock override — set via setContext('__mock__', { config: fn })
@@ -475,24 +534,26 @@ function ContextHelper(contexts) {
         if (arguments.length == 1 || !bundle) {
 
             confName = (arguments.length == 1) ? bundle : confName;
-            var file = null
-                , stackFileName = null;
-
-            for (let i = 1, len = 10; i < len; ++i) {
-                stackFileName = __stack[i].getFileName();
-                if (stackFileName && !/node_modules/.test(stackFileName)) {
-                    file = stackFileName;
-                    break;
-                }
-            }
-            var a = file.replace('.js', '').split('/')
-                , i = a.length - 1;
+            // #B695 — was: the caller-file walk ran here for every shape, reading
+            // `__stack` once per frame examined, and threw under an npm install:
+            // var file = null, stackFileName = null;
+            // for (let i = 1, len = 10; i < len; ++i) {
+            //     stackFileName = __stack[i].getFileName();
+            //     if (stackFileName && !/node_modules/.test(stackFileName)) { file = stackFileName; break; }
+            // }
+            // var a = file.replace('.js', '').split('/'), i = a.length - 1;
 
             if (bundle == confName) {
+                // No bundle named — `getConfig()` / `getConfig(confName)`: the running
+                // bundle. The walk's result was never used for this shape.
                 bundle = ctx.bundle
             } else {
 
                 if (ctx.bundles) {
+                    // Only a falsy bundle WITH a confName reads the caller's file:
+                    // one stack capture (#B695).
+                    var a = callerFileSegments(__stack)
+                        , i = a.length - 1;
                     for (; i >= 0; --i) {
                         index = ctx.bundles.indexOf(a[i]);
                         if (index > -1) {
@@ -614,25 +675,24 @@ function ContextHelper(contexts) {
             //);
              lib    = (arguments.length == 1) ? bundle : lib;
              bundle = null;
-             var file          = null
-                , stackFileName = null
-                //, file        = ( !/node_modules/.test(__stack[1].getFileName()) ) ?  __stack[1].getFileName() : __stack[2].getFileName()
-            ;
-            for (let i = 1, len = 10; i<len; ++i) {
-                stackFileName = __stack[i].getFileName();
-                if ( stackFileName && !/node_modules/.test(stackFileName) ) {
-                    file = stackFileName;
-                    break;
-                }
-            }
-            var a           = file.replace('.js', '').split('/')
-                , i         = a.length-1;
+            // #B695 — was: the same caller-file walk as getConfig's, run before the
+            // `bundle == lib` branch, reading `__stack` once per frame examined and
+            // throwing under an npm install:
+            // var file = null, stackFileName = null;
+            // for (let i = 1, len = 10; i<len; ++i) {
+            //     stackFileName = __stack[i].getFileName();
+            //     if ( stackFileName && !/node_modules/.test(stackFileName) ) { file = stackFileName; break; }
+            // }
+            // var a = file.replace('.js', '').split('/'), i = a.length-1;
 
             if (bundle == lib) {
                 bundle = ctx.bundle
             } else {
 
                 if (ctx.bundles) {
+                    // `getLib(lib)`: the bundle of the calling file — one stack capture (#B695).
+                    var a           = callerFileSegments(__stack)
+                        , i         = a.length-1;
                     for (; i >= 0; --i) {
                         index = ctx.bundles.indexOf(a[i]);
                         if ( index > -1 ) {
