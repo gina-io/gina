@@ -1,0 +1,3 @@
+kind: Changed
+body: 'Constructing a class built with `inherits()` — every controller, on every routed request — no longer copies anything onto the instance: no own `prototype` property (it was enumerable, so it showed in `Object.keys()` and `JSON.stringify()` of an instance), no stamp of the instance''s name onto a shared prototype on every construction, and no copy of the parent prototype''s falsy members as own properties. Inherited members resolve through the prototype chain as before, and the browser bundle carries the same constructor.'
+time: 2026-09-28T16:49:47+01:00

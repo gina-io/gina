@@ -725,7 +725,7 @@ function _resolveServedContentType(optsContentType, metaContentType) {
  * @extends EventEmitter
  *
  * Base controller class. Instantiated fresh on every request via `inherits`
- * (`b.apply(this, arguments)` in `lib/inherits/src/main.js:78`), giving each
+ * (`b.apply(this, arguments)` in `lib/inherits/src/main.js:75`), giving each
  * request its own isolated `local` closure. No singleton static properties are
  * maintained. (#M1)
  *

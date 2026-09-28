@@ -30805,18 +30805,15 @@ function Inherits(a, b) {
                     return function() {
 
                         if (this) {
-                            this.prototype = cache.prototype;
-
+                            // Nothing is copied onto the instance: the prototype chain
+                            // (z.prototype -> a.prototype -> b.prototype) resolves every inherited
+                            // member. Retired (phase-2 per-request trims, slice A — the router
+                            // composes a controller class on every routed request): an own
+                            // `prototype` property on each instance, a stamp of the instance's
+                            // `name` onto a SHARED prototype on every `new`, and a for...in copying
+                            // the parent prototype's falsy members as own — nothing read the first
+                            // two, and EventEmitter re-sets its three falsy members as own anyway.
                             if (!this.name) this.name = cache.name;
-
-                            this.prototype.name = this.name;
-
-                            //makes it compatible with node.js classes like EventEmitter
-                            for (var prop in b.prototype) {
-                                if (!this[prop]) {
-                                    this[prop] = b.prototype[prop];
-                                }
-                            }
 
                             b.apply(this, arguments);
                             cache.apply(this, arguments);
