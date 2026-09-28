@@ -534,7 +534,9 @@ describe('09 - engine wiring: both engines, and the gate is placed correctly', f
 
     it('isaac: the gate sits BEFORE the pre-routing render-cache read', function () {
         var gate  = isaac.indexOf('#MAINT1 — maintenance gate');
-        var cache = isaac.indexOf("if (!isCacheless || String(server._cacheIsEnabled)");
+        // anchored on the read block's own banner (unique, inside the block after its gate): the
+        // gate's condition text changed in the phase-2 trims and is pinned by its own test
+        var cache = isaac.indexOf('// Importing cache handler (render/output cache goes through the strategy dispatcher)');
         assert.ok(gate > -1 && cache > -1);
         assert.ok(gate < cache, 'a cache serve point above the gate would replay cached pages during maintenance (#B158 shape)');
     });
