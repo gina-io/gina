@@ -50,6 +50,45 @@ var fs                  = require('fs')
 // cached at module load — these env vars never change at runtime (#P18)
 var _isDev = process.env.NODE_ENV_IS_DEV && process.env.NODE_ENV_IS_DEV.toLowerCase() === 'true';
 
+// A bundle's `controllers/setup.js` is probed once per bundle in production and the answer
+// memoized here by bundle name: nothing evicts a controller's require cache there, so the
+// file cannot appear or vanish without a restart, while the per-request probe cost an
+// accessSync throw plus an lstatSync throw whenever the file was absent. Dev keeps the
+// per-request probe — its eviction block in route() depends on the fresh answer.
+var _setupFileMemo = Object.create(null);
+
+/**
+ * Resolves a bundle's `controllers/setup.js` path and whether the file exists.
+ *
+ * In production (`isCacheless` false) the answer is computed once per bundle and served
+ * from the memo afterwards — the path object is not constructed again either. In dev the
+ * file is probed on every call, because the router evicts and re-requires it per request.
+ *
+ * @private
+ * @param {string}  bundle      - Bundle name (the memo key)
+ * @param {string}  bundlesPath - `conf.bundlesPath` of the running project
+ * @param {boolean} isCacheless - Dev-mode flag (`self.isCacheless()`)
+ * @returns {{file: string, exists: boolean}} The resolved path string and its existence
+ *
+ * @example
+ * var probe = resolveSetupFile('frontend', '/srv/app/src', false);
+ * // { file: '/srv/app/src/frontend/controllers/setup.js', exists: true }
+ */
+var resolveSetupFile = function(bundle, bundlesPath, isCacheless) {
+    if ( !isCacheless && typeof(_setupFileMemo[bundle]) != 'undefined' ) {
+        return _setupFileMemo[bundle];
+    }
+    var setupFileObj = new _(bundlesPath +'/'+ bundle + '/controllers/setup.js', true);
+    var probe = {
+        file    : setupFileObj.toString(),
+        exists  : setupFileObj.existsSync()
+    };
+    if (!isCacheless) {
+        _setupFileMemo[bundle] = probe;
+    }
+    return probe;
+};
+
 // extracted from Router::route() — try-catch prevents V8 JIT optimization of the outer function (#P25)
 function resolveRouteConfig(serverInstance, params, response, controllerFile, local) {
     try {
@@ -844,15 +883,11 @@ function Router(env, scope) {
         /**
          * EO routing configuration
          */
-        var setupFileObj    = new _(conf.bundlesPath +'/'+ bundle + '/controllers/setup.js', true)
-            , setupFile     = setupFileObj.toString()
+        var setupProbe  = resolveSetupFile(bundle, conf.bundlesPath, isCacheless)
+            , setupFile = setupProbe.file
         ;
+        hasSetup = setupProbe.exists;
         try {
-
-            if ( setupFileObj.existsSync() ) {
-                hasSetup = true;
-            }
-            setupFileObj = null;
 
             if (isCacheless) {
                 var _hotReload = getContext('__hotReload');
