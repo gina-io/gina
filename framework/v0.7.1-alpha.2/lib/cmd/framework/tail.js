@@ -41,7 +41,7 @@ function Tail(opt, cmd) {
     process.title = 'gina-tail';
     var self        = {};
     var nIntervId   = null;
-    var mqPortFile  = _(getTmpDir() +'/mq-listener-v'+ GINA_VERSION +'.port', true);
+    var mqPortFile  = _(getArgvDir() +'/mq-listener-v'+ GINA_VERSION +'.port', true); // #B704 — the framework home's run dir, never the shared tmp dir
     // To allow auto restart on: JavaScript heap out of memory
     var cmdUsedToStart = null;
 
