@@ -97,7 +97,7 @@ describe('02 - #B491 (a) behavioural: the real run() on echo', function() {
     it('a truthy non-function positional cb throws before run() touches the filesystem', function() {
         var tmp = mkTmp();
         assert.throws(function() { run(['echo', 'x'], { cwd: tmp, tmp: tmp }, 'oops'); }, /^TypeError: run — callback expects a function, got string$/);
-        assert.ok(!fs.existsSync(path.join(tmp, 'err.log')), 'the guard must precede the log-file opens');
+        assert.deepStrictEqual(fs.readdirSync(tmp), [], 'the guard must precede the private run dir and the log-file opens');
         assert.strictEqual(process.cwd(), origCwd, 'and the chdir');
     });
 

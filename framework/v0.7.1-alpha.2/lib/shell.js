@@ -4,6 +4,8 @@ var spawn           = require('child_process').spawn;
 var inherits        = require(require.resolve('./inherits'));
 var helpers         = require('./../helpers');
 var console         = require('./logger');
+var os              = require('os');
+var nodePath        = require('path');
 
 /**
  * @module lib/shell
@@ -58,6 +60,10 @@ function Shell () {
      * Run a command line, optionally forcing local execution.
      * Results are delivered via `.onComplete(cb)` on the returned EventEmitter;
      * streamed output via `.onData(cb)`. Both refuse a non-function callback.
+     * The child's stdout and stderr are captured in `out.log` / `err.log` inside a
+     * private per-run directory created under `GINA_TMPDIR` (the system tmp dir
+     * when that global is undefined), read back on exit and removed with it; a
+     * failure while reading them back is delivered as the run's error (#B664).
      *
      * @param {string|Array<string>} cmdline  - Command string or argument array
      * @param {boolean} [runLocal]            - Force local execution (bypass SSH config)
@@ -74,9 +80,30 @@ function Shell () {
      */
     this.run = function(cmdline, runLocal) {
 
+        if ( isWin32() ) {
+            // #B702 — checked before any file is created: the two log descriptors
+            // used to be opened above this throw and leaked on it.
+            throw new Error('Windows platform not supported yet for command line forward');
+        }
+
+        // #B664 / #B702 — every run gets a PRIVATE directory for its two log files,
+        // created under the tmp dir with an unpredictable name and mode 0700 and
+        // removed with them when the command exits. The fixed pair `<GINA_TMPDIR>/out.log`
+        // + `err.log` was shared by every concurrent run (the later one read the
+        // earlier one's output as its own, and a sibling's unlink made the close
+        // handler throw and never complete), and in a shared /tmp another local
+        // user could create those names first (CWE-377). Under a bare bootstrap the
+        // GINA_TMPDIR global is not defined: fall back to the system tmp dir instead
+        // of the relative path `undefined/out.log`.
         var opt         = getOptions()
-            , outFile   = _(GINA_TMPDIR + '/out.log')
-            , errFile   = _(GINA_TMPDIR + '/err.log')
+            , base      = ( typeof(GINA_TMPDIR) != 'undefined' && GINA_TMPDIR ) ? GINA_TMPDIR : os.tmpdir()
+        ;
+        if ( !fs.existsSync(base) ) {
+            fs.mkdirSync(base, { recursive: true });
+        }
+        var runDir      = fs.mkdtempSync(nodePath.join(base, 'gina-run-'))
+            , outFile   = _(runDir + '/out.log')
+            , errFile   = _(runDir + '/err.log')
             , out       = fs.openSync(outFile, 'a')
             , err       = fs.openSync(errFile, 'a')
         ;
@@ -94,10 +121,6 @@ function Shell () {
         var e = new EventEmitter();
 
         var cmd = null;
-
-        if ( isWin32() ) {
-            throw new Error('Windows platform not supported yet for command line forward');
-        }
 
         if ( typeof(runLocal) != 'undefined' && runLocal == true ) {
 
@@ -135,40 +158,50 @@ function Shell () {
 
         cmd.on('close', function (code) {
 
+            // #B664 — read both logs, then ALWAYS release the descriptors and the
+            // private directory, and ALWAYS deliver `run#complete`: a throw in here
+            // used to be caught below and only logged, so the caller waited forever.
+            var error = false, data, readFailure = null;
             try {
-                var error = ( fs.existsSync(errFile) ) ? fs.readFileSync(errFile).toString() : false;
-                //closing
-                fs.closeSync(err);
-                if ( fs.existsSync(errFile) ) fs.unlinkSync(errFile);
+                error = ( fs.existsSync(errFile) ) ? fs.readFileSync(errFile).toString() : false;
+                data  = ( fs.existsSync(outFile) ) ? fs.readFileSync(outFile).toString() : undefined;
+            } catch (readErr) {
+                readFailure = readErr;
+                error = readErr.stack || String(readErr);
+            } finally {
+                try { fs.closeSync(err) } catch (closeErr) { /* already closed */ }
+                try { fs.closeSync(out) } catch (closeErr) { /* already closed */ }
+                try {
+                    fs.rmSync(runDir, { recursive: true, force: true });
+                } catch (rmErr) {
+                    _console.error(rmErr.stack)
+                }
+            }
 
+            try {
                 if (error) {
                     //cmd.emit('stderr', Buffer.from(error))
-                    error = new Error(error).stack;
+                    error = readFailure ? error : new Error(error).stack;
                     cmd.emit('stderr', error)
                 }
-
-
-                var data = ( fs.existsSync(outFile) ) ? fs.readFileSync(outFile).toString() : undefined;
-                //closing
-                fs.closeSync(out);
-                if (fs.existsSync(outFile) ) fs.unlinkSync(outFile);
-
                 if ( data ) {
                     cmd.emit('stdout', Buffer.from(data))
                 }
+            } catch (listenerErr) {
+                // a throwing `onData` listener is logged, and the completion below still runs
+                _console.error(listenerErr.stack)
+            }
 
+            if ( error == '' || typeof(error) == 'undefined' || error == undefined  || error == null) {
+                error = false
+            }
 
-                if ( error == '' || typeof(error) == 'undefined' || error == undefined  || error == null) {
-                    error = false
-                }
-
-                if (code == 0 ) {
+            try {
+                if (code == 0 ) {
                     e.emit('run#complete', error, result)
                 } else {
                     e.emit('run#complete', '[ shell::run ] encountered an error: ' + error, result)
                 }
-
-
             } catch (err) {
                 _console.error(err.stack)
             }

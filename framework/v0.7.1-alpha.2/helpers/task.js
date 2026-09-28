@@ -1,5 +1,6 @@
 var fs              = require('fs');
 var os              = require("os");
+var path            = require('path');
 var EventEmitter    = require('events').EventEmitter;
 var spawn           = require('child_process').spawn;
 
@@ -20,8 +21,13 @@ module.exports = function () {
      * resulting `callback is not a function` was caught by the close handler's
      * try/catch and only logged — the caller never heard back.
      *
+     * The child's stdout and stderr are captured in `out.log` / `err.log` inside a
+     * private per-run directory created under `opt.tmp` (the system tmp dir by
+     * default), read back on exit and removed with it; a failure while reading
+     * them back is delivered as the run's error (#B664).
+     *
      * @param {array|string} cmdline - Command and arguments (a string is split on spaces)
-     * @param {object} [opt] - `cwd` (the process chdirs to it), `tmp` (log-file dir), `verbose`
+     * @param {object} [opt] - `cwd` (the process chdirs to it), `tmp` (base of the private per-run log dir — see below), `verbose`
      * @param {function} [cb] - Positional completion callback `(err, output)`; `null`/`undefined` = use `.onComplete()`
      * @returns {EventEmitter} The run emitter — `.onData(cb)`, `.onComplete(cb)`, both chainable
      * @throws {TypeError} When `cb` is neither a function nor `null`/`undefined`
@@ -53,11 +59,16 @@ module.exports = function () {
         var tmp = opt.tmp || os.tmpdir() || process.cwd();
 
         if ( !fs.existsSync(tmp) ) {
-            fs.mkdirSync(tmp)
+            fs.mkdirSync(tmp, { recursive: true })
         }
 
-		var outFile = _(tmp + '/out.log');
-        var errFile = _(tmp + '/err.log');
+        // #B664 / #B702 — a PRIVATE per-run directory under `tmp` for the two log
+        // files (unpredictable name, mode 0700, removed with them at close): the
+        // fixed `<tmp>/out.log` + `err.log` pair was shared by every concurrent
+        // run, and in a shared /tmp another local user could create it first.
+        var runDir  = fs.mkdtempSync(path.join(tmp, 'gina-run-'));
+        var outFile = _(runDir + '/out.log');
+        var errFile = _(runDir + '/err.log');
         var out = fs.openSync(outFile, 'a');
         var err = fs.openSync(errFile, 'a');
 
@@ -128,49 +139,50 @@ module.exports = function () {
 
         cmd.on('close', function (code) {
 
+            // #B664 — read both logs, then ALWAYS release the descriptors and the
+            // private directory, and ALWAYS deliver the completion: a throw in here
+            // used to be caught below and only logged, so the caller waited forever.
+            var error = false, data;
             try {
-                var error = ( fs.existsSync(errFile) ) ? fs.readFileSync(errFile).toString() : false;
-                //closing
-                fs.closeSync(err);
-                if ( fs.existsSync(errFile) ) fs.unlinkSync(errFile);
+                error = ( fs.existsSync(errFile) ) ? fs.readFileSync(errFile).toString() : false;
+                data  = ( fs.existsSync(outFile) ) ? fs.readFileSync(outFile).toString() : undefined;
+            } catch (readErr) {
+                error = readErr.stack || String(readErr);
+            } finally {
+                try { fs.closeSync(err) } catch (closeErr) { /* already closed */ }
+                try { fs.closeSync(out) } catch (closeErr) { /* already closed */ }
+                try {
+                    fs.rmSync(runDir, { recursive: true, force: true });
+                } catch (rmErr) {
+                    console.error(rmErr.stack)
+                }
+            }
 
+            try {
                 if (error) {
                     cmd.emit('stderr', Buffer.from(error))
                 }
-
-
-                var data = ( fs.existsSync(outFile) ) ? fs.readFileSync(outFile).toString() : undefined;
-                //closing
-                fs.closeSync(out);
-                if (fs.existsSync(outFile) ) fs.unlinkSync(outFile);
-
                 if ( data ) {
                     cmd.emit('stdout', Buffer.from(data))
                 }
+            } catch (listenerErr) {
+                // a throwing `onData` listener is logged, and the completion below still runs
+                console.error(listenerErr.stack)
+            }
 
+            if (error == '') {
+                error = false
+            }
 
-                if (error == '') {
-                    error = false
+            try {
+                if (code != 0 && error) {
+                    console.debug('task::run encountered an error: ' + error);
                 }
-
-                if (code == 0 ) {
-                    if (cb) {
-                        cb(error, result);
-                        return;
-                    }
-                    e.emit('run#complete', error, result)
-                } else {
-                    if (error) {
-                        console.debug('task::run encountered an error: ' + error);
-                    }
-                    if (cb) {
-                        cb(error, result);
-                        return;
-                    }
-                    e.emit('run#complete', error, result)
+                if (cb) {
+                    cb(error, result);
+                    return;
                 }
-
-
+                e.emit('run#complete', error, result)
             } catch (err) {
                 console.error(err.stack)
             }
