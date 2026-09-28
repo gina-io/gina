@@ -1689,8 +1689,10 @@ function SuperController(options) {
      * */
     var set = function(name, value, override) {
 
-        if ( typeof(name) == 'string' && /\./.test(name) ) {
-            var keys = name.split(/\./g), last = keys.length - 1;
+        // string forms, not regexes: ~60 calls per routed request of a bundle with views
+        // (phase-2 per-request trims, slice D1)
+        if ( typeof(name) == 'string' && name.indexOf('.') !== -1 ) {
+            var keys = name.split('.'), last = keys.length - 1;
             var node = local.userData;
             if ( node === null || typeof(node) != 'object' ) {
                 node = local.userData = {};
