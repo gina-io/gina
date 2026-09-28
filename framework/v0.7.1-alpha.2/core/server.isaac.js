@@ -2559,7 +2559,12 @@ function ServerEngineClass(options) {
                 // cookie / header / allowlisted-and-not-proxied: straight through.
             }
 
-            if (!isCacheless || String(server._cacheIsEnabled).toLowerCase() === 'true') {
+            // The output cache is looked up only while `server.cache.enable` is on. Every
+            // writer refuses to store while it is off (render-swig / render-json writeCache),
+            // the engine-agnostic read in server.js gates on the same flag, and the former
+            // production-unconditional lookup cost two existsSync() calls per GET and could
+            // serve an entry left on disk by an earlier run that had the cache enabled.
+            if ( String(server._cacheIsEnabled).toLowerCase() === 'true' ) {
                 if ( request.method.toUpperCase() === 'GET' ) {
                     var cacheStatus = null;
                     if ( String(server._cacheIsEnabled).toLowerCase() === 'true' ) {
