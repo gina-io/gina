@@ -9,7 +9,12 @@ var fs              = require('fs');
 var os              = require('os');
 const {execSync}    = require('child_process');
 var crypto          = require('crypto');
-//var merge   = require('./../lib/merge');
+// lib/merge is bound once, here. It is a plain-required leaf of lib/index.js (never
+// evicted by the dev-mode refresh, #B32-residual) with no dependency back on the
+// helpers, so this module-level binding is the same exports object that the former
+// per-call resolution inside setContext() and the global getConfig() returned — minus
+// a full module resolution on every call (measured 3 µs each, two per routed request).
+var merge   = require('./../lib/merge');
 //var console = require('./../lib/logger');
 
 /**
@@ -53,7 +58,6 @@ var _mintErrorRef = function(supplied) {
  */
 function ContextHelper(contexts) {
 
-    var merge   = require('./../lib/merge');
     var console = require('./../lib/logger');
 
     var self = {};
@@ -143,8 +147,6 @@ function ContextHelper(contexts) {
     }
 
     setContext = function(name, obj, force) {
-        // redefinition needed for none-dev env: cache issue
-        var merge = require('./../lib/merge');
 
         if (arguments.length > 1) {
             //console.log("Globla setter active ", name, obj);
@@ -503,7 +505,6 @@ function ContextHelper(contexts) {
             return _mock.config(bundle, confName);
         }
 
-        var merge = require('./../lib/merge');
         var ctx             = null
             , ctxFilename   = getContext('argvFilename') // for workers ctx
             , confPath      = null

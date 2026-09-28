@@ -1,0 +1,3 @@
+kind: Changed
+body: 'The global `setContext()` and `getConfig()` helpers no longer resolve the merge library on every call: it is bound once when the helpers load. Each call paid a full module resolution, about 3 µs, and the router makes two such calls per routed request.'
+time: 2026-09-28T14:45:40+01:00
