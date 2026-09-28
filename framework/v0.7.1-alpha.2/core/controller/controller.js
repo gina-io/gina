@@ -576,6 +576,33 @@ var _defineLazyLocales = function(conf, srcRows) {
 var _isProdScope    = process.env.NODE_SCOPE_IS_PRODUCTION && process.env.NODE_SCOPE_IS_PRODUCTION.toLowerCase() === 'true';
 
 /**
+ * The page.environment `memory allocated` label — the V8 heap limit in GB — computed on the
+ * first render. The limit is fixed for the life of the process, yet reading it cost a
+ * `require('v8')` and a getHeapStatistics() call on every routed request of a bundle with
+ * views (phase-2 per-request trims, slice B).
+ *
+ * @private
+ * @type {?string}
+ */
+var _heapLimitLabel = null;
+
+/**
+ * The encoded `page.environment.forms` whisper, memoized per forms catalog object (phase-2
+ * per-request trims, slice B). The export is a function of the catalog alone, and the
+ * catalog is built once per bundle load; the framework never writes it afterwards — the
+ * validator and getFormsRules() work on clones, and getConfig() hands out copy-on-write
+ * views — so encoding it again on every routed request of a bundle with views (5–7 µs per
+ * KB of catalog, measured standalone) produced the same string each time. A reloaded
+ * catalog is a new key, and a dropped one is collected with its entry. One difference:
+ * `page.forms` holds the catalog by reference, so render data that deep-fills `page.forms`
+ * writes into it; that write no longer reaches later requests' whispers.
+ *
+ * @private
+ * @type {WeakMap<object, string>}
+ */
+var _formsWhisperMemo = new WeakMap();
+
+/**
  * formatAttachmentDisposition
  *
  * Builds an `attachment` Content-Disposition value whose `filename`
@@ -1072,7 +1099,10 @@ function SuperController(options) {
                 "middleware"    : ctx.middleware
             };
 
-            set('page.environment.memory allocated', (require('v8').getHeapStatistics().heap_size_limit / (1024 * 1024 * 1024)).toFixed(2) +' GB');
+            if (_heapLimitLabel === null) {
+                _heapLimitLabel = (require('v8').getHeapStatistics().heap_size_limit / (1024 * 1024 * 1024)).toFixed(2) +' GB';
+            }
+            set('page.environment.memory allocated', _heapLimitLabel);
             if ( self.isLocalScope() ) {
                 const mem = process.memoryUsage();
                 set('page.environment.memory heap', `${(mem.heapUsed / 1024 / 1024).toFixed(2)} MB` );
@@ -1090,7 +1120,10 @@ function SuperController(options) {
             set('page.environment.scope', process.env.NODE_SCOPE);
             set('page.environment.scopeIsLocal', _isLocalScope);
             set('page.environment.scopeIsProduction', _isProdScope);
-            set('page.environment.date.now', new Date().format("isoDateTime"));
+            // one stamp per request, shared with the locale's `date.now` below (phase-2
+            // per-request trims, slice B): two calls could straddle a second boundary
+            var _nowIso = new Date().format("isoDateTime");
+            set('page.environment.date.now', _nowIso);
             set('page.environment.isCacheless', self.isCacheless());
 
             // var requestPort = req.headers.port || req.headers[':port'];
@@ -1295,16 +1328,27 @@ function SuperController(options) {
             // export excludes it in EVERY env (uniform client contract, page weight).
             // Shallow copy only: `forms` is the SHARED per-process catalog reference also
             // grafted below (`conf.forms`, `page.forms`) -- never mutate it.
-            var _whisperedForms = {};
-            if ( forms && typeof(forms) == 'object' ) {
-                // replaced: for...in -- use Object.keys() (#P22)
-                var _formsGroups = Object.keys(forms);
-                for (var _fgi = 0; _fgi < _formsGroups.length; ++_fgi) {
-                    if (_formsGroups[_fgi] === 'mocks') continue;
-                    _whisperedForms[_formsGroups[_fgi]] = forms[_formsGroups[_fgi]];
+            // Memoized per catalog object — see `_formsWhisperMemo` (phase-2 per-request trims,
+            // slice B). The `typeof` guard keeps this block runnable where the module-scope memo
+            // is out of reach (a test harness compiles it on its own); there it computes every time.
+            var _formsWhisperKey = ( typeof(_formsWhisperMemo) != 'undefined' && forms && typeof(forms) == 'object' ) ? forms : null;
+            var _formsWhisper    = ( _formsWhisperKey ) ? _formsWhisperMemo.get(_formsWhisperKey) : undefined;
+            if ( typeof(_formsWhisper) == 'undefined' ) {
+                var _whisperedForms = {};
+                if ( forms && typeof(forms) == 'object' ) {
+                    // replaced: for...in -- use Object.keys() (#P22)
+                    var _formsGroups = Object.keys(forms);
+                    for (var _fgi = 0; _fgi < _formsGroups.length; ++_fgi) {
+                        if (_formsGroups[_fgi] === 'mocks') continue;
+                        _whisperedForms[_formsGroups[_fgi]] = forms[_formsGroups[_fgi]];
+                    }
+                }
+                _formsWhisper = encodeRFC5987ValueChars(JSON.stringify(_whisperedForms)); // export for GFF (#B344: minus `mocks`)
+                if ( _formsWhisperKey ) {
+                    _formsWhisperMemo.set(_formsWhisperKey, _formsWhisper);
                 }
             }
-            set('page.environment.forms', encodeRFC5987ValueChars(JSON.stringify(_whisperedForms))); // export for GFF (#B344: minus `mocks`)
+            set('page.environment.forms', _formsWhisper);
             set('page.forms', options.conf.content.forms);
 
 
@@ -1507,7 +1551,7 @@ function SuperController(options) {
                 options.conf.locale = {}
             }
             options.conf.locale.date = {
-                now: new Date().format("isoDateTime")
+                now: _nowIso
             }
             set('page.view.locale', options.conf.locale);
             // #A11Y3 — `userCulture` is underscore-form (`en_CM`) and, when it came from a
