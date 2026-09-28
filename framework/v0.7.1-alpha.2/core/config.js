@@ -2650,7 +2650,16 @@ function Config(opt, contextResetNeeded) {
 
             // we only need to retrieve the tmpFiles (files[settings])
             files['settings'] = JSON.clone(conf[bundle][env].tmpSettingFileContent) || {};
-            delete conf[bundle][env].tmpSettingFileContent;
+            // Drop the key by REBUILDING the object, not by deleting it (phase-2 per-request
+            // trims, slice C2): a delete of a non-last property — like the keyed stores of
+            // merge(files, conf[bundle][env]) above — leaves the object in V8 dictionary mode,
+            // and the router copies it on every routed request (~20 µs slow, ~0.2 µs fast).
+            // The rebuild (object rest: the own enumerable keys, the same values by reference)
+            // follows the last structural change and precedes secrets.resolve(), which keys
+            // its resolved-paths WeakMap by this object; `files` is the same object until
+            // `files = whisper(...)`, so both names are re-pointed.
+            var { tmpSettingFileContent: _tmpSettingFileContent, ..._envRest } = conf[bundle][env];
+            files = conf[bundle][env] = _envRest;
 
             if ( files['settings'].count() == 0 ) {
                 files['settings'] = requireJSON(settingsPath)

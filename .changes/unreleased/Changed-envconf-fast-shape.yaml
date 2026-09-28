@@ -1,0 +1,3 @@
+kind: Changed
+body: 'Each bundle''s resolved environment configuration now stays in V8''s fast property mode. Loading it left the object in dictionary mode, which made the router''s per-request copy of it cost about 20 µs; the copy now costs well under 1 µs, and the request''s reads of the configuration are faster too. The configuration''s contents are unchanged.'
+time: 2026-09-28T16:51:46+01:00
