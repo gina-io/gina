@@ -2881,15 +2881,16 @@ function Server(options) {
      * @returns {boolean}
      */
     var hasViews = function(bundle) {
-        var _hasViews   = false
-            , conf      = new Config().getInstance(bundle)
-        ;
+        // memo first: the Config is resolved only to fill the memo, once per bundle
+        // (it was constructed before the check, on every call — phase-2 per-request
+        // trims, slice E)
         if (typeof(local.hasViews[bundle]) != 'undefined') {
-            _hasViews = local.hasViews[bundle];
-        } else {
-            _hasViews = ( typeof(conf.envConf[bundle][self.env].content['templates']) != 'undefined' ) ? true : false;
-            local.hasViews[bundle] = _hasViews;
+            return local.hasViews[bundle];
         }
+        var conf        = new Config().getInstance(bundle)
+            , _hasViews = ( typeof(conf.envConf[bundle][self.env].content['templates']) != 'undefined' ) ? true : false
+        ;
+        local.hasViews[bundle] = _hasViews;
 
         return _hasViews
     }
@@ -7121,10 +7122,23 @@ function Server(options) {
      */
     var loadBundleConfiguration = function(req, res, next, callback) {
 
-        var config = new Config();
-        config.setBundles(self.bundles);
-        // for all loaded bundles
-        var conf = config.getInstance();
+        // Once Config is initialised, `new Config()` built a throwaway only for its
+        // getInstance() to return the singleton's envConf (re-setting Env/Scope/Host to
+        // the values they already hold), and setBundles() wrote onto that throwaway,
+        // which nothing read. Downstream, `config` is only asked isCacheless() and
+        // getRouting(), which answer the same on the singleton. Before that — or in a
+        // worker, where Config.initialized stays unset — the calls run as before, #B542's
+        // refusal included (phase-2 per-request trims, slice E).
+        var config, conf;
+        if ( Config.initialized && Config.instance ) {
+            config  = Config.instance;
+            conf    = Config.instance.envConf;
+        } else {
+            config = new Config();
+            config.setBundles(self.bundles);
+            // for all loaded bundles
+            conf = config.getInstance();
+        }
         //for cacheless mode
         if ( typeof(conf) != 'undefined') {
             self.conf = conf;

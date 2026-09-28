@@ -90,9 +90,34 @@ var resolveSetupFile = function(bundle, bundlesPath, isCacheless) {
 };
 
 // extracted from Router::route() — try-catch prevents V8 JIT optimization of the outer function (#P25)
+/**
+ * Resolves the environment configuration for a routed request and, when the
+ * route carries no bundle, fills `params` from the reverse routing table.
+ *
+ * @private
+ * @param {object}   serverInstance - The server, for `throwError()`
+ * @param {object}   params         - The matched route's params (merged into when unbundled)
+ * @param {object}   response       - The response, for `throwError()`
+ * @param {string}   controllerFile - The controller path, named in a config error
+ * @param {object}   local          - The router's local state (`local.bundle` is set)
+ * @returns {?{config: object, bundle: string, env: string, scope: string, conf: object, params: object}}
+ *          The resolved configuration, or `null` once an error response was sent
+ *
+ * @example
+ * var resolved = resolveRouteConfig(serverInstance, params, response, controllerFile, local);
+ * if (resolved === null) return; // the 500 has already been sent
+ */
 function resolveRouteConfig(serverInstance, params, response, controllerFile, local) {
     try {
-        var config = new Config().getInstance();
+        // Once Config is initialised, `new Config().getInstance()` builds a throwaway
+        // instance only to return the singleton's envConf, and re-sets Env/Scope/Host on
+        // the singleton to the values they already hold (getInstance() ran once at boot):
+        // read the singleton directly. Before that — or in a worker, where Config.instance
+        // comes from the global context and Config.initialized stays unset — the call runs
+        // as before, #B542's refusal included (phase-2 per-request trims, slice E).
+        var config = ( Config.initialized && Config.instance )
+            ? Config.instance.envConf
+            : new Config().getInstance();
         if (!params.bundle) {
             try {
                 //params.bundle = config.bundle;
