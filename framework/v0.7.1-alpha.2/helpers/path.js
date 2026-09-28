@@ -39,7 +39,13 @@ var ContextHelper = require('./context');
 
 function PathHelper() {
 
-    this.paths = [];
+    // No path registry is kept (#B703). helpers/index.js calls PathHelper() without `new`,
+    // so `this` here is the global object: the former `this.paths = []` was `global.paths`,
+    // into which every `_()` pushed each distinct normalized path for the process lifetime
+    // (two per distinct URL through the output cache's file paths) and which every `_()`
+    // and every toString() scanned with indexOf — memory and per-call CPU growing with the
+    // number of distinct paths ever seen. Nothing read it: each lookup returned the entry
+    // equal to the value it searched for.
     var _this = this;
 
     /**
@@ -91,7 +97,7 @@ function PathHelper() {
         }
         // Attention : _('/my/path/../folder/file.ext') will output -> /my/folder/file.ext
         path = Path.normalize(path);
-        var isConstructor = false, p = null;
+        var isConstructor = false;
         if (
             this instanceof _ // <- You could use arguments.callee instead of _ here,
             // except in in EcmaScript 5 strict mode.
@@ -108,24 +114,13 @@ function PathHelper() {
                 if (process.platform == "win32") {
                     //In case of mixed slashes.
                     this.value = path.replace(/\\/g, "/");// Make it unix like.
-
-                    p = this.value;
-
                     this.isWindowsStyle = true;
                     this.key = path;
-                    if (_this.paths.indexOf(path) < 0 ) {
-                        _this.paths.push(p)
-                    }
                 } else {
                     //console.debug("linux style");
                     //we don't want empty spaces
                     this.value = path.replace(/\\/g, "/");
-                    p = this.value;
-                    //console.debug("path ", p);
                     this.key = path;
-                    if (_this.paths.indexOf(path) < 0 ) {
-                        _this.paths.push(p)
-                    }
                 }
                 return this
 
@@ -137,18 +132,8 @@ function PathHelper() {
                         path = path.replace(/\//g, "\\");//Keep it or convert to Win32
                     else
                         path = path.replace(/\\/g, "/");// Make it unix like.
-
-
-                    if ( _this.paths.indexOf(path) < 0) {
-                        _this.paths.push(path)
-                    }
-
-
                 } else {
                     path = path.replace(/\\/g, "/");
-                    if (_this.paths.indexOf(path) < 0) {
-                        _this.paths.push(path)
-                    }
                 }
 
                 return path
@@ -163,20 +148,18 @@ function PathHelper() {
 
     /**
      * _.toString() Convert path object to string
+     *
+     * The unix-style value everywhere but win32, where the back-slash form is
+     * returned. Derived from the object's own value alone — no process-wide path
+     * registry is consulted (#B703).
+     *
      * @returns {String} path
      *
-     * Usage:
-     * var myPathObj = new _("my/path/string");
-     *
-     * Then
-     * myPathObj.toString()
+     * @example
+     * var myPathObj = new _("/my/path/string");
+     * myPathObj.toString(); // '/my/path/string' ('\\my\\path\\string' on win32)
      * */
     _.prototype.toString = function() {
-        // var self = this;
-        // var path = self.value;
-        // var i = _this.paths.indexOf(path);
-        // return ( i > -1 ) ? _this.paths[i] : path
-
         return (process.platform != "win32") ? toUnixStyle(this) : toWin32Style(this)
     }
 
@@ -1800,25 +1783,60 @@ function PathHelper() {
         })
     }
 
+    /**
+     * Returns a PathObject's value in unix style.
+     *
+     * The constructor stores the value with forward slashes, so it is returned as
+     * is. A value holding back-slashes (only `cleanSlashes()` on win32, which joins
+     * with `Path.sep`, or code writing `.value` directly) is returned untouched, as
+     * before: on unix the retired path registry (#B703) never held a back-slash, so
+     * it never converted one.
+     *
+     * @inner
+     * @private
+     * @param {object} self - The PathObject
+     * @returns {string} `self.value`
+     */
     var toUnixStyle = function(self) {
-        var i = _this.paths.indexOf(self.value);
-        return ( i > -1 ) ? _this.paths[i].replace(/\\/g, "/") : self.value;
+        return self.value;
     }
+    /**
+     * Returns the path in unix style (forward slashes).
+     *
+     * @returns {string} The path
+     *
+     * @example
+     * new _('C:\\data\\folder\\file').toUnixStyle(); // 'C:/data/folder/file'
+     */
     _.prototype.toUnixStyle = function() {
-        // var self = this;
-        // var i = _this.paths.indexOf(self.value);
-        // return ( i > -1 ) ? _this.paths[i].replace(/\\/g, "/") : self.value;
         return toUnixStyle(this)
     }
 
+    /**
+     * Returns a PathObject's value in win32 style: every forward slash becomes a
+     * back-slash, on every call. The retired path registry (#B703) converted only a
+     * value it had recorded — every value as constructed — and returned one it had
+     * not recorded unconverted: a value `cleanSlashes()` had rewritten (a trailing
+     * separator stripped) came back with forward slashes.
+     *
+     * @inner
+     * @private
+     * @param {object} self - The PathObject
+     * @returns {string|*} The value with `/` replaced by `\`; a non-string value is
+     *                     returned as is
+     */
     var toWin32Style = function(self) {
-        var i = _this.paths.indexOf(self.value);
-        return ( i > -1 ) ? _this.paths[i].replace(/\//g, "\\") : self.value;
+        return ( typeof(self.value) == 'string' ) ? self.value.replace(/\//g, "\\") : self.value;
     }
+    /**
+     * Returns the path in win32 style (back-slashes).
+     *
+     * @returns {string} The path
+     *
+     * @example
+     * new _('/srv/app/public').toWin32Style(); // '\\srv\\app\\public'
+     */
     _.prototype.toWin32Style = function() {
-        // var self = this;
-        // var i = _this.paths.indexOf(self.value);
-        // return ( i > -1 ) ? _this.paths[i].replace(/\//g, "\\") : self.value;
         return toWin32Style(this)
     }
 
