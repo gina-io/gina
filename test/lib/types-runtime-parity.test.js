@@ -289,9 +289,6 @@ describe('05 - declare-global block mirrors the injected globals', function () {
 
     // Injected by the bootstrap but deliberately NOT declared:
     var ALLOWED_UNDECLARED = {
-        // Accidental sloppy-mode leak (helpers/path.js — a missing `var`).
-        // Declaring it would bless the leak as API.
-        paths: true,
         // Already declared by @types/node with the same type; re-declaring
         // adds duplicate-identifier risk for zero value.
         __filename: true
