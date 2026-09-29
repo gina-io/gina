@@ -120,18 +120,27 @@ function bindRegion($root, options) {
         , i         = 0
         , len       = docScripts.length
     ;
+    // #P48 — compare without gina's content token (`?v=<10 hex>`): a page's versioned tag and
+    // a fragment's plain one (or two tokens) name the same script, which must not run twice.
+    // An author's own `v=` (not 10 hex) stays significant. A local, so the function stays
+    // self-contained.
+    var assetKey = function (u) {
+        return ( typeof(u) == 'string' )
+            ? u.replace(/([?&])v=[0-9a-f]{10}(&|(?=#)|$)/, function (m, sep, next) { return ( next === '&' ) ? sep : ''; })
+            : u;
+    };
     for (; i < len; ++i) {
         if ( docScripts[i].src && !$root.contains(docScripts[i]) ) {
-            known.push(docScripts[i].src);
+            known.push(assetKey(docScripts[i].src));
         }
     }
     for (i = 0, len = scripts.length; i < len; ++i) {
         src = scripts[i].src; // the resolved absolute URL
-        if ( !src || known.indexOf(src) > -1 ) continue;
+        if ( !src || known.indexOf(assetKey(src)) > -1 ) continue;
         $s     = document.createElement('script');
         $s.src = src;
         document.head.appendChild($s);
-        known.push(src);
+        known.push(assetKey(src));
         out.scripts++;
     }
 

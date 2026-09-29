@@ -670,12 +670,24 @@ function getDependencies(gina, cb) {
     var _webroot = (typeof window !== 'undefined' && window.__ginaWebroot)
         || (gina && gina.config && gina.config.webroot)
         || '/';
+    // #P48 — the routing table's content token, rendered per request on gina's own script tag
+    // (`data-gina-routing-v`); the server answers `immutable` only to the token of the table
+    // variant it serves. Taken only when it is exactly 10 hex: an absent attribute (versioning
+    // off, dev, a layoutless page) keeps today's revalidating fetch.
+    var _routingV = null;
+    try {
+        var _routingTag  = ( typeof(document) != 'undefined' ) ? document.querySelector('script[data-gina-routing-v]') : null;
+        var _routingAttr = ( _routingTag ) ? _routingTag.getAttribute('data-gina-routing-v') : null;
+        _routingV = ( typeof(_routingAttr) == 'string' && /^[0-9a-f]{10}$/.test(_routingAttr) ) ? _routingAttr : null;
+    } catch (routingVErr) {
+        _routingV = null;
+    }
     var arr = [
         // Get routing to populate `window.gina.config.routing`
         // Now fetching routing from gina
         {
             func: loadRoutingConf,
-            args: [ 'routing', {url:  _webroot + '_gina/assets/routing.json'} ]
+            args: [ 'routing', {url:  _webroot + '_gina/assets/routing.json' + ( _routingV ? '?v=' + _routingV : '' )} ]
         }
         // {
         //     func: loadRoutingConf,

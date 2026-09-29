@@ -2988,9 +2988,11 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/loading-state', 'lib/merge'
                 if ( typeof(scripts[i].src) == 'undefined' || scripts[i].src == '' ) {
                     continue;
                 }
+                // #P48 — keyed without gina's content token (`?v=<10 hex>`), as registered
                 let filename = scripts[i].src
                                 .replace(/(https|http|)\:\/\//, '')
-                                .replace(reDomain, '');
+                                .replace(reDomain, '')
+                                .replace(/([?&])v=[0-9a-f]{10}(&|(?=#)|$)/, function (m, sep, next) { return ( next === '&' ) ? sep : ''; });
                 // don't load if already in the global context
                 if ( globalScriptsList.indexOf(filename) > -1 )
                     continue;
@@ -3005,9 +3007,11 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/loading-state', 'lib/merge'
                 if ( typeof(styles[i].href) == 'undefined' || styles[i].href == '' ) {
                     continue;
                 }
+                // #P48 — keyed without gina's content token, as registered
                 let filename = styles[i].href
                                 .replace(/(https|http|)\:\/\//, '')
-                                .replace(reDomain, '');
+                                .replace(reDomain, '')
+                                .replace(/([?&])v=[0-9a-f]{10}(&|(?=#)|$)/, function (m, sep, next) { return ( next === '&' ) ? sep : ''; });
                 // don't load if already in the global context
                 if ( globalStylesList.indexOf(filename) > -1 )
                     continue;
@@ -3433,10 +3437,12 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/loading-state', 'lib/merge'
                 for (let s = 0, len = mainDocumentScripts.length; s < len; s++ ) {
                     if (!mainDocumentScripts[s].src || mainDocumentScripts[s].src == '')
                         continue;
-                    // Filename without domain
+                    // Filename without domain, nor gina's content token (#P48: a page's
+                    // versioned tag and a popin's plain one name the same file)
                     let filename = mainDocumentScripts[s].src
                                     .replace(/(https|http|)\:\/\//, '')
-                                    .replace(reDomain, '');
+                                    .replace(reDomain, '')
+                                    .replace(/([?&])v=[0-9a-f]{10}(&|(?=#)|$)/, function (m, sep, next) { return ( next === '&' ) ? sep : ''; });
                     $popin.parentScripts[s] = filename;
                 }
                 // Parent Styles
@@ -3444,10 +3450,11 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/loading-state', 'lib/merge'
                 for (let s = 0, len = mainDocumentStyles.length; s < len; s++ ) {
                     if ( typeof(mainDocumentStyles[s].rel) == 'undefined' || !/stylesheet/i.test(mainDocumentStyles[s].rel) )
                         continue;
-                    // Filename without domain
+                    // Filename without domain, nor gina's content token (#P48)
                     let filename = mainDocumentStyles[s].href
                                     .replace(/(https|http|)\:\/\//, '')
-                                    .replace(reDomain, '');
+                                    .replace(reDomain, '')
+                                    .replace(/([?&])v=[0-9a-f]{10}(&|(?=#)|$)/, function (m, sep, next) { return ( next === '&' ) ? sep : ''; });
                     $popin.parentStyles[s] = filename;
                 }
 

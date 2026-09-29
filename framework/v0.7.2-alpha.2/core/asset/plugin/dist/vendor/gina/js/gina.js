@@ -12372,18 +12372,27 @@ function bindRegion($root, options) {
         , i         = 0
         , len       = docScripts.length
     ;
+    // #P48 — compare without gina's content token (`?v=<10 hex>`): a page's versioned tag and
+    // a fragment's plain one (or two tokens) name the same script, which must not run twice.
+    // An author's own `v=` (not 10 hex) stays significant. A local, so the function stays
+    // self-contained.
+    var assetKey = function (u) {
+        return ( typeof(u) == 'string' )
+            ? u.replace(/([?&])v=[0-9a-f]{10}(&|(?=#)|$)/, function (m, sep, next) { return ( next === '&' ) ? sep : ''; })
+            : u;
+    };
     for (; i < len; ++i) {
         if ( docScripts[i].src && !$root.contains(docScripts[i]) ) {
-            known.push(docScripts[i].src);
+            known.push(assetKey(docScripts[i].src));
         }
     }
     for (i = 0, len = scripts.length; i < len; ++i) {
         src = scripts[i].src; // the resolved absolute URL
-        if ( !src || known.indexOf(src) > -1 ) continue;
+        if ( !src || known.indexOf(assetKey(src)) > -1 ) continue;
         $s     = document.createElement('script');
         $s.src = src;
         document.head.appendChild($s);
-        known.push(src);
+        known.push(assetKey(src));
         out.scripts++;
     }
 
@@ -29170,9 +29179,11 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/loading-state', 'lib/merge'
                 if ( typeof(scripts[i].src) == 'undefined' || scripts[i].src == '' ) {
                     continue;
                 }
+                // #P48 — keyed without gina's content token (`?v=<10 hex>`), as registered
                 let filename = scripts[i].src
                                 .replace(/(https|http|)\:\/\//, '')
-                                .replace(reDomain, '');
+                                .replace(reDomain, '')
+                                .replace(/([?&])v=[0-9a-f]{10}(&|(?=#)|$)/, function (m, sep, next) { return ( next === '&' ) ? sep : ''; });
                 // don't load if already in the global context
                 if ( globalScriptsList.indexOf(filename) > -1 )
                     continue;
@@ -29187,9 +29198,11 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/loading-state', 'lib/merge'
                 if ( typeof(styles[i].href) == 'undefined' || styles[i].href == '' ) {
                     continue;
                 }
+                // #P48 — keyed without gina's content token, as registered
                 let filename = styles[i].href
                                 .replace(/(https|http|)\:\/\//, '')
-                                .replace(reDomain, '');
+                                .replace(reDomain, '')
+                                .replace(/([?&])v=[0-9a-f]{10}(&|(?=#)|$)/, function (m, sep, next) { return ( next === '&' ) ? sep : ''; });
                 // don't load if already in the global context
                 if ( globalStylesList.indexOf(filename) > -1 )
                     continue;
@@ -29615,10 +29628,12 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/loading-state', 'lib/merge'
                 for (let s = 0, len = mainDocumentScripts.length; s < len; s++ ) {
                     if (!mainDocumentScripts[s].src || mainDocumentScripts[s].src == '')
                         continue;
-                    // Filename without domain
+                    // Filename without domain, nor gina's content token (#P48: a page's
+                    // versioned tag and a popin's plain one name the same file)
                     let filename = mainDocumentScripts[s].src
                                     .replace(/(https|http|)\:\/\//, '')
-                                    .replace(reDomain, '');
+                                    .replace(reDomain, '')
+                                    .replace(/([?&])v=[0-9a-f]{10}(&|(?=#)|$)/, function (m, sep, next) { return ( next === '&' ) ? sep : ''; });
                     $popin.parentScripts[s] = filename;
                 }
                 // Parent Styles
@@ -29626,10 +29641,11 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/loading-state', 'lib/merge'
                 for (let s = 0, len = mainDocumentStyles.length; s < len; s++ ) {
                     if ( typeof(mainDocumentStyles[s].rel) == 'undefined' || !/stylesheet/i.test(mainDocumentStyles[s].rel) )
                         continue;
-                    // Filename without domain
+                    // Filename without domain, nor gina's content token (#P48)
                     let filename = mainDocumentStyles[s].href
                                     .replace(/(https|http|)\:\/\//, '')
-                                    .replace(reDomain, '');
+                                    .replace(reDomain, '')
+                                    .replace(/([?&])v=[0-9a-f]{10}(&|(?=#)|$)/, function (m, sep, next) { return ( next === '&' ) ? sep : ''; });
                     $popin.parentStyles[s] = filename;
                 }
 
@@ -33498,12 +33514,24 @@ function getDependencies(gina, cb) {
     var _webroot = (typeof window !== 'undefined' && window.__ginaWebroot)
         || (gina && gina.config && gina.config.webroot)
         || '/';
+    // #P48 — the routing table's content token, rendered per request on gina's own script tag
+    // (`data-gina-routing-v`); the server answers `immutable` only to the token of the table
+    // variant it serves. Taken only when it is exactly 10 hex: an absent attribute (versioning
+    // off, dev, a layoutless page) keeps today's revalidating fetch.
+    var _routingV = null;
+    try {
+        var _routingTag  = ( typeof(document) != 'undefined' ) ? document.querySelector('script[data-gina-routing-v]') : null;
+        var _routingAttr = ( _routingTag ) ? _routingTag.getAttribute('data-gina-routing-v') : null;
+        _routingV = ( typeof(_routingAttr) == 'string' && /^[0-9a-f]{10}$/.test(_routingAttr) ) ? _routingAttr : null;
+    } catch (routingVErr) {
+        _routingV = null;
+    }
     var arr = [
         // Get routing to populate `window.gina.config.routing`
         // Now fetching routing from gina
         {
             func: loadRoutingConf,
-            args: [ 'routing', {url:  _webroot + '_gina/assets/routing.json'} ]
+            args: [ 'routing', {url:  _webroot + '_gina/assets/routing.json' + ( _routingV ? '?v=' + _routingV : '' )} ]
         }
         // {
         //     func: loadRoutingConf,
