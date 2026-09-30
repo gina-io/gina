@@ -119,9 +119,9 @@ describe('server-release-watch §03 — /_gina/release/* endpoints (both engines
         });
 
         it('03.02 — ' + name + ': methods — status GET, rebuild POST, events GET', function() {
-            var statusIdx  = blk.indexOf('release\\/status$');
+            var statusIdx  = blk.indexOf('release\\/status(?:\\?|$)');
             var rebuildIdx = blk.indexOf('release\\/rebuild(\\?.*)?$');
-            var eventsIdx  = blk.indexOf('release\\/events$');
+            var eventsIdx  = blk.indexOf('release\\/events(?:\\?|$)');
             assert.ok(statusIdx > -1 && rebuildIdx > -1 && eventsIdx > -1, 'all three URL regexes expected');
             assert.ok(blk.lastIndexOf("=== 'GET'", statusIdx) > -1, 'status is GET');
             var rebuildBack = blk.substring(statusIdx, rebuildIdx);
@@ -346,9 +346,9 @@ describe('server-release-watch §06 — arc review fixes (RW-F8 gauge double-cou
         var name = pair[0], blk = pair[1];
 
         it('06.03 — ' + name + ': the three release endpoint regexes are ^-anchored (no crafted-prefix SSE deadlock)', function() {
-            assert.ok(blk.indexOf('/^\\/_gina\\/release\\/status$/') > -1, 'status regex must be ^-anchored');
+            assert.ok(blk.indexOf('/^\\/_gina\\/release\\/status(?:\\?|$)/') > -1, 'status regex must be ^-anchored');
             assert.ok(blk.indexOf('/^\\/_gina\\/release\\/rebuild(\\?.*)?$/') > -1, 'rebuild regex must be ^-anchored');
-            assert.ok(blk.indexOf('/^\\/_gina\\/release\\/events$/') > -1, 'events regex must be ^-anchored');
+            assert.ok(blk.indexOf('/^\\/_gina\\/release\\/events(?:\\?|$)/') > -1, 'events regex must be ^-anchored');
         });
     });
 
@@ -359,13 +359,18 @@ describe('server-release-watch §06 — arc review fixes (RW-F8 gauge double-cou
             return /^\/_gina\//.test(url.split('?')[0]);
         }
         // the anchored endpoint matcher
-        function matchesEvents(url) { return /^\/_gina\/release\/events$/i.test(url); }
+        function matchesEvents(url) { return /^\/_gina\/release\/events(?:\?|$)/i.test(url); }
         // canonical: matches AND is excluded → no deadlock
         assert.ok(matchesEvents('/_gina/release/events'));
         assert.ok(isControlPath('/_gina/release/events'), 'canonical SSE excluded from the gauge');
+        // #B717 — a query string no longer misses the handler, and the subset property holds:
+        // isControlPath strips the query before its own ^-anchored test
+        assert.ok(matchesEvents('/_gina/release/events?x=1'), 'a query-bearing SSE URL opens the handler');
+        assert.ok(isControlPath('/_gina/release/events?x=1'), 'a query-bearing SSE is excluded from the gauge too');
         // crafted prefix: with the anchor it NO LONGER matches → falls through to
         // routing (404, fires finish) instead of opening an uncounted SSE
         assert.ok(!matchesEvents('/foo/_gina/release/events'), 'crafted-prefix URL no longer opens the SSE handler');
+        assert.ok(!matchesEvents('/foo/_gina/release/events?x=1'), 'nor with a query string');
         // subtract: the OLD unanchored matcher WOULD have matched the crafted URL
         // while isControlPath excluded neither → the deadlock this fix closes
         function matchesEventsUnanchored(url) { return /\/_gina\/release\/events$/i.test(url); }

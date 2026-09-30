@@ -139,8 +139,8 @@ describe('#B212 §02 — the engine-agnostic onRequest handler', function() {
     });
 
     it('defines a GET /_gina/assets/routing.json handler inside onInstance, after health/check', function() {
-        var healthIdx  = serverSrc.indexOf('/_gina\\/health\\/check$');
-        var handlerIdx = serverSrc.indexOf('/_gina\\/assets\\/routing\\.json$');
+        var healthIdx  = serverSrc.indexOf('/_gina\\/health\\/check(?:\\?|$)');
+        var handlerIdx = serverSrc.indexOf('/_gina\\/assets\\/routing\\.json(?:\\?|$)');
         assert.ok(healthIdx > -1,  'health/check regex anchor (control)');
         assert.ok(handlerIdx > -1, 'routing.json regex anchor not found in server.js');
         assert.ok(handlerIdx > healthIdx,
@@ -148,7 +148,7 @@ describe('#B212 §02 — the engine-agnostic onRequest handler', function() {
     });
 
     it('classifies proxied-ness per request with the #B65-twin heuristic (isaac stamp is unreachable here)', function() {
-        var handlerIdx = serverSrc.indexOf('/_gina\\/assets\\/routing\\.json$');
+        var handlerIdx = serverSrc.indexOf('/_gina\\/assets\\/routing\\.json(?:\\?|$)');
         var hostIdx    = serverSrc.indexOf("request.headers.host || request.headers[':authority']", handlerIdx);
         var xfhIdx     = serverSrc.indexOf("request.headers['x-forwarded-host']", handlerIdx);
         var optOutIdx  = serverSrc.indexOf('process.gina._proxyRequireForwarded !== true', handlerIdx);
@@ -158,7 +158,7 @@ describe('#B212 §02 — the engine-agnostic onRequest handler', function() {
     });
 
     it('serves the stripped variant to proxied clients, the full map otherwise (#B66)', function() {
-        var handlerIdx  = serverSrc.indexOf('/_gina\\/assets\\/routing\\.json$');
+        var handlerIdx  = serverSrc.indexOf('/_gina\\/assets\\/routing\\.json(?:\\?|$)');
         var strippedIdx = serverSrc.indexOf('self._clientRoutingAssets.stripped', handlerIdx);
         var fullIdx     = serverSrc.indexOf('self._clientRoutingAssets.full', handlerIdx);
         assert.ok(strippedIdx > handlerIdx, 'proxied clients get the host-stripped variant');
@@ -166,7 +166,7 @@ describe('#B212 §02 — the engine-agnostic onRequest handler', function() {
     });
 
     it('marks the proxied variant private and both variants revalidating (shared caches must not cross-serve; staleness window closed)', function() {
-        var handlerIdx = serverSrc.indexOf('/_gina\\/assets\\/routing\\.json$');
+        var handlerIdx = serverSrc.indexOf('/_gina\\/assets\\/routing\\.json(?:\\?|$)');
         var ccIdx      = serverSrc.indexOf("'private, no-cache' : 'public, no-cache'", handlerIdx);
         assert.ok(ccIdx > handlerIdx,
             'expected the #B66 private/public split with no-cache (ETag revalidation) in the handler');
@@ -174,7 +174,7 @@ describe('#B212 §02 — the engine-agnostic onRequest handler', function() {
 
     it('serves an ETag per variant and answers If-None-Match with 304 (both engines)', function() {
         var isaacSrc   = fs.readFileSync(ISAAC_PATH, 'utf8');
-        var handlerIdx = serverSrc.indexOf('/_gina\\/assets\\/routing\\.json$');
+        var handlerIdx = serverSrc.indexOf('/_gina\\/assets\\/routing\\.json(?:\\?|$)');
         // server.js side
         var etagIdx = serverSrc.indexOf("response.setHeader('etag',", handlerIdx);
         var inmIdx  = serverSrc.indexOf("request.headers['if-none-match']", handlerIdx);

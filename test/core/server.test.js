@@ -863,7 +863,7 @@ describe('MS2 — /_gina/health/check liveness (express-engine mirror + isaac pa
     before(function () {
         src      = fs.readFileSync(SOURCE, 'utf8');
         isaacSrc = fs.readFileSync(path.join(require('../fw'), 'core/server.isaac.js'), 'utf8');
-        healthAt  = src.indexOf('_gina\\/health\\/check$');
+        healthAt  = src.indexOf('_gina\\/health\\/check(?:\\?|$)');
         metricsAt = src.indexOf('_gina\\/metrics$');
         // Bound the handler block to CODE only — from its own `if (` (below the
         // doc comment) up to the /_gina/metrics regex — so the idiom / gating
@@ -875,10 +875,14 @@ describe('MS2 — /_gina/health/check liveness (express-engine mirror + isaac pa
 
     // ── source-structure pins (express-engine handler wiring) ───────────────
 
-    it('defines a GET /_gina/health/check handler ordered before /_gina/metrics', function () {
+    it('defines a GET/HEAD /_gina/health/check handler ordered before /_gina/metrics', function () {
         assert.ok(healthAt > -1, '/_gina/health/check regex anchor not found in server.js');
         assert.ok(metricsAt > healthAt, 'the ungated liveness handler must precede /_gina/metrics');
-        assert.ok(/method\.toUpperCase\(\) === 'GET'/.test(healthBlk), 'must gate on GET');
+        // #B718 — the method is read from the request just above the gate, which admits GET or HEAD
+        var gateAt = src.lastIndexOf('var _healthMethod = request.method.toUpperCase();', healthAt);
+        assert.ok(gateAt > -1, 'the method must be read from the request above the gate');
+        assert.ok(/^var _healthMethod = request\.method\.toUpperCase\(\);\s*if \(\s*\( _healthMethod === 'GET' \|\| _healthMethod === 'HEAD' \)/.test(src.slice(gateAt, healthAt)),
+            'must gate on GET or HEAD');
     });
 
     it('returns 200 {status:"healthy", timestamp:<ISO>}', function () {
@@ -901,7 +905,7 @@ describe('MS2 — /_gina/health/check liveness (express-engine mirror + isaac pa
     });
 
     it('parity: the isaac engine still serves the same health endpoint (not dropped from either engine)', function () {
-        var iAt = isaacSrc.indexOf('_gina\\/health\\/check$');
+        var iAt = isaacSrc.indexOf('_gina\\/health\\/check(?:\\?|$)');
         assert.ok(iAt > -1, 'isaac must still match /_gina/health/check');
         assert.ok(/status:\s*['"]healthy['"]/.test(isaacSrc.slice(iAt, iAt + 400)),
             'isaac health handler must still return status:"healthy"');
@@ -910,8 +914,10 @@ describe('MS2 — /_gina/health/check liveness (express-engine mirror + isaac pa
     // ── pure-logic replica of the method+regex gate and JSON body ────────────
     // The regex is the exact one in server.js; no live server needed.
     function healthResponse(method, url) {
-        if (String(method).toUpperCase() === 'GET' && /\/_gina\/health\/check$/i.test(url)) {
-            return { status: 200, body: { status: 'healthy', timestamp: new Date().toISOString() } };
+        var m = String(method).toUpperCase();
+        if ((m === 'GET' || m === 'HEAD') && /\/_gina\/health\/check(?:\?|$)/i.test(url)) {
+            // #B718 — HEAD: the same status and headers, no body
+            return { status: 200, body: (m === 'HEAD') ? null : { status: 'healthy', timestamp: new Date().toISOString() } };
         }
         return null; // falls through to the next handler / router
     }
@@ -929,9 +935,21 @@ describe('MS2 — /_gina/health/check liveness (express-engine mirror + isaac pa
         assert.ok(healthResponse('GET', '/some/webroot/_gina/health/check'), 'end-anchored: a path prefix still matches');
     });
 
-    it('replica: non-GET or a different path does not match', function () {
+    it('replica: a query string and HEAD match (#B717, #B718)', function () {
+        var q = healthResponse('GET', '/_gina/health/check?probe=1');
+        assert.ok(q, 'a query string must not miss the handler');
+        assert.equal(q.status, 200);
+        assert.equal(q.body.status, 'healthy');
+        var h = healthResponse('HEAD', '/_gina/health/check');
+        assert.ok(h, 'HEAD must match');
+        assert.equal(h.status, 200);
+        assert.equal(h.body, null, 'HEAD answers no body');
+    });
+
+    it('replica: non-GET/HEAD or a different path does not match', function () {
         assert.equal(healthResponse('POST', '/_gina/health/check'), null, 'POST must not match');
-        assert.equal(healthResponse('GET',  '/_gina/health/checkup'), null, 'must anchor at end ($)');
+        assert.equal(healthResponse('GET',  '/_gina/health/checkup'), null, 'must anchor at end or query ((?:\\?|$))');
+        assert.equal(healthResponse('GET',  '/_gina/health/check/x'), null, 'a longer path must not match');
         assert.equal(healthResponse('GET',  '/_gina/health'), null, 'partial path must not match');
     });
 

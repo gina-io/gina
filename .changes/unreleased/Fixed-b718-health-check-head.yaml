@@ -1,0 +1,3 @@
+kind: Fixed
+body: '`/_gina/health/check` answers `HEAD` on both engines: the `200` and the headers a `GET` gets, plus `content-length`, and no body. It answered `GET` only, so a `HEAD` probe, which some load balancers and monitors send, fell through to routing: a 404, or the maintenance 503 during a window. Pickup: restart the bundle; nothing to re-bake (#B718)'
+time: 2026-09-30T16:42:30+01:00

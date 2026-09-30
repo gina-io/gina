@@ -4498,23 +4498,34 @@ function Server(options) {
             var _ginaCtlPath = lib.admin.controlPath(request.originalUrl || request.url, self.conf[self.appName][self.env].server.webroot);
 
             // ── /_gina/health/check — liveness probe (always-on, UNGATED) ───────────────
-            // (MS2) Engine-agnostic mirror of the Isaac handler (server.isaac.js ~:1105).
-            // GET only, returns {status:"healthy", timestamp}. Deliberately UNGATED — no
-            // dev gate and no admin/metrics IP allowlist: it exposes no process state, and
-            // liveness probes (kubelet, Docker HEALTHCHECK, LB) originate off-loopback, so
-            // an allowlist would defeat the endpoint's purpose. Uses the express idiom
-            // (setHeader/statusCode/end), NOT the Isaac stream / _setPoweredByHeader. Kept
-            // in sync with the isaac fast-path per the /_gina/* built-in endpoint rule.
+            // (MS2) Engine-agnostic mirror of the Isaac handler (server.isaac.js, the
+            // `_healthMethod` block). GET or HEAD, returns {status:"healthy", timestamp}.
+            // Deliberately UNGATED — no dev gate and no admin/metrics IP allowlist: it
+            // exposes no process state, and liveness probes (kubelet, Docker HEALTHCHECK,
+            // LB) originate off-loopback, so an allowlist would defeat the endpoint's
+            // purpose. Uses the express idiom (setHeader/statusCode/end), NOT the Isaac
+            // stream / _setPoweredByHeader. Kept in sync with the isaac fast-path per the
+            // /_gina/* built-in endpoint rule.
+            // #B717 — a query string no longer misses the handler (`(?:\?|$)`, the idiom of the
+            // instrument and agent handlers): on express request.url still carries it here.
+            // #B718 — HEAD is answered too (a load balancer may probe with HEAD): the same
+            // status and headers plus content-length, no body.
+            var _healthMethod = request.method.toUpperCase();
             if (
-                request.method.toUpperCase() === 'GET'
-                && /\/_gina\/health\/check$/i.test(request.url)
+                ( _healthMethod === 'GET' || _healthMethod === 'HEAD' )
+                && /\/_gina\/health\/check(?:\?|$)/i.test(request.url)
             ) {
+                var _healthBody = JSON.stringify({ status: 'healthy', timestamp: new Date().toISOString() });
                 response.setHeader('content-type',  'application/json; charset=utf8');
                 response.setHeader('cache-control', 'no-cache, no-store, must-revalidate');
                 response.setHeader('pragma',        'no-cache');
                 response.setHeader('expires',       '0');
                 response.statusCode = 200;
-                return response.end(JSON.stringify({ status: 'healthy', timestamp: new Date().toISOString() }));
+                if ( _healthMethod === 'HEAD' ) {
+                    response.setHeader('content-length', Buffer.byteLength(_healthBody));
+                    return response.end();
+                }
+                return response.end(_healthBody);
             }
 
             // ── /_gina/assets/routing.json — client routing map (always-on, public) ─────
@@ -4529,7 +4540,9 @@ function Server(options) {
             // onInstance response, so they are inherited, not re-set.
             if (
                 request.method.toUpperCase() === 'GET'
-                && /\/_gina\/assets\/routing\.json$/i.test(request.url)
+                // #B717 — `(?:\?|$)`: a query string no longer misses the handler (on
+                // express request.url still carries it here)
+                && /\/_gina\/assets\/routing\.json(?:\?|$)/i.test(request.url)
                 && self._clientRoutingAssets
             ) {
                 // #B65-twin — per-request proxied classification (keep in sync with
@@ -4949,7 +4962,8 @@ function Server(options) {
             if (
                 lib.releaseWatch.isActive()
                 && request.method.toUpperCase() === 'GET'
-                && /^\/_gina\/release\/status$/.test(request.url)
+                // #B717 — `(?:\?|$)`: a query string no longer misses the handler
+                && /^\/_gina\/release\/status(?:\?|$)/.test(request.url)
             ) {
                 if ( !lib.admin.isClientAllowed(request) ) {
                     response.statusCode = 403;
@@ -4997,7 +5011,8 @@ function Server(options) {
             if (
                 lib.releaseWatch.isActive()
                 && request.method.toUpperCase() === 'GET'
-                && /^\/_gina\/release\/events$/.test(request.url)
+                // #B717 — `(?:\?|$)`: a query string no longer misses the handler
+                && /^\/_gina\/release\/events(?:\?|$)/.test(request.url)
             ) {
                 if ( !lib.admin.isClientAllowed(request) ) {
                     response.statusCode = 403;

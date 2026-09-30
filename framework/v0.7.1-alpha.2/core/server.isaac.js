@@ -1348,7 +1348,12 @@ function ServerEngineClass(options) {
             // TODO - add a top level API : server.api.js (check, get ...)
             // TODO - on 90% RAM usage, redirect to `come back later then restart bundle`
             // TODO - check url against wroot : getContext() ?
-            if ( request.method.toUpperCase() === 'GET' && /\_gina\/health\/check$/i.test(request.url) ) {
+            // #B717 — a query string no longer misses the handler (`(?:\?|$)`, the idiom of the
+            // instrument and agent handlers). #B718 — HEAD is answered too (a load balancer may
+            // probe with HEAD): the same status and headers, no body. Kept in sync with the
+            // core/server.js twin.
+            var _healthMethod = request.method.toUpperCase();
+            if ( ( _healthMethod === 'GET' || _healthMethod === 'HEAD' ) && /\_gina\/health\/check(?:\?|$)/i.test(request.url) ) {
 
                 const healthStatus = JSON.stringify({
                     status: "healthy",
@@ -1364,6 +1369,14 @@ function ServerEngineClass(options) {
 
                 // HTTP/2 (Multiplexing)
                 if (response.stream) {
+                    if ( _healthMethod === 'HEAD' ) {
+                        response.stream.respond({
+                            ':status': 200,
+                            ...healthHeaders,
+                            'content-length': Buffer.byteLength(healthStatus)
+                        });
+                        return response.stream.end();
+                    }
                     // On utilise le stream pour garder la session ouverte
                     response.stream.respond({
                         ':status': 200,
@@ -1373,6 +1386,11 @@ function ServerEngineClass(options) {
                 }
 
                 // Fallback HTTP/1.1
+                if ( _healthMethod === 'HEAD' ) {
+                    healthHeaders['content-length'] = Buffer.byteLength(healthStatus);
+                    response.writeHead(200, healthHeaders);
+                    return response.end();
+                }
                 response.writeHead(200, healthHeaders);
                 return response.end(healthStatus);
             }
@@ -1611,7 +1629,8 @@ function ServerEngineClass(options) {
             if (
                 lib.releaseWatch.isActive()
                 && request.method.toUpperCase() === 'GET'
-                && /^\/_gina\/release\/status$/.test(request.url)
+                // #B717 — `(?:\?|$)`: a query string no longer misses the handler
+                && /^\/_gina\/release\/status(?:\?|$)/.test(request.url)
             ) {
                 if ( !lib.admin.isClientAllowed(request) ) {
                     var _rwStatusForbiddenBody    = JSON.stringify({ error: 'forbidden', message: '/_gina/release/status: client IP not in app.json admin.allowFrom' });
@@ -1692,7 +1711,8 @@ function ServerEngineClass(options) {
             if (
                 lib.releaseWatch.isActive()
                 && request.method.toUpperCase() === 'GET'
-                && /^\/_gina\/release\/events$/.test(request.url)
+                // #B717 — `(?:\?|$)`: a query string no longer misses the handler
+                && /^\/_gina\/release\/events(?:\?|$)/.test(request.url)
             ) {
                 if ( !lib.admin.isClientAllowed(request) ) {
                     var _rwEventsForbiddenBody    = JSON.stringify({ error: 'forbidden', message: '/_gina/release/events: client IP not in app.json admin.allowFrom' });
@@ -2461,11 +2481,16 @@ function ServerEngineClass(options) {
 
 
             if (
-                request.method.toUpperCase() === 'GET' && /\_gina\/assets\/routing\.json$/i.test(request.url)
+                request.method.toUpperCase() === 'GET' && /\_gina\/assets\/routing\.json(?:\?|$)/i.test(request.url)
             ) {
                 // server.toApi(reques, response)
                 // console.debug('[ SERVER ][200] '+ request.url);
-                localAsset = assetsCollection.findOne({ file: request.url.split(/\//g).slice(-1).toString() });
+                // #B717 — a query string no longer misses the handler (`(?:\?|$)`), and the asset
+                // lookup reads the file name the test matched: the url's last segment of
+                // `routing.json?x` named no asset, and the `localAsset.mime` read below would
+                // have thrown. Not the query-free path's last segment either — the test also
+                // matches `/x?y=/_gina/assets/routing.json`, whose path names `x`.
+                localAsset = assetsCollection.findOne({ file: /\_gina\/assets\/(routing\.json)(?:\?|$)/i.exec(request.url)[1] });
                 // #B66 — on a proxied deployment serve the host-stripped routing.json so
                 // the browser never receives any bundle's INTERNAL scheme://host:port (an
                 // information disclosure) and cross-bundle client toUrl resolves
