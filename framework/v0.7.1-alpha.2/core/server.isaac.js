@@ -1729,10 +1729,11 @@ function ServerEngineClass(options) {
                     response.writeHead(403, _rwEventsForbiddenHeaders);
                     return response.end(_rwEventsForbiddenBody);
                 }
+                // #B722 — no `connection` in the shared set: HTTP/2 forbids connection-specific
+                // headers, node's respond() threw on it, and the stream never opened over h2
                 var _rwSseHeaders = _setPoweredByHeader({
                     'content-type': 'text/event-stream; charset=utf-8',
                     'cache-control': 'no-cache, no-store',
-                    'connection': 'keep-alive',
                     'x-content-type-options': 'nosniff'
                 });
                 var _rwWrite, _rwOnClose;
@@ -1742,8 +1743,8 @@ function ServerEngineClass(options) {
                     _rwWrite   = function(d) { try { response.stream.write(d); } catch(e){} };
                     _rwOnClose = function(fn) { response.stream.on('close', fn); };
                 } else {
-                    // HTTP/1.1
-                    response.writeHead(200, _rwSseHeaders);
+                    // HTTP/1.1 — `connection` is an HTTP/1 header (#B722)
+                    response.writeHead(200, { ..._rwSseHeaders, 'connection': 'keep-alive' });
                     _rwWrite   = function(d) { try { response.write(d); } catch(e){} };
                     _rwOnClose = function(fn) { request.on('close', fn); };
                 }
@@ -2069,10 +2070,11 @@ function ServerEngineClass(options) {
                 if (!process.gina._inspectorActive) process.gina._inspectorActive = true;
                 var _ansiRe = /\x1B\[\d+m/g;
 
+                // #B722 — no `connection` in the shared set: HTTP/2 forbids connection-specific
+                // headers, node's respond() threw on it, and the stream never opened over h2
                 var _sseHeaders = _setPoweredByHeader({
                     'content-type': 'text/event-stream; charset=utf-8',
                     'cache-control': 'no-cache, no-store',
-                    'connection': 'keep-alive',
                     'x-content-type-options': 'nosniff',
                     'access-control-allow-origin': '*'
                 });
@@ -2085,8 +2087,8 @@ function ServerEngineClass(options) {
                     _write   = function(d) { try { response.stream.write(d); } catch(e){} };
                     _onClose = function(fn) { response.stream.on('close', fn); };
                 } else {
-                    // HTTP/1.1
-                    response.writeHead(200, _sseHeaders);
+                    // HTTP/1.1 — `connection` is an HTTP/1 header (#B722)
+                    response.writeHead(200, { ..._sseHeaders, 'connection': 'keep-alive' });
                     _write   = function(d) { try { response.write(d); } catch(e){} };
                     _onClose = function(fn) { request.on('close', fn); };
                 }
@@ -2154,10 +2156,10 @@ function ServerEngineClass(options) {
                 if (!process.gina._inspectorActive) process.gina._inspectorActive = true;
                 var _agAnsiRe = /\x1B\[\d+m/g;
 
+                // #B722 — no `connection` in the shared set (see the /_gina/logs stream above)
                 var _agHeaders = _setPoweredByHeader({
                     'content-type': 'text/event-stream; charset=utf-8',
                     'cache-control': 'no-cache, no-store',
-                    'connection': 'keep-alive',
                     'access-control-allow-origin': '*',
                     'x-content-type-options': 'nosniff'
                 });
@@ -2170,8 +2172,8 @@ function ServerEngineClass(options) {
                     _agWrite   = function(d) { try { response.stream.write(d); } catch(e){} };
                     _agOnClose = function(fn) { response.stream.on('close', fn); };
                 } else {
-                    // HTTP/1.1
-                    response.writeHead(200, _agHeaders);
+                    // HTTP/1.1 — `connection` is an HTTP/1 header (#B722)
+                    response.writeHead(200, { ..._agHeaders, 'connection': 'keep-alive' });
                     _agWrite   = function(d) { try { response.write(d); } catch(e){} };
                     _agOnClose = function(fn) { request.on('close', fn); };
                 }
