@@ -136,6 +136,9 @@ function _instrumentKeyValid(req) {
  * populated it; otherwise drains the request stream (works for HTTP/1.1
  * IncomingMessage and HTTP/2 Http2ServerRequest). A 2s timeout guards against
  * an already-consumed stream that never re-fires `end`. Calls back exactly once.
+ * Accepts Buffer and string chunks: a request whose encoding was set emits strings
+ * (core/server.js calls `request.setEncoding` for every non-multipart request), which
+ * are turned back into bytes so the cap counts bytes and the read cannot throw (#B714).
  *
  * @inner
  * @param {http.IncomingMessage|http2.Http2ServerRequest} req
@@ -160,6 +163,12 @@ function _readInstrumentBody(req, cb) {
     _timer = setTimeout(function() { _finish(new Error('body read timeout')); }, 2000);
     if (_timer && typeof _timer.unref === 'function') { _timer.unref(); }
     req.on('data', function(chunk) {
+        // #B714 — a request whose encoding was set emits strings (core/server.js onInstance
+        // calls request.setEncoding for every non-multipart request): turn a string back into
+        // bytes, so the cap counts bytes and Buffer.concat below accepts every chunk.
+        if ( typeof(chunk) == 'string' ) {
+            chunk = Buffer.from(chunk, req.readableEncoding || 'utf8');
+        }
         _size += chunk.length;
         if (_size > _MAX) {
             _finish(new Error('body too large'));
@@ -169,7 +178,14 @@ function _readInstrumentBody(req, cb) {
         _chunks.push(chunk);
     });
     req.on('end', function() {
-        var _raw = Buffer.concat(_chunks).toString('utf8').trim();
+        // #B714 — a throw here escapes as an uncaughtException and stops the bundle:
+        // answer it through the callback.
+        var _raw;
+        try {
+            _raw = Buffer.concat(_chunks).toString('utf8').trim();
+        } catch (e) {
+            return _finish(e);
+        }
         if (!_raw) return _finish(null, {});
         try { _finish(null, JSON.parse(_raw)); }
         catch (e) { _finish(new Error('invalid JSON body')); }
