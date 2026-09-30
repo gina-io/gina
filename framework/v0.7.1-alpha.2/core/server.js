@@ -4165,7 +4165,7 @@ function Server(options) {
      * name`), while a RegExp path bypasses string parsing on Express 4 AND 5,
      * measured live-dispatching `/`, `/web/` and deep paths on both majors.
      * Isaac KEEPS the string `'*'`: its request listener's dispatch gate is
-     * `path === '*' || path == request.url` (server.isaac.js:2366), so a
+     * `path === '*' || path == request.url` in server.isaac.js, so a
      * RegExp there matches NOTHING and every request hangs without a
      * response — measured, a deterministic container-boot timeout.
      *

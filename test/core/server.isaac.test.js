@@ -1091,11 +1091,22 @@ describe('08 - #S7 admin /_gina/* IP allowlist source structure', function() {
     });
 
     // ── /_gina/cache/clear (#RC — Slice 3 cross-strategy flush) ─────────────
+    // #B716 — anchored on the handler's own matcher and bounded to that handler: the first
+    // '/_gina/cache/clear' in the file is the #B384 guard's comment, and a slice from there to
+    // the jobs regex spans several handlers (release/rebuild's POST gate satisfied the POST check).
+    function cacheClearHandler() {
+        var END   = 'return response.end(cacheClearData);';
+        var at    = src.indexOf('/^\\/_gina\\/cache\\/clear$/');
+        var ifAt  = (at > -1) ? src.lastIndexOf('if (', at) : -1;
+        var endAt = (at > -1) ? src.indexOf(END, at) : -1;
+        return { at: at, blk: (ifAt > -1 && endAt > at) ? src.slice(ifAt, endAt + END.length) : '' };
+    }
+
     it('/_gina/cache/clear handler is POST-gated + admin-gated (403 on deny)', function() {
-        var clearMatch = src.indexOf('/_gina/cache/clear');
-        var jobsMatch  = src.indexOf('/_gina\\/jobs', clearMatch);
+        var handler    = cacheClearHandler();
+        var clearMatch = handler.at;
         assert.ok(clearMatch > -1, '/_gina/cache/clear regex anchor not found');
-        var blk = src.slice(clearMatch, jobsMatch > clearMatch ? jobsMatch : clearMatch + 2000);
+        var blk = handler.blk;
         assert.ok(/method\.toUpperCase\(\) === 'POST'/.test(blk),
             '/_gina/cache/clear must gate on POST (a flush is a mutation, not a safe GET)');
         assert.ok(blk.indexOf('lib.admin.isClientAllowed(request)') > -1,
@@ -1105,9 +1116,7 @@ describe('08 - #S7 admin /_gina/* IP allowlist source structure', function() {
     });
 
     it('/_gina/cache/clear flushes via renderCache scoped clear(bundle) + keeps the dual HTTP/2 + HTTP/1.1 write', function() {
-        var clearMatch = src.indexOf('/_gina/cache/clear');
-        var jobsMatch  = src.indexOf('/_gina\\/jobs', clearMatch);
-        var blk = src.slice(clearMatch, jobsMatch > clearMatch ? jobsMatch : clearMatch + 2000);
+        var blk = cacheClearHandler().blk;
         assert.ok(blk.indexOf('renderCache.from(server._cached)') > -1, 'must adopt the shared server._cached Map');
         assert.ok(/renderCache\.clear\(cacheClearBundle\)/.test(blk),
             'must call the scoped clear(bundle) on the render-cache dispatcher (never lib.Cache whole-store)');
