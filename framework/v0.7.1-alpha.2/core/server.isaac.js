@@ -1241,8 +1241,15 @@ function ServerEngineClass(options) {
             // Placed above every /_gina/* handler so current AND future ones
             // inherit the refusal. SAFE methods are untouched — the Inspector's
             // cross-origin GET/SSE channels are a documented design.
+            //
+            // #B708 — placement is not enough: the URL test must also match
+            // wherever a write handler matches. It looks for `/_gina/` anywhere
+            // in the full url, in any case, because the unanchored handlers
+            // (cache/clear, maintenance, instrument) accept a path prefix and the
+            // endpoint path at the end of the query string, and cache/clear and
+            // release/* accept any case — see the core/server.js twin.
             if (
-                /^\/_gina\//.test(request.url)
+                /\/_gina\//i.test(request.url)
                 && !lib.admin.isSafeMethod(request.method)
                 && lib.admin.isCrossOriginWrite(request)
             ) {

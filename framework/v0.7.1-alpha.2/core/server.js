@@ -4433,9 +4433,23 @@ function Server(options) {
             // issues ZERO POSTs to /_gina/*, with a firing control (23 hits on
             // /_gina/agent), so no shipped caller is broken by this.
             //
+            // #B708 — the URL test must match WHEREVER a write handler matches, or
+            // that handler escapes the guard. Several handlers test the FULL url
+            // unanchored (cache/clear, maintenance, instrument), so a path prefix
+            // (`/web/_gina/…`, `//_gina/…`) and the endpoint path at the END of the
+            // query string (`/?next=/_gina/maintenance`) both reached them, and
+            // cache/clear, storage/* and release/* match in any case
+            // (`/_GINA/storage/gc`). An anchored, case-sensitive test missed all of
+            // those. So the guard looks for `/_gina/` anywhere in the full url, in
+            // any case — a superset of every write handler on both engines, locked
+            // by test/core/admin-write-guard-b708.test.js. Cost: a cross-origin,
+            // non-safe BROWSER request to an app URL that merely contains `/_gina/`
+            // (in its query, say) is refused too; same-origin and non-browser
+            // clients are unaffected.
+            //
             // Keep in sync with the core/server.isaac.js twin.
             if (
-                /^\/_gina\//.test(request.url)
+                /\/_gina\//i.test(request.url)
                 && !lib.admin.isSafeMethod(request.method)
                 && lib.admin.isCrossOriginWrite(request)
             ) {
