@@ -1355,6 +1355,10 @@ function Server(options) {
 
             serverOpt.port      = self.conf[self.appName][self.env].server.port = portsReverse[ self.appName +'@'+ self.projectName ][self.env][serverOpt.protocol][serverOpt.scheme];
             self.conf[self.appName][self.env].server.debugPort = getContext().debugPort;
+            // #B709 — isaac matches its admin-gated /_gina/* handlers on the control
+            // path (lib.admin.controlPath), which accepts the bundle's OWN webroot
+            // form: hand it the normalised webroot (`/x/`), not the raw settings value.
+            serverOpt.webroot = options.conf[self.appName][self.env].server.webroot;
 
             // engine.io options
             if ( ioServerOpt ) {
@@ -4216,6 +4220,14 @@ function Server(options) {
             if ( typeof(request.priority) == 'undefined' ) {
                 request.priority = lib.priority.parse(request.headers['priority']);
             }
+            // #B709 — the proxy classification of a /_gina/* request, taken ONCE from
+            // its pristine headers. Under isaac the listener top has already taken it
+            // (before its h1 Host rewrite, which runs before this) and this skips; on
+            // Express this claims. The admin and metrics allowlists read it. Keep the
+            // two tops in sync.
+            if ( (request.originalUrl || request.url).indexOf('/_gina/') > -1 ) {
+                lib.admin.stampProxied(request);
+            }
             // #OBS1 slice 3 — HTTP request lifecycle hook for Prometheus metrics.
             // Engine-agnostic mirror of the server.isaac.js hook. Gated on
             // lib.metrics.isEnabled() so the listener is only wired when
@@ -4460,6 +4472,15 @@ function Server(options) {
                 return response.end(JSON.stringify({ error: 'forbidden', message: 'cross-origin write to a /_gina/* control endpoint is refused' }));
             }
 
+            // #B709 — the admin-gated handlers below (metrics, info, cache/*,
+            // maintenance) match this query-free path EXACTLY — the root form, or the
+            // bundle's own webroot form — never the raw url: a nested endpoint path,
+            // the endpoint path in a query string, another letter case or an empty
+            // leading segment reaches none of them. storage/* and release/* stay
+            // anchored on the url, case-sensitive, with no webroot form. Keep in sync
+            // with the core/server.isaac.js twin.
+            var _ginaCtlPath = lib.admin.controlPath(request.originalUrl || request.url, self.conf[self.appName][self.env].server.webroot);
+
             // ── /_gina/health/check — liveness probe (always-on, UNGATED) ───────────────
             // (MS2) Engine-agnostic mirror of the Isaac handler (server.isaac.js ~:1105).
             // GET only, returns {status:"healthy", timestamp}. Deliberately UNGATED — no
@@ -4538,7 +4559,7 @@ function Server(options) {
             // loopback). 503 when metrics.enabled is false in app.json.
             if (
                 request.method.toUpperCase() === 'GET'
-                && /\/_gina\/metrics$/.test(request.url)
+                && /^\/_gina\/metrics$/.test(_ginaCtlPath)
             ) {
                 if ( !lib.metrics.isClientAllowed(request) ) {
                     response.setHeader('content-type',  'application/json; charset=utf8');
@@ -4572,7 +4593,7 @@ function Server(options) {
             // _h2Metrics is undefined here), so it degrades to omitted under Express.
             if (
                 request.method.toUpperCase() === 'GET'
-                && /\/_gina\/info$/i.test(request.url)
+                && /^\/_gina\/info$/.test(_ginaCtlPath)
             ) {
                 response.setHeader('content-type',  'application/json; charset=utf8');
                 response.setHeader('cache-control', 'no-cache, no-store, must-revalidate');
@@ -4607,7 +4628,7 @@ function Server(options) {
             // self.instance._cached Map and returns its stats(); 403 JSON on deny.
             if (
                 request.method.toUpperCase() === 'GET'
-                && /\/_gina\/cache\/stats$/i.test(request.url)
+                && /^\/_gina\/cache\/stats$/.test(_ginaCtlPath)
             ) {
                 response.setHeader('content-type',  'application/json; charset=utf8');
                 response.setHeader('cache-control', 'no-cache, no-store, must-revalidate');
@@ -4646,7 +4667,7 @@ function Server(options) {
             // the CLI (gina cache:clear), not in-process.
             if (
                 request.method.toUpperCase() === 'POST'
-                && /\/_gina\/cache\/clear(\?.*)?$/i.test(request.url)
+                && /^\/_gina\/cache\/clear$/.test(_ginaCtlPath)
             ) {
                 response.setHeader('content-type',  'application/json; charset=utf8');
                 response.setHeader('cache-control', 'no-cache, no-store, must-revalidate');
@@ -4731,7 +4752,7 @@ function Server(options) {
             //     | {name, error} ] } — the driver's own stats() shape, verbatim.
             if (
                 request.method.toUpperCase() === 'GET'
-                && /^\/_gina\/storage\/stats(\?.*)?$/i.test(request.url)
+                && /^\/_gina\/storage\/stats(\?.*)?$/.test(request.url)
             ) {
                 response.setHeader('content-type',  'application/json; charset=utf8');
                 response.setHeader('cache-control', 'no-cache, no-store, must-revalidate');
@@ -4780,7 +4801,7 @@ function Server(options) {
             // an error — the design's "no sweep" is a strategy fact.
             if (
                 request.method.toUpperCase() === 'POST'
-                && /^\/_gina\/storage\/gc(\?.*)?$/i.test(request.url)
+                && /^\/_gina\/storage\/gc(\?.*)?$/.test(request.url)
             ) {
                 response.setHeader('content-type',  'application/json; charset=utf8');
                 response.setHeader('cache-control', 'no-cache, no-store, must-revalidate');
@@ -4857,7 +4878,7 @@ function Server(options) {
             // verify (sharded, v1) is named-and-skipped, never an error.
             if (
                 request.method.toUpperCase() === 'GET'
-                && /^\/_gina\/storage\/verify(\?.*)?$/i.test(request.url)
+                && /^\/_gina\/storage\/verify(\?.*)?$/.test(request.url)
             ) {
                 response.setHeader('content-type',  'application/json; charset=utf8');
                 response.setHeader('cache-control', 'no-cache, no-store, must-revalidate');
@@ -4912,7 +4933,7 @@ function Server(options) {
             if (
                 lib.releaseWatch.isActive()
                 && request.method.toUpperCase() === 'GET'
-                && /^\/_gina\/release\/status$/i.test(request.url)
+                && /^\/_gina\/release\/status$/.test(request.url)
             ) {
                 if ( !lib.admin.isClientAllowed(request) ) {
                     response.statusCode = 403;
@@ -4931,7 +4952,7 @@ function Server(options) {
             if (
                 lib.releaseWatch.isActive()
                 && request.method.toUpperCase() === 'POST'
-                && /^\/_gina\/release\/rebuild(\?.*)?$/i.test(request.url)
+                && /^\/_gina\/release\/rebuild(\?.*)?$/.test(request.url)
             ) {
                 if ( !lib.admin.isClientAllowed(request) ) {
                     response.statusCode = 403;
@@ -4960,7 +4981,7 @@ function Server(options) {
             if (
                 lib.releaseWatch.isActive()
                 && request.method.toUpperCase() === 'GET'
-                && /^\/_gina\/release\/events$/i.test(request.url)
+                && /^\/_gina\/release\/events$/.test(request.url)
             ) {
                 if ( !lib.admin.isClientAllowed(request) ) {
                     response.statusCode = 403;
@@ -5002,8 +5023,9 @@ function Server(options) {
             // message]} flips it. Admin IP-allowlist gated like /_gina/info and the
             // cache/storage families — NOT key-gated like /_gina/instrument, because
             // this is an operational switch rather than a data-capture toggle, and it
-            // must stay reachable from the host/pod and from the CLI (which dials the
-            // bundle port directly, so it presents as loopback under any topology).
+            // must stay reachable from the host or the pod (`curl` against the bundle
+            // port — there is no maintenance CLI command). A caller relayed by a proxy
+            // on the bundle's own host is refused (#B709, lib/admin).
             //
             // Deliberately declared ABOVE the maintenance gate itself, so an operator
             // can always reach their own off switch while the window is open.
@@ -5018,7 +5040,7 @@ function Server(options) {
             // Keep in sync with the core/server.isaac.js twin.
             if (
                 ( request.method.toUpperCase() === 'GET' || request.method.toUpperCase() === 'POST' )
-                && /\/_gina\/maintenance(?:\?|$)/.test(request.url)
+                && /^\/_gina\/maintenance$/.test(_ginaCtlPath)
             ) {
                 response.setHeader('content-type',  'application/json; charset=utf8');
                 response.setHeader('cache-control', 'no-cache, no-store, must-revalidate');

@@ -11,9 +11,11 @@
  *
  * Admin /_gina/* IP-allowlist gate (#S7). Single source of truth for the
  * access check on the admin-grade /_gina/* endpoints (`/_gina/info`,
- * `/_gina/cache/stats`). Both server engines (`server.js` and
- * `server.isaac.js`) previously carried a byte-identical copy of this
- * helper; this module is now the single source and both engines call
+ * `/_gina/cache/stats`, `/_gina/cache/clear`, `/_gina/storage/*`,
+ * `/_gina/release/*`, `/_gina/maintenance`; `/_gina/metrics` has its own list
+ * in lib/metrics, which applies the same #B709 rule). Both server engines
+ * (`server.js` and `server.isaac.js`) previously carried a byte-identical copy
+ * of this helper; this module is now the single source and both engines call
  * `lib.admin.isClientAllowed(req)`.
  *
  * The allowlist is resolved from `process.gina._adminAllowList`, which
@@ -32,9 +34,25 @@
  * `isClientAllowed` so the six admin GET endpoints keep their existing
  * semantics and the name never over-promises.
  *
- * Registered as a PLAIN `require` in `lib/index.js` (not `_require`): a
- * stateless pure-function leaf with no instance/singleton state to
- * hot-reload — same #B32-residual precedent as merge / uuid / Collection.
+ * #B709 — a loopback caller is admitted only when it connects DIRECTLY. The
+ * default list is loopback, and loopback is also the address a reverse proxy on
+ * the bundle's own host connects from, so an address-only gate admitted every
+ * client such a proxy forwarded. {@link isClientAllowed} therefore refuses a
+ * loopback caller whose request carries a proxy signal — the classifier is
+ * lib/maintenance's `isProxiedRequest`, the one the maintenance bypass list
+ * already uses, so the two gates can never disagree about what "proxied" means.
+ * The engines take that classification once per `/_gina/*` request from the
+ * pristine headers ({@link stampProxied}): isaac rewrites an h1 `Host` port-less
+ * before handing the request to `server.js`, and a live read after that rewrite
+ * would misclassify every direct call. The engines also match the family on
+ * {@link controlPath} rather than on the raw url, so a nested endpoint path, the
+ * endpoint path in a query string, another letter case or an empty leading
+ * segment never reaches a handler.
+ *
+ * Registered as a PLAIN `require` in `lib/index.js` (not `_require`): no
+ * instance/singleton state worth hot-reloading — same #B32-residual precedent as
+ * merge / uuid / Collection. Its one piece of module state is the once-per-process
+ * flag of the #B709 refusal warning; a reload only re-arms that warning.
  *
  * @example
  * // from an engine handler (lib is the framework lib registry)
@@ -45,10 +63,33 @@
  */
 
 /**
+ * The shared proxy classifier (#B709). Relative require: lib/admin is loaded by
+ * plain `require` from `lib/index.js` and directly by the tests, never through the
+ * `lib/…` bare-module path.
+ * @inner
+ */
+var maintenance = require('../../maintenance/src/main');
+
+/**
  * Default allowlist used when `admin.allowFrom` is unset — loopback only.
  * @constant {string[]}
  */
 var DEFAULT_ALLOW_LIST = ['127.0.0.1', '::1'];
+
+/**
+ * Name of the per-request stamp holding the proxy classification of a
+ * `/_gina/*` request, taken from its pristine headers (#B709).
+ * @constant {string}
+ */
+var PROXIED_STAMP = '_ginaAdminProxied';
+
+/**
+ * Which gates have already logged a relayed-loopback refusal in this process,
+ * keyed by the list they read (`admin.allowFrom`, `metrics.allowFrom`).
+ * @inner
+ * @type {Object.<string, boolean>}
+ */
+var relayedWarned = Object.create(null);
 
 /**
  * Decide whether a request's client IP is in an explicit allowlist. Inner
@@ -83,6 +124,14 @@ function _isAllowedWithList(req, list) {
  * `gna.js` from `app.json` admin.allowFrom), falling back to loopback-only
  * when the global is missing (init not yet fired — the safest default).
  *
+ * #B709 — a caller admitted by the list is still refused when it is a loopback
+ * address and its request carries a proxy signal ({@link isRelayedLoopback}): a
+ * reverse proxy on the bundle's own host connects from loopback, so without this
+ * the default list admitted every client that proxy forwarded. An explicitly
+ * listed NON-loopback address keeps admitting relayed requests — listing a proxy
+ * on another host is the documented opt-in. The first such refusal is logged
+ * once per process.
+ *
  * @param {http.IncomingMessage|http2.Http2ServerRequest} req
  * @returns {boolean} true if the client IP is allowed, false otherwise
  * @example
@@ -92,7 +141,183 @@ function isClientAllowed(req) {
     var list = (typeof process.gina === 'object' && process.gina && Array.isArray(process.gina._adminAllowList))
         ? process.gina._adminAllowList
         : DEFAULT_ALLOW_LIST;
-    return _isAllowedWithList(req, list);
+    if ( !_isAllowedWithList(req, list) ) {
+        return false;
+    }
+    if ( isRelayedLoopback(req) ) {
+        warnRelayedOnce(req, 'admin.allowFrom');
+        return false;
+    }
+    return true;
+}
+
+/**
+ * Whether an address is a loopback address: `::1`, or any address of the IPv4
+ * loopback block `127.0.0.0/8`, in its plain or IPv6-mapped (`::ffff:`) form.
+ *
+ * @inner
+ * @param {string} ip - a socket's remote address
+ * @returns {boolean}
+ * @example
+ * _isLoopbackAddress('127.0.0.1');        // true
+ * _isLoopbackAddress('::ffff:127.0.0.2'); // true
+ * _isLoopbackAddress('10.0.0.5');         // false
+ */
+function _isLoopbackAddress(ip) {
+    if ( typeof(ip) != 'string' || ip === '' ) {
+        return false;
+    }
+    if ( ip.indexOf('::ffff:') === 0 ) {
+        ip = ip.slice(7);
+    }
+    return ( ip === '::1' || /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(ip) );
+}
+
+/**
+ * Classify a request as proxied from its headers as they are NOW — lib/maintenance's
+ * `isProxiedRequest`, honouring `server.proxy.requireForwardedHeaders` (#B152). Fails
+ * toward "proxied" for a malformed request.
+ *
+ * @inner
+ * @param {object} req
+ * @returns {boolean}
+ */
+function _classifyProxied(req) {
+    var requireForwarded = ( typeof(process.gina) == 'object' && process.gina !== null
+                             && process.gina._proxyRequireForwarded === true );
+    return maintenance.isProxiedRequest(req, requireForwarded);
+}
+
+/**
+ * Take the proxy classification of a request ONCE, from its headers as they are
+ * at the call, and keep it on the request (`request._ginaAdminProxied`). The
+ * engines call it at the top of their request handling for every `/_gina/*`
+ * url, before anything rewrites a header: isaac rewrites an h1 `Host`
+ * port-less before it hands the request to `server.js`, and the port-less-Host
+ * heuristic would then read every direct caller of a `server.js`-only handler
+ * (`/_gina/storage/*`) as proxied. First-seer: a later call returns the stamp
+ * already there.
+ *
+ * @param {http.IncomingMessage|http2.Http2ServerRequest} req
+ * @returns {boolean} the stamped classification (`true` for a malformed request)
+ * @example
+ * if ( request.url.indexOf('/_gina/') > -1 ) { lib.admin.stampProxied(request); }
+ */
+function stampProxied(req) {
+    if ( typeof(req) != 'object' || req === null ) {
+        return true;
+    }
+    if ( typeof(req[PROXIED_STAMP]) != 'boolean' ) {
+        req[PROXIED_STAMP] = _classifyProxied(req);
+    }
+    return req[PROXIED_STAMP];
+}
+
+/**
+ * Whether a request is a loopback caller relayed by a proxy on this host: its
+ * socket address is loopback and it carries a proxy signal — the stamp when the
+ * engine took one ({@link stampProxied}), else a live classification (Express,
+ * tests, req-less callers). The admin and metrics gates refuse such a request.
+ *
+ * A proxy that forwards `Host` with its port and adds no forwarding header is
+ * byte-identical to a direct client and is NOT detected — the residual every IP
+ * allowlist shares; the docs say to call the bundle's port directly and to block
+ * `/_gina/` at the edge.
+ *
+ * @param {http.IncomingMessage|http2.Http2ServerRequest} req
+ * @returns {boolean}
+ * @example
+ * isRelayedLoopback({ socket: { remoteAddress: '127.0.0.1' }, headers: { host: 'example.com' } });      // true
+ * isRelayedLoopback({ socket: { remoteAddress: '127.0.0.1' }, headers: { host: '127.0.0.1:3100' } });   // false
+ * isRelayedLoopback({ socket: { remoteAddress: '10.0.0.5' }, headers: { 'x-forwarded-for': '1.2.3.4' } }); // false
+ */
+function isRelayedLoopback(req) {
+    if ( typeof(req) != 'object' || req === null ) {
+        return false;
+    }
+    var ip = (req.socket && req.socket.remoteAddress)
+          || (req.connection && req.connection.remoteAddress)
+          || '';
+    if ( !_isLoopbackAddress(ip) ) {
+        return false;
+    }
+    if ( typeof(req[PROXIED_STAMP]) == 'boolean' ) {
+        return req[PROXIED_STAMP];
+    }
+    return _classifyProxied(req);
+}
+
+/**
+ * Log the first relayed-loopback refusal of a gate, once per process — never per
+ * request, never at boot (the loopback default applies to every bundle, so a boot
+ * line about it would be noise; the refusal is the actionable moment). Names the
+ * path without its query.
+ *
+ * @param {object} req - the refused request
+ * @param {string} axis - the list the gate reads: `admin.allowFrom` or `metrics.allowFrom`
+ * @returns {void}
+ * @example
+ * if ( allowed && lib.admin.isRelayedLoopback(req) ) { lib.admin.warnRelayedOnce(req, 'metrics.allowFrom'); allowed = false; }
+ */
+function warnRelayedOnce(req, axis) {
+    if ( relayedWarned[axis] === true ) {
+        return;
+    }
+    relayedWarned[axis] = true;
+    var url = ( req && typeof(req.originalUrl) == 'string' ) ? req.originalUrl
+            : ( req && typeof(req.url) == 'string' ) ? req.url
+            : '';
+    console.warn('[admin] refused a request to `' + url.split('?')[0] + '` relayed by a proxy on this host: '
+        + '`app.json > ' + axis + '` admits a loopback caller only when it connects directly. '
+        + 'Call the bundle\'s own port from the host or the pod, or list the address of a proxy running on another host. '
+        + 'See https://gina.io/docs/reference/app#admin — logged once per process.');
+}
+
+/**
+ * Test seam: re-arm the once-per-process refusal warnings.
+ * @inner
+ * @returns {void}
+ */
+function _resetRelayedWarnings() {
+    relayedWarned = Object.create(null);
+}
+
+/**
+ * The query-free path a `/_gina/*` control endpoint is matched on (#B709): the
+ * url's path when it starts with `/_gina/`, or — for the bundle's OWN webroot —
+ * `<webroot>_gina/…` mapped to `/_gina/…`; anything else yields `''`. Case is kept,
+ * so `/_GINA/…` yields `''`; an empty leading segment (`//_gina/…`), another prefix
+ * and an absolute-form target yield `''` too. A nested endpoint path is returned
+ * whole, so an exact compare against `/_gina/<endpoint>` cannot match its tail.
+ *
+ * @param {string} url - the request url (`request.originalUrl || request.url`)
+ * @param {string} [webroot] - the bundle's webroot (`/web/`; normalised if needed)
+ * @returns {string} the control path, or `''`
+ * @example
+ * controlPath('/_gina/cache/clear?bundle=web');        // '/_gina/cache/clear'
+ * controlPath('/web/_gina/info', '/web/');             // '/_gina/info'
+ * controlPath('/zzz/_gina/info', '/web/');             // ''
+ * controlPath('/?next=/_gina/maintenance');            // ''
+ * controlPath('/_gina/health/check/_gina/maintenance'); // '/_gina/health/check/_gina/maintenance'
+ */
+function controlPath(url, webroot) {
+    if ( typeof(url) != 'string' ) {
+        return '';
+    }
+    var p = url.split('?')[0];
+    if ( p.indexOf('/_gina/') === 0 ) {
+        return p;
+    }
+    if ( typeof(webroot) == 'string' && webroot !== '' && webroot !== '/' ) {
+        var w = ( webroot.charAt(0) === '/' ) ? webroot : '/' + webroot;
+        if ( w.charAt(w.length - 1) !== '/' ) {
+            w += '/';
+        }
+        if ( p.indexOf(w + '_gina/') === 0 ) {
+            return p.slice(w.length - 1);
+        }
+    }
+    return '';
 }
 
 /**
@@ -166,8 +391,11 @@ function isSafeMethod(method) {
  * legitimate same-origin write from a pre-Fetch-Metadata browser. Modern
  * browsers are unaffected (signal 1 never consults `Host`), and these
  * endpoints are IP-gated on `req.socket.remoteAddress`, which behind a proxy
- * is the PROXY's address — so the deployment must already have opted in by
- * listing it.
+ * is the PROXY's address: a proxy on another host must be listed explicitly,
+ * and a proxy on the bundle's own host (loopback) is refused whenever its
+ * request carries a proxy signal (#B709 — before that fix the default
+ * loopback list admitted it, so this "must have opted in" premise was false
+ * for exactly that deployment).
  *
  * @param {http.IncomingMessage|http2.Http2ServerRequest} req
  * @returns {boolean} true when the request is a browser-driven cross-origin
@@ -208,10 +436,16 @@ function isCrossOriginWrite(req) {
 }
 
 module.exports = {
-    isClientAllowed    : isClientAllowed,
-    isCrossOriginWrite : isCrossOriginWrite,
-    isSafeMethod       : isSafeMethod,
-    _isAllowedWithList : _isAllowedWithList,
-    DEFAULT_ALLOW_LIST : DEFAULT_ALLOW_LIST,
-    SAFE_HTTP_METHODS  : SAFE_HTTP_METHODS
+    isClientAllowed       : isClientAllowed,
+    isCrossOriginWrite    : isCrossOriginWrite,
+    isSafeMethod          : isSafeMethod,
+    isRelayedLoopback     : isRelayedLoopback,
+    stampProxied          : stampProxied,
+    controlPath           : controlPath,
+    warnRelayedOnce       : warnRelayedOnce,
+    _isAllowedWithList    : _isAllowedWithList,
+    _resetRelayedWarnings : _resetRelayedWarnings,
+    DEFAULT_ALLOW_LIST    : DEFAULT_ALLOW_LIST,
+    SAFE_HTTP_METHODS     : SAFE_HTTP_METHODS,
+    PROXIED_STAMP         : PROXIED_STAMP
 };

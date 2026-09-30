@@ -346,9 +346,9 @@ describe('server-release-watch §06 — arc review fixes (RW-F8 gauge double-cou
         var name = pair[0], blk = pair[1];
 
         it('06.03 — ' + name + ': the three release endpoint regexes are ^-anchored (no crafted-prefix SSE deadlock)', function() {
-            assert.ok(blk.indexOf('/^\\/_gina\\/release\\/status$/i') > -1, 'status regex must be ^-anchored');
-            assert.ok(blk.indexOf('/^\\/_gina\\/release\\/rebuild(\\?.*)?$/i') > -1, 'rebuild regex must be ^-anchored');
-            assert.ok(blk.indexOf('/^\\/_gina\\/release\\/events$/i') > -1, 'events regex must be ^-anchored');
+            assert.ok(blk.indexOf('/^\\/_gina\\/release\\/status$/') > -1, 'status regex must be ^-anchored');
+            assert.ok(blk.indexOf('/^\\/_gina\\/release\\/rebuild(\\?.*)?$/') > -1, 'rebuild regex must be ^-anchored');
+            assert.ok(blk.indexOf('/^\\/_gina\\/release\\/events$/') > -1, 'events regex must be ^-anchored');
         });
     });
 

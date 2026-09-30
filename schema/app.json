@@ -52,7 +52,7 @@
         },
         "allowFrom": {
           "type": "array",
-          "description": "IP allowlist for the metrics endpoint. Requests from any other source receive 403. Defaults to localhost only.",
+          "description": "IP allowlist for the metrics endpoint. Requests from any other source receive 403. Defaults to localhost only. Since 0.7.1 a loopback entry admits a scrape only when it connects directly — one relayed by a reverse proxy on the bundle's own host is refused, the same rule as `admin.allowFrom`.",
           "items": { "type": "string" },
           "default": ["127.0.0.1", "::1"]
         },
@@ -70,12 +70,12 @@
     },
     "admin": {
       "type": "object",
-      "description": "Admin-grade /_gina/* endpoint access control. Gates /_gina/info and /_gina/cache/stats on a per-bundle IP allowlist. Same shape as `metrics.allowFrom` but a separate axis — admin endpoints expose process state (memory, uptime, HTTP/2 session counters, cache contents) and are scope-separately from Prometheus scrapes.",
+      "description": "Admin-grade /_gina/* endpoint access control. Gates /_gina/info, /_gina/cache/stats, /_gina/cache/clear, /_gina/storage/*, /_gina/release/* and /_gina/maintenance on a per-bundle IP allowlist. Same shape as `metrics.allowFrom` but a separate axis — admin endpoints expose process state (memory, uptime, HTTP/2 session counters, cache contents) and are scope-separately from Prometheus scrapes.",
       "additionalProperties": false,
       "properties": {
         "allowFrom": {
           "type": "array",
-          "description": "IP allowlist for admin /_gina/* endpoints (/_gina/info, /_gina/cache/stats). Requests from any other source receive 403. Defaults to localhost only (127.0.0.1, ::1). Empty array `[]` denies everyone — explicit lockdown choice. Reads from req.socket.remoteAddress only — X-Forwarded-For is NOT trusted because reverse proxies could spoof it.",
+          "description": "IP allowlist for admin /_gina/* endpoints (/_gina/info, /_gina/cache/*, /_gina/storage/*, /_gina/release/*, /_gina/maintenance). Requests from any other source receive 403. Defaults to localhost only (127.0.0.1, ::1). Empty array `[]` denies everyone — explicit lockdown choice. Reads from req.socket.remoteAddress only — X-Forwarded-For is NOT trusted because reverse proxies could spoof it. Since 0.7.1 a loopback entry admits a caller only when it connects directly: a request from 127.0.0.1 or ::1 that carries a proxy signal (an X-Forwarded-* or Forwarded header, or a port-less Host unless server.proxy.requireForwardedHeaders is true) comes from a reverse proxy on the bundle's own host and is refused. List the address of a proxy running on another host to admit what it relays.",
           "items": { "type": "string" },
           "default": ["127.0.0.1", "::1"]
         }

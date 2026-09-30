@@ -37,6 +37,15 @@
 'use strict';
 
 /**
+ * The admin gate's relayed-loopback rule (#B709), shared so the two IP
+ * allowlists refuse the same requests. Relative require: this file is loaded
+ * directly by its tests, without the `lib/…` bare-module path.
+ *
+ * @inner
+ */
+var admin = require('../../admin/src/main');
+
+/**
  * Cached `prom-client` module reference. Populated on first successful
  * {@link start} call.
  *
@@ -214,6 +223,13 @@ function start(opts) {
  * Normalises IPv6-mapped IPv4 form (`::ffff:127.0.0.1`) so an entry of
  * `'127.0.0.1'` matches both `'127.0.0.1'` and `'::ffff:127.0.0.1'`.
  *
+ * #B709 — a listed loopback caller is refused when its request carries a
+ * proxy signal (`lib.admin.isRelayedLoopback`): a reverse proxy on the
+ * bundle's own host connects from loopback, so the default list would admit
+ * every client that proxy forwarded. A listed NON-loopback address (a remote
+ * scraper, or a proxy on another host) keeps admitting relayed requests. The
+ * first such refusal is logged once per process.
+ *
  * Returns `false` before {@link start}, when the allowlist is empty,
  * and when no client IP can be determined.
  *
@@ -245,16 +261,24 @@ function isClientAllowed(req) {
 
     var normalized = ip.replace(/^::ffff:/i, '');
 
+    var listed = false;
     for (var i = 0; i < list.length; i++) {
         var entry = list[i];
-        if (entry === ip)         return true;
-        if (entry === normalized) return true;
-        // Allow listed IPv4 to match the IPv6-mapped form.
-        if (/^\d+\.\d+\.\d+\.\d+$/.test(entry) && '::ffff:' + entry === ip) {
-            return true;
+        if (entry === ip || entry === normalized
+                // Allow listed IPv4 to match the IPv6-mapped form.
+                || ( /^\d+\.\d+\.\d+\.\d+$/.test(entry) && '::ffff:' + entry === ip )) {
+            listed = true;
+            break;
         }
     }
-    return false;
+    if (!listed) {
+        return false;
+    }
+    if (admin.isRelayedLoopback(req)) {
+        admin.warnRelayedOnce(req, 'metrics.allowFrom');
+        return false;
+    }
+    return true;
 }
 
 /**

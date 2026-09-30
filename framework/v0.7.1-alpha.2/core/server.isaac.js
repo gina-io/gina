@@ -1178,6 +1178,14 @@ function ServerEngineClass(options) {
             if ( typeof(request.priority) == 'undefined' ) {
                 request.priority = lib.priority.parse(request.headers['priority']);
             }
+            // #B709 — the proxy classification of a /_gina/* request, taken ONCE from
+            // its pristine headers: the h1 Host rewrite further down would make every
+            // direct caller of a server.js-only handler (storage/*) look proxied. The
+            // admin and metrics allowlists read it. First-seer; server.js's onInstance
+            // top fills it when absent (Express). Keep the two tops in sync.
+            if ( request.url.indexOf('/_gina/') > -1 ) {
+                lib.admin.stampProxied(request);
+            }
             // #OBS1 slice 3 — HTTP request lifecycle hook for Prometheus metrics.
             // Gated on lib.metrics.isEnabled() so the listener is only wired when
             // app.json metrics.enabled is true. Records on response 'finish' (fires
@@ -1279,6 +1287,14 @@ function ServerEngineClass(options) {
                 return response.end(xOrgBody);
             }
 
+            // #B709 — the admin-gated handlers below (metrics, info, cache/*,
+            // maintenance) match this query-free path EXACTLY — the root form, or the
+            // bundle's own webroot form — never the raw url: a nested endpoint path,
+            // the endpoint path in a query string, another letter case or an empty
+            // leading segment reaches none of them. storage/* and release/* stay
+            // anchored on the url. See the core/server.js twin.
+            var _ginaCtlPath = lib.admin.controlPath(request.url, options.webroot);
+
             // healthcheck
             // TODO - add a top level API : server.api.js (check, get ...)
             // TODO - on 90% RAM usage, redirect to `come back later then restart bundle`
@@ -1313,7 +1329,7 @@ function ServerEngineClass(options) {
             }
 
             // /_gina/metrics — Prometheus exposition format (#OBS1, slice 2)
-            if ( request.method.toUpperCase() === 'GET' && /\/_gina\/metrics$/i.test(request.url) ) {
+            if ( request.method.toUpperCase() === 'GET' && /^\/_gina\/metrics$/.test(_ginaCtlPath) ) {
                 if ( !lib.metrics.isClientAllowed(request) ) {
                     var metricsForbiddenBody    = JSON.stringify({ error: 'forbidden', message: '/_gina/metrics: client IP not in app.json metrics.allowFrom' });
                     var metricsForbiddenHeaders = _setPoweredByHeader({
@@ -1368,7 +1384,7 @@ function ServerEngineClass(options) {
                 });
             }
 
-            if ( request.method.toUpperCase() === 'GET' && /\_gina\/info$/i.test(request.url) ) {
+            if ( request.method.toUpperCase() === 'GET' && /^\/_gina\/info$/.test(_ginaCtlPath) ) {
 
                 // #S7 — IP allowlist gate. Mirrors the metrics endpoint
                 // gate at L605-621. 403 on deny.
@@ -1429,7 +1445,7 @@ function ServerEngineClass(options) {
                 return response.end(infoStatus);
             }
 
-            if ( request.method.toUpperCase() === 'GET' && /\/_gina\/cache\/stats$/i.test(request.url) ) {
+            if ( request.method.toUpperCase() === 'GET' && /^\/_gina\/cache\/stats$/.test(_ginaCtlPath) ) {
 
                 // #S7 — IP allowlist gate. Same shape as the /_gina/info gate above.
                 if ( !lib.admin.isClientAllowed(request) ) {
@@ -1484,7 +1500,7 @@ function ServerEngineClass(options) {
             // cache.invalidateOnEvents) and takes precedence over ?bundle.
             // Current-namespace fs bodies are removed via the entries' cleanup fns;
             // old-namespace fs orphans are reclaimed by the CLI (gina cache:clear).
-            if ( request.method.toUpperCase() === 'POST' && /\/_gina\/cache\/clear(\?.*)?$/i.test(request.url) ) {
+            if ( request.method.toUpperCase() === 'POST' && /^\/_gina\/cache\/clear$/.test(_ginaCtlPath) ) {
 
                 if ( !lib.admin.isClientAllowed(request) ) {
                     var cacheClearForbiddenBody    = JSON.stringify({ error: 'forbidden', message: '/_gina/cache/clear: client IP not in app.json admin.allowFrom' });
@@ -1546,7 +1562,7 @@ function ServerEngineClass(options) {
             if (
                 lib.releaseWatch.isActive()
                 && request.method.toUpperCase() === 'GET'
-                && /^\/_gina\/release\/status$/i.test(request.url)
+                && /^\/_gina\/release\/status$/.test(request.url)
             ) {
                 if ( !lib.admin.isClientAllowed(request) ) {
                     var _rwStatusForbiddenBody    = JSON.stringify({ error: 'forbidden', message: '/_gina/release/status: client IP not in app.json admin.allowFrom' });
@@ -1580,7 +1596,7 @@ function ServerEngineClass(options) {
             if (
                 lib.releaseWatch.isActive()
                 && request.method.toUpperCase() === 'POST'
-                && /^\/_gina\/release\/rebuild(\?.*)?$/i.test(request.url)
+                && /^\/_gina\/release\/rebuild(\?.*)?$/.test(request.url)
             ) {
                 if ( !lib.admin.isClientAllowed(request) ) {
                     var _rwRebuildForbiddenBody    = JSON.stringify({ error: 'forbidden', message: '/_gina/release/rebuild: client IP not in app.json admin.allowFrom' });
@@ -1627,7 +1643,7 @@ function ServerEngineClass(options) {
             if (
                 lib.releaseWatch.isActive()
                 && request.method.toUpperCase() === 'GET'
-                && /^\/_gina\/release\/events$/i.test(request.url)
+                && /^\/_gina\/release\/events$/.test(request.url)
             ) {
                 if ( !lib.admin.isClientAllowed(request) ) {
                     var _rwEventsForbiddenBody    = JSON.stringify({ error: 'forbidden', message: '/_gina/release/events: client IP not in app.json admin.allowFrom' });
@@ -1730,7 +1746,7 @@ function ServerEngineClass(options) {
             // settings.json says is closed.
             if (
                 ( request.method.toUpperCase() === 'GET' || request.method.toUpperCase() === 'POST' )
-                && /\/_gina\/maintenance(?:\?|$)/.test(request.url)
+                && /^\/_gina\/maintenance$/.test(_ginaCtlPath)
             ) {
                 var _mtCtlHeaders = _setPoweredByHeader({
                     'cache-control': 'no-cache, no-store, must-revalidate',

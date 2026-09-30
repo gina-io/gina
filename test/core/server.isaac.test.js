@@ -1071,7 +1071,7 @@ describe('08 - #S7 admin /_gina/* IP allowlist source structure', function() {
     // handlers wire that gate (plus the gna.js + schema wiring below).
 
     it('/_gina/info handler invokes the gate before responding', function() {
-        var infoMatch = src.indexOf('\\_gina\\/info$');
+        var infoMatch = src.indexOf('\\/_gina\\/info$');
         assert.ok(infoMatch > -1, '/_gina/info regex anchor not found');
         var afterInfo = src.slice(infoMatch, infoMatch + 1200);
         assert.ok(afterInfo.indexOf('lib.admin.isClientAllowed(request)') > -1,

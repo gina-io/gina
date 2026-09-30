@@ -289,13 +289,14 @@ function lintConf(block) {
         // direct client — so listing a SHARED-EGRESS address (a proxy, LB or
         // NAT gateway) grants the bypass to everyone behind it. That is the
         // generic property of any IP allowlist rather than anything specific
-        // here (`app.json > admin.allowFrom` behaves the same way, for more
+        // here (`app.json > admin.allowFrom` has the same residual since #B709
+        // made it refuse a loopback caller carrying a proxy signal, for more
         // sensitive endpoints), but maintenance is the axis most likely to be
         // configured in a hurry during an incident — so say it out loud.
         var _loopback = ( block.allowFrom.indexOf('127.0.0.1') > -1 || block.allowFrom.indexOf('::1') > -1 );
         warnings.push('`server.maintenance.allowFrom` is set — it is honoured ONLY for requests carrying no proxy signal, and it must never list a proxy/load-balancer/NAT address (that would grant the bypass to EVERYONE behind it). Behind a reverse proxy use `bypassKey` instead.'
             + ( _loopback
-                ? ' ⚠️ It lists a LOOPBACK address, which is the single riskiest entry here: a same-host reverse proxy (the common nginx-in-front deployment) makes every visitor arrive from 127.0.0.1/::1. Unlike `admin.allowFrom`, loopback is NOT a safe default for this axis.'
+                ? ' ⚠️ It lists a LOOPBACK address, which is the single riskiest entry here: a same-host reverse proxy (the common nginx-in-front deployment) makes every visitor arrive from 127.0.0.1/::1 — a forwarding header or a port-less Host marks such a request as proxied, but a proxy that forwards Host with its port and adds no forwarding header cannot be told from a direct client. Loopback is NOT a safe default for this axis.'
                 : '' ));
     }
     if ( typeof(block.store) != 'undefined' && ( typeof(block.store) != 'string' || block.store.length === 0 ) ) {

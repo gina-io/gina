@@ -611,9 +611,9 @@ describe('09 - /_gina/storage/* endpoint pins (server.js, engine-agnostic)', fun
         assert.ok(statsAt < gcAt && gcAt < verifyAt, 'declaration order: stats, gc, verify');
         assert.ok(jobsAt > -1 && bannerAt > jobsAt, 'the family sits after the jobs handler');
         assert.ok(releaseAt > verifyAt, 'the family sits before the release-watch banner (its pins slice from that banner)');
-        assert.ok(SERVER_SRC.indexOf('/^\\/_gina\\/storage\\/stats(\\?.*)?$/i') > -1, 'stats pattern is ^-anchored');
-        assert.ok(SERVER_SRC.indexOf('/^\\/_gina\\/storage\\/gc(\\?.*)?$/i') > -1, 'gc pattern is ^-anchored');
-        assert.ok(SERVER_SRC.indexOf('/^\\/_gina\\/storage\\/verify(\\?.*)?$/i') > -1, 'verify pattern is ^-anchored');
+        assert.ok(SERVER_SRC.indexOf('/^\\/_gina\\/storage\\/stats(\\?.*)?$/') > -1, 'stats pattern is ^-anchored');
+        assert.ok(SERVER_SRC.indexOf('/^\\/_gina\\/storage\\/gc(\\?.*)?$/') > -1, 'gc pattern is ^-anchored');
+        assert.ok(SERVER_SRC.indexOf('/^\\/_gina\\/storage\\/verify(\\?.*)?$/') > -1, 'verify pattern is ^-anchored');
     });
 
     var blk = SERVER_SRC.slice(bannerAt, releaseAt);

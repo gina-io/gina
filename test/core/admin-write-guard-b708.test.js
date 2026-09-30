@@ -17,6 +17,12 @@
  * corpus of URL shapes that the guard matches every URL a write handler matches. A future
  * write handler with a looser matcher is picked up by the extraction and turns this red.
  *
+ * #B709 moved the admin-gated handlers (metrics, info, cache/*, maintenance) off the raw
+ * url onto the query-free control path, `_ginaCtlPath = lib.admin.controlPath(url, webroot)`.
+ * The extraction reads both forms, and a control-path matcher's match set is modelled as
+ * its regex applied to `lib.admin.controlPath(u, '/web/')` — the corpus's webroot. The
+ * guard still tests the full url, so the superset property is the same.
+ *
  * Seams — run the whole file against other bytes (red-first, no tree revert):
  *   GINA_B708_SERVER_SRC=<core/server.js copy>  GINA_B708_ISAAC_SRC=<core/server.isaac.js copy>
  */
@@ -26,7 +32,11 @@ var assert = require('node:assert/strict');
 var path   = require('path');
 var fs     = require('fs');
 
-var FW = require('../fw');
+var FW    = require('../fw');
+var admin = require(path.join(FW, 'lib/admin/src/main'));
+
+/** The webroot the corpus's prefixed shapes use (`/web/_gina/…`). */
+var WEBROOT = '/web/';
 
 var SOURCES = [
     { name: 'core/server.js',       file: process.env.GINA_B708_SERVER_SRC || path.join(FW, 'core/server.js'),
@@ -38,15 +48,16 @@ var SOURCES = [
 /** Methods that cannot mutate state — mirrors lib/admin SAFE_HTTP_METHODS. */
 var SAFE = { GET: true, HEAD: true, OPTIONS: true, TRACE: true };
 
-/** A regex literal applied to `request.url` with `.test(…)`, on one line. */
-var LITERAL_RE = /\/((?:\\\/|[^\/\n])+)\/([dgimsuvy]*)\.test\(request\.url\)/g;
+/** A regex literal applied with `.test(…)` to `request.url` or to the #B709 control path, on one line. */
+var LITERAL_RE = /\/((?:\\\/|[^\/\n])+)\/([dgimsuvy]*)\.test\((request\.url|_ginaCtlPath)\)/g;
 
 /**
- * Every `/_gina/` regex literal tested against `request.url`, with the full `if ( … ) {`
- * condition it sits in.
+ * Every `/_gina/` regex literal tested against `request.url` or `_ginaCtlPath`, with the
+ * full `if ( … ) {` condition it sits in, and `accepts(url)` — whether the handler matches
+ * a request whose url is `url` (a control-path matcher sees `controlPath(url, WEBROOT)`).
  *
  * @param {string} src engine source
- * @returns {Array<{index:number, source:string, flags:string, regex:RegExp, condition:string}>}
+ * @returns {Array<{index:number, source:string, flags:string, subject:string, regex:RegExp, accepts:function(string):boolean, condition:string}>}
  */
 function extractMatchers(src) {
     var out = [], m;
@@ -56,11 +67,16 @@ function extractMatchers(src) {
         var ifRe = /\bif\s*\(/g, ifAt = -1, f;
         while ( (f = ifRe.exec(src)) !== null && f.index < m.index ) { ifAt = f.index; }
         var end = src.indexOf(') {', m.index + m[0].length);
+        var regex = new RegExp(m[1], m[2]);
         out.push({
             index     : m.index,
             source    : m[1],
             flags     : m[2],
-            regex     : new RegExp(m[1], m[2]),
+            subject   : m[3],
+            regex     : regex,
+            accepts   : ( m[3] === '_ginaCtlPath' )
+                ? function (re) { return function (u) { return re.test(admin.controlPath(u, WEBROOT)); }; }(regex)
+                : function (re) { return function (u) { return re.test(u); }; }(regex),
             condition : (ifAt > -1 && end > -1) ? src.slice(ifAt, end + 3) : ''
         });
     }
@@ -158,8 +174,8 @@ SOURCES.forEach(function (engine, n) {
             it('0' + (n + 1) + '.1' + i + '  `' + ep + '` — every URL shape the handler accepts meets the guard', function () {
                 var handler = writes.filter(function (x) { return endpointOf(x.source) === ep; })[0];
                 assert.ok(handler, 'no write handler for ' + ep);
-                assert.ok(handler.regex.test('/_gina/' + ep), 'control: the handler accepts its canonical URL');
-                var escaped = corpus(ep).filter(function (u) { return handler.regex.test(u) && !guard.regex.test(u); });
+                assert.ok(handler.accepts('/_gina/' + ep), 'control: the handler accepts its canonical URL');
+                var escaped = corpus(ep).filter(function (u) { return handler.accepts(u) && !guard.regex.test(u); });
                 assert.deepEqual(escaped, [], '`' + ep + '` accepts URLs the guard (/' + guard.source + '/' + guard.flags + ') misses');
             });
         });
@@ -168,7 +184,7 @@ SOURCES.forEach(function (engine, n) {
             var extra = writes.filter(function (x) { return engine.expectWrites.indexOf(endpointOf(x.source)) < 0; });
             extra.forEach(function (x) {
                 var ep = endpointOf(x.source);
-                var escaped = corpus(ep || 'x').filter(function (u) { return x.regex.test(u) && !guard.regex.test(u); });
+                var escaped = corpus(ep || 'x').filter(function (u) { return x.accepts(u) && !guard.regex.test(u); });
                 assert.deepEqual(escaped, [], 'write handler /' + x.source + '/' + x.flags + ' accepts URLs the guard misses');
             });
         });
