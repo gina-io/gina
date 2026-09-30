@@ -1,3 +1,0 @@
-kind: Fixed
-body: '`bin/gina` no longer loses the command when a `--restart-pid` flag is passed: its filter removed the runtime path from the arguments instead of the flag, so `gina start --restart-pid=<pid>` lost its `start` task, and any other command reached the CLI shifted by one argument. The flag belonged to an internal restart handshake that nothing used any more, so its handling is removed: a typed `--restart-pid` is now passed on like any other flag. (#B689)'
-time: 2026-09-27T16:42:53+01:00

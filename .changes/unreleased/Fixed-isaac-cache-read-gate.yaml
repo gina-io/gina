@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'The built-in engine looks the output cache up only while `server.cache.enable` is on. With the cache disabled it looked every GET up anyway, two file-existence checks per request, and could serve a page left on disk by an earlier run that had caching enabled.'
-time: 2026-09-28T14:45:42+01:00

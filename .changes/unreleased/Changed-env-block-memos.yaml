@@ -1,3 +1,0 @@
-kind: Changed
-body: 'A routed request of a bundle with views no longer re-encodes the bundle''s forms catalog, re-reads the V8 heap limit or stamps the date twice. The encoded `page.environment.forms` export is kept per catalog and reused (the catalog is loaded once per bundle; a large catalog cost about 5 µs per KB on every such request, JSON routes included), the `memory allocated` label is computed once, and `page.environment.date.now` and the locale''s `date.now` now carry the same timestamp. Render data that writes into `page.forms`, which holds the shared catalog, no longer changes the forms export of later requests.'
-time: 2026-09-28T16:17:26+01:00

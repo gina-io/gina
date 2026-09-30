@@ -1,3 +1,0 @@
-kind: Changed
-body: 'A routed request no longer builds three throwaway configuration objects. Resolving the route, deciding whether the bundle has views and matching the request to a bundle each constructed a new configuration object only to read the one already loaded; they now read the loaded configuration directly once it is initialised, and the views check consults its per-bundle answer before anything else. Before initialisation, the calls run as they did.'
-time: 2026-09-28T15:53:36+01:00

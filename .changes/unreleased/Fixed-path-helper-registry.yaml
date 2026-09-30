@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'The path helper no longer records every distinct path it normalizes. Each `_()` call added the path to a list kept for the life of the process, and each `_()` call and each path object''s `toString()` searched that list, so a bundle''s memory and per-call CPU grew with the number of distinct paths it had ever seen: two per distinct request URL, query string included, through the output cache''s file paths. Nothing read the list. `toString()` and `toUnixStyle()` return exactly what they did. `toWin32Style()` now also converts a path whose trailing separator `mkdir()`, `mkdirSync()`, `rm()`, `rmSync()` or `isValidPath()` had stripped, which it used to return with forward slashes (#B703)'
-time: 2026-09-28T15:42:43+01:00

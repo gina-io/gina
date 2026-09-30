@@ -67,68 +67,52 @@ open https://localhost:3100
 
 > **npm 12+** blocks install scripts by default, and gina's post-install bootstraps `~/.gina` and the framework dependencies. Install with `npm install -g gina@latest --allow-scripts=gina`, or allow it once for all global installs with `npm config set allow-scripts=gina --location=user`. (Not needed on npm ≤ 11.)
 
-## What's in 0.7.0
+## What's in 0.7.1
 
-> **Restart your bundles *and* rebuild them.** Two changes are browser-bundled —
-> custom form validators now compile without `eval`, and the warm route cache is
-> one map — so `gina.min.js` changed and `gina bundle:restart` alone leaves the old
-> client running. Rebuild each consuming bundle, then restart.
+> **Restart your bundles *and* rebuild them — then restart the framework daemon.**
+> One change is browser-bundled (an instance of an `inherits()` class no longer
+> carries its own `prototype`), so `gina.min.js` changed and `gina bundle:restart`
+> alone leaves the old client running: rebuild each consuming bundle, then restart
+> it. The CLI's log-listener port file moved to `~/.gina/run/`, so restart the
+> framework daemon and any running `gina tail` once as well.
 
-> **A new minor version — check what carries over to `~/.gina/0.7`.** On an npm
-> install, the install writes `~/.gina/0.7/settings.json` from its template, so
-> `port`, `debug_port`, `mq_port`, `host_v4`, `bind_host`, `hostname`, `rundir`,
-> `logdir`, `tmpdir` and the log level start from their defaults: re-apply them
-> with `gina framework:set`. With Bun, a `gina-container` image or a git checkout,
-> those nine carry over from `~/.gina/0.6/settings.json` and only the log level
-> resets. Culture, timezone, default environment and scope carry over on every
-> path. A `^0.6.x` dependency range does not resolve `0.7.0` — widen it to
-> `^0.7.0`.
-
-> **Read before upgrading — some changes can change an answer.** A plain `GET`
-> no longer runs an action whose route is `DELETE`: the popin and link plugins'
-> same-origin XHR anchors keep working, but any other client must send a real
-> `DELETE`. `project:rename` refuses a registered name, `project:add` and
-> `project:import` read `--path`, `--scope` and `--env` whole, a `405` now
-> carries `Allow`, and a `HEAD` is served by every `GET` route. The scaffolded
-> Couchbase keep-alive key is `pingInterval`, not `ping` — check your
-> `connectors.json`. And plan for `0.8.0`: Swig's `autoescape` default becomes
-> `true`; a bundle that leaves it unset now says so at boot. The
+> **Read before upgrading — some changes can change an answer.** On an npm install,
+> `settings.swig.autoescape: true` now escapes Swig output as configured — check
+> your templates first. A loopback entry in `admin.allowFrom` or
+> `metrics.allowFrom` no longer admits a request a reverse proxy relays, and the
+> admin endpoints answer their exact path only. A new project or bundle name must
+> follow a naming rule, and the CLI matches names literally. The
 > [migration notes](https://gina.io/docs/migration) list every behaviour change.
 
-**The hardening and throughput release.** Seven security fixes lead it: a `GET`
-could run a route's `DELETE` action for another site; on Express 5 one body-less
-request could stop a bundle; a stack passed as an error message reached the
-client; `gina tail --follow` could re-run another local user's program; a long
-`X-Forwarded-Prefix` header could tie up an isaac bundle; a malformed frame could
-stop the framework daemon; and the browser bundle no longer carries any
-dynamic-code call. The inter-bundle throughput arc closes with a route candidate
-index and a one-map warm route cache, and `0.7.0` prepares Swig's move to escaped
-output by default in `0.8.0`. Full detail in [CHANGELOG.md](./CHANGELOG.md).
+**The security release.** Five advisories lead it: behind a reverse proxy on the
+bundle's own host, the admin `/_gina/*` endpoints and `/_gina/metrics` admitted
+every client the proxy relayed; the cross-origin write guard in front of the
+control endpoints missed three URL shapes; one `GET` of the routing table in
+another letter case stopped an isaac bundle; command output logs and the
+log-listener port file left the shared temp directory; and `autoescape: true` is
+applied on npm installs. More CLI commands stop building shell command lines, a
+routed request costs about a third less CPU, and the built-in `/_gina/*` endpoints
+answer a query string, `HEAD` and HTTP/2. Full detail in [CHANGELOG.md](./CHANGELOG.md).
 
-- **Security — a `GET` no longer runs a `DELETE` action for another site (#B662).** So that the popin and link plugins could send their anchors as a `GET`, the router served any `GET` to a `DELETE` route as a `DELETE`, for any client: a cross-site navigation carrying the visitor's session cookie could run it — on the Express engine even with the Csrf plugin adopted, and on either engine without it, since the Session plugin's default `SameSite=Lax` cookie is sent on a top-level navigation. The override is now granted only to a same-origin XHR (`X-Requested-With: XMLHttpRequest`, `Sec-Fetch-Site` of `same-origin` or `none`, no foreign `Origin`); any other `GET` answers 404, or 405 on a route whose methods include `DELETE`.
-- **Security — on Express 5, one body-less request no longer stops the bundle (#B666).** A `DELETE`, or a `POST`, `PUT` or `PATCH` without a body, on any URL and with no authentication, found `request.query` undefined, and the resulting TypeError exited the process. `request.query` is now an accessor that materialises Express's own parse on first read. Express 4 and the default isaac engine were never affected; `0.6.9` to `0.6.33` were.
-- **Security — a stack passed as an error message no longer reaches the client (#B670).** `self.throwError(res, 500, err.stack)`, or an error whose `message`, `error` or `title` holds a stack, put file paths and frames in the JSON body and on the built-in error page in every scope. Outside the local scope such a value now keeps only its first line in the response, and the full text goes to the server log line that carries the incident ref.
-- **Security — `gina tail --follow` no longer re-runs a start command from the shared tmp directory (#B676).** The command a crash restart re-runs is now saved as `~/.gina/run/<bundle>@<project>.argv` (mode 0600) and re-run only from a regular file owned by the current user that group and other cannot write; where `/tmp` is shared, another local user could create the old file first. Restart `gina tail`, then start each bundle once so its file is written in the new place.
-- **Security — a long `X-Forwarded-Prefix` header no longer ties up an isaac bundle (#B679).** The trailing-slash trim backtracked quadratically on a long run of slashes and ran before the 255-character cap, so one request with a 15 KB header cost about 100–170 ms of CPU. The cap now runs first. `0.3.10` to `0.6.33` were affected.
-- **Security — a malformed frame on the log listener no longer stops the framework daemon (#B678).** A frame on port 8125 whose `request` names an inherited object member, such as `__proto__`, threw out of the socket handler and ended the daemon, which also serves the command socket on 8124; the listener now dispatches only short identifiers to its own methods. It binds loopback by default, so only a local process could reach it. Pickup: a framework restart.
-- **Security — the browser bundle carries no dynamic-code call (#M21d).** A custom form validator is compiled by the browser as an inline script carrying the page's CSP nonce instead of through `eval` — the same `this.getValidationContext()` contract, and no `'unsafe-eval'` needed — and the two unreachable calls in the bundled RequireJS and engine.io-client are rewritten at build time. Nothing changes for a validator file that follows the reference.
-- **Added — a boot warning when Swig `autoescape` is not set; `true` becomes the default in `0.8.0` (#B359).** Rendered output does not change in `0.7.0`. Set `settings.swig.autoescape` explicitly to silence it: `false` keeps today's output; with `true`, mark HTML you trust with `| safe` — `{{ gina.csrfInput | safe }}` first, or every form POST fails CSRF. New bundles are scaffolded with `"autoescape": true`.
-- **Added — a boot warning for routing `requirements` regexes that are not anchored (#B360).** A requirement is tested as a partial match, so `"/[0-9]+/"` accepts `123abc`. Anchor each listed pattern (`"/^[0-9]+$/"`); nothing is rewritten for you, and requirements are not applied when a URL is built.
-- **Changed — routing tests only the routes whose URL could match (#P46).** A per-table candidate index skips the rules a request's URL cannot match — a late rule on a 380-rule table went from about 440 µs to about 14 µs — so a skipped rule's `validator::` requirement is no longer evaluated for that request.
-- **Changed — the warm route cache is one map and keeps only the matched rule (#P46).** A lookup and an eviction cost the same at any size, and an entry no longer keeps the first request's parameters and data — a login form's body included — for the life of the process.
-- **Changed — `self.query()` over HTTP/2 no longer adds `status: 200` (#P47).** An upstream JSON body without a `status` arrives as sent, as it always did over HTTP/1.1, with no warning per call; treat an absent `status` as success.
-- **Fixed — the first gina commands after a minor-version upgrade no longer fail (#B680, #B681).** When `bundle:start`, `bundle:restart`, `project:start`, `project:restart` or a `gina-container` boot ran first, every later command exited `1` (`reading 'split'`) until `main.json` was repaired by hand, and the first command after any minor upgrade failed once (`reading 'indexOf'`). Installs that skip npm's install scripts were exposed. CLI only.
-- **Fixed — with `autoescape: true`, Swig pages keep their CSS and JavaScript (#B690).** gina's injected `<link>` and `<script>` tags rendered as visible text; they are now injected with `| safe`, and `nl2br` keeps its line breaks. Output with escaping off is unchanged.
-- **Fixed — a `405` carries `Allow`, and a `HEAD` works on every `GET` route (#B659, #B667).** The `Allow` header lists the methods of the routes whose URL matched; a `HEAD` on a parameterised URL used to answer 404, and on a route declaring several methods 405.
-- **Fixed — a `HEAD` gives the action `req.get` (#B675).** A `GET` action reading `req.get.<param>` answered 500 on `HEAD`; `req.get` is now the same object as `req.head`.
-- **Fixed — on the Express engine, a URL carrying a query string resolves (#B668).** `GET /items?page=2` and a cache-busted static such as `/css/app.css?v=3` answered 404 on Express 4 and 5; the query is now stripped before routing and statics, as on isaac.
-- **Fixed — `env:add <env> @<project>` makes the environment ready to start (#B643).** It registered the environment but gave no bundle ports for it; it now allocates them, writes the `env.json` blocks, prints a confirmation and exits.
-- **Fixed — `project:add` and `project:import` read `--path`, `--scope` and `--env` whole (#B644).** A value holding `=` was cut at its second `=`.
-- **Fixed — `project:rename` renames to a free name and refuses a taken one (#B651).** It refused every free name, and renamed port records of any project whose name began with the old one.
-- **Fixed — six more commands exit after their work (#B653).** Started by the CLI's own path, as CI and scripts run it, `port:reset` with no project, `env:unset`, `env:set` with no key, `port:list --format=json|conf`, `connector:list` without a project and a cancelled `protocol:set` prompt never ended.
-- **Fixed — a path with a space no longer breaks the install, `port:reset` or `bundle:restart` (#B663).** The install scripts, `port:reset` and `bundle:restart` no longer run their commands through a shell, so a home directory or npm prefix with a space works, and `port:reset` no longer needs `gina` on your `PATH`.
-- **Fixed — a failed copy no longer leaves a temporary file behind, and reports a stack on Bun (#B649, #B654).**
-- **Fixed — the scaffolded Couchbase keep-alive interval is `pingInterval` (#D51).** The example named `ping`, a key the connector ignores — check your `connectors.json`.
+- **Security — the admin `/_gina/*` endpoints refuse a request relayed by a proxy on the bundle's host (#B709).** They admitted a caller by its network address alone, loopback by default, so a proxy on the same host relayed every client past `admin.allowFrom` and `metrics.allowFrom`. A loopback caller whose request carries a forwarding header or a `Host` without a port is now refused with `403`, and each endpoint answers its exact path only.
+- **Security — the cross-origin write guard covers every URL the control endpoints answer (#B708).** A leading path segment, the endpoint path at the end of a query string or another letter case slipped past it, so a page on another origin could turn maintenance mode on from an operator's allowed address.
+- **Security — a `GET` of the routing table in another letter case no longer stops an isaac bundle (#B707).** `/_gina/assets/Routing.json` found no file and the empty result's read ended the process — one unauthenticated request, before routing and every route guard. The lookup now uses the lower-cased name.
+- **Security — command output logs and the log-listener port file leave the shared temp directory (#B702, #B704).** `run()` and `Shell::run()` write each command's output to a private directory removed at close, and the port file lives in `~/.gina/run/` (mode 0600).
+- **Security — `settings.swig.autoescape: true` is applied on npm installs (#B695).** The per-request settings read failed on an npm install, so the option was silently dropped there.
+- **Security — CLI commands no longer build shell command lines, and match names literally (#B665).** Commands that start other gina commands, the framework commands and an isaac bundle's boot pass their values as arguments, and registry lookups no longer read a name as a regular expression.
+- **Changed — new project and bundle names follow a naming rule (#B665).** Letters, digits, `_`, `.` and `-`, starting with a lowercase letter, a digit, `_` or `.`; existing names keep working.
+- **Changed — less work per routed request.** Values that do not change between requests are computed once and configuration lookups reuse the loaded configuration: a routed JSON request went from about 300 µs to about 205 µs of CPU in the profiling harness. An instance of an `inherits()` class no longer carries its own `prototype`.
+- **Fixed — the built-in `/_gina/*` endpoints answer a query string and `HEAD`, and a page whose query string ends in an endpoint path gets the page (#B712, #B717, #B718).**
+- **Fixed — isaac's own event streams answer HTTP/2 clients (#B722).** `/_gina/logs`, `/_gina/agent` and `/_gina/release/events` never answered one.
+- **Fixed — maintenance mode on isaac: a listed direct client gets through on HTTP/1.1, and the storage endpoints answer during a window (#B711, #B715).**
+- **Fixed — `storage:gc --dry-run` and `--driver=` work against a running isaac bundle (#B710).** A dry run ran a real collection.
+- **Fixed — a JSON body sent to the maintenance or instrumentation toggle no longer stops an express bundle (#B714).**
+- **Fixed — a daemon-started bundle's boot warnings appear in the `bundle:start` output (#B691).**
+- **Fixed — project commands from a path with a space, `bundle:stop`'s pid file, lookups of names extending one another, and a `--restart-pid` flag (#B665, #B693, #B689).**
+- **Fixed — the Inspector and `gina inspector:open` accept a target URL with a query string (#B719).**
+- **Fixed — a bundle with templates no longer walks the call stack on every request (#B695).**
+- **Fixed — with the output cache off, isaac no longer serves a page an earlier run cached.**
+- **Fixed — the path helper no longer keeps every path it has seen (#B703).**
 
 ## Documentation
 

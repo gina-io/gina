@@ -1,3 +1,0 @@
-kind: Changed
-body: 'In production the router probes a bundle''s `controllers/setup.js` once, when the bundle first serves a request, instead of on every request; in development the per-request probe stays, because the file is re-read there when it changes. The probe cost two thrown file-system errors per request whenever the file was absent.'
-time: 2026-09-28T14:45:41+01:00
