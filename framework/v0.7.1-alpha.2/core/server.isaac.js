@@ -2580,6 +2580,11 @@ function ServerEngineClass(options) {
                     return response.end();
                 }
                 // cookie / header / allowlisted-and-not-proxied: straight through.
+                // #B711 — mark the verdict for core/server.js. Below, isaac rewrites an http/1.1
+                // `Host` without its port before handing the request over, and server.js's own
+                // gate would decide again on that rewritten `Host`, read a listed direct client as
+                // proxied and answer 503. server.js honours this mark instead of re-deciding.
+                request._ginaMaintenanceAdmitted = true;
             }
 
             // The output cache is looked up only while `server.cache.enable` is on. Every

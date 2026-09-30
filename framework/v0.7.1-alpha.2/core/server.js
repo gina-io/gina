@@ -5543,7 +5543,12 @@ function Server(options) {
             //
             // Keep in sync with the core/server.isaac.js twin.
             var _mtState = self.instance && self.instance._maintenance;
-            if ( _mtState && lib.maintenance.isActive(_mtState) ) {
+            // #B711 — a request the isaac engine's own gate already admitted is not decided again:
+            // isaac rewrites an http/1.1 `Host` without its port before handing the request here,
+            // so this gate would read a listed direct client as proxied, close the IP arm and
+            // answer 503. The mark is only ever set by isaac's gate, on a request it let through
+            // (cookie, header or allowlisted-and-not-proxied); Express never sets it.
+            if ( _mtState && request._ginaMaintenanceAdmitted !== true && lib.maintenance.isActive(_mtState) ) {
                 var _mtNow     = Date.now();
                 var _mtConf    = lib.maintenance.effectiveConf(_mtState, _mtNow);
                 var _mtVerdict = lib.maintenance.evaluateBypass(
