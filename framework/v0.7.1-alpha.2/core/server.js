@@ -4711,6 +4711,20 @@ function Server(options) {
             // safe by construction — the running process serves REPORTS, and
             // the gc sweep is the one sanctioned mutation.
             //
+            // #B710 — the query (`?driver=`, `?dryRun=`) is read from
+            // `request.originalUrl`, never `request.url`: isaac parses the query
+            // into `request.query` and then strips it from `request.url` before
+            // it hands the request to this chain (the catch-all dispatch in
+            // core/server.isaac.js), so on the default engine these handlers saw
+            // no query at all — `gc?dryRun=1` ran a REAL collection over every
+            // driver, and all three ignored `?driver=`. `originalUrl` is the full
+            // URL on both engines (isaac sets it at its listener top, Express
+            // natively); the URL tests below stay on `request.url`. Not
+            // `request.query`: isaac coerces `true`/`on` and JSON-looking values
+            // while Express parses with qs — one URLSearchParams read keeps one
+            // meaning on both. Locked by
+            // test/integration/container-boot-storage-query-b710.test.js.
+            //
             // GET /_gina/storage/stats?driver=<name>
             //   → { configured, drivers: [ {name, strategy, root, capabilities,
             //     store: {objects, refcounted, zeroRefPending, inline, bytes}|null }
@@ -4729,9 +4743,10 @@ function Server(options) {
                 }
                 var _stoStatsNames  = lib.storage.list();
                 var _stoStatsDriver = null;
-                var _stoStatsQi     = request.url.indexOf('?');
+                var _stoStatsUrl    = request.originalUrl || request.url; // #B710
+                var _stoStatsQi     = _stoStatsUrl.indexOf('?');
                 if ( _stoStatsQi > -1 ) {
-                    _stoStatsDriver = new URLSearchParams(request.url.slice(_stoStatsQi + 1)).get('driver') || null;
+                    _stoStatsDriver = new URLSearchParams(_stoStatsUrl.slice(_stoStatsQi + 1)).get('driver') || null;
                 }
                 if ( _stoStatsDriver ) {
                     if ( _stoStatsNames.indexOf(_stoStatsDriver) < 0 ) {
@@ -4778,9 +4793,10 @@ function Server(options) {
                 var _stoGcNames  = lib.storage.list();
                 var _stoGcDriver = null;
                 var _stoGcDry    = false;
-                var _stoGcQi     = request.url.indexOf('?');
+                var _stoGcUrl    = request.originalUrl || request.url; // #B710
+                var _stoGcQi     = _stoGcUrl.indexOf('?');
                 if ( _stoGcQi > -1 ) {
-                    var _stoGcQs = new URLSearchParams(request.url.slice(_stoGcQi + 1));
+                    var _stoGcQs = new URLSearchParams(_stoGcUrl.slice(_stoGcQi + 1));
                     _stoGcDriver = _stoGcQs.get('driver') || null;
                     _stoGcDry    = ( _stoGcQs.get('dryRun') === '1' || _stoGcQs.get('dryRun') === 'true' );
                 }
@@ -4853,9 +4869,10 @@ function Server(options) {
                 }
                 var _stoVerNames  = lib.storage.list();
                 var _stoVerDriver = null;
-                var _stoVerQi     = request.url.indexOf('?');
+                var _stoVerUrl    = request.originalUrl || request.url; // #B710
+                var _stoVerQi     = _stoVerUrl.indexOf('?');
                 if ( _stoVerQi > -1 ) {
-                    _stoVerDriver = new URLSearchParams(request.url.slice(_stoVerQi + 1)).get('driver') || null;
+                    _stoVerDriver = new URLSearchParams(_stoVerUrl.slice(_stoVerQi + 1)).get('driver') || null;
                 }
                 if ( _stoVerDriver ) {
                     if ( _stoVerNames.indexOf(_stoVerDriver) < 0 ) {
