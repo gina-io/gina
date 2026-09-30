@@ -2503,7 +2503,10 @@ function ServerEngineClass(options) {
                 // `routing.json?x` named no asset, and the `localAsset.mime` read below would
                 // have thrown. Not the query-free path's last segment either — the test also
                 // matches `/x?y=/_gina/assets/routing.json`, whose path names `x`.
-                localAsset = assetsCollection.findOne({ file: /\_gina\/assets\/(routing\.json)(?:\?|$)/i.exec(request.url)[1] });
+                // #B707 — the name is lower-cased: the test is case-insensitive while `findOne`
+                // compares strictly, so `Routing.json` named no asset and the `localAsset.mime`
+                // read below threw — an uncaughtException that ended the process.
+                localAsset = assetsCollection.findOne({ file: /\_gina\/assets\/(routing\.json)(?:\?|$)/i.exec(request.url)[1].toLowerCase() });
                 // #B66 — on a proxied deployment serve the host-stripped routing.json so
                 // the browser never receives any bundle's INTERNAL scheme://host:port (an
                 // information disclosure) and cross-bundle client toUrl resolves
