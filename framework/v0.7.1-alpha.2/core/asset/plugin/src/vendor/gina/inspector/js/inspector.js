@@ -2371,10 +2371,26 @@
     }
 
     /**
+     * #B719 — Reduce a `?target=` value to the origin + path the Inspector
+     * appends `/_gina/…` to: drop a query string or a fragment, then trailing
+     * slashes. A pasted page URL (`http://host/page?x=1`) otherwise built
+     * `http://host/page?x=1/_gina/agent`, which puts the endpoint path in the
+     * query string.
+     *
+     * @inner
+     * @param {?string} raw - The `?target=` value (null when absent)
+     * @returns {string} The normalised target, or '' when nothing is left
+     */
+    function normaliseTarget(raw) {
+        return String(raw || '').replace(/[?#].*$/, '').replace(/\/+$/, '');
+    }
+
+    /**
      * Resolve the base URL prefix for a per-bundle `/_gina/*` endpoint.
      *
      * Three-fallback resolver (the same logic `toggleReveal()` uses): (1) a
-     * `?target=` query param (standalone mode), (2) the opener's pathname
+     * `?target=` query param (standalone mode; its own query string and
+     * fragment dropped, see {@link normaliseTarget}), (2) the opener's pathname
      * (statusbar-opened mode — routes to the bundle that rendered the current
      * page), (3) the Inspector's own pathname with `_gina/inspector...` stripped.
      * Critical in proxy-routed multi-bundle setups where bundles share a host and
@@ -2393,7 +2409,7 @@
     function resolveBundleBase() {
         try {
             var params = new URLSearchParams(window.location.search);
-            var target = (params.get('target') || '').replace(/\/+$/, '');
+            var target = normaliseTarget(params.get('target'));
             if (target) {
                 return target;
             }
@@ -4614,11 +4630,9 @@
         if (typeof EventSource === 'undefined') return false;
 
         var params = new URLSearchParams(window.location.search);
-        var target = params.get('target');
+        var target = normaliseTarget(params.get('target')); // #B719
         if (!target) return false;
 
-        // Normalise: strip trailing slash
-        target = target.replace(/\/+$/, '');
         var url = target + '/_gina/agent';
 
         // #INS9b — when the target bundle's agent endpoint is auth-gated
@@ -4735,11 +4749,10 @@
         if (typeof WebSocket === 'undefined') return false;
 
         var params = new URLSearchParams(window.location.search);
-        var target = params.get('target');
+        var target = normaliseTarget(params.get('target')); // #B719
         if (!target) return false;
 
-        // Normalise: strip trailing slash, switch scheme to ws/wss.
-        target = target.replace(/\/+$/, '');
+        // Switch the scheme to ws/wss.
         var wsUrl = target.replace(/^http/i, 'ws') + '/_gina/agent';
 
         var agentKey = params.get('key');

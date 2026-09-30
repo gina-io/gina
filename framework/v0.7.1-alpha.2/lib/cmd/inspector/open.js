@@ -571,6 +571,9 @@ function Open(opt, cmd) {
             } else if (/^https?:\/\//i.test(arg)) {
                 // Positional URL → target origin for cross-origin inspection
                 // (Inspector on host, bundles on Docker, remote envs, …).
+                // #B719 — drop a query string or fragment first: the SPA appends
+                // `/_gina/...` to the target, which would otherwise land in the query.
+                arg = arg.replace(/[?#].*$/, '');
                 // Strip trailing slashes so the SPA can append `/_gina/...` cleanly.
                 targetOverride = arg.replace(/\/+$/, '');
             } else if (!/^--/.test(arg) && !/^@/.test(arg)) {

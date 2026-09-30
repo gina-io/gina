@@ -9,7 +9,8 @@
 
     <bundle>                    Registered bundle name; resolved to http://localhost:<port>
     <http|https URL>            Full URL used as the target origin directly
-                                (e.g. bundles running on Docker or a remote env)
+                                (e.g. bundles running on Docker or a remote env);
+                                its query string and fragment are dropped
 
   Options:
 
