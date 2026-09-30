@@ -1,0 +1,63 @@
+
+  Usage: gina inspector:<action> [options]
+
+  Actions:
+
+    open [target] [@project]    Open the Inspector SPA in a chromeless browser window
+
+  Target forms:
+
+    <bundle>                    Registered bundle name; resolved to http://localhost:<port>
+    <http|https URL>            Full URL used as the target origin directly
+                                (e.g. bundles running on Docker or a remote env);
+                                its query string and fragment are dropped
+
+  Options:
+
+    --browser=<name>            Override the default browser
+                                Available: chrome, chromium, edge, brave,
+                                           vivaldi, opera, firefox, safari
+
+    --port=<number>             Override the bundle port (skip config lookup)
+
+    --url=<url>                 Override the Inspector base URL (standalone
+                                SPA). Takes precedence over all settings.
+                                The final URL opened is `<url>?target=<target-origin>`.
+
+  Inspector URL resolution order:
+
+    1. --url=<url>                                 (explicit override)
+    2. Bundle config/settings.json > inspector.url (when bundle resolved)
+       e.g. "inspector": {"url": "http://localhost:4200/inspector/"}
+    3. ~/.gina/<shortVersion>/settings.json > inspector.url  (per-user default)
+    4. Embedded popup at <target>/_gina/inspector/  (legacy fallback)
+
+  Examples:
+
+    gina inspector:open                                  Open for default bundle on port 3100
+    gina inspector:open demo @myproject                  Open for bundle "demo" (uses settings.inspector.url if set)
+    gina inspector:open backend @myotherproject          Bundle on a project other than @gina
+    gina inspector:open https://local.example.com/api/
+                                                         URL target — Inspector SPA opens with that origin
+    gina inspector:open --port=3200                      Open for a specific port (embedded)
+    gina inspector:open --browser=chrome                 Force Chrome (app mode)
+    gina inspector:open --browser=firefox                Force Firefox (normal window)
+    gina inspector:open --url=http://localhost:4200/ --port=3200
+                                                         Force the standalone Inspector SPA at the given URL
+
+  Global Inspector SPA setting:
+
+    Set once in ~/.gina/<shortVersion>/settings.json so every invocation
+    without --url= falls back to the same standalone SPA URL:
+
+      {
+        "inspector": {
+          "url": "http://localhost:4200/"
+        }
+      }
+
+  App mode support (chromeless window — no address bar, no tabs):
+
+    Supported:    chrome, chromium, edge, brave, vivaldi, opera
+    Not supported: firefox, safari (opens in a normal browser window)
+

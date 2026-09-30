@@ -23,6 +23,22 @@ var runtime     = require(__dirname + '/../utils/runtime.js');
 var isWin32 = function() {
     return (process.platform === 'win32') ? true : false;
 };
+/**
+ * Escapes the regular-expression metacharacters of `s`, so an install prefix or a home
+ * directory is matched as the literal path it is (#B665): a path holding `+` or `[`
+ * threw, and its `.` matched any character. The same one-liner as
+ * `lib/cmd/bundle/inc/name-rewrite.js`'s `escapeRegex`, kept here because this script
+ * runs before a framework directory can be relied on.
+ *
+ * @param {string} s - A path
+ * @returns {string} `s` with every metacharacter backslash-escaped
+ *
+ * @example
+ *  new RegExp('^' + escapeRegex('/opt/c++/.npm-global')).test('/opt/c++/.npm-global/lib') // → true
+ */
+var escapeRegex = function(s) {
+    return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
 var isWritableSync = function(path) {
     var canWrite = false;
     if ( fs.accessSync && typeof(fs.accessSync) != 'undefined' ) {
@@ -331,7 +347,8 @@ function PostInstall() {
                 // OK ... found installed gina but on a different prefix
                 // In this case, let's assume that it is not really installed
                 console.info('A previous version of gina has been detected');
-                if ( !new RegExp('^'+ self.prefix).test(hasFoundGina.dependencies.gina.path) ) {
+                // was: if ( !new RegExp('^'+ self.prefix).test(hasFoundGina.dependencies.gina.path) ) {
+                if ( !new RegExp('^'+ escapeRegex(self.prefix)).test(hasFoundGina.dependencies.gina.path) ) {
                     self.isGinaInstalled = false;
                     console.info('Ignoring previous because of a mismatching install prefix');
                 }
@@ -775,7 +792,8 @@ function PostInstall() {
         }
 
         var inFile = null;
-        var patt = _(self.prefix.replace( new RegExp( '^' +getUserHome() ), '(.*)[$]HOME') + '/bin', true);
+        // was: var patt = _(self.prefix.replace( new RegExp( '^' +getUserHome() ), '(.*)[$]HOME') + '/bin', true);
+        var patt = _(self.prefix.replace( new RegExp( '^' + escapeRegex(getUserHome()) ), '(.*)[$]HOME') + '/bin', true);
         try {
             inFile = execSync("cat ~/.profile | grep -Eo '" + patt +"'", {shell: "/bin/bash"}).toString();
         } catch (err) {

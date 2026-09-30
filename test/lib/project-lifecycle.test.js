@@ -66,28 +66,41 @@ describe('02 - project handlers delegate to bundle commands', function() {
         );
     });
 
-    it('start.js uses exec() for delegation', function() {
+    // #B665 — comment-stripped: the pre-change `exec` lines survive as `was:` comments, and
+    // `require('child_process').execFile` contains `require('child_process').exec` as a
+    // substring, so the raw source cannot tell the two apart.
+    function liveSrc(src) {
+        return src.split('\n').filter(function(l) { return !/^\s*(\/\/|\*|\/\*)/.test(l); }).join('\n');
+    }
+
+    it('start.js uses execFile() for delegation (no shell)', function() {
         startSrc = startSrc || getSrc('start.js');
+        var live = liveSrc(startSrc);
         assert.ok(
-            startSrc.indexOf("require('child_process').exec") > -1,
-            'start.js must use child_process.exec'
+            live.indexOf("require('child_process').execFile;") > -1,
+            'start.js must use child_process.execFile'
         );
+        assert.equal(/\bexec\(/.test(live), false, 'start.js must not call exec(');
     });
 
-    it('stop.js uses exec() for delegation', function() {
+    it('stop.js uses execFile() for delegation (no shell)', function() {
         stopSrc = stopSrc || getSrc('stop.js');
+        var live = liveSrc(stopSrc);
         assert.ok(
-            stopSrc.indexOf("require('child_process').exec") > -1,
-            'stop.js must use child_process.exec'
+            live.indexOf("require('child_process').execFile;") > -1,
+            'stop.js must use child_process.execFile'
         );
+        assert.equal(/\bexec\(/.test(live), false, 'stop.js must not call exec(');
     });
 
-    it('restart.js uses exec() for delegation', function() {
+    it('restart.js uses execFile() for delegation (no shell)', function() {
         restartSrc = restartSrc || getSrc('restart.js');
+        var live = liveSrc(restartSrc);
         assert.ok(
-            restartSrc.indexOf("require('child_process').exec") > -1,
-            'restart.js must use child_process.exec'
+            live.indexOf("require('child_process').execFile;") > -1,
+            'restart.js must use child_process.execFile'
         );
+        assert.equal(/\bexec\(/.test(live), false, 'restart.js must not call exec(');
     });
 
 });
@@ -186,74 +199,69 @@ describe('05 - project:start and project:restart forward flags', function() {
 });
 
 
-// ── 06 — Command string construction (pure logic) ───────────────────────────
+// ── 06 — Argument vector construction (pure logic) ──────────────────────────
 
-describe('06 - command string construction', function() {
+describe('06 - argument vector construction (#B665)', function() {
 
-    // Replica of the $gina replacement logic
-    function buildCmd(cmdStr, projectName, inheritedArgv, debugPort, debugBrkEnabled) {
-        var _cmd = '$gina bundle:start @' + projectName;
-        if (inheritedArgv != '') {
-            _cmd += ' ' + inheritedArgv;
-        }
+    // Replica of the argument assembly (was: a `$gina …` command line run through a shell)
+    function buildArgv(cliArgv, projectName, inheritedArgv, debugPort, debugBrkEnabled) {
+        var argv = [cliArgv[1], 'bundle:start', '@' + projectName].concat(inheritedArgv);
         if (debugPort) {
-            _cmd += ' --inspect';
-            if (debugBrkEnabled) {
-                _cmd += '-brk';
-            }
-            _cmd += '=' + debugPort;
+            argv.push('--inspect' + (debugBrkEnabled ? '-brk' : '') + '=' + debugPort);
         }
-        _cmd = _cmd.replace(/\$(gina)/g, cmdStr);
-        return _cmd;
+        return { file: cliArgv[0], args: argv };
     }
 
+    var CLI = ['/usr/bin/node', '/usr/local/lib/node_modules/gina/bin/cli'];
+
     it('basic command without flags', function() {
-        assert.equal(
-            buildCmd('/usr/bin/node /usr/local/bin/gina', 'myproject', '', null, false),
-            '/usr/bin/node /usr/local/bin/gina bundle:start @myproject'
+        assert.deepEqual(
+            buildArgv(CLI, 'myproject', [], null, false),
+            { file: '/usr/bin/node', args: [CLI[1], 'bundle:start', '@myproject'] }
         );
     });
 
     it('with --env flag', function() {
-        assert.equal(
-            buildCmd('/usr/bin/node /usr/local/bin/gina', 'myproject', '--env=dev', null, false),
-            '/usr/bin/node /usr/local/bin/gina bundle:start @myproject --env=dev'
+        assert.deepEqual(
+            buildArgv(CLI, 'myproject', ['--env=dev'], null, false).args,
+            [CLI[1], 'bundle:start', '@myproject', '--env=dev']
         );
     });
 
     it('with --env and --scope flags', function() {
-        assert.equal(
-            buildCmd('/usr/bin/node /usr/local/bin/gina', 'myproject', '--env=dev --scope=local', null, false),
-            '/usr/bin/node /usr/local/bin/gina bundle:start @myproject --env=dev --scope=local'
+        assert.deepEqual(
+            buildArgv(CLI, 'myproject', ['--env=dev', '--scope=local'], null, false).args,
+            [CLI[1], 'bundle:start', '@myproject', '--env=dev', '--scope=local']
         );
     });
 
     it('with --inspect-brk flag', function() {
-        assert.equal(
-            buildCmd('/usr/bin/node /usr/local/bin/gina', 'myproject', '', 5000, true),
-            '/usr/bin/node /usr/local/bin/gina bundle:start @myproject --inspect-brk=5000'
+        assert.deepEqual(
+            buildArgv(CLI, 'myproject', [], 5000, true).args,
+            [CLI[1], 'bundle:start', '@myproject', '--inspect-brk=5000']
         );
     });
 
     it('with --inspect (no brk) flag', function() {
-        assert.equal(
-            buildCmd('/usr/bin/node /usr/local/bin/gina', 'myproject', '', 9229, false),
-            '/usr/bin/node /usr/local/bin/gina bundle:start @myproject --inspect=9229'
+        assert.deepEqual(
+            buildArgv(CLI, 'myproject', [], 9229, false).args,
+            [CLI[1], 'bundle:start', '@myproject', '--inspect=9229']
         );
     });
 
     it('with all flags combined', function() {
-        assert.equal(
-            buildCmd('/usr/bin/node /usr/local/bin/gina', 'myproject', '--env=dev --scope=local', 5000, true),
-            '/usr/bin/node /usr/local/bin/gina bundle:start @myproject --env=dev --scope=local --inspect-brk=5000'
+        assert.deepEqual(
+            buildArgv(CLI, 'myproject', ['--env=dev', '--scope=local'], 5000, true).args,
+            [CLI[1], 'bundle:start', '@myproject', '--env=dev', '--scope=local', '--inspect-brk=5000']
         );
     });
 
-    it('$gina replacement works with special characters in path', function() {
-        var cmdStr = '/home/user/.npm-global/bin/node /home/user/.npm-global/lib/node_modules/gina/bin/gina';
-        var result = buildCmd(cmdStr, 'test', '', null, false);
-        assert.ok(result.indexOf('$gina') === -1, '$gina placeholder should be replaced');
-        assert.ok(result.indexOf(cmdStr) > -1, 'full path should appear in result');
+    it('a path with a space stays one argument', function() {
+        var spaced = ['/home/user/My Tools/bin/node', '/home/user/My Tools/lib/node_modules/gina/bin/cli'];
+        var result = buildArgv(spaced, 'test', [], null, false);
+        assert.equal(result.file, spaced[0], 'the runtime path is the file to run, whole');
+        assert.equal(result.args[0], spaced[1], 'the CLI script path is one argument, whole');
+        assert.equal(result.args.length, 3);
     });
 
 });

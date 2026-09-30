@@ -58,6 +58,25 @@ jobs:
         # named a third, wider set. Keep the list in package.json only.
         run: npm test
 
+      # Every step above runs gina from this checkout, where no framework path
+      # contains `node_modules`; an npm install puts every framework file under
+      # `node_modules/gina`, and code that branches on the path shape behaves
+      # differently there (#B695: `settings.swig.autoescape` was silently off on
+      # npm installs). Boot one bundle from a copy of this commit placed under
+      # `…/node_modules/gina` — a real directory, the path an install produces —
+      # and check the configured escaping through the container-boot test's seam.
+      - name: Swig autoescape from an npm-shaped install path (#B695)
+        run: |
+          COPY="$RUNNER_TEMP/nm/node_modules/gina"
+          mkdir -p "$(dirname "$COPY")"
+          git worktree add --detach "$COPY" HEAD
+          mkdir "$COPY/node_modules"
+          for d in node_modules/* node_modules/.bin; do b=$(basename "$d"); [ "$b" = gina ] && continue; ln -s "$PWD/$d" "$COPY/node_modules/$b"; done
+          ln -s "$COPY" "$COPY/node_modules/gina"
+          FW_DIR="framework/v$(node -p "require('./package.json').version")"
+          ln -s "$PWD/$FW_DIR/node_modules" "$COPY/$FW_DIR/node_modules"
+          B359_GINA_ROOT="$COPY" node --test "$COPY/test/integration/container-boot-swig-autoescape.test.js"
+
       # Published-types gate (#DTO3b): gna.d.ts drift + a consumer fixture
       # compiled by tsc THROUGH the exports map (skipLibCheck:false), with a
       # can-fail control. tsc's behaviour is node-version-independent, so one

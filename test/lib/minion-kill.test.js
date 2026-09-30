@@ -135,12 +135,18 @@ describe('04 - kill-set collection', function () {
         assert.match(src, /pid === process\.pid \|\| pid === process\.ppid/);
     });
 
-    it('ps sweep: POSIX-guarded, precise project boundary, awk pid|title', function () {
-        assert.match(src, /if \( !isWin32\(\) \)/);
-        assert.match(src, /ps -ef \| grep -v grep \| grep -E 'gina: \[\^ \]\+@/);
-        assert.match(src, /\[\[:space:\]\]/);             // ([[:space:]]|$) boundary
-        assert.match(src, /awk '\{print \$2/);
-        assert.match(src, /\$NF\}/);
+    it('ps sweep: POSIX-guarded, no shell, precise project boundary, pid|title from the ps columns', function () {
+        // comment-stripped: the pre-#B665 `ps | grep | awk` pipeline survives as a `was:`
+        // comment, which the raw source would still match
+        var live = src.split('\n').filter(function (l) { return !/^\s*(\/\/|\*|\/\*)/.test(l); }).join('\n');
+        assert.match(live, /if \( !isWin32\(\) \)/);
+        assert.ok(live.indexOf("execFileSync('ps', ['-ef'], { maxBuffer: PS_MAX_BUFFER })") > -1, 'ps runs from an argument vector');
+        assert.equal(live.indexOf('ps -ef |'), -1, 'no ps pipeline');
+        // the project name escaped, and the (\s|$) boundary
+        assert.ok(live.indexOf("new RegExp('gina: [^ ]+@' + escapeRegex(self.projectName) + '(\\\\s|$)')") > -1, 'the title pattern');
+        assert.ok(live.indexOf("lines[j].indexOf('grep') > -1") > -1, 'grep lines skipped');
+        assert.match(live, /var pid\s+= ~~cols\[1\];/);             // column 2 = the PID
+        assert.match(live, /var titleTail = cols\[cols\.length - 1\]/); // last column = <bundle>@<project>
     });
 
     it('ps sweep: dedups by pid across pidfile + ps sources', function () {

@@ -523,10 +523,25 @@ describe('09 - engine wiring: both engines, and the gate is placed correctly', f
         assert.ok(isaac.indexOf('/_gina/maintenance') > -1);
     });
 
+    // line comments FIRST, then block comments (the b668 idiom): a `/*` inside a `// …` line
+    // (a `/_gina/*` mention) would otherwise open a phantom block comment
+    function stripComments(src) {
+        return src
+            .split('\n')
+            .filter(function (l) { return !/^\s*\/\//.test(l); })
+            .join('\n')
+            .replace(/\/\*[\s\S]*?\*\//g, '');
+    }
+
     it('server.js: the gate sits AFTER the /_gina handlers and BEFORE statics', function () {
         var health  = server.indexOf('/_gina/health/check — liveness probe');
         var gate    = server.indexOf('#MAINT1 — maintenance gate');
-        var statics = server.indexOf('priority to statics');
+        // #B716 — anchored on the statics branch's own code: the phrase `priority to statics`
+        // first matched inside the gate's own comment block, so this pin passed whatever the
+        // order of the real code. The needle must survive comment stripping.
+        var STATICS = 'var staticsArr  = self.conf[self.appName][self.env].publicResources;';
+        var statics = server.indexOf(STATICS);
+        assert.ok(stripComments(server).indexOf(STATICS) > -1, 'the statics anchor must be code, not a comment');
         assert.ok(health > -1 && gate > -1 && statics > -1, 'all three anchors must exist');
         assert.ok(gate > health,  'liveness must answer 200 during maintenance — an orchestrator must not restart pods');
         assert.ok(gate < statics, 'the gate MUST precede static serving, or assets keep serving 200 while the site is "closed"');
@@ -534,7 +549,9 @@ describe('09 - engine wiring: both engines, and the gate is placed correctly', f
 
     it('isaac: the gate sits BEFORE the pre-routing render-cache read', function () {
         var gate  = isaac.indexOf('#MAINT1 — maintenance gate');
-        var cache = isaac.indexOf("if (!isCacheless || String(server._cacheIsEnabled)");
+        // anchored on the read block's own banner (unique, inside the block after its gate): the
+        // gate's condition text changed in the phase-2 trims and is pinned by its own test
+        var cache = isaac.indexOf('// Importing cache handler (render/output cache goes through the strategy dispatcher)');
         assert.ok(gate > -1 && cache > -1);
         assert.ok(gate < cache, 'a cache serve point above the gate would replay cached pages during maintenance (#B158 shape)');
     });

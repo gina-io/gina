@@ -303,9 +303,12 @@ async function onExec() {
             // plane to `bind_host` (loopback by default) like the command socket.
             var mqListener = await new MQListener({ port: mqPort, hostV4: bindHost });
             // required for tail command
-            var mqPortFile = getTmpDir() + '/mq-listener-v'+ version +'.port';// jshint ignore:line
+            // #B704 — under the framework home's run dir (created 0700, the argv
+            // file's home since #B676), never the shared tmp dir where another
+            // local user could create the file first.
+            var mqPortFile = getArgvDir() + '/mq-listener-v'+ version +'.port';// jshint ignore:line
             console.debug('Writting: '+ mqPortFile);
-            fs.writeFileSync( mqPortFile, ''+mqPort );
+            fs.writeFileSync( mqPortFile, ''+mqPort, { mode: 0o600 } );
             process.on('exit', function() {
                 if ( new _(mqPortFile).existsSync() ) {
                     fs.unlinkSync(mqPortFile);

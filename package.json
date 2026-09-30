@@ -1,6 +1,6 @@
 {
   "name": "gina",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "MVC framework for Node.js and Bun with built-in HTTP/2, multi-bundle architecture, and scope-based data isolation — no Express dependency",
   "keywords": [
     "nodejs",
@@ -76,12 +76,12 @@
     "gina-container": "bin/gina-container",
     "gina-init": "bin/gina-init"
   },
-  "main": "./framework/v0.7.0/core/gna",
+  "main": "./framework/v0.7.1/core/gna",
   "exports": {
     ".": {
       "types": "./types/index.d.ts",
       "import": "./index.mjs",
-      "require": "./framework/v0.7.0/core/gna.js"
+      "require": "./framework/v0.7.1/core/gna.js"
     },
     "./gna": {
       "types": "./types/gna.d.ts",
@@ -99,7 +99,7 @@
     }
   },
   "scripts": {
-    "test": "node --test --test-timeout=120000 $GINA_TEST_FLAGS test/core/*.test.js test/lib/*.test.js test/bin/*.test.js test/integration/helper.test.js test/integration/container-boot.test.js test/integration/container-boot-init-failure.test.js test/integration/container-boot-request-parsing.test.js test/integration/container-boot-route-method.test.js test/integration/container-boot-route-confusion.test.js test/integration/container-boot-route-candidates.test.js test/integration/container-boot-head-b675.test.js test/integration/container-boot-swig-autoescape.test.js test/integration/logger-log-integrity.test.js framework/v*/test/unit/*.test.js",
+    "test": "node --test --test-timeout=120000 $GINA_TEST_FLAGS test/core/*.test.js test/lib/*.test.js test/bin/*.test.js test/integration/helper.test.js test/integration/container-boot.test.js test/integration/container-boot-init-failure.test.js test/integration/container-boot-request-parsing.test.js test/integration/container-boot-route-method.test.js test/integration/container-boot-route-confusion.test.js test/integration/container-boot-route-candidates.test.js test/integration/container-boot-head-b675.test.js test/integration/container-boot-swig-autoescape.test.js test/integration/container-boot-admin-guard-b708.test.js test/integration/container-boot-storage-query-b710.test.js test/integration/container-boot-admin-proxy-b709.test.js test/integration/container-boot-maintenance-allowfrom-b711.test.js test/integration/container-boot-maintenance-left-to-server-b715.test.js test/integration/container-boot-gina-endpoints-query-head-b717.test.js test/integration/container-boot-gina-endpoints-query-anchor-b712.test.js test/integration/container-boot-sse-h2-b722.test.js test/integration/container-boot-routing-case-b707.test.js test/integration/logger-log-integrity.test.js framework/v*/test/unit/*.test.js",
     "test:coverage": "GINA_TEST_FLAGS=--experimental-test-coverage npm test",
     "pretest:e2e": "playwright install chromium",
     "test:e2e": "playwright test test/e2e",

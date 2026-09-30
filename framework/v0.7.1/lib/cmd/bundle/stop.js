@@ -1,0 +1,347 @@
+// #B665 (2026-09-27) — execFileSync: the ps fallback lists processes without a shell.
+// const { execSync } = require('child_process');
+const { execFileSync } = require('child_process');
+var fs = require('fs');
+// #B665 S2 (2026-09-27) — the SIGKILL is sent with process.kill, not through sh.
+// var exec = require('child_process').exec;
+
+var CmdHelper = require('./../helper');
+// #B665 (2026-09-27) — the ps fallback matches the names as literal text
+var escapeRegex = require('./inc/name-rewrite').escapeRegex;
+var console = lib.logger;
+
+/**
+ * Output cap for the `ps -ef` listing of the missing-pid-file fallback, which is
+ * read whole since the shell pipeline that filtered it is gone: Node's 1 MB
+ * default could be exceeded on a host running many processes with long command
+ * lines (#B665).
+ *
+ * @constant
+ * @inner
+ * @type {number}
+ */
+var PS_MAX_BUFFER = 64 * 1024 * 1024;
+
+/**
+ * @module gina/lib/cmd/bundle/stop
+ */
+/**
+ * Stops a given bundle or all bundles in a project.
+ *
+ * Usage:
+ *  gina bundle:stop <bundle_name> @<project_name>
+ *  gina bundle:stop @<project_name>
+ *
+ * @class Stop
+ * @constructor
+ * @param {object} opt - Parsed command-line options
+ * @param {object} opt.client - Socket client for terminal output
+ * @param {string[]} opt.argv - Full argv array
+ * @param {number} [opt.debugPort] - Node.js inspector port
+ * @param {boolean} [opt.debugBrkEnabled] - True when --inspect-brk is active
+ * @param {object} cmd - The cmd dispatcher object (lib/cmd/index.js)
+ */
+function Stop(opt, cmd) {
+    var self = {};
+
+    /**
+     * Imports CmdHelper and delegates to stop() or bulk-stop().
+     * @inner
+     * @private
+     * @param {object} opt
+     * @param {object} cmd
+     */
+    var init = function(opt, cmd) {
+
+        // import CMD helpers
+        new CmdHelper(self, opt.client, { port: opt.debugPort, brkEnabled: opt.debugBrkEnabled });
+
+        // check CMD configuration
+        if (!isCmdConfigured()) return false;
+
+        // start all bundles
+        opt.offlineCount = 0;
+        opt.notStopped = [];
+
+        if (!self.name) {
+            // bulk mode needs at least one bundle — `self.bundles[0]` is undefined on a zero-bundle project
+            if ( !self.bundles || !self.bundles.length ) {
+                opt.msg = 'No bundles found in project `@'+ self.projectName +'`. Nothing to stop.';
+                return end(opt, cmd);
+            }
+            stop(opt, cmd, 0);
+        } else {
+            stop(opt, cmd);
+        }
+    }
+
+    /**
+     * Reads the bundle PID file and sends SIGKILL, or falls back to ps lookup.
+     * Only a positive integer is read as a pid (#B693), and the signal is sent
+     * with `process.kill`, not through a shell (#B665).
+     * The fallback runs `ps -ef` without a shell and keeps the first process whose
+     * title is exactly `gina: <bundle>@<project>`, ending at whitespace or the end
+     * of the line, skipping lines that name `grep` (#B665).
+     * @inner
+     * @private
+     * @param {object} opt
+     * @param {object} cmd
+     * @param {number} [bundleIndex] - When set, enables bulk-stop mode
+     */
+    var stop = function(opt, cmd, bundleIndex) {
+
+        var isBulkStop = (typeof(bundleIndex) != 'undefined') ? true : false;
+        var bundle = (isBulkStop) ? self.bundles[bundleIndex] : self.name;
+
+        var msg = null;
+        if (!isBulkStop && !isDefined('bundle', bundle)) {
+            msg = 'Bundle [ ' + bundle + ' ] is not registered inside `@' + self.projectName + '`';
+            console.error(msg);
+            opt.msg = msg;
+            return end(opt, cmd, isBulkStop, bundleIndex, true)
+        }
+
+        isRealApp(bundle, function(err, appPath) {
+
+            if (err) {
+                console.error(err.stack || err.message)
+            }
+
+            var error = null;
+            var proc = null;
+            var isSpecialCase = false;
+            var pidPath = _(GINA_RUNDIR +'/'+ bundle +'@'+ self.projectName +'.pid', true);
+            try {
+                proc = fs.readFileSync(_(GINA_RUNDIR+'/'+bundle + '@' + self.projectName +'.pid')).toString().replace(/\n/g, '');
+                // #B693 (2026-09-27) — only a positive integer is a pid: parseInt made `-1` a
+                // broadcast to every process the user may signal, and `12abc` pid 12. Anything
+                // else reads as "is not running", as NaN did.
+                // was: proc = parseInt(proc);
+                proc = ( /^[1-9]\d*$/.test(proc.trim()) ) ? parseInt(proc.trim(), 10) : null;
+
+            } catch(err) {
+                isSpecialCase = true;
+                // Some how pid file could have been deleted leaving a zombie process running
+                // #B665 (2026-09-27) — `ps` runs from an argument vector, without a shell, and its
+                // listing is filtered here: the names reached a `ps | grep | awk` command line
+                // single-quoted, so a `'` in a name broke out into the shell. The title must end
+                // at whitespace or the end of the line, so `api@shop` no longer matches the
+                // process of `api@shopping` (measured on macOS and Linux); lines naming `grep`
+                // are skipped as `grep -v grep` did.
+                // was: var list = execSync("ps -ef | grep -v grep | grep 'gina: "+ bundle + '@' + self.projectName +"' | awk '{print $2\" \"$8$9}'").toString().replace(/\n$/, '').split(/\n/g);
+                var titleRe = new RegExp('gina: ' + escapeRegex(bundle + '@' + self.projectName) + '(\\s|$)');
+                var psOut = '';
+                try {
+                    psOut = execFileSync('ps', ['-ef'], { maxBuffer: PS_MAX_BUFFER }).toString();
+                } catch (psErr) {
+                    // no `ps` (a slim container image): nothing matches, as before; a `ps` that
+                    // failed after printing keeps what it printed, as the pipeline did
+                    psOut = (psErr && psErr.stdout) ? psErr.stdout.toString() : '';
+                }
+                var list = psOut.split(/\n/).filter(function(line) {
+                    return line.indexOf('grep') < 0 && titleRe.test(line);
+                });
+                if (list.length) {
+                    // column 2 of `ps -ef` is the PID
+                    proc = ~~list[0].trim().split(/\s+/)[1];
+                } else {
+                    error = err.toString();
+                    console.debug(error);
+                }
+            }
+
+            msg = 'Trying to stop bundle [ ' + bundle + '@' + self.projectName + ' ]\n\r';
+            opt.client.write('\n\r'+msg);
+
+            // if ( !re.test(row[0]) ) {
+            if (proc) {
+                //console.debug('\n'+ row.join('\n'));
+                //console.debug('kill -TERM ', proc, arr);
+
+                // #B665 S2 (2026-09-27) — the SIGKILL is sent in-process: `kill -9 <pid>` ran through
+                // sh. Its outcome is handled on the next turn of the event loop, as the exec
+                // callback was, and a failed signal (ESRCH, EPERM) is the callback's error.
+                // was: exec('kill -9 ' + proc, function(err, data) {
+                var killErr = null;
+                try {
+                    process.kill(proc, 'SIGKILL');
+                } catch (e) {
+                    killErr = e;
+                }
+                setImmediate(function(err) {
+                    // just in case
+                    if ( new _(pidPath).existsSync() ) {
+                        isSpecialCase = true;
+                        fs.unlinkSync( pidPath );
+                    }
+                    if (!err) {
+                        ++opt.offlineCount;
+
+                        // resume logging
+                        process.emit('gina#bundle-logging', GINA_MQ_PORT, GINA_HOST_V4, bundle + '@' + self.projectName);
+
+                        //console.info('Bundle [ ' + bundle + '@' + self.projectName + ' ] with PID [ ' + proc + ' ] stopped !');
+                        opt.client.write('  [ ' + bundle + '@' + self.projectName + ' ] with PID [ ' + proc + ' ] stopped !\n');
+
+                        end(opt, cmd, isBulkStop, bundleIndex)
+                    } else {
+                        if (!isSpecialCase) {
+                            console.error( err.toString())
+                        } else {
+                            end(opt, cmd, isBulkStop, bundleIndex)
+                        }
+                    }
+                }, killErr)
+            } else { // not running
+                //console.info('Bundle `' + bundle + '@' + self.projectName + '` is not running');
+                opt.client.write('  [ ' + bundle + '@' + self.projectName + ' ] is not running\n');
+
+                ++opt.offlineCount;
+                opt.notStopped.push(bundle + '@' + self.projectName);
+                end(opt, cmd, isBulkStop, bundleIndex)
+            }
+        })//EO isRealApp
+
+    }
+
+    /**
+     * Advances to the next bundle in bulk-stop mode, or exits the process.
+     * @inner
+     * @private
+     * @param {object} opt
+     * @param {object} cmd
+     * @param {boolean} [isBulkStop]
+     * @param {number} [i] - Current bundle index in bulk mode
+     * @param {boolean} [error]
+     */
+    var end = function (opt, cmd, isBulkStop, i, error) {
+        if ( typeof(opt.msg) != 'undefined' ) {
+            opt.client.write('\n\r'+ opt.msg);
+        }
+        if (isBulkStop) {
+            ++i;
+            if ( typeof(self.bundles[i]) != 'undefined' ) {
+                stop(opt, cmd, i)
+            } else {
+                opt.client.write('\n\r[ Offline ] '+ opt.offlineCount +'/'+ self.bundles.length +'\r');
+                var notStoppedMsg = '';
+                if (opt.notStopped.length > 1) {
+                    notStoppedMsg = '\nThe following bundles could not be stopped or were not running: \n - '+ opt.notStopped.join('\n - ') + '\n\r';
+                    opt.client.write(notStoppedMsg);
+                }
+
+
+                if ( typeof(error) != 'undefined') {
+                    process.exit(1);
+                }
+                if (!opt.client.destroyed)
+                    opt.client.emit('end');
+
+                process.exit(0);
+            }
+        } else {
+            if ( typeof(error) != 'undefined') {
+                process.exit(1);
+            }
+
+            if (!opt.client.destroyed)
+                opt.client.emit('end');
+
+            process.exit(0);
+        }
+    }
+
+
+
+    var isRealApp = function(bundle, callback) {
+
+        var p               = null
+            , d             = null
+            , env           = self.projects[self.projectName]['def_env']
+            , isDev         = GINA_ENV_IS_DEV
+            , scope         = self.projects[self.projectName]['def_scope']
+            , root          = self.projects[self.projectName].path
+            , bundleDir     = null
+            , bundlesPath   = null
+            , bundleInit    = null
+            , pkg           = null
+            , path          = null
+        ;
+
+        try {
+            //This is mostly for dev.
+            pkg = requireJSON(_(root + '/manifest.json')).bundles;
+
+            if ( typeof(pkg[bundle].version) == 'undefined' && typeof (pkg[bundle].tag) != 'undefined' ) {
+                pkg[bundle].version = pkg[bundle].tag
+            }
+            if (
+                pkg[bundle] != 'undefined' && pkg[bundle]['src'] != 'undefined' && isDev
+            ) {
+                path = pkg[bundle].src;
+
+                p = _(root + '/' + path);//path.replace('/' + bundle, '')
+                d = _(root + '/' + path + '/index.js');
+
+                bundleDir = path.replace('/' + bundle, '');
+                setContext('bundle_dir', bundleDir);
+                bundlesPath = _(root + '/' + bundleDir);
+                bundleInit = d;
+
+            } else {
+                //Others releases.
+                path = 'releases/' + bundle + '/' + scope +'/' + env + '/' + pkg[bundle].version;
+                var version = pkg[bundle].version;
+                p = _(root + '/' + path);
+                d = _(root + '/' + path + '/index.js');
+
+                bundleDir = path;
+                bundlesPath = _(root + '/' + bundleDir);
+                bundleInit = d;
+            }
+
+        } catch (err) {
+            // default bundlesPath.
+            // TODO - log warn ?
+            console.warn(err.stack || err.message);
+            bundleDir = 'bundles';
+            bundlesPath = _(root + '/' + bundleDir);
+            p = _(root + '/' + bundleDir + '/' + bundle);
+            d = _(root + '/' + bundleDir + '/' + bundle + '/index.js');
+            bundleInit = d;
+        }
+
+        // removing mounting point
+        var coreEnv = getCoreEnv(bundle);
+        new _(coreEnv.mountPath +'/'+ bundle, true).rmSync();
+
+
+        //Checking root.
+        if ( new _(d, true).existsSync() ) {
+            //checking bundle directory.
+            fs.stat(p, function(err, stats) {
+
+                if (err) {
+                    callback(err)
+                } else {
+
+                    if (stats.isDirectory()) {
+                        callback(false, d)
+                    } else {
+                        callback(new Error('[ ' + d + ' ] is not a directory'))
+                    }
+                }
+            })
+        } else {
+            //callback(new Error('[ ' + d + ' ] does not exists'))
+            console.debug('[ ' + d + ' ] does not exists');
+            callback(false)
+        }
+    }
+
+
+
+    init(opt, cmd)
+};
+
+module.exports = Stop
