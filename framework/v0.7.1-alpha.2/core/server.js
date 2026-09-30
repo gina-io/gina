@@ -677,7 +677,9 @@ function _instrumentKeyValid(req) {
  * BOTH engines (the isaac instance IS the raw server; express's `app.listen()`
  * returns it), so one `upgrade` listener here covers both. There is deliberately
  * NO isaac-specific mirror — the isaac engine.io upgrade handler defers to this
- * one via a `/_gina/agent` skip-guard (see server.isaac.js).
+ * one via a `/_gina/agent` skip-guard (see server.isaac.js). Both match
+ * `/_gina/agent` on the url's PATH, never its query string (#B712): an upgrade to
+ * a page url whose query ends in the agent path is not the agent's.
  *
  * Auth parity with the SSE endpoint: dev stays open + keyless; outside dev the
  * upgrade requires a valid key (`x-gina-inspector-key` header or `?key=` query
@@ -724,7 +726,7 @@ function attachInspectorAgentWs(rawServer, ctx) {
     rawServer.on('upgrade', function(req, socket, head) {
         // Only handle the agent WS path; leave every other upgrade (e.g.
         // engine.io in ioServer-attach mode) for its own listener.
-        if (!/\/_gina\/agent(?:\?|$)/.test(req.url || '')) { return; }
+        if (!/\/_gina\/agent(?:\?|$)/.test(req.url ? req.url.split('?')[0] : '')) { return; }
 
         var _agIsDev = (process.env.NODE_ENV_IS_DEV && process.env.NODE_ENV_IS_DEV.toLowerCase() === 'true');
 
@@ -4510,10 +4512,14 @@ function Server(options) {
             // instrument and agent handlers): on express request.url still carries it here.
             // #B718 — HEAD is answered too (a load balancer may probe with HEAD): the same
             // status and headers plus content-length, no body.
+            // #B712 — `^[^?]*`: the endpoint path must end the url's PATH, so a page whose query
+            // string ends in it (`/web/?next=/_gina/health/check`) is answered by the page. Any
+            // prefix still reaches it (a probe under the webroot). jobs, instrument and the dev
+            // endpoints carry the same anchor; the agent upgrade listener tests the query-free path.
             var _healthMethod = request.method.toUpperCase();
             if (
                 ( _healthMethod === 'GET' || _healthMethod === 'HEAD' )
-                && /\/_gina\/health\/check(?:\?|$)/i.test(request.url)
+                && /^[^?]*\/_gina\/health\/check(?:\?|$)/i.test(request.url)
             ) {
                 var _healthBody = JSON.stringify({ status: 'healthy', timestamp: new Date().toISOString() });
                 response.setHeader('content-type',  'application/json; charset=utf8');
@@ -4733,8 +4739,9 @@ function Server(options) {
             // Returns lib.job.toStatusView (id + state + timestamps) — never the
             // result / error payload (authenticated result retrieval goes through a
             // user route via self.jobStatus). 404 for an unknown / malformed id.
+            // #B712 — `^[^?]*`: the job path must be the url's path, never its query string.
             var _ginaJobsMatch = (request.method.toUpperCase() === 'GET')
-                ? request.url.match(/\/_gina\/jobs\/([A-Za-z0-9_-]+)\/?(\?.*)?$/)
+                ? request.url.match(/^[^?]*\/_gina\/jobs\/([A-Za-z0-9_-]+)\/?(\?.*)?$/)
                 : null;
             if ( _ginaJobsMatch ) {
                 var _ginaJobId = _ginaJobsMatch[1];
@@ -5206,7 +5213,8 @@ function Server(options) {
             if (
                 process.gina && process.gina._inspectorInstrumentEnabled
                 && (request.method.toUpperCase() === 'GET' || request.method.toUpperCase() === 'POST')
-                && /\/_gina\/instrument(?:\?|$)/.test(request.url)
+                // #B712 — `^[^?]*`: in the url's path, not its query string
+                && /^[^?]*\/_gina\/instrument(?:\?|$)/.test(request.url)
             ) {
                 response.setHeader('content-type',  'application/json; charset=utf8');
                 response.setHeader('cache-control', 'no-cache, no-store, must-revalidate');
@@ -5243,14 +5251,17 @@ function Server(options) {
             if (
                 process.env.NODE_ENV_IS_DEV && process.env.NODE_ENV_IS_DEV.toLowerCase() === 'true'
                 && request.method.toUpperCase() === 'GET'
-                && /\/_gina\/inspector(\/.*)?$/.test(request.url)
+                // #B712 — `^[^?]*…(?:\?|$)`: in the url's path, and a query string no longer misses it
+                && /^[^?]*\/_gina\/inspector(\/[^?]*)?(?:\?|$)/.test(request.url)
             ) {
                 // Activate profiling on first Inspector access — one-way flag,
                 // stays true until bundle restart. QI (controller.js:257) gates
                 // on this; it must be true before any request is processed.
                 if (!process.gina._inspectorActive) process.gina._inspectorActive = true;
                 var _bmBase = __dirname + '/asset/plugin/dist/vendor/gina/inspector';
-                var _bmPath = request.url.replace(/^.*\/_gina\/inspector\/?/, '').split('?')[0];
+                // #B712 — read from the url's path, like the matcher above: a query string that
+                // names another Inspector path no longer picks the file
+                var _bmPath = request.url.split('?')[0].replace(/^.*\/_gina\/inspector\/?/, '');
                 if (!_bmPath || _bmPath === '') _bmPath = 'index.html';
 
                 var _bmMime = {
@@ -5288,7 +5299,8 @@ function Server(options) {
             if (
                 process.env.NODE_ENV_IS_DEV && process.env.NODE_ENV_IS_DEV.toLowerCase() === 'true'
                 && request.method.toUpperCase() === 'GET'
-                && /\/_gina\/logs$/.test(request.url)
+                // #B712 — `^[^?]*…(?:\?|$)`: in the url's path, and a query string no longer misses it
+                && /^[^?]*\/_gina\/logs(?:\?|$)/.test(request.url)
             ) {
                 if (!process.gina._inspectorActive) process.gina._inspectorActive = true;
                 var _ansiRe = /\x1B\[\d+m/g;
@@ -5343,7 +5355,8 @@ function Server(options) {
                     || (process.gina && process.gina._inspectorAgentEnabled)
                 )
                 && request.method.toUpperCase() === 'GET'
-                && /\/_gina\/agent(?:\?|$)/.test(request.url)
+                // #B712 — `^[^?]*`: in the url's path, not its query string
+                && /^[^?]*\/_gina\/agent(?:\?|$)/.test(request.url)
             ) {
                 // #INS9b — outside dev mode the agent endpoint requires a valid
                 // key (x-gina-inspector-key header or ?key= query param). In dev
@@ -5454,7 +5467,8 @@ function Server(options) {
             if (
                 process.env.NODE_ENV_IS_DEV && process.env.NODE_ENV_IS_DEV.toLowerCase() === 'true'
                 && request.method.toUpperCase() === 'GET'
-                && /\/_gina\/indexes$/.test(request.url)
+                // #B712 — `^[^?]*…(?:\?|$)`: in the url's path, and a query string no longer misses it
+                && /^[^?]*\/_gina\/indexes(?:\?|$)/.test(request.url)
             ) {
                 if (!process.gina._inspectorActive) process.gina._inspectorActive = true;
 
@@ -5508,7 +5522,8 @@ function Server(options) {
             if (
                 process.env.NODE_ENV_IS_DEV && process.env.NODE_ENV_IS_DEV.toLowerCase() === 'true'
                 && request.method.toUpperCase() === 'GET'
-                && /\/_gina\/reveal$/.test(request.url)
+                // #B712 — `^[^?]*…(?:\?|$)`: in the url's path, and a query string no longer misses it
+                && /^[^?]*\/_gina\/reveal(?:\?|$)/.test(request.url)
             ) {
                 response.setHeader('content-type', 'application/json; charset=utf8');
                 response.setHeader('cache-control', 'no-cache, no-store');

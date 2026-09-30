@@ -1352,8 +1352,10 @@ function ServerEngineClass(options) {
             // instrument and agent handlers). #B718 — HEAD is answered too (a load balancer may
             // probe with HEAD): the same status and headers, no body. Kept in sync with the
             // core/server.js twin.
+            // #B712 — `^[^?]*`: the endpoint path must end the url's PATH, not its query string
+            // (`/web/?next=/_gina/health/check` is the page's). Kept in sync with core/server.js.
             var _healthMethod = request.method.toUpperCase();
-            if ( ( _healthMethod === 'GET' || _healthMethod === 'HEAD' ) && /\_gina\/health\/check(?:\?|$)/i.test(request.url) ) {
+            if ( ( _healthMethod === 'GET' || _healthMethod === 'HEAD' ) && /^[^?]*\_gina\/health\/check(?:\?|$)/i.test(request.url) ) {
 
                 const healthStatus = JSON.stringify({
                     status: "healthy",
@@ -1774,8 +1776,9 @@ function ServerEngineClass(options) {
             // timestamps), never result / error. Engine-agnostic handler lives in
             // server.js; this is the Isaac (HTTP/2) fast-path. 404 on unknown /
             // malformed id.
+            // #B712 — `^[^?]*`: the job path must be the url's path, never its query string.
             var _jobsMatch = (request.method.toUpperCase() === 'GET')
-                ? request.url.match(/\/_gina\/jobs\/([A-Za-z0-9_-]+)\/?(\?.*)?$/)
+                ? request.url.match(/^[^?]*\/_gina\/jobs\/([A-Za-z0-9_-]+)\/?(\?.*)?$/)
                 : null;
             if ( _jobsMatch ) {
                 var _jobsId      = _jobsMatch[1];
@@ -1953,7 +1956,8 @@ function ServerEngineClass(options) {
             if (
                 process.gina && process.gina._inspectorInstrumentEnabled
                 && (request.method.toUpperCase() === 'GET' || request.method.toUpperCase() === 'POST')
-                && /\/_gina\/instrument(?:\?|$)/.test(request.url)
+                // #B712 — `^[^?]*`: in the url's path, not its query string
+                && /^[^?]*\/_gina\/instrument(?:\?|$)/.test(request.url)
             ) {
                 var _instrHeaders = _setPoweredByHeader({
                     'content-type':  'application/json; charset=utf8',
@@ -1999,14 +2003,17 @@ function ServerEngineClass(options) {
             if (
                 isCacheless
                 && request.method.toUpperCase() === 'GET'
-                && /\/_gina\/inspector(\/.*)?$/.test(request.url)
+                // #B712 — `^[^?]*…(?:\?|$)`: in the url's path, and a query string no longer misses it
+                && /^[^?]*\/_gina\/inspector(\/[^?]*)?(?:\?|$)/.test(request.url)
             ) {
                 // Activate profiling on first Inspector access — one-way flag,
                 // stays true until bundle restart. QI (controller.js:257) gates
                 // on this; it must be true before any request is processed.
                 if (!process.gina._inspectorActive) process.gina._inspectorActive = true;
                 var _inspBase = __dirname + '/asset/plugin/dist/vendor/gina/inspector';
-                var _inspPath = request.url.replace(/^.*\/_gina\/inspector\/?/, '').split('?')[0];
+                // #B712 — read from the url's path, like the matcher above: a query string that
+                // names another Inspector path no longer picks the file
+                var _inspPath = request.url.split('?')[0].replace(/^.*\/_gina\/inspector\/?/, '');
                 if (!_inspPath || _inspPath === '') _inspPath = 'index.html';
 
                 var _inspMime = {
@@ -2056,7 +2063,8 @@ function ServerEngineClass(options) {
             if (
                 isCacheless
                 && request.method.toUpperCase() === 'GET'
-                && /\/_gina\/logs$/.test(request.url)
+                // #B712 — `^[^?]*…(?:\?|$)`: in the url's path, and a query string no longer misses it
+                && /^[^?]*\/_gina\/logs(?:\?|$)/.test(request.url)
             ) {
                 if (!process.gina._inspectorActive) process.gina._inspectorActive = true;
                 var _ansiRe = /\x1B\[\d+m/g;
@@ -2124,7 +2132,8 @@ function ServerEngineClass(options) {
             if (
                 (isCacheless || (process.gina && process.gina._inspectorAgentEnabled))
                 && request.method.toUpperCase() === 'GET'
-                && /\/_gina\/agent(?:\?|$)/.test(request.url)
+                // #B712 — `^[^?]*`: in the url's path, not its query string
+                && /^[^?]*\/_gina\/agent(?:\?|$)/.test(request.url)
             ) {
                 // #INS9b — outside dev mode the agent endpoint requires a valid
                 // key (x-gina-inspector-key header or ?key= query param). In dev
@@ -2261,7 +2270,8 @@ function ServerEngineClass(options) {
             if (
                 isCacheless
                 && request.method.toUpperCase() === 'GET'
-                && /\/_gina\/indexes$/.test(request.url)
+                // #B712 — `^[^?]*…(?:\?|$)`: in the url's path, and a query string no longer misses it
+                && /^[^?]*\/_gina\/indexes(?:\?|$)/.test(request.url)
             ) {
                 if (!process.gina._inspectorActive) process.gina._inspectorActive = true;
 
@@ -2327,7 +2337,8 @@ function ServerEngineClass(options) {
             if (
                 isCacheless
                 && request.method.toUpperCase() === 'GET'
-                && /\/_gina\/reveal$/.test(request.url)
+                // #B712 — `^[^?]*…(?:\?|$)`: in the url's path, and a query string no longer misses it
+                && /^[^?]*\/_gina\/reveal(?:\?|$)/.test(request.url)
             ) {
                 var _rvHeaders = _setPoweredByHeader({
                     'content-type': 'application/json; charset=utf8',
@@ -3327,7 +3338,7 @@ function ServerEngineClass(options) {
         server.on('upgrade', function(req, socket, head){
             // #INS8 — defer /_gina/agent upgrades to the WebSocket agent handler
             // attached in server.js; engine.io owns only its own upgrade path.
-            if (/\/_gina\/agent(?:\?|$)/.test(req.url || '')) { return; }
+            if (/\/_gina\/agent(?:\?|$)/.test(req.url ? req.url.split('?')[0] : '')) { return; }
             console.debug('[IO SERVER ] upgrading socket #'+ this.id);
             ioServer.handleUpgrade(req, socket, head);
         });
