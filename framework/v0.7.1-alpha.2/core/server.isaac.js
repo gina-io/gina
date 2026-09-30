@@ -231,6 +231,39 @@ var confineToBase = function(filename, base) {
 }
 
 /**
+ * #B715 — the `/_gina/*` paths the maintenance gate leaves to core/server.js. core/server.js
+ * answers them in its own /_gina band, above its twin gate, where this listener does not
+ * answer them (or not in that shape), so a window would otherwise close them on this engine
+ * only: storage/stats, storage/gc and storage/verify exist only in core/server.js, and a
+ * health check whose url carries a query string misses the `$`-anchored handler here, which
+ * tests the raw url, while the core/server.js twin sees the url without its query.
+ *
+ * The compare is on the exact query-free root path, so a route the bundle declares elsewhere
+ * under /_gina/ stays behind the gate; a method or a shape core/server.js does not answer
+ * meets its twin gate there. Keep the list in step with the core/server.js /_gina band:
+ * `test/core/maintenance-gate-left-to-server-b715.test.js` fails when a core/server.js
+ * endpoint has neither a handler here above the gate nor an entry below.
+ *
+ * @inner
+ * @private
+ * @memberof module:gina/core/server.isaac
+ * @param {string} url - The raw request url, query included
+ * @returns {boolean} `true` when the gate lets the request through to core/server.js
+ * @example
+ * _isLeftToServerJs('/_gina/storage/gc?dryRun=1');  // → true
+ * _isLeftToServerJs('/_gina/health/check?probe=1'); // → true
+ * _isLeftToServerJs('/_gina/info');                 // → false (answered above the gate)
+ * _isLeftToServerJs('/web/_gina/storage/stats');    // → false (not the root path)
+ */
+function _isLeftToServerJs(url) {
+    var p = ( typeof(url) == 'string' ) ? url.split('?')[0] : '';
+    return p === '/_gina/storage/stats'
+        || p === '/_gina/storage/gc'
+        || p === '/_gina/storage/verify'
+        || p === '/_gina/health/check';
+}
+
+/**
  * Reloads all core and lib modules from disk by replacing their require.cache
  * entries with fresh exports. Excludes gna.js itself. Also refreshes the
  * plugins index so the running instance picks up any hot-reloaded code.
@@ -2544,8 +2577,12 @@ function ServerEngineClass(options) {
             // core/server.js then serves the asset underneath it — MEASURED as a
             // 200 bypass, against a synchronous arm that held at 503. The full
             // mechanism is documented at the core/server.js twin.
+            //
+            // #B715 — the `/_gina/*` paths only core/server.js answers pass through to
+            // it (`_isLeftToServerJs`); the check runs last, so it costs nothing while
+            // no window is open.
             var _mtState = server._maintenance;
-            if ( _mtState && lib.maintenance.isActive(_mtState) ) {
+            if ( _mtState && lib.maintenance.isActive(_mtState) && !_isLeftToServerJs(request.url) ) {
                 var _mtNow     = Date.now();
                 var _mtConf    = lib.maintenance.effectiveConf(_mtState, _mtNow);
                 var _mtVerdict = lib.maintenance.evaluateBypass(
