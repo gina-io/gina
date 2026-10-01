@@ -4132,9 +4132,13 @@ function Server(options) {
 
                                 // acceptEncodingArr = request.headers['accept-encoding'].replace(/\s+/g, '').split(/\,/);
                                 // acceptEncoding = null;
+                                // #B742 — the coding's NAME (`gzip`), kept beside its file
+                                // extension (`acceptEncoding`, `.gz`): Content-Encoding takes the name.
+                                var acceptEncodingName = null;
                                 for (let e=0, eLen=preferedEncoding.length; e<eLen; e++) {
                                     if ( acceptEncodingArr && acceptEncodingArr.indexOf(preferedEncoding[e]) > -1 ) {
                                         acceptEncoding = bundleConf.server.coreConfiguration.encoding[ preferedEncoding[e] ] ;
+                                        acceptEncodingName = preferedEncoding[e];
                                         break;
                                     }
                                 }
@@ -4146,7 +4150,11 @@ function Server(options) {
                                 ) {
                                     filename += acceptEncoding;
                                     // https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Encoding
-                                    response.setHeader('content-encoding', acceptEncoding.replace(/^\./, ''));
+                                    // was: response.setHeader('content-encoding', acceptEncoding.replace(/^\./, ''));
+                                    // #B742 — the extension without its dot is not a coding name for
+                                    // gzip (`gz`), deflate (`zip`), compress (`z`) or zstd (`zst`), and
+                                    // a browser does not decode such a response.
+                                    response.setHeader('content-encoding', acceptEncodingName);
                                     // override content length
                                     var siblingStat = fs.statSync(filename);
                                     response.setHeader('content-length', siblingStat.size);

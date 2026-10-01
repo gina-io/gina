@@ -2565,10 +2565,14 @@ function ServerEngineClass(options) {
                 }
 
                 var filename  =  _(localAsset.path +'/'+ localAsset.file, true);
+                // #B742 — the coding's NAME (`gzip`), kept beside its file extension
+                // (`acceptEncoding`, `.gz`): Content-Encoding takes the name.
+                var acceptEncodingName = null;
                 if (acceptEncodingArr) {
                     for (let e=0, eLen=preferedEncoding.length; e<eLen; e++) {
                         if ( acceptEncodingArr && acceptEncodingArr.indexOf(preferedEncoding[e]) > -1 ) {
                             acceptEncoding = options.coreConfiguration.encoding[ preferedEncoding[e] ] ;
+                            acceptEncodingName = preferedEncoding[e];
                             break;
                         }
                     }
@@ -2582,7 +2586,10 @@ function ServerEngineClass(options) {
                     isBinary = true;
                     filename += acceptEncoding;
                     // https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Encoding
-                    response.setHeader('content-encoding', acceptEncoding.replace(/^\./, ''));
+                    // was: response.setHeader('content-encoding', acceptEncoding.replace(/^\./, ''));
+                    // #B742 — the extension without its dot is not a coding name for gzip
+                    // (`gz`), and a browser does not decode such a response.
+                    response.setHeader('content-encoding', acceptEncodingName);
                     // override content length
                     response.setHeader('content-length', fs.statSync(filename).size);
                 }

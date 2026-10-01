@@ -332,7 +332,7 @@ describe('§05 handleStatics — the content token', function () {
     });
 
     it('05.6 HTTP/1.x: a precompressed sibling older than its source, in whole seconds, is never served `immutable`', function () {
-        assert.ok(at(STATICS(), String.raw`filename += acceptEncoding; response.setHeader('content-encoding', acceptEncoding.replace(/^\./, '')); var siblingStat = fs.statSync(filename); response.setHeader('content-length', siblingStat.size); if ( versionMatched && Math.floor(siblingStat.mtimeMs / 1000) < Math.floor(stat.mtimeMs / 1000) ) { versionMatched = false; }`) > -1);
+        assert.ok(at(STATICS(), String.raw`filename += acceptEncoding; response.setHeader('content-encoding', acceptEncodingName); var siblingStat = fs.statSync(filename); response.setHeader('content-length', siblingStat.size); if ( versionMatched && Math.floor(siblingStat.mtimeMs / 1000) < Math.floor(stat.mtimeMs / 1000) ) { versionMatched = false; }`) > -1);
     });
 
     it('05.7 the HTTP/1.x 200 sets it before writeHead, beside the pinned validators', function () {
