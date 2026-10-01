@@ -92,9 +92,11 @@ test.describe('gh#83 part 2 — #B725 a file input fakepath never rides the XHR 
         await page.setInputFiles('#docA', { name: 'me.pdf', mimeType: 'application/pdf', buffer: PNG });
         await page.waitForTimeout(300);
         await page.click('#b459form-submit');
-        await expect.poll(() => savePosts, { timeout: 8000 }).toBe(1);
-        await page.waitForTimeout(150);
+        // #B726 — the submit waits for the staged upload still in flight, then sends once
+        await page.waitForTimeout(400);
+        expect(savePosts, 'no save while the staged upload is held (#B726)').toBe(0);
         releaseStage();
+        await expect.poll(() => savePosts, { timeout: 8000 }).toBe(1);
 
         expect(saveBody, 'the save body carried no fakepath').not.toContain('fakepath');
         expect(saveBody, 'the file input value is not posted as a scalar').not.toContain('"doc":"C:');

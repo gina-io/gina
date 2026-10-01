@@ -2093,7 +2093,10 @@ function ValidatorPlugin(rules, data, formId, culture) {
         // server. "did not complete" is honest for all three; the old "did not reach the
         // server" was false for the latter two. Resolved through a11yLabel() so a project
         // can translate it, which the hardcoded literal could not.
-        transportError  : 'Transport failure: the request did not complete'
+        transportError  : 'Transport failure: the request did not complete',
+        // #B726 (gh#83 part 3) — spoken once when a submit waits for one of its form's staged
+        // uploads to finish; the submit is sent when the last of them settles.
+        uploadPending   : 'Waiting for the upload to finish…'
     };
 
     /**
@@ -4946,6 +4949,172 @@ function ValidatorPlugin(rules, data, formId, culture) {
         });
     };
 
+    /**
+     * getStagedUploadsInFlight — #B726: the staged uploads of a form whose staging request is
+     * on the wire.
+     *
+     * A staged file input points at its virtual `gina-upload-*` form through
+     * `data-gina-form-virtual`, written on every selection. That form's record carries `sent`,
+     * which `send()` sets only AFTER `xhr.send()` and clears when the request settles (readyState
+     * 4 and the `loadend` fail-safe). So `sent` reads true exactly while a staging request is in
+     * flight — unlike `isSending`, which is claimed before the request opens and stays true for
+     * good when something throws before it is sent.
+     *
+     * `form.elements` is walked so that a staged input reassociated with `form="<id>"` counts.
+     *
+     * @inner
+     * @param {HTMLFormElement} $formEl - the REAL form (never its virtual upload form)
+     * @returns {Array<string>} the ids of the virtual upload forms still in flight; empty when none
+     *
+     * @example
+     * getStagedUploadsInFlight(document.getElementById('profile')); // ['gina-upload-avatar']
+     */
+    var getStagedUploadsInFlight = function($formEl) {
+        var inFlight = [];
+        if ( !$formEl || !$formEl.elements ) {
+            return inFlight;
+        }
+        var $controls = $formEl.elements, $control = null, virtualId = null;
+        for (var c = 0, cLen = $controls.length; c < cLen; ++c) {
+            $control = $controls[c];
+            if ( !$control || $control.type != 'file' || typeof($control.getAttribute) != 'function' ) {
+                continue;
+            }
+            virtualId = $control.getAttribute('data-gina-form-virtual');
+            if (
+                virtualId
+                && typeof(instance.$forms[virtualId]) != 'undefined'
+                && /^true$/i.test(instance.$forms[virtualId].sent)
+                && inFlight.indexOf(virtualId) < 0
+            ) {
+                inFlight.push(virtualId);
+            }
+        }
+        return inFlight;
+    };
+
+    /**
+     * holdSubmitForStagedUploads — #B726: make a submit WAIT while one of its form's staged
+     * uploads is in flight, instead of posting the upload's still-empty hidden fields.
+     *
+     * Called at the top of both submit doors, before the payload is collected. When an upload is
+     * in flight it records ONE wait on the form's record (`stagedUploadWait`), keeps the busy
+     * state the gesture armed, announces the wait once through the form's live region
+     * (`a11yLabel('uploadPending')`) and tells the caller to stop. When the last upload settles,
+     * `resolveStagedUploadWait` either runs `replay` — which re-enters the same door, so the
+     * fields are collected again, now filled — or, if an upload failed, sends nothing.
+     *
+     * A gesture made while a wait is pending adds nothing; one made when a wait is recorded but
+     * nothing is in flight any more drops the wait and goes through.
+     *
+     * @inner
+     * @param {HTMLFormElement} $formEl - the real form being submitted
+     * @param {function} replay - re-runs this submit through the door it came in by
+     * @returns {boolean} true when the submit must stop here: it is waiting, or a wait is pending
+     *
+     * @example
+     * if ( holdSubmitForStagedUploads($form, function() { $form.requestSubmit(); }) ) {
+     *     return; // the submit runs again once the upload settles
+     * }
+     */
+    var holdSubmitForStagedUploads = function($formEl, replay) {
+        var formId = ( $formEl && typeof($formEl.getAttribute) == 'function' ) ? $formEl.getAttribute('id') : null;
+        var $formRecord = ( formId && typeof(instance.$forms[formId]) != 'undefined' ) ? instance.$forms[formId] : null;
+        if ( !$formRecord ) {
+            return false;
+        }
+        var inFlight = getStagedUploadsInFlight($formEl);
+        if ( $formRecord.stagedUploadWait ) {
+            if ( inFlight.length > 0 ) {
+                return true; // one wait per form
+            }
+            // nothing is on the wire any more: a settle this wait never heard of
+            $formRecord.stagedUploadWait = null;
+            return false;
+        }
+        if ( inFlight.length == 0 ) {
+            return false;
+        }
+        $formRecord.stagedUploadWait = { replay: replay, failed: false };
+        announceA11yStatus($formEl, a11yLabel('uploadPending'));
+        if (envIsDev) {
+            try { console.info('[FormValidator][upload] form `#'+ formId +'`: submit waiting for '+ inFlight.length +' staged upload(s) to finish ('+ inFlight.join(', ') +')'); } catch (e) {}
+        }
+        return true;
+    };
+
+    /**
+     * noteStagedUploadSettled — #B726: called by `onUpload` for every staging outcome.
+     *
+     * When the real form has a submit waiting, a failure marks the wait as failed, and the
+     * decision is left to a microtask: it runs after the whole XHR settle has finished — the
+     * hidden fields filled on success, or the error rendered — and even when the rest of
+     * `onUpload` throws. Every outcome of one settle has been recorded by then, including a
+     * success that `onUpload` turned into an error.
+     *
+     * @inner
+     * @param {HTMLFormElement|undefined} $formEl - the real form (`uploadProperties.$form`)
+     * @param {string} status - `success`, or anything else for a failure
+     * @returns {undefined}
+     *
+     * @example
+     * noteStagedUploadSettled(document.getElementById('profile'), 'error');
+     */
+    var noteStagedUploadSettled = function($formEl, status) {
+        var formId = ( $formEl && typeof($formEl.getAttribute) == 'function' ) ? $formEl.getAttribute('id') : null;
+        var $formRecord = ( formId && typeof(instance.$forms[formId]) != 'undefined' ) ? instance.$forms[formId] : null;
+        if ( !$formRecord || !$formRecord.stagedUploadWait ) {
+            return;
+        }
+        if ( status != 'success' ) {
+            $formRecord.stagedUploadWait.failed = true;
+        }
+        var decide = function onStagedUploadSettled() { resolveStagedUploadWait($formEl); };
+        if ( typeof(queueMicrotask) == 'function' ) {
+            queueMicrotask(decide);
+        } else {
+            Promise.resolve().then(decide);
+        }
+    };
+
+    /**
+     * resolveStagedUploadWait — #B726: decide a waiting submit once a staged upload settled.
+     *
+     * Still waiting while another upload of the form is in flight. Otherwise the wait ends: when
+     * every upload succeeded the submit is replayed through its own door; when one failed, or the
+     * form has left the page, nothing is sent and the busy state the gesture armed is released —
+     * unless the form has a request of its own in flight, whose settle owns that state (#B247).
+     * No announcement on a failure: the upload already announced the server's message, and a
+     * second write in the same beat would replace it.
+     *
+     * @inner
+     * @param {HTMLFormElement} $formEl - the real form
+     * @returns {undefined}
+     *
+     * @example
+     * resolveStagedUploadWait(document.getElementById('profile'));
+     */
+    var resolveStagedUploadWait = function($formEl) {
+        var formId = ( $formEl && typeof($formEl.getAttribute) == 'function' ) ? $formEl.getAttribute('id') : null;
+        var $formRecord = ( formId && typeof(instance.$forms[formId]) != 'undefined' ) ? instance.$forms[formId] : null;
+        if ( !$formRecord || !$formRecord.stagedUploadWait ) {
+            return;
+        }
+        var wait = $formRecord.stagedUploadWait;
+        var isDetached = ( typeof($formEl.isConnected) != 'undefined' && !$formEl.isConnected );
+        if ( !isDetached && getStagedUploadsInFlight($formEl).length > 0 ) {
+            return;
+        }
+        $formRecord.stagedUploadWait = null;
+        if ( wait.failed || isDetached ) {
+            if ( !/^true$/i.test($formRecord.isSending) ) {
+                disarmSubmitLoading($formRecord);
+            }
+            return;
+        }
+        wait.replay();
+    };
+
     var onUpload = function(gina, $target, status, id, data) {
 
         var uploadProperties = $target.uploadProperties || null;
@@ -4972,6 +5141,9 @@ function ValidatorPlugin(rules, data, formId, culture) {
         // #R8 slice 2 — the dropzone (if bound) returns to idle at the same
         // single chokepoint
         updateUploadDropzoneState(uploadProperties.dropzoneContainer || null, 'idle');
+        // #B726 — a submit of the real form may be waiting for this upload; it is decided once
+        // this whole settle has run (see noteStagedUploadSettled)
+        noteStagedUploadSettled(uploadProperties.$form, status);
         // parent form
         // var $mainForm = uploadProperties.$form;
         var $uploadTriger = document.getElementById(uploadProperties.uploadTriggerId);
@@ -8040,6 +8212,9 @@ function ValidatorPlugin(rules, data, formId, culture) {
         // or
         // $form.target.dataset.ginaFormIsResetting = true;
         // handleErrorsDisplay($form.target, {});
+        // #B726 — a submit waiting for a staged upload belongs to the binding being torn down:
+        // drop it, so that upload's settle never replays a submit on an unbound form
+        $form.stagedUploadWait = null;
         $form.binded = false;
 
         return $form;
@@ -10278,6 +10453,13 @@ function ValidatorPlugin(rules, data, formId, culture) {
                 //     return;
                 // }
 
+                // #B726 (gh#83 part 3) — a staged upload of this form still on the wire would post
+                // its hidden fields empty: wait for it, then re-run this click, which collects them
+                // again once filled. Placed before the latch below, so there is nothing to release.
+                if ( holdSubmitForStagedUploads($target, function replayStagedUploadClick() { triggerEvent(gina, $submit, evt); }) ) {
+                    return;
+                }
+
                 var validatorInfos = getFormValidationInfos($target, rules);
                 fields  = validatorInfos.fields;
                 $fields = validatorInfos.$fields;
@@ -10532,6 +10714,14 @@ function ValidatorPlugin(rules, data, formId, culture) {
 
             if (withRules || isBinded) {
                 cancelEvent(e);
+            }
+
+            // #B726 (gh#83 part 3) — the same wait as the click door: a click inside the button,
+            // Enter in a form with no submit button, `<input type=submit>`, requestSubmit() and
+            // `$forms[id].submit()` all arrive here. Only once the native submit is cancelled above:
+            // an earlier return would let the browser post the form itself.
+            if ( (withRules || isBinded) && holdSubmitForStagedUploads($target, function replayStagedUploadSubmit() { triggerEvent(gina, $target, 'submit'); }) ) {
+                return false;
             }
 
 
