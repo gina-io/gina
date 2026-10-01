@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'A page whose query string ends in the client routing table''s path, such as `/web/?next=/_gina/assets/routing.json`, is answered by the page instead of the table: both engines now test the table on the URL''s path only, as the other built-in endpoints have since 0.7.1. Restart the bundle. (#P48)'
+time: 2026-10-01T19:26:58+01:00
