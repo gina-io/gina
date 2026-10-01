@@ -18,7 +18,8 @@
  * `server.maintenance.allowFrom`, called by a direct loopback client):
  *   00  maintenance off: the plain health check (control), HEAD, the routing map with a query
  *       answered by isaac's fast path, and a url whose QUERY ends with the routing-map path, which
- *       is served the map and leaves the bundle up
+ *       the page answers (a 404 from core/server.js: since #P48 the map is matched on the url's
+ *       path) and which leaves the bundle up
  *   01  maintenance on, flipped by a direct POST (the operator's path)
  *   02  HEAD, HEAD with a query and GET with a query on the health check, and the routing map
  *       with a query, all answer 200; controls — a routed page still gets isaac's 503 (02.5) and
@@ -254,11 +255,11 @@ describe('34 - container-boot-gina-endpoints-query-head-b717 — the health chec
         assert.equal(r.headers['x-request-id'], undefined, 'isaac\'s fast path must answer it, not core/server.js: ' + show(r));
     });
 
-    it('00.4  a url whose QUERY ends with the routing-map path is served the map, and the bundle stays up', async function (t) {
+    it('00.4  a url whose QUERY ends with the routing-map path is answered by the page, not the map, and the bundle stays up (#P48)', async function (t) {
         if (!ready(t)) return;
         var r = await direct('GET', '/x?y=/_gina/assets/routing.json', {});
-        assert.equal(r.status, 200, 'GET /x?y=/_gina/assets/routing.json → ' + show(r));
-        assert.ok(r.json && typeof r.json === 'object', 'the routing map must be JSON: ' + show(r));
+        assert.equal(r.status, 404, 'GET /x?y=/_gina/assets/routing.json must get the page\'s 404, not the map → ' + show(r));
+        assert.ok(r.headers['x-request-id'], 'core/server.js must answer it (the page), not isaac\'s fast path: ' + show(r));
         await sleep(200);
         assert.ok(isChildAlive(), 'the bundle must still run: ' + JSON.stringify(childExit) + '\n' + childOut.slice(-800));
         var h = await direct('GET', '/_gina/health/check', {});

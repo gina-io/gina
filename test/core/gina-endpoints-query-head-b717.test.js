@@ -14,13 +14,17 @@
  * on both engines; the health check answers HEAD with the GET status and headers plus
  * `content-length`, and no body; isaac's routing.json fast path looks its asset up by the file
  * name its test matched, so a query no longer names a missing asset (whose `localAsset.mime` read
- * would have thrown).
+ * would have thrown). #P48 then moved the routing map to the url's PATH on both engines (a
+ * versioned fetch carries `?v=<token>`; a page whose query string ends in the map's path is the
+ * page's, the #B712 rule): isaac computes `_routingPath`, looks up its last segment lower-cased,
+ * and a miss falls through to core/server.js.
  *
  * Instrument: each health handler block is EXTRACTED from the shipped source and EXECUTED against
  * request/response stubs — no replica, so nothing can drift from the source; the matcher
  * conditions and isaac's asset lookup are extracted and executed the same way. Every extraction
  * anchor exists once in the sources before and after the fix, so a red run fails on behaviour,
- * never on a missing anchor; a plain `GET /_gina/health/check` arm is the control.
+ * never on a missing anchor — except isaac's routing-map statements, which are #P48's shape (a
+ * tree without #P48 fails at that extraction); a plain `GET /_gina/health/check` arm is the control.
  *
  * Red-first seam (the #B498 harness names): GINA_SERVER_SRC / GINA_ISAAC_SRC point the file at
  * another tree's sources.
@@ -119,16 +123,31 @@ var ISAAC_HEALTH = new Function('request', 'response', '_setPoweredByHeader',
 function identity(h) { return h; }
 
 var SERVER_ROUTING_COND = new Function('request', 'self', 'return !!(' + conditionAround(SERVER, '_gina\\/assets\\/routing\\.json', 'server.js routing.json') + '\n);');
-var ISAAC_ROUTING_COND  = new Function('request', 'return !!(' + conditionAround(ISAAC, '_gina\\/assets\\/routing\\.json', 'isaac routing.json') + '\n);');
-
-// isaac: the routing.json asset lookup statement below its matcher
-var ISAAC_ROUTING_LOOKUP = (function () {
-    var at   = ISAAC.indexOf('_gina\\/assets\\/routing\\.json');
-    var from = ISAAC.indexOf('localAsset = assetsCollection.findOne({ file:', at);
-    var to   = (from > -1) ? ISAAC.indexOf('});', from) : -1;
-    assert.ok(at > -1 && from > at && to > from, 'isaac routing.json: the asset lookup was not found below the matcher');
-    return new Function('request', 'assetsCollection', 'var localAsset; ' + ISAAC.slice(from, to + 3) + '\nreturn localAsset;');
+// isaac (#P48): the fast path computes the query-free `_routingPath` in its own statement, then
+// assigns the lookup through a ternary on the matcher — a miss leaves `localAsset` null and the
+// `if ( localAsset ) {` below it falls through to core/server.js. Both statements are extracted
+// and executed together; the matcher needle must sit in the ternary's condition, once in the file.
+var NEEDLE = '_gina\\/assets\\/routing\\.json';
+var ISAAC_ROUTING = (function () {
+    var from = ISAAC.indexOf('var _routingPath = ');
+    var look = (from > -1) ? ISAAC.indexOf('localAsset = (', from) : -1;
+    var line = (look > -1) ? ISAAC.indexOf('\n', look) : -1;
+    var end  = (line > -1) ? ISAAC.indexOf(': null;', line) : -1;
+    assert.ok(from > -1 && look > from && line > look && end > line, 'isaac routing.json: the `_routingPath` statement and the lookup below it were not found');
+    assert.equal(ISAAC.indexOf('var _routingPath = ', from + 1), -1, 'isaac routing.json: `_routingPath` must be computed once');
+    var computePath = ISAAC.slice(from, ISAAC.indexOf(';', from) + 1);
+    var cond        = ISAAC.slice(look + 'localAsset = '.length, line).trim();
+    var lookup      = ISAAC.slice(look, end + ': null;'.length);
+    assert.ok(cond.indexOf(NEEDLE) > -1, 'isaac routing.json: the matcher must be the lookup\'s condition');
+    assert.equal(ISAAC.indexOf(NEEDLE, ISAAC.indexOf(NEEDLE) + 1), -1, 'isaac routing.json: the matcher anchor must be unique');
+    return {
+        cond:   new Function('request', computePath + '\nreturn !!' + cond + ';'),
+        lookup: new Function('request', 'assetsCollection', 'var localAsset; ' + computePath + '\n' + lookup + '\nreturn localAsset;'),
+        after:  ISAAC.slice(end + ': null;'.length)
+    };
 })();
+var ISAAC_ROUTING_COND   = ISAAC_ROUTING.cond;
+var ISAAC_ROUTING_LOOKUP = ISAAC_ROUTING.lookup;
 
 var RELEASE = {};
 [ ['server.js', SERVER], ['server.isaac.js', ISAAC] ].forEach(function (pair) {
@@ -266,10 +285,10 @@ describe('#B717 03 — the routing map: a query string no longer misses either e
         assert.equal(ISAAC_ROUTING_COND({ method: 'POST', url: '/_gina/assets/routing.json?x=1' }), false);
     });
 
-    it('03.4  isaac looks its asset up by the file name its test matched (#B717)', function () {
+    it('03.4  isaac looks its asset up by the query-free path\'s file name (#B717, #P48)', function () {
         function lookup(url) {
             var asked = [];
-            var found = ISAAC_ROUTING_LOOKUP({ url: url }, {
+            var found = ISAAC_ROUTING_LOOKUP({ method: 'GET', url: url }, {
                 findOne: function (q) { asked.push(q.file); return ( q.file === 'routing.json' ) ? { file: q.file, mime: 'application/json' } : null; }
             });
             return { asked: asked, found: found };
@@ -280,11 +299,15 @@ describe('#B717 03 — the routing map: a query string no longer misses either e
         var q = lookup('/_gina/assets/routing.json?x=1');
         assert.deepEqual(q.asked, ['routing.json'], 'a query string must not become part of the asset name');
         assert.ok(q.found, 'the asset must be found, or `localAsset.mime` below throws');
-        // a url whose QUERY ends with the path matched before the fix and was served the map;
-        // a lookup on the query-free path would ask for `x`, find nothing and throw
-        var inQuery = lookup('/x?y=/_gina/assets/routing.json');
-        assert.deepEqual(inQuery.asked, ['routing.json']);
-        assert.ok(inQuery.found);
+        // #P48 — the map is matched on the url's PATH on both engines, like the other /_gina/
+        // endpoints since #B712: a url whose QUERY ends with the path is the page's. It was served
+        // the map until #P48; now neither engine matches it, and isaac looks nothing up.
+        var inQuery = '/x?y=/_gina/assets/routing.json';
+        assert.equal(ISAAC_ROUTING_COND({ method: 'GET', url: inQuery }), false, 'isaac must not enter its fast path');
+        assert.equal(SERVER_ROUTING_COND({ method: 'GET', url: inQuery }, SELF), false, 'core/server.js must not answer with the map');
+        var iq = lookup(inQuery);
+        assert.deepEqual(iq.asked, [], 'a path in the query string must not reach the lookup');
+        assert.equal(iq.found, null);
     });
 });
 

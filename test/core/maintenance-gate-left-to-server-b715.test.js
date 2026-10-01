@@ -41,11 +41,12 @@ var PREDICATE_DECL = 'function _isLeftToServerJs(url) {';
 var GATE_CONDITION = 'if ( _mtState && lib.maintenance.isActive(_mtState) && !_isLeftToServerJs(request.url) ) {';
 
 /**
- * A `/_gina/` regex literal applied with `.test(…)` to `request.url` or the #B709 control
- * path, or passed to `request.url.match(…)` (the jobs handler).
+ * A `/_gina/` regex literal applied with `.test(…)` to `request.url`, to its query-free path
+ * (`request.url.split('?')[0]` in core/server.js, `_routingPath` in isaac — #P48's routing map)
+ * or to the #B709 control path, or passed to `request.url.match(…)` (the jobs handler).
  */
 var MATCHER_RES = [
-    /\/((?:\\\/|[^\/\n])+)\/[dgimsuvy]*\.test\((?:request\.url|_ginaCtlPath)\)/g,
+    /\/((?:\\\/|[^\/\n])+)\/[dgimsuvy]*\.test\((?:request\.url(?:\.split\('\?'\)\[0\])?|_ginaCtlPath|_routingPath)\)/g,
     /request\.url\.match\(\/((?:\\\/|[^\/\n])+)\/[dgimsuvy]*\)/g
 ];
 

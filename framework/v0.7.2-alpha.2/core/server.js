@@ -1412,6 +1412,18 @@ function Server(options) {
                 'W/"' + crypto.createHash('sha1').update(self._clientRoutingAssets.stripped).digest('hex').substr(0, 16) + '"';
             serverOpt.clientRoutingAssets.fullEtag     = self._clientRoutingAssets.fullEtag;
             serverOpt.clientRoutingAssets.strippedEtag = self._clientRoutingAssets.strippedEtag;
+            // #P48 — per-variant routing-table tokens, the head of the same sha1 as
+            // the ETags: a routing change mints a new one, a restart with the same
+            // routes keeps it. The page names its variant's token on gina's own
+            // script tag; both engines' handlers answer `immutable` only to the
+            // token of the variant they serve (a mis-classified request fails the
+            // check and revalidates).
+            self._clientRoutingAssets.fullVersion =
+                crypto.createHash('sha1').update(self._clientRoutingAssets.full).digest('hex').substring(0, 10);
+            self._clientRoutingAssets.strippedVersion =
+                crypto.createHash('sha1').update(self._clientRoutingAssets.stripped).digest('hex').substring(0, 10);
+            serverOpt.clientRoutingAssets.fullVersion     = self._clientRoutingAssets.fullVersion;
+            serverOpt.clientRoutingAssets.strippedVersion = self._clientRoutingAssets.strippedVersion;
 
             Engine = require('./server.' + ((typeof (serverOpt.engine) != 'undefined' && serverOpt.engine != '') ? serverOpt.engine : 'express'));
             var engine = new Engine(serverOpt);
@@ -2827,6 +2839,17 @@ function Server(options) {
                 instance._cacheName = lib.RenderCache.resolveCacheName(self.conf[self.appName][self.env].server.cache);
             }
 
+            // #P48 — the routing table's per-variant tokens (built with the maps in
+            // init, before the engine), stamped where the controller reads them to
+            // render `data-gina-routing-v` on gina's own script tag. Absent maps
+            // leave it unset: the page then fetches the table unversioned.
+            if ( typeof(instance._routingVersion) == 'undefined' && self._clientRoutingAssets ) {
+                instance._routingVersion = {
+                    full     : self._clientRoutingAssets.fullVersion,
+                    stripped : self._clientRoutingAssets.strippedVersion
+                };
+            }
+
             // #MS5 — per-authority query circuit-breaker policy, resolved ONCE
             // from the post-fold `server.query.circuitBreaker` and stamped where
             // `controller.query()` reads it (mirrors the `_cache*` scalars above;
@@ -3824,6 +3847,10 @@ function Server(options) {
             , preferedEncoding = bundleConf.server.preferedCompressionEncodingOrder
             , acceptEncodingArr = (request.headers['accept-encoding']) ? request.headers['accept-encoding'].replace(/\s+/g, '').split(/\,/) : []
             , acceptEncoding = null
+            // #P48 — the content token a request asks for (`?v=`) and whether it
+            // names the bytes served (production only, set below)
+            , versionRequested = null
+            , versionMatched = false
         ;
 
         // catch `statics.json` defined paths
@@ -3967,12 +3994,31 @@ function Server(options) {
 
                     // 304 Not Modified — only in production (dev always re-serves for live reload)
                     if (!isCacheless) {
+                        // #P48 — a gina content token (10 hex: an author's own `v=` is
+                        // left alone) is honoured only when it names THIS file's bytes:
+                        // `immutable` then, `no-cache` for any other token, today's
+                        // headers without one. Read off the original URL (request.url
+                        // is query-free here on both engines); over 8 MiB no token
+                        // matches (the lib/sri cap).
+                        versionRequested = lib.sri.getRequestedVersion(request.originalUrl || request.url);
+                        if ( versionRequested !== null && !/^[0-9a-f]{10}$/.test(versionRequested) ) {
+                            versionRequested = null;
+                        }
+                        versionMatched = ( versionRequested !== null && versionRequested === lib.sri.computeVersion(filename) ) ? true : false;
                         var ifNoneMatch     = request.headers['if-none-match'];
                         var ifModifiedSince = request.headers['if-modified-since'];
                         var isNotModified   = (ifNoneMatch && ifNoneMatch === etag)
                                             || (!ifNoneMatch && ifModifiedSince && new Date(ifModifiedSince) >= stat.mtime);
                         if (isNotModified) {
-                            if ( /http\/2/.test(protocol) ) {
+                            if ( /http\/2/.test(protocol) && versionMatched ) {
+                                // #P48 — the Cache-Control its 200 carries (RFC 9110
+                                // § 15.4.5): HTTP/2 serves the source file itself. The
+                                // other 304s stay bare: the HTTP/1.x one is decided
+                                // before a precompressed sibling is picked, and a bare
+                                // 304 keeps what the browser stored with its copy.
+                                stream.respond({ ':status': 304, 'cache-control': 'public, max-age=31536000, immutable' });
+                                stream.end();
+                            } else if ( /http\/2/.test(protocol) ) {
                                 stream.respond({ ':status': 304 });
                                 stream.end();
                             } else {
@@ -4058,6 +4104,11 @@ function Server(options) {
                                 // production: ETag + Last-Modified enable conditional GET (304) (#Next)
                                 header['last-modified'] = lastModified;
                                 header['etag'] = etag;
+                                // #P48 — a token request: a year when the token names
+                                // these bytes, revalidate-before-use otherwise
+                                if ( versionRequested !== null ) {
+                                    header['cache-control'] = ( versionMatched ) ? 'public, max-age=31536000, immutable' : 'no-cache';
+                                }
                             }
 
                             header  = completeHeaders(header, request, response);
@@ -4097,7 +4148,18 @@ function Server(options) {
                                     // https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Encoding
                                     response.setHeader('content-encoding', acceptEncoding.replace(/^\./, ''));
                                     // override content length
-                                    response.setHeader('content-length', fs.statSync(filename).size);
+                                    var siblingStat = fs.statSync(filename);
+                                    response.setHeader('content-length', siblingStat.size);
+                                    // #P48 — the token names the SOURCE's bytes: a sibling
+                                    // older than its source may be stale, so it is never
+                                    // served `immutable` (it revalidates instead). Compared in
+                                    // whole seconds, the resolution of Last-Modified: a
+                                    // compressor that keeps its source's timestamp truncates
+                                    // it (brotli to the second, gzip to the microsecond), so a
+                                    // sibling of the same build lands inside its source's second.
+                                    if ( versionMatched && Math.floor(siblingStat.mtimeMs / 1000) < Math.floor(stat.mtimeMs / 1000) ) {
+                                        versionMatched = false;
+                                    }
                                 }
                             }
 
@@ -4118,6 +4180,10 @@ function Server(options) {
 
                             } else {
                                 // production: ETag + Last-Modified enable conditional GET (304) (#Next)
+                                // #P48 — as the HTTP/2 branch (a stale sibling was downgraded above)
+                                if ( versionRequested !== null ) {
+                                    response.setHeader('cache-control', ( versionMatched ) ? 'public, max-age=31536000, immutable' : 'no-cache');
+                                }
                                 response.writeHead(200, {
                                     'last-modified': lastModified,
                                     'etag': etag
@@ -4546,9 +4612,8 @@ function Server(options) {
             // onInstance response, so they are inherited, not re-set.
             if (
                 request.method.toUpperCase() === 'GET'
-                // #B717 — `(?:\?|$)`: a query string no longer misses the handler (on
-                // express request.url still carries it here)
-                && /\/_gina\/assets\/routing\.json(?:\?|$)/i.test(request.url)
+                // #P48 — the path alone: a versioned fetch carries `?v=<token>`
+                && /\/_gina\/assets\/routing\.json$/i.test(request.url.split('?')[0])
                 && self._clientRoutingAssets
             ) {
                 // #B65-twin — per-request proxied classification (keep in sync with
@@ -4576,6 +4641,17 @@ function Server(options) {
                 // (usually a 304), so a restart's new route table reaches returning
                 // browsers immediately instead of after a 24h max-age window.
                 response.setHeader('cache-control', ( _croutProxied === true ) ? 'private, no-cache' : 'public, no-cache');
+                // #P48 — a request naming the token of the variant it is served (the
+                // page's `data-gina-routing-v`) may keep the table for a year: a
+                // routing change mints a new token, which the next page names. Read
+                // off the original URL (Express may have query-stripped request.url).
+                var _croutVersion = lib.sri.getRequestedVersion(request.originalUrl || request.url);
+                if (
+                    _croutVersion
+                    && _croutVersion === ( ( _croutProxied === true ) ? self._clientRoutingAssets.strippedVersion : self._clientRoutingAssets.fullVersion )
+                ) {
+                    response.setHeader('cache-control', ( ( _croutProxied === true ) ? 'private' : 'public' ) + ', max-age=31536000, immutable');
+                }
                 response.setHeader('x-content-type-options', 'nosniff');
                 response.setHeader('x-frame-options', 'DENY');
                 response.setHeader('x-xss-protection', '1; mode=block');

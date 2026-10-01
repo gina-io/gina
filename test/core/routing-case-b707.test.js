@@ -10,14 +10,18 @@
  * guard.
  *
  * The fix: the captured name is lower-cased before the lookup, so every spelling the matcher
- * accepts names the registered asset.
+ * accepts names the registered asset. #P48 reshaped the fast path: it matches the url's PATH
+ * (`_routingPath`, the query-free url), looks up that path's last segment lower-cased through a
+ * ternary, and a miss leaves `localAsset` null so the request falls through to core/server.js —
+ * a missing asset is never dereferenced.
  *
  * Instrument: isaac's matcher condition and its asset lookup are EXTRACTED from the shipped source
  * and EXECUTED — no replica. The lookup runs against a collection stub that answers exactly like
  * the real one (a strict `===` on the file name, `lib/collection`), with `routing.json` as the only
- * registered name. Every extraction anchor exists once in the source before and after the fix, so a
- * red run fails on behaviour, never on a missing anchor; the lowercase path is the control, and a
- * longer name the matcher must reject is the negative control.
+ * registered name. The extraction anchors are #P48's statements (`var _routingPath =`, the
+ * `localAsset = (` ternary), so a tree without #P48 fails at extraction; the behavioural red-first
+ * is the live twin's. The lowercase path is the control, and a longer name the matcher must reject
+ * is the negative control.
  *
  * Red-first seam (the #B498 harness name): GINA_ISAAC_SRC points the file at another tree's
  * server.isaac.js.
@@ -43,27 +47,29 @@ var MATCHER_NEEDLE = '_gina\\/assets\\/routing\\.json';
 // Extraction
 // ---------------------------------------------------------------------------
 
-/** The condition of the `if (…) {` that holds the unique matcher needle. */
-function conditionAround(src, needle, label) {
-    var at = src.indexOf(needle);
-    assert.ok(at > -1, label + ': matcher anchor not found: ' + needle);
-    assert.equal(src.indexOf(needle, at + 1), -1, label + ': the matcher anchor must be unique');
-    var ifAt    = src.lastIndexOf('if (', at);
-    var closeAt = src.indexOf(') {', at);
-    assert.ok(ifAt > -1 && closeAt > at, label + ': could not bound the condition');
-    return src.slice(ifAt + 'if ('.length, closeAt);
-}
-
-var ISAAC_ROUTING_COND = new Function('request', 'return !!(' + conditionAround(ISAAC, MATCHER_NEEDLE, 'isaac routing.json') + '\n);');
-
-// the asset lookup statement below the matcher, executed on its own
-var ISAAC_ROUTING_LOOKUP = (function () {
-    var at   = ISAAC.indexOf(MATCHER_NEEDLE);
-    var from = ISAAC.indexOf('localAsset = assetsCollection.findOne({ file:', at);
-    var to   = (from > -1) ? ISAAC.indexOf('});', from) : -1;
-    assert.ok(at > -1 && from > at && to > from, 'isaac routing.json: the asset lookup was not found below the matcher');
-    return new Function('request', 'assetsCollection', 'var localAsset; ' + ISAAC.slice(from, to + 3) + '\nreturn localAsset;');
+// isaac (#P48): the query-free `_routingPath` is computed in its own statement, then the lookup is
+// assigned through a ternary on the matcher; both statements are extracted and executed together.
+var NEEDLE = MATCHER_NEEDLE;
+var ISAAC_ROUTING = (function () {
+    var from = ISAAC.indexOf('var _routingPath = ');
+    var look = (from > -1) ? ISAAC.indexOf('localAsset = (', from) : -1;
+    var line = (look > -1) ? ISAAC.indexOf('\n', look) : -1;
+    var end  = (line > -1) ? ISAAC.indexOf(': null;', line) : -1;
+    assert.ok(from > -1 && look > from && line > look && end > line, 'isaac routing.json: the `_routingPath` statement and the lookup below it were not found');
+    assert.equal(ISAAC.indexOf('var _routingPath = ', from + 1), -1, 'isaac routing.json: `_routingPath` must be computed once');
+    var computePath = ISAAC.slice(from, ISAAC.indexOf(';', from) + 1);
+    var cond        = ISAAC.slice(look + 'localAsset = '.length, line).trim();
+    var lookup      = ISAAC.slice(look, end + ': null;'.length);
+    assert.ok(cond.indexOf(NEEDLE) > -1, 'isaac routing.json: the matcher must be the lookup\'s condition');
+    assert.equal(ISAAC.indexOf(NEEDLE, ISAAC.indexOf(NEEDLE) + 1), -1, 'isaac routing.json: the matcher anchor must be unique');
+    return {
+        cond:   new Function('request', computePath + '\nreturn !!' + cond + ';'),
+        lookup: new Function('request', 'assetsCollection', 'var localAsset; ' + computePath + '\n' + lookup + '\nreturn localAsset;'),
+        after:  ISAAC.slice(end + ': null;'.length)
+    };
 })();
+var ISAAC_ROUTING_COND   = ISAAC_ROUTING.cond;
+var ISAAC_ROUTING_LOOKUP = ISAAC_ROUTING.lookup;
 
 /** A collection holding the one registered name, compared strictly like lib/collection's findOne. */
 function lookup(url) {
@@ -107,8 +113,7 @@ describe('#B707 02 — a spelling in another letter case finds the registered as
         '/_gina/assets/Routing.json',
         '/_gina/assets/ROUTING.JSON',
         '/web/_gina/assets/RoUtInG.JsOn',
-        '/_gina/assets/Routing.json?x=1',
-        '/x?y=/_gina/assets/Routing.json'
+        '/_gina/assets/Routing.json?x=1'
     ].forEach(function (url) {
         it('02  GET ' + url + ' — the matcher accepts it, and the lookup asks for routing.json', function () {
             // the matcher is case-insensitive: this request DOES enter the fast path (the vector)
@@ -122,10 +127,24 @@ describe('#B707 02 — a spelling in another letter case finds the registered as
 
 describe('#B707 03 — negative control: the matcher still rejects what it rejected', function () {
 
-    it('03.1  a longer name, another path and a POST do not enter the fast path', function () {
-        [ '/_gina/assets/Routing.jsonx', '/_gina/assets/Routing.json/x' ].forEach(function (url) {
+    it('03.1  a longer name, another path, a path in the query string (#P48) and a POST do not enter the fast path', function () {
+        [ '/_gina/assets/Routing.jsonx', '/_gina/assets/Routing.json/x', '/x?y=/_gina/assets/Routing.json' ].forEach(function (url) {
             assert.equal(ISAAC_ROUTING_COND({ method: 'GET', url: url }), false, url);
         });
         assert.equal(ISAAC_ROUTING_COND({ method: 'POST', url: '/_gina/assets/Routing.json' }), false, 'POST');
+    });
+});
+
+describe('#B707 04 — a lookup miss falls through (#P48): nothing is dereferenced', function () {
+
+    it('04.1  a collection without the asset leaves localAsset null, and the null guard follows the lookup', function () {
+        var asked = [];
+        var found = ISAAC_ROUTING_LOOKUP({ method: 'GET', url: '/_gina/assets/Routing.json' }, {
+            findOne: function (q) { asked.push(q.file); return null; }
+        });
+        assert.deepEqual(asked, ['routing.json'], 'the lookup still asks for the registered name');
+        assert.equal(found, null, 'a miss must leave localAsset null');
+        assert.equal(ISAAC_ROUTING.after.replace(/^\s+/, '').indexOf('if ( localAsset ) {'), 0,
+            'the statement after the lookup must be the null guard, so a miss falls through to core/server.js');
     });
 });

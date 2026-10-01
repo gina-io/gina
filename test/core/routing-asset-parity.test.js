@@ -133,6 +133,8 @@ describe('#B212 §01 — the shared builder lives in core/server.js, and isaac c
 describe('#B212 §02 — the engine-agnostic onRequest handler', function() {
 
     var serverSrc;
+    // the handler's banner: its matcher was rewritten by #B717 and again by #P48, the banner was not
+    var ROUTING_BANNER = '// ── /_gina/assets/routing.json — client routing map';
 
     before(function() {
         serverSrc = fs.readFileSync(SERVER_PATH, 'utf8');
@@ -140,15 +142,23 @@ describe('#B212 §02 — the engine-agnostic onRequest handler', function() {
 
     it('defines a GET /_gina/assets/routing.json handler inside onInstance, after health/check', function() {
         var healthIdx  = serverSrc.indexOf('/_gina\\/health\\/check(?:\\?|$)');
-        var handlerIdx = serverSrc.indexOf('/_gina\\/assets\\/routing\\.json(?:\\?|$)');
+        var handlerIdx = serverSrc.indexOf(ROUTING_BANNER);
         assert.ok(healthIdx > -1,  'health/check regex anchor (control)');
-        assert.ok(handlerIdx > -1, 'routing.json regex anchor not found in server.js');
+        assert.ok(handlerIdx > -1, 'routing.json handler banner not found in server.js');
+        assert.equal(serverSrc.indexOf(ROUTING_BANNER, handlerIdx + 1), -1, 'the routing.json handler banner must be unique');
         assert.ok(handlerIdx > healthIdx,
             'the asset handler sits with its /_gina siblings, after the liveness probe');
+        // #P48 — the handler matches the url's PATH only (a versioned fetch carries `?v=<token>`;
+        // a page whose query string ends in the map's path is the page's — the #B712 rule)
+        var matcherIdx = serverSrc.indexOf("/\\/_gina\\/assets\\/routing\\.json$/i.test(request.url.split('?')[0])", handlerIdx);
+        var nextIdx    = serverSrc.indexOf('// ── /_gina/metrics', handlerIdx);
+        assert.ok(matcherIdx > handlerIdx, 'the path-only matcher must follow the banner');
+        assert.ok(nextIdx > matcherIdx, 'the path-only matcher must be this handler\'s, above the next handler\'s banner');
     });
 
     it('classifies proxied-ness per request with the #B65-twin heuristic (isaac stamp is unreachable here)', function() {
-        var handlerIdx = serverSrc.indexOf('/_gina\\/assets\\/routing\\.json(?:\\?|$)');
+        var handlerIdx = serverSrc.indexOf(ROUTING_BANNER);
+        assert.ok(handlerIdx > -1, 'routing.json handler banner (anchor)');
         var hostIdx    = serverSrc.indexOf("request.headers.host || request.headers[':authority']", handlerIdx);
         var xfhIdx     = serverSrc.indexOf("request.headers['x-forwarded-host']", handlerIdx);
         var optOutIdx  = serverSrc.indexOf('process.gina._proxyRequireForwarded !== true', handlerIdx);
@@ -158,7 +168,8 @@ describe('#B212 §02 — the engine-agnostic onRequest handler', function() {
     });
 
     it('serves the stripped variant to proxied clients, the full map otherwise (#B66)', function() {
-        var handlerIdx  = serverSrc.indexOf('/_gina\\/assets\\/routing\\.json(?:\\?|$)');
+        var handlerIdx  = serverSrc.indexOf(ROUTING_BANNER);
+        assert.ok(handlerIdx > -1, 'routing.json handler banner (anchor)');
         var strippedIdx = serverSrc.indexOf('self._clientRoutingAssets.stripped', handlerIdx);
         var fullIdx     = serverSrc.indexOf('self._clientRoutingAssets.full', handlerIdx);
         assert.ok(strippedIdx > handlerIdx, 'proxied clients get the host-stripped variant');
@@ -166,7 +177,8 @@ describe('#B212 §02 — the engine-agnostic onRequest handler', function() {
     });
 
     it('marks the proxied variant private and both variants revalidating (shared caches must not cross-serve; staleness window closed)', function() {
-        var handlerIdx = serverSrc.indexOf('/_gina\\/assets\\/routing\\.json(?:\\?|$)');
+        var handlerIdx = serverSrc.indexOf(ROUTING_BANNER);
+        assert.ok(handlerIdx > -1, 'routing.json handler banner (anchor)');
         var ccIdx      = serverSrc.indexOf("'private, no-cache' : 'public, no-cache'", handlerIdx);
         assert.ok(ccIdx > handlerIdx,
             'expected the #B66 private/public split with no-cache (ETag revalidation) in the handler');
@@ -174,7 +186,8 @@ describe('#B212 §02 — the engine-agnostic onRequest handler', function() {
 
     it('serves an ETag per variant and answers If-None-Match with 304 (both engines)', function() {
         var isaacSrc   = fs.readFileSync(ISAAC_PATH, 'utf8');
-        var handlerIdx = serverSrc.indexOf('/_gina\\/assets\\/routing\\.json(?:\\?|$)');
+        var handlerIdx = serverSrc.indexOf(ROUTING_BANNER);
+        assert.ok(handlerIdx > -1, 'routing.json handler banner (anchor)');
         // server.js side
         var etagIdx = serverSrc.indexOf("response.setHeader('etag',", handlerIdx);
         var inmIdx  = serverSrc.indexOf("request.headers['if-none-match']", handlerIdx);

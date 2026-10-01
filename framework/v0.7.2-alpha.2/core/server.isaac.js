@@ -2493,20 +2493,19 @@ function ServerEngineClass(options) {
             }
 
 
-            if (
-                request.method.toUpperCase() === 'GET' && /\_gina\/assets\/routing\.json(?:\?|$)/i.test(request.url)
-            ) {
+            // #P48 — the path alone: a versioned fetch carries `?v=<token>` (request.url
+            // is query-stripped only further down). #B707 — the lookup is lower-cased to
+            // agree with the case-insensitive test (`findOne` compares strictly, so a
+            // `Routing.json` GET found nothing and dereferenced null below — an
+            // uncaughtException that killed the bundle), and a miss falls through to the
+            // shared pipeline, whose handler answers from memory or 404s.
+            var _routingPath = ( request.method.toUpperCase() === 'GET' ) ? request.url.split('?')[0] : null;
+            localAsset = ( _routingPath && /\_gina\/assets\/routing\.json$/i.test(_routingPath) )
+                ? assetsCollection.findOne({ file: _routingPath.split(/\//g).slice(-1).toString().toLowerCase() })
+                : null;
+            if ( localAsset ) {
                 // server.toApi(reques, response)
                 // console.debug('[ SERVER ][200] '+ request.url);
-                // #B717 — a query string no longer misses the handler (`(?:\?|$)`), and the asset
-                // lookup reads the file name the test matched: the url's last segment of
-                // `routing.json?x` named no asset, and the `localAsset.mime` read below would
-                // have thrown. Not the query-free path's last segment either — the test also
-                // matches `/x?y=/_gina/assets/routing.json`, whose path names `x`.
-                // #B707 — the name is lower-cased: the test is case-insensitive while `findOne`
-                // compares strictly, so `Routing.json` named no asset and the `localAsset.mime`
-                // read below threw — an uncaughtException that ended the process.
-                localAsset = assetsCollection.findOne({ file: /\_gina\/assets\/(routing\.json)(?:\?|$)/i.exec(request.url)[1].toLowerCase() });
                 // #B66 — on a proxied deployment serve the host-stripped routing.json so
                 // the browser never receives any bundle's INTERNAL scheme://host:port (an
                 // information disclosure) and cross-bundle client toUrl resolves
@@ -2535,6 +2534,19 @@ function ServerEngineClass(options) {
                 // new route table reaches returning browsers immediately instead of
                 // after the old 24h max-age window.
                 response.setHeader('cache-control', ( request._ginaIsProxyHost === true ) ? 'private, no-cache' : 'public, no-cache');
+                // #P48 — a request naming the token of the variant actually served (the
+                // page's `data-gina-routing-v`) may keep the table for a year; mirrors the
+                // core/server.js handler (the /_gina/* sync rule). Keyed on the file served,
+                // so the full map is never marked immutable under the stripped token.
+                var _routingAssetVersion = ( options.clientRoutingAssets )
+                    ? ( ( localAsset.file === 'routing.stripped.json' ) ? options.clientRoutingAssets.strippedVersion : options.clientRoutingAssets.fullVersion )
+                    : null;
+                if (
+                    _routingAssetVersion
+                    && lib.sri.getRequestedVersion(request.originalUrl || request.url) === _routingAssetVersion
+                ) {
+                    response.setHeader('cache-control', ( ( request._ginaIsProxyHost === true ) ? 'private' : 'public' ) + ', max-age=31536000, immutable');
+                }
                 response.setHeader('x-content-type-options', 'nosniff');
                 response.setHeader('x-frame-options', 'DENY');
                 response.setHeader('x-xss-protection', '1; mode=block');

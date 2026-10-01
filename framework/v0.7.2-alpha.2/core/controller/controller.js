@@ -1737,9 +1737,22 @@ function SuperController(options) {
     }
 
     /**
-     * Set resources
+     * Set resources — builds the page's `<link>` / `<script>` tag strings from
+     * the view configuration and stores them as `page.view.stylesheets` /
+     * `page.view.scripts`, the per-request values the layout's placeholders
+     * render.
      *
-     * @param {object} template - template configuration
+     * #P48 — also decides whether this render emits content-versioned asset
+     * URLs: yes, unless the view configuration sets `assetVersioningEnabled`
+     * to `false`, the render is layoutless (render-swig concatenates those tags
+     * into the template it compiles and caches, where a token could outlive
+     * the file it names), or the bundle runs cacheless (dev, where statics are
+     * served `no-store`).
+     *
+     * @inner
+     * @private
+     * @param {object} viewConf - The resolved template configuration (`stylesheets` / `javascripts`)
+     * @returns {void}
      * */
     var setResources = function(viewConf) {
         if (!viewConf) {
@@ -1764,12 +1777,20 @@ function SuperController(options) {
         var cssStr      = ''
             , jsStr     = ''
         ;
+        // #P48 — content-versioned URLs (see the JSDoc); a missing key is ON.
+        // The layoutless test reads local.options, as computeH2PreloadPrefix()
+        // does, so a 103 hint and the tag it announces always agree.
+        var _versioned = (
+            viewConf.assetVersioningEnabled !== false
+            && !( local.options && local.options.isWithoutLayout )
+            && !self.isCacheless()
+        ) ? true : false;
         //Get css
         if( viewConf.stylesheets ) {
             // cssStr  = getNodeRes('css', viewConf.stylesheets, useWebroot, reURL);
             // Fixed on 2025-03-08: ordered by route, making sure that _common could all be loaded first
             var cssColl = new Collection(viewConf.stylesheets).orderBy({route: 'asc'})
-            cssStr   = getNodeRes('css', cssColl, useWebroot, _webroot);
+            cssStr   = getNodeRes('css', cssColl, useWebroot, _webroot, _versioned);
             cssColl = null;
         }
         //Get js
@@ -1777,7 +1798,7 @@ function SuperController(options) {
             // jsStr   = getNodeRes('js', viewConf.javascripts, useWebroot, reURL);
             // Fixed on 2025-03-08: ordered by route, making sure that _common could all be loaded first
             var jsColl = new Collection(viewConf.javascripts).orderBy({route: 'asc'})
-            jsStr   = getNodeRes('js', jsColl, useWebroot, _webroot);
+            jsStr   = getNodeRes('js', jsColl, useWebroot, _webroot, _versioned);
             jsColl = null;
         }
 
@@ -1800,16 +1821,28 @@ function SuperController(options) {
      * suppressed (the hint carries no integrity metadata, so a hinted fetch
      * could not be matched to the integrity-checked consumer).
      *
+     * #P48 — when `isVersioned` (decided by `setResources()`), every same-origin
+     * URL is emitted with `?v=<10 hex of the file's sha384>` (lib/sri, fail-open)
+     * for the tag and its preload hint alike, except a js `isExternalPlugin`
+     * tag, which render-swig splices into the layout it compiles; gina's own
+     * script tag also carries `data-gina-routing-v`, the token of the routing
+     * table variant this request is served.
+     *
      * @param {string} type - `'css'` or `'js'`
      * @param {array} resArr
      * @param {boolean} useWebroot
      * @param {string} webrootStr - Webroot string prefix for startsWith check (#P1)
+     * @param {boolean} [isVersioned=false] - Emit content-versioned URLs (#P48)
      *
      * @returns {string} tag string to inject into the layout
      *
+     * @example
+     * // css, versioning on: '\n\t\t<link href="/css/app.css?v=6a0bf42b46" rel="stylesheet" type="text/css">'
+     * getNodeRes('css', [{ url: '/css/app.css', rel: 'stylesheet', type: 'text/css' }], false, '/', true);
+     *
      * @private
      * */
-    var getNodeRes = function(type, resArr, useWebroot, webrootStr) {
+    var getNodeRes = function(type, resArr, useWebroot, webrootStr, isVersioned) {
 
         var r               = 0
             , rLen          = resArr.length
@@ -1848,6 +1881,22 @@ function SuperController(options) {
         // integrity attribute and loads exactly as before.
         var sriEnabled = (local.options.template.sriEnabled) ? true : false;
 
+        // #P48 — the routing table's token for THIS request's variant (the
+        // host-stripped map when proxied), rendered on gina's own script tag so
+        // the client fetches a year-cacheable URL. Only a 10-hex value is ever
+        // emitted; the handlers compare it with the variant they serve.
+        var routingVersion = null;
+        if (
+            isVersioned
+            && self.serverInstance
+            && self.serverInstance._routingVersion
+        ) {
+            routingVersion = self.serverInstance._routingVersion[ ( isProxyHost === true ) ? 'stripped' : 'full' ];
+            if ( !/^[0-9a-f]{10}$/.test(routingVersion || '') ) {
+                routingVersion = null;
+            }
+        }
+
 
         if (
             isProxyHost
@@ -1873,6 +1922,13 @@ function SuperController(options) {
                     obj = resArr[r];
                     if (useWebroot && !obj.url.startsWith(webrootStr) ) {
                         obj.url = local.options.conf.server.webroot + obj.url.substring(1);
+                    }
+                    // #P48 — from here on the tag, its preload hint and its SRI
+                    // lookup (which ignores the query) use the versioned URL.
+                    // `obj` is a copy (the Collection setResources builds clones
+                    // its input), never the template conf.
+                    if ( isVersioned ) {
+                        obj.url = lib.sri.getVersionedUrl(obj.url, local.options.conf, local.options.conf.server.webroot);
                     }
                     // #OW3 — SRI attribute pair for same-origin disk-resolvable
                     // assets when the bundle opted in; '' otherwise (fail-open).
@@ -1911,6 +1967,15 @@ function SuperController(options) {
                     if (useWebroot && !obj.url.startsWith(webrootStr) ) {
                         obj.url = local.options.conf.server.webroot + obj.url.substring(1);
                     }
+                    // #P48 — as in the css case, except an `isExternalPlugin`
+                    // tag: render-swig splices those into the layout it compiles
+                    // (and persists with the render cache on), so a token there
+                    // could outlive the file it names. `_plainUrl` keeps the
+                    // unversioned URL for the checks below.
+                    var _plainUrl = obj.url;
+                    if ( isVersioned && !obj.isExternalPlugin ) {
+                        obj.url = lib.sri.getVersionedUrl(obj.url, local.options.conf, local.options.conf.server.webroot);
+                    }
                     // #OW3 — SRI attribute pair for same-origin disk-resolvable
                     // assets when the bundle opted in; '' otherwise (fail-open).
                     var sriAttributes = (sriEnabled) ? lib.sri.getIntegrityAttributes(obj.url, local.options.conf, local.options.conf.server.webroot) : '';
@@ -1933,7 +1998,7 @@ function SuperController(options) {
                     // }
 
 
-                    if ( /\/jquery\.(.*)\.(min\.js|js)$/i.test(obj.url) ) {
+                    if ( /\/jquery\.(.*)\.(min\.js|js)$/i.test(_plainUrl) ) {
                         console.warn('jQuery Plugin found in templates.json !\nIf you want to load it before [gina.min.js], you should declare it at the top of your handler using requireJS or add property "isExternalPlugin: true" in your templates.json, under: '+ (obj.route || local.req.routing.rule) +' .');
                     }
                     // Allow jQuery & other external plugins to be loaded in the HEAD section before gina
@@ -1943,8 +2008,9 @@ function SuperController(options) {
                         local.options.template.externalPlugins.splice(1, 0, '\n\t\t<script'+ deferMode +' type="'+ obj.type +'" src="'+ obj.url +'"'+ sriAttributes +'></script>');
                     }
                     else {
-                        // normal case
-                        str += '\n\t\t<script'+ deferMode +' type="'+ obj.type +'" src="'+ obj.url +'"'+ sriAttributes +'></script>';
+                        // normal case — gina's own tag also carries the routing
+                        // table's token for this request (#P48, read by core.js)
+                        str += '\n\t\t<script'+ deferMode +' type="'+ obj.type +'" src="'+ obj.url +'"'+ ( ( routingVersion && obj.name == 'gina' ) ? ' data-gina-routing-v="'+ routingVersion +'"' : '' ) + sriAttributes +'></script>';
                     }
                 }
                 break;
@@ -1978,7 +2044,9 @@ function SuperController(options) {
      *
      * Mirrors `getNodeRes()`: same `Collection.orderBy({route:'asc'})` ordering,
      * same webroot rewrite, same #OW3 rule that an SRI'd asset gets no preload
-     * hint (the hint carries no integrity metadata).
+     * hint (the hint carries no integrity metadata), and the same #P48 versioned
+     * URL under the same rule as `setResources()` — a hint must name the exact
+     * URL its tag fetches, or the browser fetches the asset twice.
      *
      * @param {object} viewConf - The resolved template config (`stylesheets` / `javascripts`)
      * @returns {string} `'<url>; as=style; rel=preload,'`-joined prefix, `''` when nothing qualifies
@@ -1997,6 +2065,14 @@ function SuperController(options) {
         var _webroot    = local.options.conf.server.webroot;
         var useWebroot  = ( _webroot !== '/' && _webroot.length > 0 ) ? true : false;
         var sriEnabled  = ( local.options.template && local.options.template.sriEnabled ) ? true : false;
+        // #P48 — setResources()' rule, read off the same objects, so each hint
+        // names the exact URL its tag will fetch
+        var isVersioned = (
+            local.options.template
+            && local.options.template.assetVersioningEnabled !== false
+            && !local.options.isWithoutLayout
+            && !self.isCacheless()
+        ) ? true : false;
         var links       = '';
 
         var appendAll = function(as, resArr) {
@@ -2015,6 +2091,11 @@ function SuperController(options) {
                 // #OW3 — an SRI'd asset is never hinted (see getNodeRes)
                 if ( sriEnabled && lib.sri.getIntegrityAttributes(url, local.options.conf, _webroot) ) {
                     continue;
+                }
+                // #P48 — the versioned URL, except for a js external plugin,
+                // whose tag stays unversioned (see getNodeRes)
+                if ( isVersioned && !( as == 'script' && obj.isExternalPlugin ) ) {
+                    url = lib.sri.getVersionedUrl(url, local.options.conf, _webroot);
                 }
                 links += '<'+ url +'>; as='+ as +'; rel=preload,';
             }
