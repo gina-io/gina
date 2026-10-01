@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'In production, the statics gina serves over HTTP/1.1 and the routing table on the isaac engine now carry `Vary: Accept-Encoding`, on the 200 and on the 304, so a shared cache no longer hands a brotli or gzip copy to a client that does not accept that coding. Every such static carries it, with a precompressed copy or not; a `vary` declared under `server.response.header` in the project''s `env.json` is kept and now reaches the 304 too. HTTP/2 statics and dev mode are unchanged. Restart the bundle. (#B743)'
+time: 2026-10-02T00:05:05+01:00

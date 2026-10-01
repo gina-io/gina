@@ -3768,6 +3768,67 @@ function Server(options) {
     }
 
     /**
+     * Appends field names to a response's `Vary` header (RFC 9110 § 12.5.5).
+     * `Vary` is a list, so a value already set (by a middleware, by the
+     * configured `server.response.header`, or by the caller) is kept: a name
+     * already listed, in any case, is not added again, and nothing is added
+     * after a `*`, which already varies on everything. Takes one name, a
+     * comma-separated list, or an array of either, so a value read back with
+     * `getHeader('vary')` can be passed straight in to restore it. Does nothing
+     * once the headers are sent. Keep in sync with the twin in
+     * core/server.isaac.js (#B743).
+     *
+     * @inner
+     * @private
+     * @param {object} response - Server response object (HTTP/1.x, or the HTTP/2 compatibility API)
+     * @param {string|string[]|null|undefined} names - Field name(s) to add; an empty value adds nothing
+     * @returns {void}
+     *
+     * @example
+     * // Vary: Origin  →  Vary: Origin, Accept-Encoding
+     * appendVary(response, 'Accept-Encoding');
+     *
+     * @example
+     * // restore what a later setHeader('vary', …) replaced
+     * var before = response.getHeader('vary');   // 'Origin, Accept-Encoding'
+     * response.setHeader('vary', 'Origin');
+     * appendVary(response, before);              // Vary: Origin, Accept-Encoding
+     */
+    var appendVary = function(response, names) {
+        if (
+            !response
+            || typeof(response.getHeader) != 'function'
+            || typeof(response.setHeader) != 'function'
+            || response.headersSent
+        ) {
+            return;
+        }
+        var list = ( Array.isArray(names) ) ? names.join(',') : names;
+        if ( typeof(list) == 'undefined' || list === null || String(list).trim() === '' ) {
+            return;
+        }
+        var current = response.getHeader('vary');
+        if ( Array.isArray(current) ) {
+            current = current.join(', ');
+        }
+        current = ( typeof(current) == 'undefined' || current === null ) ? '' : String(current).trim();
+        var present = ( current === '' ) ? [] : current.toLowerCase().split(',').map(function(n) { return n.trim(); });
+        var added = [];
+        String(list).split(',').forEach(function(n) {
+            n = n.trim();
+            if ( n === '' || present.indexOf('*') > -1 || present.indexOf(n.toLowerCase()) > -1 ) {
+                return;
+            }
+            present.push(n.toLowerCase());
+            added.push(n);
+        });
+        if ( added.length == 0 ) {
+            return;
+        }
+        response.setHeader('vary', ( current === '' ) ? added.join(', ') : current +', '+ added.join(', '));
+    }
+
+    /**
      * Returns the negotiated response protocol string (e.g. `'http/1.1'` or
      * `'http/2'`). Upgrades to `'http/2'` when the bundle is configured for
      * HTTP/2 and the response has an open stream.
@@ -3992,6 +4053,24 @@ function Server(options) {
                     var lastModified = stat.mtime.toUTCString();
                     var etag = '"' + stat.size + '-' + stat.mtime.getTime() + '"';
 
+                    // #B743 — in production, HTTP/1.x serves a precompressed copy
+                    // (`.br`, `.gz`) in place of the file when the request accepts its
+                    // coding (below), so the response varies on Accept-Encoding; HTTP/2
+                    // always sends the file itself. Set before the conditional-GET
+                    // decision so the 304 carries the Vary its 200 would (RFC 9110
+                    // § 15.4.5): that includes a configured `vary`, which
+                    // completeHeaders() sets on the 200 only, read from the same block.
+                    // Appended to any Vary already set.
+                    if ( !isCacheless && !/http\/2/.test(protocol) ) {
+                        var _varyConfHeader = ( bundleConf.server.response && bundleConf.server.response.header ) ? bundleConf.server.response.header : {};
+                        for (let h in _varyConfHeader) {
+                            if ( /^vary$/i.test(h) ) {
+                                appendVary(response, _varyConfHeader[h]);
+                            }
+                        }
+                        appendVary(response, 'Accept-Encoding');
+                    }
+
                     // 304 Not Modified — only in production (dev always re-serves for live reload)
                     if (!isCacheless) {
                         // #P48 — a gina content token (10 hex: an author's own `v=` is
@@ -4013,9 +4092,11 @@ function Server(options) {
                             if ( /http\/2/.test(protocol) && versionMatched ) {
                                 // #P48 — the Cache-Control its 200 carries (RFC 9110
                                 // § 15.4.5): HTTP/2 serves the source file itself. The
-                                // other 304s stay bare: the HTTP/1.x one is decided
-                                // before a precompressed sibling is picked, and a bare
-                                // 304 keeps what the browser stored with its copy.
+                                // other 304s carry no Cache-Control: the HTTP/1.x one is
+                                // decided before a precompressed sibling is picked, and a
+                                // 304 without it keeps what the browser stored with its
+                                // copy. (The HTTP/1.x 304 does carry the Vary set above,
+                                // #B743.)
                                 stream.respond({ ':status': 304, 'cache-control': 'public, max-age=31536000, immutable' });
                                 stream.end();
                             } else if ( /http\/2/.test(protocol) ) {
@@ -4120,7 +4201,14 @@ function Server(options) {
                             }
                         } else {
 
+                            // #B743 — completeHeaders() re-applies the configured response
+                            // headers with setHeader, so a configured `vary` replaces the
+                            // Vary set above: restore it (the 304 above carried all of it).
+                            var _varyBeforeComplete = response.getHeader('vary');
                             completeHeaders(null, request, response);
+                            if ( !isCacheless ) {
+                                appendVary(response, _varyBeforeComplete);
+                            }
                             response.setHeader('content-type', contentType +'; charset='+ bundleConf.encoding);
                             // if (/\.(woff|woff2)$/i.test(filename) )  {
                             //     response.setHeader("transfer-encoding", 'Identity')

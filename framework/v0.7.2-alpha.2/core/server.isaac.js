@@ -400,6 +400,61 @@ function ServerEngineClass(options) {
         return fs.readFileSync(filename).toString()
     }
 
+    /**
+     * Appends field names to a response's `Vary` header (RFC 9110 § 12.5.5).
+     * `Vary` is a list, so a value already set (by a middleware, by the
+     * configured `server.response.header`, or by the caller) is kept: a name
+     * already listed, in any case, is not added again, and nothing is added
+     * after a `*`, which already varies on everything. Takes one name, a
+     * comma-separated list, or an array of either, so a value read back with
+     * `getHeader('vary')` can be passed straight in to restore it. Does nothing
+     * once the headers are sent. Keep in sync with the twin in core/server.js
+     * (#B743).
+     *
+     * @inner
+     * @private
+     * @param {object} response - Server response object (HTTP/1.x, or the HTTP/2 compatibility API)
+     * @param {string|string[]|null|undefined} names - Field name(s) to add; an empty value adds nothing
+     * @returns {void}
+     *
+     * @example
+     * // Vary: Origin  →  Vary: Origin, Accept-Encoding
+     * appendVary(response, 'Accept-Encoding');
+     */
+    var appendVary = function(response, names) {
+        if (
+            !response
+            || typeof(response.getHeader) != 'function'
+            || typeof(response.setHeader) != 'function'
+            || response.headersSent
+        ) {
+            return;
+        }
+        var list = ( Array.isArray(names) ) ? names.join(',') : names;
+        if ( typeof(list) == 'undefined' || list === null || String(list).trim() === '' ) {
+            return;
+        }
+        var current = response.getHeader('vary');
+        if ( Array.isArray(current) ) {
+            current = current.join(', ');
+        }
+        current = ( typeof(current) == 'undefined' || current === null ) ? '' : String(current).trim();
+        var present = ( current === '' ) ? [] : current.toLowerCase().split(',').map(function(n) { return n.trim(); });
+        var added = [];
+        String(list).split(',').forEach(function(n) {
+            n = n.trim();
+            if ( n === '' || present.indexOf('*') > -1 || present.indexOf(n.toLowerCase()) > -1 ) {
+                return;
+            }
+            present.push(n.toLowerCase());
+            added.push(n);
+        });
+        if ( added.length == 0 ) {
+            return;
+        }
+        response.setHeader('vary', ( current === '' ) ? added.join(', ') : current +', '+ added.join(', '));
+    }
+
     var preferedEncoding    = options.preferedCompressionEncodingOrder
         , acceptEncodingArr = null
         , acceptEncoding    = null
@@ -2527,6 +2582,14 @@ function ServerEngineClass(options) {
                     : ( options.clientRoutingAssets ? options.clientRoutingAssets.fullEtag : null );
                 response.setHeader('content-type', localAsset.mime);
                 response.setHeader('vary', 'Origin');
+                // #B743 — in production the table's precompressed copy (`.br`, `.gz`)
+                // is served when the request accepts its coding (below), over both
+                // protocols, so the answer varies on Accept-Encoding too. Set before the
+                // ETag 304 below, so the 304 carries the Vary its 200 would (RFC 9110
+                // § 15.4.5).
+                if ( !isCacheless ) {
+                    appendVary(response, 'Accept-Encoding');
+                }
                 // #B66 — a shared cache must not cross-serve the stripped (proxied) and
                 // full (raw) variants under the same URL; mark the proxied variant
                 // private. Slice 3 (SPA Tier 1): `no-cache` = revalidate-before-use — each
