@@ -15008,7 +15008,14 @@ function ValidatorPlugin(rules, data, formId, culture) {
         uploadStarted   : 'Upload started',
         uploadComplete  : 'Upload complete',
         // #A11Y7/U5 — spoken when a staged file's reset/delete control removes it.
-        fileRemoved     : '%s removed'
+        fileRemoved     : '%s removed',
+        // #B724 (gh#83 part 1) — the visible text for a status-0 XHR settle. It fires for
+        // a true transport failure AND for a reverse-proxy 413 arriving mid-send over
+        // HTTP/2 or a navigation that aborted the request — both of which DID reach the
+        // server. "did not complete" is honest for all three; the old "did not reach the
+        // server" was false for the latter two. Resolved through a11yLabel() so a project
+        // can translate it, which the hardcoded literal could not.
+        transportError  : 'Transport failure: the request did not complete'
     };
 
     /**
@@ -15038,6 +15045,15 @@ function ValidatorPlugin(rules, data, formId, culture) {
         }
         return A11Y_LABELS[key] || '';
     };
+
+    // #B724 (gh#83 part 1) — track page unload once, at module load. A status-0 XHR
+    // settle during a navigation (the browser aborts in-flight requests as the page tears
+    // down) is an abort, not a transport failure; the flag lets the status-0 arm tag the
+    // result `reason: 'unload'` so a consumer's submit-error handler can distinguish it.
+    var _pageIsUnloading = false;
+    if ( typeof(window) != 'undefined' && window.addEventListener ) {
+        window.addEventListener('pagehide', function() { _pageIsUnloading = true; }, true);
+    }
 
     /**
      * announceA11yStatus — announce a non-error status through the form's region.
@@ -17219,7 +17235,13 @@ function ValidatorPlugin(rules, data, formId, culture) {
                         result = {
                             'status'        : 408,
                             'transportError': true,
-                            'error'         : 'Transport failure: the request did not reach the server'
+                            // #B724 (gh#83 part 1) — a status-0 settle also fires for a 413
+                            // arriving mid-send over HTTP/2 and for a navigation that aborted
+                            // the request, both of which DID reach the server. `reason` lets a
+                            // submit-error handler tell an unload-abort (benign) from a real
+                            // transport failure; the text is overridable + honest (see a11yLabel).
+                            'reason'        : _pageIsUnloading ? 'unload' : 'transport',
+                            'error'         : a11yLabel('transportError')
                         };
 
                         $form.eventData.error = result;
@@ -23491,6 +23513,10 @@ function ValidatorPlugin(rules, data, formId, culture) {
                         fields[name] = '';
                     }
 
+                } else if ( $target[i].type == 'file' && $target[i].getAttribute('data-gina-form-upload-action') ) {
+                    // #B725 (gh#83 part 2) — a staged file input's `.value` is the browser
+                    // placeholder `C:\fakepath\<name>`; its real data travels through the
+                    // staged hidden fields, so keep it out of the XHR payload.
                 } else {
                     fields[name]    = $target[i].value;
                 }
@@ -24352,6 +24378,11 @@ function ValidatorPlugin(rules, data, formId, culture) {
                     fields[name] = '';
                 }
 
+            } else if ( $form[i].type == 'file' && $form[i].getAttribute('data-gina-form-upload-action') ) {
+                // #B725 (gh#83 part 2) — a staged file input's `.value` is the browser
+                // placeholder `C:\fakepath\<name>`; its real data travels through the staged
+                // hidden fields, so keep it out of the XHR payload. The element is still
+                // registered in `$fields` below for any rule that inspects it.
             } else {
                 fields[name] = $form[i].value;
             }
