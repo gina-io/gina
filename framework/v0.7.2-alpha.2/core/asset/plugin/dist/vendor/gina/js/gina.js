@@ -15053,6 +15053,10 @@ function ValidatorPlugin(rules, data, formId, culture) {
     var _pageIsUnloading = false;
     if ( typeof(window) != 'undefined' && window.addEventListener ) {
         window.addEventListener('pagehide', function() { _pageIsUnloading = true; }, true);
+        // #B728 — a page restored from the back-forward cache keeps its JS state, so the flag the
+        // `pagehide` above set would still be true and every later status-0 settle would be tagged
+        // `unload`. The `pageshow` that restores the page ends that unload.
+        window.addEventListener('pageshow', function() { _pageIsUnloading = false; }, true);
     }
 
     /**
