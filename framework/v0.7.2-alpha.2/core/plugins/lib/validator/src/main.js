@@ -4975,7 +4975,16 @@ function ValidatorPlugin(rules, data, formId, culture) {
            // console.error('[ mainUploadError ] ', status, data)
             var errMsg = data.message || data.error;
 
-            $error.innerHTML = '<p>'+ errMsg +'</p>';
+            // #B727 — render the server's error message as TEXT, never HTML. A non-JSON
+            // error response is kept verbatim as `result.message` (see the XHR response
+            // handler), so `innerHTML` here parsed a proxy/WAF HTML error page — or a
+            // reflected upload filename (the server rejects a disallowed extension by
+            // echoing the name) — as live markup. textContent closes the injection sink;
+            // the <p> wrapper is kept for the existing styling + fadeIn.
+            $error.textContent = '';
+            var _errP = document.createElement('p');
+            _errP.textContent = errMsg;
+            $error.appendChild(_errP);
             fadeIn($error);
             // #A11Y7/U3 — the container is `display:none` when the text is written and
             // only revealed by the fadeIn above, which is exactly the case where a
