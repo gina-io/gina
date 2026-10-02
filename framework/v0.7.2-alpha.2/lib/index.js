@@ -260,6 +260,18 @@ function Lib() {
         // PLAIN require, like rate-limit/idempotency: router-bound, load-once, and
         // its registry lives on process.gina (survives refreshCore, dies on restart).
         messageValidator : require('./message-validator'),
+        // #P49 — the fast lane: the param.lane boot registry, the handler context and
+        // its JSON/error writers, dispatched by core/server.js at the end of the
+        // middleware chain. PLAIN require, like the router-bound gates above:
+        // core/server.js captures it at load, it performs no per-request require()
+        // of a hot-reloaded sibling (#B32-residual), and its registry lives on
+        // process.gina (survives refreshCore, dies on restart). Its dev-mode reload of
+        // the lane handler modules is its own, gated on the #M6 watcher flag.
+        lane            : require('./lane'),
+        // #ERRREF — the incident-ref mint for errors answered outside a controller
+        // (the lane's error writer). Stateless; PLAIN require because the lane, a
+        // load-once module, binds it at load.
+        errorRef        : require('./error-ref'),
         // Per-bundle login session cookie lifetimes declared in security.json
         // (`session.expires` / `session.remember`), applied by core/router.js at
         // req.login(). PLAIN require, like the router-bound gates above: load-once,

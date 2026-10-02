@@ -944,6 +944,14 @@ declare namespace gina {
         /** The DTO → `.d.ts` emitter behind `gina bundle:types`. */
         dtoTypes: any;
         /**
+         * The #ERRREF incident-ref mint for errors answered outside a controller —
+         * the same rule as the controller and server error writers.
+         */
+        errorRef: {
+            /** `supplied` when relay-safe (1-32 word characters, dots or dashes), else 6 fresh uppercase hex characters. Never throws. */
+            mint(supplied?: string): string;
+        };
+        /**
          * Unit-suffixed duration strings → milliseconds (`"500ms"`, `"30s"`, `"15m"`,
          * `"3h"`, `"15d"`; unit REQUIRED — a bare number is refused with `NaN`, `"0s"`
          * is legal). The one dialect shared by `security.json`'s login session
@@ -967,6 +975,26 @@ declare namespace gina {
         /** General-purpose KV primitive — strict-declared namespaces behind gina.kv() (`settings.json > kv`) (#KV1). */
         kv: any;
         jsonConfigHeader: any;
+        /**
+         * The fast lane (#P49) — opt-in, controller-free dispatch for JSON routes
+         * declaring `param.lane`: the boot registry and its lints, the handler
+         * context, and the dispatcher `core/server.js` calls. Framework-internal
+         * seam; a bundle writes `<bundle>/lanes/<name>.js` handlers, never calls this.
+         */
+        lane: {
+            /** Lint and register a bundle's lane routes at boot; throws a route-named refusal. Returns the count. */
+            registerRoutes(routing: object, opt: { bundle: string; bundlesPath: string; settings?: object; server?: object }): number;
+            /** The registry entry for `req.routing`, `null` without `param.lane`, a `{ missing: true }` placeholder when unregistered. */
+            lookup(routing: object): object | null;
+            /** Run the handler for an entry; never returns the handler's promise. */
+            dispatch(entry: object, req: any, res: any, next: any, serverInstance: any, conf: object): void;
+            /** The lane directories to watch in dev mode (empty without lane routes). */
+            watchDirs(lanesRoot: string): string[];
+            /** Whether a `param.lane` value is a well-formed module name under `lanes/`. */
+            isLaneName(value: unknown): boolean;
+            /** The handler context constructor. */
+            LaneContext: any;
+        };
         logger: any;
         /**
          * Maintenance-mode primitive (#MAINT1) behind the pre-routing gate on

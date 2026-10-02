@@ -1053,7 +1053,7 @@ isBundleMounted(projects, bundlesPath, getContext('bundle'), function onBundleMo
                         // #M6 — register core controller files and the bundle controllers
                         // directory. The router checks __hotReload dirty flags instead of
                         // evicting require.cache on every request.
-                        var _hotDirty = { core: false, action: false };
+                        var _hotDirty = { core: false, action: false, lane: false };
                         setContext('__hotReload', _hotDirty);
 
                         var _corePath = getPath('gina').core;
@@ -1065,6 +1065,20 @@ isBundleMounted(projects, bundlesPath, getContext('bundle'), function onBundleMo
 
                         _watcher.register('__hot_controllers__', conf.bundlePath + '/controllers');
                         _watcher.on('__hot_controllers__', function() { _hotDirty.action = true; });
+
+                        // #P49 — the fast lane's handler modules: lib/lane reloads them on
+                        // the next lane request once this flag is set. One watch per
+                        // directory holding a registered module (a directory watch does not
+                        // descend), none for a bundle without lane routes. Each directory is
+                        // also watched for `rename`, the event an editor's atomic save
+                        // delivers (#B642).
+                        var _laneDirs = lib.lane.watchDirs(conf.bundlePath + '/lanes');
+                        for (var _ld = 0; _ld < _laneDirs.length; ++_ld) {
+                            _watcher.register('__hot_lanes_'+ _ld +'__', _laneDirs[_ld]);
+                            _watcher.on('__hot_lanes_'+ _ld +'__', function() { _hotDirty.lane = true; });
+                            _watcher.register('__hot_lanes_'+ _ld +'_rename__', _laneDirs[_ld], { event: 'rename' });
+                            _watcher.on('__hot_lanes_'+ _ld +'_rename__', function() { _hotDirty.lane = true; });
+                        }
                     }
 
                     if (_hasUserWatchers) {

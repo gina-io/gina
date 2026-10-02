@@ -1627,6 +1627,27 @@ function Server(options) {
                 console.debug('[ BUNDLE ][ server ][ init ] Registered '+ _msvCount +' route message validator(s) for [ '+ self.appName +' ]');
             }
 
+            // #P49 — register every routing.json-declared fast-lane route at BOOT.
+            // A route opts into controller-free dispatch with `param.lane`, naming a
+            // `<bundle>/lanes/<name>.js` module whose `param.control` export answers it
+            // (`module.exports.list = function (ctx) { ... };`). lib/lane lints each
+            // route and requires its module HERE, so the request path is an O(1)
+            // registry read, and a route the lane cannot serve faithfully (route
+            // middleware, `cache`, or a gate the lane does not run yet) refuses to
+            // BOOT instead of silently losing that behaviour (the #B57 rule, as for the
+            // registrars above). A lane module edit hot-reloads in dev mode (core/gna.js
+            // watches the lane directories); a routing change needs a bundle restart.
+            var _laneConf  = self.conf[self.appName][self.env];
+            var _laneCount = lib.lane.registerRoutes(serverOpt.routing || {}, {
+                bundle      : self.appName,
+                bundlesPath : _laneConf.bundlesPath,
+                settings    : ( _laneConf.content ) ? _laneConf.content.settings : null,
+                server      : _laneConf.server
+            });
+            if ( _laneCount > 0 ) {
+                console.debug('[ BUNDLE ][ server ][ init ] Registered '+ _laneCount +' lane route(s) for [ '+ self.appName +' ]');
+            }
+
             // #COMPLY1 — lint every declared authorization flag and resolve the login
             // bounce target at BOOT. A route gates its access with `param.requireAuth`;
             // `lib/authz-gate` enforces it at both core/router.js dispatch sites.
@@ -7581,6 +7602,8 @@ function Server(options) {
                 if ( nextMiddleware._nextAction == 'route' ) {
                     router._server = self.instance;
                     router.route(nextMiddleware._request, nextMiddleware._response, nextMiddleware._next, nextMiddleware._request.routing);
+                } else if ( nextMiddleware._nextAction == 'lane' ) { // #P49 — a fast-lane route
+                    lib.lane.dispatch(nextMiddleware._laneEntry, nextMiddleware._request, nextMiddleware._response, nextMiddleware._next, self.instance, ( self.conf[nextMiddleware._request.routing.bundle] || self.conf[self.appName] )[self.env]);
                 } else { // handle statics
                     handleStatics(nextMiddleware._staticProps, nextMiddleware._request, nextMiddleware._response, nextMiddleware._next);
                 }
@@ -8469,6 +8492,12 @@ function Server(options) {
                 return;
             }
 
+            // #P49 — a fast-lane route (`param.lane`, registered at boot) skips the
+            // controller: on isaac it becomes the middleware chain's terminal, so the
+            // bundle's session and CSRF middleware still run; on express, whose app
+            // layers ran before this handler, it is dispatched directly below.
+            var _laneEntry = ( req.routing.param && req.routing.param.lane ) ? lib.lane.lookup(req.routing) : null;
+
             if ( /^isaac/.test(self.engine) && self.instance._expressMiddlewares.length > 0) {
                 installH2SendShim(res); // #B562
                 // FRAMEWORK PATCH: Bug I — per-request dispatcher
@@ -8479,10 +8508,19 @@ function Server(options) {
                 nextMiddleware._response     = res;
                 nextMiddleware._next         = next;
                 nextMiddleware._nextAction   = 'route';
+                if ( _laneEntry ) {
+                    nextMiddleware._nextAction = 'lane';
+                    nextMiddleware._laneEntry  = _laneEntry;
+                }
                 // #FI — express middleware start
                 nextMiddleware._timelineStart = (req._devTimeline) ? Date.now() : 0;
 
                 return nextMiddleware()
+            }
+
+            if ( _laneEntry ) {
+                lib.lane.dispatch(_laneEntry, req, res, next, self.instance, ( self.conf[req.routing.bundle] || self.conf[self.appName] )[self.env]);
+                return;
             }
 
             router._server = self.instance;
