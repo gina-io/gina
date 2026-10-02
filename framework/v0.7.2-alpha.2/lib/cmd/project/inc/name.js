@@ -32,7 +32,7 @@ var scopeName = require('../../scope/inc/name');
  *
  * @example
  *  isValidProjectName('myproject');     // true
- *  isValidProjectName('design-system'); // true
+ *  isValidProjectName('my-app');        // true
  *  isValidProjectName('Myproject');     // false — starts with an uppercase letter
  *  isValidProjectName('..');            // false — its home would be ~/..
  *  isValidProjectName('constructor');   // false — every object inherits it

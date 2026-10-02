@@ -92,7 +92,7 @@ function handler(rel) {
 // 01 — the two name rules
 // ---------------------------------------------------------------------------
 
-var ACCEPTED = ['design-system', 'api', 'my.app', 'my_app', '_x', '.hidden', 'a1', '0app', 'aB', 'x.y-z_w'];
+var ACCEPTED = ['my-app', 'api', 'my.app', 'my_app', '_x', '.hidden', 'a1', '0app', 'aB', 'x.y-z_w'];
 var REFUSED  = [
     'Myproject', '-x', '.', '..', 'a$b', 'a b', 'a/b', 'a@b', 'a(b', 'a+b', 'a\nb', "a'b", 'a;b', '',
     'constructor', '__proto__', 'toString', 'hasOwnProperty', 'count'

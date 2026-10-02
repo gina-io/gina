@@ -31,7 +31,7 @@ var scopeName = require('../../scope/inc/name');
  *
  * @example
  *  isValidBundleName('api');           // true
- *  isValidBundleName('design-system'); // true
+ *  isValidBundleName('my-app');        // true
  *  isValidBundleName('Admin');         // false — starts with an uppercase letter
  *  isValidBundleName('a$b');           // false — `$` is not allowed
  *  isValidBundleName('constructor');   // false — every object inherits it
