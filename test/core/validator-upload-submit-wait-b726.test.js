@@ -165,16 +165,19 @@ describe('#B726 §04 — door B (the native submit proxy) holds after cancelling
     });
 });
 
-describe('#B726 §05 — onUpload notes every outcome before anything that can throw', function () {
+describe('#B726 §05 — onUpload notes every outcome before it handles the error or the success', function () {
 
-    it('the note follows the dropzone idle line and precedes the no-error-slot throw', function () {
-        var onUpload = extractFunctionExpression(SRC, 'var onUpload = function(gina, $target, status, id, data) {');
-        var idle  = onUpload.indexOf("updateUploadDropzoneState(uploadProperties.dropzoneContainer || null, 'idle');");
-        var note  = onUpload.indexOf('noteStagedUploadSettled(uploadProperties.$form, status);');
-        var throwAt = onUpload.indexOf('throw new Error(errMsg)');
-        assert.ok(idle > -1 && note > -1 && throwAt > -1, 'anchors: idle ' + idle + ', note ' + note + ', throw ' + throwAt);
+    it('the note follows the dropzone idle line and precedes the error branch', function () {
+        // #B731 removed the no-error-slot throw this pin used to anchor on (approved by Martin,
+        // 2026-10-02); the property kept is that the note runs before any error or success
+        // handling. Comments are stripped, so the fix's own `// was:` lines cannot stand in for code.
+        var onUpload = stripComments(extractFunctionExpression(SRC, 'var onUpload = function(gina, $target, status, id, data) {'));
+        var idle   = onUpload.indexOf("updateUploadDropzoneState(uploadProperties.dropzoneContainer || null, 'idle');");
+        var note   = onUpload.indexOf('noteStagedUploadSettled(uploadProperties.$form, status);');
+        var branch = onUpload.indexOf("if ($error && status != 'success')");
+        assert.ok(idle > -1 && note > -1 && branch > -1, 'anchors: idle ' + idle + ', note ' + note + ', branch ' + branch);
         assert.ok(idle < note, 'the note follows the dropzone finalize');
-        assert.ok(note < throwAt, 'the note must run even when onUpload throws later');
+        assert.ok(note < branch, 'the note must run before the error or success handling');
     });
 });
 

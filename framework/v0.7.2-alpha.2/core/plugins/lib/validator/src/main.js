@@ -5194,8 +5194,22 @@ function ValidatorPlugin(rules, data, formId, culture) {
             if ( $uploadTriger && $uploadTriger.form ) {
                 announceA11yError($uploadTriger.form, $error.textContent);
             }
-        } else if(!$error && status != 'success') {
-            throw new Error(errMsg)
+        } else if ( status != 'success' ) {
+            // #B731 — no error element. Every error site calls onUpload BEFORE it dispatches
+            // `error.<id>` and the declared `data-gina-form-upload-on-error` callback, so the
+            // throw this branch held (`new Error(undefined)`: `errMsg` is assigned only in the
+            // branch above) cancelled both. The message is announced instead of shown, and the
+            // dispatch goes on.
+            // was: } else if(!$error && status != 'success') {
+            // was:     throw new Error(errMsg)
+            var noSlotMsg = data.message || data.error;
+            noSlotMsg = ( typeof(noSlotMsg) == 'undefined' || noSlotMsg === null ) ? '' : String(noSlotMsg);
+            if ( $uploadTriger && $uploadTriger.form && noSlotMsg != '' ) {
+                announceA11yError($uploadTriger.form, noSlotMsg);
+            }
+            if (envIsDev) {
+                try { console.warn('[FormValidator] upload `#'+ uploadProperties.uploadTriggerId +'`: no error element `#'+ uploadProperties.errorField +'`; the staging error is announced, not shown'); } catch (warnErr) {}
+            }
         } else {
             // #A11Y7/U2 — success is the other end of the `uploadStarted` transition.
             // It lives in this branch rather than at the indicator chokepoint above so
@@ -8872,7 +8886,12 @@ function ValidatorPlugin(rules, data, formId, culture) {
                     var eventOnSuccess  = $el.getAttribute('data-gina-form-upload-on-success');
                     var eventOnError    = $el.getAttribute('data-gina-form-upload-on-error');
                     var eventOnProgress = $el.getAttribute('data-gina-form-upload-on-progress'); // #R8
-                    var errorField    = null;
+                    // #B731 — the error slot is an attribute of THIS file input (default
+                    // `<id>-error`), read once. It was recomputed for every <input> of the real
+                    // form and kept the last one's, so a custom slot was honoured only when the
+                    // file input was the form's last input.
+                    // was: var errorField    = null;
+                    var errorField    = $el.getAttribute('data-gina-form-upload-error') || ( ($el.id) ? $el.id + '-error' : null );
                     // #B572 — which popin, if any, this upload belongs to is decided by
                     // CONTAINMENT (the popin the real form is inside), captured ONCE per
                     // selection and read by every site below — never by "some popin is open"
@@ -9020,7 +9039,8 @@ function ValidatorPlugin(rules, data, formId, culture) {
                                         fieldType   = formInputsFields[h].getAttribute('type');
                                         hiddenField = null;
                                         _name       = null, _userName = null;
-                                        errorField= formInputsFields[h].getAttribute('data-gina-form-upload-error') || fieldId + '-error' || null;
+                                        // #B731 — read once from the file input, above
+                                        // was: errorField= formInputsFields[h].getAttribute('data-gina-form-upload-error') || fieldId + '-error' || null;
 
                                         if (fieldType && /hidden/i.test(fieldType) ) {
                                             hiddenField = formInputsFields[h];
