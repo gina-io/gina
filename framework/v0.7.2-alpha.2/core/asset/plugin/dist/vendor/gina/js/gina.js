@@ -22074,6 +22074,14 @@ function ValidatorPlugin(rules, data, formId, culture) {
                             if (eventOnProgress) {
                                 $uploadForm.setAttribute('data-gina-form-event-on-upload-progress', eventOnProgress);
                             }
+                            // #B729 — a file chosen while this input's previous staging request is
+                            // still on the wire supersedes that request: the input now shows the new
+                            // file, so only the new file's metadata may reach the form. Without this
+                            // the one-request-at-a-time gate in send() returned silently, the new
+                            // selection was never sent, and the earlier request filled the form with
+                            // the file the user had just replaced. A superseded request settles
+                            // through `abort.<id>` only: no error, no on-error callback.
+                            $uploadForm.setAttribute('data-gina-form-sync', 'replace');
 
 
                             // adding for to current document
