@@ -8861,7 +8861,13 @@ function ValidatorPlugin(rules, data, formId, culture) {
                     var url             = $el.getAttribute('data-gina-form-upload-action');
                     var name            = $el.getAttribute('name');
                     var fileId          = name;
-                    var uploadFormId    = 'gina-upload-' + name.replace(/\[/g, '-').replace(/\]/g, '-' + $form.id);
+                    // #B732 — the virtual form id must be unique per form. A bracketed name
+                    // already carries the form id (once per `]`), but a bracket-less one
+                    // (`doc`) gave `gina-upload-doc` in EVERY form, so two forms with
+                    // same-named staged inputs shared one virtual form: the second form's
+                    // upload filled the first form's hidden fields and left its own empty.
+                    // was: var uploadFormId    = 'gina-upload-' + name.replace(/\[/g, '-').replace(/\]/g, '-' + $form.id);
+                    var uploadFormId    = 'gina-upload-' + name.replace(/\[/g, '-').replace(/\]/g, '-' + $form.id) + ( (/\]/.test(name)) ? '' : '-' + $form.id );
                     $el.setAttribute('data-gina-form-virtual', uploadFormId);
                     var eventOnSuccess  = $el.getAttribute('data-gina-form-upload-on-success');
                     var eventOnError    = $el.getAttribute('data-gina-form-upload-on-error');
