@@ -8899,10 +8899,31 @@ function ValidatorPlugin(rules, data, formId, culture) {
                         }
 
                         if ( !$uploadForm ) {
-                            try {
-                                $uploadForm = getFormById(uploadFormId) || null;
-                            } catch (noExistingFormErr) {
-                                // do nothing
+                            // #B733 — `getFormById()` returns the validator RECORD, not the form
+                            // element, and every line below treats `$uploadForm` as the element
+                            // (`setAttribute`, `appendChild`). A record is still registered here
+                            // when an earlier selection's virtual form has left the document: a
+                            // popin close wipes the content but nothing destroys that record, so
+                            // after a reopen the next selection threw and sent nothing. A record's
+                            // element is reused only while it is in the document; a detached one
+                            // is destroyed (its own `destroy()` removes its listeners and their
+                            // registry entries, so the new form binds afresh) and a new form is built.
+                            // was:
+                            // try {
+                            //     $uploadForm = getFormById(uploadFormId) || null;
+                            // } catch (noExistingFormErr) {
+                            //     // do nothing
+                            // }
+                            var $knownUpload = instance.$forms[uploadFormId] || null;
+                            if ( $knownUpload && $knownUpload.target && $knownUpload.target.isConnected ) {
+                                $uploadForm = $knownUpload.target;
+                            } else if ( $knownUpload ) {
+                                try {
+                                    $knownUpload.destroy();
+                                } catch (staleUploadErr) {
+                                    // a record that cannot unbind must still never be reused
+                                }
+                                delete instance.$forms[uploadFormId];
                             }
 
                             if (!$uploadForm) {
