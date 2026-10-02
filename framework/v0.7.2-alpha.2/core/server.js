@@ -7770,7 +7770,12 @@ function Server(options) {
                 for (var ph in _pending) { _sh[ph] = _pending[ph]; }
                 res.stream.respond(_sh);
                 res.stream.end(_hitContent);
-                res.headersSent = true;
+                // #B750 — `headersSent` is a getter-only accessor on the HTTP/2 compat
+                // response and already reports this send (it reads the stream's state).
+                // Assigning it threw a TypeError in this strict-mode file AFTER the body
+                // went out: on every redis L2 warm served over HTTP/2 the access-log line
+                // below was skipped and an unhandled rejection was logged instead.
+                // was: res.headersSent = true;
             }
         } else {
             if ( !res.headersSent && !res.writableEnded ) {

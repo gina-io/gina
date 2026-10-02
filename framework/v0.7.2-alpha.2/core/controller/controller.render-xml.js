@@ -207,7 +207,11 @@ module.exports = function renderXML(xmlContent, contentType, deps) {
             } else {
                 __ginaSend2(data);
             }
-            response.headersSent = true;
+            // #B750 — `headersSent` is a getter-only accessor on the HTTP/2 compat
+            // response and already reports the raw send. Assigning it threw a TypeError
+            // in this strict-mode file, which the catch at the end of this function
+            // handed to throwError on a response already sent, skipping the cleanup below.
+            // was: response.headersSent = true;
             local.req = null;
             local.res = null;
             local.next = null;
@@ -219,7 +223,11 @@ module.exports = function renderXML(xmlContent, contentType, deps) {
             try {
                 response.setHeader('content-type', _contentType);
                 response.end(data);
-                response.headersSent = true;
+                // #B750 — the response's own `headersSent` getter already reports the
+                // send. Assigning it threw a TypeError in this strict-mode file; the
+                // catch below swallowed it, skipping this branch's return, so the code
+                // after the if could call next() on a response that had already ended.
+                // was: response.headersSent = true;
                 // Release per-request refs — response is a local copy, so the
                 // .end() above is unaffected.
                 local.req = null;

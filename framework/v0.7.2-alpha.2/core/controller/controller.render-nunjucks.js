@@ -560,9 +560,11 @@ function injectInspectorScripts(html, data, self, local, displayInspector) {
  * render callback completed, in which case `stream.respond()` throws
  * `ERR_HTTP2_INVALID_STREAM`.
  *
- * `res.headersSent = true` is set after a successful `stream.respond()`
- * to signal to the HTTP/1.1 compat layer that the response was sent
- * directly, matching render-swig's §7b pattern.
+ * No `headersSent` flag is set after the raw send (#B750): on the HTTP/2
+ * compat response `headersSent` is a getter-only accessor that reads the
+ * stream's state, so it already reports the send, and assigning it threw a
+ * TypeError in this strict-mode file. (render-swig's §7b assignment is a
+ * silent no-op only because that file is not in strict mode.)
  *
  * @inner
  * @param {object} local  - Per-request closure
@@ -613,7 +615,11 @@ function sendHtmlResponse(local, html, req, res) {
             } else {
                 __ginaSend1();
             }
-            res.headersSent = true;
+            // #B750 — `headersSent` is a getter-only accessor on the HTTP/2 compat
+            // response and already reports the raw send. Assigning it threw a TypeError
+            // in this strict-mode file, logged as an unhandled promise rejection on
+            // every nunjucks render over HTTP/2.
+            // was: res.headersSent = true;
         } else {
             // Case 2: HEAD + HTTP/1.1
             res.setHeader('content-length', byteLength);
@@ -660,7 +666,8 @@ function sendHtmlResponse(local, html, req, res) {
         } else {
             __ginaSend2(html);
         }
-        res.headersSent = true;
+        // #B750 — as in the HEAD branch above.
+        // was: res.headersSent = true;
         return;
     }
 
