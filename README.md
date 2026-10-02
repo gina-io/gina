@@ -19,6 +19,7 @@ MVC framework for Node.js and Bun with built-in HTTP/2, multi-bundle architectur
 | Multi-bundle | One project, N independent bundles with shared config and project layer |
 | Scope isolation | `local` / `beta` / `production` — per-request and per-record |
 | MVC routing | `routing.json` — declare routes in config, not code; an index built once per routing table narrows each cold match to the rules the URL could reach, and a hot path is served from the route cache |
+| Fast lane | Opt-in JSON routes without a controller — `param.lane` names a handler module under `lanes/` that answers with `ctx.json()` / `ctx.error()`; the request id, CORS, the bundle's session and CSRF middleware, the metrics and the error envelope stay as on any route |
 | Async/await | Controller actions can be `async`; rejections routed to `throwError` automatically |
 | WebSockets | WS routes in `routing.json` (`"method": "ws"` + channel handlers, `:param` paths); WebSocket-over-HTTP/2 (RFC 8441) |
 | ORM / entities | EventEmitter-based entity system; SQL files auto-wired to entity methods |
