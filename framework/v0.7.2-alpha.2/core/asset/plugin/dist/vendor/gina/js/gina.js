@@ -29388,7 +29388,16 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/loading-state', 'lib/merge'
                     loadingState.disarm( document.getElementById($popin.openTrigger) );
 
                     // removing from FormValidator instance
-                    if ($validatorInstance && $validatorInstance['$forms']) {
+                    // #B756 — the forms belong to the validator THIS popin was registered with,
+                    // which is not necessarily this closure's: `gina.popin` is the boot instance,
+                    // built without a validator, so `gina.popin.close(name)` reached this point
+                    // with `$validatorInstance` null, the teardown below was skipped, every form
+                    // record survived pointing at its detached node, and the reopened form was
+                    // never bound again. A popin registered without a validator has no forms
+                    // recorded, so for it nothing changes.
+                    var $popinValidator = ( $popin.options && $popin.options['validator'] ) || $validatorInstance;
+                    // was: if ($validatorInstance && $validatorInstance['$forms']) {
+                    if ($popinValidator && $popinValidator['$forms']) {
                         // #B265: iterate a COPY, and clear the array ONCE. The previous loop
                         // spliced `$popin['$forms']` while walking it against a length captured
                         // BEFORE the loop, so every element shifted left under the cursor and the
@@ -29401,7 +29410,8 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/loading-state', 'lib/merge'
                         var _formIds = $popin['$forms'].slice();
                         $popin['$forms'].length = 0;
                         for (var i = 0, _formIdsLen = _formIds.length; i < _formIdsLen; ++i) {
-                            var $formToDestroy = $validatorInstance['$forms'][ _formIds[i] ];
+                            // was: var $formToDestroy = $validatorInstance['$forms'][ _formIds[i] ];
+                            var $formToDestroy = $popinValidator['$forms'][ _formIds[i] ];
                             if ( typeof($formToDestroy) == 'undefined' ) {
                                 continue;
                             }

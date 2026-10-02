@@ -15,11 +15,14 @@
  * RED-FIRST, measured 2026-10-02 on the committed dist of develop `761631fb4`: after the close
  * and reopen, arms 02 and 03 threw `setAttribute is not a function` (the validator record of the
  * earlier virtual form was used as the form element) and sent no staging request, and the reopened
- * upload never reached the declared on-success callback; the control passed. Green after the rebuild.
+ * upload never reached the declared on-success callback; the control passed. Arm 04 (#B756) found
+ * the reopened form unbound (`boundOnReopen: false`): nothing was sent and nothing thrown. Green
+ * after the rebuild.
  *
  *   01 CONTROL first open: one staging POST carrying the popin id, the metadata fills
  *   02 closed with its close button, reopened: the new selection is staged from the new form
  *   03 the same, closed through the popin's own close(): getPopinByName(name).close()
+ *   04 the same, closed through gina.popin.close(name), the boot instance (#B756)
  *
  * Run:
  *   npx playwright test test/e2e/validator-upload-popin-reopen-b733.spec.js
@@ -132,7 +135,9 @@ function filledWith(pw, file) {
 
 const CLOSERS = {
     button: async (pw) => { await pw.click('dialog .gina-popin-close', { force: true }); },
-    own:    async (pw) => { await pw.evaluate(() => { window.gina.popin.getPopinByName('upl').close(); }); }
+    own:    async (pw) => { await pw.evaluate(() => { window.gina.popin.getPopinByName('upl').close(); }); },
+    // `gina.popin` is the boot instance, not the one that registered `upl` (#B756)
+    boot:   async (pw) => { await pw.evaluate(() => { window.gina.popin.close('upl'); }); }
 };
 
 async function closePopin(pw, how) {
@@ -186,6 +191,11 @@ test.describe('#B733 — a staged upload in a reopened AJAX popin', () => {
 
     test('03 closed through getPopinByName(name).close(), reopened: the same', async ({ page: pw }) => {
         const r = await reopenScene(pw, 'own');
+        expect(r.seen).toEqual(r.expected);
+    });
+
+    test('04 closed through gina.popin.close(name), the boot instance (#B756), reopened: the same', async ({ page: pw }) => {
+        const r = await reopenScene(pw, 'boot');
         expect(r.seen).toEqual(r.expected);
     });
 });
