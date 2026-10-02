@@ -284,6 +284,7 @@ SELECT * FROM users WHERE id = $1 AND t._scope = $scope
 
 Connectors supported: `couchbase` (v3/v4), `mysql` (mysql2), `postgresql` (pg), `redis` (store backend only: sessions, jobs, render-cache L2 — no ORM), `sqlite` (v2 ORM + session store), `scylladb` (cassandra-driver, ORM + session store), `mongodb` (official driver, ORM via `pipelines/<Entity>/*.json` + session store via TTL index), `ai` (LLM providers).
 All connector clients (`mysql2`, `pg`, `ioredis`, `couchbase`, `mongodb`, `cassandra-driver`, `openai`, `@anthropic-ai/sdk`) are loaded from the project's `node_modules` — zero framework runtime dependency. The driver-name → npm-package mapping lives in `lib/connector-registry/src/main.js` (single source of truth for `connector:add` / `connector:list` install hints).
+SQLite paths go in `file`, never in `database`: the model layer opens a connector for EVERY `connectors.json` entry at boot, store-only entries included, and reads `database` as a database NAME under the gina home (`<home>/<database>.sqlite`), so a filesystem path in `database` stops the boot. The SQLite session, job and kv stores all read their path, or `":memory:"`, from `file` — the session store since 0.7.2 (#D47; before that it read only `database`, so a persistent session store needed both keys set to the same path). With neither key the session store uses `<gina home>/sessions-<bundle>.db`.
 
 ## AI connector
 

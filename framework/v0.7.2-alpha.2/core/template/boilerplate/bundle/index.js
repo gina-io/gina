@@ -35,7 +35,8 @@ var ${bundle} = require('gina');
 //    // Configure connectors.json: { "session": { "connector": "redis", "host": "...", "port": 6379, "ttl": 86400 } }
 //    //
 //    // SQLite — dev / staging / single-pod (requires: Node >= 22.5.0, zero npm deps)
-//    // Configure connectors.json: { "session": { "connector": "sqlite", "database": ":memory:", "ttl": 86400 } }
+//    // Configure connectors.json: { "session": { "connector": "sqlite", "file": ":memory:", "ttl": 86400 } }
+//    // (a file path, e.g. "/var/lib/myapp/sessions.db", also goes in "file", never in "database")
 //    //
 //    // The store factory keys on express-session's function name — the literal
 //    // "session", which is read-only and cannot be re-pointed — so the

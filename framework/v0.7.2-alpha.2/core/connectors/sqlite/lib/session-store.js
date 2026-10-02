@@ -72,16 +72,28 @@ module.exports = function(session, bundle) {
      *
      * @constructor
      * @param {object}  [options]                   - Instance-level overrides.
-     * @param {string}  [options.database]           - Path to the SQLite file, or `':memory:'`
-     *                                                 for a volatile in-process store.
-     *                                                 Defaults to connectors.json `database`, then
-     *                                                 `~/.gina/{version}/sessions-{bundle}.db`.
+     * @param {string}  [options.file]               - Path to the SQLite file, or `':memory:'`
+     *                                                 for a volatile in-process store (#D47).
+     * @param {string}  [options.database]           - The same, read when `options.file` is unset
+     *                                                 (kept so existing code keeps working).
+     *                                                 With neither option, the path is connectors.json
+     *                                                 `file`, then `database`, then
+     *                                                 `<gina home>/sessions-{bundle}.db` (`~/.gina` by default).
+     *                                                 Put a path in connectors.json `file`, not `database`:
+     *                                                 the model layer reads `database` as a NAME, so a
+     *                                                 path there stops the boot.
      * @param {string}  [options.prefix]             - Session key prefix (default: `'sess:'`).
      * @param {number}  [options.ttl]                - Session TTL in seconds (default: connectors.json ttl;
      *                                                 unset → cookie maxAge drives expiry, else 86400).
      *                                                 Must be > 0 when set — non-positive refuses (#B207).
      * @param {number}  [options.cleanupInterval]    - Expired-session purge interval in seconds.
      *                                                 Set to 0 to disable. (default: 900).
+     *
+     * @example
+     * // src/<bundle>/config/connectors.json
+     * // { "session": { "connector": "sqlite", "file": "/var/lib/myapp/sessions.db", "ttl": 86400 } }
+     * var SqliteStore = new lib.SessionStore(session); // resolves the "session" entry
+     * app.use(session({ secret: process.env.SESSION_SECRET, store: new SqliteStore() }));
      */
     function SqliteStore(options) {
         var self = this;
@@ -107,9 +119,15 @@ module.exports = function(session, bundle) {
         this.ttl             = (options.ttl             != null) ? options.ttl             : (connConf.ttl             || null);
         this.cleanupInterval = (options.cleanupInterval != null) ? options.cleanupInterval : (connConf.cleanupInterval || 900);
 
-        // Resolve DB path: option > connectors.json > default per-bundle file
+        // Resolve the DB path (#D47): an instance option, then connectors.json,
+        // then the per-bundle default — `file` before `database` at each level.
+        // The model layer opens a SQLite connector for every connectors.json entry
+        // at boot and reads `database` as a NAME under the gina home, so only
+        // `file` can carry a path both readers accept (the SQLite job and kv
+        // stores read `file` for the same reason).
         var defaultDbPath = _(getPath('gina').home + '/sessions-' + bundle + '.db', true);
-        var dbPath = options.database || connConf.database || defaultDbPath;
+        // was: var dbPath = options.database || connConf.database || defaultDbPath;
+        var dbPath = options.file || options.database || connConf.file || connConf.database || defaultDbPath;
 
         // Resolve the SQLite driver through the shared seam — node:sqlite on
         // Node (built-in since 22.5.0, zero npm deps), bun:sqlite behind an
