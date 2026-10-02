@@ -37,6 +37,18 @@ function activeLines(src) {
 }
 var SERVER_CODE      = activeLines(SERVER);
 var RENDER_JSON_CODE = activeLines(RENDER_JSON);
+
+/**
+ * Drop every whole comment line: `//` lines, and the lines of a JSDoc or block comment
+ * (those starting with `*`, `/*` or `/**`). `activeLines()` keeps JSDoc lines, so a
+ * JSDoc `@example` that quotes a call would count as a call site (#B752).
+ */
+function noCommentLines(src) {
+    return src.split('\n').filter(function(l) {
+        return !/^\s*\/\//.test(l) && !/^\s*\/?\*/.test(l);
+    }).join('\n');
+}
+var SERVER_CALLS = noCommentLines(SERVER);
 function count(hay, needle) {
     var n = 0, i = 0;
     while ((i = hay.indexOf(needle, i)) > -1) { n++; i += needle.length; }
@@ -83,18 +95,18 @@ describe('01 - core/server.js: the shim exists and runs before the middleware ch
             'expected a module-scope installH2SendShim declaration');
     });
     it('is invoked at BOTH isaac middleware-chain entries', function() {
-        assert.equal(count(SERVER_CODE, 'installH2SendShim('), 3,
-            'expected 1 declaration + exactly 2 call sites (statics entry and routed entry)');
+        assert.equal(count(SERVER_CALLS, 'installH2SendShim('), 2,
+            'expected exactly 2 call sites (statics entry and routed entry); the declaration is pinned by the arm above');
     });
     it('each call precedes its dispatcher construction', function() {
-        var parts = SERVER_CODE.split('installH2SendShim(');
-        assert.equal(parts.length, 4, 'instrument check: 3 occurrences split into 4 parts');
+        var parts = SERVER_CALLS.split('installH2SendShim(');
+        assert.equal(parts.length, 3, 'instrument check: 2 call sites split into 3 parts');
         // for both call sites, the dispatcher is constructed after the shim call
-        [2, 3].forEach(function(n) {
+        [1, 2].forEach(function(n) {
             var after = parts[n];
             var disp  = after.indexOf('createNextMiddleware()');
             assert.ok(disp > -1 && disp < 400,
-                'call site ' + (n - 1) + ' must be immediately above createNextMiddleware()');
+                'call site ' + n + ' must be immediately above createNextMiddleware()');
         });
     });
     it('the transparency guard is present on all three methods', function() {
