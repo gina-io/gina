@@ -43,6 +43,7 @@ test/core/couchbase-concurrency.test.js :: 04 - exactly one trigger emit per com
 test/core/error-message-annihilation.test.js :: #B112 §02 — the 500 response body carries the error, not an empty body :: SUBTRACT: the pre-fix response.end("" + err.stack | err.message | err) serves an EMPTY body
 test/core/esm-entry.test.js :: esm-entry — 02: resolution behaviour :: undeclared subpaths are blocked (exports map is active)
 test/core/express-engine-compat.test.js :: 03 - replica: prototype-getter assignment physics :: strict-mode assignment through a getter-only prototype THROWS (the pre-fix per-request death)
+test/core/h2-raw-send-b749-b750.test.js :: 00 - instrument controls (read no gina source; hold on any bytes) :: c: a STRICT assignment to headersSent throws on a real HTTP/1.1 ServerResponse after end()
 test/core/render-json.test.js :: 03 - released-response guard (#B36) :: subtract: the pre-fix head throws reading `stream` on a released response
 test/core/render-nunjucks.test.js :: 01 - function-scoped captures of per-request refs (#M1 race fix) :: repro of the pre-retrofit failure: `local.req.method` after null-out throws TypeError
 test/core/render-nunjucks.test.js :: 08 - released-response guard (#B45) :: subtract: the pre-fix head throws reading `headers` on a released response

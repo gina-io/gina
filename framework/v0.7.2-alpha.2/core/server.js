@@ -8709,6 +8709,13 @@ function Server(options) {
                         for (var _ejk in _pendingEJ) {
                             if (!(_ejk in header)) header[_ejk] = _pendingEJ[_ejk];
                         }
+                        // #B749 — the raw respond() below bypasses the compat response, whose
+                        // statusCode kept its default 200 (the shim swallows writeHead(code)),
+                        // so a 'finish' reader such as the metrics hook counted every HTTP/2
+                        // error as a 200. The setter throws on an invalid code, undefined
+                        // among them, which respond() still sends as 200: the send must not
+                        // depend on it.
+                        try { res.statusCode = code; } catch (e) {}
                         stream.respond(header);
                         stream.end(errBody);
                     };
@@ -8870,6 +8877,9 @@ function Server(options) {
                         for (var _ehk in _pendingEH) {
                             if (!(_ehk in header)) header[_ehk] = _pendingEH[_ehk];
                         }
+                        // #B749 — as in __ginaSendErrJSON above: the compat response must
+                        // carry the code the raw frame sends, or a 'finish' reader sees 200.
+                        try { res.statusCode = code; } catch (e) {}
                         stream.respond(header);
                         stream.end(errBody);
                     };
