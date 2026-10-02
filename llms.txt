@@ -701,7 +701,7 @@ gina-init                               # Bootstrap ~/.gina/ from env vars (cont
 ## Dev mode behaviour
 
 - `NODE_ENV_IS_DEV=true` enables hot-reload.
-- `WatcherService` starts automatically in dev mode and watches `controller.js`, `controller.render-swig.js`, and the bundle's `controllers/` directory.
+- `WatcherService` starts in dev mode only when the bundle's `index.js` calls `onStarted()` (the scaffolded `index.js` leaves that call commented out); it watches `controller.js`, `controller.render-swig.js`, the bundle's `controllers/` directory and its lane directories. Without it, dev mode takes the per-request fallback below.
 - `require.cache` eviction is split: `refreshCoreDependencies()` (`router.js`) evicts and re-requires the controller pair only when the watcher has marked a watched file dirty (file-change-triggered, not per-request; falls back to per-request eviction when the watcher context is unavailable), while `refreshCore()` (`server.isaac.js` — isaac engine only) re-requires `lib/index.js` + `plugins/index.js` on EVERY request.
 - SQL files are re-read from disk on every entity call (Couchbase/SQLite connectors).
 - Static files are served with `cache-control: no-cache, no-store, must-revalidate` — 304 is never sent; browser always re-fetches.
