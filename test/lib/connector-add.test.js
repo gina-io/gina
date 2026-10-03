@@ -577,7 +577,7 @@ describe('15 - help.txt + arguments.json', function () {
 
     it('arguments.json does NOT register `--port` or `--version` (reserved framework flags)', function () {
         assert.strictEqual(argsArr.indexOf('--port'), -1, '`--port` is reserved for the framework socket port and must not be exposed to connector:add');
-        assert.strictEqual(argsArr.indexOf('--version'), -1, '`--version` maps to GINA_VERSION and triggers a framework migration; must not be exposed to connector:add');
+        assert.strictEqual(argsArr.indexOf('--version'), -1, '`--version` maps to GINA_VERSION (a value naming no installed framework version is refused); must not be exposed to connector:add');
     });
 
     it('bin/cli registers `connector:` in allowedOffline (add inherits from list)', function () {
