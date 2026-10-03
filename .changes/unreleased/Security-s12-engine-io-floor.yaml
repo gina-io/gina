@@ -1,3 +1,0 @@
-kind: Security
-body: 'Raised the `engine.io` dependency floor from `^6.6.7` to `^6.6.10`, the first release patched for GHSA-2gc4-cqfq-p2gv (CVE-2026-102599): on an existing session, a transport-upgrade request carrying a different or missing protocol revision could crash the process. Gina loads engine.io only for a bundle whose `settings.json` sets `ioServer.integrationMode` to `"attach"`; such a bundle was exposed when its install resolved engine.io 6.6.0 to 6.6.9 with transport upgrades allowed, which is the default. `^6.6.7` already let a fresh install resolve a patched release; with the new floor, an install of this version cannot resolve an affected one. Restart attach-mode bundles to load it (#S12).'
-time: 2026-10-01T14:32:06+01:00

@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'On a bundle serving HTTP/2, an error answered by gina''s server-level error path (a 404 for a missing route, a 405, a 500) was counted by the Prometheus metrics as a `200` under `route="__no_route__"`: the answer goes out on the raw HTTP/2 stream, and the response object it bypasses kept its default status, which is what the metrics read when the response finishes. The response now carries the code it sends, so a 404 counts as `404` under `__not_found__`, as it already did over HTTP/1.1. Clients always received the right status. Restart the bundle. (#B749)'
-time: 2026-10-02T22:16:24+01:00

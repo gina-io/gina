@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'Five places assigned `headersSent` on a response after sending it. `headersSent` is read-only on Node''s response objects, so in these strict-mode files each assignment threw a `TypeError` after the client had its answer: with the nunjucks engine over HTTP/2, every rendered page logged an unhandled promise rejection; with a redis render cache over HTTP/2, the first request for each cached URL after a restart (or on a fresh replica) logged one and wrote no access-log line; `self.renderXML()` skipped its cleanup over HTTP/2 and, over HTTP/1.1, could call the action''s `next()` after the response had ended. The assignments are gone. Restart the bundle. (#B750)'
-time: 2026-10-02T22:16:24+01:00

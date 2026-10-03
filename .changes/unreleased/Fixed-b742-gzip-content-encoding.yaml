@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'A precompressed `.gz` file went out as `Content-Encoding: gz`, its file extension, which is not a content coding, so a client could not decode it: Chromium does not run such a script. In production gina now sends `Content-Encoding: gzip`, for a static''s `.gz` copy (over HTTP/1.1) and for the routing table''s `.gz` copy (isaac, both protocols); `.br` copies were already sent as `br`. With gina''s order (brotli, then deflate, then gzip) the `.gz` copy goes only to a request that accepts gzip but neither brotli nor deflate, such as Go''s HTTP client by default or a proxy or CDN set to ask the origin for gzip; browsers also send deflate and were not served it directly. Restart the bundle. (#B742)'
-time: 2026-10-02T00:05:05+01:00

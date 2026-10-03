@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'The SQLite session store now reads its file path from `file`, as the SQLite job and kv stores already do. The sessions guide and the connectors reference showed a persistent store with its path in `database`, and that configuration stopped the boot: the model layer opens a connector for every connectors.json entry and reads `database` as a database name under the gina home, so it tried to open `<home>/<path>.sqlite`. The examples now use `file`, for a path and for `":memory:"`. A configuration that boots today behaves as before (`database` on its own is still read when `file` is unset), and with neither key the store keeps its default file, `~/.gina/sessions-<bundle>.db` (#D47).'
-time: 2026-10-02T23:32:17+01:00

@@ -68,52 +68,46 @@ open https://localhost:3100
 
 > **npm 12+** blocks install scripts by default, and gina's post-install bootstraps `~/.gina` and the framework dependencies. Install with `npm install -g gina@latest --allow-scripts=gina`, or allow it once for all global installs with `npm config set allow-scripts=gina --location=user`. (Not needed on npm ≤ 11.)
 
-## What's in 0.7.1
+## What's in 0.7.2
 
-> **Restart your bundles *and* rebuild them — then restart the framework daemon.**
-> One change is browser-bundled (an instance of an `inherits()` class no longer
-> carries its own `prototype`), so `gina.min.js` changed and `gina bundle:restart`
+> **Restart your bundles *and* rebuild them.** The staged-upload, popin and asset-URL
+> changes are browser-bundled, so `gina.min.js` changed and `gina bundle:restart`
 > alone leaves the old client running: rebuild each consuming bundle, then restart
-> it. The CLI's log-listener port file moved to `~/.gina/run/`, so restart the
-> framework daemon and any running `gina tail` once as well.
+> it. If your build copies `gina.min.js` into your own static files, rebuild that
+> copy before the restart.
 
-> **Read before upgrading — some changes can change an answer.** On an npm install,
-> `settings.swig.autoescape: true` now escapes Swig output as configured — check
-> your templates first. A loopback entry in `admin.allowFrom` or
-> `metrics.allowFrom` no longer admits a request a reverse proxy relays, and the
-> admin endpoints answer their exact path only. A new project or bundle name must
-> follow a naming rule, and the CLI matches names literally. The
-> [migration notes](https://gina.io/docs/migration) list every behaviour change.
+> **Read before upgrading — some changes can change an answer.** In production, the
+> asset URLs gina writes now carry a `?v=` content token, and the statics it serves
+> answer `Cache-Control: public, max-age=31536000, immutable` when the token matches.
+> This is on by default: `assetVersioningEnabled: false` in `templates.json > _common`
+> keeps the plain URLs, and a front server that serves your statics should send
+> tokened requests to the bundle. A staged-upload transport failure now says the
+> request "did not complete", the upload form of a staged input whose name has no
+> brackets gets a new id (`gina-upload-<name>-<form id>`), and a route whose `param`
+> already used a key named `lane` for its own data now declares a fast-lane route.
+> The [migration notes](https://gina.io/docs/migration) list every behaviour change.
 
-**The security release.** Five advisories lead it: behind a reverse proxy on the
-bundle's own host, the admin `/_gina/*` endpoints and `/_gina/metrics` admitted
-every client the proxy relayed; the cross-origin write guard in front of the
-control endpoints missed three URL shapes; one `GET` of the routing table in
-another letter case stopped an isaac bundle; command output logs and the
-log-listener port file left the shared temp directory; and `autoescape: true` is
-applied on npm installs. More CLI commands stop building shell command lines, a
-routed request costs about a third less CPU, and the built-in `/_gina/*` endpoints
-answer a query string, `HEAD` and HTTP/2. Full detail in [CHANGELOG.md](./CHANGELOG.md).
+**The staged-uploads release.** The four reports of issue #83 lead it: the
+staged-upload error slot rendered a server's error text as markup (an advisory), a
+form posted a file input's `C:\fakepath\` placeholder, a submit could leave while
+its upload was still running, and a request that failed in transit said it never
+reached the server. Five more staged-upload and popin fixes found on the way, two
+new features — versioned asset URLs that browsers keep for a year, and an opt-in
+fast lane that answers a JSON route without building a controller — and fixes to
+precompressed statics, HTTP/2 error metrics and the SQLite session store. Full
+detail in [CHANGELOG.md](./CHANGELOG.md).
 
-- **Security — the admin `/_gina/*` endpoints refuse a request relayed by a proxy on the bundle's host (#B709).** They admitted a caller by its network address alone, loopback by default, so a proxy on the same host relayed every client past `admin.allowFrom` and `metrics.allowFrom`. A loopback caller whose request carries a forwarding header or a `Host` without a port is now refused with `403`, and each endpoint answers its exact path only.
-- **Security — the cross-origin write guard covers every URL the control endpoints answer (#B708).** A leading path segment, the endpoint path at the end of a query string or another letter case slipped past it, so a page on another origin could turn maintenance mode on from an operator's allowed address.
-- **Security — a `GET` of the routing table in another letter case no longer stops an isaac bundle (#B707).** `/_gina/assets/Routing.json` found no file and the empty result's read ended the process — one unauthenticated request, before routing and every route guard. The lookup now uses the lower-cased name.
-- **Security — command output logs and the log-listener port file leave the shared temp directory (#B702, #B704).** `run()` and `Shell::run()` write each command's output to a private directory removed at close, and the port file lives in `~/.gina/run/` (mode 0600).
-- **Security — `settings.swig.autoescape: true` is applied on npm installs (#B695).** The per-request settings read failed on an npm install, so the option was silently dropped there.
-- **Security — CLI commands no longer build shell command lines, and match names literally (#B665).** Commands that start other gina commands, the framework commands and an isaac bundle's boot pass their values as arguments, and registry lookups no longer read a name as a regular expression.
-- **Changed — new project and bundle names follow a naming rule (#B665).** Letters, digits, `_`, `.` and `-`, starting with a lowercase letter, a digit, `_` or `.`; existing names keep working.
-- **Changed — less work per routed request.** Values that do not change between requests are computed once and configuration lookups reuse the loaded configuration: a routed JSON request went from about 300 µs to about 205 µs of CPU in the profiling harness. An instance of an `inherits()` class no longer carries its own `prototype`.
-- **Fixed — the built-in `/_gina/*` endpoints answer a query string and `HEAD`, and a page whose query string ends in an endpoint path gets the page (#B712, #B717, #B718).**
-- **Fixed — isaac's own event streams answer HTTP/2 clients (#B722).** `/_gina/logs`, `/_gina/agent` and `/_gina/release/events` never answered one.
-- **Fixed — maintenance mode on isaac: a listed direct client gets through on HTTP/1.1, and the storage endpoints answer during a window (#B711, #B715).**
-- **Fixed — `storage:gc --dry-run` and `--driver=` work against a running isaac bundle (#B710).** A dry run ran a real collection.
-- **Fixed — a JSON body sent to the maintenance or instrumentation toggle no longer stops an express bundle (#B714).**
-- **Fixed — a daemon-started bundle's boot warnings appear in the `bundle:start` output (#B691).**
-- **Fixed — project commands from a path with a space, `bundle:stop`'s pid file, lookups of names extending one another, and a `--restart-pid` flag (#B665, #B693, #B689).**
-- **Fixed — the Inspector and `gina inspector:open` accept a target URL with a query string (#B719).**
-- **Fixed — a bundle with templates no longer walks the call stack on every request (#B695).**
-- **Fixed — with the output cache off, isaac no longer serves a page an earlier run cached.**
-- **Fixed — the path helper no longer keeps every path it has seen (#B703).**
+- **Security — a staged upload's error message is shown as text (#B727).** The upload error slot used `innerHTML`, so a proxy's or WAF's HTML error page, or a server error that echoes request text such as a rejected filename, became live markup in the page.
+- **Security — the `engine.io` floor rises to `^6.6.10` (#S12).** On an existing session, a transport-upgrade request could crash a bundle whose `settings.json` sets `ioServer.integrationMode` to `"attach"` (GHSA-2gc4-cqfq-p2gv); an install of this version can no longer resolve an affected release.
+- **Added — versioned asset URLs (#P48).** In production the `<link>` and `<script>` tags gina writes from `templates.json`, their preload hints and the client routing table carry a content token, and the statics gina serves answer `immutable` for a year when the token names the file's current bytes, so a deploy that changes a file changes its URL. On by default.
+- **Added — the fast lane (#P49).** A JSON route can name a function in the bundle's `lanes/` directory (`"param": { "lane": "users", "control": "list" }`) and skip the controller: a median 0.39 times the CPU of the controller route, about 150 µs less per request, in the measurement. Opt-in; this release refuses a lane route that declares a gate.
+- **Fixed — staged uploads, issue #83 parts 1–3 (#B724, #B725, #B726).** A transport failure says the request did not complete (overridable as `gina.config.a11y.transportError`), a staged file input's placeholder value is no longer posted, and a submit made during an upload waits for it, then sends once with its metadata.
+- **Fixed — staged uploads: choosing another file during an upload, an input without an error element, same-named inputs in two forms, and an input in a reopened popin (#B729, #B731, #B732, #B733).**
+- **Fixed — `gina.popin.close(name)` tears down the popin's forms (#B756).** After a reopen they were left unbound.
+- **Fixed — precompressed statics: a `.gz` copy goes out as `Content-Encoding: gzip`, and statics vary on `Accept-Encoding` (#B742, #B743).**
+- **Fixed — on HTTP/2, an error answer is counted with its own status in the metrics, and no `headersSent` error follows a sent response (#B749, #B750).**
+- **Fixed — the SQLite session store reads its path from `file` (#D47).** A path in `database`, as the docs showed, stopped the boot.
+- **Fixed — a page whose query string ends in the routing table's path is answered by the page (#P48).**
 
 ## Documentation
 
