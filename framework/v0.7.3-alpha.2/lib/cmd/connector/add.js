@@ -21,7 +21,7 @@ var CmdHelper = require('./../helper');
  *
  * After writing the entry, prints the exact `npm install <driver>@<range>`
  * command to run, using the resolved version range in this order:
- *   1. the entry's `version` field (set via `--version=`)
+ *   1. the entry's `version` field (set via `--driver-version=`)
  *   2. the framework's built-in driver range table (DRIVER_MAP / AI_DRIVER_MAP)
  *
  * Leading header comments at the top of an existing `connectors.json` are

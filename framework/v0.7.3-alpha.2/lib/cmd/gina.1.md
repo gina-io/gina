@@ -35,6 +35,10 @@ audit
 
 **--version** | **GINA_VERSION**
 		Will override the default framework **version** used by Gina.
+        The version must be installed: the package's own version, or one
+        added side by side with **gina framework:add**. Any other value is
+        refused before the command runs, and the gina home is not migrated.
+        The value is used exactly as given.
 
 **--env** | **GINA_ENV**
     	Will override the runtime environment.

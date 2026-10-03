@@ -83,9 +83,10 @@
                                  install (e.g. ^5.0.0, >=5.3.0 <6.0.0).
                                  Named `--driver-version=` (not `--version=`)
                                  because the framework reserves the bare
-                                 `--version` flag (maps to GINA_VERSION and
-                                 triggers a framework migration). Written to
-                                 the connector entry under the `version` key.
+                                 `--version` flag (maps to GINA_VERSION; a
+                                 value naming no installed framework version
+                                 is refused). Written to the connector entry
+                                 under the `version` key.
     --force                      Overwrite an existing entry with the
                                  same <name>.
     --install                    After writing the entry, run the detected
@@ -215,8 +216,8 @@
 
     After writing, `connector:add` prints the exact
     `npm install <driver>@"<range>"` command. The resolved range comes
-    from `--version=` when supplied, otherwise from the framework's
-    built-in driver range table.
+    from `--driver-version=` when supplied, otherwise from the
+    framework's built-in driver range table.
 
     `connector:rm` writes to the same two targets (shared vs bundle) per
     positional-absence. It never uninstalls the npm driver — another

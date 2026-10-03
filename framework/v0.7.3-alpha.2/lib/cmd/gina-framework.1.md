@@ -52,6 +52,8 @@ gina-framework(1) -- Framework CLI
 
 **--version=val**
     	Tells Gina to run services with a specific framework version.
+    	The version must be installed (see **add**); any other value is
+    	refused before the command runs.
 
 e.g. Start Gina using v0.1.5 of the framework
 
