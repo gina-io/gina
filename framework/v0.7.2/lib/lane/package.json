@@ -1,0 +1,7 @@
+{
+    "name": "lane",
+    "description": "The fast lane: opt-in, controller-free dispatch for JSON routes (param.lane), with its boot registry, request context and JSON/error writers",
+    "version": "0.0.1",
+    "private": true,
+    "main": "src/main"
+}

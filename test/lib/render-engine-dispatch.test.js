@@ -1598,9 +1598,18 @@ describe('05a - sendHtmlResponse four-way branch (class.controller.md §7b)', fu
         assert.ok(matches && matches.length >= 2, 'getHeaders() called for both HEAD+stream and body+stream merges');
     });
 
-    it('sets res.headersSent = true after successful stream.respond', function () {
-        var matches = RENDER_NJ_SRC.match(/\bres\.headersSent\s*=\s*true/g);
-        assert.ok(matches && matches.length >= 2, 'headersSent flagged for both HEAD+stream and body+stream paths');
+    it('does not assign the getter-only res.headersSent after the raw send (#B750)', function () {
+        // `headersSent` is a getter-only accessor on the HTTP/2 compat response, so the
+        // assignment this pin used to require threw a TypeError in this strict-mode file.
+        // Whole comment lines are dropped (never the naive block-comment regex, #B754);
+        // the raw text must still hold both `// was:` lines, so a broken strip cannot pass.
+        var active = RENDER_NJ_SRC.split('\n').filter(function (l) {
+            return !/^\s*\/\//.test(l) && !/^\s*\/?\*/.test(l);
+        }).join('\n');
+        assert.equal((active.match(/\bres\.headersSent\s*=\s*true/g) || []).length, 0,
+            'no headersSent assignment may remain in active code');
+        assert.equal((RENDER_NJ_SRC.match(/\/\/ was: res\.headersSent = true;/g) || []).length, 2,
+            'both removed assignments (HEAD+stream, body+stream) are kept as `// was:` lines');
     });
 
     it('HTTP/1.1 HEAD path sends content-length via setHeader, empty body', function () {

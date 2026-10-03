@@ -246,7 +246,11 @@ describe('#A11Y7/U3 §03 — upload errors are announced through the polite regi
     });
 
     it('02 - the announcement follows the innerHTML write and the reveal', function () {
-        var write    = SRC.indexOf("$error.innerHTML = '<p>'+ errMsg +'</p>'");
+        // #B727 — the write is now createElement + textContent + appendChild (the
+        // error message is rendered as TEXT, never HTML); re-anchored off the removed
+        // `$error.innerHTML = …` literal. The order (write → reveal → announce) is the
+        // invariant and is unchanged.
+        var write    = SRC.indexOf('$error.appendChild(_errP)');
         var reveal   = SRC.indexOf('fadeIn($error)');
         var announce = SRC.indexOf('announceA11yError($uploadTriger.form, $error.textContent)');
         assert.ok(write > -1 && reveal > -1 && announce > -1);

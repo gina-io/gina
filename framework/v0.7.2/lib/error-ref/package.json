@@ -1,0 +1,7 @@
+{
+    "name": "error-ref",
+    "description": "#ERRREF incident-ref mint for error responses answered outside a controller: honours a relay-safe caller-supplied ref, else mints 6 uppercase hex characters",
+    "version": "0.0.1",
+    "private": true,
+    "main": "src/main"
+}

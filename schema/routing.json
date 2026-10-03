@@ -42,7 +42,13 @@
           "properties": {
             "control": {
               "type": "string",
-              "description": "Controller action name (camelCase method on the bundle controller)."
+              "description": "Controller action name (camelCase method on the bundle controller). On a fast-lane route (param.lane), the name of the function the lane module exports for this route."
+            },
+            "lane": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_][A-Za-z0-9_.\\-]*(/[A-Za-z0-9_][A-Za-z0-9_.\\-]*)*$",
+              "description": "Serve this route through the fast lane (#P49): controller-free dispatch for a JSON route. Names a module under the bundle's lanes/ directory, without its .js extension (\"users\" → lanes/users.js, \"admin/users\" → lanes/admin/users.js); param.control names the function it exports, called with one context argument (ctx.json(), ctx.error(), ctx.params, ctx.session, ...). The bundle's own middleware chain (session, CSRF) still runs. Registered at boot, which refuses a lane route that declares route middleware, cache, negotiate, namespace or method \"ws\", and, in this release, any gate: requireAuth, roles, policy, rateLimit, idempotency, messageValidator, dto — or one that auth.requireAuthByDefault or server.rateLimit would gate implicitly (mark it public: true / rateLimit: false). param.responseDto is applied.",
+              "examples": ["users", "admin/users"]
             },
             "file": {
               "type": "string",

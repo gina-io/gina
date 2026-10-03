@@ -245,7 +245,7 @@ describe('02 - read-path control flow — behavioural replica + subtract (#RC4)'
                     for (var ph in _pending) { _sh[ph] = _pending[ph]; }
                     res.stream.respond(_sh);
                     res.stream.end(hit.content);
-                    res.headersSent = true;
+                    // was: res.headersSent = true; — removed from core/server.js by #B750 (getter-only on the real response)
                 }
             } else {
                 if ( !res.headersSent && !res.writableEnded ) { res.end(hit.content); }
