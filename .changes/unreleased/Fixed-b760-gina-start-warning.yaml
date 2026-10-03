@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'A warning on standard error, such as a deprecation notice, no longer aborts `gina start`. The command exited 1 as soon as the framework printed a line containing "warning" before it was ready, and the framework, cut off from its output, then stopped, so the start failed. The warning is now printed and the start carries on; a debugger line or "address already in use" still ends it with exit 1. (#B760)'
+time: 2026-10-03T14:27:50+01:00

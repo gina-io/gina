@@ -17,7 +17,9 @@ $ gina --status | -t
 $ gina framework:start | start
 
     Start the framework socket server (port 8124) + MQ listener (8125) in the
-    background. Required before any online command (e.g. bundle:start).
+    background. Required before any online command (e.g. bundle:start). Exits 0
+    once the server is ready or already running; if it stops before that, exits
+    with its exit code (1 when that is 0, 128 + the signal number on a signal).
 
 $ gina framework:stop | stop [ @<version> ]
 

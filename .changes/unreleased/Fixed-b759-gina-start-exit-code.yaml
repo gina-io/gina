@@ -1,0 +1,3 @@
+kind: Fixed
+body: '`gina start` (and `gina framework:start`) now exits non-zero when the framework stops before it is ready: with the framework''s own exit code, with 1 when that code was 0, or with 128 plus the signal number when a signal stopped it (137 for SIGKILL). It used to exit 0, so a script that tests the exit code read success on a refused `GINA_VERSION` or an error while the framework boots, and a framework killed by a signal made the command crash with a TypeError instead. A start that reaches the ready line, or finds the framework already running, still exits 0. (#B759)'
+time: 2026-10-03T14:27:49+01:00
