@@ -55,6 +55,16 @@ var CLI_STUB = [
     "    case 'stderr200': for (var i = 0; i < 200; i++) fs.writeSync(2, 'stub line ' + i + '\\n'); process.exit(2); break;",
     "    case 'ready':     fs.writeSync(1, 'Framework ready for connections\\n'); stayAlive(); break;",
     "    case 'already':   fs.writeSync(1, 'Framework already running on port `8124`: [ 4242 ]\\n'); stayAlive(); break;",
+    "    case 'warning':",
+    "        fs.writeSync(2, '(node:' + process.pid + ') [DEP0040] DeprecationWarning: The `punycode` module is deprecated.\\n'",
+    "            + '(Use `node --trace-deprecation ...` to show where the warning was created)\\n');",
+    "        setTimeout(function () {",
+    "            try { fs.writeSync(1, 'Framework ready for connections\\n'); } catch (e) { process.exit(1); }",
+    "            stayAlive();",
+    "        }, 300);",
+    "        break;",
+    "    case 'inuse':     fs.writeSync(2, 'Error: listen EADDRINUSE: address already in use 127.0.0.1:8124\\n'); stayAlive(); break;",
+    "    case 'debugger':  fs.writeSync(2, 'Debugger listening on ws://127.0.0.1:9229/b760\\n'); stayAlive(); break;",
     "    default:          fs.writeSync(2, 'stub: unknown B759_STUB ' + process.env.B759_STUB + '\\n'); process.exit(99);",
     "}",
     ""
@@ -239,6 +249,51 @@ describe('02 - gina start: the daemon child ending before the ready line sets th
         try {
             assert.match(r.stdout, /Gina server is already running with PID `4242`/, out(r));
             assert.equal(r.status, 0, out(r));
+        } finally {
+            reap(r.childPid);
+        }
+    });
+
+});
+
+
+// ---------------------------------------------------------------------------
+// 03 — #B760: a warning on stderr no longer ends the start
+//
+// « Warning » was in the wrapper's fatal stderr pattern, matched case-insensitively, so a benign
+// notice before the ready line made the wrapper exit 1 at once; the daemon child, its pipes
+// gone, then died on its next write (EPIPE), so the start was aborted. 03.1 fails on the pre-fix
+// bytes; the debugger and « address already in use » arms are controls that exit 1 on both.
+// ---------------------------------------------------------------------------
+describe('03 - gina start: a stderr warning before the ready line no longer aborts the start', function () {
+
+    it('03.1 a deprecation warning, then the ready line → exit 0, the warning relayed, the child alive', function () {
+        var r = runStub('warning');
+        try {
+            assert.match(r.stderr, /DeprecationWarning: The `punycode` module is deprecated/, 'the warning was not relayed: ' + out(r));
+            assert.match(r.stdout, /Gina server started with PID/, 'the ready branch did not run: ' + out(r));
+            assert.equal(r.status, 0, out(r));
+            assert.ok(r.childPid && isAlive(r.childPid), 'the daemon child must survive the warning');
+        } finally {
+            reap(r.childPid);
+        }
+    });
+
+    it('03.2 CONTROL - « address already in use » on stderr still exits 1', function () {
+        var r = runStub('inuse');
+        try {
+            assert.match(r.stderr, /address already in use/, out(r));
+            assert.equal(r.status, 1, out(r));
+        } finally {
+            reap(r.childPid);
+        }
+    });
+
+    it('03.3 CONTROL - « Debugger listening » on stderr still exits 1', function () {
+        var r = runStub('debugger');
+        try {
+            assert.match(r.stderr, /Debugger listening/, out(r));
+            assert.equal(r.status, 1, out(r));
         } finally {
             reap(r.childPid);
         }

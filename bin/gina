@@ -127,7 +127,14 @@ function runAsSubProcess() {
         if (/ExperimentalWarning/.test(error)) {
             return;
         }
-        if (/Debugger listening|Debugger attached|Warning|address already in use/i.test(error)) {
+        // #B760 — `Warning` was in this pattern too, matched case-insensitively, so a benign
+        // notice before the ready line (a deprecation, a MaxListeners warning, or Node's
+        // « (Use `node --trace-warnings …` » line) made the wrapper exit 1 at once, and the daemon
+        // child, its pipes gone, then died on its next write (EPIPE): the start was aborted. A
+        // warning is now printed below like any other stderr output, and the start ends on the
+        // ready line or on the child's exit (#B759).
+        // was: if (/Debugger listening|Debugger attached|Warning|address already in use/i.test(error)) {
+        if (/Debugger listening|Debugger attached|address already in use/i.test(error)) {
             console.warn(error);
             return process.exit(1);
         }
