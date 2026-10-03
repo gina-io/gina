@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'Popins: closing a popin through `gina.popin.close(name)` now tears down the forms it bound, as its close button and its own `close()` already did. The forms stayed registered against their removed markup, so after a reopen they were not bound again: their rules, their submit handling and their declared events were lost, and a staged upload in them sent nothing. This concerns a popin constructed with a validator (#B756). Browser-bundled: rebuild bundles to pick it up.'
+time: 2026-10-03T02:08:02+01:00

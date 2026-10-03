@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'Staged uploads: choosing another file while the previous one is still uploading now stages the new file. The new selection was silently dropped while the input showed it, and the first upload then filled the form with the replaced file''s metadata. The earlier request is now cancelled and settles through the `abort` event only, with no error and no on-error callback; it may already have reached your staging action, which can leave an unclaimed temporary file. A submit already waiting for the upload waits for the new one and sends its metadata (#B729). Browser-bundled: rebuild bundles to pick it up.'
+time: 2026-10-03T02:08:02+01:00

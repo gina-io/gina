@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'Staged uploads: a failed staging request now reaches the `data-gina-form-upload-on-error` callback even when the input has no error element. Without one, the client threw before the error event and the callback, so neither ran, for an HTTP error and a transport failure alike; the message is now announced through the form''s live region, and in dev mode a console warning names the missing element. The error element is also read from the file input''s own `data-gina-form-upload-error` attribute (default `<id>-error`): it was taken from the form''s last input, so a custom element was honoured only when the file input came last (#B731). Browser-bundled: rebuild bundles to pick it up.'
+time: 2026-10-03T02:08:02+01:00

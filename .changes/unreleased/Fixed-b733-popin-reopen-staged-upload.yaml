@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'Staged uploads: a file input inside a popin that was closed and reopened stages files again. After the reopen every selection threw `setAttribute is not a function` and sent no staging request, so the upload never ran and its on-success callback never fired. The input now builds a fresh upload form when the previous one left the page with the popin''s content (#B733). Browser-bundled: rebuild bundles to pick it up.'
+time: 2026-10-03T02:08:02+01:00
