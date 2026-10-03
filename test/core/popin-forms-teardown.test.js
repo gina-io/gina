@@ -39,7 +39,7 @@ function getPopinSrc() { return _popinSrc || (_popinSrc = fs.readFileSync(POPIN_
 
 /**
  * Test-local replica of popin/main.js's validator-form teardown — MUST mirror the source.
- * The source pins in section 03 lock the production shape to this replica.
+ * The source pins in section 04 lock the production shape to this replica.
  *
  * @param {string[]} formIds - the popin's tracked form ids ($popin['$forms'])
  * @param {object} registry  - the validator registry (the popin validator's `$forms`)
