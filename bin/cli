@@ -337,6 +337,35 @@ async function onExec() {
 
 
     filterArgs();// jshint ignore:line
+
+    // #B584 — refuse a GINA_VERSION that names no installed framework, before
+    // the command runs. The guard at the top of this file only sees a version
+    // that is already in the framework environment: an exported GINA_VERSION
+    // is imported after it, and a `--version=<v>` flag is promoted by
+    // filterArgs() just above. Past that guard, the framework init migrated
+    // ~/.gina to the phantom version (a `latest` key in every per-version
+    // dict, an empty <home>/latest/) and the command carried on. A version
+    // installed side by side (`framework:add` links it under
+    // <gina>/framework/v<version>) is accepted as before.
+    var requestedVersion = getEnvVar('GINA_VERSION');// jshint ignore:line
+    if (
+        typeof(requestedVersion) != 'undefined'
+        && requestedVersion !== version
+        && !fs.existsSync(ginaPath + '/framework/v' + requestedVersion)
+    ) {
+        var refusal = 'gina: framework version ' + requestedVersion + ' is not installed (expected at ' + ginaPath + '/framework/v' + requestedVersion + ').\n'
+            + 'GINA_VERSION, exported or set with --version=, must name an installed framework version; the installed package version is ' + packObj.version + '. Unset or correct it.\n';
+        // The install hint only for a value `framework:add` accepts — the
+        // plain `gina framework:add` hint would itself be refused while the
+        // variable is exported.
+        if ( /^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/.test(requestedVersion) ) {
+            refusal += 'To install it side by side:\n  $ env -u GINA_VERSION gina framework:add ' + requestedVersion + '\n';
+        }
+        // Synchronous: a pipe write is asynchronous and process.exit() would drop it.
+        fs.writeSync(2, refusal);
+        process.exit(1);
+    }
+
     //check for $HOME path, alert if empty.
     if (!home) {
         console.error('No ' + ((isWin32) ? 'USERPROFILE' : 'HOME') + ' path found.');

@@ -81,6 +81,31 @@ function MainHelper(opt) {
         return ( os.platform() == 'win32' ) ? true : false;
     }
 
+    /**
+     * filterArgs
+     * Promotes the `--<key>=<value>` arguments of the command line into the
+     * framework environment (`process.gina`), then imports the shell's
+     * `GINA_*` / `VENDOR_*` / `USER_*` variables with `importEnvVars()`.
+     *
+     * The key is the flag name without its leading `--`, with its first
+     * hyphen turned into `_`, upper-cased, and prefixed with `GINA_` unless it
+     * already starts with `GINA_`, `VENDOR_` or `USER_` (`--logs-path=…` →
+     * `GINA_LOGS_PATH`). The value is the argument's text after its first
+     * `=`, as given, except that `true` and `false` become booleans.
+     * `--prefix`, `--env`, `--scope` and `--gina-version` are never promoted,
+     * and for a sub-topic command the framework-connection flags (`--port`,
+     * `--mq-port`, `--host-v4`, …) stay on the argv for the command's own
+     * parser (#B40). A flag naming a protected variable is not promoted:
+     * `filterArgs` logs an error and returns without processing the rest.
+     *
+     * @returns {void}
+     *
+     * @example
+     * // gina framework:version --version=0.7.2-alpha.2 --logs-path=/var/log/gina
+     * filterArgs();
+     * getEnvVar('GINA_VERSION');   // '0.7.2-alpha.2' (the value keeps its hyphens)
+     * getEnvVar('GINA_LOGS_PATH'); // '/var/log/gina'
+     */
     filterArgs = function() {
 
         var setget  = ( typeof(process.argv[2]) != 'undefined'
@@ -137,6 +162,14 @@ function MainHelper(opt) {
                 var _raw = (process.argv[a].replace(/--/, '')).replace(/-/, '_');
                 var _eq  = _raw.indexOf('=');
                 evar     = (_eq > -1) ? [ _raw.substring(0, _eq), _raw.substring(_eq + 1) ] : [ _raw ];
+                // #B584 — the two rewrites above are meant for the flag name, but
+                // they run on the whole argument: with a hyphen-free name the
+                // value's first hyphen became `_` (`--version=0.7.2-alpha.2`
+                // reached GINA_VERSION as `0.7.2_alpha.2`). The value is the
+                // argument's text after its first `=`, as given.
+                if ( _eq > -1 ) {
+                    evar[1] = process.argv[a].substring(process.argv[a].indexOf('=') + 1);
+                }
 
                 evar[0] = evar[0].toUpperCase();
                 if (
