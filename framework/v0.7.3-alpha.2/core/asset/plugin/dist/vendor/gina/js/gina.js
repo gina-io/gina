@@ -16116,9 +16116,17 @@ function ValidatorPlugin(rules, data, formId, culture) {
      * send
      * N.B.: no validation here; if you want to validate against rules, use `.submit()` or `.validateFormById(formId)` before
      *
+     * Reads nothing from the event being dispatched when it runs (#B758): with no `data` it
+     * sends an empty body, and a staged upload's group comes from the file input its virtual
+     * upload form stages for (`data-gina-form-upload-group`, `untagged` when unset).
      *
-     * @param {object} data - FormData object (https://developer.mozilla.org/en-US/docs/Web/API/FormData/Using_FormData_Objects)
+     * @param {object|FormData} [data] - the payload: a plain object (sent as JSON) or a FormData object (https://developer.mozilla.org/en-US/docs/Web/API/FormData/Using_FormData_Objects); omitted, an empty body is sent
      * @param {object} [ options ] : { isSynchrone: false, withCredentials: true, withRateLimit: true }
+     * @returns {void}
+     *
+     * @example
+     * // after your own validation, post the form's data over AJAX
+     * gina.validator.$forms['signup'].send(result.toData());
      * */
     var send = function(data, options) {
 
@@ -17413,8 +17421,12 @@ function ValidatorPlugin(rules, data, formId, culture) {
 
 
             // sending
-            if (!data)
-                data = event.detail.data;
+            // #B758 — a no-data send() no longer reads `event.detail.data` from the implicit
+            // global `event`: outside a dispatch it is undefined, so the call threw here, after
+            // `isSending` was claimed above, and left the form in sending. A no-data call now
+            // takes the empty-body branch below; nothing in gina calls send() without data.
+            // was: if (!data)
+            // was:     data = event.detail.data;
 
             if (data) {
 
@@ -17430,7 +17442,17 @@ function ValidatorPlugin(rules, data, formId, culture) {
                         if ( !(data instanceof FormData) ) {
                             data = JSON.stringify(data)
                         } else {
-                            var uploadGroup   = event.currentTarget.getAttribute('data-gina-form-upload-group') || 'untagged';
+                            // #B758 — the group comes from the file input this virtual upload form
+                            // stages for (`uploadProperties.uploadTriggerId`), not from the implicit
+                            // global `event`: the picker and the dropzone call send() inside that
+                            // input's change dispatch, but a direct `$forms[<virtual id>].send(formData)`
+                            // ran outside any dispatch (a TypeError, reported as a staging error) or
+                            // inside an unrelated one (that event's element's group, silently).
+                            // was: var uploadGroup   = event.currentTarget.getAttribute('data-gina-form-upload-group') || 'untagged';
+                            var $uploadGroupInput = ( $target.uploadProperties && $target.uploadProperties.uploadTriggerId )
+                                ? document.getElementById($target.uploadProperties.uploadTriggerId)
+                                : null;
+                            var uploadGroup   = ( $uploadGroupInput && $uploadGroupInput.getAttribute('data-gina-form-upload-group') ) || 'untagged';
                             for (var [key, value] of data.entries() ) {
                                 // file upload case
                                 if (value instanceof File) {
