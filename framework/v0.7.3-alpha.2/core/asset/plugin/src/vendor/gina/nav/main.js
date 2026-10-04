@@ -316,6 +316,11 @@ define('gina/nav', [ 'require', 'lib/merge', 'lib/uuid', 'utils/events', 'utils/
          * would have unloaded it, and after a fragment swap it would sit over
          * content it no longer belongs to.
          *
+         * `applyFragment()` calls it BEFORE it moves focus and scroll (#B762):
+         * closing a popin returns focus to the popin's trigger, which scrolls
+         * the page to it, and while a popin is open the page outside it is
+         * inert, so the region cannot take focus until the popin is closed.
+         *
          * @inner
          * @private
          */
@@ -350,9 +355,11 @@ define('gina/nav', [ 'require', 'lib/merge', 'lib/uuid', 'utils/events', 'utils/
         /**
          * Applies a fetched fragment: swaps the region content, applies the
          * optional `[data-gina-nav-title]` document title, pushes/updates
-         * history, restores scroll and focus, closes any open popin, binds the
-         * new region (scripts, opted-in forms, links — the shared `bindRegion()`
-         * policy) and fires `success`.
+         * history, closes any open popin, moves focus to the region and applies
+         * the scroll decision, binds the new region (scripts, opted-in forms,
+         * links — the shared `bindRegion()` policy) and fires `success`. The
+         * popin closes before the focus and scroll (#B762), so the region keeps
+         * the focus and the navigation's scroll position stands.
          *
          * @inner
          * @private
@@ -385,6 +392,13 @@ define('gina/nav', [ 'require', 'lib/merge', 'lib/uuid', 'utils/events', 'utils/
             }
             _currentUrl = window.location.pathname + window.location.search;
 
+            // #B762 — close the active popin BEFORE the focus and scroll below.
+            // The close returns focus to the popin's trigger (scrolling the page
+            // to it), and while a popin is open the page outside it is inert, so
+            // the region's focus() did nothing: closed after them, the popin left
+            // focus on its trigger and the page scrolled back down to it.
+            closeActivePopin();
+
             // Focus first (preventScroll where supported), then the explicit
             // scroll decision wins: restored position on popstate, `#hash`
             // target or top on a forward navigation.
@@ -409,7 +423,7 @@ define('gina/nav', [ 'require', 'lib/merge', 'lib/uuid', 'utils/events', 'utils/
                 }
             }
 
-            closeActivePopin();
+            // was: closeActivePopin(); — here, after the focus and scroll (#B762)
             // #gh76 — the one region-binding policy nav shares with the validator's
             // form-answer swaps (utils/dom). Forms follow the #B549 opt-in gate here
             // too: a bare id-bearing form in a fragment used to be bound — and its
