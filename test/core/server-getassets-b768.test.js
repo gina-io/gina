@@ -16,15 +16,18 @@
  *          `url(#id)` or a `url()` with no dot in its path threw, and the page
  *          answered 500;
  *   #B776  a CSS `url()` naming the same file as a layout <img> replaced that
- *          image's entry, so the image lost its hint.
+ *          image's entry, so the image lost its hint;
+ *   #B769  a layout URL written with the webroot (`/web/img/x.png`) never
+ *          resolved: the resolver takes a path without it, as handleStatics strips
+ *          it, so the asset got no hint.
  *
  * Each section runs the REAL getAssets(), lifted out of server.js the way
  * preload-hints-b765 §06 does (between its own two anchors, compiled with
  * `new Function`), with the real isPreloadableLayoutTag and the real
  * buildH2PreloadLinks from render-swig. Only the resolver and `fs` are stubs: the
  * resolver behaves like getAssetFilenameFromUrl() on a path WITHOUT the webroot
- * (a known public directory resolves under a root, anything else is '404.html').
- * The live readings (a real
+ * (a known public directory resolves under a root, anything else is '404.html'),
+ * which is what makes the #B769 arms discriminating. The live readings (a real
  * prod bundle, the 200's `link` header over HTTP/1.1 + TLS) are the #B768 scene,
  * not unit arms.
  *
@@ -294,5 +297,47 @@ describe('04 - #B776: a CSS url() naming a layout image does not take that image
         var map = scan(['<link rel="stylesheet" href="/css/s.css">', '<div class="x"></div>', IMG('/img/a.png')], { fs: cssFs(files) });
         assert.equal(map['/img/a.png'] && map['/img/a.png'].as, 'image');
         assert.ok(header(map).indexOf('</img/a.png>; as=image') > -1, header(map));
+    });
+});
+
+// ─── 05 — #B769: a URL written with the webroot resolves ────────────────────────
+
+describe('05 - #B769: a layout URL that carries the webroot resolves, and keeps its URL', function () {
+
+    it('05.1 server.webroot /web/: <img src="/web/img/w.png"> is available and hinted under the URL as written', function () {
+        var map = scan([IMG('/web/img/w.png')], { conf: conf('/web/') });
+        assert.equal(map['/web/img/w.png'] && map['/web/img/w.png'].isAvailable, true);
+        assert.equal(map['/web/img/w.png'].filename, PUBLIC + '/img/w.png');
+        assert.ok(header(map).indexOf('</web/img/w.png>; as=image') > -1, header(map));
+    });
+
+    it('05.2 behind a path-prefixing proxy: the public webroot (page.environment.webroot) resolves too', function () {
+        var map = scan([IMG('/proxy/web/img/w.png')], { conf: conf('/web/'), data: { page: { environment: { webroot: '/proxy/web/' } } } });
+        assert.equal(map['/proxy/web/img/w.png'] && map['/proxy/web/img/w.png'].isAvailable, true);
+        assert.equal(map['/proxy/web/img/w.png'].filename, PUBLIC + '/img/w.png');
+    });
+
+    it('05.3 a webroot stylesheet\'s CSS is read, and its url() written with the webroot resolves', function () {
+        var files = {}; files[PUBLIC + '/css/w.css'] = '.x { background: url(/web/img/bg.png); }\n';
+        var map = scan(['<link rel="stylesheet" href="/web/css/w.css">', '<div class="x"></div>'], { conf: conf('/web/'), fs: cssFs(files) });
+        assert.equal(map['/web/css/w.css'] && map['/web/css/w.css'].as, 'style');
+        assert.equal(map['/web/img/bg.png'] && map['/web/img/bg.png'].filename, PUBLIC + '/img/bg.png');
+    });
+
+    it('05.4 #B774 holds for a webroot stylesheet: its unreadable url(#id) is skipped, not thrown on', function () {
+        var files = {}; files[PUBLIC + '/css/w.css'] = '.x { fill: url(#grad); }\n';
+        assert.doesNotThrow(function () {
+            scan(['<link rel="stylesheet" href="/web/css/w.css">', '<div class="x"></div>'], { conf: conf('/web/'), fs: cssFs(files) });
+        });
+    });
+
+    it('05.5 controls: the root form under a webroot, and a conf with no webroot, are unchanged', function () {
+        var a = scan([IMG('/img/w.png')], { conf: conf('/web/') });
+        assert.equal(a['/img/w.png'] && a['/img/w.png'].filename, PUBLIC + '/img/w.png');
+        var b = scan([IMG('/img/w.png'), IMG('/web/img/w.png')], { conf: conf() });
+        assert.equal(b['/img/w.png'].isAvailable, true);
+        assert.equal(b['/web/img/w.png'].isAvailable, false, 'with no webroot nothing is stripped');
+        var c = scan([IMG('/webx/img/w.png')], { conf: conf('/web/') });
+        assert.equal(c['/webx/img/w.png'].isAvailable, false, 'a prefix that only starts like the webroot is not stripped');
     });
 });

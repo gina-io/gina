@@ -3157,7 +3157,9 @@ function Server(options) {
      * @param {object} bundleConf - Bundle/env configuration slice
      * @param {string} layoutStr - Rendered HTML layout string to scan for asset tags
      * @param {object} [swig] - Swig instance when called from the controller
-     * @param {object} [data] - Template data when called from the controller
+     * @param {object} [data] - Template data when called from the controller; its
+     *   `page.environment.webroot` (the public webroot) is stripped, like
+     *   `bundleConf.server.webroot`, from a URL before it is resolved (#B769)
      * @returns {object} Assets map keyed by URL
      */
     var getAssets = function (bundleConf, layoutStr, swig, data) {
@@ -3181,6 +3183,43 @@ function Server(options) {
         while ( (layoutTag = layoutTagRe.exec(layoutStr)) !== null ) {
             layoutAssets.push( layoutTag[1] || layoutTag[0] );
         }
+
+        /**
+         * #B769 — the path to hand getAssetFilenameFromUrl() for a URL written in the layout
+         * or in a stylesheet's url(). The resolver takes a path WITHOUT the webroot
+         * (handleStatics strips it from a request first), while a layout writes its URLs with
+         * it: `{{ page.environment.webroot }}img/x.png` reaches this scan as `/web/img/x.png`,
+         * or as `/proxy/web/img/x.png` behind a path-prefixing proxy, and resolved to
+         * '404.html', so the asset got no hint. Strips the public webroot, else the bundle's
+         * own, once, when the URL starts with it, ending `/` included (`/webx/` is never
+         * stripped by `/web/`). The entry keeps the URL as written.
+         *
+         * @inner
+         * @private
+         * @param {string} u - An asset URL as written
+         * @returns {string} The URL without its webroot, or `u` unchanged
+         *
+         * @example
+         * // server.webroot '/web/', no proxy prefix
+         * withoutWebroot('/web/img/x.png');  // '/img/x.png'
+         * withoutWebroot('/webx/img/x.png'); // '/webx/img/x.png'
+         */
+        var withoutWebroot = function (u) {
+            var roots = [
+                ( data && data.page && data.page.environment ) ? data.page.environment.webroot : null,
+                bundleConf.server.webroot
+            ];
+            for (var r = 0; r < roots.length; ++r) {
+                if ( typeof(roots[r]) != 'string' || roots[r].length < 2 ) {
+                    continue;
+                }
+                var root = roots[r].replace(/\/*$/, '/');
+                if ( u.indexOf(root) === 0 ) {
+                    return '/' + u.substring(root.length);
+                }
+            }
+            return u;
+        };
 
         var assets      = {}
             , cssFiles  = []
@@ -3397,7 +3436,7 @@ function Server(options) {
             }
 
             if (!/(\:\/\/|^\/\/)/.test(url) ) {
-                filename = getAssetFilenameFromUrl(bundleConf, url);
+                filename = getAssetFilenameFromUrl(bundleConf, withoutWebroot(url));
             } else {
                 domain      = url.match(/^.*:\/\/[a-z0-9._-]+\/?/);
                 //url         = ( new RegExp('/'+ bundleConf.host +'/' ).test(domain) ) ? url.replace(domain, '/') : url;
@@ -3581,7 +3620,7 @@ function Server(options) {
                                 //     url: url
                                 // }
                                 if (!/(\:\/\/|^\/\/)/.test(url) ) {
-                                    filename = getAssetFilenameFromUrl(bundleConf, url);
+                                    filename = getAssetFilenameFromUrl(bundleConf, withoutWebroot(url));
                                 } else {
                                     domain      = url.match(/^.*:\/\/[a-z0-9._-]+\/?/);
                                     url         = url.replace(domain, '/');
