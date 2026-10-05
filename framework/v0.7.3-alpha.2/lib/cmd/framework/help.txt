@@ -20,6 +20,8 @@ $ gina framework:start | start
     background. Required before any online command (e.g. bundle:start). Exits 0
     once the server is ready or already running; if it stops before that, exits
     with its exit code (1 when that is 0, 128 + the signal number on a signal).
+    Exits 1 when another program holds the framework port, printing how to free
+    the port or move the framework (gina framework:set --port=<port>).
 
 $ gina framework:stop | stop [ @<version> ]
 
