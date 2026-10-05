@@ -6,7 +6,9 @@
  * in one arc:
  *   #B774  the CSS `url()` scan read `.match(...)[0]` unguarded: an unquoted
  *          `url(#id)` or a `url()` with no dot in its path threw, and the page
- *          answered 500.
+ *          answered 500;
+ *   #B776  a CSS `url()` naming the same file as a layout <img> replaced that
+ *          image's entry, so the image lost its hint.
  *
  * Each section runs the REAL getAssets(), lifted out of server.js the way
  * preload-hints-b765 §06 does (between its own two anchors, compiled with
@@ -165,5 +167,17 @@ describe('03 - #B774: a layout stylesheet whose CSS the url() scan cannot read i
         assert.ok(map['/img/bg.png'], 'the CSS asset is in the map');
         assert.equal(map['/img/bg.png'].as, undefined);
         assert.equal(map['/img/bg.png'].referrer, PUBLIC + '/css/s.css');
+    });
+});
+
+// ─── 04 — #B776: a layout entry is never replaced by a CSS one ──────────────────
+
+describe('04 - #B776: a CSS url() naming a layout image does not take that image\'s entry', function () {
+
+    it('04.1 the layout <img> keeps as=image and stays in the header', function () {
+        var files = {}; files[PUBLIC + '/css/s.css'] = '.x { background: url(/img/a.png); }\n';
+        var map = scan(['<link rel="stylesheet" href="/css/s.css">', '<div class="x"></div>', IMG('/img/a.png')], { fs: cssFs(files) });
+        assert.equal(map['/img/a.png'] && map['/img/a.png'].as, 'image');
+        assert.ok(header(map).indexOf('</img/a.png>; as=image') > -1, header(map));
     });
 });

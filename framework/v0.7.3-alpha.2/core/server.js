@@ -3544,6 +3544,12 @@ function Server(options) {
 
                                 //key =  (( /404/.test(filename) ) ? '[404]' : '[200]') +' '+ url;
                                 key         = url;
+                                // #B776 — the layout scan's entry for the same URL stays: it carries the
+                                // `as` the 200's link header needs, a CSS entry carries none (the
+                                // layout image lost its hint)
+                                if ( typeof(assets[key]) != 'undefined' ) {
+                                    break;
+                                }
                                 isAvailable =  ( /404/.test(filename) ) ? false : true;
                                 // #B774 — a `url()` with no extension (`url(/img/sprite)`) threw here;
                                 // the layout scan reads its own `ext` inside a try
