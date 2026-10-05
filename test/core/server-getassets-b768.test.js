@@ -19,7 +19,9 @@
  *          image's entry, so the image lost its hint;
  *   #B769  a layout URL written with the webroot (`/web/img/x.png`) never
  *          resolved: the resolver takes a path without it, as handleStatics strips
- *          it, so the asset got no hint.
+ *          it, so the asset got no hint;
+ *   #B777  availability was `/404/` anywhere in the resolved file path, so a
+ *          bundle under a path holding `404` got no layout hint.
  *
  * Each section runs the REAL getAssets(), lifted out of server.js the way
  * preload-hints-b765 §06 does (between its own two anchors, compiled with
@@ -339,5 +341,24 @@ describe('05 - #B769: a layout URL that carries the webroot resolves, and keeps 
         assert.equal(b['/web/img/w.png'].isAvailable, false, 'with no webroot nothing is stripped');
         var c = scan([IMG('/webx/img/w.png')], { conf: conf('/web/') });
         assert.equal(c['/webx/img/w.png'].isAvailable, false, 'a prefix that only starts like the webroot is not stripped');
+    });
+});
+
+// ─── 06 — #B777: availability is the resolver's miss, not a substring ───────────
+
+describe('06 - #B777: a file path holding "404" is still a file', function () {
+
+    it('06.1 a bundle under /srv/app404/: its layout image is available and hinted', function () {
+        var map = scan([IMG('/img/a.png')], { resolver: resolverOn('/srv/app404/public') });
+        assert.equal(map['/img/a.png'].isAvailable, true);
+        assert.equal(map['/img/a.png'].filename, '/srv/app404/public/img/a.png');
+        assert.ok(header(map).indexOf('</img/a.png>; as=image') > -1, header(map));
+    });
+
+    it('06.2 control: the resolver\'s \'404.html\' is a miss: not available, not hinted', function () {
+        var map = scan([IMG('/img/missing.png')]);
+        assert.equal(map['/img/missing.png'].isAvailable, false);
+        assert.equal(map['/img/missing.png'].filename, 'not found');
+        assert.equal(header(map).indexOf('/img/missing.png'), -1);
     });
 });

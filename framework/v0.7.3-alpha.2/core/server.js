@@ -3450,7 +3450,9 @@ function Server(options) {
             }
             //key =  (( /404/.test(filename) ) ? '[404]' : '[200]') +' '+ url;
             key         = url;
-            isAvailable =  ( /404/.test(filename) ) ? false : true;
+            // #B777 — a miss is the resolver's own '404.html'; `/404/` anywhere in the path also
+            // took a bundle under a directory holding `404`, or a file like `error-404.png`, for one
+            isAvailable =  ( filename == '404.html' ) ? false : true;
             if ( isAvailable ) {
                 try {
                     ext         = url.substring(url.lastIndexOf('.')).match(/(\.[A-Za-z0-9]+)/)[0];
@@ -3468,7 +3470,7 @@ function Server(options) {
                 url         : url,
                 ext         : ext,
                 mime        : (!ext) ? 'NA' : (bundleConf.server.coreConfiguration.mime[ext.substring(1)] || 'NA'),
-                filename    : ( /404/.test(filename) ) ? 'not found' : filename,
+                filename    : ( filename == '404.html' ) ? 'not found' : filename,
                 isAvailable : isAvailable
             };
 
@@ -3635,7 +3637,7 @@ function Server(options) {
                                 if ( typeof(assets[key]) != 'undefined' ) {
                                     break;
                                 }
-                                isAvailable =  ( /404/.test(filename) ) ? false : true;
+                                isAvailable =  ( filename == '404.html' ) ? false : true; // #B777
                                 // #B774 — a `url()` with no extension (`url(/img/sprite)`) threw here;
                                 // the layout scan reads its own `ext` inside a try
                                 let extMatched = url.substring(url.lastIndexOf('.')).match(/(\.[A-Za-z0-9]+)/);
@@ -3647,7 +3649,7 @@ function Server(options) {
                                     url         : url,
                                     ext         : ext,
                                     mime        : ( ext ) ? ( bundleConf.server.coreConfiguration.mime[ext.substring(1)] || 'NA' ) : 'NA',
-                                    filename    : ( /404/.test(filename) ) ? 'not found' : filename
+                                    filename    : ( filename == '404.html' ) ? 'not found' : filename
                                 };
 
                                 if (domain)
