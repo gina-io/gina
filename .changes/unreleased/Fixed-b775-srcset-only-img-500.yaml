@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'A page no longer answers 500 on an `http/2.0` bundle when the first asset of its layout is an `<img>` with a `srcset` and no `src`. The layout scan kept the previous tag''s URL, so such a tag first in a layout threw, and a later one overwrote the previous image''s entry; a tag with no `src` or `href` now gets no hint and leaves the other entries alone. (#B775)'
+time: 2026-10-05T22:44:03+01:00

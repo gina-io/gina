@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'A page no longer answers 500 on an `http/2.0` bundle, in dev and in production, when its layout links a stylesheet by hand whose CSS holds an unquoted `url(#id)`, such as the SVG reference in `fill: url(#grad)`, or a `url()` with no dot in its path. The scan that lists the `url()` references of a layout''s stylesheets for the Inspector threw on them; it now skips what it cannot read. (#B774)'
+time: 2026-10-05T22:44:03+01:00

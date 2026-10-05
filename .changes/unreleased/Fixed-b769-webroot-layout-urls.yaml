@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'Under a webroot other than `/`, an asset URL written in a layout with the webroot, such as `{{ page.environment.webroot }}img/logo.png`, now gets its preload hint, behind a path-prefixing proxy too. Such a URL never matched a file, so it got no hint, and a stylesheet linked that way was never read for its `url()` references. (#B769)'
+time: 2026-10-05T22:44:03+01:00
