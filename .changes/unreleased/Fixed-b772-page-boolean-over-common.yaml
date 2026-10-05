@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'A page entry in `templates.json` that sets a `_common` switch to `false` (`assetVersioningEnabled`, `preloadHintsEnabled`, …) now keeps it: it used to get `_common`''s `true` back. For `javascriptsDeferEnabled`, such a page''s scripts now go before `</body>` without `defer`, as documented, instead of in `<head>` with it. (#B772)'
-time: 2026-10-05T14:19:25+01:00

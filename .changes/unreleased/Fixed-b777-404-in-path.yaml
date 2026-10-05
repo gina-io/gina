@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'A bundle installed under a directory whose name holds `404` now gets its layout preload hints, as does an asset named like `error-404.png`: the layout scan took any file path holding `404` for a missing file. (#B777)'
-time: 2026-10-05T22:44:03+01:00

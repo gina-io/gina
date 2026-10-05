@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'The `ginaEnabled` key is removed from the framework''s `templates.json` baseline. It never had any effect, although the `templates.json` reference said that `false` keeps gina''s CSS and JS out of a page and hides the dev toolbar; a bundle that sets it keeps working, the key being ignored as before. To hide the dev status bar on a page, render it with `self.render(data, false)`; to keep gina''s own CSS and JS out of a page, set its `javascriptsExcluded` and `stylesheetsExcluded` to `"**"`, which leaves out `_common`''s stylesheets and scripts too. (#B773)'
-time: 2026-10-05T22:44:03+01:00

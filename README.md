@@ -68,46 +68,46 @@ open https://localhost:3100
 
 > **npm 12+** blocks install scripts by default, and gina's post-install bootstraps `~/.gina` and the framework dependencies. Install with `npm install -g gina@latest --allow-scripts=gina`, or allow it once for all global installs with `npm config set allow-scripts=gina --location=user`. (Not needed on npm ≤ 11.)
 
-## What's in 0.7.2
+## What's in 0.7.3
 
-> **Restart your bundles *and* rebuild them.** The staged-upload, popin and asset-URL
-> changes are browser-bundled, so `gina.min.js` changed and `gina bundle:restart`
-> alone leaves the old client running: rebuild each consuming bundle, then restart
-> it. If your build copies `gina.min.js` into your own static files, rebuild that
-> copy before the restart.
+> **Restart your bundles *and* rebuild them.** Two client fixes, focus after a
+> client navigation that closes a popin and a staged upload's `send()`, are
+> browser-bundled, so `gina.min.js` changed and `gina bundle:restart` alone leaves
+> the old client running: rebuild each consuming bundle, then restart it. If your
+> build copies `gina.min.js` into your own static files, rebuild that copy before
+> the restart.
 
-> **Read before upgrading — some changes can change an answer.** In production, the
-> asset URLs gina writes now carry a `?v=` content token, and the statics it serves
-> answer `Cache-Control: public, max-age=31536000, immutable` when the token matches.
-> This is on by default: `assetVersioningEnabled: false` in `templates.json > _common`
-> keeps the plain URLs, and a front server that serves your statics should send
-> tokened requests to the bundle. A staged-upload transport failure now says the
-> request "did not complete", the upload form of a staged input whose name has no
-> brackets gets a new id (`gina-upload-<name>-<form id>`), and a route whose `param`
-> already used a key named `lane` for its own data now declares a fast-lane route.
-> The [migration notes](https://gina.io/docs/migration) list every behaviour change.
+> **Read before upgrading — some changes can change an answer.** In production, an
+> `http/2.0` bundle no longer sends 103 Early Hints over HTTP/1.1 unless
+> `settings.json > server.earlyHintsOverHTTP1` is `true`, and its preload hints are
+> limited to `templates.json > preloadHintsMaxSize` bytes, 1,024 by default, so a
+> page that declares many stylesheets and scripts sends fewer hints. `gina start`
+> now exits non-zero when the framework does not start or another program holds
+> its port, a `GINA_VERSION` (or `--version=`) that names no installed framework is
+> refused with exit 1, and a page's own `false` in `templates.json` now overrides a
+> `_common` switch. The [migration notes](https://gina.io/docs/migration) list every
+> behaviour change.
 
-**The staged-uploads release.** The four reports of issue #83 lead it: the
-staged-upload error slot rendered a server's error text as markup (an advisory), a
-form posted a file input's `C:\fakepath\` placeholder, a submit could leave while
-its upload was still running, and a request that failed in transit said it never
-reached the server. Five more staged-upload and popin fixes found on the way, two
-new features — versioned asset URLs that browsers keep for a year, and an opt-in
-fast lane that answers a JSON route without building a controller — and fixes to
-precompressed statics, HTTP/2 error metrics and the SQLite session store. Full
-detail in [CHANGELOG.md](./CHANGELOG.md).
+**The preload-hints release.** It leads with two fixes for pages behind a reverse
+proxy. Since 0.6.28 an `http/2.0` bundle sent its 103 Early Hints over HTTP/1.1
+too, and nginx older than 1.29 (the Ubuntu 22.04 and 24.04 and Debian 12 packages)
+takes an upstream 103 for the final response, so every HTML page behind it failed;
+and a page with many preload hints could outgrow a proxy's header buffer and
+answer 502. The layout scan that feeds those hints now reads each tag on its own,
+three layout shapes that answered 500 now render, and `gina start` reports a
+framework that did not start. Full detail in [CHANGELOG.md](./CHANGELOG.md).
 
-- **Security — a staged upload's error message is shown as text (#B727).** The upload error slot used `innerHTML`, so a proxy's or WAF's HTML error page, or a server error that echoes request text such as a rejected filename, became live markup in the page.
-- **Security — the `engine.io` floor rises to `^6.6.10` (#S12).** On an existing session, a transport-upgrade request could crash a bundle whose `settings.json` sets `ioServer.integrationMode` to `"attach"` (GHSA-2gc4-cqfq-p2gv); an install of this version can no longer resolve an affected release.
-- **Added — versioned asset URLs (#P48).** In production the `<link>` and `<script>` tags gina writes from `templates.json`, their preload hints and the client routing table carry a content token, and the statics gina serves answer `immutable` for a year when the token names the file's current bytes, so a deploy that changes a file changes its URL. On by default.
-- **Added — the fast lane (#P49).** A JSON route can name a function in the bundle's `lanes/` directory (`"param": { "lane": "users", "control": "list" }`) and skip the controller: a median 0.39 times the CPU of the controller route, about 150 µs less per request, in the measurement. Opt-in; this release refuses a lane route that declares a gate.
-- **Fixed — staged uploads, issue #83 parts 1–3 (#B724, #B725, #B726).** A transport failure says the request did not complete (overridable as `gina.config.a11y.transportError`), a staged file input's placeholder value is no longer posted, and a submit made during an upload waits for it, then sends once with its metadata.
-- **Fixed — staged uploads: choosing another file during an upload, an input without an error element, same-named inputs in two forms, and an input in a reopened popin (#B729, #B731, #B732, #B733).**
-- **Fixed — `gina.popin.close(name)` tears down the popin's forms (#B756).** After a reopen they were left unbound.
-- **Fixed — precompressed statics: a `.gz` copy goes out as `Content-Encoding: gzip`, and statics vary on `Accept-Encoding` (#B742, #B743).**
-- **Fixed — on HTTP/2, an error answer is counted with its own status in the metrics, and no `headersSent` error follows a sent response (#B749, #B750).**
-- **Fixed — the SQLite session store reads its path from `file` (#D47).** A path in `database`, as the docs showed, stopped the boot.
-- **Fixed — a page whose query string ends in the routing table's path is answered by the page (#P48).**
+- **Fixed — no 103 Early Hints over HTTP/1.1 by default (#B771).** Behind nginx older than 1.29, every HTML page of an `http/2.0` bundle failed (`ERR_HTTP2_PROTOCOL_ERROR` in Chromium). Browsers act on a 103 only over HTTP/2 and HTTP/3, so a browser connected to the bundle over HTTP/2 gets it as before; `server.earlyHintsOverHTTP1: true` brings it back behind a proxy that passes 103 responses on.
+- **Fixed — preload hints are limited to 1,024 bytes (#B765).** A page with many hints was answered 502 « upstream sent too big header » behind a proxy with a small response-header buffer. The hints keep their order and stop at the last entry that fits; `preloadHintsMaxSize` raises the limit (`0` = none) and `preloadHintsEnabled: false` sends none.
+- **Fixed — the stylesheets and scripts written in a layout get a hint, a URL is hinted once, and `self.setEarlyHints([a, b])` sends both entries over HTTP/1.1 (#B766, #B767, #B770).**
+- **Fixed — more of a layout's assets get a hint (#B768, #B769, #B776, #B777).** Tags sharing a line, a one-line `<picture>` and a minified layout are read tag by tag; a URL written with a webroot other than `/`, an image a stylesheet also names in a `url()`, and the assets of a bundle installed under a directory whose name holds `404` get their hints.
+- **Fixed — a page no longer answers 500 because of its layout's assets (#B774, #B775).** A stylesheet linked by hand with an unquoted `url(#id)` or a `url()` with no dot in its path, or a first layout asset that is an `<img>` with a `srcset` and no `src`, made the page answer 500.
+- **Fixed — a page's own `false` overrides a `_common` switch in `templates.json` (#B772).** For `javascriptsDeferEnabled`, such a page's scripts now go before `</body>` without `defer`, as documented.
+- **Fixed — `gina start` exits non-zero when the framework does not start (#B759, #B760, #B761).** It exits with the framework's own exit code, or 128 plus the signal number; another program on the framework port is no longer reported as a running framework; and a warning on standard error no longer aborts the start.
+- **Fixed — a `GINA_VERSION` that names no installed framework is refused (#B584).** It used to migrate `~/.gina` to that version.
+- **Fixed — after a client navigation that closes a popin, focus lands on the swapped region (#B762).**
+- **Fixed — a staged upload's `send()` no longer reads the event being dispatched when it runs (#B758).** Called from your own code, it failed with a TypeError or took another element's upload group.
+- **Fixed — `ginaEnabled` is gone from the framework's `templates.json` baseline and from its reference (#B773).** It never had any effect.
 
 ## Documentation
 

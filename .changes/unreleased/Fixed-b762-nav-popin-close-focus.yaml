@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'After a client navigation (`data-gina-nav`) that closes an open popin, focus now lands on the swapped region and the page keeps the navigation''s scroll position, as after any other swap. The popin used to be closed after the region was focused, so closing it returned focus to the popin''s trigger and scrolled the page back to it, with modal and non-modal popins alike. (#B762)'
-time: 2026-10-04T23:40:34+01:00

@@ -1,3 +1,0 @@
-kind: Fixed
-body: '`self.setEarlyHints([a, b])` now sends both entries over HTTP/1.1 (when `server.earlyHintsOverHTTP1` is `true`). It joined the entries with `, ` into one string, which Node.js checks as a single link value and refused, so an explicit hint with several entries was silently never sent over HTTP/1.1; each entry is now handed to Node.js separately. An entry whose parameter holds a space, such as an `imagesrcset`, is still refused by Node.js and drops that 103. (#B770)'
-time: 2026-10-05T14:19:25+01:00

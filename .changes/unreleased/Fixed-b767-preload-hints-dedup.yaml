@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'A URL both declared in `templates.json` and written in the layout now appears once in the `link` header of an HTML page, instead of twice. (#B767)'
-time: 2026-10-05T14:19:25+01:00

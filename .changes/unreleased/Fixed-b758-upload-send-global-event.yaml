@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'A staged upload''s `send()` no longer reads the event being dispatched when it runs. The upload group now comes from the file input the virtual upload form stages for, so `gina.validator.$forms[<virtual form id>].send(formData)` called outside that input''s change event stages the file in the input''s group: outside any event it used to fail with a TypeError while the request still went out with no multipart boundary and no group, and inside an unrelated event it took that event''s element''s group. A `send()` with no data now sends an empty body instead of throwing and leaving the form marked as sending. Selecting or dropping a file was not affected. (#B758)'
-time: 2026-10-04T23:40:34+01:00

@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'More of the assets written in a layout get a preload hint in the `link` header of an `http/2.0` page''s 200. The layout was read one source line at a time, keeping the last URL on the line, so tags sharing a line were read as one: `<img src="a.png"><script src="b.js"></script>` preloaded the script as an image and left the image out, a stylesheet followed by an image on one line lost both, a one-line `<picture>` lost its `<img>` and gave its `<source>`''s `srcset` to the next image, and a minified layout got no hint at all. Each tag is now read on its own, a start tag written over several lines included; the hints stay within `preloadHintsMaxSize`. (#B768)'
-time: 2026-10-05T22:44:03+01:00

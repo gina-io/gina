@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'A layout image keeps its preload hint when one of the layout''s stylesheets names the same file in a CSS `url()`: the stylesheet''s reference replaced the image''s entry, the one that carries the hint. (#B776)'
-time: 2026-10-05T22:44:03+01:00
