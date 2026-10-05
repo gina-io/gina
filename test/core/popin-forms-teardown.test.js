@@ -15,13 +15,16 @@
 //    behaviour is observable without booting a browser;
 //  - SOURCE PINS then lock popin/main.js to that replica so the two cannot drift.
 //
-// Why not an e2e browser test: the loop is gated on `$validatorInstance` (popin/main.js),
-// which is a per-instance closure assigned ONLY from `options.validator`. gina's own boot
+// Why not an e2e browser test: the loop is gated on the popin's registered validator,
+// `$popin.options.validator`, falling back to the per-instance `$validatorInstance`
+// (popin/main.js, since #B756); both come ONLY from `options.validator`. gina's own boot
 // constructs `new Popin({ name: 'gina-dialog-boot' })` with no validator, and the
 // delegated `data-gina-dialog` listener is installed once by that boot instance (module
 // guard `_ginaDialogDelegated`). So the declarative path can never reach this loop, and
 // an e2e arm driving it would be a void scene — every arm reading "nothing destroyed"
 // for a reason unrelated to the defect.
+// The documented `gina.popin.close(name)` path does reach the loop since #B756: test 04 of
+// test/e2e/validator-upload-popin-reopen-b733.spec.js.
 
 var { describe, it } = require('node:test');
 var assert = require('node:assert/strict');
@@ -36,10 +39,10 @@ function getPopinSrc() { return _popinSrc || (_popinSrc = fs.readFileSync(POPIN_
 
 /**
  * Test-local replica of popin/main.js's validator-form teardown — MUST mirror the source.
- * The source pins in section 03 lock the production shape to this replica.
+ * The source pins in section 04 lock the production shape to this replica.
  *
  * @param {string[]} formIds - the popin's tracked form ids ($popin['$forms'])
- * @param {object} registry  - the validator registry ($validatorInstance['$forms'])
+ * @param {object} registry  - the validator registry (the popin validator's `$forms`)
  * @param {string[]} [throwFor] - ids whose destroy() should throw, to exercise the guard
  * @returns {{destroyed: string[], leftInArray: string[], warned: string[]}}
  */

@@ -121,32 +121,41 @@ function Cmd(opt, runOffine) {
 
 
         framework.on('error', function(err) {
-            if (err.code === 'EADDRINUSE') {
-                if (process.argv[2] == 'framework:start') {
-                    var pid = null;
-                    var port  = err.port || getEnvVar('GINA_PORT');// jshint ignore:line
-                    var procsFile = _(getEnvVar('GINA_HOMEDIR') +'/procs.json', true);// jshint ignore:line
-                    if ( new _(procsFile).existsSync() ) {
-                        var runningProcs = requireJSON(procsFile);// jshint ignore:line
-                        for (let i in runningProcs) {
-                            if (runningProcs[i].port == port) {
-                                pid = runningProcs[i].pid;
-                                break;
-                            }
-                        }
-                    }
-                    if (!pid) {
-                        console.warn('Framework already running on port`'+ opt.port +'`. Use `gina status` to get the PID to kill.');
-                        return;
-                    }
-
-                    console.warn('Framework already running on port `'+ opt.port +'`: [ '+ pid+' ]');
-                } else {
-
-                }
-            } else {
-                console.emerg('Could not start framework. ', err.stack)
+            // #B761 — an error once the socket listens (an accept failure such as EMFILE) does not
+            // mean the start failed: the running framework logs it and keeps serving, as before.
+            if (framework.listening) {
+                console.emerg('Could not start framework. ', err.stack);
+                return;
             }
+            // #B761 — was: on EADDRINUSE under framework:start, any procs.json entry for the port
+            // was trusted without a check (« already running » naming even a dead pid), no entry
+            // logged « already running » without a pid and returned, and any other listen error was
+            // only logged. The process never ended: `gina start` exited 0 with a half-started daemon
+            // holding the MQ port, or hung (EACCES). inc/listen-error.js now decides: « already
+            // running » only for a recorded pid that is alive and a framework daemon (titled
+            // gina-v<version>, or on Bun still running bin/cli start); otherwise the reason on
+            // stderr and exit 1, which frees the MQ port (bin/cli's exit handler).
+            // procs.json is machine-written JSON; it is parsed here rather than with requireJSON(),
+            // which exits the process on a file it cannot read or parse.
+            var procsFile = _(getEnvVar('GINA_HOMEDIR') +'/procs.json', true);// jshint ignore:line
+            var procs = null;
+            try {
+                procs = JSON.parse(fs.readFileSync(procsFile, 'utf8'));
+            } catch (procsErr) {
+                procs = null;
+            }
+            var decision = require(local.frameworkPath + '/lib/cmd/framework/inc/listen-error').decide(err, {
+                command   : process.argv[2],
+                port      : err.port || local.port,
+                procsFile : procsFile,
+                procs     : procs
+            });
+            if (decision.action === 'already-running') {
+                console.warn('Framework already running on port `'+ decision.port +'`: [ '+ decision.pid +' ]');
+                return;
+            }
+            fs.writeSync(2, decision.message + '\n');
+            process.exit(1);
         });
 
         // The command socket is a local control plane: a connection to it

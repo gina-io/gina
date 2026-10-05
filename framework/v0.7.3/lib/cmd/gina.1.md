@@ -1,0 +1,107 @@
+gina(1) -- CLI
+=============================================
+
+## NAME
+**gina**
+
+## SYNOPSIS
+**gina**	[ **option** ]
+**gina**	[ **assetic**:**task**] [ **arguments** ]
+**gina**	[ **assetic**:**task**] [ **service** ] [ **arguments** ]
+
+## DESCRIPTION
+Gina is a MVC & Events Driven Framework that allows you to create.
+
+## OPTIONS
+**-v**, **--version**			Prints current framework version.
+
+**-h**, **--help**			   Prints.
+
+## ASSETICS
+env
+framework
+project
+bundle
+connector
+container
+image
+model
+dev
+view
+service
+audit
+
+## ENVIRONMENT
+
+**--version** | **GINA_VERSION**
+		Will override the default framework **version** used by Gina.
+        The version must be installed: the package's own version, or one
+        added side by side with **gina framework:add**. Any other value is
+        refused before the command runs, and the gina home is not migrated.
+        The value is used exactly as given.
+
+**--env** | **GINA_ENV**
+    	Will override the runtime environment.
+
+**--gina-version** (`bundle:start` only)
+        Pin a specific bundle to a particular installed framework version.
+        The socket server continues running its own version; only the spawned
+        bundle process uses the declared version. The version is validated
+        against the tracked versions in **~/.gina/main.json** before start.
+        Can also be declared statically per bundle in **manifest.json** as
+        `"gina_version": "<version>"` — the CLI flag takes priority.
+
+**--node-version** | **GINA_NODE_VERSION**
+    	Will override the **Node.js** version, the binary used by Gina.
+        More than one version at the time can be used.
+
+**--debug-brk** | **GINA_DEBUG_BRK**
+
+**--logs-path** | **GINA_LOGS_PATH**
+
+**--tmp-path** | **GINA_TMP_PATH**
+
+## EXEMPLE
+
+**gina**'s command line only works if the framework is started.
+You can start the framwork this way
+
+~~~ tty
+$ gina framework:start
+~~~
+or by using the alias
+~~~ tty
+$ gina start
+~~~
+
+Stopping the framework stops the socket server only. Running bundles are
+detached and keep running — stop them with **gina bundle:stop** or
+**gina project:stop**.
+~~~ tty
+$ gina framework:stop
+~~~
+or by using the alias
+~~~ tty
+$ gina stop
+~~~
+
+
+## AUTHOR
+
+Martin Luther ETOUMAN NDAMBWE was the original Author of **gina**. Stephane HEAV joined the project since version 0.1.0.
+
+## COPYRIGHT
+Copyright (c) 2009-{year} Rhinostone <{email}>
+
+## SEE ALSO
+
+**gina-env**(1), **gina-framework**(1), **gina-project**(1), **gina-bundle**(1), **gina-model**(1), **gina-dev**(1)
+
+## COLOPHON
+
+This page is part of release {version} of the **gina** project. A description of the project,
+and informations about reporting bugs can be found on the official web site: <https://gina.io/>
+
+The project is also on GitHub: <https://github.com/gina-io/gina>
+
+Here is the mailling list: <https://groups.google.com/g/ginajs>

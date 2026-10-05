@@ -1,0 +1,372 @@
+
+  Usage: gina connector:<action> [options]
+
+  Actions:
+
+    list                         List every connector declared by every
+                                 registered project.
+    list @<project>              List every connector for one project
+                                 (shared + all bundles).
+    list <bundle> @<project>     List the merged shared+bundle view that
+                                 <bundle> sees at runtime.
+    add <name> @<project>        Add a connector entry to
+                                 shared/config/connectors.json.
+    add <name> <bundle> @<project>
+                                 Add a connector entry to the bundle's
+                                 config/connectors.json.
+    rm <name> @<project>         Remove a connector entry from
+                                 shared/config/connectors.json.
+    rm <name> <bundle> @<project>
+                                 Remove a connector entry from the bundle's
+                                 config/connectors.json.
+    remove                       Alias for rm.
+    migrate @<project>           Scan every connectors.json (shared + all
+                                 bundles) for known issues. Dry run by
+                                 default.
+    migrate <bundle> @<project>  Scan just the bundle's connectors.json.
+    infer <connector> @<project> Run a one-off inference against a configured
+                                 AI connector (shared config). Smoke-tests
+                                 connectivity + credentials outside a request.
+    infer <connector> <bundle> @<project>
+                                 Same, against the bundle's merged
+                                 shared+bundle connector view.
+    models <connector> @<project>
+                                 List the models a configured AI connector's
+                                 provider can serve (its live catalogue).
+    models <connector> <bundle> @<project>
+                                 Same, against the bundle's merged
+                                 shared+bundle connector view.
+    test                         Probe every connector in every registered
+                                 project for readiness (config, driver,
+                                 secrets). Exit non-zero on any failure.
+    test @<project>              Probe every connector in one project
+                                 (shared + all bundles).
+    test <connector> @<project>  Probe one connector (shared / merged view).
+    test <connector> <bundle> @<project>
+                                 Probe one connector as <bundle> sees it.
+    help                         Show this message.
+
+  Options (list):
+
+    --format=json                Emit machine-readable JSON instead of the
+                                 human-readable text table.
+
+  Options (add):
+
+    --connector=<type>           Driver type. One of: couchbase, mysql,
+                                 postgresql, sqlite, redis, ai. Inferred
+                                 from <name> when <name> matches one of
+                                 those values.
+    --driver=<type>              Synonym for --connector=.
+    --protocol=<uri>             Connection protocol URI scheme
+                                 (e.g. couchbase://, anthropic://).
+                                 Required for ai connectors.
+    --host=<host>                Hostname or IP. Comma-separated for
+                                 clusters (e.g. db1.example.com,db2.example.com).
+    --connector-port=<port>      Server port. Numeric when possible. Named
+                                 `--connector-port=` (not `--port=`) because
+                                 the framework reserves `--port=` for its own
+                                 socket port. Written to the connector entry
+                                 under the `port` key.
+    --database=<name>            Database, bucket, or keyspace name.
+    --username=<name>            Authentication username.
+    --password=<value>           Authentication password. Supports
+                                 \${secret:KEY} interpolation.
+    --scope=<scope>              Data isolation scope. One of: local,
+                                 beta, production, testing.
+    --model=<id>                 AI connector only. Default model id.
+    --api-key=<value>            AI connector only. API key. Supports
+                                 \${secret:KEY} interpolation.
+    --base-url=<url>             AI connector only. Override the provider
+                                 base URL (OpenAI-compatible providers).
+    --driver-version=<range>     Optional semver range to pin the driver
+                                 install (e.g. ^5.0.0, >=5.3.0 <6.0.0).
+                                 Named `--driver-version=` (not `--version=`)
+                                 because the framework reserves the bare
+                                 `--version` flag (maps to GINA_VERSION; a
+                                 value naming no installed framework version
+                                 is refused). Written to the connector entry
+                                 under the `version` key.
+    --force                      Overwrite an existing entry with the
+                                 same <name>.
+    --install                    After writing the entry, run the detected
+                                 package manager's install command for the
+                                 resolved driver+range. Opt-in; default is
+                                 "write entry, print hint".
+                                 Package manager is detected by probing
+                                 lockfiles in this order: bun.lockb →
+                                 pnpm-lock.yaml → yarn.lock →
+                                 package-lock.json. npm is the fallback
+                                 when no lockfile is present.
+                                 Install range resolution order:
+                                 --driver-version= → project package.json
+                                 dep → framework's built-in driver range.
+                                 sqlite short-circuits (built-in); AI
+                                 connectors with missing/unknown protocol
+                                 exit 1 with guidance.
+
+  Options (rm):
+
+    --dry-run                    Print what would be removed without
+                                 touching any file. Includes the sibling-
+                                 usage hint.
+    --force                      Skip the project-level guard that refuses
+                                 to remove a shared connector while other
+                                 bundles still reference it.
+
+  Options (migrate):
+
+    --fix                        Apply auto-fixable issues to disk. Without
+                                 it, `connector:migrate` is a read-only
+                                 dry run.
+    --format=json                Emit machine-readable JSON instead of the
+                                 human-readable text summary.
+
+  Options (infer):
+
+    --message=<text>             The user prompt. Required unless a messages
+                                 JSON array is piped on stdin.
+    --system=<text>              Optional system prompt.
+    --model=<id>                 Override the connector's default model for
+                                 this call.
+    --max-tokens=<n>             Max tokens in the response (default 1024).
+    --temperature=<n>            Sampling temperature.
+    --api-key=<value>            Override the connector's apiKey with a
+                                 literal (bypasses ${secret:...} resolution).
+    --base-url=<url>             Override the provider base URL.
+    --protocol=<uri>             Override the connector protocol scheme.
+    --format=json                Emit `{ content, model, usage }` as JSON
+                                 instead of the text content + usage footer.
+                                 (The heavy provider `raw` payload is omitted
+                                 unless --raw is given.)
+    --stream                     Stream the inference as newline-delimited JSON
+                                 (NDJSON) — one frame per line on stdout
+                                 (start / delta / done / error) for token-by-token
+                                 consumption. Always NDJSON regardless of
+                                 --format. Token counters are passed through
+                                 verbatim (null when the provider does not report
+                                 them — never fabricated).
+    --raw                        Include the heavy provider `raw` payload
+                                 (omitted by default). With --format=json it
+                                 adds a `raw` field carrying the full provider
+                                 response. With --stream it adds `raw` to the
+                                 `done` frame: Anthropic's final message object,
+                                 or null for OpenAI-family streams (which expose
+                                 no single final object). No effect in text mode.
+
+  Options (models):
+
+    --format=json                Emit `{ project, connector, provider, count,
+                                 models }` (plus `bundle` when a bundle is
+                                 named) instead of one model id per line. Each
+                                 `models[]` entry is passed through verbatim
+                                 from the provider (SDK shapes differ; only
+                                 `id` is guaranteed present).
+    --api-key=<value>            Override the connector's apiKey with a
+                                 literal (bypasses ${secret:...} resolution).
+    --base-url=<url>             Override the provider base URL.
+    --protocol=<uri>             Override the connector protocol scheme.
+
+  Options (test):
+
+    --connect                    Add a live connectivity probe on top of the
+                                 default validate-only checks (config, driver,
+                                 secrets). For `ai` connectors this calls the
+                                 provider's models.list — a credentialed request
+                                 that authenticates with ZERO generation tokens
+                                 (for ollama:// it confirms the local server is
+                                 up). For DB/cache connectors the live probe is
+                                 reported as SKIPPED for now (config / driver /
+                                 secrets are still validated) — the live DB/cache
+                                 probe is a follow-up. `--connect` never spends
+                                 generation tokens.
+    --format=json                Emit the machine-readable readiness report
+                                 instead of the human-readable text.
+
+  Output columns (list, text mode):
+
+    [ ok ]  driver installed, or built-in (node:sqlite).
+    [ ?! ]  driver declared but not found at <project>/node_modules/<driver>.
+    [ ?? ]  unknown connector type or missing/unrecognised `ai` protocol.
+    [ !! ]  version-pin disagreement — two bundles pin the same driver at
+            different versions; the first `npm install` wins.
+
+    Row shape:
+      <status> <name> <connector> [<source>] (<driver info>)
+
+    Source label:
+      [shared]                    Declared only in shared/config/connectors.json.
+      [<bundle>]                  Declared only in <bundle>/config/connectors.json.
+      [<bundle> override]         Declared in shared AND overridden by <bundle>.
+
+  Notes:
+
+    `connector:list` is read-only and offline — it does not contact the
+    framework socket and makes no network calls. It scans:
+
+      <project>/manifest.json            (bundle discovery)
+      <project>/shared/config/connectors.json
+      <project>/<bundle>/config/connectors.json    (per manifest)
+      <project>/node_modules/<driver>/package.json (install check)
+
+    `connector:add` writes the file at:
+
+      <project>/shared/config/connectors.json      (no <bundle> passed)
+      <project>/<bundle-src>/config/connectors.json (with <bundle>)
+
+    After writing, `connector:add` prints the exact
+    `npm install <driver>@"<range>"` command. The resolved range comes
+    from `--driver-version=` when supplied, otherwise from the
+    framework's built-in driver range table.
+
+    `connector:rm` writes to the same two targets (shared vs bundle) per
+    positional-absence. It never uninstalls the npm driver — another
+    bundle may still need it. After removal, `connector:rm` prints a
+    driver-retention hint naming any siblings that still reference the
+    same driver.
+
+    Project-level `connector:rm` (no <bundle>) refuses to proceed when
+    any bundle still declares the same logical name — pass --force to
+    remove anyway. Bundle-level `connector:rm` always proceeds and
+    leaves shared untouched.
+
+    `connector:migrate` lints connectors.json for two issues:
+
+      missing-schema             Top-level `$schema` key absent. Auto-
+                                 fixable — injects
+                                 "$schema": "https://gina.io/schema/connectors.json"
+                                 at the top of the object.
+      bare-key-no-connector      Entry has no `connector` field and its
+                                 key is not in the built-in enum
+                                 (couchbase, mysql, postgresql, sqlite,
+                                 redis, ai). Warn only — the fix cannot
+                                 be inferred. Re-declare via
+                                 `gina connector:add <name> @<project>
+                                 --connector=<type> --force`.
+
+    `connector:migrate` is explicit and opt-in — the framework does NOT
+    auto-migrate connectors.json at bundle boot. Run it in CI or before
+    committing.
+
+    `connector:infer` only works with `ai` connectors (it errors cleanly on
+    any other type). It resolves the connector config the same way
+    `connector:list` does (shared, or shared+bundle merged when a bundle is
+    named), then instantiates the connector directly — it does NOT boot the
+    bundle. The provider SDK (`@anthropic-ai/sdk` or `openai`) must be
+    installed in the project's node_modules. `${secret:KEY}` placeholders
+    (typically the `apiKey`) are resolved from the CLI's own environment;
+    the resolved value is never printed. A detached CLI does not inherit
+    secrets a supervisor injects at bundle start — export the key in this
+    shell or pass `--api-key=<literal>`. (A bare `${ENV_VAR}` without the
+    `secret:` prefix is NOT substituted.) Offline providers such as
+    `ollama://` (localhost:11434, no key) work with no network access to a
+    paid API. Text mode writes the content to stdout and a model/usage
+    footer to stderr; `--format=json` emits `{ content, model, usage }`
+    (add `--raw` to include the full provider response). `--stream` emits
+    NDJSON token frames (one JSON object per line — start / delta / done /
+    error) on stdout regardless of `--format`.
+
+    `connector:models` lists the models a configured AI connector's provider
+    can serve — it makes the same `models.list()` call `connector:test
+    --connect` uses, but surfaces the model ids instead of just a count (for
+    populating a model picker, scripting a "offers model X?" check, or
+    auditing reach). It only works with `ai` connectors, resolves the config
+    and instantiates the connector exactly like `connector:infer` (no bundle
+    boot; the provider SDK must be installed in the project), and never prints
+    credentials. Offline providers (`ollama://`) work with no internet. Text
+    mode prints one model id per line to stdout (count footer to stderr);
+    `--format=json` emits `{ project, connector, provider, count, models }`
+    with each entry passed through from the provider. A provider client that
+    exposes no `models.list` is reported UNSUPPORTED with a non-zero exit —
+    never a fabricated empty list.
+
+    `connector:test` probes configured connectors for readiness and exits
+    non-zero on any failure (so it can gate CI). The default is validate-only
+    and offline: for each connector it checks that the type / `ai` protocol is
+    recognised, the npm driver is installed at <project>/node_modules, and
+    every `${secret:KEY}` placeholder resolves from the environment — no
+    network, no connector instantiated. `--connect` adds a live probe: for
+    `ai` connectors it calls the provider's models.list (a credentialed
+    request with ZERO generation-token cost; `ollama://` confirms the local
+    server is up), resolving `${secret:KEY}` the same way `connector:infer`
+    does (the value is never printed). For DB/cache connectors the live
+    `--connect` probe is reported as SKIPPED for now (config / driver / secrets
+    are still validated); the live DB/cache probe is a follow-up. Like
+    `connector:infer`, a detached CLI sees only its own environment, not
+    secrets a supervisor injects at bundle start.
+
+    `connectors.json` files are parsed with `//` and `/* */` comment
+    tolerance. `connector:add`, `connector:rm`, and `connector:migrate`
+    preserve any comment header above the first `{`, but mid-body
+    comments are lost on rewrite.
+
+    Driver resolution uses the framework's built-in driver range table
+    (see `lib/connector-registry/src/main.js` DRIVER_MAP):
+
+      couchbase     → couchbase            >= 3.0.0
+      redis         → ioredis              >= 5.0.0
+      mysql         → mysql2               >= 2.0.0
+      postgresql    → pg                   >= 8.0.0
+      mongodb       → mongodb              >= 7.0.0
+      scylladb      → cassandra-driver     >= 4.0.0
+      duckdb        → @duckdb/node-api     >= 1.5.5-r.0 <2
+      sqlite        → built-in (node:sqlite, Node >= 22.5.0)
+      ai            → resolved from `protocol` (anthropic:// → @anthropic-ai/sdk,
+                                                openai://, deepseek://, …  → openai)
+
+  Examples:
+
+    gina connector:list                                                Every project, every connector
+    gina connector:list @myproject                                     One project, all bundles + shared
+    gina connector:list admin @myproject                               What `admin` sees at runtime
+    gina connector:list --format=json                                  JSON output for scripting
+
+    gina connector:add redis @myproject --host=127.0.0.1 --connector-port=6379
+                                                                       Shared Redis, type inferred from name
+    gina connector:add session @myproject --connector=redis --host=127.0.0.1 --connector-port=6379
+                                                                       Shared Redis under a custom name
+    gina connector:add mydb api @myproject --connector=mysql --database=mydb --username=root
+                                                                       Bundle-scoped MySQL entry
+    gina connector:add claude @myproject --connector=ai --protocol=anthropic:// --api-key='${secret:ANTHROPIC_API_KEY}'
+                                                                       AI connector with a secret-backed key
+    gina connector:add session @myproject --connector=redis --driver-version=^5.0.0 --force
+                                                                       Pin driver version, overwrite existing
+    gina connector:add redis @myproject --install
+                                                                       Write entry AND run `npm install ioredis@<range>` (lockfile-detected PM)
+
+    gina connector:rm session @myproject                               Remove shared entry (fails if any bundle uses it)
+    gina connector:rm session api @myproject                           Remove from api bundle only
+    gina connector:rm session @myproject --dry-run                     Preview removal + usage warnings
+    gina connector:rm session @myproject --force                       Remove shared entry even if bundles still use it
+
+    gina connector:migrate @myproject                                  Dry-run lint across shared + all bundles
+    gina connector:migrate api @myproject                              Dry-run lint of the api bundle only
+    gina connector:migrate @myproject --fix                            Apply auto-fixable issues (inject $schema)
+    gina connector:migrate @myproject --format=json                    JSON report for scripting / CI
+
+    gina connector:infer claude @myproject --message="Say hi in one word"
+                                                                       One-off inference against a shared AI connector
+    gina connector:infer claude api @myproject --message="..." --system="You are terse."
+                                                                       Bundle-scoped connector, with a system prompt
+    gina connector:infer claude @myproject --message="ping" --format=json
+                                                                       Machine-readable { content, model, usage }
+    gina connector:infer claude @myproject --message="ping" --format=json --raw
+                                                                       Same, plus the full provider response under `raw`
+    gina connector:infer claude @myproject --message="Write a haiku" --stream
+                                                                       Stream tokens as NDJSON frames (one JSON object per line)
+    gina connector:infer local-llm @myproject --message="hi" --model=llama3.2
+                                                                       Override the model (e.g. an ollama:// connector)
+    echo '[{"role":"user","content":"hi"}]' | gina connector:infer claude @myproject
+                                                                       Multi-turn messages piped as JSON on stdin
+
+    gina connector:models claude @myproject                            List the models the connector's provider can serve (one id per line)
+    gina connector:models claude api @myproject                        Same, as the api bundle sees it (merged shared+bundle)
+    gina connector:models claude @myproject --format=json              Machine-readable { project, connector, provider, count, models }
+
+    gina connector:test @myproject                                     Validate every connector in a project (config + driver + secrets)
+    gina connector:test claude @myproject                              Validate one connector (shared / merged view)
+    gina connector:test claude api @myproject                          Validate one connector as the api bundle sees it
+    gina connector:test @myproject --format=json                       Machine-readable readiness report for CI
+    gina connector:test claude @myproject --connect                    Add the live probe (ai: models.list, zero tokens)
+    gina connector:test                                                Validate every connector in every registered project
+

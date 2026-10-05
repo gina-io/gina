@@ -98,14 +98,12 @@ function runAsSubProcess() {
 
         // If framework is already running
         if ( new RegExp('Framework already running','gmi').test(data) ) {
-            pid = ''+data.match(/\[\s+\d+\s+\]/);
-            if (pid && pid.length > 0) {
-                if (Array.isArray(pid) ) {
-                    pid = pid[0].replace(/\[|\]|\s+/g, '');
-                } else {
-                    pid = pid.replace(/\[|\]|\s+/g, '');
-                }
-
+            // #B761 — was: `pid = ''+data.match(/\[\s+\d+\s+\]/)`: a line without a pid made the
+            // string « null », so it printed « …with PID `null` » and the branch without a pid was
+            // unreachable (the Array.isArray branch was dead: the value was always a string).
+            var pidMatch = data.match(/\[\s+(\d+)\s+\]/);
+            if (pidMatch) {
+                pid = pidMatch[1];
                 console.info('Gina server is already running with PID `'+ pid +'`');
             } else {
                 console.info('Gina server is already running');
@@ -127,7 +125,14 @@ function runAsSubProcess() {
         if (/ExperimentalWarning/.test(error)) {
             return;
         }
-        if (/Debugger listening|Debugger attached|Warning|address already in use/i.test(error)) {
+        // #B760 — `Warning` was in this pattern too, matched case-insensitively, so a benign
+        // notice before the ready line (a deprecation, a MaxListeners warning, or Node's
+        // « (Use `node --trace-warnings …` » line) made the wrapper exit 1 at once, and the daemon
+        // child, its pipes gone, then died on its next write (EPIPE): the start was aborted. A
+        // warning is now printed below like any other stderr output, and the start ends on the
+        // ready line or on the child's exit (#B759).
+        // was: if (/Debugger listening|Debugger attached|Warning|address already in use/i.test(error)) {
+        if (/Debugger listening|Debugger attached|address already in use/i.test(error)) {
             console.warn(error);
             return process.exit(1);
         }
@@ -135,14 +140,49 @@ function runAsSubProcess() {
     });
 
 
-    child.on('exit', function(code, signal) {
-        // handles only signals that cannot be caught or ignored
-        // ref.: `framework/<version>/lib/proc.js`
-        if (/(SIGKILL|SIGSTOP)/i.test(signal)) {
-            console.emerg('[' + this.pid + '] exiting with signal: ', signal);
-            return;
+    // #B759 — the child ended before the ready or already-running line (both exit above).
+    // The old `exit` handler only logged SIGKILL/SIGSTOP, through a `console.emerg` that does
+    // not exist on this global console (it threw), so otherwise the wrapper's event loop ran dry
+    // and `gina start` exited 0 on a refused or failed start. `close` fires once the child's
+    // stdout and stderr are drained, so everything it printed (the #B584 refusal, a stack) is
+    // relayed first; `process.exitCode` lets the wrapper's own pending writes flush.
+    child.on('close', function(code, signal) {
+        if (signal) {
+            fs.writeSync(2, 'gina: the framework was stopped by ' + signal + ' before it was ready.\n');
+        } else if (code === 0) {
+            fs.writeSync(2, 'gina: the framework exited before it was ready (exit code 0).\n');
         }
+        process.exitCode = exitCodeBeforeReady(code, signal);
     });
+}
+
+/**
+ * #B759 — the exit code `gina start` returns when the daemon child ends before it reported
+ * « Framework ready for connections » or « Framework already running » (both exit 0 on their
+ * own, so they never get here).
+ *
+ * @inner
+ * @private
+ * @param {?number} code - The child's exit code; null when a signal ended it
+ * @param {?string} signal - The signal that ended the child; null when it exited
+ * @returns {number} The child's code when it is not 0; 128 + the signal number when a signal
+ *   ended it (137 for SIGKILL), or 1 for a signal with no known number; 1 when the child
+ *   exited 0 without reporting ready
+ *
+ * @example
+ * exitCodeBeforeReady(3, null);         // 3
+ * exitCodeBeforeReady(null, 'SIGKILL'); // 137
+ * exitCodeBeforeReady(0, null);         // 1
+ */
+function exitCodeBeforeReady(code, signal) {
+    if (typeof code === 'number' && code !== 0) {
+        return code;
+    }
+    if (signal) {
+        var signo = require('os').constants.signals[signal];
+        return (typeof signo === 'number') ? 128 + signo : 1;
+    }
+    return 1;
 }
 
 /**

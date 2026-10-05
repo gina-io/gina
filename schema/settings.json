@@ -348,6 +348,11 @@
           "type": "boolean",
           "description": "When true, the HTTP/2 server also accepts HTTP/1.1 connections (ALPN negotiation). Defaults to true."
         },
+        "earlyHintsOverHTTP1": {
+          "type": "boolean",
+          "default": false,
+          "description": "Send 103 Early Hints over HTTP/1.1 too: the automatic preload hints and self.setEarlyHints(). Off by default: browsers act on a 103 only over HTTP/2 and HTTP/3, and an nginx older than 1.29 takes an upstream 103 for the final response, which breaks every page behind it. Turn it on only behind a proxy that handles 103 (nginx 1.29 or later with early_hints, Apache). Must be the boolean true."
+        },
         "maintenance": {
           "type": "object",
           "description": "Opt-in maintenance mode (#MAINT1). When active, every request EXCEPT the /_gina/* endpoints is answered 503 + Retry-After with a self-contained maintenance page, before static assets, the render/output cache and routing — coverage a route middleware cannot reach, since middleware only runs once a route has matched. The /_gina/* family stays reachable on purpose: liveness keeps answering 200 so an orchestrator does not restart pods over a declared window, and the operator can always reach the toggle. Flip it at runtime with POST /_gina/maintenance (admin-gated); a runtime override is NOT persisted across a restart and is PER PROCESS — a POST reaches the one process that received it, so with replicas either fan it out and read back `pid`/`hostname` from each reply, or name a shared kv namespace in `store` so every replica follows one POST — and `enabled` here is the durable, deployment-wide form. A malformed block warns at boot per key and never refuses a boot, with one deliberate exception: a `store` naming a namespace that is not declared, or one running failMode \"open\", refuses the boot rather than run without the coherence you configured.",
