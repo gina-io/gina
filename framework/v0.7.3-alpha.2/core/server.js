@@ -3504,7 +3504,13 @@ function Server(options) {
 
                     if ( /(url\(|url\s+\()/.test(cssArr[c]) && !/data\:|\@font-face/.test(cssArr[c]) ) {
 
-                        url = cssArr[c].match(/((background\:url|url)+\()([A-Za-z0-9->~_.,:"'%/\s+]+).*?\)+/g)[0].replace(/((background\:url|url)+\(|\))/g, '').trim();
+                        // #B774 — a `url()` this pattern cannot read (an SVG reference such as
+                        // `url(#grad)`), or one naming a fragment, is not a file: skip the block. The
+                        // unguarded `[0]` threw, and render-swig answered 500 for the page.
+                        let urlMatched = cssArr[c].match(/((background\:url|url)+\()([A-Za-z0-9->~_.,:"'%/\s+]+).*?\)+/g);
+                        if ( !urlMatched ) continue;
+                        url = urlMatched[0].replace(/((background\:url|url)+\(|\))/g, '').trim();
+                        if ( /^["']?#/.test(url) ) continue;
                         if ( typeof(assetsInClassFound[url]) != 'undefined') continue; // already defined
 
                         //cssMatched = cssArr[c].match(/((\.[A-Za-z0-9-_.,;:"'%\s+]+)(\s+\{|{))/);
@@ -3539,14 +3545,17 @@ function Server(options) {
                                 //key =  (( /404/.test(filename) ) ? '[404]' : '[200]') +' '+ url;
                                 key         = url;
                                 isAvailable =  ( /404/.test(filename) ) ? false : true;
-                                ext         = url.substring(url.lastIndexOf('.')).match(/(\.[A-Za-z0-9]+)/)[0];
+                                // #B774 — a `url()` with no extension (`url(/img/sprite)`) threw here;
+                                // the layout scan reads its own `ext` inside a try
+                                let extMatched = url.substring(url.lastIndexOf('.')).match(/(\.[A-Za-z0-9]+)/);
+                                ext         = ( extMatched ) ? extMatched[0] : null;
                                 assets[key] = {
                                     referrer    : cssFiles[i],
                                     definition  : definition,
                                     type        : type,
                                     url         : url,
                                     ext         : ext,
-                                    mime        : bundleConf.server.coreConfiguration.mime[ext.substring(1)] || 'NA',
+                                    mime        : ( ext ) ? ( bundleConf.server.coreConfiguration.mime[ext.substring(1)] || 'NA' ) : 'NA',
                                     filename    : ( /404/.test(filename) ) ? 'not found' : filename
                                 };
 
