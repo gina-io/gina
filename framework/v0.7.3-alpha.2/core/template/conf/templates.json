@@ -9,7 +9,6 @@
     "forms"                     : "${bundlePath}/forms",
     "handlers"                  : "${templatesPath}/handlers",
     "routeNameAsFilenameEnabled": true,
-    "ginaEnabled"               : true, // set to false, this will exclude gina assets from being loaded
     "pluginLoader"              : "{src:${gina}/framework/v${version}/core/asset/plugin/dist/vendor/gina/js/gina.onload.min.js}",
     "http-metas": {
       "content-type": "text/html"
