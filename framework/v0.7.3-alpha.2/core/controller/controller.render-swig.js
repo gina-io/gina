@@ -1479,7 +1479,14 @@ module.exports = async function render(userData, displayInspector, errOptions, d
         //     console.warn('----------------> loading partial `'+ path);
         // }
 
-        isDeferModeEnabled = localOptions.template.javascriptsDeferEnabled || localOptions.conf.content.templates._common.javascriptsDeferEnabled || false;
+        // #B778 — the template value alone, as getNodeRes() (controller.js) reads it to write
+        // `defer` on the tags, and as the other three delegates place them: this read fell back
+        // to `_common`, so since #B772 let a page's own `false` reach its template, such a page
+        // under a `_common` `true` got its scripts in <head> without `defer` (render-blocking)
+        // instead of before </body>. Both reads use the same object (#B497 points a custom-error
+        // render at the request's own template), so placement and `defer` always agree.
+        // was: localOptions.template.javascriptsDeferEnabled || localOptions.conf.content.templates._common.javascriptsDeferEnabled || false
+        isDeferModeEnabled = !!localOptions.template.javascriptsDeferEnabled;
         hasExternalsPlugins = (localOptions.template.externalPlugins.length > 0) ? true : false;
 
         // iframe case - without HTML TAG
