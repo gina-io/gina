@@ -3013,6 +3013,11 @@ function Config(opt, contextResetNeeded) {
 
                         if ( typeof(files['templates'][section][ref]) == 'undefined' ) {
                             files['templates'][section][ref] = files['templates']._common[ref];
+                        } else if ( typeof(files['templates'][section][ref]) == 'boolean' ) {
+                            // #B772 — a page's own boolean is kept as it is: lib/merge returns
+                            // `true` for merge(false, true), so a page that set a `_common`
+                            // switch to `false` (assetVersioningEnabled, preloadHintsEnabled...)
+                            // used to get `true` back
                         } else {
                             files['templates'][section][ref] = merge(files['templates'][section][ref], files['templates']._common[ref]);
                         }

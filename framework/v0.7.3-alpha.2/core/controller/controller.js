@@ -56,6 +56,10 @@ var inspectorRedact = require('../../lib/inspector-redact');
 // Compiled once: the pattern set is a module constant.
 var _carryRedactPatterns = inspectorRedact.compile(inspectorRedact.DEFAULT_PATTERNS);
 
+// #B765 — the size and the switch of the automatic preload hints (the 200
+// `link` header and the 103 Early Hints), shared with controller.render-swig.js.
+var preloadHints    = require('./preload-hints');
+
 /**
  * #A11Y3 — BCP-47 language tag for a framework-generated document.
  *
@@ -2435,6 +2439,8 @@ function SuperController(options) {
         if (_h2Links) {
             // trim trailing comma inserted by computeH2PreloadPrefix()
             var _hints = /,$/.test(_h2Links) ? _h2Links.slice(0, -1) : _h2Links;
+            // #B765 — templates.json's switch and size cap; duplicates dropped (#B767)
+            _hints = preloadHints.shapeLinks(_hints, (errOptions) ? errOptions.template : local.options.template);
             if (_hints) self.setEarlyHints(_hints);
         }
         // #B496 — restore the router's seed so the delegate's getNodeRes() accumulates
@@ -2763,13 +2769,25 @@ function SuperController(options) {
      * still preparing the final response.
      *
      *   HTTP/2  — `stream.additionalHeaders({ ':status': 103, link: '...' })`
-     *   HTTP/1.1 — `res.writeEarlyHints({ link: '...' })` (Node.js 18.11+)
+     *   HTTP/1.1 — only when `settings.json > server.earlyHintsOverHTTP1` is
+     *              `true` (#B771): `res.writeEarlyHints({ link: [...] })`, one
+     *              array element per entry (#B770), cut at the page's
+     *              `preloadHintsMaxSize` (templates.json, #B765)
+     *
+     * Why HTTP/1.1 is off by default: browsers act on a 103 only over HTTP/2
+     * and HTTP/3, so over HTTP/1.1 it reaches a reverse proxy, and nginx before
+     * 1.29 takes an upstream 103 for the final response, which breaks every
+     * page behind it. Turn it on behind a proxy that handles 103 (nginx 1.29 or
+     * later with `early_hints`, Apache).
      *
      * Silently no-ops when:
      *   - `links` is falsy or an empty array / string
      *   - headers have already been sent (guards against double-call)
+     *   - the request is HTTP/1.1 and `server.earlyHintsOverHTTP1` is not `true`
      *   - the runtime does not support `writeEarlyHints` (Node < 18.11)
-     *   - any internal error occurs (103 is best-effort, never fatal)
+     *   - any internal error occurs (103 is best-effort, never fatal), including
+     *     node refusing an HTTP/1.1 entry it does not take as a link value (a
+     *     parameter value holding a space, such as an `imagesrcset`)
      *
      * Returns `self` for optional chaining.
      *
@@ -2778,6 +2796,12 @@ function SuperController(options) {
      *     '<https://cdn.example.com/app.css>; rel=preload; as=style'
      *     or an array of such strings (joined with ', ' into one header).
      * @returns {object} self
+     *
+     * @example
+     * self.setEarlyHints([
+     *     '</css/app.css>; rel=preload; as=style',
+     *     '</js/app.js>; rel=preload; as=script'
+     * ]);
      */
     this.setEarlyHints = function(links) {
         if (!links) return self;
@@ -2798,11 +2822,20 @@ function SuperController(options) {
             // HTTP/2 — stream.additionalHeaders() sends a HEADERS frame with :status 103
             if (_res.stream && !_res.stream.headersSent) {
                 _res.stream.additionalHeaders({ ':status': 103, 'link': _link });
-            } else if (typeof _res.writeEarlyHints === 'function') {
-                // HTTP/1.1 — available since Node.js 18.11.0
-                _res.writeEarlyHints({ 'link': _link });
+            } else if (
+                typeof _res.writeEarlyHints === 'function'
+                // #B771 — over HTTP/1.1 only when the bundle asks for it (see above)
+                && local.options.conf.server.earlyHintsOverHTTP1 === true
+            ) {
+                // HTTP/1.1 — available since Node.js 18.11.0. #B770: node checks a
+                // string as ONE link value, and a ', '-joined list failed that check,
+                // so nothing was sent; an array is checked entry by entry
+                var _entries = preloadHints.toEarlyHintsList(links, local.options.template);
+                if (_entries.length > 0) {
+                    _res.writeEarlyHints({ 'link': _entries });
+                }
             }
-            // else: silently no-op on older Node.js
+            // else: no 103 — HTTP/1.1 without the setting, or Node.js older than 18.11
         } catch(e) {
             // 103 is best-effort — never let a hint failure affect the main response
         }

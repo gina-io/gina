@@ -376,10 +376,26 @@ describe('04 - source structure: setEarlyHints (#EH1)', function() {
 });
 
 
-// 05 — setEarlyHints: pure logic
+// 05 — setEarlyHints: the real function, compiled out of the source with its
+// closure names supplied, then driven with a fake response. Until #B771 this
+// section held a retyped copy of the body, which kept the old HTTP/1.1 branch.
 describe('05 - setEarlyHints: pure logic', function() {
 
-    // Minimal replica of the setEarlyHints body for isolated testing
+    // The real setEarlyHints, from its declaration to the brace that closes it.
+    var REAL_SET_EARLY_HINTS = (function () {
+        var src   = fs.readFileSync(SOURCE, 'utf8');
+        var start = src.indexOf('this.setEarlyHints = function(links) {');
+        assert.ok(start > -1, 'setEarlyHints is declared');
+        var i = src.indexOf('{', start), depth = 0;
+        for (; i < src.length; i++) {
+            if (src[i] === '{') { depth++; }
+            else if (src[i] === '}') { depth--; if (depth === 0) { i++; break; } }
+        }
+        assert.strictEqual(depth, 0, 'balanced braces');
+        return src.slice(src.indexOf('function(links)', start), i);
+    })();
+    var preloadHints = require(path.join(require('../fw'), 'core/controller/preload-hints'));
+
     function makeEarlyHintsEnv(opts) {
         opts = opts || {};
         var calls = { additionalHeaders: [], writeEarlyHints: [] };
@@ -406,22 +422,10 @@ describe('05 - setEarlyHints: pure logic', function() {
             return false;
         }
 
-        function setEarlyHints(links) {
-            if (!links) return self;
-            var _link;
-            if (Array.isArray(links)) { _link = links.filter(Boolean).join(', '); }
-            else { _link = String(links).trim(); }
-            if (!_link) return self;
-            if (headersSent(res)) return self;
-            try {
-                if (res.stream && !res.stream.headersSent) {
-                    res.stream.additionalHeaders({ ':status': 103, 'link': _link });
-                } else if (typeof res.writeEarlyHints === 'function') {
-                    res.writeEarlyHints({ 'link': _link });
-                }
-            } catch(e) {}
-            return self;
-        }
+        // #B771 — over HTTP/1.1 the function sends only when
+        // settings.json > server.earlyHintsOverHTTP1 is true
+        var local = { res: res, options: { conf: { server: ( opts.earlyHintsOverHTTP1 ) ? { earlyHintsOverHTTP1: true } : {} }, template: {} } };
+        var setEarlyHints = new Function('self', 'local', 'headersSent', 'preloadHints', 'return (' + REAL_SET_EARLY_HINTS + ');')(self, local, headersSent, preloadHints);
 
         return { calls: calls, res: res, self: self, setEarlyHints: setEarlyHints };
     }
@@ -440,15 +444,21 @@ describe('05 - setEarlyHints: pure logic', function() {
         assert.equal(env.calls.writeEarlyHints.length, 0);
     });
 
-    it('HTTP/1.1: calls writeEarlyHints when no stream', function() {
-        var env = makeEarlyHintsEnv({ noStream: true });
+    it('HTTP/1.1: calls writeEarlyHints when no stream (with server.earlyHintsOverHTTP1), one array element per entry', function() {
+        var env = makeEarlyHintsEnv({ noStream: true, earlyHintsOverHTTP1: true });
         env.setEarlyHints('</app.css>; rel=preload; as=style');
         assert.equal(env.calls.writeEarlyHints.length, 1);
-        assert.equal(env.calls.writeEarlyHints[0]['link'], '</app.css>; rel=preload; as=style');
+        assert.deepEqual(env.calls.writeEarlyHints[0]['link'], ['</app.css>; rel=preload; as=style']);
     });
 
-    it('HTTP/1.1: no-ops silently when writeEarlyHints is not a function', function() {
-        var env = makeEarlyHintsEnv({ noStream: true, noWriteEarlyHints: true });
+    it('HTTP/1.1 without server.earlyHintsOverHTTP1: does not call writeEarlyHints (#B771)', function() {
+        var env = makeEarlyHintsEnv({ noStream: true });
+        env.setEarlyHints('</app.css>; rel=preload; as=style');
+        assert.equal(env.calls.writeEarlyHints.length, 0);
+    });
+
+    it('HTTP/1.1: no-ops silently when writeEarlyHints is not a function (with server.earlyHintsOverHTTP1)', function() {
+        var env = makeEarlyHintsEnv({ noStream: true, noWriteEarlyHints: true, earlyHintsOverHTTP1: true });
         assert.doesNotThrow(function() {
             env.setEarlyHints('</app.css>; rel=preload; as=style');
         });
@@ -508,8 +518,8 @@ describe('05 - setEarlyHints: pure logic', function() {
         assert.equal(env.calls.additionalHeaders.length, 0);
     });
 
-    it('no-ops when HTTP/1.1 res.headersSent is true', function() {
-        var env = makeEarlyHintsEnv({ noStream: true, resHeadersSent: true });
+    it('no-ops when HTTP/1.1 res.headersSent is true (with server.earlyHintsOverHTTP1)', function() {
+        var env = makeEarlyHintsEnv({ noStream: true, resHeadersSent: true, earlyHintsOverHTTP1: true });
         env.setEarlyHints('</x>; rel=preload; as=style');
         assert.equal(env.calls.writeEarlyHints.length, 0);
     });
@@ -522,8 +532,8 @@ describe('05 - setEarlyHints: pure logic', function() {
         });
     });
 
-    it('swallows errors thrown by writeEarlyHints (best-effort)', function() {
-        var env = makeEarlyHintsEnv({ noStream: true });
+    it('swallows errors thrown by writeEarlyHints (best-effort, with server.earlyHintsOverHTTP1)', function() {
+        var env = makeEarlyHintsEnv({ noStream: true, earlyHintsOverHTTP1: true });
         env.res.writeEarlyHints = function() { throw new Error('socket error'); };
         assert.doesNotThrow(function() {
             env.setEarlyHints('</x>; rel=preload; as=style');

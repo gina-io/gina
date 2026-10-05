@@ -28,6 +28,8 @@
     "javascriptsDeferEnabled": true, // will place scripts in defer mode in the head by default. If false, will place in the footer
     "sriEnabled": false, // opt-in Subresource Integrity: adds integrity= + crossorigin= to same-origin <script>/<link> tags whose files resolve on disk; external URLs and unresolvable paths are skipped (fail-open)
     "assetVersioningEnabled": true, // #P48: appends ?v=<10 hex of the file's sha384> to the same-origin asset URLs gina emits (tags + their preload hints) so they can be cached for a year; false keeps today's URLs. Never applied to js external plugins, layoutless renders or dev (fail-open: an unresolvable file keeps its plain URL)
+    "preloadHintsEnabled": true, // #B765: the automatic preload hints of an http/2.0 bundle in production, i.e. the `link` header of an HTML page and the 103 Early Hints sent before it; false sends neither (calls to self.setEarlyHints() are not affected)
+    "preloadHintsMaxSize": 1024, // #B765: bytes; each automatic hint stops at the last entry that keeps it within this size, so a reverse proxy's response-header buffer (nginx: 4 KiB by default) is not outgrown; 0 = no cap; a negative or non-integer value falls back to 1024 with one warning
     "javascripts": [
       {
         "name"      : "gina",

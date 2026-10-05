@@ -798,6 +798,7 @@ declare namespace gina {
             protocol?: string;
             scheme?: string;
             allowHTTP1?: boolean;
+            earlyHintsOverHTTP1?: boolean;
             warmup?: number;
         };
         ioServer?: {

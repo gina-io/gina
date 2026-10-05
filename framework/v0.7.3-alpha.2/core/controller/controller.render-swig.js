@@ -18,6 +18,8 @@ var inspectorRedact   = require('lib/inspector-redact');
 var emitInspectorWindowData = require('./inspector-window-emit');
 // #RWATCH S3 — stale-release banner injector (server-side inline; gated inert).
 var releaseBanner = require('./release-banner');
+// #B765 — the size and the switch of the automatic preload hints, shared with controller.js.
+var preloadHints  = require('./preload-hints');
 // Precompiled regex — avoids per-request RegExp allocation (#P3)
 var blacklistRe       = /[<>]/g;
 
@@ -1846,6 +1848,10 @@ module.exports = async function render(userData, displayInspector, errOptions, d
                     // re-emits it without a layout parse; '' when nothing qualifies,
                     // and an empty header is no longer sent.
                     _h2PreloadLinks = buildH2PreloadLinks(localOptions.template.h2Links, localOptions.template.assets);
+                    // #B765 — the same shaping as the 103: duplicates dropped (#B767), cut at
+                    // the page's `preloadHintsMaxSize`, nothing when `preloadHintsEnabled` is
+                    // false; the cache entry below memoises the shaped value for the hit path
+                    _h2PreloadLinks = preloadHints.shapeLinks(_h2PreloadLinks, localOptions.template);
                     if ( !self.isXMLRequest() && !self.isCacheless() && _h2PreloadLinks ) {
                         res.setHeader('link', _h2PreloadLinks);
                     }

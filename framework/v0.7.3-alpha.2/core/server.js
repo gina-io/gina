@@ -3096,6 +3096,55 @@ function Server(options) {
     }
 
     /**
+     * #B766 — whether a stylesheet `<link>` or a `<script src>` written in a
+     * layout may be preloaded through the `link` header (`as=style` /
+     * `as=script`). A preload the browser cannot match to the tag's own request
+     * costs a second download, so the tag is left out when it carries
+     * `integrity` or `crossorigin` (the preload would carry neither), is a
+     * module or `nomodule` script, or is a stylesheet not applied to the screen
+     * (a `media` other than `all` / `screen`, an `alternate` one). The tests
+     * read the tag's own text: up to its first `>` outside a quoted attribute
+     * value, since a value may hold one (`media="(width > 600px)"`).
+     *
+     * One more condition: getAssets()' layout scan matches up to the end of a
+     * source line and keeps the LAST `src` / `href` it finds there, so when
+     * several tags share a line the URL may be another tag's (#B768). The tag
+     * only qualifies when nothing after its `>` carries a `src`, `href` or
+     * `srcset`.
+     *
+     * @inner
+     * @private
+     * @param {string} match - One match of getAssets()' layout scan
+     * @param {string|null} rel - The `rel` value of a `<link>`, `null` for a `<script>`
+     * @returns {boolean}
+     *
+     * @example
+     * isPreloadableLayoutTag('<link rel="stylesheet" href="/css/app.css">', 'stylesheet');                // true
+     * isPreloadableLayoutTag('<link rel="stylesheet" href="/css/print.css" media="print">', 'stylesheet'); // false
+     */
+    var isPreloadableLayoutTag = function(match, rel) {
+        var tagEnd = match.match(/^<[^>"']*(?:(?:"[^"]*"|'[^']*')[^>"']*)*>/);
+        if ( !tagEnd ) {
+            return false;
+        }
+        var tag = tagEnd[0];
+        if ( /(src|href|srcset)\=/.test(match.substring(tag.length)) ) {
+            return false;
+        }
+        if ( /\s(integrity|crossorigin|nomodule)(\s|=|>|\/)/i.test(tag) || /\stype\s*=\s*["']?module\b/i.test(tag) ) {
+            return false;
+        }
+        if ( rel && /\balternate\b/i.test(rel) ) {
+            return false;
+        }
+        var media = tag.match(/\smedia\s*=\s*["']([^"']*)["']/i);
+        if ( media && !/^\s*(all|screen)\s*$/i.test(media[1]) ) {
+            return false;
+        }
+        return true;
+    };
+
+    /**
      * Parses a rendered layout string for `<link>`, `<script>`, `<source>`,
      * and `<img>` tags, resolves each asset URL to an absolute file path, and
      * returns a structured assets map used by the rendering pipeline.
@@ -3180,7 +3229,10 @@ function Server(options) {
                 }
 
 
-                switch (type) {
+                // #B766 — this switch used to test `type`, the rel STRING, against the
+                // BOOLEAN results of its case tests, so no case ever matched and a
+                // layout stylesheet never got an `as`
+                switch (true) {
                     case /stylesheet/.test(type):
                         asType  = 'style';
                         break;
@@ -3204,6 +3256,10 @@ function Server(options) {
                         // }
                         break;
                 }
+                // #B766 — no preload the browser could not match to the tag
+                if ( ( asType == 'style' || asType == 'script' ) && !isPreloadableLayoutTag(layoutAssets[i], type) ) {
+                    asType  = null;
+                }
 
                 tag     = 'link';
             }
@@ -3222,6 +3278,10 @@ function Server(options) {
                 // Skip inline scripts (no src attribute) — not external assets
                 if ( !/\ssrc\s*=/.test(layoutAssets[i]) ) {
                     continue;
+                }
+                // #B766 — a layout script is preloaded too (it never got an `as`)
+                if ( isPreloadableLayoutTag(layoutAssets[i], null) ) {
+                    asType  = 'script';
                 }
             }
 
