@@ -3106,11 +3106,12 @@ function Server(options) {
      * read the tag's own text: up to its first `>` outside a quoted attribute
      * value, since a value may hold one (`media="(width > 600px)"`).
      *
-     * One more condition: getAssets()' layout scan matches up to the end of a
-     * source line and keeps the LAST `src` / `href` it finds there, so when
-     * several tags share a line the URL may be another tag's (#B768). The tag
-     * only qualifies when nothing after its `>` carries a `src`, `href` or
-     * `srcset`.
+     * One more condition, a guard for a caller that passes more than one tag:
+     * until #B768, getAssets()' layout scan matched up to the end of a source
+     * line and kept the LAST `src` / `href` it found there, so when several tags
+     * shared a line the URL could be another tag's; it now passes one start tag.
+     * The tag only qualifies when nothing after its `>` carries a `src`, `href`
+     * or `srcset`.
      *
      * @inner
      * @private
@@ -3162,8 +3163,24 @@ function Server(options) {
     var getAssets = function (bundleConf, layoutStr, swig, data) {
 
         // layout search for <link|source|script|img>; this is an asset-tag scan over the bundle's own
-        // layout template, not an HTML sanitizer
-        var layoutAssets        = layoutStr.match(/<link .*?<\/link>|<link .*?(rel\=\"(stylesheet|icon|manifest|(.*)\-icon))(.*)|<source .*?(type\=\"(image))(.*)|<script.*?<\/script>|<img .*?(.*)/g) || [];
+        // layout template, not an HTML sanitizer.
+        // #B768 — one match per TAG. Each alternative used to run to the end of its source line,
+        // and the URL loop below kept the last `src` / `href` it met, so tags sharing a line were
+        // read as one: `<img><script>` preloaded the script `as=image`, a <picture>'s <img> was
+        // swallowed by its <source>, a minified layout got no hint. A start tag now ends at its
+        // first `>` outside a quoted attribute value (isPreloadableLayoutTag's rule); a <script>
+        // element is consumed whole and only its start tag kept, so the text of an inline script
+        // is never read as markup; `</picture>` is kept as the marker that ends the srcset a
+        // picture's <source> tags collected. Which tags count is unchanged (filtered below): a
+        // <link> whose rel starts with stylesheet, icon or manifest or ends in -icon, a <source>
+        // whose type is an image type, every <script> and <img>.
+        var layoutAssets        = []
+            , layoutTagRe       = /(<script\b(?:[^>"']|"[^"]*"|'[^']*')*>)[\s\S]*?<\/script\s*>|<(?:link|source|img)\b(?:[^>"']|"[^"]*"|'[^']*')*>|<\/picture\s*>/g
+            , layoutTag         = null
+        ;
+        while ( (layoutTag = layoutTagRe.exec(layoutStr)) !== null ) {
+            layoutAssets.push( layoutTag[1] || layoutTag[0] );
+        }
 
         var assets      = {}
             , cssFiles  = []
@@ -3193,6 +3210,13 @@ function Server(options) {
         ;
         for (; i < len; ++i) {
 
+            // #B768 — a picture ends here: the srcset its <source> tags collected no longer
+            // waits for an <img>
+            if ( /^<\/picture/.test(layoutAssets[i]) ) {
+                sourceTagSrcSetStr = '';
+                continue;
+            }
+
             if (
                 !/(\<img|\<link|\<source|\<script)/g.test(layoutAssets[i])
                 // ||
@@ -3204,10 +3228,26 @@ function Server(options) {
                 continue;
             }
 
+            // #B768 — the tag's kind, from its own name: the kind tests used to run on the whole
+            // match, so with several tags in it the last test that matched won
+            let tagName = layoutAssets[i].match(/^<([a-z]+)/)[1];
+            // only the tags the former alternatives took
+            if (
+                tagName == 'link' && !/rel\=\"(stylesheet|icon|manifest|[^"]*\-icon)/.test(layoutAssets[i])
+                || tagName == 'source' && !/type\=\"image/.test(layoutAssets[i])
+            ) {
+                continue;
+            }
+            // #B775 — nothing carried over from the previous tag: `url` and `ext` were kept, so a
+            // tag with no src / href reused the previous URL (the first such tag threw, and the
+            // page answered 500) and a missing asset showed the previous asset's extension
+            url = null;
+            ext = null;
+
             // https://developer.mozilla.org/en-US/docs/Web/HTML/Attributes/rel/preload
             let asType = null;
 
-            if ( /\<img/.test(layoutAssets[i]) ) {
+            if ( tagName == 'img' ) {
                 type    = 'image';
                 tag     = 'img';
                 asType  = type;
@@ -3215,7 +3255,7 @@ function Server(options) {
 
 
 
-            if ( /\<link/.test(layoutAssets[i]) ) {
+            if ( tagName == 'link' ) {
                 // if ( /rel\=\"stylesheet/.test(layoutAssets[i]) ) {
                 //     type    = 'stylesheet';
                 // } else if ( /rel\=\"(icon|(.*)\-icon)/.test(layoutAssets[i]) ) {
@@ -3264,7 +3304,7 @@ function Server(options) {
                 tag     = 'link';
             }
 
-            if ( /\<source/.test(layoutAssets[i]) ) {
+            if ( tagName == 'source' ) {
                 if ( /type\=\"image/.test(layoutAssets[i]) ) {
                     type    = 'image';
                 }
@@ -3272,7 +3312,7 @@ function Server(options) {
                 tag     = 'source';
             }
 
-            if ( /\<script/.test(layoutAssets[i]) ) {
+            if ( tagName == 'script' ) {
                 type    = 'javascript';
                 tag     = 'script';
                 // Skip inline scripts (no src attribute) — not external assets
@@ -3324,6 +3364,12 @@ function Server(options) {
             }
 
             if ( /source/i.test(tag) ) {
+                continue;
+            }
+
+            // #B775 — a tag with no `src` / `href` (an <img> with only a srcset) names no file
+            // to preload; first in a layout, it threw at the quote strip below
+            if ( !url ) {
                 continue;
             }
 
@@ -3387,8 +3433,8 @@ function Server(options) {
                 isAvailable : isAvailable
             };
 
-            //sourceTagSrcSetStr
-            if (sourceTagSrcSetStr.length > 0) {
+            //sourceTagSrcSetStr — #B768: for the picture's <img> only, never another asset
+            if ( sourceTagSrcSetStr.length > 0 && tagName == 'img' ) {
                 assets[key]['imagesrcset'] = sourceTagSrcSetStr.substring(0, sourceTagSrcSetStr.length-1);
                 // reset
                 sourceTagSrcSetStr = '';

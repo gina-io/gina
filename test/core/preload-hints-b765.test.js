@@ -518,10 +518,9 @@ describe('06 - getAssets() gives a layout stylesheet / script its `as` (#B766)',
         });
     });
 
-    it('06.4 a line holding several tags keeps the URL of its last one: no `as=style` on that image', function () {
-        assert.ok(map['/img/b.png'], 'the line is matched once, under its last URL');
-        assert.notEqual(map['/img/b.png'].as, 'style');
-        assert.equal(map['/css/x.css'], undefined);
+    it('06.4 tags sharing a line each get their own entry (#B768): the stylesheet as=style, the image as=image', function () {
+        assert.equal(map['/css/x.css'] && map['/css/x.css'].as, 'style');
+        assert.equal(map['/img/b.png'] && map['/img/b.png'].as, 'image');
     });
 
     it('06.5 controls: an image keeps `as=image`; an icon, an inline script and rel="alternate stylesheet" never enter the map', function () {
