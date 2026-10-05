@@ -98,14 +98,12 @@ function runAsSubProcess() {
 
         // If framework is already running
         if ( new RegExp('Framework already running','gmi').test(data) ) {
-            pid = ''+data.match(/\[\s+\d+\s+\]/);
-            if (pid && pid.length > 0) {
-                if (Array.isArray(pid) ) {
-                    pid = pid[0].replace(/\[|\]|\s+/g, '');
-                } else {
-                    pid = pid.replace(/\[|\]|\s+/g, '');
-                }
-
+            // #B761 — was: `pid = ''+data.match(/\[\s+\d+\s+\]/)`: a line without a pid made the
+            // string « null », so it printed « …with PID `null` » and the branch without a pid was
+            // unreachable (the Array.isArray branch was dead: the value was always a string).
+            var pidMatch = data.match(/\[\s+(\d+)\s+\]/);
+            if (pidMatch) {
+                pid = pidMatch[1];
                 console.info('Gina server is already running with PID `'+ pid +'`');
             } else {
                 console.info('Gina server is already running');
