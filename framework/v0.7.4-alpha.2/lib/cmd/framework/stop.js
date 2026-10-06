@@ -102,70 +102,150 @@ function Stop(opt, cmd) {
     }
 
     /**
-     * Reads PID files, sends SIGTERM/SIGKILL to the matching framework process, and exits.
+     * Reads this version's pid file, sends SIGTERM to the framework it names once `ps` shows
+     * that pid still running as this framework, then SIGKILL to any process still titled
+     * `gina-v<version>`, and exits. With no such pid file, or a pid that is not this framework,
+     * it falls back to the framework's own `procs.json` record (#B763), then to the title.
+     *
+     * Only `gina-v<version>.pid` is read and removed, so the other framework versions running
+     * beside this one keep theirs (#B782). Its pid is sent SIGTERM only when the record found by
+     * its title names the same pid and `ps` does not show that pid as another process: a dead
+     * pid, a zombie, another program or, on Node, another framework version is left alone.
+     * Where `ps` cannot tell (no `ps`, a busybox `ps`, Windows), the pid is signalled as before.
+     * « has been stopped » is printed only after a signal.
      * @inner
      * @private
      * @param {object} opt
      * @param {object} cmd
      */
     var stop = function(opt, cmd) {
-        // framework:stop is daemon-only: the loop below skips every non-`gina-`
-        // pidfile, so running bundles survive this stop. Snapshot them now so
+        // framework:stop is daemon-only: only this version's own pid file is read
+        // below, so running bundles survive this stop. Snapshot them now so
         // end() can surface a non-fatal notice once the daemon is stopped.
         self.survivingBundles = collectSurvivingBundles();
 
-        var pidFiles = null, err = null;
-        try {
-            pidFiles = fs.readdirSync(GINA_RUNDIR);
-        } catch (fileError) {
-            throw fileError
-        }
-
-        var runningVersions = [];
-        for (let i=0, len=pidFiles.length; i<len; i++) {
-            let file = pidFiles[i];
-            if ( !/^gina\-/.test(file) ) {
-                continue;
+        // #B782 (2026-10-06) — only this version's pid file is read and removed, and its pid is
+        // signalled only once `ps` shows it still running as this framework. The block below read
+        // and removed every `gina-*` pid file before the version was chosen, so stopping one
+        // framework version deregistered the others running beside it (and removed the pid file
+        // of a bundle whose name starts with `gina-`). It then sent SIGTERM to the procs.json pid
+        // whenever a removed pid file held it, whatever process that pid now was (a reused pid, or
+        // a record written in another container's pid namespace when the run directory is shared;
+        // `-1` in both reached process.kill as a broadcast), sent SIGCONT to the record's
+        // `fakeDaemonPid` (the `bin/gina` wrapper's pid: the wrapper exits on the ready line since
+        // its 2022 Docker fix, so that pid is gone or reused), and printed « has been stopped »
+        // whenever the record named a pid, signalled or not.
+        // was:
+        //     var pidFiles = null, err = null;
+        //     try {
+        //         pidFiles = fs.readdirSync(GINA_RUNDIR);
+        //     } catch (fileError) {
+        //         throw fileError
+        //     }
+        //
+        //     var runningVersions = [];
+        //     for (let i=0, len=pidFiles.length; i<len; i++) {
+        //         let file = pidFiles[i];
+        //         if ( !/^gina\-/.test(file) ) {
+        //             continue;
+        //         }
+        //         let pid = fs.readFileSync(_(GINA_RUNDIR +'/'+ file, true)).toString().trim() || null;
+        //         new _(GINA_RUNDIR +'/'+ file, true).rmSync();
+        //
+        //         runningVersions.push({
+        //             title   : file.replace(/\.pid$/, ''),
+        //             pid     : ~~pid
+        //         });
+        //     }
+        //     var pid = null, fakeDaemonPid = null;
+        //     if ( runningVersions.length > 0 && new _(GINA_HOMEDIR +'/procs.json', true).existsSync() ) {
+        //         // retrieve running pid vs running version
+        //         var runningProcs = requireJSON(_(GINA_HOMEDIR +'/procs.json', true));
+        //         for (let name in runningProcs) {
+        //             if (runningProcs[name].version == self.version) {
+        //                 pid = runningProcs[name].pid;
+        //                 // checking for fake daemon
+        //                 if ( typeof(runningProcs[name].fakeDaemonPid) != 'undefined' ) {
+        //                     fakeDaemonPid = runningProcs[name].fakeDaemonPid;
+        //                 }
+        //                 break;
+        //             }
+        //         }
+        //         // Resume halted fake daemon process
+        //         if (fakeDaemonPid) {
+        //             try {
+        //                 process.kill(fakeDaemonPid, 'SIGCONT');
+        //             } catch (fakeDaemonErr) {
+        //                 // this only means that it does not exists or has already been killed
+        //             }
+        //
+        //         }
+        //         if (pid) {
+        //             for (let i=0, len=runningVersions.length; i<len; i++) {
+        //                 if (runningVersions[i].pid == pid) {
+        //                     console.debug('Sending `SIGTERM` for pid `'+ pid +'`');
+        //                     process.kill(pid, 'SIGTERM');
+        //                     break;
+        //                 }
+        //             }
+        //
+        //             // console.log('Gina v'+ self.version + ' has been stopped');
+        //             // return end('Gina v'+ self.version + ' has been stopped');
+        //             return setTimeout(() => {
+        //                 out = execSync("ps -ef | grep -v grep | grep 'gina-v"+ self.version +"' | awk '{print $2}'").toString() || null;
+        //                 if ( out && typeof(out) == 'string' && out.trim().length > 0) {
+        //                     pid = out.trim();
+        //                     process.kill(pid, 'SIGKILL');
+        //                 }
+        //
+        //                 return setTimeout(() => {
+        //                     end('Gina v'+ self.version + ' has been stopped')
+        //                 }, 100);
+        //             }, 200);
+        //         }
+        //     }
+        var title   = 'gina-v'+ self.version;
+        var pidFile = GINA_RUNDIR +'/'+ title +'.pid';
+        var filePid = null;
+        if ( new _(pidFile, true).existsSync() ) {
+            try {
+                filePid = psTitles.parsePid(fs.readFileSync(_(pidFile, true)));
+            } catch (readErr) {
+                // an unreadable pid file holds no pid
+                filePid = null;
             }
-            let pid = fs.readFileSync(_(GINA_RUNDIR +'/'+ file, true)).toString().trim() || null;
-            new _(GINA_RUNDIR +'/'+ file, true).rmSync();
-
-            runningVersions.push({
-                title   : file.replace(/\.pid$/, ''),
-                pid     : ~~pid
-            });
+            new _(pidFile, true).rmSync();
         }
-        var pid = null, fakeDaemonPid = null;
-        if ( runningVersions.length > 0 && new _(GINA_HOMEDIR +'/procs.json', true).existsSync() ) {
-            // retrieve running pid vs running version
-            var runningProcs = requireJSON(_(GINA_HOMEDIR +'/procs.json', true));
+
+        var pid = null;
+        if ( filePid !== null && new _(GINA_HOMEDIR +'/procs.json', true).existsSync() ) {
+            // this framework's own record, found by its title as the #B763 path below finds it
+            var runningProcs = null;
+            try {
+                runningProcs = requireJSON(_(GINA_HOMEDIR +'/procs.json', true));
+            } catch (procsErr) {
+                // a record that cannot be parsed is no record
+                runningProcs = null;
+            }
             for (let name in runningProcs) {
-                if (runningProcs[name].version == self.version) {
-                    pid = runningProcs[name].pid;
-                    // checking for fake daemon
-                    if ( typeof(runningProcs[name].fakeDaemonPid) != 'undefined' ) {
-                        fakeDaemonPid = runningProcs[name].fakeDaemonPid;
-                    }
+                let entry = runningProcs[name];
+                if ( entry && typeof(entry) == 'object' && ((typeof(entry.title) == 'string') ? entry.title : name) == title ) {
+                    pid = psTitles.parsePid(entry.pid);
                     break;
                 }
             }
-            // Resume halted fake daemon process
-            if (fakeDaemonPid) {
-                try {
-                    process.kill(fakeDaemonPid, 'SIGCONT');
-                } catch (fakeDaemonErr) {
-                    // this only means that it does not exists or has already been killed
-                }
-
-            }
-            if (pid) {
-                for (let i=0, len=runningVersions.length; i<len; i++) {
-                    if (runningVersions[i].pid == pid) {
-                        console.debug('Sending `SIGTERM` for pid `'+ pid +'`');
-                        process.kill(pid, 'SIGTERM');
-                        break;
-                    }
-                }
+        }
+        if ( pid !== null && pid === filePid ) {
+            // The pid file and the record name the same pid. `ps` must not show it as another
+            // process; where `ps` cannot tell, the stop goes on as before, as the start's
+            // listen-error check does (inc/listen-error.js classifyPid).
+            let seen = psTitles.readPidTitle(pid);
+            if (
+                typeof(seen) == 'undefined'
+                || ( seen && !seen.zombie && (seen.title == title || psTitles.DAEMON_COMMAND_RE.test(seen.command || '')) )
+            ) {
+                console.debug('Sending `SIGTERM` for pid `'+ pid +'`');
+                process.kill(pid, 'SIGTERM');
 
                 // console.log('Gina v'+ self.version + ' has been stopped');
                 // return end('Gina v'+ self.version + ' has been stopped');
@@ -181,6 +261,7 @@ function Stop(opt, cmd) {
                     }, 100);
                 }, 200);
             }
+            console.debug('Pid `'+ pid +'` is no longer the framework v'+ self.version +': not signalled');
         }
 
         // Double check in case of a bug ...
