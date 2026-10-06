@@ -30,7 +30,7 @@ jobs:
 
       - name: Install dev dependencies
         run: |
-          npm install --ignore-scripts
+          npm ci --ignore-scripts   # the tracked lockfile, exactly (#S11)
           ln -sf $(pwd) node_modules/gina
 
       - name: Prepare framework dependencies
@@ -48,7 +48,7 @@ jobs:
           }
           EOF
           fi
-          (cd "${FW_DIR}" && npm install --ignore-scripts)
+          (cd "${FW_DIR}" && npm ci --ignore-scripts)   # the tracked framework lockfile (#S11)
 
       - name: Run tests
         # The canonical file list lives in package.json's `test` script — the

@@ -76,7 +76,7 @@ jobs:
           }
           EOF
           fi
-          (cd "${FW_DIR}" && npm install --ignore-scripts)
+          (cd "${FW_DIR}" && npm ci --ignore-scripts)   # the tracked framework lockfile (#S11)
 
       - name: Verify every .br decodes to its committed source
         # ⚠️ ORDERING IS LOAD-BEARING: this MUST run BEFORE "Rebuild bundle".

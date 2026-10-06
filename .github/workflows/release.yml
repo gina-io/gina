@@ -204,7 +204,7 @@ jobs:
           if [ "$(printf '%s\n' "$fw" | wc -l)" -ne 1 ] || [ ! -f "framework/$fw/package.json" ]; then
             echo "::error::expected exactly one tracked framework/v* dir with a package.json, got: $fw"; exit 1
           fi
-          (cd "framework/$fw" && npm install --ignore-scripts)
+          (cd "framework/$fw" && npm ci --ignore-scripts)   # the tracked framework lockfile (#S11)
           bash "framework/$fw/core/asset/plugin/lib/js/install-closure-compiler.sh"
           # The build is SILENT on a missing jar — it would re-compress a stale gina.min.js.
           [ -f "framework/$fw/core/asset/plugin/lib/js/compiler.jar" ] || { echo "::error::compiler.jar is missing after the installer"; exit 1; }

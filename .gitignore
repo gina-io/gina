@@ -65,7 +65,8 @@ src.old
 *.afdesign
 
 # Framework
-framework/v*/package-lock.json
+# framework/v*/package-lock.json — tracked since #S11 (2026-10-06): CI installs the
+# framework dir with `npm ci`, which needs it; npm never packs it (.npmignore).
 # framework/v*/
 framework/v*/test/workspace
 *.jar
