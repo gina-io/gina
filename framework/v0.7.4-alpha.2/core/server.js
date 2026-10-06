@@ -2842,7 +2842,12 @@ function Server(options) {
                 var _cacheConf = self.conf[self.appName][self.env].server.cache;
                 instance._cached._maxEntries = ( _cacheConf.maxEntries > 0 ) ? ~~(_cacheConf.maxEntries) : 1000;
             }
-            if ( typeof(instance._cachedPath) == 'undefined' ) {
+            // #B785 — the writer's cache root (`server.cache.path`), read by isaac's fs
+            // read-back. Guarded on the property it stamps: the guard used to test a
+            // misspelt key, so the stamp ran on every call and nothing read it. The
+            // validator's copy of this block (form-validator.js `queryFromBackend`) still
+            // tests the misspelt key, which only re-stamps the same value (#B790).
+            if ( typeof(instance._cachePath) == 'undefined' ) {
                 instance._cachePath = self.conf[self.appName][self.env].server.cache.path;
             }
             if ( typeof(instance._cacheIsEnabled) == 'undefined' ) {

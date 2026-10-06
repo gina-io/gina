@@ -24,13 +24,14 @@ var console     = lib.logger;
  *
  * `swig:` compiled templates and `http2session:` entries are never touched.
  *
- * The fs reclaim targets `<projectPath>/cache` — the resolved default
- * `server.cache.path` (`env.json`: `"path": "${cachePath}"` →
- * `"${projectPath}/cache"`, which is exactly CmdHelper's `projectCachePath`). A
- * bundle that overrides `server.cache.path` to a custom absolute path is NOT
- * auto-discovered by the offline reclaim; its CURRENT entries are still flushed
- * in-heap by the POST (the endpoint's cleanup fns close over the real filename),
- * only its old-namespace on-disk orphans are left.
+ * The fs reclaim targets the bundle's `server.cache.path` — the root the render
+ * delegates write under — resolved OFFLINE for the project's default env through
+ * `RenderCache.resolveCacheRoot` (#B785): `settings.server.cache.<env>.json`, then
+ * `settings.json` → `server.cache`, then the project `env.json`, then the default
+ * `${cachePath}` (`<projectPath>/cache`, CmdHelper's `projectCachePath`, which also
+ * stands in when the bundle's config cannot be read). Until 0.7.4 the reclaim
+ * assumed the default root, so a bundle with a custom `server.cache.path` kept its
+ * old-namespace on-disk orphans.
  *
  * `--dry-run` previews without mutating: the fs pass reports what WOULD be
  * removed (via `clearFsBundle({ dryRun:true })`), and the in-heap pass does a
@@ -107,6 +108,36 @@ function Clear(opt, cmd) {
     }
 
     /**
+     * Resolves the bundle's cache root offline (#B785): the writer's
+     * `server.cache.path`, read from the bundle's settings files and the project
+     * `env.json` for the project's default env, through
+     * `RenderCache.resolveCacheRoot`. Any read failure falls back to the default
+     * root (`projectCachePath`) — the pre-0.7.4 behaviour.
+     *
+     * @inner
+     * @param {string} bundle
+     * @returns {string} the absolute cache root
+     */
+    var resolveBundleRoot = function(bundle) {
+        try {
+            var project     = self.projects[self.projectName];
+            var env         = project.def_env;
+            var entry       = self.bundlesByProject[self.projectName][bundle];
+            var confDir     = _(project.path + '/' + entry.src + '/config', true);
+            var readIf      = function(file) { return fs.existsSync(file) ? requireJSON(file) : null; };
+            var envJson     = readIf(_(project.path + '/env.json', true));
+            var root = RenderCache.resolveCacheRoot({
+                subFile  : readIf(_(confDir + '/settings.server.cache.' + env + '.json', true)),
+                settings : readIf(_(confDir + '/settings.json', true)),
+                envBlock : ( envJson && envJson[bundle] ) ? envJson[bundle][env] : null
+            }, { projectPath: project.path, bundle: bundle });
+            return ( typeof(root) === 'string' && root ) ? root : self.projectCachePath;
+        } catch (e) {
+            return self.projectCachePath;
+        }
+    }
+
+    /**
      * Runs the two passes for one bundle (offline fs reclaim, then the in-heap
      * flush / dry-run probe), records the result, then advances / reports.
      * @inner
@@ -124,7 +155,7 @@ function Clear(opt, cmd) {
             try {
                 // new RenderCache() (no store/path) is safe for the offline fs path —
                 // clearFsBundle uses only `fs` + the passed root/bundle.
-                fsRemoved = new RenderCache().clearFsBundle(self.projectCachePath, bundle, { dryRun: self.dryRun });
+                fsRemoved = new RenderCache().clearFsBundle(resolveBundleRoot(bundle), bundle, { dryRun: self.dryRun });
             } catch (e) {
                 // best-effort — a broken cache dir must not abort the whole run.
             }

@@ -1173,4 +1173,101 @@ RenderCache.swapNonces = function (content, oldNonces, nonce) {
     return content;
 };
 
+/**
+ * The six keys the framework's `env.json` template defines under `server.cache`
+ * (`enable`, `path`, `ttl`, `sliding`, `maxAge`, `maxEntries`). In `settings.json`'s
+ * TOP-LEVEL `cache` block they are inert by construction (#B744): the #B114 fold
+ * into `server.cache` is fill-only and runs after the template has set all six,
+ * so the block can only contribute `type`, `store` and `name`.
+ *
+ * @memberof RenderCache
+ * @static
+ * @constant {string[]}
+ */
+RenderCache.INERT_TOP_LEVEL_KEYS = ['enable', 'path', 'ttl', 'sliding', 'maxAge', 'maxEntries'];
+
+/**
+ * Names the keys of a `settings.json` top-level `cache` block that the framework
+ * ignores there (#B744) — the boot warns once per key, naming `server.cache`,
+ * the block that works. Pure; any non-object answers an empty list.
+ *
+ * @memberof RenderCache
+ * @static
+ * @param {object} [settingsCache] - The bundle's `settings.json` → `cache` block, as written.
+ * @returns {string[]} the inert keys present, in {@link RenderCache.INERT_TOP_LEVEL_KEYS} order.
+ *
+ * @example
+ * RenderCache.inertTopLevelKeys({ type: 'memory' });                 // []
+ * RenderCache.inertTopLevelKeys({ enable: 'true', ttl: 120 });       // ['enable', 'ttl']
+ */
+RenderCache.inertTopLevelKeys = function(settingsCache) {
+    if ( !settingsCache || typeof(settingsCache) !== 'object' || Array.isArray(settingsCache) ) {
+        return [];
+    }
+    var keys = RenderCache.INERT_TOP_LEVEL_KEYS, out = [];
+    for (var i = 0; i < keys.length; i++) {
+        if ( Object.prototype.hasOwnProperty.call(settingsCache, keys[i]) ) {
+            out.push(keys[i]);
+        }
+    }
+    return out;
+};
+
+/**
+ * Resolves a bundle's render/output-cache root — the writer's `server.cache.path` —
+ * OFFLINE, from the sources the config loader merges and in the order it was
+ * measured (#B744): the per-env sub-file `settings.server.cache.<env>.json`, then
+ * `settings.json`'s `server.cache`, then the project `env.json`'s `<bundle>.<env>`
+ * block, then the framework default `${cachePath}` (`<projectPath>/cache`, or the
+ * env block's own `cachePath`). Pure — the caller reads the files (#B785: the
+ * `cache:clear` offline reclaim used to assume the default root). `${cachePath}`,
+ * `${projectPath}`, `${executionPath}` and `${bundle}` are substituted; any other
+ * token is left verbatim, as the loader does.
+ *
+ * @memberof RenderCache
+ * @static
+ * @param {object}      sources
+ * @param {object|null} [sources.subFile]  - Parsed `settings.server.cache.<env>.json` (the block's own keys).
+ * @param {object|null} [sources.settings] - Parsed `settings.json`.
+ * @param {object|null} [sources.envBlock] - Parsed `env.json` → `<bundle>.<env>`.
+ * @param {object}      tokens
+ * @param {string}      tokens.projectPath - The project directory (`${projectPath}` / `${executionPath}`).
+ * @param {string}      [tokens.bundle]    - The bundle name (`${bundle}`).
+ * @returns {string} the resolved root.
+ *
+ * @example
+ * RenderCache.resolveCacheRoot({ settings: { server: { cache: { path: '/var/cache/app' } } } },
+ *     { projectPath: '/srv/proj', bundle: 'app' });               // '/var/cache/app'
+ * RenderCache.resolveCacheRoot({}, { projectPath: '/srv/proj' }); // '/srv/proj/cache'
+ */
+RenderCache.resolveCacheRoot = function(sources, tokens) {
+    sources = sources || {};
+    tokens  = tokens  || {};
+    var projectPath = ( typeof(tokens.projectPath) === 'string' ) ? tokens.projectPath : '';
+    var sub = {
+        projectPath   : projectPath,
+        executionPath : ( typeof(tokens.executionPath) === 'string' ) ? tokens.executionPath : projectPath,
+        bundle        : ( typeof(tokens.bundle) === 'string' ) ? tokens.bundle : ''
+    };
+    var substitute = function(str) {
+        return str.replace(/\$\{(cachePath|projectPath|executionPath|bundle)\}/g, function(m, k) {
+            return ( typeof(sub[k]) === 'string' ) ? sub[k] : m;
+        });
+    };
+    var envBlock = sources.envBlock || null;
+    var cacheTok = ( envBlock && typeof(envBlock.cachePath) === 'string' && envBlock.cachePath )
+        ? envBlock.cachePath
+        : projectPath + '/cache';
+    sub.cachePath = substitute(cacheTok);
+
+    var pathOf = function(block) {
+        return ( block && typeof(block.path) === 'string' && block.path ) ? block.path : null;
+    };
+    var picked = pathOf(sources.subFile)
+        || pathOf(sources.settings && sources.settings.server && sources.settings.server.cache)
+        || pathOf(envBlock && envBlock.server && envBlock.server.cache)
+        || '${cachePath}';
+    return substitute(picked);
+};
+
 module.exports = RenderCache;

@@ -124,15 +124,15 @@ describe('03 - bundle branch', function () {
 
 describe('04 - offline fs reclaim', function () {
 
-    it('calls clearFsBundle(projectCachePath, bundle, {dryRun}) on a fresh RenderCache', function () {
-        assert.ok(src.indexOf('new RenderCache().clearFsBundle(self.projectCachePath, bundle, { dryRun: self.dryRun })') > -1);
+    it('calls clearFsBundle(resolveBundleRoot(bundle), bundle, {dryRun}) on a fresh RenderCache', function () {
+        assert.ok(src.indexOf('new RenderCache().clearFsBundle(resolveBundleRoot(bundle), bundle, { dryRun: self.dryRun })') > -1);
     });
 
     it('wraps the fs pass so a broken cache dir never aborts the run', function () {
         // Structural try -> call -> catch pin. Anchor on the code-unique
         // `new RenderCache().clearFsBundle` form so it can't match the module
         // JSDoc's bare `clearFsBundle` mention (the indexOf-on-a-JSDoc trap).
-        assert.match(src, /try \{[\s\S]{0,220}?new RenderCache\(\)\.clearFsBundle\(self\.projectCachePath[\s\S]{0,140}?\} catch/);
+        assert.match(src, /try \{[\s\S]{0,220}?new RenderCache\(\)\.clearFsBundle\(resolveBundleRoot\(bundle\)[\s\S]{0,140}?\} catch/);
     });
 
     it('SKIPS the offline fs reclaim under --event', function () {

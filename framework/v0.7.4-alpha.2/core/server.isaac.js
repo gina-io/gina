@@ -2780,10 +2780,13 @@ function ServerEngineClass(options) {
                     }
 
                     // Importing cache handler (render/output cache goes through the strategy dispatcher)
-                    // Pass options.cachePath so an `fs`-strategy entry can be read back from disk
-                    // after a restart (the Map is empty on boot): has()/get() fall back to the disk
-                    // body + its `.meta` sidecar. == server.cache.path (the writer's opt.path) by
-                    // default — both resolve to the top-level `${cachePath}` (${projectPath}/cache).
+                    // Pass the writer's cache root so an `fs`-strategy entry can be read back from
+                    // disk after a restart (the Map is empty on boot): has()/get() fall back to the
+                    // disk body + its `.meta` sidecar. #B785 — the root is `server.cache.path`,
+                    // stamped on the instance as `server._cachePath` at init, which the delegates
+                    // write under; `options.cachePath` is the top-level infra root (`${cachePath}`),
+                    // equal only by default — a custom `server.cache.path` used to miss every
+                    // entry after a restart. The fallback keeps a stamp-less instance on the old root.
                     // #SPA1 — NOTE for anyone adding a per-route guard here: this read
                     // is PRE-ROUTING. It keys off the raw `request.url` and there is no
                     // `request.routing` in scope yet, so a `request.routing.negotiate`
@@ -2792,7 +2795,7 @@ function ServerEngineClass(options) {
                     // to store it (render-swig / render-nunjucks writeCache) — which is
                     // precisely why that refusal is load-bearing rather than belt-and-
                     // braces. Do not "fix" this by adding a dead guard.
-                    renderCache.from(server._cached, options.cachePath);
+                    renderCache.from(server._cached, server._cachePath || options.cachePath);
                     var cacheKey        = null
                         , hasCachedKey  = false
                         // Output-cache kinds, in check order (data first, then static).

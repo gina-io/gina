@@ -59,7 +59,6 @@ Notes:
     that IS evicted still has its on-disk body removed with it. Use --event
     to invalidate ACROSS bundles — a controller's self.cache.invalidateByEvent()
     only reaches its own process.
-  - The offline reclaim assumes the default cache root (<project_path>/cache).
-    A bundle that overrides server.cache.path to a custom absolute path is
-    flushed in-heap (via the running bundle) but its on-disk orphans are not
-    auto-reclaimed.
+  - The offline reclaim targets the bundle's own server.cache.path, resolved
+    for the project's default env from settings.server.cache.<env>.json,
+    settings.json and the project env.json (default: <project_path>/cache).

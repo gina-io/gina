@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'The `fs` cache strategy reads its entries back after a restart from the directory it writes to. A bundle setting `server.cache.path` to its own directory wrote every entry there, but a restarted process looked for them under the project''s `cache` directory, so the first request of each cached URL rendered again instead of answering from disk; `gina cache:clear` reclaimed orphaned entries under the same default directory only. Both now follow the bundle''s `server.cache.path` (`cache:clear` resolves it for the project''s default env from `settings.server.cache.<env>.json`, `settings.json` and the project `env.json`) (#B785).'
+time: 2026-10-06T03:48:11+01:00
