@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'A controller action that answers an error with `self.throwError(err)`, where `err.fallback` names a redirect target, now answers an XHR request that carries params (a form body or a query) or comes from a popin: the request receives the `isXhrRedirect` JSON pointing at the fallback. That JSON used to be dropped, so such a request was never answered and its client waited until its own timeout, a `self.query` call made from another bundle on behalf of an XHR request included. Non-XHR requests, and XHR requests without params, were unaffected and still receive the 301 or 303 (#B783).'
+time: 2026-10-06T12:08:42+01:00

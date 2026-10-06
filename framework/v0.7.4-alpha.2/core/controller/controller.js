@@ -9063,6 +9063,16 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
      * wire body, so those keys ride the JSON envelope alongside
      * `status`/`error`/`ref`.
      *
+     * Fallback: an error object carrying `fallback` — a URL string, or a route
+     * object from `lib.routing.getRoute()` — is answered by a redirect to it
+     * instead of an error response, when the request is an XHR request or the
+     * route renders no template. The redirect answers as redirects do: the
+     * current route's status (301 by default), a 303 when the method is unsafe
+     * (the request switches to GET), and the `isXhrRedirect` JSON for an XHR
+     * request that carries params or comes from a popin (#B783: that JSON used
+     * to be lost, because the controller was still marked as processing an
+     * error when it was written).
+     *
      * #CE1 — transient upgrade (opt-in): when the bundle sets
      * `server.transientErrors.enabled: true` and any call argument carries
      * `isTransient === true` (a `lib/connector-error`-stamped datastore
@@ -9383,6 +9393,13 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
             if ( self.isXMLRequest() || !hasViews() && !/delete/i.test(req.method) || !local.options.isUsingTemplate && !hasViews() || hasViews() && !local.options.isUsingTemplate ) {
                 // fallback interception
                 if ( fallback ) {
+                    // #B783 — the error is not answered here: it is handed to redirect(),
+                    // which answers an XHR request (one carrying params, or a popin) through
+                    // renderJSON(). renderJSON() writes nothing while the controller is
+                    // marked as processing an error, so with the mark still set such a
+                    // request was never answered. Clear the mark before the hand-off: from
+                    // here on the request is answered by redirect(), not as an error.
+                    self.isProcessingError = false;
                     if ( typeof(fallback) == 'string' ){ // string url: user provided
                         return self.redirect( fallback, true )
                     } else {
