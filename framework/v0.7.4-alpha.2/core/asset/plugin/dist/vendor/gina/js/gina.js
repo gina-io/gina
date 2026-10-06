@@ -8747,10 +8747,21 @@ function mergeEventProps(evt, proxiedEvent) {
 /**
  * addListener
  *
+ * Attaches `callback` on `element` for `name` (a name ending in `.` is suffixed with the
+ * element id; an array attaches one listener per name, or one per element) and records the
+ * NAME in `gina.events` as the element's id — a name-to-id registry, which holds no callback.
+ * Returns the callback, so a caller can ledger what it attached and detach it by reference
+ * later (the validator's `$form.boundListeners`, #B585).
+ *
  * @param {object} target
- * @param {object} element
+ * @param {object|array} element
  * @param {string|array} name
  * @param {callback} callback
+ *
+ * @returns {callback} callback - the attached callback
+ *
+ * @example
+ * $form.boundListeners.push({ el: $el, evt: 'change', fn: addListener(gina, $el, 'change', onChange) });
  */
 function addListener(target, element, name, callback) {
 
@@ -8793,6 +8804,7 @@ function addListener(target, element, name, callback) {
         }
     }
 
+    return callback;
 }
 /**
  * triggerEvent
@@ -9516,6 +9528,24 @@ function handleXhr(xhr, $el, options, require) {
     //return xhr;
 }
 
+/**
+ * removeListener
+ *
+ * Hands `callback` to `element.removeEventListener(name, callback)` and deletes the
+ * `gina.events[name]` registry key. Two facts of this contract bite (#B303, #B585):
+ *  - with no 4th argument NOTHING is detached (`removeEventListener(name, undefined)` is a
+ *    no-op) — only the registry key goes; and the key is deleted whatever element was given,
+ *    the registry being keyed by name alone;
+ *  - the 4th argument is a COMPLETION CALLBACK as much as a handler: it is invoked once, with
+ *    no arguments, after the removal. Never hand it a DOM handler expecting an event.
+ * To detach what a plugin attached, keep the reference `addListener` returns and remove it
+ * directly, as the validator's `unbindForm` ledger drain does.
+ *
+ * @param {object} target
+ * @param {object|array} element
+ * @param {string} name
+ * @param {callback} [callback] - the completion callback, also handed to the DOM removal
+ */
 function removeListener(target, element, name, callback) {
     if (typeof(target.event) != 'undefined' && target.event.isTouchSupported && /^(click|mouseout|mouseover)/.test(name) && target.event[name].indexOf(element) != -1) {
         target.event[name].splice(target.event[name].indexOf(element), 1)
@@ -9587,6 +9617,23 @@ function removeListener(target, element, name, callback) {
 
 
 
+/**
+ * on
+ *
+ * Registers a consumer handler for a plugin event under `<event>.<id>` on the handle's target,
+ * once per name (a second registration under a name already in `gina.events` is dropped). The
+ * attached wrapper is recorded on the handle (`this.consumerListeners`, #B585) so the plugin can
+ * detach it when the handle is destroyed — the validator's `destroy()` does; its `reBind()`
+ * leaves these handlers in place.
+ *
+ * @param {string} event - the event name (`success`, `error`, `submit`, `ready`, …)
+ * @param {callback} cb - `function (event, data)`
+ *
+ * @returns {object} this - chainable
+ *
+ * @example
+ * gina.validator.$forms['signup'].on('success', function (e, data) { … });
+ */
 function on(event, cb) {
 
     if (!this.plugin) throw new Error('No `plugin` reference found for this event: `'+ event);
@@ -9623,6 +9670,8 @@ function on(event, cb) {
 
         if (!gina.events[event]) {
 
+            if ( !Array.isArray(this.consumerListeners) ) { this.consumerListeners = []; }
+            this.consumerListeners.push({ el: $target, evt: event, fn:
             addListener(gina, $target, event, function(e) {
 
                 //if ( typeof(e.defaultPrevented) != 'undefined' && e.defaultPrevented)
@@ -9651,7 +9700,7 @@ function on(event, cb) {
                     cb(e, data);
 
                 //triggerEvent(gina, e.currentTarget, e.type);
-            });
+            }) });
 
             if (this.initialized && !this.isReady)
                 triggerEvent(gina, $target, 'init.' + id);
@@ -19094,6 +19143,27 @@ function ValidatorPlugin(rules, data, formId, culture) {
     }
 
 
+    /**
+     * destroy
+     *
+     * Unbinds a form and forgets its record. Fires `destroy.<id>` on the form (a `.on('destroy')`
+     * handler runs), then — since #B585 — detaches the handlers consumers registered through
+     * `.on()` as well, so a same-id form bound afterwards starts clean and a fresh `.on()` on it
+     * registers. Only while the form is still in the document: a form destroyed AFTER it left the
+     * document (a popin's content being replaced or cleared) keeps those handlers — they die with
+     * the element, and an answer still on its way to it reaches them (the popin branch of the
+     * send dispatches `success.<id>` on the old form after `loadContent()` has torn it down). Its
+     * registry keys are released either way, so the same-id successor registers its own. A form
+     * taken out of the document, destroyed, put back and bound again therefore keeps its old
+     * `.on()` handlers: destroy it before detaching it when it is meant to come back.
+     *
+     * @param {string|object} [formId] - the form id (`#` tolerated), or an object carrying `.form`;
+     *      omitted when called on a form record
+     *
+     * @example
+     * gina.validator.$forms['signup'].destroy();
+     * gina.validator.validateFormById('signup'); // the same element, bound again, once
+     */
     var destroy = function(formId) {
         var $form = null, _id = formId;
 
@@ -19129,20 +19199,54 @@ function ValidatorPlugin(rules, data, formId, culture) {
 
         if ($form) {
 
-            addListener(gina, $form.target, 'destroy.' + _id, function(event) {
+            // #B585 — named, so it can detach itself by reference once it has run
+            var onDestroyed = function(event) {
 
                 cancelEvent(event);
 
                 delete instance['$forms'][_id];
-                removeListener(gina, event.currentTarget, event.type);
-                removeListener(gina, event.currentTarget,'destroy');
-            });
+                event.currentTarget.removeEventListener(event.type, onDestroyed, false);
+                if ( typeof(gina.events[event.type]) != 'undefined' ) {
+                    delete gina.events[event.type];
+                }
+            };
+            addListener(gina, $form.target, 'destroy.' + _id, onDestroyed);
 
-            // remove existing listeners
+            // remove the binding's own listeners
             $form = unbindForm($form);
 
             //triggerEvent(gina, instance['$forms'][_id].target, 'destroy.' + _id);
             triggerEvent(gina, $form.target, 'destroy.' + _id);
+
+            // #B585 — then the handlers consumers registered through `.on()` (the declarative
+            // `.hform` hooks included): they outlive a reBind(), not a destroy(). After the
+            // destroy event, so a `.on('destroy')` handler has run first.
+            // Detached by reference only while the form is still in the document — a form
+            // destroyed after it left it (the popin teardown runs after the content was
+            // replaced or cleared) keeps them: they die with the element, and the popin
+            // branch of the send still dispatches `success.<id>` on that old form after
+            // `loadContent()`, so the declared callback reaches it (regression measured on
+            // the first cut: five e2e arms lost their success callback). The keys are
+            // released either way, so the same-id successor registers its own.
+            var isFormDetached = ( typeof($form.target.isConnected) == 'boolean' && !$form.target.isConnected );
+            if ( Array.isArray($form.consumerListeners) ) {
+                for (let i = 0, len = $form.consumerListeners.length; i < len; i++) {
+                    let entry = $form.consumerListeners[i];
+                    if ( !entry || !entry.el || typeof(entry.fn) != 'function' ) continue;
+                    if ( isFormDetached ) {
+                        // kept on the element that is going away
+                    } else if ( entry.el.removeEventListener ) {
+                        entry.el.removeEventListener(entry.evt, entry.fn, false);
+                    } else if ( entry.el.detachEvent ) {
+                        entry.el.detachEvent('on' + entry.evt, entry.fn);
+                    }
+                    let eId = ( typeof(entry.el.id) != 'undefined' && typeof(entry.el.id) != 'object' ) ? entry.el.id : ( entry.el.getAttribute ? entry.el.getAttribute('id') : null );
+                    if ( typeof(gina.events[entry.evt]) != 'undefined' && gina.events[entry.evt] == eId ) {
+                        delete gina.events[entry.evt];
+                    }
+                }
+                $form.consumerListeners = [];
+            }
 
         } else {
             throw new Error('[ FormValidator::destroy(formId) ] `'+_id+'` not found');
@@ -20005,6 +20109,9 @@ function ValidatorPlugin(rules, data, formId, culture) {
             isOtherTagAllowed = false;
         }
         var rules = $form.rules;
+        // #B585 — the ledger of listeners this binding attaches (created here too, for a record
+        // handed in by a caller that did not go through bindForm)
+        if ( !Array.isArray($form.boundListeners) ) { $form.boundListeners = []; }
         var $formInstance = instance.$forms[$el.form.getAttribute('id')];
         var isDisabled = ( /^true$/i.test($el.disabled) ) ? true : false;
         if (
@@ -20032,10 +20139,10 @@ function ValidatorPlugin(rules, data, formId, culture) {
 
                 var eventsList = [], _evt = null, _e = 0;
                 if ( !/^(radio|checkbox)$/i.test($el.type) ) {
-                    addEventListener(gina, $el, 'focusout.'+$el.id, function(event) {
-                        event.preventDefault();
-                        clearTimeout(liveCheckTimer);
-                    });
+                    // #B585 — a call to the browser's own addEventListener (with gina's 4-argument
+                    // shape) stood here: it registered nothing useful on `window` and kept every
+                    // live-checked field alive there. The `focusout.<id>` handler registered below
+                    // clears the live-check timer.
 
                     // BO Livecheck local events
                     _evt = 'change.'+$el.id;
@@ -20092,6 +20199,7 @@ function ValidatorPlugin(rules, data, formId, culture) {
 
                 if (eventsList.length > 0) {
                     var once = false;
+                    $form.boundListeners.push({ el: $el, evt: eventsList, fn:
                     addListener(gina, $el, eventsList, function(event) {
                         event.preventDefault();
                         clearTimeout(liveCheckTimer);
@@ -20375,7 +20483,7 @@ function ValidatorPlugin(rules, data, formId, culture) {
                             console.debug(' change .... '+$el.id);
                             processEvent();
                         }
-                    });
+                    }) });
                 }
             }
         }
@@ -20516,6 +20624,14 @@ function ValidatorPlugin(rules, data, formId, culture) {
     var handleAutoComplete = function($el, liveCheckTimer) {
 
         $el.setAttribute('readonly', 'readonly');
+        // #B585 — the form that owns the field carries the ledger unbindForm drains; resolved
+        // tolerantly, so a harness that hands the handler a bare element still runs it
+        var $ownerForm = ( $el.form && typeof(instance) != 'undefined' && instance && instance.$forms )
+            ? ( instance.$forms[$el.form.getAttribute('id')] || null )
+            : null;
+        if ( $ownerForm && !Array.isArray($ownerForm.boundListeners) ) { $ownerForm.boundListeners = []; }
+        var ledger = ( $ownerForm ) ? $ownerForm.boundListeners : [];
+        ledger.push({ el: $el, evt: 'focusout.'+ $el.id, fn:
         addListener(gina, $el, 'focusout.'+ $el.id, function(event) {
             event.preventDefault();
             clearTimeout(liveCheckTimer);
@@ -20523,14 +20639,22 @@ function ValidatorPlugin(rules, data, formId, culture) {
             var $_el = event.currentTarget;
             triggerEvent(gina, $_el, 'change.'+ $_el.id);
             $_el.setAttribute('readonly', 'readonly');
-        });
+        }) });
+        ledger.push({ el: $el, evt: 'focusin.'+ $el.id, fn:
         addListener(gina, $el, 'focusin.'+ $el.id, function(event) {
             event.preventDefault();
             event.currentTarget.removeAttribute('readonly');
 
             var evtName = 'keydown.'+ event.currentTarget.id;
-            // add once
-            if ( typeof(gina.events[evtName]) == 'undefined' ) {
+            // add once — judged by what is ATTACHED (the ledger) when the owner form is known:
+            // unbind detaches the handler, and a consumer belt restoring the registry key must
+            // not leave the field without its interception (#B585)
+            var isKeydownBound = false;
+            for (let _b = 0, _bLen = ledger.length; _b < _bLen; _b++) {
+                if ( ledger[_b].el === event.currentTarget && ledger[_b].evt === evtName ) { isKeydownBound = true; break; }
+            }
+            if ( ( $ownerForm ) ? !isKeydownBound : typeof(gina.events[evtName]) == 'undefined' ) {
+                ledger.push({ el: event.currentTarget, evt: evtName, fn:
                 addListener(gina, event.currentTarget, evtName, function(e) {
                     // #B134 — modifier chords are NOT intercepted: return before
                     // preventDefault so the native select-all/copy/paste/cut/undo
@@ -20755,10 +20879,10 @@ function ValidatorPlugin(rules, data, formId, culture) {
                             queueCaretRestore($_el);
                             break;
                     } //EO Switch
-                });
+                }) });
             }
 
-        });
+        }) });
 
     }
 
@@ -20941,6 +21065,11 @@ function ValidatorPlugin(rules, data, formId, culture) {
      * reBindForm
      * Allows form rebinding: it is like reseting validation
      *
+     * Since #B585 the unbind half detaches exactly what the previous bind attached (by
+     * reference, through the per-form ledger) and the bind half attaches it again, so a
+     * reBind() never stacks a listener. Handlers registered through `.on()` — and the
+     * declarative `data-gina-form-event-on-*` hooks — survive it; `destroy()` removes them.
+     *
      * E.g.:
      * $validator
      *    .getFormById('my-form-id')
@@ -21069,6 +21198,27 @@ function ValidatorPlugin(rules, data, formId, culture) {
         return bound;
     }
 
+    /**
+     * unbindForm
+     *
+     * Detaches what the form's current binding attached and marks the record unbound. Since
+     * #B585 this is the exact inverse of `bindForm`: the per-form ledger (`$form.boundListeners`)
+     * and the reassociated-control side-table are drained by reference, the registry keys the
+     * binding wrote are released, the live-check registration flags are cleared, and the submit
+     * trigger's marks (`data-gina-form-submit-trigger-for`, the `__ginaSubmitBoundFor` expando)
+     * are released with the record's `submitTrigger` claim, so the next bind — on this record,
+     * or on a fresh same-id record after `destroy()` — claims and binds the trigger again.
+     * Handlers registered through `.on()` (the declarative `data-gina-form-event-on-*` hooks
+     * included) are left in place — they belong to the form, and `destroy()` removes them.
+     *
+     * @param {object} $target - the `<form>` element, or the form record (`$forms[id]`)
+     *
+     * @returns {object} $form - the record, `binded` false
+     *
+     * @example
+     * gina.validator.$forms['signup'].unbind();
+     * gina.validator.$forms['signup'].bind(); // attaches everything again, once
+     */
     var unbindForm = function($target) {
         var $form   = null
             , _id   = null
@@ -21097,160 +21247,63 @@ function ValidatorPlugin(rules, data, formId, culture) {
             return $form
         }
 
-        // form events
-        removeListener(gina, $form, 'success.' + _id);
-        removeListener(gina, $form, 'error.' + _id);
-
-        if ($form.target.getAttribute('data-gina-form-event-on-submit-success'))
-            removeListener(gina, $form, 'success.' + _id + '.hform');
-
-        if ($form.target.getAttribute('data-gina-form-event-on-submit-error'))
-            removeListener(gina, $form, 'error.' + _id + '.hform');
-
-        if ($form.target.getAttribute('data-gina-form-event-on-swap'))
-            removeListener(gina, $form, 'afterswap.' + _id + '.hform');
-
-        removeListener(gina, $form, 'validate.' + _id);
-        removeListener(gina, $form, 'validated.' + _id);
-        removeListener(gina, $form, 'submit.' + _id);
-        removeListener(gina, $form, 'reset.' + _id);
-
-
-
-        // binded elements
-        var $el         = null
-            //, evt       = null
-            , $els      = []
-            , $elTMP    = [];
-
-        // submit buttons
-        $elTMP = $form.target.getElementsByTagName('button');
-        if ( $elTMP.length > 0 ) {
-            for (let i = 0, len = $elTMP.length; i < len; ++i) {
-                // if button is != type="submit", you will need to provide : data-gina-form-submit
-                // TODO - On button binding, you can then provide data-gina-form-action & data-gina-form-method
-                $els.push($elTMP[i])
-            }
-        }
-
-        // submit links
-        $elTMP = $form.target.getElementsByTagName('a');
-        if ( $elTMP.length > 0 ) {
-            for (let i = 0, len = $elTMP.length; i < len; ++i) {
-                $els.push($elTMP[i])
-            }
-        }
-
-        // checkbox, radio, file, text, number, hidden, date .. ALL BUT hidden
-        $elTMP = $form.target.getElementsByTagName('input');
-        if ( $elTMP.length > 0 ) {
-            for (let i = 0, len = $elTMP.length; i < len; ++i) {
-
-                if ( !/^(hidden)$/i.test($elTMP[i].type) )
-                    $els.push( $elTMP[i] );
-
-
-                if (/^(file)$/i.test($elTMP[i].type)) {
-                    // special case
-                    // vForm has to be handle here, it does not exist in the document context
-                    let vFormId = $elTMP[i].getAttribute('data-gina-form-virtual');
-                    if ( vFormId ) {
-                        let $vForm = getFormById(vFormId).target;
-                        if ($vForm) {
-                            $els.push( $vForm );
-                            // `events` is defined on top of this file
-                            // It is the list of allowed events
-                            for (let e = 0, eLen = events.length; e < eLen; e++) {
-                                let evt = events[e];
-                                if ( typeof(gina.events[ evt +'.'+ vFormId + '.hform' ]) != 'undefined' && gina.events[ evt +'.'+ vFormId + '.hform' ] == vFormId ) {
-                                    removeListener(gina, $vForm, evt +'.'+ vFormId + '.hform')
-                                }
-                            }
-                        }
+        // #B585 — detach exactly what bindForm attached, by reference. The ledger holds every
+        // form-level proxy, the validate/reset/submit listeners, the live-check, autocomplete,
+        // select, file, checkbox and radio handlers and the submit trigger's own listeners.
+        // Handlers a consumer registered through `.on()` — the declarative `.hform` hooks
+        // included, registered the same way at send time — belong to the form, not to one
+        // binding: they stay attached across a reBind(); destroy() removes them.
+        if ( Array.isArray($form.boundListeners) ) {
+            for (let i = 0, len = $form.boundListeners.length; i < len; i++) {
+                let entry = $form.boundListeners[i];
+                if ( !entry || !entry.el || typeof(entry.fn) != 'function' ) continue;
+                let evts = ( Array.isArray(entry.evt) ) ? entry.evt : [ entry.evt ];
+                let eId  = ( typeof(entry.el.id) != 'undefined' && typeof(entry.el.id) != 'object' ) ? entry.el.id : ( entry.el.getAttribute ? entry.el.getAttribute('id') : null );
+                for (let e = 0, eLen = evts.length; e < eLen; e++) {
+                    if ( entry.el.removeEventListener ) {
+                        entry.el.removeEventListener(evts[e], entry.fn, false);
+                    } else if ( entry.el.detachEvent ) {
+                        entry.el.detachEvent('on' + evts[e], entry.fn);
                     }
-                } else { // other types
-                    // `events` is defined on top of this file
-                    // It is the list of allowed events
-                    for (let e = 0, eLen = events.length; e < eLen; e++) {
-                        let evt = events[e] +'.'+ $elTMP[i].id;
-                        if ( typeof(gina.events[ evt ]) != 'undefined' && gina.events[ evt ] == $elTMP[i].id ) {
-                            removeListener(gina, $elTMP[i], evt);
-                        }
-                        evt = events[e];
-                        if ( typeof(gina.events[ evt ]) != 'undefined' && gina.events[ evt ] == $elTMP[i].id ) {
-                            removeListener(gina, $elTMP[i], evt);
-                        }
-                        evt = $elTMP[i].id;
-                        if ( typeof(gina.events[ evt ]) != 'undefined' && gina.events[ evt ] == $elTMP[i].id ) {
-                            removeListener(gina, $elTMP[i], evt);
-                        }
+                    // release the registry key this binding wrote: `gina.events` maps a NAME to the
+                    // id of the LAST element that registered it, so a bare native name another
+                    // element wrote last is left to that element
+                    if ( typeof(gina.events[evts[e]]) != 'undefined' && gina.events[evts[e]] == eId ) {
+                        delete gina.events[evts[e]];
                     }
                 }
+                // the submit trigger's marks: bindForm claims the trigger for the record and stamps
+                // the element with `data-gina-form-submit-trigger-for` as a bind-once guard, and
+                // bindSubmitEl stamps the `__ginaSubmitBoundFor` expando (#B294). Neither was
+                // released, so a record bound again after destroy() — a NEW record, the element
+                // still stamped — never claimed its trigger: its state was never updated and its
+                // click was refused as gated (measured on the first cut of #B585, once the stale
+                // listeners of the destroyed binding no longer answered the click). Released with
+                // the record's claim below, so the next bind claims and binds the trigger exactly
+                // as a first bind does.
+                if ( entry.el.dataset && entry.el.dataset.ginaFormSubmitTriggerFor == _id ) {
+                    delete entry.el.dataset.ginaFormSubmitTriggerFor;
+                }
+                if ( typeof(entry.el.__ginaSubmitBoundFor) != 'undefined' ) {
+                    delete entry.el.__ginaSubmitBoundFor;
+                }
             }
+            $form.boundListeners = [];
+        }
+        if ( typeof($form.submitTrigger) != 'undefined' ) {
+            delete $form.submitTrigger;
         }
 
-        // textarea
-        $elTMP = $form.target.getElementsByTagName('textarea');
-        if ( $elTMP.length > 0 ) {
-            for (let i = 0, len = $elTMP.length; i < len; ++i) {
-                $els.push( $elTMP[i] )
+        // the live-check registration flags (`registerForLiveChecking` is add-once per control),
+        // so the next bind registers every owned control again — reassociated controls and
+        // form-associated custom elements included, through the owner-aware `elements`
+        var $owned = ( $form.target && $form.target.elements ) ? $form.target.elements : [];
+        for (let i = 0, len = $owned.length; i < len; i++) {
+            let ownedId = ( typeof($owned[i].id) == 'string' && $owned[i].id ) ? $owned[i].id : ( $owned[i].getAttribute ? $owned[i].getAttribute('id') : null );
+            if ( ownedId && typeof(gina.events['registered.' + ownedId]) != 'undefined' ) {
+                delete gina.events['registered.' + ownedId];
             }
         }
-
-
-        // forms inside main form
-        $elTMP = $form.target.getElementsByTagName('form');
-        if ( $elTMP.length > 0 ) {
-            for (let i = 0, len = $elTMP.length; i < len; ++i) {
-                $els.push( $elTMP[i] )
-            }
-        }
-        // main form
-        $els.push( $form.target );
-        for (let i = 0, len = $els.length; i < len; ++i) {
-
-            $el = $els[i];
-            let eId = $el.getAttribute('id');
-            for (let e = 0, eLen = events.length; e < eLen; e++) {
-                let evt = events[e];
-                let eventName = evt;
-                // remove proxy
-                // if ( typeof(gina.events[ evt ]) != 'undefined' ) {
-                //     removeListener(gina, $el, evt);
-                // }
-
-                if ( typeof(gina.events[ eventName ]) != 'undefined' && gina.events[ eventName ] == eId ) {
-                    removeListener(gina, $el, eventName);
-                }
-
-                // eventName = evt +'._case_'+ $el.name;
-                // if ( typeof(gina.events[ eventName ]) != 'undefined') {
-                //     removeListener(gina, $el, eventName);
-                // }
-
-                eventName = eId;
-                if ( typeof(gina.events[ eventName ]) != 'undefined' && gina.events[ eventName ] == eId ) {
-                    removeListener(gina, $el, eventName);
-                }
-
-                eventName = evt +'.'+ eId;
-                if ( typeof(gina.events[ eventName ]) != 'undefined' && gina.events[ eventName ] == eId ) {
-                    removeListener(gina, $el, eventName);
-                }
-
-                eventName = evt +'.'+ eId;
-                if ( typeof(gina.events[ eventName ]) != 'undefined' && gina.events[ eventName ] == eventName ) {
-                    removeListener(gina, $el, eventName);
-                }
-
-                eventName = evt +'.'+ eId + '.hform';
-                if ( typeof(gina.events[ eventName ]) != 'undefined' && gina.events[ eventName ] == eId ) {
-                    removeListener(gina, $el, eventName);
-                }
-            }// EO for events
-        } //EO for $els
-
-        $els = null; $el = null; $elTMP = null; evt = null;
 
         // [HTML5 form-reassociation support] Drain per-control listeners attached to
         // reassociated controls during bindForm. The element-by-tagName loops above
@@ -21479,6 +21532,11 @@ function ValidatorPlugin(rules, data, formId, culture) {
         // $target's DOM subtree). Drained by unbindForm.
         if (!Array.isArray($form.reassociatedListeners))
             $form.reassociatedListeners = [];
+
+        // #B585 — the ledger of every listener THIS binding attaches, drained by reference in
+        // unbindForm (the side-table above is its older sibling for out-of-tree controls)
+        if (!Array.isArray($form.boundListeners))
+            $form.boundListeners = [];
 
         // Helper: collect controls owned by $form, including HTML5 form-reassociated
         // controls (those carrying `form="X"` outside the form's DOM subtree). Walks
@@ -21908,6 +21966,7 @@ function ValidatorPlugin(rules, data, formId, culture) {
                 // setTimeout(() => {
                 //     removeListner(gina, $inputs[f], 'change');
                 // }, 0);
+                $form.boundListeners.push({ el: $inputs[f], evt: 'change', fn:
                 addListener(gina, $inputs[f], 'change', function(event) {
                     event.preventDefault();
                     var $el     = event.currentTarget;
@@ -22336,7 +22395,7 @@ function ValidatorPlugin(rules, data, formId, culture) {
                             throw formErr;
                         }
                     }
-                });
+                }) });
 
 
             }
@@ -22467,13 +22526,14 @@ function ValidatorPlugin(rules, data, formId, culture) {
                 };
             }
 
+            $form.boundListeners.push({ el: $select[s], evt: 'change', fn:
             addListener(gina, $select[s], 'change', function(event) {
                 var $el = event.target;
 
                 if (/select/i.test($el.type) ) {
                     updateSelect($el, $form);
                 }
-            });
+            }) });
 
 
             if ($select[s].options && !$form.fieldsSet[ elId ]) {
@@ -22890,11 +22950,12 @@ function ValidatorPlugin(rules, data, formId, culture) {
                 proceed = function ($el, evt) {
 
                     // recover default state only on value === true || false
+                    $form.boundListeners.push({ el: $el, evt: evt, fn:
                     addListener(gina, $el, evt, function(event) {
                         updateCheckBox(event.target);
 
                         triggerEvent(gina, event.target, 'changed.'+ event.target.id);
-                    });
+                    }) });
 
                     // default state recovery
                     updateCheckBox($el, true);
@@ -22918,12 +22979,13 @@ function ValidatorPlugin(rules, data, formId, culture) {
 
                 proceed = function ($el, evt) {
                     // recover default state
+                    $form.boundListeners.push({ el: $el, evt: evt, fn:
                     addListener(gina, $el, evt, function(event) {
                         //cancelEvent(event);
                         updateRadio(event.target);
 
                         triggerEvent(gina, event.target, 'changed.'+ event.target.id);
-                    });
+                    }) });
 
                     // default state recovery
                     updateRadio($el, true);
@@ -23345,6 +23407,7 @@ function ValidatorPlugin(rules, data, formId, culture) {
             // handle form reset
             subEvent = 'reset.'+$target.id;
             if ( typeof(gina.events[subEvent]) == 'undefined' ) {
+                $form.boundListeners.push({ el: $target, evt: subEvent, fn:
                 addListener(gina, $target, subEvent, function(e) {
                     e.preventDefault();
 
@@ -23366,17 +23429,25 @@ function ValidatorPlugin(rules, data, formId, culture) {
                         updateSubmitTriggerState( $form.target , isFormValid );
                         $form.target.dataset.ginaFormIsResetting = false;
                     });
-                })
+                }) })
             }
             // Form-level proxies: capture bubbled events from in-tree controls.
-            addListener(gina, $target, 'reset', resetProxyHandler);
-            addListener(gina, $target, 'keydown', keydownProxyHandler);
-            addListener(gina, $target, 'keyup', keyupProxyHandler);
-            addListener(gina, $target, 'focusin', focusinProxyHandler);
-            addListener(gina, $target, 'focusout', focusoutProxyHandler);
-            addListener(gina, $target, 'change', changeProxyHandler);
-            addListener(gina, $target, 'click', clickProxyHandler);
-            addListener(gina, $target, 'animationstart', autofillProxyHandler); // #B478
+            $form.boundListeners.push({ el: $target, evt: 'reset', fn:
+            addListener(gina, $target, 'reset', resetProxyHandler) });
+            $form.boundListeners.push({ el: $target, evt: 'keydown', fn:
+            addListener(gina, $target, 'keydown', keydownProxyHandler) });
+            $form.boundListeners.push({ el: $target, evt: 'keyup', fn:
+            addListener(gina, $target, 'keyup', keyupProxyHandler) });
+            $form.boundListeners.push({ el: $target, evt: 'focusin', fn:
+            addListener(gina, $target, 'focusin', focusinProxyHandler) });
+            $form.boundListeners.push({ el: $target, evt: 'focusout', fn:
+            addListener(gina, $target, 'focusout', focusoutProxyHandler) });
+            $form.boundListeners.push({ el: $target, evt: 'change', fn:
+            addListener(gina, $target, 'change', changeProxyHandler) });
+            $form.boundListeners.push({ el: $target, evt: 'click', fn:
+            addListener(gina, $target, 'click', clickProxyHandler) });
+            $form.boundListeners.push({ el: $target, evt: 'animationstart', fn:
+            addListener(gina, $target, 'animationstart', autofillProxyHandler) }); // #B478
         }
 
         proceed();
@@ -23421,6 +23492,7 @@ function ValidatorPlugin(rules, data, formId, culture) {
         evt = 'validate.' + _id;
         proceed = function () {
             // attach form submit event
+            $form.boundListeners.push({ el: $target, evt: evt, fn:
             addListener(gina, $target, evt, function(event) {
                 cancelEvent(event);
 
@@ -23514,13 +23586,8 @@ function ValidatorPlugin(rules, data, formId, culture) {
                         }
                     }
                 }
-            })
+            }) })
         }
-        // cannot be binded twice
-        if ( typeof(gina.events[evt]) != 'undefined' && gina.events[evt] == 'validate.' + _id ) {
-            removeListener(gina, $form, evt, proceed)
-        }
-
         proceed();
 
         var bindSubmitEl = function (evt, $submit) {
@@ -23539,6 +23606,7 @@ function ValidatorPlugin(rules, data, formId, culture) {
             // same string `clickProxyHandler` compares against. Read at the :8037
             // dispatch gate.
             $submit.__ginaSubmitBoundFor = evt;
+            $form.boundListeners.push({ el: $submit, evt: evt, fn:
             addListener(gina, $submit, evt, function(event) {
                 // start validation
                 cancelEvent(event);
@@ -23616,7 +23684,7 @@ function ValidatorPlugin(rules, data, formId, culture) {
                         triggerEvent(gina, $target, 'validate.' + _id, result)
                     })
                 }
-            });
+            }) });
         } // EO bindSubmitEl
 
 
@@ -23717,7 +23785,8 @@ function ValidatorPlugin(rules, data, formId, culture) {
                     // policies). A preventDefault-only listener sets event.defaultPrevented exactly
                     // as the inline handler did, so the form-level clickProxyHandler's
                     // `if (event.defaultPrevented) return` guard still short-circuits identically.
-                    addListener(gina, $submit, 'click', function(e) { e.preventDefault(); });
+                    $form.boundListeners.push({ el: $submit, evt: 'click', fn:
+                    addListener(gina, $submit, 'click', function(e) { e.preventDefault(); }) });
                 }
                 // (an existing onclick is left untouched, as before; the dead else-if append
                 //  branch — it only mutated a local, never written back — was removed.)
@@ -23753,6 +23822,7 @@ function ValidatorPlugin(rules, data, formId, culture) {
         evt = 'submit';
 
         // submit proxy
+        $form.boundListeners.push({ el: $target, evt: evt, fn:
         addListener(gina, $target, evt, function(e) {
 
             var $target             = e.target
@@ -24006,7 +24076,7 @@ function ValidatorPlugin(rules, data, formId, culture) {
                     // }
                 })
             }
-        });
+        }) });
 
 
 

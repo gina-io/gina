@@ -617,9 +617,12 @@ describe('§06 wiring pins', function () {
         var hform = a.indexOf("triggerEvent(gina, $target, 'success.' + id + '.hform', result);\n\n                            if ( sendCtx.rebindSelf ) {\n                                finalizeSelfReplacement($target, id);");
         assert.ok(hform > -1);
     });
-    it('the declarative hook: bound by listenToXhrEvents, removed by unbindForm', function () {
+    it('the declarative hook: bound by listenToXhrEvents through on(), removed by destroy() with the other consumer handlers (#B585)', function () {
         assert.ok(a.indexOf("$form.on('afterswap.hform', window[htmlSwapEventCallback])") > -1);
-        assert.ok(a.indexOf("removeListener(gina, $form, 'afterswap.' + _id + '.hform');") > -1);
+        // the wrapper on() attaches is recorded on the record (consumerListeners) and survives a
+        // reBind(); unbindForm no longer touches its key, and destroy() drains it by reference
+        assert.equal(a.indexOf("removeListener(gina, $form, 'afterswap.' + _id + '.hform');"), -1);
+        assert.ok(a.indexOf('Array.isArray($form.consumerListeners)') > -1);
     });
     it('out-of-band is reached from all THREE html paths, each behind the same string gate — below it every path is byte-identical', function () {
         // anchored on the gate EXPRESSION, not on the `if (` prefix: the legacy hook carries an

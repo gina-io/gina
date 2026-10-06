@@ -16,10 +16,21 @@ function mergeEventProps(evt, proxiedEvent) {
 /**
  * addListener
  *
+ * Attaches `callback` on `element` for `name` (a name ending in `.` is suffixed with the
+ * element id; an array attaches one listener per name, or one per element) and records the
+ * NAME in `gina.events` as the element's id — a name-to-id registry, which holds no callback.
+ * Returns the callback, so a caller can ledger what it attached and detach it by reference
+ * later (the validator's `$form.boundListeners`, #B585).
+ *
  * @param {object} target
- * @param {object} element
+ * @param {object|array} element
  * @param {string|array} name
  * @param {callback} callback
+ *
+ * @returns {callback} callback - the attached callback
+ *
+ * @example
+ * $form.boundListeners.push({ el: $el, evt: 'change', fn: addListener(gina, $el, 'change', onChange) });
  */
 function addListener(target, element, name, callback) {
 
@@ -62,6 +73,7 @@ function addListener(target, element, name, callback) {
         }
     }
 
+    return callback;
 }
 /**
  * triggerEvent
@@ -785,6 +797,24 @@ function handleXhr(xhr, $el, options, require) {
     //return xhr;
 }
 
+/**
+ * removeListener
+ *
+ * Hands `callback` to `element.removeEventListener(name, callback)` and deletes the
+ * `gina.events[name]` registry key. Two facts of this contract bite (#B303, #B585):
+ *  - with no 4th argument NOTHING is detached (`removeEventListener(name, undefined)` is a
+ *    no-op) — only the registry key goes; and the key is deleted whatever element was given,
+ *    the registry being keyed by name alone;
+ *  - the 4th argument is a COMPLETION CALLBACK as much as a handler: it is invoked once, with
+ *    no arguments, after the removal. Never hand it a DOM handler expecting an event.
+ * To detach what a plugin attached, keep the reference `addListener` returns and remove it
+ * directly, as the validator's `unbindForm` ledger drain does.
+ *
+ * @param {object} target
+ * @param {object|array} element
+ * @param {string} name
+ * @param {callback} [callback] - the completion callback, also handed to the DOM removal
+ */
 function removeListener(target, element, name, callback) {
     if (typeof(target.event) != 'undefined' && target.event.isTouchSupported && /^(click|mouseout|mouseover)/.test(name) && target.event[name].indexOf(element) != -1) {
         target.event[name].splice(target.event[name].indexOf(element), 1)
@@ -856,6 +886,23 @@ function removeListener(target, element, name, callback) {
 
 
 
+/**
+ * on
+ *
+ * Registers a consumer handler for a plugin event under `<event>.<id>` on the handle's target,
+ * once per name (a second registration under a name already in `gina.events` is dropped). The
+ * attached wrapper is recorded on the handle (`this.consumerListeners`, #B585) so the plugin can
+ * detach it when the handle is destroyed — the validator's `destroy()` does; its `reBind()`
+ * leaves these handlers in place.
+ *
+ * @param {string} event - the event name (`success`, `error`, `submit`, `ready`, …)
+ * @param {callback} cb - `function (event, data)`
+ *
+ * @returns {object} this - chainable
+ *
+ * @example
+ * gina.validator.$forms['signup'].on('success', function (e, data) { … });
+ */
 function on(event, cb) {
 
     if (!this.plugin) throw new Error('No `plugin` reference found for this event: `'+ event);
@@ -892,6 +939,8 @@ function on(event, cb) {
 
         if (!gina.events[event]) {
 
+            if ( !Array.isArray(this.consumerListeners) ) { this.consumerListeners = []; }
+            this.consumerListeners.push({ el: $target, evt: event, fn:
             addListener(gina, $target, event, function(e) {
 
                 //if ( typeof(e.defaultPrevented) != 'undefined' && e.defaultPrevented)
@@ -920,7 +969,7 @@ function on(event, cb) {
                     cb(e, data);
 
                 //triggerEvent(gina, e.currentTarget, e.type);
-            });
+            }) });
 
             if (this.initialized && !this.isReady)
                 triggerEvent(gina, $target, 'init.' + id);
