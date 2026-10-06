@@ -9073,8 +9073,18 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
      * ref. The HTML surfaces (custom error page `eData.ref` + the inline
      * fallback page) carry the same ref.
      *
+     * #B518 — the one-argument form keeps the error's own `message` and a
+     * relay-safe `ref`, as the two- and three-argument forms do: a plain
+     * object's `message` reaches the JSON body, the fallback page and the
+     * #ERRREF line, and a `ref` on a plain object or on an Error is honoured.
+     * A `self.query()` error relayed with `return self.throwError(err)` thus
+     * answers with the upstream's sentence, under the ref of the upstream's
+     * log line. In this form `error` carries the object's own `error`, or its
+     * `message` when it has none (an Error's message included); in the two-
+     * and three-argument forms it carries the status text.
+     *
      * Polymorphic signatures:
-     *   - `throwError(err)` — Error instance or errorObj `{status, error, ...}`
+     *   - `throwError(err)` — Error instance or errorObj `{status, error, message, ref, ...}`
      *   - `throwError(code, err)` — 2-arg form: HTTP status + Error|string
      *   - `throwError(res, code, msg)` — internal 3-arg form used by the router
      *
@@ -9123,6 +9133,20 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
      *
      * @returns {void|boolean} `false` when the call is ignored (nested
      *          rendering stack, or a late call on a released response)
+     *
+     * @example
+     * // relay another bundle's error: its status, message and ref are kept
+     * self.query(options, function (err, data) {
+     *     if (err) { return self.throwError(err); }
+     *     self.renderJSON(data);
+     * });
+     *
+     * @example
+     * return self.throwError(404, 'Not found');
+     *
+     * @example
+     * // one error object: its status, its message and a relay-safe ref are kept
+     * return self.throwError({ status: 502, message: 'upstream refused', ref: 'ORDER-42' });
      * */
     this.throwError = function(res, code, msg) {
 
@@ -9348,6 +9372,28 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
                 && typeof(res.errors) != 'undefined'
             ) { // ApiError merge
                 errorObject = merge(arguments[arguments.length-1], errorObject)
+            }
+
+            // #B518 — a ONE-argument error object keeps its `message` and its `ref`.
+            // The build above keeps only `status` and `error` of a plain object, and
+            // only `message` and `stack` of an Error, so a plain object's sentence
+            // never reached the body or the log line, and a `ref` on either was
+            // replaced by a fresh one. That broke the relay between bundles:
+            // `self.query()` hands its callback the upstream's error body as a plain
+            // object, and `return self.throwError(err)` answered without the
+            // upstream's sentence, under a ref that matched no upstream log line. The
+            // two- and three-argument forms already carried both. `error` is left as
+            // built. Both values are checked downstream like any other: the ref is
+            // honoured only when relay-safe, and a message carrying a stack keeps its
+            // first line outside the local scope (#B670). After the ApiError merge
+            // above `errorObject` IS the caller's object, so nothing is written there.
+            if ( arguments.length == 1 && res && typeof(res) == 'object' ) {
+                if ( typeof(errorObject.message) == 'undefined' && typeof(res.message) == 'string' && res.message != '' ) {
+                    errorObject.message = res.message;
+                }
+                if ( typeof(errorObject.ref) == 'undefined' && typeof(res.ref) != 'undefined' ) {
+                    errorObject.ref = res.ref;
+                }
             }
 
             if ( typeof(res.fallback) != 'undefined' ) {

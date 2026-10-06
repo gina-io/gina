@@ -916,9 +916,10 @@ function isResponseLike(value) {
  * so a lane route answers an error with the envelope a controller route would:
  *
  *  - `(errorObj)` — `{ status, error, fields | flash | errors, … }` keeps the
- *    object's keys (the gates' shape); a plain `{ status, error }` keeps those two;
+ *    object's keys (the gates' shape); any other object keeps `status` and
+ *    `error`, plus its `message` and its `ref` when it has them (#B518);
  *  - `(err)` — an `Error`; its `status` when valid, else 500; `error` and `message`
- *    carry its message, `stack` its stack;
+ *    carry its message, `stack` its stack, and its `ref` is kept (#B518);
  *  - `(status, message)` / `(status, err)` — `error` is the status text, `message`
  *    the sentence;
  *  - `(status, { message, ref, … })` and the controller's `(res, status, msg)` —
@@ -995,6 +996,18 @@ function buildErrorObject(args, statusCodes) {
             && ( typeof(res.fields) != 'undefined' || typeof(res.flash) != 'undefined' || typeof(res.errors) != 'undefined' )
         ) {
             errorObject = fillMissing(last, errorObject);
+        }
+        // #B518 — the controller's rule: a ONE-argument error object keeps its
+        // `message` and its `ref` (the build above keeps only `status` and `error`
+        // of a plain object, and only `message` and `stack` of an Error). The ref
+        // is checked where it is minted, and `error` is left as built.
+        if ( n == 1 && res && typeof(res) == 'object' ) {
+            if ( typeof(errorObject.message) == 'undefined' && typeof(res.message) == 'string' && res.message != '' ) {
+                errorObject.message = res.message;
+            }
+            if ( typeof(errorObject.ref) == 'undefined' && typeof(res.ref) != 'undefined' ) {
+                errorObject.ref = res.ref;
+            }
         }
     } else if ( n < 3 ) {
         msg  = code || null;

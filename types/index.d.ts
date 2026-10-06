@@ -523,12 +523,13 @@ declare namespace gina {
          * - `throwError(err: Error)`
          * - `throwError(code, err)` — 2-arg form: HTTP status + Error | string
          * - `throwError(res, code, msg)`
-         * - `throwError(errorObj)` where errorObj has `.status`, `.error`, `.fields`
+         * - `throwError(errorObj)` where errorObj has `.status`, `.error`, `.fields`;
+         *   its `.message` and a relay-safe `.ref` are kept on the response
          */
         throwError(err: Error): void;
         throwError(code: number, err: Error | string): void;
         throwError(res: GinaResponse, code: number, msg?: string | Error): void;
-        throwError(errorObj: { status?: number; error?: string; message?: string; fields?: object; flash?: object }): void;
+        throwError(errorObj: { status?: number; error?: string; message?: string; ref?: string; fields?: object; flash?: object }): void;
 
         /** Inject per-request state (called by router -- not typically used in app code) */
         setOptions(req: GinaRequest, res: GinaResponse, next: NextFunction, options: object): void;
