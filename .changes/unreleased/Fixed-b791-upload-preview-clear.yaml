@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'A staged file-upload form that declares `[preview][location|uri|width|height]` sub-field inputs now leaves each one empty when the replacement file''s staging response does not carry that preview value, instead of posting the replaced file''s. On an edit form the declared preview inputs had kept the previous file''s metadata and were submitted with the new file; a partial preview (some sub-fields present, others not) left the omitted ones stale the same way. The documented contract — a declared sub-field the response does not carry is left empty — now holds for both the no-preview and partial-preview cases, and undeclared forms are unchanged (#B791).'
+time: 2026-10-06T07:46:10+01:00

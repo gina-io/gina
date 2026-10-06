@@ -2910,7 +2910,12 @@ function ValidatorPlugin(rules, data, formId, culture) {
             let _key = key[k];
             if (i == k) {
                 // Array or Object ?
-                if ( typeof(obj[ key[k] ]) == 'undefined' || typeof(obj[ key[k] ]) == 'string' ) {
+                // #B792 — was: if ( typeof(obj[ key[k] ]) == 'undefined' || typeof(obj[ key[k] ]) == 'string' ) {
+                // Byte-parity twin of the server helper `helpers/data parseLocalObj`: a slot an
+                // earlier segment set to `null` cannot hold children, so descending into it threw.
+                // Treat null like a string slot — replace with a fresh container and descend. Pinned
+                // identical to the server by test/core/validator-send-formdata-nesting.test.js.
+                if ( obj[ key[k] ] === null || typeof(obj[ key[k] ]) == 'undefined' || typeof(obj[ key[k] ]) == 'string' ) {
                     if ( Array.isArray(obj) ) {
                         // index
                         _key = ~~key[k];
@@ -5354,10 +5359,28 @@ function ValidatorPlugin(rules, data, formId, culture) {
                         || key == 'preview' && typeof(files[f][key]) == 'undefined'
                         || /(height|width)/i.test(key) && !/^image/.test(files[f].mime)
                     ) {
+                        // #B791 — the preview slot is a sub-field MAP, not a flat input (since #B459):
+                        // it has no `.tagName`, so the getElementById(.id) removal was a silent no-op
+                        // on it, and on an EDIT form the declared [preview][*] inputs kept the REPLACED
+                        // file's values and were posted with the new file. Detect the slot by SHAPE (an
+                        // element has a tagName; the map does not), NOT by the key name — this keeps the
+                        // branch a structural sibling of the flat removal and leaves #B459's name-keyed
+                        // source/dist pins untouched. For the map, CLEAR every declared sub-field — the
+                        // documented "left empty" contract (file-uploads.md § Persisting the preview);
+                        // for a flat input (height/width), keep the original removal.
                         if ( /(preview|height|width)/i.test(key) ) {
-                            $elIgnored = document.getElementById(fieldsObjectList[key].id);
-                            if ( $elIgnored )
-                                $elIgnored.parentNode.removeChild($elIgnored);
+                            if ( fieldsObjectList[key] && !fieldsObjectList[key].tagName ) {
+                                for (var subFieldToClear in fieldsObjectList[key]) {
+                                    if ( fieldsObjectList[key][subFieldToClear]
+                                         && typeof(fieldsObjectList[key][subFieldToClear].value) != 'undefined' ) {
+                                        fieldsObjectList[key][subFieldToClear].value = '';
+                                    }
+                                }
+                            } else {
+                                $elIgnored = document.getElementById(fieldsObjectList[key].id);
+                                if ( $elIgnored )
+                                    $elIgnored.parentNode.removeChild($elIgnored);
+                            }
                         }
                         continue;
                     }
@@ -5372,6 +5395,18 @@ function ValidatorPlugin(rules, data, formId, culture) {
 
                     // handle preview
                     if ( key == 'preview' ) {
+
+                        // #B791 — clear every DECLARED sub-field the response's preview does NOT
+                        // carry, so a PARTIAL preview on an edit form cannot leave a replaced file's
+                        // stale value behind (the "left empty" contract); the loop below then fills
+                        // the ones it does carry.
+                        for (var previewKeyToReset in fieldsObjectList[key]) {
+                            if ( fieldsObjectList[key][previewKeyToReset]
+                                 && typeof(fieldsObjectList[key][previewKeyToReset].value) != 'undefined'
+                                 && typeof(files[f][key][previewKeyToReset]) == 'undefined' ) {
+                                fieldsObjectList[key][previewKeyToReset].value = '';
+                            }
+                        }
 
                         for (var previewKey in files[f][key]) {
                             if ( typeof(files[f][key][previewKey]) != 'undefined' && typeof(fieldsObjectList[key][previewKey]) != 'undefined' ) {

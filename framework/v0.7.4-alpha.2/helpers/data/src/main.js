@@ -374,7 +374,16 @@ function DataHelper(){
             let _key = key[k];
             if (i == k) {
                 // Array or Object ?
-                if ( typeof(obj[ key[k] ]) == 'undefined' || typeof(obj[ key[k] ]) == 'string' ) {
+                // #B792 — was: if ( typeof(obj[ key[k] ]) == 'undefined' || typeof(obj[ key[k] ]) == 'string' ) {
+                // A slot an earlier pair set to `null` (a JSON value like `a=[null]`, or a planted
+                // array/object element) cannot hold children; descending into it below dereferenced
+                // `null` and threw `Cannot read properties of null`. On the GET/HEAD `inheritedData`
+                // path that throw had no try/catch and exited the bundle process (the #B591 SIGTERM
+                // class — #B591 removed a DIFFERENT null seed and left this one). Treat a null slot
+                // like a string one: replace it with a fresh container (last-write-wins) and descend
+                // safely. A non-null primitive (number/boolean) still boxes and no-ops as before, so
+                // only the crashing null case changes. The validator client twin carries the same guard.
+                if ( obj[ key[k] ] === null || typeof(obj[ key[k] ]) == 'undefined' || typeof(obj[ key[k] ]) == 'string' ) {
                     if ( Array.isArray(obj) ) {
                         // index
                         // _key = obj.length;
