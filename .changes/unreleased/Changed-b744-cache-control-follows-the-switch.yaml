@@ -1,0 +1,3 @@
+kind: Changed
+body: 'A route''s `cache` field sets `Cache-Control: <visibility>, max-age=<ttl>` on its responses only while the bundle''s server cache is on (`server.cache.enable`) and the request is a GET, the same gate as the cache write. Until now the header went out whatever the switch, in development with the cache off and on routes whose server-side cache was switched off, so a browser could reuse a page or a JSON answer for the route''s whole `ttl` while nothing on the server cached it. With the cache off, responses carry no `Cache-Control` from the route (#B744).'
+time: 2026-10-06T03:48:12+01:00

@@ -542,9 +542,16 @@ module.exports = function renderJSON(jsonObj, deps) {
             });
         }
 
-        // Cache-Control: miss path — inform browsers/CDNs of the response lifetime (#C6)
+        // Cache-Control: miss path — inform browsers/CDNs of the response lifetime (#C6).
+        // #B744 — on the write's own gate: the server cache on, a GET, a route `cache`.
+        // With the switch off nothing stores this render, so the browser is not told
+        // to reuse it either (dev with the cache off; an event-invalidated route).
         var _cc = null;
-        if ( typeof(request.routing.cache) != 'undefined' && request.routing.cache ) {
+        if (
+            /^true$/i.test(self.serverInstance._cacheIsEnabled)
+            && /^GET$/i.test(request.method)
+            && typeof(request.routing.cache) != 'undefined' && request.routing.cache
+        ) {
             var _ccCfg = ( typeof(request.routing.cache) == 'string' ) ? { type: request.routing.cache } : request.routing.cache;
             var _ccTtl = ( typeof(_ccCfg.ttl) != 'undefined' && _ccCfg.ttl > 0 ) ? _ccCfg.ttl : local.options.conf.server.cache.ttl;
             if ( _ccTtl > 0 ) {

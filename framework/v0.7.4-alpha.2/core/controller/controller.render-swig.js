@@ -1291,8 +1291,15 @@ module.exports = async function render(userData, displayInspector, errOptions, d
                     }
                 }
 
-                // Cache-Control: miss path — inform browsers/CDNs of the response lifetime (#C6)
-                if ( typeof(req.routing.cache) != 'undefined' && req.routing.cache ) {
+                // Cache-Control: miss path — inform browsers/CDNs of the response lifetime (#C6).
+                // #B744 — on the write's own gate: the server cache on, a GET, a route `cache`.
+                // With the switch off nothing stores this render, so the browser is not told
+                // to reuse it either (dev with the cache off; an event-invalidated route).
+                if (
+                    String(self.serverInstance._cacheIsEnabled).toLowerCase() === 'true'
+                    && req.method.toUpperCase() === 'GET'
+                    && typeof(req.routing.cache) != 'undefined' && req.routing.cache
+                ) {
                     var _ccCfg = ( typeof(req.routing.cache) == 'string' ) ? { type: req.routing.cache } : req.routing.cache;
                     var _ccTtl = ( typeof(_ccCfg.ttl) != 'undefined' && _ccCfg.ttl > 0 ) ? _ccCfg.ttl : localOptions.conf.server.cache.ttl;
                     if ( _ccTtl > 0 ) {
@@ -2001,8 +2008,15 @@ module.exports = async function render(userData, displayInspector, errOptions, d
                     }
                 }
 
-                // Cache-Control: miss path — inform browsers/CDNs of the response lifetime (#C6)
-                if ( typeof(req.routing.cache) != 'undefined' && req.routing.cache ) {
+                // Cache-Control: miss path — inform browsers/CDNs of the response lifetime (#C6).
+                // #B744 — on the write's own gate: the server cache on, a GET, a route `cache`.
+                // With the switch off nothing stores this render, so the browser is not told
+                // to reuse it either (dev with the cache off; an event-invalidated route).
+                if (
+                    String(self.serverInstance._cacheIsEnabled).toLowerCase() === 'true'
+                    && req.method.toUpperCase() === 'GET'
+                    && typeof(req.routing.cache) != 'undefined' && req.routing.cache
+                ) {
                     var _ccCfg = ( typeof(req.routing.cache) == 'string' ) ? { type: req.routing.cache } : req.routing.cache;
                     var _ccTtl = ( typeof(_ccCfg.ttl) != 'undefined' && _ccCfg.ttl > 0 ) ? _ccCfg.ttl : localOptions.conf.server.cache.ttl;
                     if ( _ccTtl > 0 ) {
