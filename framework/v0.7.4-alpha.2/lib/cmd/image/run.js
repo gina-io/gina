@@ -383,6 +383,12 @@ function Run(opt, cmd) {
         new CmdHelper(self, opt.client, { port: opt.debugPort, brkEnabled: opt.debugBrkEnabled });
         if ( !isCmdConfigured() ) return false;
 
+        // #B779 — the container name comes from `--name=` only. CmdHelper turns a lone positional
+        // into `name` (a bundle command's bundle); here that positional is the IMAGE, so without
+        // `--name` the reference became the container name: a `repo:tag` was refused as an
+        // invalid name, and a reference that is also a valid name named the container after it.
+        delete self.name;
+
         var p = self.params || {};
         self.stream = !!p['stream'];
         self.rm     = !!p['rm'];
