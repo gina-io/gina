@@ -95,4 +95,40 @@ child.stderr.setEncoding('utf8');
 child.stderr.on('data', function(data) {
     process.stdout.write('[debugger]'+ data)
 });
-// exit is handle by the parent process
+// #B764 — bin/gina reads the exit code of the process it spawned as the framework's (#B759).
+// The comment that stood here said « exit is handle by the parent process », and nothing relayed
+// the framework's code: once it ended, the event loop ran dry and this process exited 0, so
+// `gina start --inspect-gina` reported « exit code 0 » for a framework that exited 3 or was
+// killed. `close` fires once the framework's output is drained; `process.exitCode` lets the
+// relayed writes flush before the exit.
+child.on('close', function(code, signal) {
+    process.exitCode = exitCodeOf(code, signal);
+});
+
+/**
+ * #B764 — the exit code bin/cli-debug ends with once the framework it started has ended: the
+ * framework's own code, or 128 + the signal number when a signal ended it, the code a shell
+ * reports for that signal.
+ *
+ * @inner
+ * @private
+ * @param {?number} code - The framework's exit code; null when a signal ended it
+ * @param {?string} signal - The signal that ended the framework; null when it exited
+ * @returns {number} `code` when it is a number; 128 + the signal number for a signal (137 for
+ *   SIGKILL), or 1 for a signal with no known number
+ *
+ * @example
+ * exitCodeOf(3, null);         // 3
+ * exitCodeOf(0, null);         // 0
+ * exitCodeOf(null, 'SIGKILL'); // 137
+ */
+function exitCodeOf(code, signal) {
+    if (typeof code === 'number') {
+        return code;
+    }
+    if (signal) {
+        var signo = os.constants.signals[signal];
+        return (typeof signo === 'number') ? 128 + signo : 1;
+    }
+    return 1;
+}

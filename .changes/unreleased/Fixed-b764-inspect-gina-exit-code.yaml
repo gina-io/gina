@@ -1,0 +1,3 @@
+kind: Fixed
+body: '`gina start --inspect-gina` now returns the framework''s own exit code when the framework ends before it is ready: the code it exited with, or 128 + the signal number when a signal stopped it (137 for `SIGKILL`). It returned 1 with « exit code 0 », the code of the debug launcher, whatever had happened to the framework (#B764).'
+time: 2026-10-06T01:54:05+01:00
