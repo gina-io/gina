@@ -10,8 +10,9 @@
  *
  * Sections, each running the real bin/cli in an isolated home:
  *   01 — a `repo:tag` reference and no `--name`: not refused as a name; with no container host
- *        configured it stops at « no container host », past every gate. Fails on the pre-fix
- *        bytes.
+ *        configured it stops at « no container host », past every gate. A failing `buildah` stub
+ *        first on PATH keeps a Linux machine that has buildah from running natively, where the
+ *        run would reach `podman` instead. Fails on the pre-fix bytes.
  *   02 — a reference that is a valid container name and no `--name`, `--stream`: the `start`
  *        frame's `name` is null and podman gets no `--name`. GINA_CONTAINER_HOST names an ssh
  *        host under the never-resolving `.invalid` TLD, and a stub `ssh` first on PATH records
@@ -130,6 +131,9 @@ before(async function () {
     fs.mkdirSync(STUB_DIR, { recursive: true });
     fs.writeFileSync(path.join(STUB_DIR, 'ssh'), '#!/bin/sh\nprintf \'%s\\n\' "$@" >> "' + SSH_LOG + '"\nexit 255\n');
     fs.chmodSync(path.join(STUB_DIR, 'ssh'), 0o755);
+    // `buildah --version` fails: on Linux a working buildah makes the host native (image/_host.js)
+    fs.writeFileSync(path.join(STUB_DIR, 'buildah'), '#!/bin/sh\nexit 1\n');
+    fs.chmodSync(path.join(STUB_DIR, 'buildah'), 0o755);
     // seed the home: a first command initialises it, as on a fresh install
     var r = run(['version']);
     assert.ok(fs.existsSync(path.join(HOME, '.gina', 'main.json')), 'the home was not initialised\n' + out(r));
@@ -143,7 +147,7 @@ after(function () {
 describe('01 - a repo:tag reference and no --name', function () {
 
     it('01.1 is not refused as a container name; it stops at the missing container host', function () {
-        var r = run(['image:run', 'localhost/b779/probe:v1']);
+        var r = run(['image:run', 'localhost/b779/probe:v1'], { PATH: STUB_DIR + path.delimiter + process.env.PATH });
         var text = r.stdout + r.stderr;
         assert.equal(text.indexOf('invalid --name'), -1, 'the image reference was refused as a container name\n' + out(r));
         assert.ok(text.indexOf('no container host') > -1, 'expected the host error, past every gate\n' + out(r));
