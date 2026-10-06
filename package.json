@@ -126,6 +126,7 @@
     "@types/node": "^26.1.1",
     "csso-cli": "4.0.2",
     "engine.io-client": "^6.6.4",
+    "fast-check": "^4.10.2",
     "jsdom": "^30.0.1",
     "nunjucks": "^3.2.4",
     "requirejs": "^2.3.7",
