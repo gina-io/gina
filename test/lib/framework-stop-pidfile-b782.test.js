@@ -18,8 +18,10 @@
  *   03 — controls: this framework is still sent SIGTERM, titled on Node or running its start
  *        command on Bun, and so is the pid where ps cannot tell (Windows, an image without ps).
  *        They pass before and after the fix.
- * Every section needs ps and real child processes, and is skipped under Bun (the Bun CI image
- * ships no ps), as the #B763 test is.
+ * The arms that read ps or need real child processes are skipped under Bun (the Bun CI image ships
+ * no ps), as the #B763 test skips its own. 01.4, 02.2 and 03.3 read no ps and run there too, which
+ * also keeps this file in the Bun suite's JUnit report: a file whose every test is skipped registers
+ * nothing under bun test, and the Bun gate (script/check_bun_suite.js) then reads it as MISSING.
  */
 'use strict';
 
@@ -50,6 +52,15 @@ var HAS_PS = (function () {
 var SKIP_LIVE = (IS_BUN && 'under Bun (the Bun CI image ships no ps)') || (!HAS_PS && 'no ps -p on this host') || false;
 
 var TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'framework-stop-pidfile-b782-'));
+
+/**
+ * A pid no process can have (above Linux's 4194304 pid_max ceiling and macOS's 99998), for the arms
+ * that never ask ps about it: the stop reads it from a file and records it, and nothing signals it.
+ *
+ * @constant
+ * @type {number}
+ */
+var FAKE_PID = 4242424;
 
 /** @type {{other: ?import('child_process').ChildProcess, other2: ?import('child_process').ChildProcess, bunLike: ?import('child_process').ChildProcess}} */
 var kids = { other: null, other2: null, bunLike: null };
@@ -239,9 +250,9 @@ after(function () {
 // ---------------------------------------------------------------------------
 // 01 — a pid that is not this framework is never signalled
 // ---------------------------------------------------------------------------
-describe('01 - gina stop never signals a pid that is not this framework', { skip: SKIP_LIVE }, function () {
+describe('01 - gina stop never signals a pid that is not this framework', function () {
 
-    it('01.1 the pid file and the record name another program, its fakeDaemonPid a third: no SIGTERM, no SIGCONT, « is not running »', function () {
+    it('01.1 the pid file and the record name another program, its fakeDaemonPid a third: no SIGTERM, no SIGCONT, « is not running »', { skip: SKIP_LIVE }, function () {
         var r = runStop(homes(ownPidFile(kids.other.pid), { pid: kids.other.pid, fakeDaemonPid: kids.other2.pid }));
         assert.equal(r.threw, null, r.threw && r.threw.stack);
         assert.deepEqual(r.kills, [], 'logs: ' + JSON.stringify(r.logs));
@@ -250,7 +261,7 @@ describe('01 - gina stop never signals a pid that is not this framework', { skip
         assert.equal(r.exit, 0);
     });
 
-    it('01.2 the pid file and the record name two different programs: nothing is signalled, and the stop does not report it stopped', function () {
+    it('01.2 the pid file and the record name two different programs: nothing is signalled, and the stop does not report it stopped', { skip: SKIP_LIVE }, function () {
         var r = runStop(homes(ownPidFile(kids.other.pid), { pid: kids.other2.pid }));
         assert.equal(r.threw, null, r.threw && r.threw.stack);
         assert.deepEqual(r.kills, [], 'logs: ' + JSON.stringify(r.logs));
@@ -258,7 +269,7 @@ describe('01 - gina stop never signals a pid that is not this framework', { skip
         assert.ok(!said(r, 'has been stopped'), JSON.stringify(r.logs));
     });
 
-    it('01.3 a dead pid in both: nothing is signalled, and the stale pid file is removed', async function () {
+    it('01.3 a dead pid in both: nothing is signalled, and the stale pid file is removed', { skip: SKIP_LIVE }, async function () {
         var dead = await deadPid();
         var h = homes(ownPidFile(dead), { pid: dead });
         var r = runStop(h);
@@ -280,9 +291,9 @@ describe('01 - gina stop never signals a pid that is not this framework', { skip
 // ---------------------------------------------------------------------------
 // 02 — only this version's pid file is read and removed
 // ---------------------------------------------------------------------------
-describe('02 - gina stop reads and removes only its own version\'s pid file', { skip: SKIP_LIVE }, function () {
+describe('02 - gina stop reads and removes only its own version\'s pid file', function () {
 
-    it('02.1 another framework version\'s pid file is left in place', async function () {
+    it('02.1 another framework version\'s pid file is left in place', { skip: SKIP_LIVE }, async function () {
         var dead = await deadPid();
         var files = ownPidFile(dead);
         files['gina-v9.9.8-b782'] = kids.other.pid;
@@ -296,7 +307,7 @@ describe('02 - gina stop reads and removes only its own version\'s pid file', { 
     });
 
     it('02.2 the pid file of a bundle whose name starts with gina- is left in place', function () {
-        var h = homes({ 'gina-api@shop': kids.other.pid }, null);
+        var h = homes({ 'gina-api@shop': FAKE_PID }, null);
         var r = runStop(h);
         assert.equal(r.threw, null, r.threw && r.threw.stack);
         assert.ok(fs.existsSync(path.join(h.runDir, 'gina-api@shop.pid')), 'logs: ' + JSON.stringify(r.logs));
@@ -308,9 +319,9 @@ describe('02 - gina stop reads and removes only its own version\'s pid file', { 
 // ---------------------------------------------------------------------------
 // 03 — CONTROLS: this framework is still stopped
 // ---------------------------------------------------------------------------
-describe('03 - CONTROLS: gina stop still stops this framework', { skip: SKIP_LIVE }, function () {
+describe('03 - CONTROLS: gina stop still stops this framework', function () {
 
-    it('03.1 a framework on Node (titled gina-v<version>) is sent SIGTERM, its pid file is removed, and the stop reports it stopped', async function () {
+    it('03.1 a framework on Node (titled gina-v<version>) is sent SIGTERM, its pid file is removed, and the stop reports it stopped', { skip: SKIP_LIVE }, async function () {
         var titled = await startChild(['-e', 'process.title = ' + JSON.stringify(TITLE) + '; ' + READY]);
         try {
             var h = homes(ownPidFile(titled.pid), { pid: titled.pid });
@@ -325,7 +336,7 @@ describe('03 - CONTROLS: gina stop still stops this framework', { skip: SKIP_LIV
         }
     });
 
-    it('03.2 a framework on Bun (…/bin/cli start) is sent SIGTERM, and the stop reports it stopped', function () {
+    it('03.2 a framework on Bun (…/bin/cli start) is sent SIGTERM, and the stop reports it stopped', { skip: SKIP_LIVE }, function () {
         var r = runStop(homes(ownPidFile(kids.bunLike.pid), { pid: kids.bunLike.pid }));
         assert.equal(r.threw, null, r.threw && r.threw.stack);
         assert.deepEqual(r.kills, [[kids.bunLike.pid, 'SIGTERM']], 'logs: ' + JSON.stringify(r.logs));
@@ -333,9 +344,9 @@ describe('03 - CONTROLS: gina stop still stops this framework', { skip: SKIP_LIV
     });
 
     it('03.3 where ps cannot tell (Windows, an image without ps), the pid that the pid file and the record both name is sent SIGTERM, as before', function () {
-        var r = runStop(homes(ownPidFile(kids.other.pid), { pid: kids.other.pid }), { readPidTitle: function () { return undefined; } });
+        var r = runStop(homes(ownPidFile(FAKE_PID), { pid: FAKE_PID }), { readPidTitle: function () { return undefined; } });
         assert.equal(r.threw, null, r.threw && r.threw.stack);
-        assert.deepEqual(r.kills, [[kids.other.pid, 'SIGTERM']], 'logs: ' + JSON.stringify(r.logs));
+        assert.deepEqual(r.kills, [[FAKE_PID, 'SIGTERM']], 'logs: ' + JSON.stringify(r.logs));
         assert.ok(said(r, 'has been stopped'), JSON.stringify(r.logs));
     });
 });
