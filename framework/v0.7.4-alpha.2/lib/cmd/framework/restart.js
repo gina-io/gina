@@ -5,6 +5,8 @@ var fs          = require('fs');
 // const {execSync}    = require('child_process');
 const {execFileSync}    = require('child_process');
 const util = require('util');
+// #B780 — the signal numbers, for the exit code of a start a signal ended.
+var os          = require('os');
 
 var CmdHelper   = require('./../helper');
 // const { start } = require('repl');
@@ -92,7 +94,8 @@ function Restart(opt, cmd) {
 
     /**
      * Runs stop(), then starts the framework through this install's `bin/gina start`
-     * (execFileSync, from an argument vector).
+     * (execFileSync, from an argument vector). A start that fails is reported by
+     * startFailed(), which exits with the start's code (#B780).
      * @inner
      * @private
      * @param {object} opt
@@ -118,19 +121,54 @@ function Restart(opt, cmd) {
                 console.debug('out => ', out);
                 // TODO - retrieve running bundles with its options & restart
             } catch (err) {
-                // gina start may exit non-zero when Node.js writes benign
-                // warnings (e.g., ExperimentalWarning) to stderr while the
-                // daemon actually started in the background.
-                // Check for the PID file before treating this as a failure.
-                var pidFile = _(GINA_RUNDIR + '/gina-v' + self.version + '.pid', true);
-                if ( fs.existsSync(pidFile) ) {
-                    console.debug('Framework v'+ self.version +' restarted successfully');
-                } else {
-                    throw err;
-                }
+                // #B780 — was: a non-zero `gina start` counted as a success whenever
+                // gina-v<version>.pid existed, a fallback for the exit a stderr warning used to
+                // cause, which #B760 removed. It only hid a start that failed after writing its pid
+                // file (exit 0, nothing running); otherwise the error was rethrown here, inside a
+                // timer: an uncaught dump and exit 1, the start's own code lost.
+                // // gina start may exit non-zero when Node.js writes benign
+                // // warnings (e.g., ExperimentalWarning) to stderr while the
+                // // daemon actually started in the background.
+                // // Check for the PID file before treating this as a failure.
+                // var pidFile = _(GINA_RUNDIR + '/gina-v' + self.version + '.pid', true);
+                // if ( fs.existsSync(pidFile) ) {
+                //     console.debug('Framework v'+ self.version +' restarted successfully');
+                // } else {
+                //     throw err;
+                // }
+                startFailed(err);
             }
         }, 100);
 
+    }
+
+    /**
+     * #B780 — reports a `gina start` that failed during a restart, then exits with its code. The
+     * start's standard error already reached this process's (execFileSync passes it through);
+     * its standard output, which execFileSync captured, is written out first.
+     *
+     * @inner
+     * @private
+     * @param {Error} err - What execFileSync threw: `status` is the start's exit code, `signal`
+     *   the signal that ended it, `stdout` what it printed
+     *
+     * @example
+     * startFailed(err);
+     * // stderr: « gina: framework:restart could not start the framework v0.7.4 again (gina start exited 3). »
+     * // then exits 3
+     */
+    var startFailed = function(err) {
+        var code = 1;
+        if ( err && typeof(err.status) == 'number' && err.status !== 0 ) {
+            code = err.status;
+        } else if ( err && err.signal && typeof(os.constants.signals[err.signal]) == 'number' ) {
+            code = 128 + os.constants.signals[err.signal];
+        }
+        if ( err && err.stdout && err.stdout.length > 0 ) {
+            fs.writeSync(1, err.stdout);
+        }
+        fs.writeSync(2, 'gina: framework:restart could not start the framework v'+ self.version +' again (gina start exited '+ code +').\n');
+        process.exit(code);
     }
 
     /**
