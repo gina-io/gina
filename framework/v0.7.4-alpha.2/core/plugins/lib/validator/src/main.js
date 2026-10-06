@@ -9314,6 +9314,17 @@ function ValidatorPlugin(rules, data, formId, culture) {
             }
         }// EO Binding input
 
+        /**
+         * Live-checks a <select> after its `change`: validates the select alone, then, in that
+         * pass's callback, the whole form, and displays each pass's error for this select only.
+         * The element is always `$el`, never the global `event` (#B781).
+         *
+         * @inner
+         * @private
+         * @param {HTMLSelectElement} $el - The select that changed
+         * @param {object} $form - The form's validator record (`target`, `rules`)
+         * @returns {void}
+         */
         var updateSelect = function($el, $form) {
             $el.setAttribute('data-value', $el.value);
             // If Live check enabled, proceed to silent validation
@@ -9333,20 +9344,27 @@ function ValidatorPlugin(rules, data, formId, culture) {
                 // && typeof($form.isBeingReseted) == 'undefined'
             ) {
                 var localField = {}, $localField = {}, $localForm = null;
-                $localForm = $el.form;//event.target.form
-                localField[event.target.name]     = event.target.value;
-                $localField[event.target.name]    = event.target;
+                // #B781 — the select is read from `$el`, the element this function is given. It
+                // was read from the global `event` (`window.event`), which is the `change` only
+                // while that dispatch runs: validate() calls back inside its own `validated.<id>`
+                // dispatch on the node it validated, so in the whole-form pass below the target
+                // was the FORM, the touched field's name became the form's own `name`, and the
+                // select's error from the whole-form check was never displayed.
+                // was: localField[event.target.name] = event.target.value; (and each event.target below)
+                $localForm = $el.form;
+                localField[$el.name]     = $el.value;
+                $localField[$el.name]    = $el;
 
                 instance.$forms[$localForm.getAttribute('id')].isValidating = true;
-                validate(event.target, localField, $localField, $form.rules, function onLiveValidation(result){
+                validate($el, localField, $localField, $form.rules, function onLiveValidation(result){
                     instance.$forms[$localForm.getAttribute('id')].isValidating = false;
                     var isFormValid = result.isValid();
                     //console.debug('onSilentPreGlobalLiveValidation: '+ isFormValid, result);
                     if (isFormValid) {
                         //resetting error display
-                        handleErrorsDisplay($localForm, {}, result.data, event.target.name);
+                        handleErrorsDisplay($localForm, {}, result.data, $el.name);
                     } else {
-                        handleErrorsDisplay($localForm, result.error, result.data, event.target.name);
+                        handleErrorsDisplay($localForm, result.error, result.data, $el.name);
                     }
                     //updateSubmitTriggerState( $localForm, isFormValid );
                     // data-gina-form-required-before-submit
@@ -9369,7 +9387,7 @@ function ValidatorPlugin(rules, data, formId, culture) {
                         if (!isFormValid) {
                             instance.$forms[formId].errors = gResult.error;
                             // Fixed on 2026-04-09 - only display errors for the touched field
-                            var _touchedField = event.target.name;
+                            var _touchedField = $el.name;
                             if ( typeof(gResult.error[_touchedField]) != 'undefined' ) {
                                 handleErrorsDisplay($gForm, gResult.error, gResult.data, _touchedField);
                             }

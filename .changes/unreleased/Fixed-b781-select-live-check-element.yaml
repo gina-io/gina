@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'The live check of a `<select>` now displays the select''s error from the whole-form pass. After a change, the validator checks the select alone, then the whole form; the second pass read the global `event` instead of the select, and during that pass the event belongs to the form, so it looked the error up under the form''s name and displayed nothing. An error only the whole-form pass finds, such as a rule comparing the select with another field, was not shown by the live check. Browser-bundled: rebuild bundles to pick it up (#B781).'
+time: 2026-10-06T02:26:56+01:00
