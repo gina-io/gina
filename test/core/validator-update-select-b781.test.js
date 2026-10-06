@@ -38,7 +38,7 @@ var assert = require('node:assert/strict');
 var path   = require('path');
 var fs     = require('fs');
 
-var { JSDOM } = require('jsdom');
+var { JSDOM, VirtualConsole } = require('jsdom');
 
 var FW = require('../fw');
 
@@ -111,7 +111,12 @@ function count(text, needle) {
  *   The display calls, the keys the whole-form pass looked its error up by, and any throw
  */
 function runSelectChange(formHtml, verdicts) {
-    var dom = new JSDOM('<!DOCTYPE html><html><body>' + formHtml + '</body></html>', { runScripts: 'outside-only' });
+    var thrown = null;
+    // a throw inside a listener reaches jsdom's virtual console: a window-level `error` listener
+    // cannot be added under Bun (jsdom rejects the window as an EventTarget there)
+    var vc = new VirtualConsole();
+    vc.on('jsdomError', function (e) { thrown = (e && e.message) || String(e); });
+    var dom = new JSDOM('<!DOCTYPE html><html><body>' + formHtml + '</body></html>', { runScripts: 'outside-only', virtualConsole: vc });
     var w = dom.window;
     // gina's Object#count (utils/prototypes.js), installed in the jsdom realm, where the objects live
     w.eval("Object.defineProperty(Object.prototype, 'count', { value: function () { return Object.keys(this).length; }, enumerable: false, configurable: true });");
@@ -123,7 +128,7 @@ function runSelectChange(formHtml, verdicts) {
     var W = function (o) { return w.JSON.parse(JSON.stringify(o)); };
     var formEl   = w.document.getElementById('f1');
     var selectEl = w.document.getElementById('s1');
-    var calls = [], lookups = [], thrown = null;
+    var calls = [], lookups = [];
 
     var instance = W({ $forms: { f1: { isValidating: false, rules: { country: { isRequired: true } } } } });
     var validate = function ($node, fields, $fields, rules_, cb) {
@@ -166,7 +171,6 @@ function runSelectChange(formHtml, verdicts) {
         var $el = event.target;
         if (/select/i.test($el.type)) { updateSelect($el, $form); }
     });
-    w.addEventListener('error', function (e) { thrown = e.message; });
     try {
         selectEl.dispatchEvent(new w.Event('change', { bubbles: true }));
     } catch (e) {
