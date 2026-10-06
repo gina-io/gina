@@ -1,0 +1,3 @@
+kind: Fixed
+body: '`gina framework:status` now lists a framework running on Bun whose pid file is missing, and writes its pid file back, and `gina stop` now stops it. Both looked for the framework by its `gina-v<version>` process title, which Bun does not show to `ps`, so status read « Gina is not running » and `gina stop` exited 0 leaving the framework running. Both now also read the framework''s own `procs.json` record, and act on it only while `ps` shows that pid running as the framework. A framework on Node whose pid file is missing is now sent `SIGTERM`, as one with a pid file is, instead of `SIGKILL`, so it exits cleanly and removes its own record (#B763).'
+time: 2026-10-06T02:14:46+01:00

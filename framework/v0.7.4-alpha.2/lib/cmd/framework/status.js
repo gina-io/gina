@@ -52,7 +52,9 @@ function Status(opt, cmd) {
      * Discovers the current user's framework daemons (`gina-v<version>` titles)
      * that are not tracked by PID files and writes PID files for them, or kills
      * any zombie processes. The listing comes from `inc/ps-titles.js`, which runs
-     * `ps` without a shell and accepts only a daemon title (#B677).
+     * `ps` without a shell and accepts only a daemon title (#B677). A daemon that
+     * `procs.json` records and `ps` shows still running gets its PID file back
+     * too, which finds a framework on Bun, whose title `ps` does not show (#B763).
      * @inner
      * @private
      * @param {string[]} pidFiles - Array of PID filenames already found in GINA_RUNDIR
@@ -89,6 +91,26 @@ function Status(opt, cmd) {
                 pidFiles.push(title +'.pid');
             }
         }
+
+        // #B763 — a framework running on Bun shows `ps` its command line, never its title, so the
+        // listing above cannot find it once its pid file is gone: framework:status said « Gina is
+        // not running » while it ran. Its own procs.json record still names it, and a recorded
+        // daemon that `ps` shows still running gets its pid file back. procs.json is
+        // machine-written JSON, parsed here rather than with requireJSON(), which exits the
+        // process on a file it cannot parse; a missing or unreadable file is no record.
+        var procs = null;
+        try {
+            procs = JSON.parse(fs.readFileSync(_(GINA_HOMEDIR +'/procs.json', true), 'utf8'));
+        } catch (procsErr) {
+            procs = null;
+        }
+        psTitles.findRecordedDaemons(procs).forEach(function (recorded) {
+            let file = recorded.title +'.pid';
+            if ( pidFiles.indexOf( file ) < 0) {
+                fs.writeFileSync( _(GINA_RUNDIR +'/'+ file, true), ''+ recorded.pid );
+                pidFiles.push(file);
+            }
+        });
 
     }
 

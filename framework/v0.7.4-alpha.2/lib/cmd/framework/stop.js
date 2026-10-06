@@ -6,6 +6,8 @@ const {execSync}    = require('child_process');
 var CmdHelper   = require('./../helper');
 var console     = lib.logger;
 var fmt         = lib.cmdStatusFormat;
+// #B763 — finds a framework from its own procs.json record where no pid file names it.
+var psTitles    = require('./inc/ps-titles');
 /**
  * @module gina/lib/cmd/framework/stop
  */
@@ -183,6 +185,25 @@ function Stop(opt, cmd) {
 
         // Double check in case of a bug ...
         if ( !isWin32() ) {
+            // #B763 — no pid file named this version's framework (it was removed, or never written
+            // back): on Bun the title grep below finds nothing, since Bun does not show
+            // process.title to ps, so `gina stop` printed « is not running » and left the framework
+            // running. Its own procs.json record still names it; a recorded daemon that ps shows
+            // still running is sent SIGTERM, as the daemon a pid file names is above.
+            var recorded = null;
+            try {
+                recorded = psTitles.findRecordedDaemons(JSON.parse(fs.readFileSync(_(GINA_HOMEDIR +'/procs.json', true), 'utf8')))
+                    .filter(function (d) { return d.title == 'gina-v'+ self.version; })[0] || null;
+            } catch (procsErr) {
+                // no record, or one that cannot be parsed
+                recorded = null;
+            }
+            if (recorded) {
+                console.debug('Sending `SIGTERM` for the recorded pid `'+ recorded.pid +'`');
+                process.kill(recorded.pid, 'SIGTERM');
+                return end('Gina v'+ self.version + ' has been stopped');
+            }
+
             var out  = null;
             try {
                 // Retrive pid

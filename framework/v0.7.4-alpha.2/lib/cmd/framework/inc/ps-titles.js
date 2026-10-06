@@ -22,6 +22,11 @@
  * `process.title` to `ps` (measured on Bun 1.2.21 under macOS and 1.4.2 under
  * Linux), so a framework running on Bun keeps the command line it was started
  * with, `<bun> …/bin/cli start …` (`DAEMON_COMMAND_RE`).
+ *
+ * `findRecordedDaemons()` finds a framework from its own `procs.json` record,
+ * checked with `readPidTitle()`: on Bun the title listing cannot see it, so a
+ * Bun framework whose pid file was gone read as not running in
+ * `framework:status`, and `gina stop` left it running (#B763).
  */
 var execFileSync = require('child_process').execFileSync;
 
@@ -183,11 +188,62 @@ function readPidTitle(pid) {
     return { title: command.split(/\s+/)[0] || '', command: command, zombie: zombie };
 }
 
+/**
+ * Lists the framework daemons that `procs.json` records and that are still
+ * running (#B763): each entry whose title is a daemon title, whose pid is a
+ * pid, and whose process `ps` shows as that daemon, titled with the entry's
+ * title on Node, or running the framework's own start command on Bun, which
+ * does not show `process.title` to `ps` (`DAEMON_COMMAND_RE`). A pid `ps`
+ * cannot read, a zombie, and a pid another program now has are left out, so
+ * nothing is re-registered or signalled on a guess. On Node a pid another
+ * framework version now has is left out too; on Bun it is not:
+ * `DAEMON_COMMAND_RE` reads no version (a plain `gina start` passes none), so
+ * there the record's own title is trusted. A framework whose pid file was
+ * removed is still found from its own record: `framework:status` writes its
+ * pid file back, and `gina stop` stops it, where the `gina-v<version>` title
+ * cannot be seen.
+ *
+ * @param {?object} procs - The parsed `procs.json`: `{ "<title>": { pid, title, version, port } }`;
+ *   an entry without a `title` is read under its key
+ * @param {function(number): (?object|undefined)} [read] - Replaces `readPidTitle()` (tests)
+ * @returns {Array<{pid: number, title: string}>} In the record's order
+ * @example
+ * findRecordedDaemons({ 'gina-v0.7.4': { pid: 22221, title: 'gina-v0.7.4' } });
+ * // [ { pid: 22221, title: 'gina-v0.7.4' } ] while that framework runs, on Node or on Bun
+ */
+function findRecordedDaemons(procs, read) {
+    var readTitle = (typeof read === 'function') ? read : readPidTitle;
+    var found = [];
+    if (!procs || typeof procs !== 'object') {
+        return found;
+    }
+    Object.keys(procs).forEach(function (key) {
+        var entry = procs[key];
+        if (!entry || typeof entry !== 'object') {
+            return;
+        }
+        var title = (typeof entry.title === 'string') ? entry.title : key;
+        var pid   = parsePid(entry.pid);
+        if (pid === null || !DAEMON_TITLE_RE.test(title)) {
+            return;
+        }
+        var seen = readTitle(pid);
+        if (!seen || seen.zombie) {
+            return;
+        }
+        if (seen.title === title || DAEMON_COMMAND_RE.test(seen.command || '')) {
+            found.push({ pid: pid, title: title });
+        }
+    });
+    return found;
+}
+
 module.exports = {
-    DAEMON_TITLE_RE   : DAEMON_TITLE_RE,
-    DAEMON_COMMAND_RE : DAEMON_COMMAND_RE,
-    parsePid          : parsePid,
-    parseDaemonTitles : parseDaemonTitles,
-    listOwnDaemons    : listOwnDaemons,
-    readPidTitle      : readPidTitle
+    DAEMON_TITLE_RE     : DAEMON_TITLE_RE,
+    DAEMON_COMMAND_RE   : DAEMON_COMMAND_RE,
+    parsePid            : parsePid,
+    parseDaemonTitles   : parseDaemonTitles,
+    listOwnDaemons      : listOwnDaemons,
+    readPidTitle        : readPidTitle,
+    findRecordedDaemons : findRecordedDaemons
 };
