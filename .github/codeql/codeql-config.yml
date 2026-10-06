@@ -1,5 +1,7 @@
-# CodeQL configuration merged into code-scanning DEFAULT SETUP through the
-# `github-codeql-config-file` repository property.
+# CodeQL configuration for code scanning, read by .github/workflows/codeql.yml (the
+# `config-file` input of its init step). It first served the repository's default setup
+# through the `github-codeql-config-file` repository property; default setup is off
+# since the workflow replaced it (#S15).
 #
 # Excluded on purpose:
 #   - the built browser-bundle copies under dist/: every alert there repeats the same rule on
@@ -7,7 +9,7 @@
 #   - the test suites.
 # NOT excluded: framework/v*/core/asset/plugin/src/vendor/gina/ — despite its name that is the
 # framework's own client source (the RequireJS alias directory), not third-party code.
-name: "gina default-setup overlay"
+name: "gina code scanning"
 paths-ignore:
   - "framework/v*/core/asset/plugin/dist/**"
   - "test/**"

@@ -1,0 +1,56 @@
+# CodeQL code scanning (#S15), as a workflow: it replaces the repository's default setup.
+#
+# Code scanning does not accept a workflow's results while default setup is on, so
+# default setup was turned off before this file landed. Scorecard's SAST check counts
+# a workflow that runs `github/codeql-action/analyze`.
+#
+# The languages are the two default setup analysed: GitHub Actions workflows and
+# JavaScript/TypeScript, both without a build (`build-mode: none`). The analysis
+# categories keep default setup's names (`/language:<language>`), so its alerts
+# continue under the same categories.
+# `.github/codeql/codeql-config.yml` keeps the built browser-bundle copies and the test
+# suites out of the scan; that file says why.
+name: CodeQL
+
+on:
+  push:
+    branches: [develop, master]
+  pull_request:
+    branches: [develop, master]
+  schedule:
+    # Weekly, Monday 04:17 UTC — runs the latest queries against unchanged code.
+    - cron: '17 4 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    permissions:
+      # Upload the results to code scanning.
+      security-events: write
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [actions, javascript-typescript]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: none
+          config-file: ./.github/codeql/codeql-config.yml
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
+        with:
+          category: "/language:${{ matrix.language }}"
