@@ -2121,9 +2121,30 @@ function SuperController(options) {
 
 
 
+    /**
+     * Tells redirect() whether its target is an absolute URL rather than a
+     * route name.
+     *
+     * #B794 — the first test requires a dot in the host, so an absolute URL on
+     * a dot-less host (`http://localhost:3100/…`, a single-label host such as a
+     * container service name, a bracketed IPv6 address) failed it, and
+     * redirect() treated the URL as a route name and answered 404. The second
+     * test accepts any `scheme://host[:port]` followed by a path, a query, a
+     * fragment or the end. It is anchored, so a route name or a relative path,
+     * neither of which starts with a scheme, is still refused, and every value
+     * the first test accepts is still accepted.
+     *
+     * @inner
+     * @param {string} url - redirect target
+     * @returns {boolean} `true` for an absolute http, https, ftp or sftp URL
+     */
     var isValidURL = function(url){
         // var re = /(http|ftp|https|sftp):\/\/[\w-]+(\.[\w-]+)+([\w.,@?^=%&amp;:\/~+#-]*[\w@?^=%&amp;\/~+#-])?/;
-        return (/(http|ftp|https|sftp):\/\/[\w-]+(\.[\w-]+)+([\w.,@?^=%&amp;:\/~+#-]*[\w@?^=%&amp;\/~+#-])?/.test(url)) ? true : false;
+        // was: return (/(http|ftp|https|sftp):\/\/[\w-]+(\.[\w-]+)+([\w.,@?^=%&amp;:\/~+#-]*[\w@?^=%&amp;\/~+#-])?/.test(url)) ? true : false;
+        return (
+            /(http|ftp|https|sftp):\/\/[\w-]+(\.[\w-]+)+([\w.,@?^=%&amp;:\/~+#-]*[\w@?^=%&amp;\/~+#-])?/.test(url)
+            || /^(http|ftp|https|sftp):\/\/(\[[0-9a-fA-F:.]+\]|[\w-]+)(:\d+)?([\/?#]|$)/.test(url)
+        ) ? true : false;
     }
 
     /**

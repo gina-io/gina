@@ -18,6 +18,10 @@
  *         the fallback on the exits that write the 30x themselves
  *       - the defect: POST, PUT and GET XHR requests with params, and a popin
  *         request, each answered with the `isXhrRedirect` JSON
+ *       - #B794: redirect() classifies an absolute URL on a dot-less host
+ *         (`http://localhost:<port>/…`) as a URL, not as a route name, so a
+ *         direct redirect to it and a route-object fallback (whose `toUrl()` is
+ *         such a URL on a localhost bundle) answer instead of a 404
  *
  * Every request carries a client timeout, so a pre-fix run FAILS on the
  * defect arms instead of hanging the suite.
@@ -170,6 +174,10 @@ function installRoutes() {
     r.b783_target = { namespace: 'content', url: '/target', method: 'GET',            param: { control: 'b783Target' } };
     r.b783_fbstr  = { namespace: 'content', url: '/fb-str', method: 'GET, POST, PUT', param: { control: 'b783FbStr' } };
     r.b783_redir  = { namespace: 'content', url: '/redir',  method: 'GET, POST',      param: { control: 'b783Redir' } };
+    r.b783_fbrte  = { namespace: 'content', url: '/fb-rte', method: 'GET, POST',      param: { control: 'b783FbRte' } };
+    r.b794_abs    = { namespace: 'content', url: '/abs',    method: 'GET',            param: { control: 'b794Abs' } };
+    r.b794_dotted = { namespace: 'content', url: '/abs-dotted', method: 'GET',        param: { control: 'b794AbsDotted' } };
+    r.b794_name   = { namespace: 'content', url: '/to-name', method: 'GET',           param: { control: 'b794ToName' } };
     fs.writeFileSync(rf, JSON.stringify(r, null, 2));
     var s = fs.readFileSync(cf, 'utf8');
     var anchor = '    this.home = function(req, res) {';
@@ -178,6 +186,10 @@ function installRoutes() {
         '    this.b783Target = function(req, res) { self.renderJSON({ landed: true, method: req.method, get: req.get }); };',
         '    this.b783FbStr  = function(req, res) { var e = new Error("b783 boom"); e.fallback = "' + webroot + 'target"; return self.throwError(e); };',
         '    this.b783Redir  = function(req, res) { return self.redirect("' + webroot + 'target", true); };',
+        '    this.b783FbRte  = function(req, res) { var e = new Error("b783 boom"); e.fallback = require("gina").lib.routing.getRoute("b783_target@' + BUNDLE + '"); return self.throwError(e); };',
+        '    this.b794Abs       = function(req, res) { return self.redirect("http://localhost:' + bundlePort + webroot + 'target"); };',
+        '    this.b794AbsDotted = function(req, res) { return self.redirect("http://127.0.0.1:' + bundlePort + webroot + 'target"); };',
+        '    this.b794ToName    = function(req, res) { return self.redirect("b794-no-such-route"); };',
         ''
     ].join('\n');
     fs.writeFileSync(cf, s.replace(anchor, actions + anchor));
@@ -205,6 +217,28 @@ describe('01 - source pin: the error mark is cleared before the fallback hand-of
         assert.ok(clear > -1, 'nothing clears isProcessingError inside the fallback interception');
         assert.ok(clear < code.indexOf('return self.redirect('),
             'isProcessingError is cleared after a redirect() hand-off, too late for it');
+    });
+
+    it('01.2 #B794 — the absolute-URL classifier accepts a dot-less host and still rejects route names and paths', function () {
+        var raw   = fs.readFileSync(controllerSource(), 'utf8');
+        var head  = '    var isValidURL = function(url){';
+        var start = raw.indexOf(head);
+        assert.ok(start > -1, 'the isValidURL declaration is gone');
+        var end   = raw.indexOf('\n    }\n', start);
+        assert.ok(end > start, 'the end of isValidURL was not found');
+        var isValidURL = new Function(raw.slice(start, end + 6) + '\nreturn isValidURL;')();
+        // controls: what the classifier accepted and refused before #B794 must not move
+        assert.equal(isValidURL('https://example.com/a?b=1'), true,  'a dotted host must stay a URL');
+        assert.equal(isValidURL('http://127.0.0.1:3100/x'),   true,  'an IPv4 host must stay a URL');
+        assert.equal(isValidURL('home'),                      false, 'a route name must not become a URL');
+        assert.equal(isValidURL('settings@account'),          false, 'a cross-bundle route name must not become a URL');
+        assert.equal(isValidURL('/dashboard'),                false, 'a relative path must not become a URL');
+        assert.equal(isValidURL('http:/broken'),              false, 'a malformed URL must not become a URL');
+        // the defect: a host without a dot
+        assert.equal(isValidURL('http://localhost:3100/web/target'), true, 'a localhost URL is not classified as a URL');
+        assert.equal(isValidURL('http://localhost'),                 true, 'a bare localhost URL is not classified as a URL');
+        assert.equal(isValidURL('https://api-svc:8443/v1?x=1'),      true, 'a single-label host is not classified as a URL');
+        assert.equal(isValidURL('http://[::1]:3100/x'),              true, 'a bracketed IPv6 host is not classified as a URL');
     });
 });
 
@@ -347,5 +381,45 @@ describe('02 - container-boot-throwerror-fallback — an XHR request answered th
         assert.ok(isChildAlive(), 'the bundle process exited: ' + JSON.stringify(childExit) + '\n' + childOut.slice(-1500));
         var r = await request('GET', webroot + 'target');
         assert.equal(r.status, 200, 'the target route stopped answering');
+    });
+
+    // ── #B794: an absolute URL on a dot-less host is a URL, not a route name ──
+
+    it('02.12 #B794 CONTROL — a redirect to an absolute URL on a dotted host answers 301 with that location', async function (t) {
+        if (!ready(t)) return;
+        var r = await request('GET', webroot + 'abs-dotted');
+        assert.equal(r.status, 301, 'expected 301, got ' + r.status + ' ' + (r.err || r.body.slice(0, 200)));
+        assert.equal(r.location, 'http://127.0.0.1:' + bundlePort + webroot + 'target');
+    });
+
+    it('02.13 #B794 CONTROL — a redirect to an unknown route name still answers 404', async function (t) {
+        if (!ready(t)) return;
+        var r = await request('GET', webroot + 'to-name');
+        assert.equal(r.status, 404, 'a route name is no longer sent to the route branch: ' + r.status + ' ' + (r.err || r.body.slice(0, 200)));
+    });
+
+    it('02.14 #B794 — a redirect to an absolute URL on localhost answers 301 with that location', async function (t) {
+        if (!ready(t)) return;
+        var r = await request('GET', webroot + 'abs');
+        assert.equal(r.status, 301, 'expected 301, got ' + r.status + ' ' + (r.err || r.body.slice(0, 200)));
+        assert.equal(r.location, 'http://localhost:' + bundlePort + webroot + 'target');
+    });
+
+    it('02.15 #B794 — a route-object fallback answers a non-XHR POST with a 303 to the target', async function (t) {
+        if (!ready(t)) return;
+        var r = await request('POST', webroot + 'fb-rte', 'a=1');
+        assert.equal(r.status, 303, 'expected 303, got ' + r.status + ' ' + (r.err || r.body.slice(0, 200)));
+        assert.ok(String(r.location).indexOf(webroot + 'target') > -1, 'unexpected location: ' + r.location);
+    });
+
+    it('02.16 #B794 — a route-object fallback answers an XHR POST with params with the isXhrRedirect JSON', async function (t) {
+        if (!ready(t)) return;
+        var json = assertXhrRedirect(await request('POST', webroot + 'fb-rte', 'a=1', XHR), 'route-object fallback, POST XHR + body');
+        assert.ok(String(json.location).indexOf(webroot + 'target') > -1, 'unexpected location: ' + json.location);
+    });
+
+    it('02.17 the bundle is still up after the #B794 arms', async function (t) {
+        if (!ready(t)) return;
+        assert.ok(isChildAlive(), 'the bundle process exited: ' + JSON.stringify(childExit) + '\n' + childOut.slice(-1500));
     });
 });
