@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'A `:placeholder` in a route''s `param.path`, `param.title` or `param.namespace` now takes its value as written, on a matched request and through `getRoute()`. These fields took the value through a string replacement, so `$` sequences in it were expanded as replacement patterns: a request to `/user/$%60` on a `/user/:id` route gave `"title": "User :id"` the value `User User `, and `$&`, `$''` and `$$` inserted the placeholder, the text after it, or a single `$`. `getRoute()` also dropped the `/` that follows such a placeholder in those three fields: `"path": "/users/:id/edit"` with `id: 42` gave `/users/42edit`, and now gives `/users/42/edit`. The URL and `param.file` already took the value as written (#B688).'
+time: 2026-10-06T21:58:19+01:00

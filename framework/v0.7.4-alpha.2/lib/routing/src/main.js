@@ -670,11 +670,22 @@ function Routing() {
      * This is for server side use only
      * http://en.wikipedia.org/wiki/Regular_expression
      *
-     * @param {string} urlVar
-     * @param {string} urlVal
-     * @param {object} params
+     * Before the requirement test, writes `urlVal` in place of the `urlVar` placeholder in
+     * `params.param.path`, `.namespace` and `.title`, verbatim: through a function replacer,
+     * so `$`-patterns in the value are not expanded (#B688).
      *
-     * @returns {boolean} true|false - `true` if it fits
+     * @param {string} urlVar - the rule's URL segment, e.g. `:id`
+     * @param {string} urlVal - the request's URL segment at the same position
+     * @param {object} params - the per-request route description (its `param` is a per-request copy)
+     * @param {object} request
+     * @param {object} response
+     * @param {function} next
+     *
+     * @returns {Promise<boolean>} `true` if it fits
+     *
+     * @example
+     * // rule url `/user/:id`, param `{ title: 'User :id' }`, request `/user/$%60`
+     * await fitsWithRequirements(':id', '$`', params, req, res, next); // params.param.title === 'User $`'
      *
      * @private
      * */
@@ -704,14 +715,21 @@ function Routing() {
 
         if (!_param.length) return false;
 
+        // #B688 — the path, namespace and title rewrites take the URL value through a FUNCTION
+        // replacer. A string replacement expanded `$`-patterns found in the value (`` $` `` the
+        // text before the placeholder, `$&` the placeholder, `$'` the text after it, `$$` a `$`):
+        // a request to `/user/$%60` turned `"title": "User :id"` into `User User `. The value is
+        // now written verbatim, as the URL and `param.file` already were.
         //  if custom path, path rewrite
         if (params.param.path && regex.test(params.param.path)) {
-            params.param.path = params.param.path.replace(regex, urlVal);
+            // was: params.param.path = params.param.path.replace(regex, urlVal);
+            params.param.path = params.param.path.replace(regex, function () { return urlVal; });
         }
 
         //  if custom namespace, namespace rewrite
         if (params.param.namespace && regex.test(params.param.namespace)) {
-            params.param.namespace = params.param.namespace.replace(regex, urlVal);
+            // was: params.param.namespace = params.param.namespace.replace(regex, urlVal);
+            params.param.namespace = params.param.namespace.replace(regex, function () { return urlVal; });
         }
 
         //  if custom file, file rewrite
@@ -726,9 +744,10 @@ function Routing() {
             _regex = null;
         }
 
-        //  if custom title, title rewrite
+        //  if custom title, title rewrite (#B688: a function replacer, as for the path above)
         if (params.param.title && regex.test(params.param.title)) {
-            params.param.title = params.param.title.replace(regex, urlVal);
+            // was: params.param.title = params.param.title.replace(regex, urlVal);
+            params.param.title = params.param.title.replace(regex, function () { return urlVal; });
         }
 
 
@@ -1000,6 +1019,20 @@ function Routing() {
         return false
     }
 
+    /**
+     * String.prototype.replace callback shared by the placeholder writers: returns
+     * `replacement.variable`, plus the `/` the match consumed when the regex matched `:id/`.
+     * A function replacer writes the value verbatim, where a string replacement would expand
+     * `$`-patterns in it (#B688). Set `replacement.variable` right before each `.replace()`.
+     *
+     * @inner
+     * @param {string} matched - the matched placeholder, `:id` or `:id/`
+     * @returns {string|*} the value, with a trailing `/` when `matched` had one
+     *
+     * @example
+     * replacement.variable = '42';
+     * '/users/:id/edit'.replace(/(:id\/|:id$)/g, replacement); // '/users/42/edit'
+     */
     var replacement = function(matched){
         return ( /\/$/.test(matched) ? replacement.variable+ '/': replacement.variable )
     };
@@ -1007,9 +1040,21 @@ function Routing() {
     /**
      * checkRouteParams
      *
-     * @param {object} route
-     * @param {object} params
+     * Fills the route's `:placeholders` from `params`: for each `param` entry declared as a
+     * placeholder (`"id": ":id"`), writes `params.id` into `param.path`, `.title`,
+     * `.namespace`, `.file` and the url. Every value goes through `replacement`, so it is
+     * written verbatim (`$`-patterns are not expanded) and the `/` after a `:id/` placeholder
+     * is kept (#B688).
+     *
+     * @inner
+     * @param {object} route - the route to fill: a copy (getRoute clones the rule, the
+     *   request path clones `param` per request)
+     * @param {object} params - placeholder values, keyed by variable name
      * @return {object} route - updated route object
+     *
+     * @example
+     * // param `{ id: ':id', path: '/users/:id/edit', title: 'User :id' }`
+     * checkRouteParams(route, { id: '42' }); // param.path '/users/42/edit', param.title 'User 42'
      */
     var checkRouteParams = function(route, params) {
         var variable        = null
@@ -1033,14 +1078,22 @@ function Routing() {
                     regex = new RegExp('(:'+variable+'/|:'+variable+'$)', 'g');
 
 
+                    // #B688 — path, title and namespace go through `replacement`, as `file` and the
+                    // URL below already did. A string replacement expanded `$`-patterns found in the
+                    // value (`` $` `` `$&` `$'` `$$`) and dropped the `/` this regex consumes:
+                    // `/users/:id/edit` gave `/users/42edit`.
+                    replacement.variable = params[variable];
                     if ( typeof(route.param.path) != 'undefined' && /\:/.test(route.param.path) ) {
-                        route.param.path = route.param.path.replace( regex, params[variable]);
+                        // was: route.param.path = route.param.path.replace( regex, params[variable]);
+                        route.param.path = route.param.path.replace( regex, replacement );
                     }
                     if (typeof (route.param.title) != 'undefined' && /\:/.test(route.param.title)) {
-                        route.param.title = route.param.title.replace( regex, params[variable]);
+                        // was: route.param.title = route.param.title.replace( regex, params[variable]);
+                        route.param.title = route.param.title.replace( regex, replacement );
                     }
                     if (typeof (route.param.namespace) != 'undefined' && /\:/.test(route.param.namespace)) {
-                        route.param.namespace = route.param.namespace.replace( regex, params[variable]);
+                        // was: route.param.namespace = route.param.namespace.replace( regex, params[variable]);
+                        route.param.namespace = route.param.namespace.replace( regex, replacement );
                     }
                     // file is handle like url replacement (path is like pathname)
                     if (typeof (route.param.file) != 'undefined' && /\:/.test(route.param.file)) {
