@@ -1063,9 +1063,15 @@ function Config(opt, contextResetNeeded) {
                     }
 
 
-                    let name            = fName.replace(new RegExp('\.'+ env +'\.json$'), '').replace(new RegExp('\.json$'), '');
-                    let fNameWithNoExt  = fName.replace(/.json$/, '');
-                    let section = fNameWithNoExt.replace(/(^settings\.|^settings$)/, '').replace(new RegExp('\.'+ env +'$'), '').replace(new RegExp('\.json$'), '');
+                    // #B784 — `settings[.<section>][.<env>].json`: strip the `.<env>` suffix BEFORE
+                    // the `settings.` prefix. Prefix-first left `settings.<env>.json` with no leading
+                    // dot for the env strip, so the whole file nested under a `<env>` key and never
+                    // reached the top level. A file for ANOTHER env keeps its suffix in the section
+                    // (`server.cache.dev` under prod) and stays inert, as documented.
+                    foundEnvVersion     = new RegExp('\\.'+ env +'\\.json$').test(fName);
+                    let name            = fName.replace(new RegExp('\\.'+ env +'\\.json$'), '').replace(/\.json$/, '');
+                    let fNameWithNoExt  = fName.replace(/\.json$/, '');
+                    let section = fNameWithNoExt.replace(new RegExp('\\.'+ env +'$'), '').replace(/(^settings\.|^settings$)/, '');
 
                     if (/\-/.test(name)) {
                         name = name.replace(/-([a-z])/g, function(g) { return g[1].toUpperCase(); })
@@ -1154,6 +1160,10 @@ function Config(opt, contextResetNeeded) {
                             section = section.replace(/-([a-z])/g, function(g) { return g[1].toUpperCase(); })
                         }
                         mergeConfig(tmpSettings, section, fileContent );
+                    } else if ( foundEnvVersion && fileContent && typeof(fileContent) === 'object' ) {
+                        // #B784 — the env version of the whole-settings file wins over `settings.json`
+                        // whatever the directory order: lib/merge is fill-only, the target wins.
+                        tmpSettings = merge(fileContent, tmpSettings);
                     } else {
                         tmpSettings = merge(tmpSettings, fileContent);
                     }
