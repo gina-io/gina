@@ -1691,6 +1691,24 @@ isBundleMounted(projects, bundlesPath, getContext('bundle'), function onBundleMo
                                     console.warn('[render-cache] config validation skipped: ' + (rcErr.message || rcErr));
                                 }
 
+                                // #B744 — settings.json's top-level `cache` block holds the default
+                                // backend (`type`/`store`/`name`); the switch and the bundle-wide
+                                // defaults live under `server.cache`. The six keys the framework
+                                // template defines are inert in that block (the #B114 fold is
+                                // fill-only and runs after the template has set them), so each one
+                                // found there is named at boot with the block that works. Advisory
+                                // only — never affects boot.
+                                try {
+                                    var _rcTopLevel = null;
+                                    try {
+                                        _rcTopLevel = config.getInstance()[gna.core.startingApp][env].content.settings.cache;
+                                    } catch (rcTopErr) { _rcTopLevel = null; }
+                                    var _rcInert = lib.RenderCache.inertTopLevelKeys(_rcTopLevel);
+                                    for (var _rcK = 0; _rcK < _rcInert.length; _rcK++) {
+                                        console.warn('[render-cache] settings.json > cache.' + _rcInert[_rcK] + ' is ignored there — set `' + _rcInert[_rcK] + '` under server.cache (settings.json, settings.server.cache.<env>.json or the project env.json)');
+                                    }
+                                } catch (rcTopWarnErr) { /* advisory only */ }
+
                                 // #STO1 — pluggable object storage. Validate the bundle's
                                 // `storage` block, build any connector-backed metadata
                                 // stores, then install the drivers before the first

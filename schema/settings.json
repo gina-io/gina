@@ -587,7 +587,7 @@
     },
     "cache": {
       "type": "object",
-      "description": "Bundle-wide render/output-cache defaults. `type` / `store` here are folded into the runtime `server.cache` (which also carries the per-env `enable` / `path` / `ttl` / `maxEntries` from env.json), so they act as the default a route inherits when its own `cache` omits them.",
+      "description": "The render/output cache's default backend: `type`, `store` and `name` here are folded into the runtime `server.cache`, so they act as the default a route inherits when its own `cache` omits them. The switch and the bundle-wide defaults (`enable`, `path`, `ttl`, `sliding`, `maxAge`, `maxEntries`) live under `server.cache` — in this block they are ignored, and the bundle logs a boot warning per such key naming `server.cache`.",
       "additionalProperties": true,
       "properties": {
         "type": {
@@ -603,6 +603,30 @@
           "type": "string",
           "pattern": "^[A-Za-z][A-Za-z0-9._-]{0,63}$",
           "description": "Optional RFC 9211 Cache-Status identifier for this bundle's render/output cache (default `gina-cache`). Grammar is a conservative RFC 8941 token subset: a letter, then up to 63 of [A-Za-z0-9._-]. An invalid value is ignored with a boot warn. When `server.hidePoweredBy` is true and the cache is enabled, leaving it unset logs a boot warn naming the disclosure — set any token (e.g. `cache`) to close it, or explicitly `gina-cache` to keep the default wire and silence the warn."
+        },
+        "enable": {
+          "deprecated": true,
+          "description": "Ignored here, with a boot warning — the master switch is `server.cache.enable` (settings.json, settings.server.cache.<env>.json or the project env.json)."
+        },
+        "path": {
+          "deprecated": true,
+          "description": "Ignored here, with a boot warning — set `server.cache.path`."
+        },
+        "ttl": {
+          "deprecated": true,
+          "description": "Ignored here, with a boot warning — set `server.cache.ttl`."
+        },
+        "sliding": {
+          "deprecated": true,
+          "description": "Ignored here, with a boot warning — set `server.cache.sliding`."
+        },
+        "maxAge": {
+          "deprecated": true,
+          "description": "Ignored here, with a boot warning — set `server.cache.maxAge`."
+        },
+        "maxEntries": {
+          "deprecated": true,
+          "description": "Ignored here, with a boot warning — set `server.cache.maxEntries`."
         }
       }
     },
