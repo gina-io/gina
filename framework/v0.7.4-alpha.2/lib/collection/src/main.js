@@ -25,6 +25,12 @@
  * defined). An explicitly empty `{}` filter is legal and matches every
  * record; `null` is a legal needle comparing strictly against stored values.
  *
+ * Query results (`find`, `orderBy`, `limit`, `notIn`, …) are Arrays carrying
+ * these methods, so calls chain. Their `filter` takes either a function, which
+ * filters like `Array.prototype.filter` and returns a chainable result, or a
+ * field name or a list of field names, which projects each row onto those
+ * fields and returns a plain array.
+ *
  * @class Collection
  * @constructor
  * @this {Collection}
@@ -57,6 +63,8 @@
  * col.delete({ id: 2 });
  * col.orderBy({ name: 'asc' });
  * col.toRaw();                                          // strip _uuid/_hasItsOwnUuid
+ * col.find({}).filter(function (r) { return r.id > 1; }); // chainable: .toRaw(), .orderBy(), …
+ * col.find({}).filter(['id', 'name']);                  // projection: [{ id, name }, …]
  */
 function Collection(content, options) {
 
@@ -1669,19 +1677,57 @@ function Collection(content, options) {
 
     /**
      * filter
-     * Reduce record propName
-     * @param {string|array} filter
+     * With a FUNCTION, filters like `Array.prototype.filter`: the callback gets
+     * `(row, index, array)` and `thisArg` as its `this`, and the result is a
+     * `find()`-style result: the matching rows (the same objects) with the methods
+     * `find()` attaches, so `.toRaw()` and the chain keep working.
+     * With a field name or a list of field names, projects each row onto those
+     * fields and returns a plain, deep-cloned array.
+     *
+     * #B517 — a function used to be read as a field name, so `rows.filter(fn)`
+     * matched nothing and returned `[]` with no error.
+     *
+     * @param {function|string|array} filter - a predicate, a field name, or a list of field names
+     *  e.g: function (row) { return row.active; }
      *  e.g: 'id'
      *  e.g: ['id', 'name']
+     * @param {*} [thisArg] - `this` for the predicate (function form only)
      *
-     * @returns {array} rawFilteredResult
+     * @returns {array} the matching rows (function form), or rawFilteredResult (projection)
+     * @throws {Error} when `filter` is undefined
+     *
+     * @example
+     * var col = new Collection([{ id: 1, active: true }, { id: 2, active: false }]);
+     * col.find({}).filter(function (row) { return row.active; }).toRaw(); // [{ id: 1, active: true }]
+     * col.find({}).filter('id');                                           // [{ id: 1 }, { id: 2 }]
      * */
-     instance['filter'] = function(filter) {
+     instance['filter'] = function(filter, thisArg) {
 
         if ( typeof(filter) == 'undefined' ) {
-            throw new Error('`filter` parametter must be a string or an array.');
+            // was: throw new Error('`filter` parametter must be a string or an array.');
+            throw new Error('`filter` parameter must be a function, a string or an array.');
         }
         var result = ( Array.isArray(this) ) ? this : content;
+
+        // #B517 — a function filters like Array.prototype.filter. The projection below
+        // read it as a field name, matched nothing and returned [] with no error. The
+        // result gets the methods find() attaches, so .toRaw() and the chain keep working.
+        if ( typeof(filter) == 'function' ) {
+            var filtered            = Array.prototype.filter.call(result, filter, thisArg);
+            filtered.notIn          = instance.notIn;
+            filtered.find           = instance.find;
+            filtered.update         = instance.update;
+            filtered.replace        = instance.replace;
+            filtered.or             = instance.or;
+            filtered.findOne        = instance.findOne;
+            filtered.limit          = instance.limit;
+            filtered.orderBy        = instance.orderBy;
+            filtered.delete         = instance.delete;
+            filtered.toRaw          = instance.toRaw;
+            filtered.filter         = instance.filter;
+
+            return filtered
+        }
         if ( !result.length ) {
             return []
         }
