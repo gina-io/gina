@@ -4028,7 +4028,10 @@ function Server(options) {
      */
     var getResponseProtocol = function (response) {
 
-        var protocol    = 'http/'+ local.request.httpVersion; // inheriting request protocol version by default
+        // #B806 — the response's own request, not the Server-wide request slot (stale after an
+        // async gap); falls back to the slot for a req-less / non-native response.
+        var _req        = ( response && response.req ) ? response.req : local.request;
+        var protocol    = 'http/'+ _req.httpVersion; // inheriting request protocol version by default
         var bundleConf  = self.conf[self.appName][self.env];
         // Switching protocol to h2 when possible
         if ( /http\/2/.test(bundleConf.server.protocol) && response.stream ) {
@@ -8730,9 +8733,22 @@ function Server(options) {
      */
     var throwError = function(res, code, msg, next) {
 
+        // #B806 — resolve the request from the response it belongs to, not the Server-wide
+        // request slot. onInstance overwrites that slot on every arrival (:4752/:6111), so after
+        // any async gap an error raised for request A was built from whichever request arrived
+        // last: the wrong JSON-vs-HTML form, another request's URL / routing / session rendered
+        // into the error page, a mis-correlated #ERRREF log line, and CORS headers from the wrong
+        // Origin. `res.req` is the response's own request (node + bun, HTTP/1.1 and the HTTP/2
+        // compat API, through close — measured). The fallback keeps today's behaviour for a
+        // non-native `res` (a middleware-swapped response, the setup.js alias) — strictly
+        // no-worse-than-today there. Passing `res` (not the never-assigned response slot) to
+        // checkPreflightRequest below also closes BC1 (an undefined response threw on a
+        // preflight-shaped error).
+        var _req = ( res && res.req ) ? res.req : local.request;
+
         var withViews       = local.hasViews[self.appName] || hasViews(self.appName);
         var isUsingTemplate = self.conf[self.appName][self.env].template;
-        var isXMLRequest    = local.request.isXMLRequest;
+        var isXMLRequest    = _req.isXMLRequest;
         var protocol        = getResponseProtocol(res);
         var stream          = ( /http\/2/.test(protocol) && res.stream ) ? res.stream : null;
         var header          = ( /http\/2/.test(protocol) && res.stream ) ? {} : null;
@@ -8774,7 +8790,7 @@ function Server(options) {
             }
         }
         var _displayCode = ( typeof(code) == 'object' && code && typeof(code.status) != 'undefined' ) ? code.status : code;
-        console.error('[ BUNDLE ][ '+ self.appName +' ][ ref '+ ref +' ][ req '+ ( local.request._ginaReqId || '-' ) +' ] '+ local.request.method +' [ '+ _displayCode +' ] '+ local.request.url + ( _errDetail ? '\n'+ _errDetail : '' ));
+        console.error('[ BUNDLE ][ '+ self.appName +' ][ ref '+ ref +' ][ req '+ ( _req._ginaReqId || '-' ) +' ] '+ _req.method +' [ '+ _displayCode +' ] '+ _req.url + ( _errDetail ? '\n'+ _errDetail : '' ));
 
         // #B131 — scope-gated stack egress. Feeders (router.js action/middleware
         // catches, server.js internals) pass `err.stack` pre-flattened as `msg`,
@@ -8820,7 +8836,7 @@ function Server(options) {
 
         if (!res.headersSent) {
             // res.headersSent = true;
-            local.request = checkPreflightRequest(local.request, local.response);
+            _req = checkPreflightRequest(_req, res);
             // updated filter on controller.js : 2020/09/25
             //if (isXMLRequest || !withViews || !isUsingTemplate ) {
             if (isXMLRequest || !withViews || !isUsingTemplate || withViews && !isUsingTemplate ) {
@@ -8834,7 +8850,7 @@ function Server(options) {
                 }
 
                 // Internet Explorer override
-                if ( /msie/i.test(local.request.headers['user-agent']) ) {
+                if ( /msie/i.test(_req.headers['user-agent']) ) {
                     if ( /http\/2/.test(protocol) && stream ) {
                         header = {
                             ':status': code,
@@ -8865,7 +8881,7 @@ function Server(options) {
                 // env.json `server.response.header` overrides into a no-op on error
                 // responses (the HTTP/2 branch already merges them into the headers
                 // object passed to stream.respond).
-                header = completeHeaders(header, local.request, res);
+                header = completeHeaders(header, _req, res);
                 if ( /http\/2/.test(protocol) && stream) {
                     // #B562 — defer the raw send into the shim's base end() when one is installed,
                     // so a session middleware's on-headers cookie and save-on-end proxy both fire
@@ -8921,7 +8937,7 @@ function Server(options) {
                 // (it even turns a would-be graceful 404 on a malformed-% URL into a crash).
                 // safeDecodeURI falls back to the raw URL.
                 // was: var url = decodeURI(local.request.url) /// avoid %20
-                var url                     = safeDecodeURI(local.request.url) /// avoid %20
+                var url                     = safeDecodeURI(_req.url) /// avoid %20
                     , ext                   = null
                     , isHtmlContent         = false
                     , hasCustomErrorFile    = false
@@ -8933,6 +8949,7 @@ function Server(options) {
                 }
                 if ( !ext || /^(html|htm)$/i.test(ext) ) {
                     isHtmlContent = true;
+                    if (!ext) { ext = 'html'; } // #B815 — parity with the controller twin; an extensionless HTML URL was served `undefined; charset=…`
                 }
 
                 if (
@@ -8975,8 +8992,8 @@ function Server(options) {
                         eData.title = bundleConf.server.coreConfiguration.statusCodes[code];
                     }
 
-                    if ( typeof(local.request.routing) != 'undefined' ) {
-                        eData.routing = local.request.routing;
+                    if ( typeof(_req.routing) != 'undefined' ) {
+                        eData.routing = _req.routing;
                     }
 
                     if (typeof(bundleConf.content.templates._common.errorFiles[code]) != 'undefined') {
@@ -8994,7 +9011,7 @@ function Server(options) {
                     routeObj.param.error = eData;
                     routeObj.param.displayInspector = self.isCacheless();
 
-                    local.request.routing = routeObj;
+                    _req.routing = routeObj;
 
                     var hasMiddlewareException = null;
                     for (let i=0, len = __stack.length; i<len; i++) {
@@ -9009,7 +9026,7 @@ function Server(options) {
                         if ( typeof(router._server) == 'undefined' ) {
                             router._server = self.instance;
                         }
-                        router.route(local.request, res, next, local.request.routing);
+                        router.route(_req, res, next, _req.routing);
 
                         return;
                     }
@@ -9033,7 +9050,7 @@ function Server(options) {
                     _h1ContentType = bundleConf.server.coreConfiguration.mime[ext]+'; charset='+ bundleConf.encoding;
                 }
 
-                header = completeHeaders(header, local.request, res);
+                header = completeHeaders(header, _req, res);
                 if ( /http\/2/.test(protocol) && stream ) {
                     // #H2 — guard against writing to a stream that was already closed/destroyed
                     if (stream.destroyed || stream.closed) { return; }
@@ -9060,7 +9077,7 @@ function Server(options) {
                         // emit sites), so reproducing it in a comment would break that pin.
                         // #B554 — escape: `msg` carries caller/request-derived text (its 404/403/500
                         // callers build it from `req.url` / `:path`), previously emitted as markup.
-                        _errHTMLBody = a11yErrorDocument(code, '<h1>Error '+ code +'.</h1><pre>'+ _escapeHtml(msg) + '\n\nref '+ ref +'</pre>', local.request);
+                        _errHTMLBody = a11yErrorDocument(code, '<h1>Error '+ code +'.</h1><pre>'+ _escapeHtml(msg) + '\n\nref '+ ref +'</pre>', _req);
                     } else {
                         _errHTMLBody = JSON.stringify({
                             status  : code,
@@ -9087,7 +9104,7 @@ function Server(options) {
                         // emit sites), so reproducing it in a comment would break that pin.
                         // #B554 — escape: `msg` carries caller/request-derived text (its 404/403/500
                         // callers build it from `req.url` / `:path`), previously emitted as markup.
-                        res.end(a11yErrorDocument(code, '<h1>Error '+ code +'.</h1><pre>'+ _escapeHtml(msg) + '\n\nref '+ ref +'</pre>', local.request));
+                        res.end(a11yErrorDocument(code, '<h1>Error '+ code +'.</h1><pre>'+ _escapeHtml(msg) + '\n\nref '+ ref +'</pre>', _req));
                     } else {
                         res.end(JSON.stringify({
                             status  : code,

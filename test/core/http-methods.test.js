@@ -1300,9 +1300,9 @@ describe('18 - decodeURI (whole-URI) crash-safety (#B30 review follow-up)', func
         assert.doesNotMatch(live, BARE_DECODE_URI);
     });
 
-    it('the throwError site (server.js) specifically routes through safeDecodeURI(local.request.url)', function() {
+    it('the throwError site (server.js) specifically routes through safeDecodeURI(_req.url)', function() {
         var live = stripComments(serverSrc);
-        assert.match(live, /var url\s*=\s*safeDecodeURI\(local\.request\.url\)/);
+        assert.match(live, /var url\s*=\s*safeDecodeURI\(_req\.url\)/);
     });
 });
 

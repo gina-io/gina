@@ -93,7 +93,7 @@ describe('02 - throwError applies completeHeaders before the HTTP/1.1 flush', fu
     });
 
     it('XHR/JSON branch: writeHead comes AFTER completeHeaders', function() {
-        var ch1 = T.indexOf('header = completeHeaders(header, local.request, res);');
+        var ch1 = T.indexOf('header = completeHeaders(header, _req, res);');
         assert.ok(ch1 > -1, 'first completeHeaders call must exist');
         var wh1 = T.indexOf("res.writeHead(code, { 'content-type': _h1ContentType } );");
         assert.ok(wh1 > -1, 'deferred writeHead must exist');
@@ -102,8 +102,8 @@ describe('02 - throwError applies completeHeaders before the HTTP/1.1 flush', fu
     });
 
     it('HTML/asset branch: writeHead comes AFTER completeHeaders too', function() {
-        var ch1 = T.indexOf('header = completeHeaders(header, local.request, res);');
-        var ch2 = T.indexOf('header = completeHeaders(header, local.request, res);', ch1 + 1);
+        var ch1 = T.indexOf('header = completeHeaders(header, _req, res);');
+        var ch2 = T.indexOf('header = completeHeaders(header, _req, res);', ch1 + 1);
         assert.ok(ch2 > -1, 'second completeHeaders call (HTML/asset branch) must exist');
         var wh1 = T.indexOf("res.writeHead(code, { 'content-type': _h1ContentType } );");
         var wh2 = T.indexOf("res.writeHead(code, { 'content-type': _h1ContentType } );", wh1 + 1);

@@ -99,7 +99,7 @@ describe('#ERRREF §01 — server.js: mint + pairing line + ref on every emit', 
     });
 
     it('the pairing line exists inside throwError and carries ref + request correlation id', function () {
-        assert.ok(SRV_T.indexOf("[ ref '+ ref +' ][ req '+ ( local.request._ginaReqId || '-' ) +' ]") > -1);
+        assert.ok(SRV_T.indexOf("[ ref '+ ref +' ][ req '+ ( _req._ginaReqId || '-' ) +' ]") > -1);
     });
 
     it('ORDER: mint + pairing line run BEFORE the wire sanitize (the log sees the full text)', function () {
@@ -249,7 +249,7 @@ describe('#ERRREF §04 — the wire carries the ref; the log pairs it with the f
         var local  = { request: { method: 'GET', url: '/fixture', _ginaReqId: 'REQ-FIXTURE-1' } };
         var cons   = { error: function () { calls.push(Array.prototype.slice.call(arguments).join(' ')); } };
         var fn = new Function('_mintErrorRef', 'msg', 'code', 'self', 'local', 'console', 'JSON',
-            SB_SRC + '\nreturn { ref: ref, msg: msg };');
+            'var _req = local.request; // #B806 — models the resolved request (fallback branch) for the extracted pairing line\n' + SB_SRC + '\nreturn { ref: ref, msg: msg };');
         return fn(mintFn, msg, code, self, local, cons, JSON);
     }
 
