@@ -1424,7 +1424,8 @@ function Router(env, scope) {
      * request on a prototype layer of its own that carries that request's controller methods
      * (#B807), so a call made after an await or in a callback still answers that request.
      * Its method receives `(req, res, next, done)`; `done` removes the entry and runs the
-     * next one, and the last `done` hands over to `cb`.
+     * next one, and the last `done` hands over to `cb`. A promise the method returns that
+     * rejects is answered with a 500 through `serverInstance.throwError` (#B812).
      *
      * @inner
      * @private
@@ -1563,7 +1564,15 @@ function Router(env, scope) {
 
             if ( typeof(middleware[constructor]) != 'undefined') {
 
-                middleware[constructor](req, res, next,
+                // #B812 — own an async middleware's rejection, like the reserved hooks and the
+                // action (#B399). The result of this call used to be discarded, so a middleware
+                // that threw after an await (or a later middleware it handed over to through
+                // `done`, whose throw becomes this promise's rejection) left its request
+                // unanswered and the rejection reached the process unhandled. The name is read
+                // before the call: a synchronous `done` splices the list during it. A middleware
+                // that returns no promise mints none here.
+                let _mwName   = middlewares[m];
+                let _mwResult = middleware[constructor](req, res, next,
                     function onMiddlewareProcessed(req, res, next){
                         middlewares.splice(m, 1);
                         if (middlewares.length > 0) {
@@ -1574,6 +1583,11 @@ function Router(env, scope) {
                         // }
                     }
                 );
+                if ( _mwResult && typeof _mwResult.then === 'function' ) {
+                    _mwResult.catch(function(err) {
+                        serverInstance.throwError(res, 500, 'route middleware `'+ _mwName +'` rejected: '+ ( err && (err.stack || err.message) || String(err) ));
+                    });
+                }
 
                 break
             }
