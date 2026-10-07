@@ -54,6 +54,15 @@
  *     another request's response for `throwError`. A job created with no
  *     request context runs with none, even when the pump that starts it came
  *     from a request.
+ *   - **No render store (#B811).** A job also runs with NO
+ *     `process.gina._renderALS` store — the one a render delegate enters
+ *     around a render, and the first place the template filters look for
+ *     their context. A job is not a render: without this it kept the render
+ *     store of the chain that started it (its creator's, or the one of the
+ *     request whose job freed the worker slot), `req` / `res` included, and
+ *     a template filter called inside it resolved that request's context. A
+ *     job that needs a render context enters one itself, inside its deferred
+ *     function.
  *   - **Pluggable store, memory by default.** Records persist behind a small
  *     callback-shaped store interface (`set / get / remove / list / sweep`).
  *     The in-memory store is the default; a connector-backed store is a
@@ -152,7 +161,37 @@ function captureRequestContext() {
 }
 
 /**
- * Run `cb` inside a job's own request context (#B543). With a captured context
+ * Run `cb` with NO render store (#B811). `process.gina._renderALS` is the
+ * store a render delegate enters around a render — `{ options, isProxyHost,
+ * throwError, req, res }` — and the first place the template filters
+ * (`getUrl`, `getWebroot`, `t`, `tIcu`) look for their context. A job is not
+ * a render and has no response, yet it kept the render store of the async
+ * chain that started it: its creator's when the job was created in a frame
+ * that carried one, or the one of the request whose job's settle chain freed
+ * the worker slot (measured with `maxConcurrency: 1`: a job created by
+ * request B, and a job created outside any request, both ran with request
+ * A's render context). A template filter called inside the job then resolved
+ * that request's context. `run(undefined)` rather than a plain call, for the
+ * reason given on {@link runInRequestContext}: a plain call inherits the
+ * pump's store. Nothing is read off the store and nothing is copied onto the
+ * job — a job that needs a render context enters one itself, inside its
+ * deferred function. The store is looked up at RUN time: the first render
+ * creates it, long after this module loaded. With no render store in the
+ * process, `cb` runs plain.
+ *
+ * @inner
+ * @param   {function} cb
+ * @returns {*} `cb`'s return value.
+ */
+function runWithoutRenderStore(cb) {
+    var als = (process.gina && process.gina._renderALS) ? process.gina._renderALS : null;
+    if (!als) return cb();
+    return als.run(undefined, cb);
+}
+
+/**
+ * Run `cb` inside a job's own request context (#B543), and with no render
+ * store (#B811 — {@link runWithoutRenderStore}). With a captured context
  * the job sees exactly that context; with none (`null`) it sees NO store —
  * `run(undefined)` rather than a plain call, because a plain call would
  * inherit whatever context the pump that started this job happened to run
@@ -167,8 +206,10 @@ function captureRequestContext() {
  */
 function runInRequestContext(context, cb) {
     var als = (process.gina && process.gina._reqALS) ? process.gina._reqALS : null;
-    if (!als) return cb();
-    return als.run(context || undefined, cb);
+    return runWithoutRenderStore(function runInRequestStore() {
+        if (!als) return cb();
+        return als.run(context || undefined, cb);
+    });
 }
 
 /**
@@ -549,7 +590,8 @@ function runOne(entry) {
     // deferred fn, its settlement, a retry it arms, its webhook) runs inside the
     // job's OWN detached request context, never in the context of whichever
     // request's settle chain called drain(). The next job drained from here
-    // re-scopes itself the same way.
+    // re-scopes itself the same way. The same wrapper clears the render store
+    // (#B811), which the job would otherwise inherit from that chain too.
     runInRequestContext(entry.context, function runOneInContext() {
         var id = entry.id;
         _store.get(id, function(getErr, rec) {
@@ -793,7 +835,9 @@ function update(id, patch, cb) {
  * inside a DETACHED copy of that request's context (#B543): its log lines
  * carry the request id, absolute URLs it builds use the request's proxy
  * context, and an error it raises through the global helpers is logged, never
- * written to any client.
+ * written to any client. It runs with NO render context (#B811): a template
+ * filter called inside it resolves as outside a request, never from the
+ * render of the request that created the job or freed its worker slot.
  *
  * @memberof module:gina/lib/job
  * @param   {function(): (Promise<*>|*)} fn   - The deferred work. May be `async`, return a Promise, or return a value synchronously.
