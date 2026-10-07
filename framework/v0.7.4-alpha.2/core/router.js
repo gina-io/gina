@@ -1050,31 +1050,54 @@ function Router(env, scope) {
                         return function (request, response, next) { // getting rid of the controller context
                             var Setup = require(_(setupFile, true));
 
+                            // #B807 — the members below are handed to this run on a receiver of its own, which
+                            // inherits from the export, instead of being written onto the export. The export is a
+                            // cached module shared by every request: a member written onto it was the one of the
+                            // request that ran last, so a setup calling one of them after an await or in a callback
+                            // reached another request's controller. Statics of the export stay readable through
+                            // `this`; state a setup stores on `this` now stays with its own run.
+                            // The writes onto the export, as they were:
+                            // Setup.engine                = controller.engine;
+                            // Setup.getConfig             = controller.getConfig;
+                            // Setup.checkBundleStatus     = controller.checkBundleStatus;
+                            // Setup.getLocales            = controller.getLocales;
+                            // Setup.getFormsRules         = controller.getFormsRules;
+                            // Setup.throwError            = serverInstance.throwError;
+                            // Setup.redirect              = controller.redirect;
+                            // Setup.render                = controller.render;
+                            // Setup.renderJSON            = controller.renderJSON;
+                            // Setup.renderWithoutLayout   = controller.renderWithoutLayout;
+                            // Setup.isXMLRequest          = controller.isXMLRequest;
+                            // Setup.isWithCredentials     = controller.isWithCredentials;
+                            // Setup.isPopinContext        = controller.isPopinContext;
+                            // Setup.isCacheless           = controller.isCacheless;
+                            // Setup.requireController     = controller.requireController;
+                            var setupContext = Object.create(Setup);
 
                             // Inheriting SuperController functions & objects
                             // Exporting config & common methods
-                            Setup.engine                = controller.engine;
+                            setupContext.engine              = controller.engine;
                             // TODO - loop on a defiend SuperController property like SuperController._allowedForExport
                             // for ( let f in controller) {
                             //     if ( typeof(controller[f]) != 'function' ) {
                             //         continue;
                             //     }
-                            //     Setup[f] = controller[f];
+                            //     setupContext[f] = controller[f];
                             // }
-                            Setup.getConfig             = controller.getConfig;
-                            Setup.checkBundleStatus     = controller.checkBundleStatus;
-                            Setup.getLocales            = controller.getLocales;
-                            Setup.getFormsRules         = controller.getFormsRules;
-                            Setup.throwError            = serverInstance.throwError;
-                            Setup.redirect              = controller.redirect;
-                            Setup.render                = controller.render;
-                            Setup.renderJSON            = controller.renderJSON;
-                            Setup.renderWithoutLayout   = controller.renderWithoutLayout;
-                            Setup.isXMLRequest          = controller.isXMLRequest;
-                            Setup.isWithCredentials     = controller.isWithCredentials;
-                            Setup.isPopinContext        = controller.isPopinContext;
-                            Setup.isCacheless           = controller.isCacheless;
-                            Setup.requireController     = controller.requireController;
+                            setupContext.getConfig           = controller.getConfig;
+                            setupContext.checkBundleStatus   = controller.checkBundleStatus;
+                            setupContext.getLocales          = controller.getLocales;
+                            setupContext.getFormsRules       = controller.getFormsRules;
+                            setupContext.throwError          = serverInstance.throwError;
+                            setupContext.redirect            = controller.redirect;
+                            setupContext.render              = controller.render;
+                            setupContext.renderJSON          = controller.renderJSON;
+                            setupContext.renderWithoutLayout = controller.renderWithoutLayout;
+                            setupContext.isXMLRequest        = controller.isXMLRequest;
+                            setupContext.isWithCredentials   = controller.isWithCredentials;
+                            setupContext.isPopinContext      = controller.isPopinContext;
+                            setupContext.isCacheless         = controller.isCacheless;
+                            setupContext.requireController   = controller.requireController;
 
 
                             // #B399 — return the app setup's own result instead of the
@@ -1083,7 +1106,8 @@ function Router(env, scope) {
                             // the dispatch-loop guard could never own its rejection.
                             // was: Setup.apply(Setup, arguments);
                             //      return Setup;
-                            return Setup.apply(Setup, arguments);
+                            // #B807 — on this run's own receiver (above), no longer on the export.
+                            return Setup.apply(setupContext, arguments);
                         }(request, response, next)
                     }
                 }
@@ -1390,6 +1414,35 @@ function Router(env, scope) {
         action = null
     };//EO route()
 
+    /**
+     * Runs a route's middleware chain, then hands the request over to its action.
+     *
+     * Each entry is a dotted name (`middlewares.<dir>.<method>`), resolved bundle-local first
+     * and then under `shared/`. An entry that resolves to no file, or to a class without the
+     * named method, answers 501 and the chain stops there. A bundle-local middleware with a
+     * shared twin inherits from it (`lib/inherits`). The middleware is constructed for each
+     * request on a prototype layer of its own that carries that request's controller methods
+     * (#B807), so a call made after an await or in a callback still answers that request.
+     * Its method receives `(req, res, next, done)`; `done` removes the entry and runs the
+     * next one, and the last `done` hands over to `cb`.
+     *
+     * @inner
+     * @private
+     * @param {object}   serverInstance - Server instance (provides `throwError`)
+     * @param {string[]} middlewares    - The route's middleware names, spliced as the chain runs
+     * @param {object}   controller     - Controller of the request being served
+     * @param {string}   action         - Action the chain hands over to
+     * @param {object}   req            - Request
+     * @param {object}   res            - Response
+     * @param {Function} next           - Framework next
+     * @param {Function} cb             - Called with `(action, req, res, next)` once the chain is done
+     * @returns {*} What `cb` returns when the chain is empty; nothing otherwise
+     *
+     * @example
+     * // routing.json: "middleware": ["middlewares.auth.require"]
+     * processMiddlewares(serverInstance, ['middlewares.auth.require'], controller, 'home',
+     *     req, res, next, dispatchAction);
+     */
     var processMiddlewares = function(serverInstance, middlewares, controller, action, req, res, next, cb){
 
 
@@ -1428,7 +1481,19 @@ function Router(env, scope) {
 
             if (local.isCacheless) delete require.cache[require.resolve(_(filename, true))];
 
-            var MiddlewareClass = function(req, res, next) {
+            // #B807 — the controller methods are handed to the middleware on a prototype layer that
+            // belongs to this request, never on the middleware class. Outside dev the class comes
+            // from the require cache, shared by every request: a method written onto its prototype
+            // was the one of whichever request had passed through last, so a call made after an
+            // await or in a callback answered that request, and its own request was never answered.
+            // The instance is constructed on `perRequest`, which inherits from the class prototype:
+            // the methods are reachable while the constructor body runs, the middleware's own
+            // properties still win over them, the members of its exported prototype stay reachable
+            // (for the bundle-local half of a shared twin, `lib/inherits` replaces that prototype, as
+            // before), and `instanceof` holds as before.
+            // was: `var MiddlewareClass =` this wrapper, which returned the class after the writes
+            // onto its prototype (kept below as comments), then `middleware = new MiddlewareClass();`
+            middleware = function(req, res, next) {
                 // getting rid of the middleware context
                 return function () {
 
@@ -1447,29 +1512,49 @@ function Router(env, scope) {
 
 
                     // Exporting config & common methods
-                    Middleware.prototype.checkBundleStatus      = controller.checkBundleStatus;
-                    Middleware.prototype.getConfig              = controller.getConfig;
-                    Middleware.prototype.getFormsRules          = controller.getFormsRules;
-                    Middleware.prototype.getLocales             = controller.getLocales;
-                    Middleware.prototype.isCacheless            = controller.isCacheless;
-                    Middleware.prototype.isHaltedRequest        = controller.isHaltedRequest;
-                    Middleware.prototype.isWithCredentials      = controller.isWithCredentials;
-                    Middleware.prototype.isXMLRequest           = controller.isXMLRequest;
-                    Middleware.prototype.pauseRequest           = controller.pauseRequest;
-                    Middleware.prototype.query                  = controller.query;
-                    Middleware.prototype.redirect               = controller.redirect;
-                    Middleware.prototype.render                 = controller.render;
-                    Middleware.prototype.renderJSON             = controller.renderJSON;
-                    Middleware.prototype.renderWithoutLayout    = controller.renderWithoutLayout;
-                    Middleware.prototype.resumeRequest          = controller.resumeRequest;
-                    Middleware.prototype.requireController      = controller.requireController;
-                    Middleware.prototype.throwError             = controller.throwError;
+                    // The writes onto the class, as they were:
+                    // Middleware.prototype.checkBundleStatus      = controller.checkBundleStatus;
+                    // Middleware.prototype.getConfig              = controller.getConfig;
+                    // Middleware.prototype.getFormsRules          = controller.getFormsRules;
+                    // Middleware.prototype.getLocales             = controller.getLocales;
+                    // Middleware.prototype.isCacheless            = controller.isCacheless;
+                    // Middleware.prototype.isHaltedRequest        = controller.isHaltedRequest;
+                    // Middleware.prototype.isWithCredentials      = controller.isWithCredentials;
+                    // Middleware.prototype.isXMLRequest           = controller.isXMLRequest;
+                    // Middleware.prototype.pauseRequest           = controller.pauseRequest;
+                    // Middleware.prototype.query                  = controller.query;
+                    // Middleware.prototype.redirect               = controller.redirect;
+                    // Middleware.prototype.render                 = controller.render;
+                    // Middleware.prototype.renderJSON             = controller.renderJSON;
+                    // Middleware.prototype.renderWithoutLayout    = controller.renderWithoutLayout;
+                    // Middleware.prototype.resumeRequest          = controller.resumeRequest;
+                    // Middleware.prototype.requireController      = controller.requireController;
+                    // Middleware.prototype.throwError             = controller.throwError;
+                    var perRequest = Object.create(Middleware.prototype);
+                    perRequest.checkBundleStatus   = controller.checkBundleStatus;
+                    perRequest.getConfig           = controller.getConfig;
+                    perRequest.getFormsRules       = controller.getFormsRules;
+                    perRequest.getLocales          = controller.getLocales;
+                    perRequest.isCacheless         = controller.isCacheless;
+                    perRequest.isHaltedRequest     = controller.isHaltedRequest;
+                    perRequest.isWithCredentials   = controller.isWithCredentials;
+                    perRequest.isXMLRequest        = controller.isXMLRequest;
+                    perRequest.pauseRequest        = controller.pauseRequest;
+                    perRequest.query               = controller.query;
+                    perRequest.redirect            = controller.redirect;
+                    perRequest.render              = controller.render;
+                    perRequest.renderJSON          = controller.renderJSON;
+                    perRequest.renderWithoutLayout = controller.renderWithoutLayout;
+                    perRequest.resumeRequest       = controller.resumeRequest;
+                    perRequest.requireController   = controller.requireController;
+                    perRequest.throwError          = controller.throwError;
 
-                    return Middleware;
+                    var PerRequestMiddleware = function() {};
+                    PerRequestMiddleware.prototype = perRequest;
+
+                    return Reflect.construct(Middleware, [], PerRequestMiddleware);
                 }(req, res, next)
             }(req, res, next);
-
-            middleware = new MiddlewareClass();
 
 
             if ( !middleware[constructor] ) {

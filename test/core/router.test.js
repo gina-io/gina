@@ -1130,9 +1130,10 @@ describe('13 - source structure: reserved-actions guard (#B399)', function() {
     it('the synthesized setup wrapper returns the app call result so the loop guard can own it', function() {
         // The wrapper used to `return Setup` (the function object — zero consumers),
         // discarding an async setup.js's promise before the guard could see it.
+        // #B807 — the call runs on a per-run receiver (`setupContext`), no longer on the export.
         assert.ok(
-            src.indexOf('return Setup.apply(Setup, arguments);') > -1,
-            'expected `return Setup.apply(Setup, arguments);` — the wrapper must propagate the app result'
+            src.indexOf('return Setup.apply(setupContext, arguments);') > -1,
+            'expected `return Setup.apply(setupContext, arguments);` — the wrapper must propagate the app result'
         );
     });
 

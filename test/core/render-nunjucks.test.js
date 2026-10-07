@@ -544,12 +544,13 @@ describe('bundle-compat parity with render-swig (commit bf474621)', function() {
 
         it('Setup.apply uses captured req/res/_next, not local.req/res/next', function() {
             var s = src();
+            // #B807 — the call runs on a per-run receiver (`setupContext`), no longer on the export.
             assert.ok(
-                /Setup\.apply\(\s*Setup\s*,\s*\[\s*req\s*,\s*res\s*,\s*_next\s*\]\s*\)/.test(s),
-                'expected `Setup.apply(Setup, [req, res, _next])` using captured locals — reading local.req/res/next here defeats the #M1 retrofit'
+                /Setup\.apply\(\s*setupContext\s*,\s*\[\s*req\s*,\s*res\s*,\s*_next\s*\]\s*\)/.test(s),
+                'expected `Setup.apply(setupContext, [req, res, _next])` using captured locals — reading local.req/res/next here defeats the #M1 retrofit'
             );
             assert.ok(
-                !/Setup\.apply\(\s*Setup\s*,\s*\[\s*local\.req/.test(s),
+                !/Setup\.apply\(\s*(?:Setup|setupContext)\s*,\s*\[\s*local\.req/.test(s),
                 'must NOT call Setup.apply with [local.req, local.res, local.next] — captured locals only'
             );
         });

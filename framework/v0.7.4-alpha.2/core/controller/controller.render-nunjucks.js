@@ -785,6 +785,11 @@ function registerGinaFilters(env, self, local, localOptions, req, res) {
  * is stamped on the env itself so re-renders are no-ops, and a fresh
  * env (e.g. after `nunjucksResolver.reset()`) re-runs setup.
  *
+ * `this` inside `setup.js` is a receiver of this run's own, inheriting from
+ * the export (#B807): `this.engine` and `this.throwError` are set on it,
+ * never on the export, which the router's per-request setup runs share.
+ * Statics of the export stay readable through `this`.
+ *
  * @inner
  * @param {*}        env          - cached `nunjucks.Environment`
  * @param {object}   self         - SuperController instance (provides throwError)
@@ -819,11 +824,21 @@ function registerUserFilters(env, self, local, localOptions, req, res, _next) {
         return;
     }
 
-    Setup.engine     = env;
-    Setup.throwError = self.throwError;
+    // #B807 — this run's members go on a receiver of its own, which inherits from the
+    // export, instead of being written onto the export: the export is a cached module
+    // shared with the router's per-request setup runs, and a member written onto it is the
+    // one of whichever run wrote it last. Statics of the export stay readable through
+    // `this`; state the setup stores on `this` stays with this run.
+    // The writes onto the export, as they were:
+    // Setup.engine     = env;
+    // Setup.throwError = self.throwError;
+    var setupContext = Object.create(Setup);
+    setupContext.engine     = env;
+    setupContext.throwError = self.throwError;
 
     try {
-        Setup.apply(Setup, [req, res, _next]);
+        // was: the export itself as the receiver
+        Setup.apply(setupContext, [req, res, _next]);
     } catch (setupErr) {
         try { console.warn('[render-nunjucks] user setup.js threw: ' + (setupErr.message || setupErr)); } catch (e) {}
     }
