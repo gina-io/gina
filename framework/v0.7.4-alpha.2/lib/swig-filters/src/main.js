@@ -82,9 +82,12 @@ function SwigFilters(conf) {
 
             SwigFilters.instance = self;
 
-            if (self.options) {
-                SwigFilters.instance._options = self.options;
-            }
+            // #B519 — the first call stamps by the same rule as every later one
+            // (getInstance below): made inside a request, its context is bound to that
+            // request and the instance keeps none; made outside any request, it goes to
+            // the process-wide slot as before.
+            // was: if (self.options) { SwigFilters.instance._options = self.options; }
+            getInstance();
 
             SwigFilters.initialized = true;
 
@@ -94,18 +97,37 @@ function SwigFilters(conf) {
 
     var getInstance = function() {
         if (conf) {
-            // #P39 — stash by REFERENCE. The former per-call deep copy of the
-            // whole wrapper (whose `.options` is the render's `local.options`,
-            // itself already private per request — #M1) doubled the single
-            // heaviest clone in the render profile for zero isolation gain:
-            // `_options` is never written outside this assignment (the merge in
-            // getUrl/getWebroot fills a fresh `{}` target and only READS this),
-            // and `req`/`res` always passed by reference anyway (the cloner
-            // bails on non-plain constructors). `self.options` is kept in the
-            // chain for the boot-branch shape parity, but note `self` here is a
-            // throwaway per-call object — `SwigFilters.instance` is what every
-            // consumer reads.
-            self.options = SwigFilters.instance._options = conf;
+            // #B519 — a factory call made INSIDE a request binds its context to THAT
+            // request — the store core/server.js handle() opens for every dispatch — and
+            // writes nothing process-wide. The slot below used to receive every
+            // request's context, so any reader with no render store of its own (a
+            // template run in an action outside a render delegate, a cron, worker or
+            // WebSocket render) resolved whichever request had stamped it last. A job's
+            // detached copy of a request context carries no `req`: it counts as outside
+            // a request, like boot, the CLI and a cron task.
+            var _reqStore = ( typeof(process) != 'undefined' && process.gina && process.gina._reqALS )
+                ? process.gina._reqALS.getStore()
+                : null;
+            if ( _reqStore && _reqStore.req ) {
+                _reqStore.filterCtx = conf;
+                // the first call's `self` IS the instance: it must not keep a request's context
+                if ( SwigFilters.instance === self ) {
+                    self.options = undefined;
+                }
+            } else {
+                // #P39 — stash by REFERENCE. The former per-call deep copy of the
+                // whole wrapper (whose `.options` is the render's `local.options`,
+                // itself already private per request — #M1) doubled the single
+                // heaviest clone in the render profile for zero isolation gain:
+                // `_options` is never written outside this assignment (the merge in
+                // getUrl/getWebroot fills a fresh `{}` target and only READS this),
+                // and `req`/`res` always passed by reference anyway (the cloner
+                // bails on non-plain constructors). `self.options` is kept in the
+                // chain for the boot-branch shape parity, but note `self` here is a
+                // throwaway per-call object — `SwigFilters.instance` is what every
+                // consumer reads.
+                self.options = SwigFilters.instance._options = conf;
+            }
         }
 
         return SwigFilters.instance
@@ -129,7 +151,30 @@ function SwigFilters(conf) {
         var _store = ( typeof(process) != 'undefined' && process.gina && process.gina._renderALS )
             ? process.gina._renderALS.getStore()
             : null;
-        return _store || SwigFilters.instance._options || self.options;
+        if ( !_store ) {
+            // #B519 — inside a request the filter context is THAT request's own, and the
+            // process-wide slot below is never read: first the context a factory call
+            // bound to this request (getInstance above), else one built from the request
+            // store itself — the options and the error responder controller.setOptions
+            // registered on it (none before a controller exists: getUrl then takes the
+            // bundle's conf from the registry), this request's own proxied
+            // classification, and its req / res.
+            var _reqStore = ( typeof(process) != 'undefined' && process.gina && process.gina._reqALS )
+                ? process.gina._reqALS.getStore()
+                : null;
+            if ( _reqStore && _reqStore.req ) {
+                return _reqStore.filterCtx || {
+                    options     : _reqStore.options || {},
+                    isProxyHost : ( _reqStore.req._ginaIsProxyHost === true ),
+                    throwError  : _reqStore.throwError,
+                    req         : _reqStore.req,
+                    res         : _reqStore.res
+                };
+            }
+        }
+        // outside a request: the slot (only ever stamped outside a request), then the
+        // first call's own context, then an empty one
+        return _store || SwigFilters.instance._options || self.options || { options: {} };
     };
 
     /**

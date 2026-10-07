@@ -100,9 +100,12 @@ function NunjucksFilters(conf) {
             return getInstance();
         } else {
             NunjucksFilters.instance = self;
-            if (self.options) {
-                NunjucksFilters.instance._options = self.options;
-            }
+            // #B519 — the first call stamps by the same rule as every later one
+            // (getInstance below): made inside a request, its context is bound to that
+            // request and the instance keeps none; made outside any request, it goes to
+            // the process-wide slot as before.
+            // was: if (self.options) { NunjucksFilters.instance._options = self.options; }
+            getInstance();
             NunjucksFilters.initialized = true;
             return NunjucksFilters.instance;
         }
@@ -110,13 +113,32 @@ function NunjucksFilters(conf) {
 
     var getInstance = function() {
         if (conf) {
-            // #P39 — stash by REFERENCE, mirroring lib/swig-filters: `_options`
-            // has no writer beyond this assignment (the getUrl/getWebroot merge
-            // fills a fresh `{}` target), the wrapper's `.options` is the
-            // render's per-request `local.options` (#M1), and `req`/`res` were
-            // by-reference through the former deep copy anyway. The per-call
-            // copy was pure CPU waste on every render.
-            self.options = NunjucksFilters.instance._options = conf;
+            // #B519 — a factory call made INSIDE a request binds its context to THAT
+            // request — the store core/server.js handle() opens for every dispatch — and
+            // writes nothing process-wide. The slot below used to receive every
+            // request's context, so any reader with no render store of its own (a
+            // template run in an action outside a render delegate, a cron, worker or
+            // WebSocket render) resolved whichever request had stamped it last. A job's
+            // detached copy of a request context carries no `req`: it counts as outside
+            // a request, like boot, the CLI and a cron task.
+            var _reqStore = ( typeof(process) != 'undefined' && process.gina && process.gina._reqALS )
+                ? process.gina._reqALS.getStore()
+                : null;
+            if ( _reqStore && _reqStore.req ) {
+                _reqStore.filterCtx = conf;
+                // the first call's `self` IS the instance: it must not keep a request's context
+                if ( NunjucksFilters.instance === self ) {
+                    self.options = undefined;
+                }
+            } else {
+                // #P39 — stash by REFERENCE, mirroring lib/swig-filters: `_options`
+                // has no writer beyond this assignment (the getUrl/getWebroot merge
+                // fills a fresh `{}` target), the wrapper's `.options` is the
+                // render's per-request `local.options` (#M1), and `req`/`res` were
+                // by-reference through the former deep copy anyway. The per-call
+                // copy was pure CPU waste on every render.
+                self.options = NunjucksFilters.instance._options = conf;
+            }
         }
         return NunjucksFilters.instance;
     };
@@ -147,7 +169,30 @@ function NunjucksFilters(conf) {
         var _store = ( typeof(process) != 'undefined' && process.gina && process.gina._renderALS )
             ? process.gina._renderALS.getStore()
             : null;
-        return _store || NunjucksFilters.instance._options || self.options;
+        if ( !_store ) {
+            // #B519 — inside a request the filter context is THAT request's own, and the
+            // process-wide slot below is never read: first the context a factory call
+            // bound to this request (getInstance above), else one built from the request
+            // store itself — the options and the error responder controller.setOptions
+            // registered on it (none before a controller exists: getUrl then takes the
+            // bundle's conf from the registry), this request's own proxied
+            // classification, and its req / res.
+            var _reqStore = ( typeof(process) != 'undefined' && process.gina && process.gina._reqALS )
+                ? process.gina._reqALS.getStore()
+                : null;
+            if ( _reqStore && _reqStore.req ) {
+                return _reqStore.filterCtx || {
+                    options     : _reqStore.options || {},
+                    isProxyHost : ( _reqStore.req._ginaIsProxyHost === true ),
+                    throwError  : _reqStore.throwError,
+                    req         : _reqStore.req,
+                    res         : _reqStore.res
+                };
+            }
+        }
+        // outside a request: the slot (only ever stamped outside a request), then the
+        // first call's own context, then an empty one
+        return _store || NunjucksFilters.instance._options || self.options || { options: {} };
     };
 
     /**

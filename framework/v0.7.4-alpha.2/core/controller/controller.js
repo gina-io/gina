@@ -917,6 +917,20 @@ function SuperController(options) {
     this.setOptions = function(req, res, next, options) {
         // #M1 — each request has its own `local` closure; overwrite directly.
         local.options = options;
+        // #B519 — register THIS request's options and error responder on its own store
+        // (core/server.js handle() runs every dispatch inside process.gina._reqALS), so a
+        // template filter called in this request with no render store of its own — a
+        // template run in an action outside a render delegate — resolves this request's
+        // context instead of a process-wide slot. Two property writes, no allocation.
+        // The identity test keeps a controller built on another request object (a
+        // synthetic one, a test instance) from registering on a store that is not its own.
+        var _reqStore = ( typeof(process) != 'undefined' && process.gina && process.gina._reqALS )
+            ? process.gina._reqALS.getStore()
+            : null;
+        if ( _reqStore && _reqStore.req === req ) {
+            _reqStore.options    = options;
+            _reqStore.throwError = self.throwError;
+        }
         local.options.renderingStack = (local.options.renderingStack) ? local.options.renderingStack : [];
         local.options.isRenderingCustomError = (local.options.isRenderingCustomError) ? local.options.isRenderingCustomError : false;
 

@@ -694,7 +694,8 @@ function sendHtmlResponse(local, html, req, res) {
  * @param {object} self         - SuperController instance (for `self.throwError`)
  * @param {object} local        - Per-request closure (`req`, `res`, `next`, `options`)
  * @param {object} localOptions - The controller's localOptions (already has `conf`)
- * @returns {void}
+ * @returns {object} the render-store context — the same five values the factory call
+ *   received; the caller runs both render calls inside the store with it (#B519)
  */
 function registerGinaFilters(env, self, local, localOptions, req, res) {
     // FRAMEWORK PATCH: use module-scope libRef fallback so
@@ -765,6 +766,40 @@ function registerGinaFilters(env, self, local, localOptions, req, res) {
             env.addFilter(name, filters[name]);
         }
     }
+
+    // #B519 — the context the two render calls enter the render store with
+    // (renderNunjucks below): the same five values, by reference, as the factory call
+    // above received, so the store and the factory's binding cannot disagree.
+    return {
+        options:     localOptions,
+        isProxyHost: isProxyHost,
+        throwError:  self.throwError,
+        req:         req,
+        res:         res
+    };
+}
+
+/**
+ * Lazily construct the process-wide render-context AsyncLocalStorage, parked on
+ * `process.gina` so it survives dev-mode `require.cache` eviction of this
+ * delegate. The SAME store the other render delegates enter, and the one the
+ * context-bearing gina filters read first in `getRenderCtx()`.
+ *
+ * #B519 — this delegate used to enter no store: its filters resolved the
+ * process-wide slot its own factory call had just stamped, correct only because
+ * nothing awaits between that call and the render. It now runs both render
+ * calls inside the store with the context `registerGinaFilters` returns, like
+ * every other delegate, so an inherited render store cannot win over it either.
+ *
+ * @inner
+ * @returns {AsyncLocalStorage} the shared render-context store
+ */
+function getRenderALS() {
+    if (!process.gina._renderALS) {
+        var AsyncLocalStorage = require('async_hooks').AsyncLocalStorage;
+        process.gina._renderALS = new AsyncLocalStorage();
+    }
+    return process.gina._renderALS;
 }
 
 /**
@@ -1248,8 +1283,9 @@ module.exports = async function renderNunjucks(userData, displayInspector, errOp
     // env is safe under Node's single-threaded event loop because the
     // env.render() / env.renderString() calls below are synchronous and
     // cannot interleave with another request's addFilter pass.
+    var _filterCtx = null;
     try {
-        registerGinaFilters(env, self, local, localOptions, req, res);
+        _filterCtx = registerGinaFilters(env, self, local, localOptions, req, res);
     } catch (filterErr) {
         return self.throwError(filterErr);
     }
@@ -1346,7 +1382,10 @@ module.exports = async function renderNunjucks(userData, displayInspector, errOp
             }
             if (typeof _errSource === 'string') {
                 try {
-                    html = env.renderString(_errSource, data);
+                    // #B519 — inside the render store, like the main render below
+                    getRenderALS().run(_filterCtx, function () {
+                        html = env.renderString(_errSource, data);
+                    });
                 } catch (renderErr) {
                     // was: the same raw title + raw text — #B554, both escaped below.
                     html = '<!doctype html><html lang="' + _errLang + '"><head><title>Error ' + _escapeHtml(_errStatusCode) + '</title></head>'
@@ -1380,7 +1419,11 @@ module.exports = async function renderNunjucks(userData, displayInspector, errOp
         }
 
         try {
-            html = env.render(templateRel, data);
+            // #B519 — the filters resolve THIS render's context from the store, not from
+            // the process-wide slot
+            getRenderALS().run(_filterCtx, function () {
+                html = env.render(templateRel, data);
+            });
         } catch (renderErr) {
             return self.throwError(renderErr);
         }
