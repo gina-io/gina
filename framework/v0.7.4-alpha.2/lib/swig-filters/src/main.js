@@ -203,11 +203,20 @@ function SwigFilters(conf) {
      *      <script src="{{ '/js/vendor/modernizr-2.8.3.min.js' | getUrl() }}"></script>
      *      compiled as => <script src="/my-bundle/js/vendor/modernizr-2.8.3.min.js"></script>
      *
+     * A render context with no request (a mail or cron render, a library that
+     * builds the filters outside a request) degrades instead of throwing (#B516):
+     * the URL is built from the target bundle's configured hostname, or from the
+     * worker's proxy host when one is known — what a caller with no request in
+     * scope gets from `lib.routing.getRoute()`. A context with no `options.conf`
+     * takes the current bundle's conf from the Config registry.
+     *
      * @param {string} route
      * @param {object} params - can't be left blank if base is required -> null if not defined
      * @param {string} [base] - can be a CDN, the http://domain.com or a bundle name
      *
      * @returns {string} relativeUrl|absoluteUrl - /sample/url.html or http://domain.com/sample/url.html
+     * @throws {Error} when the context has no `throwError` and `base` names an unknown
+     *   bundle, or when no bundle configuration resolves for the render context
      * */
     self.getUrl = function (route, params, base) {
 
@@ -217,6 +226,36 @@ function SwigFilters(conf) {
             params = {}
         }
         var ctx  = getRenderCtx();
+        // #B516 — a render context with no request (a mail or cron render, a library
+        // building the filters outside a request) or with no bundle configuration (the
+        // boot registration, an async delegate's context-free registration) used to
+        // throw a TypeError below: every rule form and every bundle base reads
+        // `ctx.req.headers`, and `ctx.options.conf` is read before that. Give the rest
+        // of this function a request-shaped VIEW of such a context instead of guarding
+        // each deref: empty headers, the method the context names (else GET), and the
+        // current bundle's conf from the Config registry — the lookup getWebroot makes.
+        // A context carrying both `req.headers` and `options.conf` is used as it is, so
+        // a request render is byte-identical. The view is local to this call: the
+        // caller's context object is never written.
+        var _ctxOptions    = ctx.options || {};
+        var _isRequestLess = ( !ctx.req || !ctx.req.headers ) ? true : false;
+        if ( _isRequestLess || !_ctxOptions.conf ) {
+            var _ctxConf = _ctxOptions.conf;
+            if ( !_ctxConf ) {
+                var _registry = getContext('gina').Config.instance;
+                _ctxConf = _registry.Env.getConf(getContext('bundle'), _registry.env);
+                if ( !_ctxConf ) {
+                    throw new Error('[swig-filter] getUrl: this render context carries no bundle configuration, and none resolved for bundle `'+ getContext('bundle') +'`');
+                }
+            }
+            ctx = {
+                options     : { conf: _ctxConf, rule: _ctxOptions.rule, method: _ctxOptions.method },
+                isProxyHost : ctx.isProxyHost,
+                throwError  : ctx.throwError,
+                req         : ( _isRequestLess ) ? { headers: {}, method: ( _ctxOptions.method || 'GET' ) } : ctx.req,
+                res         : ctx.res
+            };
+        }
 
         var config              = null
             , scheme            = null
@@ -301,6 +340,23 @@ function SwigFilters(conf) {
 
                     scheme          = hostname.match(/^(https|http)/)[0];
                     requestPort = (ctx.req.headers.port||ctx.req.headers[':port']||parseInt(process.gina.PROXY_PORT));
+                    if ( _isRequestLess ) {
+                        // #B516 — no request to read a port or a host from. With no
+                        // worker-global port either, `requestPort` is NaN, which the proxied
+                        // rewrite below appended to the host as `:NaN`: read it as the
+                        // scheme's default port, which that rewrite never appends. And with
+                        // no worker-global proxy host, the rewrite would emit
+                        // `scheme://undefined`: hand the view the target bundle's own host, so
+                        // a proxied classification with nothing to build from degrades to the
+                        // configured hostname (the #B168 rule: degrade, never stringify an
+                        // unset value).
+                        if ( requestPort !== requestPort ) {
+                            requestPort = ( scheme === 'https' ) ? 443 : 80;
+                        }
+                        if ( !process.gina.PROXY_HOST ) {
+                            ctx.req.headers.host = config.hostname.replace(/^(https|http)\:\/\//, '');
+                        }
+                    }
                     var hostPort = config.hostname.match(/(\:d+\/|\:\d+)$/);
                     hostPort = (hostPort) ? ~~(hostPort[0].replace(/\:/g, '')) : config.port[config.server.protocol][config.server.scheme];
                     // Linking bundle B from bundle A wihtout proxy
@@ -340,6 +396,12 @@ function SwigFilters(conf) {
                     isMaster        = (mainConf.bundles[0] === config.bundle) ? true : false;
 
                 } else {
+                    // #B516 — a context with no `throwError` has no response to answer
+                    // (a request-less render): the caller owns the failure, so throw a
+                    // named Error instead of a TypeError on the call below.
+                    if ( typeof(ctx.throwError) != 'function' ) {
+                        throw new Error('[swig-filter] getUrl: bundle `'+ base +'` not found (base `'+ base +'`, route `'+ route +'`)');
+                    }
                     ctx.throwError(ctx.res, 500, new Error('bundle `'+ base +'` not found: Swig.getUrl() filter encountered a problem while trying to compile base `'+base+'` and route `'+route+'`').stack)
                 }
             } else {
