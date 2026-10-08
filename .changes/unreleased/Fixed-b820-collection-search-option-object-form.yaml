@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'The object form of a `Collection` search option, `setSearchOption({ field: { isCaseSensitive: false } })`, now works. It tested each top-level key, a field name, against the rule table, so the documented shape threw `undefined is not an allowed searchOption !` and only the three-argument form was usable. Each field''s rule names are now checked (an unknown rule is refused by name, a field entry that is not an object of rules is refused by field), `''true''` / `''false''` are read as booleans like the three-argument form, and the options are copied: the caller''s object is neither kept nor changed (#B820).'
+time: 2026-10-08T01:14:00+01:00

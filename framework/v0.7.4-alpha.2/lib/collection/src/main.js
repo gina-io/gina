@@ -83,6 +83,8 @@
  * // search option — the next search ignores the case of `name`; the value is text
  * col.setSearchOption('name', 'isCaseSensitive', false).findOne({ name: 'ALICE' }); // { id:1, name:'Alice' }
  * col.setSearchOption('name', 'isCaseSensitive', false).find({ name: 'a.' });       // [] — the dot is a dot
+ * // the same option as one object, keyed by field
+ * col.setSearchOption({ name: { isCaseSensitive: false } }).findOne({ name: 'BOB' }); // { id:2, name:'Bob' }
  */
 function Collection(content, options) {
 
@@ -261,28 +263,36 @@ function Collection(content, options) {
      * `replace`, `delete`, …) and is then cleared. The value of that search is
      * matched as text: a pattern character in it means itself (#B818).
      *
-     * eg.:
-     *  var recCollection = new Collection(arrayCollection);
-     *  var rec =  recCollection
-     *                  .setSearchOption('city', 'isCaseSensitive', false)
-     *                  .find({ city: 'cap Town' });
+     * Two forms. Three arguments set one rule on one field and ADD to what an
+     * earlier call set, so calls chain per field. One object, keyed by field,
+     * REPLACES what was set: `{ <field>: { <rule>: <value> } }` (#B820). The
+     * object is copied: it is neither kept nor changed. The only rule is
+     * `isCaseSensitive` (`true` or `false`; the texts `'true'` / `'false'` are
+     * read as booleans). `skipEval` is a constructor option
+     * (`options.searchOptionRules`): as a top-level key of the object it is
+     * accepted and has no effect.
      *
-     * eg.:
-     *  var recCollection = new Collection(arrayCollection);
-     *  var searchOptions = {
-     *      city: {
-     *          isCaseSensitive: false
-     *      }
-     *  };
-     *  var rec =  recCollection
-     *                  .setSearchOption(searchOptions)
-     *                  .find({ city: 'cap Town' });     *
-     *
-     * @param {object|string} searchOptionObject or searchOptionTargetedProperty
-     * @param {string} [searchRule]
-     * @param {boolean} [searchRuleValue] - true to enable, false to disabled
+     * @param {object|string} searchOptionObject or searchOptionTargetedProperty - the options keyed by field, or the field name
+     * @param {string} [searchRule] - the rule name (three-argument form)
+     * @param {boolean} [searchRuleValue] - the rule's value: `false` ignores the case, `true` keeps it
      *
      * @returns {object} instance with local search options
+     * @throws {Error} on zero, two or more than three arguments
+     * @throws {Error} when a single argument is not an object
+     * @throws {Error} `<rule> is not an allowed searchOption !` on an unknown rule name
+     * @throws {Error} when a field's entry in the object form is not an object of rules
+     *
+     * @example
+     * // three arguments: one rule on one field
+     * var rec = new Collection(rows)
+     *     .setSearchOption('city', 'isCaseSensitive', false)
+     *     .find({ city: 'cap Town' });
+     *
+     * @example
+     * // one object, keyed by field
+     * var rec = new Collection(rows)
+     *     .setSearchOption({ city: { isCaseSensitive: false }, country: { isCaseSensitive: false } })
+     *     .find({ city: 'cap Town', country: 'south africa' });
      */
     instance['setSearchOption'] = function() {
 
@@ -300,12 +310,41 @@ function Collection(content, options) {
             if ( typeof(arguments[0]) != 'object' )
                 throw new Error('searchOption must be an object');
 
-            for (var prop in arguments[0]) {
-                if ( typeof(searchOptionRules[prop]) == 'undefined' )
-                    throw new Error(arguments[1] + ' is not an allowed searchOption !');
+            // #B820 — the object form is keyed by FIELD: { <field>: { <rule>: <value> } }.
+            // The loop below tested each top-level key — a field name — against the
+            // rule table, so the documented shape threw, with a message read from the
+            // second argument, which this form does not have. Each field's rule names
+            // are now tested instead, and the options are COPIED: the caller's object
+            // is neither kept nor changed by the search. A top-level key that names a
+            // rule is accepted and has no effect, as before.
+            // for (var prop in arguments[0]) {
+            //     if ( typeof(searchOptionRules[prop]) == 'undefined' )
+            //         throw new Error(arguments[1] + ' is not an allowed searchOption !');
+            // }
+            //
+            // localSearchOptions = arguments[0];
+            var given = arguments[0], normalized = {};
+            for (var prop in given) {
+                if ( typeof(searchOptionRules[prop]) != 'undefined' )
+                    continue;
+
+                if ( !given[prop] || typeof(given[prop]) != 'object' || Array.isArray(given[prop]) )
+                    throw new Error('searchOption `' + prop + '` must be an object of rules, e.g. { isCaseSensitive: false }');
+
+                normalized[prop] = {};
+                for (var ruleName in given[prop]) {
+                    if ( typeof(searchOptionRules[ruleName]) == 'undefined' )
+                        throw new Error(ruleName + ' is not an allowed searchOption !');
+
+                    if ( /true|false/i.test(given[prop][ruleName]) ) {
+                        normalized[prop][ruleName] = /true/i.test(given[prop][ruleName]) ? true : false
+                    } else {
+                        normalized[prop][ruleName] = given[prop][ruleName]
+                    }
+                }
             }
 
-            localSearchOptions = arguments[0];
+            localSearchOptions = normalized;
         } else {
 
             if ( !localSearchOptions )
