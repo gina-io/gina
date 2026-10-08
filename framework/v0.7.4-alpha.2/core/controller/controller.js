@@ -2492,6 +2492,11 @@ function SuperController(options) {
             hasViews    : hasViews,
             setResources: setResources,
             swig        : (local._swigEngine || swig),
+            // #B808 — the swig MODULE, for the async delegate: it builds an engine of its
+            // own with `new swigMod.Swig({ loader })`, and `swig` above has been the bundle's
+            // engine INSTANCE since #B514 (0.6.30), which has no `.Swig` — every render of a
+            // bundle with an async loader threw `swigMod.Swig is not a constructor` (500).
+            swigModule  : swig,
             SwigFilters : SwigFilters,
             headersSent : headersSent
         }); //(userData, displayInspector, errOptions)

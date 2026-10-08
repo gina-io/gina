@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'A bundle that renders through a custom async swig template loader (`settings.template.swig.loader`) renders its pages again: from 0.6.30 to 0.7.3 every page render of such a bundle answered 500, with `TypeError: swigMod.Swig is not a constructor` in the server log. The async render path builds an engine of its own from the swig module, and it was handed the bundle''s own engine instance instead, which has no `Swig` constructor (#B808).'
+time: 2026-10-08T02:16:00+01:00

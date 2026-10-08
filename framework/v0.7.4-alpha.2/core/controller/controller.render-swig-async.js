@@ -231,6 +231,15 @@ function computeIsProxyHost(req, localOptions) {
  * its input and is flagged `.safe` only when the engine escapes, and the empty
  * options cannot say so, so it is passed explicitly.
  *
+ * Note the factory is a first-call singleton (lib/swig-filters): every call
+ * returns the filters its FIRST call built. Measured in a production boot
+ * (#B808): initSwigEngine's boot call comes first, so the mode it read from
+ * `settings.swig.autoescape` applies and the value passed here is not used.
+ * In one bundle both come from that setting, so nl2br still matches the
+ * engine; where several bundles share a process, the first to boot decides,
+ * as on the sync render path. Development reloads the lib registry per
+ * request; which call comes first there was not measured.
+ *
  * @inner
  * @param {*}        engine      - The per-bundle swig engine instance
  * @param {function} SwigFilters - The SwigFilters factory (from `deps`)
@@ -437,7 +446,7 @@ function injectAssets(html, data, localOptions, cspNonce) {
  * @param {object}   userData          - Controller-supplied template data
  * @param {boolean=} displayInspector  - Dev Inspector toggle (deferred — unused in the MVP)
  * @param {object=}  errOptions        - Options when invoked from the error pipeline
- * @param {object}   deps              - Injected controller refs ({ self, local, getData, hasViews, setResources, headersSent, SwigFilters, swig })
+ * @param {object}   deps              - Injected controller refs ({ self, local, getData, hasViews, setResources, headersSent, SwigFilters, swig, swigModule }): `swigModule` is the swig module this delegate builds its own engine from (#B808); `swig` is the bundle's engine instance the other delegates render through
  * @returns {Promise<void>}
  *
  * @example
@@ -452,7 +461,12 @@ module.exports = async function renderSwigAsync(userData, displayInspector, errO
     var headersSent = deps.headersSent;
     var SwigFilters  = deps.SwigFilters;
     var setResources = deps.setResources; // #TPL1 — populates data.page.view.stylesheets/.scripts for asset injection
-    var swigMod      = deps.swig; // the resolved swig MODULE (exposes .Swig)
+    // #B808 — the swig MODULE: this delegate builds its own engine with `new swigMod.Swig()`.
+    // controller.js hands it as `deps.swigModule`; `deps.swig` has been the bundle's engine
+    // INSTANCE since #B514 (0.6.30), and an instance has no `.Swig`. A caller handing the
+    // module as `deps.swig` alone (the shape before 0.6.30) keeps working.
+    // was: var swigMod      = deps.swig; // the resolved swig MODULE (exposes .Swig)
+    var swigMod      = deps.swigModule || deps.swig;
 
     // Function-scoped captures of the per-request refs (#M1 race fix — mirror of
     // render-nunjucks/render-swig). This render awaits (getTemplate + execute);
