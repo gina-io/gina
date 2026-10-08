@@ -31,6 +31,19 @@
  * field name or a list of field names, which projects each row onto those
  * fields and returns a plain array.
  *
+ * Search options. `setSearchOption(field, 'isCaseSensitive', false)` makes the
+ * next search compare `field` without regard to case. It applies to that one
+ * call (`find`, `findOne`, `update`, `replace`, `delete`, …) and is then
+ * cleared. The value is matched as TEXT, whole: a dot, a parenthesis or any
+ * other character means itself.
+ *
+ * Two things read a value as something other than text, with or without a
+ * search option: a value holding `<`, `>` or `=` is a comparison (`'>= 1'`),
+ * and the value `not null`, in any case, matches every defined, non-null
+ * value. `{ searchOptionRules: { skipEval: true } }`, passed to the
+ * constructor, turns the comparison off for the plain (non-dotted) keys of
+ * that Collection; it changes neither `not null` nor a dotted key.
+ *
  * @class Collection
  * @constructor
  * @this {Collection}
@@ -39,6 +52,7 @@
  * @param {object}  [options]                      - Options
  * @param {boolean} [options.useLocalStorage=false] - Persist to `localStorage` (browser only)
  * @param {string}  [options.locale='en']           - Locale used for string comparison
+ * @param {object}  [options.searchOptionRules]     - Overrides of the search-option rule table: `skipEval` (boolean, default `false`), and the `re` template and `modifiers` flags of an `isCaseSensitive` entry (`false` or `true`). In a template `%s` stands for the filter value, which is always matched as text: `{ isCaseSensitive: { false: { re: '^%s', modifiers: 'i' } } }` makes the case-insensitive search a prefix search
  * @returns {object} Collection instance (the enriched `content` array)
  * @throws {Error} When `content` is not an Array
  *
@@ -65,6 +79,10 @@
  * col.toRaw();                                          // strip _uuid/_hasItsOwnUuid
  * col.find({}).filter(function (r) { return r.id > 1; }); // chainable: .toRaw(), .orderBy(), …
  * col.find({}).filter(['id', 'name']);                  // projection: [{ id, name }, …]
+ *
+ * // search option — the next search ignores the case of `name`; the value is text
+ * col.setSearchOption('name', 'isCaseSensitive', false).findOne({ name: 'ALICE' }); // { id:1, name:'Alice' }
+ * col.setSearchOption('name', 'isCaseSensitive', false).find({ name: 'a.' });       // [] — the dot is a dot
  */
 function Collection(content, options) {
 
@@ -145,6 +163,35 @@ function Collection(content, options) {
         if (/^"(?:\\.|[^"\\])*"$/.test(right)) { right = JSON.parse(right); }
         return JSON.stringify(String(left)) + op + JSON.stringify(right);
     };
+    // #B818 — every character a RegExp reads as syntax outside a character class.
+    var REGEXP_SYNTAX_RE = /[\\^$.*+?()[\]{}|]/g;
+    /**
+     * Build the RegExp of one search-option rule for one filter value (#B818, #B819).
+     *
+     * The rule's `re` is a template in which `%s` stands for the value. The
+     * template is the pattern; the value is TEXT: every character a RegExp reads
+     * as syntax is escaped before the value takes the place of `%s`, and a
+     * function replacer puts it there, so a `$` sequence in the value (`$&`,
+     * `$$`, …) is not expanded. The pattern is built in a local and the rule
+     * entry is only read: the next value — on this instance, or on another one
+     * sharing the caller's rule table — starts from the same template.
+     *
+     * @inner
+     * @private
+     * @param {object} ruleDef             - A rule entry of the search-option rule table
+     * @param {string} ruleDef.re          - The template, e.g. `'^%s$'`
+     * @param {string} [ruleDef.modifiers] - RegExp flags, e.g. `'i'`
+     * @param {*}      value               - The filter value; read as a string
+     * @returns {RegExp} the expression matching `value` as text inside the template
+     *
+     * @example
+     * buildSearchOptionRegExp({ re: '^%s$', modifiers: 'i' }, 'a.b'); // /^a\.b$/i
+     */
+    var buildSearchOptionRegExp = function(ruleDef, value) {
+        var text    = String(value).replace(REGEXP_SYNTAX_RE, '\\$&');
+        var pattern = ruleDef.re.replace(/\%s/, function onValue() { return text; });
+        return (ruleDef.modifiers) ? new RegExp(pattern, ruleDef.modifiers) : new RegExp(pattern);
+    };
     var tryEval     = function(condition) {
         var m = (typeof(condition) == 'string') ? condition.match(CONDITION_RE) : null;
         if (!m) {
@@ -209,6 +256,10 @@ function Collection(content, options) {
     var instance = content;
     /**
      * Set local search option for the current collection method call
+     *
+     * The option applies to the next search only (`find`, `findOne`, `update`,
+     * `replace`, `delete`, …) and is then cleared. The value of that search is
+     * matched as text: a pattern character in it means itself (#B818).
      *
      * eg.:
      *  var recCollection = new Collection(arrayCollection);
@@ -471,13 +522,22 @@ function Collection(content, options) {
                             continue
                         }
 
-                        searchOptionRules[rule][searchOptions[field][rule]].re = searchOptionRules[rule][searchOptions[field][rule]].re.replace(/\%s/, filter);
-
-                        if (searchOptionRules[rule][searchOptions[field][rule]].modifiers) {
-                            re = new RegExp(searchOptionRules[rule][searchOptions[field][rule]].re, searchOptionRules[rule][searchOptions[field][rule]].modifiers);
-                        } else {
-                            re = new RegExp(searchOptionRules[rule][searchOptions[field][rule]].re);
-                        }
+                        // #B818 / #B819 — the value is matched as TEXT and the rule table is
+                        // only read. The statements below spliced the raw value into the
+                        // rule's template with a string replacer and ASSIGNED the result to
+                        // the rule entry: a value holding a pattern character was compiled
+                        // as a pattern (it threw out of the search, or matched other rows),
+                        // a `$` sequence in a value was expanded, and the entry kept the
+                        // FIRST value, so every later option search on the instance — or on
+                        // any instance sharing the caller's rule table — matched that value.
+                        // searchOptionRules[rule][searchOptions[field][rule]].re = searchOptionRules[rule][searchOptions[field][rule]].re.replace(/\%s/, filter);
+                        //
+                        // if (searchOptionRules[rule][searchOptions[field][rule]].modifiers) {
+                        //     re = new RegExp(searchOptionRules[rule][searchOptions[field][rule]].re, searchOptionRules[rule][searchOptions[field][rule]].modifiers);
+                        // } else {
+                        //     re = new RegExp(searchOptionRules[rule][searchOptions[field][rule]].re);
+                        // }
+                        re = buildSearchOptionRegExp(searchOptionRules[rule][searchOptions[field][rule]], filter);
 
                         if ( re.test(_content) ) {
                             ++reValidCount

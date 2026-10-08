@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'A `Collection` search option now works for every search on an instance, not only the first. The first value compared under an option was written back onto the rule table, so every later option search on that instance matched the first value (`find({ name: ''alice'' })` then `find({ name: ''bob'' })` returned Alice twice), one search over two option fields matched nothing, and a rule table passed to the constructor carried the first value to every instance built from the same options object. The rule table is no longer written (#B819).'
+time: 2026-10-08T01:05:30+01:00
