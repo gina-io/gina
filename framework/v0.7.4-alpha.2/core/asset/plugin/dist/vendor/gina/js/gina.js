@@ -31422,6 +31422,10 @@ if ( ( typeof(module) !== 'undefined' ) && module.exports ) {
  * defined). An explicitly empty `{}` filter is legal and matches every
  * record; `null` is a legal needle comparing strictly against stored values.
  *
+ * A key holding a dot is a property path (`'address.city'`), also inside an
+ * array of objects (`'reviews[*].ratings.score'`). A dotted key that is not a
+ * property path matches nothing.
+ *
  * Query results (`find`, `orderBy`, `limit`, `notIn`, …) are Arrays carrying
  * these methods, so calls chain. Their `filter` takes either a function, which
  * filters like `Array.prototype.filter` and returns a chainable result, or a
@@ -31990,11 +31994,33 @@ function Collection(content, options) {
                 };
             }
 
+            /**
+             * Search on a dotted key: walk `f` as a property path of `_content`
+             * and compare the value found there with `filter`.
+             *
+             * `f` must be a property path (`a.b.c`, identifiers separated by
+             * dots). Any other dotted key matches nothing: the path check below
+             * refuses it and no value is read.
+             *
+             * @inner
+             * @private
+             * @param {*}      filter   - The filter value, or a comparison (`'>= 4'`)
+             * @param {string} f        - The dotted key
+             * @param {object} _content - The row, or the element of a `[*]` array
+             * @param {number} matched  - The conditions matched so far
+             * @returns {{matched: number}} `matched`, plus one when the value matches
+             */
             var searchThroughProp = function(filter, f, _content, matched) {
 
-                var field = f.split(/\./g);
-                field = field[field.length - 1];
-                re = new RegExp('("' + field + '":\\w+)');
+                // #B821 — dead code that could only throw. The expression was built
+                // from the last segment of the filter KEY and never read (the only
+                // read of `re` follows its own assignment, in the search-option
+                // branch above), so a key holding `(`, `)` or `[` threw a
+                // SyntaxError out of the search, before the path check below could
+                // refuse the key like any other dotted key that is not a path.
+                // var field = f.split(/\./g);
+                // field = field[field.length - 1];
+                // re = new RegExp('("' + field + '":\\w+)');
 
                 var value = null;
 
