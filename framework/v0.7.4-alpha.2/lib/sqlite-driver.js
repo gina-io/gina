@@ -12,7 +12,10 @@
  *   1. `node:sqlite` (Node.js built-in since 22.5.0) — tried FIRST, so the
  *      Node path is byte-identical to a direct require, and any future
  *      runtime that implements `node:sqlite` (Bun tracks it upstream as
- *      oven-sh/bun#20412) automatically retires the adapter below.
+ *      oven-sh/bun#20412) automatically retires the adapter below. The class
+ *      is taken as `Database` where the module exports it (Node 26.11.0
+ *      renamed `DatabaseSync` and deprecated the old name, DEP0210) and as
+ *      `DatabaseSync` everywhere else.
  *   2. Under the Bun runtime, `bun:sqlite` behind a `DatabaseSync`-shaped
  *      adapter covering exactly the surface the framework uses:
  *      constructor(path) / exec() / prepare() -> get()/all()/run() with
@@ -160,9 +163,11 @@ function makeAdapter(bunSqlite) {
 /**
  * Resolves the synchronous SQLite driver constructor for this runtime.
  *
- * Returns `node:sqlite`'s `DatabaseSync` verbatim when available (every
- * supported Node, and any future Bun implementing it), else the
- * `bun:sqlite` adapter under Bun. Throws when this runtime offers no
+ * Returns `node:sqlite`'s own class verbatim when available (every
+ * supported Node, and a Bun that implements the module) — `Database` where
+ * the module exports it, since Node 26.11.0 renamed the class and kept
+ * `DatabaseSync` as a deprecated alias, and `DatabaseSync` otherwise — else
+ * the `bun:sqlite` adapter under Bun. Throws when this runtime offers no
  * SQLite driver — callers wrap the message with their component tag and
  * keep their existing degrade semantics.
  *
@@ -182,7 +187,12 @@ function getDatabaseSync() {
 
     var nodeErr;
     try {
-        _DatabaseSync = require('node:sqlite').DatabaseSync;
+        // Node 26.11.0 renamed the class to `Database` and kept `DatabaseSync` as
+        // a deprecated alias (DEP0210). Take the current name where the runtime
+        // exports it and the older one everywhere else — one and the same class
+        // on a runtime that has both (#B829).
+        var nodeSqlite = require('node:sqlite');
+        _DatabaseSync  = nodeSqlite.Database || nodeSqlite.DatabaseSync;
         return _DatabaseSync;
     } catch (e) {
         nodeErr = e;

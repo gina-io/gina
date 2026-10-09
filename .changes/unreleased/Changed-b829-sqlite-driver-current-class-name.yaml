@@ -1,0 +1,3 @@
+kind: Changed
+body: 'The SQLite driver seam takes the `node:sqlite` class as `Database` where the runtime exports it and as `DatabaseSync` everywhere else. Node.js 26.11.0 renamed the class to `Database` and kept `DatabaseSync` as a deprecated alias (DEP0210). The framework reached the class through the old name only, so it would have stopped resolving a driver on a runtime that drops the alias. Nothing changes on a current runtime: Node.js 26.11 and later export one class under both names, and older Node.js and Bun export `DatabaseSync` only. The SQLite connector, the session store, the async-job store, the key-value store, the storage metadata store and the framework state store all resolve their driver through this seam (#B829).'
+time: 2026-10-09T13:06:00+01:00

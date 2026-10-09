@@ -43,7 +43,7 @@ describe('01 - sqlite-driver: source pins', function () {
     // legitimately contain require('bun:sqlite') prose, so bare indexOf on the
     // require form would trip the own-comment trap.
     it('tries node:sqlite FIRST (self-retiring order — before the bun:sqlite code require)', function () {
-        var iNode = src.indexOf("_DatabaseSync = require('node:sqlite').DatabaseSync;");
+        var iNode = src.indexOf("var nodeSqlite = require('node:sqlite');");
         var iBun  = src.indexOf("bunSqlite = require('bun:sqlite');");
         assert.ok(iNode > -1, 'node:sqlite code require present');
         assert.ok(iBun > -1, 'bun:sqlite code require present');
@@ -305,5 +305,82 @@ describe('05 - sqlite-driver: the four consumers resolve through the seam', func
     it('the seam relative path actually resolves from the connector tree (no drift)', function () {
         var resolved = require.resolve(path.join(FW, 'core/connectors/sqlite/lib', './../../../../lib/sqlite-driver'));
         assert.equal(resolved, DRIVER_PATH);
+    });
+});
+
+
+/**
+ * #B829 — Node 26.11.0 renamed node:sqlite's class from `DatabaseSync` to
+ * `Database` and deprecated the old name (DEP0210). The seam takes `Database`
+ * where the module exports it and `DatabaseSync` everywhere else, so it keeps
+ * resolving on a runtime that has dropped the old name.
+ *
+ * The stand-in arms run the SHIPPED text of `getDatabaseSync()` with a stand-in
+ * `require`. Every free identifier the function reads is passed in, and a
+ * control arm checks that the lifted copy behaves like the module on the real
+ * runtime before the stand-in readings count.
+ */
+describe('06 - sqlite-driver: the class is taken under its current name (#B829)', function () {
+
+    var src = fs.readFileSync(DRIVER_PATH, 'utf8');
+
+    /** The source without its block comments and full-line comments. */
+    function stripComments(text) {
+        return text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+    }
+
+    /** The shipped `getDatabaseSync` text, compiled with `fakeRequire` and an empty memo. */
+    function liftedResolver(fakeRequire) {
+        return (new Function('require', '_DatabaseSync', 'makeAdapter', '__dirname',
+            'return (' + driver.getDatabaseSync.toString() + ')'))(
+            fakeRequire, null, driver.makeAdapter, path.dirname(DRIVER_PATH));
+    }
+
+    /** A `require` whose `node:sqlite` is `mod`; every other id goes to the real one. */
+    function requireOf(mod) {
+        return function (id) {
+            if (id === 'node:sqlite') return mod;
+            return require(id);
+        };
+    }
+
+    it('control — the lifted copy resolves what the module resolves on this runtime', function () {
+        var lifted = liftedResolver(require)();
+        var real   = driver.getDatabaseSync();
+        if (real.name === 'BunDatabaseSync') {
+            // Bun < 1.4: every makeAdapter() call builds a class of its own.
+            assert.equal(lifted.name, 'BunDatabaseSync');
+        } else {
+            assert.equal(lifted, real);
+        }
+    });
+
+    it('resolves the class on a runtime that exports it as Database only (the old name removed)', function () {
+        function Renamed() {}
+        assert.equal(liftedResolver(requireOf({ Database: Renamed }))(), Renamed);
+    });
+
+    it('takes Database, not the deprecated name, when the two are different classes', function () {
+        function Current() {}
+        function Old() {}
+        assert.equal(liftedResolver(requireOf({ Database: Current, DatabaseSync: Old }))(), Current);
+    });
+
+    it('control — resolves the one class a runtime exports under both names (Node >= 26.11.0)', function () {
+        function Both() {}
+        assert.equal(liftedResolver(requireOf({ Database: Both, DatabaseSync: Both }))(), Both);
+    });
+
+    it('control — falls back to DatabaseSync where the runtime has no Database export', function () {
+        function Old() {}
+        assert.equal(liftedResolver(requireOf({ DatabaseSync: Old }))(), Old);
+    });
+
+    it('the code takes the class in one place, Database first, and never through the old name alone', function () {
+        var code = stripComments(src);
+        assert.ok(src.indexOf('DatabaseSync') > -1, 'control — the raw text still names the old class');
+        assert.ok(code.indexOf("require('node:sqlite').DatabaseSync") < 0, 'the retired shape is gone from the code');
+        var sites = code.match(/_DatabaseSync\s*=\s*nodeSqlite\.Database\s*\|\|\s*nodeSqlite\.DatabaseSync\s*;/g) || [];
+        assert.equal(sites.length, 1, 'one resolution site, Database first');
     });
 });
