@@ -1176,15 +1176,42 @@ function Collection(content, options) {
     }
 
     /**
-     * update
+     * Merges `set` into every entry `filter` matches, then writes each merged
+     * entry back over the entry it came from. Unlike `.replace()`, the entry's
+     * other fields are kept: `set` wins on the fields it names.
      *
-     * @param {object} filter
-     * @param {object} set
+     * Each matched entry goes back to its own place: the stored entry itself
+     * when the matched entry is one (the collection, and a chained result,
+     * hand `update()` their own entries), otherwise the stored entry that
+     * shares a key with it — `key` when given, else the internal `_uuid` when
+     * both carry one, else `id` when both do. A key that one of the two lacks
+     * never matches. An entry matched by two filter objects is written once.
      *
-     * @returns {objet} instance
+     * N.B. an updated entry loses the internal `_uuid` the collection gave it,
+     * while the entries left alone keep theirs. Persist `.toRaw()` rather than
+     * the chained array if the data is going to be re-loaded into a new
+     * Collection later.
+     *
+     * @param {object|Array} filter - Entry selector, as `.find()` — or an already-found result
+     * @param {object}       set    - The fields to merge into each matched entry
+     * @param {string}       [key]  - Comparison key for a matched entry that is not a stored one; compared as given
+     * @returns {Array} the chainable result set
+     *
+     * @throws {Error} when `filter` or `set` is missing, or a filter value is `undefined`
+     *
+     * @example
+     * // every matched entry, each in its own place
+     * col.update({ status: 'draft' }, { status: 'sent' });
+     *
+     * @example
+     * // on a chained result
+     * col.find({ type: 'invoice' }).update({ status: 'draft' }, { status: 'sent' }).toRaw();
      */
     instance['update'] = function() {
         var key         = '_uuid' // comparison key is _uuid by default
+            // #B822 — whether the caller named the comparison key. A named key is
+            // compared as given: it is never replaced by `id`.
+            , keyExplicit = false
             , result    = null
             , filters   = null
             , set       = null
@@ -1194,6 +1221,7 @@ function Collection(content, options) {
         // comparison key  : _uuid by default, but can be set to id
         if ( typeof(arguments[arguments.length-1]) == 'string' ) {
             key = arguments[arguments.length - 1];
+            keyExplicit = true;
             delete arguments[arguments.length - 1];
             --arguments.length;
         }
@@ -1233,19 +1261,83 @@ function Collection(content, options) {
 
         result = Array.isArray(this) ? this : JSON.clone(content);
         if (foundResults.length > 0 ) {
-            var arr = foundResults.toRaw();
+            // #B822 — each matched row is written back over the row it came from.
+            //
+            // The place used to be found by comparing a key on each stored row
+            // with the same key on the merged row:
+            //
+            //     if ( typeof(result[r][key]) == 'undefined' && key == '_uuid' && typeof(result[r]['id']) != 'undefined' ) {
+            //         key = 'id';
+            //     }
+            //     if ( result[r][key] == arr[a][key] ) {
+            //         result[r] = arr[a];
+            //         break;
+            //     }
+            //
+            // On a collection and on a chained result the matched rows ARE stored
+            // rows, and `toRaw()` below strips their `_uuid` in place. Rows with
+            // no `id` then compared `undefined == undefined`: every matched row
+            // went over the FIRST stripped row (a row lost, another written
+            // twice, the rest not updated), and so did a single row once an
+            // earlier update() or toRaw() had stripped a row before it. `key`,
+            // once switched to `id`, stayed `id` for every later row, and a row
+            // found through another collection matched nothing.
+            //
+            // The place is now the stored row itself when the matched row is one
+            // (identity); otherwise the stored row that shares a key with it —
+            // `key` when the caller named one, else `_uuid` when both rows carry
+            // one, else `id` when both do — never a key one of the two lacks. A
+            // place this call already wrote is not written again, and a row
+            // matched twice (by two filter objects) is written once.
+            var found       = Array.prototype.slice.call(foundResults) // the matched rows themselves, before any place is written
+                , written   = []                                      // the places this call has written
+                , arr       = foundResults.toRaw()
+                , slot      = -1
+                , cmpKey    = null
+            ;
             for (var a = 0, aLen = arr.length; a < aLen; ++a) {
+                if ( found.indexOf(found[a]) < a ) continue; // matched twice: written once
+
                 arr[a] = merge(JSON.clone(set), arr[a]);
                 // arr[a] = merge(set, arr[a]);
-                for (var r = 0, rLen = result.length; r < rLen; ++r) {
-                    if ( typeof(result[r][key]) == 'undefined' && key == '_uuid' && typeof(result[r]['id']) != 'undefined' ) {
-                        key = 'id';
-                    }
 
-                    if ( result[r][key] == arr[a][key] ) {
-                        result[r] = arr[a];
+                slot = -1;
+                for (var r = 0, rLen = result.length; r < rLen; ++r) {
+                    if ( result[r] === found[a] ) {
+                        slot = r;
                         break;
                     }
+                }
+
+                if ( slot < 0 ) {
+                    for (r = 0; r < rLen; ++r) {
+                        if ( written.indexOf(r) > -1 ) continue;
+
+                        cmpKey = key;
+                        if (
+                            !keyExplicit
+                            && (
+                                typeof(result[r][cmpKey]) == 'undefined'
+                                || typeof(found[a][cmpKey]) == 'undefined'
+                            )
+                        ) {
+                            cmpKey = 'id';
+                        }
+
+                        if (
+                            typeof(result[r][cmpKey]) != 'undefined'
+                            && typeof(found[a][cmpKey]) != 'undefined'
+                            && result[r][cmpKey] == found[a][cmpKey]
+                        ) {
+                            slot = r;
+                            break;
+                        }
+                    }
+                }
+
+                if ( slot > -1 ) {
+                    result[slot] = arr[a];
+                    written.push(slot);
                 }
             }
         }

@@ -1,0 +1,3 @@
+kind: Fixed
+body: '`Collection.update()` writes each matched row back over the row it came from. With rows that have no `id`, every merged row went over the first one: a row was lost, another appeared twice and the rest were not updated, with no error. A single matched row did the same once an earlier `update()` or `toRaw()` had run on the same collection, and so did an empty filter, rows sharing an `id`, and an explicit `''id''` key on rows without one. Rows found through another collection were not written at all; they are now written by their `id` (#B822).'
+time: 2026-10-09T00:39:00+01:00
