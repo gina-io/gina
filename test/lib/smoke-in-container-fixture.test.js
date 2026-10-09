@@ -233,11 +233,12 @@ describe('06 - sqlite fixture: wiring constants', function () {
             'DB_BUNDLE must be in BUNDLES or the fixture is written to a bundle that never boots');
     });
 
-    it('accepts BOTH driver names so the bun adapter self-retiring is not a false red', function () {
-        // `DatabaseSync` = node:sqlite native; `BunDatabaseSync` = the bun:sqlite
-        // adapter. If Bun ever ships node:sqlite the seam returns the native class
-        // under Bun too — pinning the adapter name would go red exactly then.
-        assert.deepEqual(CONT.DB_DRIVERS.slice().sort(), ['BunDatabaseSync', 'DatabaseSync']);
+    it('accepts BOTH driver kinds so the bun adapter self-retiring is not a false red', function () {
+        // `node:sqlite` = the runtime's own class, whatever it is called (Node
+        // 26.11.0 renamed it); `bun:sqlite` = the bun:sqlite adapter. If Bun ships
+        // node:sqlite the seam returns the native class under Bun too — pinning the
+        // adapter kind would go red exactly then.
+        assert.deepEqual(CONT.DB_DRIVERS.slice().sort(), ['bun:sqlite', 'node:sqlite']);
     });
 });
 
@@ -269,5 +270,171 @@ describe('07 - readConfigJSON (the routing.json merge instrument)', function () 
         // Proves the stripper is load-bearing rather than decorative.
         assert.throws(function () { JSON.parse(scaffolded); }, SyntaxError);
         require('fs').unlinkSync(tmp);
+    });
+});
+
+
+/**
+ * #B828 — Node 26.11.0 renamed node:sqlite's class from `DatabaseSync` to
+ * `Database` (the old name stays as a deprecated alias), and the smoke, which
+ * accepted the driver by its class NAME, went red on a working connector.
+ *
+ * A name cannot tell the drivers apart either: bun:sqlite's own class is also
+ * called `Database` (measured on Bun 1.2.21, 1.3.14 and 1.4.2). So the probe
+ * reports a KIND decided by identity, and the gate accepts the two kinds.
+ *
+ * The stand-in arms run the SHIPPED function text with a stand-in `require`,
+ * the way the probe controller carries it: as source, with no closure.
+ */
+describe('08 - the driver kind is decided by identity, never by class name (#B828)', function () {
+
+    var kind    = CONT.sqliteDriverKind;
+    var ctrlSrc = FIXTURE['controllers/controller.' + CONT.DB_NS + '.js'];
+    var seam    = require(nodePath.join(require('../fw'), 'lib/sqlite-driver.js'));
+
+    /** A class whose `name` is `name` — two calls give two DIFFERENT classes of the same name. */
+    function classNamed(name) {
+        var C = function () {};
+        Object.defineProperty(C, 'name', { value: name });
+        return C;
+    }
+
+    /** A `require` whose `node:sqlite` is `mod`, or absent when `mod` is null (Bun < 1.4). */
+    function requireOf(mod) {
+        return function (id) {
+            if (id === 'node:sqlite' && mod) return mod;
+            throw new Error('No such built-in module: ' + id);
+        };
+    }
+
+    /** The shipped function text, compiled with `fakeRequire` as its `require`. */
+    function kindWith(fakeRequire) {
+        return (new Function('require', 'return ' + kind.toString()))(fakeRequire);
+    }
+
+    /**
+     * Runs the GENERATED controller source against a stand-in model whose
+     * connection is `conn`, with `nodeSqliteMod` as the runtime's node:sqlite
+     * (null = absent), and resolves with the body the action renders.
+     */
+    function renderProbe(conn, nodeSqliteMod) {
+        var mod   = { exports: null };
+        var rows  = {};
+        var model = { getConnection: function () { return conn; } };
+        model[CONT.DB_ENTITY] = {
+            insert      : function (token) { rows[token] = true; return Promise.resolve(); },
+            findByToken : function (token) { return Promise.resolve(rows[token] ? { token: token } : null); }
+        };
+        (new Function('module', 'require', 'getModel', ctrlSrc))(
+            mod, requireOf(nodeSqliteMod), function () { return model; });
+        var inst = new mod.exports();
+        return new Promise(function (resolve) {
+            inst.renderJSON = resolve;
+            inst[CONT.DB_ACTION]({}, {});
+        });
+    }
+
+    function accepted(body) {
+        return CONT.DB_DRIVERS.indexOf(body.driver) > -1;
+    }
+
+    function verdict(body) {
+        return 'driver ' + JSON.stringify(body.driver) + ' against ' + CONT.DB_DRIVERS.join(' | ');
+    }
+
+    it('the gate accepts what the probe reports when the runtime names its class Database', function () {
+        var Native = classNamed('Database');
+        return renderProbe(new Native(), { Database: Native, DatabaseSync: Native }).then(function (body) {
+            assert.ok(accepted(body), verdict(body));
+            assert.equal(body.sqlite, 'ok');
+            assert.equal(body.readBack, body.written);
+            assert.equal(body.driver, 'node:sqlite');
+            assert.equal(body.driverClass, 'Database');
+        });
+    });
+
+    it('control — the gate accepts the class name from before the rename too', function () {
+        var Native = classNamed('DatabaseSync');
+        return renderProbe(new Native(), { DatabaseSync: Native }).then(function (body) {
+            assert.ok(accepted(body), verdict(body));
+            assert.equal(body.sqlite, 'ok');
+        });
+    });
+
+    it('the gate accepts the framework adapter on a runtime with no node:sqlite', function () {
+        var Adapter = seam.makeAdapter({ Database: classNamed('Database') });
+        return renderProbe(new Adapter(':memory:'), null).then(function (body) {
+            assert.ok(accepted(body), verdict(body));
+            assert.equal(body.driver, 'bun:sqlite');
+            assert.equal(body.driverClass, 'BunDatabaseSync');
+        });
+    });
+
+    it('the gate refuses a raw bun:sqlite connection, whose class is also named Database', function () {
+        var Raw = classNamed('Database');
+        return renderProbe(new Raw(), null).then(function (body) {
+            assert.equal(body.sqlite, 'ok');
+            assert.ok(!accepted(body), verdict(body));
+        });
+    });
+
+    it('exports the function the probe controller carries', function () {
+        assert.equal(typeof kind, 'function');
+        assert.ok(ctrlSrc.indexOf(kind.toString()) > -1, 'the function text is embedded verbatim');
+        assert.match(ctrlSrc, /driver\s*:\s*sqliteDriverKind\(conn\)/);
+        assert.match(ctrlSrc, /driverClass\s*:/);
+    });
+
+    it('reads node:sqlite when the runtime exports the class as Database (Node >= 26.11.0)', function () {
+        var Native = classNamed('Database');
+        assert.equal(kindWith(requireOf({ Database: Native, DatabaseSync: Native }))(new Native()), 'node:sqlite');
+    });
+
+    it('reads node:sqlite when the runtime exports DatabaseSync only (older Node, Bun >= 1.4)', function () {
+        var Native = classNamed('DatabaseSync');
+        assert.equal(kindWith(requireOf({ DatabaseSync: Native }))(new Native()), 'node:sqlite');
+    });
+
+    it('reads node:sqlite under either export when the two are different classes', function () {
+        var A = classNamed('Database');
+        var B = classNamed('DatabaseSync');
+        var k = kindWith(requireOf({ Database: A, DatabaseSync: B }));
+        assert.equal(k(new A()), 'node:sqlite');
+        assert.equal(k(new B()), 'node:sqlite');
+    });
+
+    it('reads bun:sqlite for the adapter the shipped seam builds', function () {
+        var Adapter = seam.makeAdapter({ Database: classNamed('Database') });
+        assert.equal(Adapter.name, 'BunDatabaseSync', 'the class name the kind keys on');
+        assert.equal(kindWith(requireOf(null))(new Adapter(':memory:')), 'bun:sqlite');
+    });
+
+    it('reads null for a class that only shares the NAME of the node:sqlite class', function () {
+        var Native = classNamed('Database');
+        var Raw    = classNamed('Database');
+        assert.equal(kindWith(requireOf({ Database: Native, DatabaseSync: Native }))(new Raw()), null);
+        assert.equal(kindWith(requireOf(null))(new Raw()), null);
+    });
+
+    it('reads null for anything that is not a connection', function () {
+        var k = kindWith(requireOf(null));
+        [null, undefined, 0, '', 'x', {}, [], Object.create(null)].forEach(function (v) {
+            assert.equal(k(v), null);
+        });
+    });
+
+    it('reads an accepted kind for the class the shipped seam resolves in THIS runtime', function () {
+        // The unit-level twin of the container gate: on Node 26.11.0 and later the
+        // class is `Database`, on older Node and on Bun 1.4 `DatabaseSync`, and
+        // below Bun 1.4 the adapter.
+        var Resolved = seam.getDatabaseSync();
+        var conn     = new Resolved(':memory:');
+        try {
+            var k = kind(conn);
+            assert.ok(CONT.DB_DRIVERS.indexOf(k) > -1,
+                'kind ' + JSON.stringify(k) + ' for class ' + JSON.stringify(Resolved.name));
+        } finally {
+            conn.close();
+        }
     });
 });

@@ -79,14 +79,14 @@ jobs:
         #
         #   oven/bun:1.4.2  — Bun 1.4 ships `node:sqlite`, so the seam resolves
         #                     it FIRST and the `bun:sqlite` adapter self-retires.
-        #                     The smoke reports `driver DatabaseSync` here.
+        #                     The smoke reports `driver node:sqlite` here.
         #                     THIS is the leg to bump as newer Bun releases are
         #                     validated.
         #
         #   oven/bun:1.3.14 — the last release BEFORE `node:sqlite` landed, so
         #                     it is the only leg that drives the real
         #                     `bun:sqlite` adapter end-to-end (the smoke reports
-        #                     `driver BunDatabaseSync`). A regression there is
+        #                     `driver bun:sqlite`). A regression there is
         #                     boot-fatal for a 1.2-1.3 consumer: the session and
         #                     job stores throw from init when no driver resolves.
         #                     DELIBERATELY FROZEN — do NOT bump this pin. Moving

@@ -96,12 +96,17 @@ var DB_ENTITY  = 'probe';                                          // entities/p
 var DB_ROUTE   = 'sqlite-probe';                                   // routing.json rule name + url segment
 var DB_ACTION  = 'sqliteProbe';                                    // param.control
 var DB_TABLE   = 'smoke_probe';
-// The resolved driver constructor. `DatabaseSync` is node:sqlite's native class;
-// `BunDatabaseSync` is the bun:sqlite adapter (lib/sqlite-driver.js). Both are
-// accepted on purpose — the adapter SELF-RETIRES if Bun ever ships node:sqlite
-// (oven-sh/bun#20412), and pinning the Bun leg to the adapter name would then go
-// red exactly when the good thing happens.
-var DB_DRIVERS = ['DatabaseSync', 'BunDatabaseSync'];
+// The driver KINDS the gate accepts, as `sqliteDriverKind()` reports them:
+// `node:sqlite` is the runtime's own class, `bun:sqlite` is the bun:sqlite adapter
+// (lib/sqlite-driver.js). Both are accepted on purpose — the adapter SELF-RETIRES
+// when Bun ships node:sqlite (oven-sh/bun#20412; Bun 1.4 does), and pinning the
+// Bun leg to the adapter would then go red exactly when the good thing happens.
+//
+// A kind, never a class NAME (#B828): Node 26.11.0 renamed node:sqlite's class
+// from `DatabaseSync` to `Database` and a name list turned the gate red on a
+// working connector. A name cannot tell the drivers apart either — bun:sqlite's
+// own class is also called `Database`.
+var DB_DRIVERS = ['node:sqlite', 'bun:sqlite'];
 
 var booted = [];   // [{ name, proc, stdout, stderr, exit }] — SIGKILLed on shutdown
 
@@ -298,11 +303,50 @@ function sqliteSchemaSql() {
 }
 
 /**
+ * Names the SQLite driver behind a live connection — by IDENTITY, not by the
+ * name of its class (#B828).
+ *
+ * `node:sqlite` when `conn` is an instance of the class the runtime's own
+ * node:sqlite module exports: `Database` since Node 26.11.0, which kept
+ * `DatabaseSync` as a deprecated alias, and `DatabaseSync` alone on older Node
+ * and on Bun >= 1.4. `bun:sqlite` when it is the framework's bun:sqlite adapter
+ * (`BunDatabaseSync`, lib/sqlite-driver.js). `null` for anything else — a raw
+ * bun:sqlite connection included, whose class is also called `Database`.
+ *
+ * SELF-CONTAINED ON PURPOSE: `sqliteProbeController()` embeds this function's
+ * SOURCE TEXT in the controller it writes, so it runs inside the bundle with
+ * that module's own `require`. It must reference nothing outside itself.
+ *
+ * @param   {object} conn  A live connection (the model's `getConnection()`).
+ * @returns {('node:sqlite'|'bun:sqlite'|null)} The driver kind, or `null` when
+ *          `conn` is neither.
+ * @example
+ * var conn = getModel('smokedb').getConnection();
+ * sqliteDriverKind(conn);   // 'node:sqlite' on Node, 'bun:sqlite' below Bun 1.4
+ */
+function sqliteDriverKind(conn) {
+    if (!conn) return null;
+    try {
+        var nodeSqlite = require('node:sqlite');
+        var names      = ['Database', 'DatabaseSync'];
+        for (var i = 0; i < names.length; i++) {
+            if (typeof nodeSqlite[names[i]] === 'function' && conn instanceof nodeSqlite[names[i]]) {
+                return 'node:sqlite';
+            }
+        }
+    } catch (e) { /* this runtime has no node:sqlite (Bun < 1.4) */ }
+    if (conn.constructor && conn.constructor.name === 'BunDatabaseSync') return 'bun:sqlite';
+    return null;
+}
+
+/**
  * Source of the probe controller written into the `db` bundle.
  *
  * The action drives the full ORM path (CREATE → INSERT → SELECT) and additionally
- * reports the live connection's identity, so the gate has POSITIVE evidence the
- * expected driver is engaged rather than merely "nothing threw".
+ * reports the live connection's driver — its kind, from `sqliteDriverKind()`,
+ * and its class name beside it — so the gate has POSITIVE evidence the expected
+ * driver is engaged rather than merely "nothing threw". The gate accepts on the
+ * kind; the class name is printed only.
  *
  * The failure branch dumps `Object.keys(db)` because the entity key is registered
  * at runtime (`lib/model.js` `updateModel`) — if that contract ever moves, the
@@ -316,6 +360,10 @@ function sqliteProbeController() {
         ' * DbProbeController — the SQLite connector leg of the container smoke.',
         ' * Written by script/smoke_in_container.js; not part of the scaffold.',
         ' */',
+        '',
+        '// Carried as source — see sqliteDriverKind() in script/smoke_in_container.js.',
+        sqliteDriverKind.toString(),
+        '',
         'function DbProbeController() {',
         '    var self = this;',
         '',
@@ -333,7 +381,8 @@ function sqliteProbeController() {
         '                sqlite   : \'ok\',',
         '                written  : token,',
         '                readBack : (row && row.token) || null,',
-        '                driver   : (conn && conn.constructor) ? conn.constructor.name : null,',
+        '                driver   : sqliteDriverKind(conn),',
+        '                driverClass : (conn && conn.constructor) ? conn.constructor.name : null,',
         '                file     : (conn && conn._file) || null,',
         '                runtime  : (process.versions && process.versions.bun)',
         '                    ? (\'bun \' + process.versions.bun)',
@@ -471,7 +520,10 @@ function seedSqliteSchema() {
     var nodeErr  = null;
 
     try {
-        Database = require('node:sqlite').DatabaseSync;
+        // Node 26.11.0 renamed the class to `Database` and kept `DatabaseSync` as a
+        // deprecated alias (DEP0210): take whichever name this runtime exports.
+        var nodeSqlite = require('node:sqlite');
+        Database = nodeSqlite.Database || nodeSqlite.DatabaseSync;
         kind     = 'node:sqlite';
     } catch (e) {
         nodeErr = e;
@@ -685,10 +737,14 @@ async function main() {
                      ' but read back ' + JSON.stringify(probeBody.readBack));
                 return die(1);
             }
+            // The KIND is decided by identity inside the bundle (sqliteDriverKind);
+            // the class name rides along for the log line and is never gated.
             if (DB_DRIVERS.indexOf(probeBody.driver) < 0) {
                 fail('unexpected SQLite driver ' + JSON.stringify(probeBody.driver) +
+                     ' (class ' + JSON.stringify(probeBody.driverClass) + ')' +
                      ' — expected one of ' + DB_DRIVERS.join(' | ') + '.\n' +
-                     'Under Bun this should be the bun:sqlite adapter unless Bun has shipped node:sqlite.');
+                     'A null driver means the connection is neither an instance of this runtime\'s node:sqlite class\n' +
+                     'nor the framework\'s bun:sqlite adapter. Under Bun this should be the adapter unless Bun has shipped node:sqlite.');
                 return die(1);
             }
             // Proves the CONFIGURED entry was used and not a defaulted path.
@@ -698,7 +754,7 @@ async function main() {
                 return die(1);
             }
             ok('sqlite connector round-trip OK — driver ' + probeBody.driver +
-               ', db ' + probeBody.file + ' (' + probeBody.runtime + ')');
+               ' (class ' + probeBody.driverClass + '), db ' + probeBody.file + ' (' + probeBody.runtime + ')');
         }
     }
 
@@ -719,6 +775,7 @@ if (require.main === module) {
 module.exports = {
     sqliteFixtureFiles   : sqliteFixtureFiles,
     sqliteProbeController: sqliteProbeController,
+    sqliteDriverKind     : sqliteDriverKind,
     sqliteRoutingRule    : sqliteRoutingRule,
     sqliteSchemaSql      : sqliteSchemaSql,
     readConfigJSON       : readConfigJSON,
