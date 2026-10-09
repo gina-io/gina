@@ -30,7 +30,8 @@
  *  06 — dist pin: the browser bundle carries the fix (lib/collection is bundled)
  *
  * Red-first: run against develop `e1a4818b4` before the fix. Suite 01 and the
- * arm marked « control » held (8); every other arm was red (19).
+ * arm marked « control » held (8); every other arm was red (19). Arm 03.3 was
+ * added after the fix landed and measured red on those same bytes.
  */
 var { describe, it } = require('node:test');
 var assert = require('node:assert/strict');
@@ -195,6 +196,16 @@ describe('03 - #B822: one matched row is written in its own place after an earli
 
     it('03.2  toRaw() on the collection, then one single-row update', function () {
         var c = mk(NO_ID);
+        c.toRaw();
+        c.update({ name: 'b' }, { v: 1 });
+        assert.deepEqual(nv(c.toRaw()), ['a/0', 'b/1', 'c/0']);
+    });
+
+    it('03.3  rows with their own `_uuid`: toRaw() twice drops it, then one single-row update', function () {
+        // toRaw() keeps a `_uuid` the row arrived with the first time it runs on
+        // the row, and drops it the second time.
+        var c = mk(OWN_UUID);
+        c.toRaw();
         c.toRaw();
         c.update({ name: 'b' }, { v: 1 });
         assert.deepEqual(nv(c.toRaw()), ['a/0', 'b/1', 'c/0']);
