@@ -61,6 +61,9 @@ function sliceTo(start, endNeedle) {
 var TE_A   = once('    var throwError = function(res, code, msg, next) {');
 var TE_END = once('\n};\n\nServer = inherits(Server, EventEmitter);');
 var TE_SRC = SRC.slice(TE_A, TE_END);
+// #B830 — throwError now calls escapeLogControlChars + escapeLogDetailKeepFrames; provide
+// both in the eval scope (adjacent in source). No assertion depends on them.
+var ESC2_SRC = SRC.slice(SRC.indexOf('function escapeLogControlChars(value) {'), SRC.indexOf('/**\n * #B662'));
 var GRP_SRC = sliceTo(once('    var getResponseProtocol = function (response) {'), '\n    }\n');
 var MINT_SRC = sliceTo(once('var _mintErrorRef = function(supplied) {'), '\n};\n');
 var ESC_SRC  = sliceTo(once('var _escapeHtml = function(value) {'), '\n};\n');
@@ -101,7 +104,7 @@ function makeServer(opts) {
     var getResponseProtocol = new Function('local', 'self', GRP_SRC + '\nreturn getResponseProtocol;')(local, self);
     var throwError = new Function('local', 'self', 'hasViews', 'getResponseProtocol', '_mintErrorRef', 'checkPreflightRequest',
         'completeHeaders', 'safeDecodeURI', 'routingLib', '_escapeHtml', 'a11yErrorDocument', 'console',
-        TE_SRC + '\nreturn throwError;')(local, self, hasViews, getResponseProtocol, H._mintErrorRef, checkPreflightRequest,
+        ESC2_SRC + TE_SRC + '\nreturn throwError;')(local, self, hasViews, getResponseProtocol, H._mintErrorRef, checkPreflightRequest,
         completeHeaders, global.safeDecodeURI, routingLib, H._escapeHtml, H.a11yErrorDocument, con);
     return { local: local, throwError: throwError, getResponseProtocol: getResponseProtocol,
              calls: calls, logs: logs, routes: routes, arrive: function (req) { local.request = req; } };

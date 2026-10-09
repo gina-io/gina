@@ -82,6 +82,14 @@ var MINT_RE = /var _mintErrorRef = function\(supplied\) \{[\s\S]*?\n\};/;
 var SRV_MINT  = SRV_SRC.match(MINT_RE);
 var CTRL_MINT = CTRL_SRC.match(MINT_RE);
 
+// #B830 — the extracted throwError blocks now call escapeLogControlChars +
+// escapeLogDetailKeepFrames (the keep-frames log-escape). Provide both in the eval
+// scope below, exactly as the mint helper is. The two helpers are adjacent in each
+// source; slice from the first to the declaration that follows the pair. No assertion
+// depends on them — the eval runs the REAL escape code, so a genuine regression fails.
+var SRV_ESC  = SRV_SRC.slice(SRV_SRC.indexOf('function escapeLogControlChars(value) {'), SRV_SRC.indexOf('/**\n * #B662'));
+var CTRL_ESC = CTRL_SRC.slice(CTRL_SRC.indexOf('function escapeLogControlChars(value) {'), CTRL_SRC.indexOf("const { Resolver } = require('node:dns').promises;"));
+
 // ─── 01 — server.js source pins ───────────────────────────────────────────────
 describe('#ERRREF §01 — server.js: mint + pairing line + ref on every emit', function () {
 
@@ -249,7 +257,7 @@ describe('#ERRREF §04 — the wire carries the ref; the log pairs it with the f
         var local  = { request: { method: 'GET', url: '/fixture', _ginaReqId: 'REQ-FIXTURE-1' } };
         var cons   = { error: function () { calls.push(Array.prototype.slice.call(arguments).join(' ')); } };
         var fn = new Function('_mintErrorRef', 'msg', 'code', 'self', 'local', 'console', 'JSON',
-            'var _req = local.request; // #B806 — models the resolved request (fallback branch) for the extracted pairing line\n' + SB_SRC + '\nreturn { ref: ref, msg: msg };');
+            'var _req = local.request; // #B806 — models the resolved request (fallback branch) for the extracted pairing line\n' + SRV_ESC + SB_SRC + '\nreturn { ref: ref, msg: msg };');
         return fn(mintFn, msg, code, self, local, cons, JSON);
     }
 
@@ -345,7 +353,7 @@ describe('#ERRREF §04 — the wire carries the ref; the log pairs it with the f
             '_mintErrorRef', '_isLocalScope', 'errorObject', 'msg', 'code',
             'standardErrorMessage', 'bundleConf', 'req', 'res', 'console', 'JSON',
             '_transient503Applied', '_teConf', 'statusCodes',
-            CB_SRC + '\nreturn { errorObject: errorObject, errOutput: errOutput };');
+            CTRL_ESC + CB_SRC + '\nreturn { errorObject: errorObject, errOutput: errOutput };');
         return fn(
             mintFn, isLocal, errorObject, msg, code,
             'Internal Server Error', { bundle: 'fixturebundle' },

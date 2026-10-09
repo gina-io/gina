@@ -44,6 +44,68 @@ function ownCount(container) {
     return Object.prototype.count.call(container);
 }
 
+/**
+ * #B830 (2026-10-09) — render the control characters of a value as visible escapes before
+ * it is written into a log or error message, so a client-supplied value cannot forge a
+ * physical log line (CWE-117). The escaped set: C0 (U+0000-U+001F), DEL and C1
+ * (U+007F-U+009F), and the line separators U+2028 / U+2029 — every character a terminal or
+ * a line-based reader can take for a line break or a control sequence. `\n`, `\r`, `\t`
+ * become the two-character sequences; any other character of the set becomes `\uXXXX`;
+ * every other character is left untouched, so a value holding none comes back unchanged.
+ * Deliberately duplicated — in the logger, core/server.js, core/server.isaac.js,
+ * core/controller/controller.js, controller.render-swig.js, helpers/context.js, lib/lane,
+ * lib/routing and the validator — the way `escapeForJsonString` is (#B600): the logger is
+ * server-side only and two of those files are in the browser bundle, so no single
+ * requireable home serves them all without adding a public API surface.
+ * `test/lib/log-escape-parity-b830.test.js` fails when a copy drifts. The log redaction
+ * reads these escapes back (`lib/logger/src/redact.js`, `decodeView`): a change of the set
+ * here is a change there.
+ *
+ * @inner
+ * @param   {*} value - Coerced with `String()`.
+ * @returns {string} The value with its control characters shown as escapes.
+ * @example
+ * escapeLogControlChars('a\nb'); // the four characters a \ n b, on one physical line
+ */
+function escapeLogControlChars(value) {
+    return String(value).replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/g, function (c) {
+        switch (c) {
+            case '\n': return '\\n';
+            case '\r': return '\\r';
+            case '\t': return '\\t';
+            default:   return '\\u' + ('000' + c.charCodeAt(0).toString(16)).slice(-4);
+        }
+    });
+}
+
+/**
+ * #B830 — render an error detail safe from line-forging while keeping its stack readable:
+ * the control characters of every line are escaped, and a REAL line feed is kept only
+ * before a line shaped like a V8 stack frame — whitespace, `at`, whitespace, then ANY
+ * text — or starting with `caused by:`; any other line feed (the break of a client value)
+ * becomes the visible escape. Log-only: the wire copy is shaped separately by the egress
+ * gate. Residual, accepted and documented: a value crafted to look like such a line renders
+ * as one, since the detail logs a caller-passed stack whole and a crafted frame line cannot
+ * be told from a real one.
+ *
+ * @inner
+ * @param   {*} detail - The composed error-detail string.
+ * @returns {string} The detail with injected line breaks neutralised, frame lines kept.
+ * @example
+ * escapeLogDetailKeepFrames('Error: a\nb\n    at f (x.js:1:1)');
+ * // 'Error: a\\nb' + a real line feed + '    at f (x.js:1:1)'
+ */
+function escapeLogDetailKeepFrames(detail) {
+    if (detail === null || typeof detail === 'undefined') { return ''; }
+    var lines = String(detail).split('\n');
+    var out = escapeLogControlChars(lines[0]);
+    for (var i = 1; i < lines.length; i++) {
+        var keep = /^\s+at\s/.test(lines[i]) || /^caused by:/.test(lines[i]);
+        out += (keep ? '\n' : '\\n') + escapeLogControlChars(lines[i]);
+    }
+    return out;
+}
+
 const { Resolver } = require('node:dns').promises;
 
 var lib             = require('./../../lib') || require.cache[require.resolve('./../../lib')];
@@ -3893,7 +3955,8 @@ function SuperController(options) {
                 }
                 if ( _droppedCarry.length > 0 ) {
                     // Names only, never values — not carrying them is the whole point.
-                    console.debug('[ Controller ] redirect(): credential-class field(s) not carried across the redirect: '+ _droppedCarry.join(', '));
+                    // #B830 — a key name is the client's text too: its control characters are written as visible escapes
+                    console.debug('[ Controller ] redirect(): credential-class field(s) not carried across the redirect: '+ escapeLogControlChars(_droppedCarry.join(', ')));
                 }
                 requestParams = _carriedParams;
                 // #B546 — shadow-proof own-property count; see the note in setOptions().
@@ -9289,7 +9352,7 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
             } catch (_b44JsonErr) {
                 _b44LateErrorStr = String(_b44LateError);
             }
-            console.warn('[ Controller ] throwError() called after the response was released — ignoring late error: '+ _b44LateErrorStr);
+            console.warn('[ Controller ] throwError() called after the response was released — ignoring late error: '+ escapeLogDetailKeepFrames(_b44LateErrorStr));
             return false;
         }
 
@@ -9347,7 +9410,7 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
                 if (res.message && typeof(res.message) == 'string') {
                     errorObject.message = res.message;
                 } else if (res.message) {
-                    console.warn('[ Controller ] Ignoring message because of the format.\n'+res.message)
+                    console.warn('[ Controller ] Ignoring message because of the format.\n'+ escapeLogControlChars(res.message))
                 }
 
                 // ApiError merge
@@ -9458,7 +9521,7 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
             } catch (_lateJsonErr) {
                 _lateErrorStr = String(_lateError);
             }
-            console.warn('[ Controller ] throwError() called after the response was released — ignoring late error: '+ _lateErrorStr);
+            console.warn('[ Controller ] throwError() called after the response was released — ignoring late error: '+ escapeLogDetailKeepFrames(_lateErrorStr));
             return false;
         }
         if ( typeof(res.getHeaders) == 'undefined' && typeof(res.stream) != 'undefined' ) {
@@ -9604,7 +9667,7 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
                 if ( msg && typeof(msg) == 'object' && msg.cause ) {
                     _errDetail += '\ncaused by: '+ ( msg.cause.stack || msg.cause.message || msg.cause );
                 }
-                console.error('[ BUNDLE ][ '+ bundleConf.bundle +' ][ Controller ][ ref '+ errorObject.ref +' ][ req '+ ( ( req && req._ginaReqId ) || '-' ) +' ] '+ req.method +' [ '+ ( errorObject.status || res.statusCode ) +' ] '+ req.url + ( _errDetail ? '\n'+ _errDetail : '' ));
+                console.error('[ BUNDLE ][ '+ bundleConf.bundle +' ][ Controller ][ ref '+ errorObject.ref +' ][ req '+ ( ( req && req._ginaReqId ) || '-' ) +' ] '+ req.method +' [ '+ ( errorObject.status || res.statusCode ) +' ] '+ req.url + ( _errDetail ? '\n'+ escapeLogDetailKeepFrames(_errDetail) : '' ));
 
                 // Fail-closed: strip server-side stack from the JSON wire outside
                 // local scope so file paths, library versions, and internal stack
@@ -9694,7 +9757,7 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
                             _logMsg += '\n'+ errorObject[_logKeys[_lk]];
                         }
                     }
-                    console.error('[ ref '+ _errRef +' ][ req '+ ( ( req && req._ginaReqId ) || '-' ) +' ] '+ req.method +' [ '+ errorObject.status +' ] '+ req.url + '\n'+ _logMsg);
+                    console.error('[ ref '+ _errRef +' ][ req '+ ( ( req && req._ginaReqId ) || '-' ) +' ] '+ req.method +' [ '+ errorObject.status +' ] '+ req.url + '\n'+ escapeLogDetailKeepFrames(_logMsg));
                 } else if ( msg && typeof(msg) == 'object' ) {
                     // #B670 — the (res, code, errorObj) shape reaches this branch with no
                     // errorObject, so no line paired the ref the page renders. Log the
@@ -9705,7 +9768,7 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
                             _msgLog += ( _msgLog ? '\n' : '' ) + msg[_msgKeys[_mk]];
                         }
                     }
-                    console.error('[ ref '+ _errRef +' ][ req '+ ( ( req && req._ginaReqId ) || '-' ) +' ] '+ req.method +' [ '+ code +' ] '+ req.url + ( _msgLog ? '\n'+ _msgLog : '' ));
+                    console.error('[ ref '+ _errRef +' ][ req '+ ( ( req && req._ginaReqId ) || '-' ) +' ] '+ req.method +' [ '+ code +' ] '+ req.url + ( _msgLog ? '\n'+ escapeLogDetailKeepFrames(_msgLog) : '' ));
                 }
 
                 // #B670 — outside local scope the page (the inline fallback page, or a

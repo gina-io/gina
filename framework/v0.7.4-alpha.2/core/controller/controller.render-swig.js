@@ -64,6 +64,61 @@ var STYLESHEETS_PLACED_RE   = /\{\{\s+(page\.view\.stylesheets)(\s*\|\s*safe)?\s
 var SCRIPTS_PLACED_RE       = /\{\{ page\.view\.scripts(\s*\|\s*safe)? \}\}/;
 
 /**
+ * #B830 (2026-10-09) — render the control characters of a value (C0 U+0000-U+001F, DEL and
+ * C1 U+007F-U+009F, the line separators U+2028 / U+2029) as visible escapes (`\n`/`\r`/`\t`,
+ * else `\uXXXX`) before it is concatenated into a log message. A template file name can come
+ * from the request (a `:placeholder` in a route's `param.file`, a `setTemplate()` call fed by
+ * a request value), so the lines that print it must not let it start a line of its own
+ * (CWE-117). Deliberately duplicated across the logger, core/server.js, core/server.isaac.js,
+ * core/controller/controller.js, this file, helpers/context.js, lib/lane, lib/routing and the
+ * validator, the way escapeForJsonString is (#B600).
+ * `test/lib/log-escape-parity-b830.test.js` fails when a copy drifts.
+ *
+ * @inner
+ * @private
+ * @param   {*} value - Coerced with `String()`.
+ * @returns {string} The value with its control characters shown as escapes.
+ * @example
+ * escapeLogControlChars('a\nb'); // the four characters a \ n b, on one physical line
+ */
+function escapeLogControlChars(value) {
+    return String(value).replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/g, function (c) {
+        switch (c) {
+            case '\n': return '\\n';
+            case '\r': return '\\r';
+            case '\t': return '\\t';
+            default:   return '\\u' + ('000' + c.charCodeAt(0).toString(16)).slice(-4);
+        }
+    });
+}
+
+/**
+ * #B830 — render an error detail safe from line-forging while keeping its stack readable:
+ * the control characters of every line are escaped, and a REAL line feed is kept only
+ * before a line shaped like a V8 stack frame (whitespace, `at`, whitespace, then any text)
+ * or starting with `caused by:`; any other line feed becomes the visible escape.
+ * Residual, accepted: a value crafted to look like a frame line renders as one.
+ *
+ * @inner
+ * @private
+ * @param   {*} detail - The error detail (a stack, a message).
+ * @returns {string} The detail with injected line breaks neutralised, frame lines kept.
+ * @example
+ * escapeLogDetailKeepFrames("ENOENT: no such file, open '/t/a\nb'\n    at open (node:fs:1:1)");
+ * // the message on one line with a visible \n, then a real line feed and the frame
+ */
+function escapeLogDetailKeepFrames(detail) {
+    if (detail === null || typeof detail === 'undefined') { return ''; }
+    var lines = String(detail).split('\n');
+    var out = escapeLogControlChars(lines[0]);
+    for (var i = 1; i < lines.length; i++) {
+        var keep = /^\s+at\s/.test(lines[i]) || /^caused by:/.test(lines[i]);
+        out += (keep ? '\n' : '\\n') + escapeLogControlChars(lines[i]);
+    }
+    return out;
+}
+
+/**
  * Lazily construct the process-wide render-context AsyncLocalStorage, parked on
  * `process.gina` so it survives dev-mode `require.cache` eviction of this
  * delegate (mirrors `process.gina._reqALS` / `_queryALS`). This is the SAME
@@ -466,8 +521,10 @@ module.exports = async function render(userData, displayInspector, errOptions, d
             if ( file.charAt(0) !== '.' && file.charAt(0) !== '/' && file.charAt(0) !== '\\' && file != fileNamingConvention ) {
                 var _ext = data.page.view.ext;
 
-                console.warn('file `'+ file +'` used in routing `'+ localOptions.rule +'` does not respect gina naming convention ! You should rename the file `'+ file + _ext +'` to `'+ ''+ fileNamingConvention + _ext +'`');
-                console.warn('The reason you are getting this message is because your filename begins with `<namespace>-`\n If you don\‘t want to rename, use template path like ./../'+ localOptions.namespace +'/'+file);
+                // #B830 — the file name and its extension can come from the request: written with
+                // their control characters as visible escapes in the two lines below
+                console.warn('file `'+ escapeLogControlChars(file) +'` used in routing `'+ localOptions.rule +'` does not respect gina naming convention ! You should rename the file `'+ escapeLogControlChars(file + _ext) +'` to `'+ ''+ escapeLogControlChars(fileNamingConvention + _ext) +'`');
+                console.warn('The reason you are getting this message is because your filename begins with `<namespace>-`\n If you don\‘t want to rename, use template path like ./../'+ localOptions.namespace +'/'+ escapeLogControlChars(file));
                 file = ''+ file.replace(localOptions.namespace+'-', '');
             }
             fileNamingConvention = null;
@@ -537,7 +594,10 @@ module.exports = async function render(userData, displayInspector, errOptions, d
         // replaced: fs.readFileSync — async read (#P28)
         _templateContent = (await fs.promises.readFile(path)).toString()
     } catch (pathException) {
-            console.warn("Path exception: ", pathException);
+            // #B830 — a file-system error quotes the path it could not open, and the path can
+            // hold a request value: frame lines kept, any other line break escaped
+            // was: console.warn("Path exception: ", pathException);
+            console.warn("Path exception: ", escapeLogDetailKeepFrames( ( pathException && ( pathException.stack || pathException.message ) ) || pathException ));
     }
     var hasLayoutInPath = /\{\%(\s+extends|extends)/.test(_templateContent) || false;
     var layoutPath      = null;
@@ -927,8 +987,12 @@ module.exports = async function render(userData, displayInspector, errOptions, d
                 self.throwError(err);
                 return;
             }
-            msg = 'could not open "'+ path +'"' +
-                        '\n1) The requested file does not exists in your templates/html (check your template directory). Can you find: '+path +
+            // #B830 — `path` can hold a request value (see escapeLogControlChars above): the
+            // message names it with its control characters as visible escapes, so the
+            // multi-line text below keeps its own line breaks and gains none
+            // was: msg = 'could not open "'+ path +'"' + … 'Can you find: '+path +
+            msg = 'could not open "'+ escapeLogControlChars(path) +'"' +
+                        '\n1) The requested file does not exists in your templates/html (check your template directory). Can you find: '+ escapeLogControlChars(path) +
                         '\n2) Check the following rule in your `'+localOptions.conf.bundlePath+'/config/routing.json` and look around `param` to make sure that nothing is wrong with your file declaration: '+
                         '\n' + localOptions.rule +':'+ JSON.stringify(localOptions.conf.content.routing[localOptions.rule], null, 4) +
                         '\n3) At this point, if you still have problems trying to run this portion of code, you can contact us telling us how to reproduce the bug.'

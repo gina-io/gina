@@ -309,6 +309,50 @@ function ContextHelper(contexts) {
             code    = 500
         }
 
+        // #B830 (2026-10-09) — the two log lines below print the error's detail, which can
+        // carry a value a client supplied. The pair is declared INSIDE this function, not at
+        // module level like its copies (core/server.js, core/controller/controller.js,
+        // lib/lane, …), so the function stays self-contained for the tests that extract and
+        // run it. Same bodies: `test/lib/log-escape-parity-b830.test.js` fails on a drift.
+        /**
+         * Render the control characters of a value (C0, DEL and C1, U+2028 / U+2029) as
+         * visible escapes (`\n`/`\r`/`\t`, else `\uXXXX`).
+         *
+         * @inner
+         * @private
+         * @param   {*} value - Coerced with `String()`.
+         * @returns {string} The value with its control characters shown as escapes.
+         */
+        function escapeLogControlChars(value) {
+            return String(value).replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/g, function (c) {
+                switch (c) {
+                    case '\n': return '\\n';
+                    case '\r': return '\\r';
+                    case '\t': return '\\t';
+                    default:   return '\\u' + ('000' + c.charCodeAt(0).toString(16)).slice(-4);
+                }
+            });
+        }
+        /**
+         * Escape every line of an error detail and keep a REAL line feed only before a
+         * stack-frame line (whitespace, `at`, whitespace, any text) or a `caused by:` line.
+         *
+         * @inner
+         * @private
+         * @param   {*} detail - The error detail (a stack, a message).
+         * @returns {string} The detail with injected line breaks neutralised, frame lines kept.
+         */
+        function escapeLogDetailKeepFrames(detail) {
+            if (detail === null || typeof detail === 'undefined') { return ''; }
+            var lines = String(detail).split('\n');
+            var out = escapeLogControlChars(lines[0]);
+            for (var i = 1; i < lines.length; i++) {
+                var keep = /^\s+at\s/.test(lines[i]) || /^caused by:/.test(lines[i]);
+                out += (keep ? '\n' : '\\n') + escapeLogControlChars(lines[i]);
+            }
+            return out;
+        }
+
         // #B534 — the `router` context slot (core/router.js) is process-wide and is
         // never cleared, so it holds whichever request was routed LAST rather than
         // the one whose call failed. A callback resumed after an await could
@@ -368,7 +412,7 @@ function ContextHelper(contexts) {
             // operator can correlate. Prefer the store's request when the store is
             // what supplied `res`, and keep `res.req` for the fallback path.
             var _req        = ( _fromStore && _reqStore.req ) ? _reqStore.req : ( ( res.req ) ? res.req : null );
-            console.error('[ CONTEXT ][ '+ ( getContext('bundle') || '-' ) +' ][ ref '+ ref +' ][ req '+ ( ( _req && _req._ginaReqId ) || '-' ) +' ] '+ ( ( _req && _req.method ) || '-' ) +' [ '+ code +' ] '+ ( ( _req && _req.url ) || '-' ) +'\n'+ _errDetail);
+            console.error('[ CONTEXT ][ '+ ( getContext('bundle') || '-' ) +' ][ ref '+ ref +' ][ req '+ ( ( _req && _req._ginaReqId ) || '-' ) +' ] '+ ( ( _req && _req.method ) || '-' ) +' [ '+ code +' ] '+ ( ( _req && _req.url ) || '-' ) +'\n'+ escapeLogDetailKeepFrames(_errDetail));
             var _wireDetail = _isLocal ? _errDetail : ( ( _isErrObj && err.message ) ? err.message : String(err) );
             // #B254 — the former HTML arm of this branch was unreachable (its guard
             // read a self-assigned, always-undefined local), so this path has only
@@ -396,7 +440,8 @@ function ContextHelper(contexts) {
         // stale routerObj whose `next` is no longer callable. Surface the error
         // instead of crashing on a dead response / `next`.
         if ( isFatal && /^true$/.test(isFatal) ) {
-            console.emerg(err.stack||err.message||err);
+            var _fatalDetail = err.stack||err.message||err;
+            console.emerg( typeof(_fatalDetail) == 'string' ? escapeLogDetailKeepFrames(_fatalDetail) : _fatalDetail );
             return;
         }
 

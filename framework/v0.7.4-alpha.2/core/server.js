@@ -201,6 +201,68 @@ function ownCount(container) {
 }
 
 /**
+ * #B830 (2026-10-09) — render the control characters of a value as visible escapes before
+ * it is written into a log or error message, so a client-supplied value cannot forge a
+ * physical log line (CWE-117). The escaped set: C0 (U+0000-U+001F), DEL and C1
+ * (U+007F-U+009F), and the line separators U+2028 / U+2029 — every character a terminal or
+ * a line-based reader can take for a line break or a control sequence. `\n`, `\r`, `\t`
+ * become the two-character sequences; any other character of the set becomes `\uXXXX`;
+ * every other character is left untouched, so a value holding none comes back unchanged.
+ * Deliberately duplicated — in the logger, core/server.js, core/server.isaac.js,
+ * core/controller/controller.js, controller.render-swig.js, helpers/context.js, lib/lane,
+ * lib/routing and the validator — the way `escapeForJsonString` is (#B600): the logger is
+ * server-side only and two of those files are in the browser bundle, so no single
+ * requireable home serves them all without adding a public API surface.
+ * `test/lib/log-escape-parity-b830.test.js` fails when a copy drifts. The log redaction
+ * reads these escapes back (`lib/logger/src/redact.js`, `decodeView`): a change of the set
+ * here is a change there.
+ *
+ * @inner
+ * @param   {*} value - Coerced with `String()`.
+ * @returns {string} The value with its control characters shown as escapes.
+ * @example
+ * escapeLogControlChars('a\nb'); // the four characters a \ n b, on one physical line
+ */
+function escapeLogControlChars(value) {
+    return String(value).replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/g, function (c) {
+        switch (c) {
+            case '\n': return '\\n';
+            case '\r': return '\\r';
+            case '\t': return '\\t';
+            default:   return '\\u' + ('000' + c.charCodeAt(0).toString(16)).slice(-4);
+        }
+    });
+}
+
+/**
+ * #B830 — render an error detail safe from line-forging while keeping its stack readable:
+ * the control characters of every line are escaped, and a REAL line feed is kept only
+ * before a line shaped like a V8 stack frame — whitespace, `at`, whitespace, then ANY
+ * text — or starting with `caused by:`; any other line feed (the break of a client value)
+ * becomes the visible escape. Log-only: the wire copy is shaped separately by the egress
+ * gate. Residual, accepted and documented: a value crafted to look like such a line renders
+ * as one, since the detail logs a caller-passed stack whole and a crafted frame line cannot
+ * be told from a real one.
+ *
+ * @inner
+ * @param   {*} detail - The composed error-detail string.
+ * @returns {string} The detail with injected line breaks neutralised, frame lines kept.
+ * @example
+ * escapeLogDetailKeepFrames('Error: a\nb\n    at f (x.js:1:1)');
+ * // 'Error: a\\nb' + a real line feed + '    at f (x.js:1:1)'
+ */
+function escapeLogDetailKeepFrames(detail) {
+    if (detail === null || typeof detail === 'undefined') { return ''; }
+    var lines = String(detail).split('\n');
+    var out = escapeLogControlChars(lines[0]);
+    for (var i = 1; i < lines.length; i++) {
+        var keep = /^\s+at\s/.test(lines[i]) || /^caused by:/.test(lines[i]);
+        out += (keep ? '\n' : '\\n') + escapeLogControlChars(lines[i]);
+    }
+    return out;
+}
+
+/**
  * #B662 — may a `GET` be served by a routing rule that declares `DELETE`?
  *
  * The popin and link plugins send an anchor click as a `GET` XHR, and a rule declared
@@ -6373,7 +6435,7 @@ function Server(options) {
                         if ( info && info.valueTruncated ) {
                             if ( !response.headersSent && !request.handled ) {
                                 request.handled = true;
-                                throwError(response, 400, 'multipart text field `'+ name +'` exceeds the allowed size. See the `upload.maxTextFieldSize` definition in settings.json.', next);
+                                throwError(response, 400, 'multipart text field `'+ escapeLogControlChars(name) +'` exceeds the allowed size. See the `upload.maxTextFieldSize` definition in settings.json.', next);
                             }
                             return;
                         }
@@ -6479,7 +6541,7 @@ function Server(options) {
 
                         // deny an unconfigured upload group (was: silently streamed through)
                         if ( typeof(opt.groups) == 'undefined' || typeof(opt.groups[fileGroup]) == 'undefined' ) {
-                            throwError(response, 400, '`'+ fileGroup +'` is not a configured upload group. See the `upload.groups` definition in settings.json.');
+                            throwError(response, 400, '`'+ escapeLogControlChars(fileGroup) +'` is not a configured upload group. See the `upload.groups` definition in settings.json.');
                             return false;
                         }
 
@@ -6494,7 +6556,7 @@ function Server(options) {
                             }
 
                             if ( ext.indexOf(fileExt) < 0 ) {
-                                throwError(response, 400, '`'+ fileExt +'` is not an allowed extension. See `'+ fileGroup +'` upload group definition.');
+                                throwError(response, 400, '`'+ escapeLogControlChars(fileExt) +'` is not an allowed extension. See `'+ escapeLogControlChars(fileGroup) +'` upload group definition.');
                                 return false;
                             }
                         }
@@ -6574,7 +6636,7 @@ function Server(options) {
                             }
                         } catch (mkdirErr) {
                             console.error('[ busboy ] [ onUploadDirError ]', mkdirErr);
-                            throwError(response, 500, 'upload destination for group `'+ fileGroup +'` is not creatable ('+ fileUploadDir +')\n' + mkdirErr, next);
+                            throwError(response, 500, 'upload destination for group `'+ escapeLogControlChars(fileGroup) +'` is not creatable ('+ fileUploadDir +')\n' + mkdirErr, next);
                             return false;
                         }
 
@@ -7105,7 +7167,7 @@ function Server(options) {
                                     isPostSet = true;
                                 } catch (err) {
                                     // ignore this one
-                                    msg = '[ Could properly evaluate POST ] '+ request.url +'\n'+  err.stack;
+                                    msg = '[ Could properly evaluate POST ] '+ request.url +'\n'+ escapeLogControlChars((err && err.message) || String(err));
                                     console.warn(msg);
                                 }
                                 if (!isPostSet) {
@@ -7117,7 +7179,7 @@ function Server(options) {
                                         }
 
                                     } catch (err) {
-                                        msg = '[ Exception found for POST ] '+ request.url +'\n'+  err.stack;
+                                        msg = '[ Exception found for POST ] '+ request.url +'\n'+ escapeLogControlChars((err && err.message) || String(err));
                                         console.warn(msg);
                                     }
                                 }
@@ -7125,7 +7187,7 @@ function Server(options) {
                         }
 
                     } catch (err) {
-                        msg = '[ Could properly evaluate POST ] '+ request.url +'\n'+  err.stack;
+                        msg = '[ Could properly evaluate POST ] '+ request.url +'\n'+ escapeLogControlChars((err && err.message) || String(err));
                         console.warn(msg);
                     }
 
@@ -7149,7 +7211,7 @@ function Server(options) {
                         request.body = request.post = obj;
                     }
                 } catch (err) {
-                    msg = '[ Could complete POST ] '+ request.url +'\n'+ err.stack;
+                    msg = '[ Could complete POST ] '+ request.url +'\n'+ escapeLogControlChars((err && err.message) || String(err));
                     console.error(msg);
                     throwError(response, 500, err, next);
                     return;
@@ -7263,7 +7325,7 @@ function Server(options) {
                                     try {
                                         obj = JSON.parse(decodeURIComponent(request.body));
                                     } catch (err2) {
-                                        console.warn('[ Could not parse application/json PUT body ] '+ request.url +'\n'+ err.stack);
+                                        console.warn('[ Could not parse application/json PUT body ] '+ request.url +'\n'+ escapeLogControlChars((err && err.message) || String(err)));
                                     }
                                 }
                             } else if ( request.isXmlBody ) {
@@ -7429,21 +7491,21 @@ function Server(options) {
                                     request.patch = obj;
                                     isPatchSet = true;
                                 } catch (err) {
-                                    msg = '[ Could not properly evaluate PATCH ] '+ request.url +'\n'+ err.stack;
+                                    msg = '[ Could not properly evaluate PATCH ] '+ request.url +'\n'+ escapeLogControlChars((err && err.message) || String(err));
                                     console.warn(msg);
                                 }
                                 if (!isPatchSet) {
                                     try {
                                         request.patch = ( ownCount(obj) == 0 && bodyStr.length > 1 ) ? obj : JSON.parse(bodyStr);
                                     } catch (err) {
-                                        msg = '[ Exception found for PATCH ] '+ request.url +'\n'+ err.stack;
+                                        msg = '[ Exception found for PATCH ] '+ request.url +'\n'+ escapeLogControlChars((err && err.message) || String(err));
                                         console.warn(msg);
                                     }
                                 }
                             }
                         }
                     } catch (err) {
-                        msg = '[ Could not properly evaluate PATCH ] '+ request.url +'\n'+ err.stack;
+                        msg = '[ Could not properly evaluate PATCH ] '+ request.url +'\n'+ escapeLogControlChars((err && err.message) || String(err));
                         console.warn(msg);
                     }
                 } else {
@@ -7462,7 +7524,7 @@ function Server(options) {
                         request.body = request.patch = obj;
                     }
                 } catch (err) {
-                    msg = '[ Could not complete PATCH ] '+ request.url +'\n'+ err.stack;
+                    msg = '[ Could not complete PATCH ] '+ request.url +'\n'+ escapeLogControlChars((err && err.message) || String(err));
                     console.error(msg);
                     throwError(response, 500, err, next);
                     return;
@@ -7565,11 +7627,11 @@ function Server(options) {
             if ( typeof(mime[ext]) != 'undefined' ) {
                 type = mime[ext];
             } else {
-                console.warn('[ '+filename+' ] extension: `'+s[2]+'` not supported by gina: `core/mime.types`. Pathname must be a directory. Replacing with `plain/text` ')
+                console.warn('[ '+escapeLogControlChars(filename)+' ] extension: `'+escapeLogControlChars(s[2])+'` not supported by gina: `core/mime.types`. Pathname must be a directory. Replacing with `plain/text` ')
             }
             return type || 'plain/text';
         } catch (err) {
-            console.error('Error while trying to getContentTypeByFilename('+ filename +') extention. Replacing with `plain/text` '+ err.stack);
+            console.error('Error while trying to getContentTypeByFilename('+ escapeLogControlChars(filename) +') extention. Replacing with `plain/text` '+ err.stack);
             return 'plain/text'
         }
 
@@ -8790,7 +8852,7 @@ function Server(options) {
             }
         }
         var _displayCode = ( typeof(code) == 'object' && code && typeof(code.status) != 'undefined' ) ? code.status : code;
-        console.error('[ BUNDLE ][ '+ self.appName +' ][ ref '+ ref +' ][ req '+ ( _req._ginaReqId || '-' ) +' ] '+ _req.method +' [ '+ _displayCode +' ] '+ _req.url + ( _errDetail ? '\n'+ _errDetail : '' ));
+        console.error('[ BUNDLE ][ '+ self.appName +' ][ ref '+ ref +' ][ req '+ ( _req._ginaReqId || '-' ) +' ] '+ _req.method +' [ '+ _displayCode +' ] '+ _req.url + ( _errDetail ? '\n'+ escapeLogDetailKeepFrames(_errDetail) : '' ));
 
         // #B131 — scope-gated stack egress. Feeders (router.js action/middleware
         // catches, server.js internals) pass `err.stack` pre-flattened as `msg`,

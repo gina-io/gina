@@ -23,6 +23,33 @@ function Routing() {
         notFound: {}
     };
 
+    /**
+     * #B830 (2026-10-09) — render the control characters of a value (C0 U+0000-U+001F, DEL
+     * and C1 U+007F-U+009F, the line separators U+2028 / U+2029) as visible escapes
+     * (`\n`/`\r`/`\t`, else `\uXXXX`) before it is written into a log message, so a request
+     * value substituted into a route URL cannot forge a physical log line (CWE-117).
+     * Declared inside `Routing()`: this file is also in the browser bundle, where a
+     * top-level function of the same name would meet the validator's copy.
+     * `test/lib/log-escape-parity-b830.test.js` fails when a copy drifts.
+     *
+     * @inner
+     * @private
+     * @param   {*} value - Coerced with `String()`.
+     * @returns {string} The value with its control characters shown as escapes.
+     * @example
+     * escapeLogControlChars('/a\nb'); // the five characters / a \ n b, on one physical line
+     */
+    function escapeLogControlChars(value) {
+        return String(value).replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/g, function (c) {
+            switch (c) {
+                case '\n': return '\\n';
+                case '\r': return '\\r';
+                case '\t': return '\\t';
+                default:   return '\\u' + ('000' + c.charCodeAt(0).toString(16)).slice(-4);
+            }
+        });
+    }
+
     self.getInstance = function(params) {
         return Routing.instance;
     }
@@ -1566,7 +1593,11 @@ function Routing() {
             var paramList = route.url
                                 .match(/(\:(.*)\/|\:(.*)$)/g)
                                 .map(function(el){  return el.replace(/\//g, ''); }).join(', ');
-            msg = '[ RoutingHelper::getRoute(rule[, bundle, method]) ] : route [ %r ] param placeholder not defined: `' + route.url + '` !\n Check your route description to compare requirements against param variables [ '+ paramList +']';
+            // #B830 — `route.url` holds the request values already written into it, and the
+            // list below is cut out of it: both are written with their control characters as
+            // visible escapes, so neither can start a line of its own in the log
+            // was: … param placeholder not defined: `' + route.url + '` !\n Check … [ '+ paramList +']';
+            msg = '[ RoutingHelper::getRoute(rule[, bundle, method]) ] : route [ %r ] param placeholder not defined: `' + escapeLogControlChars(route.url) + '` !\n Check your route description to compare requirements against param variables [ '+ escapeLogControlChars(paramList) +']';
             msg = msg.replace(/\%r/, rule);
             var err = new Error(msg);
             console.warn( err );

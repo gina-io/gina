@@ -264,6 +264,62 @@ function _isLeftToServerJs(url) {
 }
 
 /**
+ * #B830 (2026-10-09) — render the control characters of a value (C0 U+0000-U+001F, DEL and
+ * C1 U+007F-U+009F, the line separators U+2028 / U+2029) as visible escapes (`\n`/`\r`/`\t`,
+ * else `\uXXXX`) before it is concatenated into a log message, so a client-supplied value
+ * cannot forge a physical log line (CWE-117). Deliberately duplicated across the logger,
+ * core/server.js, this file, core/controller/controller.js, controller.render-swig.js,
+ * helpers/context.js, lib/lane, lib/routing and the validator, the way escapeForJsonString
+ * is (#B600): no single requireable home serves them all without a new public surface.
+ * `test/lib/log-escape-parity-b830.test.js` fails when a copy drifts.
+ *
+ * @inner
+ * @private
+ * @memberof module:gina/core/server.isaac
+ * @param   {*} value - Coerced with `String()`.
+ * @returns {string} The value with its control characters shown as escapes.
+ * @example
+ * escapeLogControlChars('a\nb'); // the four characters a \ n b, on one physical line
+ */
+function escapeLogControlChars(value) {
+    return String(value).replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/g, function (c) {
+        switch (c) {
+            case '\n': return '\\n';
+            case '\r': return '\\r';
+            case '\t': return '\\t';
+            default:   return '\\u' + ('000' + c.charCodeAt(0).toString(16)).slice(-4);
+        }
+    });
+}
+
+/**
+ * #B830 — render an error detail safe from line-forging while keeping its stack readable:
+ * the control characters of every line are escaped, and a REAL line feed is kept only
+ * before a line shaped like a V8 stack frame (whitespace, `at`, whitespace, then any text)
+ * or starting with `caused by:`; any other line feed becomes the visible escape.
+ * Residual, accepted: a value crafted to look like a frame line renders as one.
+ *
+ * @inner
+ * @private
+ * @memberof module:gina/core/server.isaac
+ * @param   {*} detail - The error detail (a stack, a message).
+ * @returns {string} The detail with injected line breaks neutralised, frame lines kept.
+ * @example
+ * escapeLogDetailKeepFrames('Error: a\nb\n    at f (x.js:1:1)');
+ * // 'Error: a\\nb' + a real line feed + '    at f (x.js:1:1)'
+ */
+function escapeLogDetailKeepFrames(detail) {
+    if (detail === null || typeof detail === 'undefined') { return ''; }
+    var lines = String(detail).split('\n');
+    var out = escapeLogControlChars(lines[0]);
+    for (var i = 1; i < lines.length; i++) {
+        var keep = /^\s+at\s/.test(lines[i]) || /^caused by:/.test(lines[i]);
+        out += (keep ? '\n' : '\\n') + escapeLogControlChars(lines[i]);
+    }
+    return out;
+}
+
+/**
  * Reloads all core and lib modules from disk by replacing their require.cache
  * entries with fresh exports. Excludes gna.js itself. Also refreshes the
  * plugins index so the running instance picks up any hot-reloaded code.
@@ -3055,7 +3111,13 @@ function ServerEngineClass(options) {
 
                                 request.query = a[0] ? JSON.parse(a[0]) : {};
                             } catch(err) {
-                                console.error(err.stack)
+                                // #B830 — `a[0]` is the client's text (the whole query string,
+                                // percent-decoded) and a JSON.parse error quotes its input, so
+                                // printing the stack let a `%0A` in the query start a forged log
+                                // line. Log what the #B590 line above logs: the length and the
+                                // error's name — never the text.
+                                // was: console.error(err.stack)
+                                console.warn('[SERVER][INCOMING REQUEST]', 'Could not read the query string as JSON (' + a[0].length + ' chars, ' + err.name + '). Leaving the query empty.');
                             }
                         }
 
@@ -3344,7 +3406,9 @@ function ServerEngineClass(options) {
             socket.on('message', function(payload){
 
                 try {
-                    console.debug('[IO SERVER ] receiving '+ payload);
+                    // #B830 — the message is the client's: its control characters are written
+                    // as visible escapes here, in the asserted-session warn and in the catch
+                    console.debug('[IO SERVER ] receiving '+ escapeLogControlChars(payload));
                     payload = JSON.parse(payload);
                     // #B365 — the recipient of a targeted push is resolved from
                     // `socket.sessionId`, and that used to be set RIGHT HERE from
@@ -3366,7 +3430,7 @@ function ServerEngineClass(options) {
                         && payload.session.id !== this.sessionId
                     ) {
                         console.warn(
-                            '[IO SERVER ] socket #'+ this.id +' asserted session `'+ payload.session.id
+                            '[IO SERVER ] socket #'+ this.id +' asserted session `'+ escapeLogControlChars(payload.session.id)
                             + '` which does not match the session derived from its own cookie'
                             + ( this.sessionId ? ' (`'+ this.sessionId +'`)' : ' (none)' )
                             + '. Ignoring the assertion (#B365).'
@@ -3384,7 +3448,10 @@ function ServerEngineClass(options) {
                         }
                     }
                 } catch(err) {
-                    console.error(err.stack||err.message|| err)
+                    // #B830 — a JSON.parse error quotes the message it could not read
+                    // was: console.error(err.stack||err.message|| err)
+                    var _ioErrDetail = err.stack||err.message|| err;
+                    console.error( typeof(_ioErrDetail) == 'string' ? escapeLogDetailKeepFrames(_ioErrDetail) : _ioErrDetail )
                 }
             });
 

@@ -3093,6 +3093,42 @@ function escapeForJsonString(value) {
 }
 
 /**
+ * #B830 (2026-10-09) — render the control characters of a value as visible escapes before
+ * it is written into a log or error message, so a client-supplied value cannot forge a
+ * physical log line (CWE-117). The escaped set: C0 (U+0000-U+001F), DEL and C1
+ * (U+007F-U+009F), and the line separators U+2028 / U+2029 — every character a terminal or
+ * a line-based reader can take for a line break or a control sequence. `\n`, `\r`, `\t`
+ * become the two-character sequences; any other character of the set becomes `\uXXXX`;
+ * every other character is left untouched, so a value holding none comes back unchanged.
+ * Deliberately duplicated — in the logger, core/server.js, core/server.isaac.js,
+ * core/controller/controller.js, controller.render-swig.js, helpers/context.js, lib/lane,
+ * lib/routing and the validator — the way `escapeForJsonString` is (#B600): the logger is
+ * server-side only and two of those files are in the browser bundle, so no single
+ * requireable home serves them all without adding a public API surface.
+ * `test/lib/log-escape-parity-b830.test.js` fails when a copy drifts. The log redaction
+ * reads these escapes back (`lib/logger/src/redact.js`, `decodeView`): a change of the set
+ * here is a change there. On the server path (`backendInit` -> `validate`) a
+ * warning of a rule can print a value of the request body; in the browser the same line goes to the
+ * console only, where the escape is harmless.
+ *
+ * @inner
+ * @param   {*} value - Coerced with `String()`.
+ * @returns {string} The value with its control characters shown as escapes.
+ * @example
+ * escapeLogControlChars('a\nb'); // the four characters a \ n b, on one physical line
+ */
+function escapeLogControlChars(value) {
+    return String(value).replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/g, function (c) {
+        switch (c) {
+            case '\n': return '\\n';
+            case '\r': return '\\r';
+            case '\t': return '\\t';
+            default   : return '\\u' + ('000' + c.charCodeAt(0).toString(16)).slice(-4);
+        }
+    });
+}
+
+/**
  * Restores the field values spliced into a `query` rule's request body (#B600).
  *
  * Every spliced value arrives wrapped in quotes and escaped as a JSON string literal;
@@ -4689,7 +4725,7 @@ function FormValidatorUtil(data, $fields, xhrOptions, fieldsSet, culture) {
                                 // A genuine authoring typo stays visible via the warning
                                 // without killing live validation. Fail-closed: the field is
                                 // treated as invalid on both the client and the server.
-                                console.warn('[FormValidator] Could not evaluate condition `' + compiledCondition + '` - treating field as invalid.\n(grammar: <operand><op><operand>; operand ∈ number | "string" | true | false | null | undefined; op ∈ === !== == != < > <= >=)');
+                                console.warn('[FormValidator] Could not evaluate condition `' + escapeLogControlChars(compiledCondition) + '` - treating field as invalid.\n(grammar: <operand><op><operand>; operand ∈ number | "string" | true | false | null | undefined; op ∈ === !== == != < > <= >=)');
                                 isValid = false;
                             } else {
                                 var _scsParseOperand = function(s) {
@@ -4725,7 +4761,7 @@ function FormValidatorUtil(data, $fields, xhrOptions, fieldsSet, culture) {
                                     // #B600 — an operand that cannot be read fails the FIELD, like a
                                     // grammar mismatch: a throw here would leave through the catch
                                     // below and abort the whole validity pass.
-                                    console.warn('[FormValidator] Could not read an operand of `' + compiledCondition + '` - treating field as invalid.\n(' + _scsOperandErr.message + ')');
+                                    console.warn('[FormValidator] Could not read an operand of `' + escapeLogControlChars(compiledCondition) + '` - treating field as invalid.\n(' + escapeLogControlChars(_scsOperandErr.message) + ')');
                                     isValid = false;
                                 } else {
                                     var _scsOp = _scsBinMatch[2];
@@ -5711,7 +5747,7 @@ function FormValidatorUtil(data, $fields, xhrOptions, fieldsSet, culture) {
             // Default validation on livecheck & invalid init value
             if (!val || val == '' || /NaN|Invalid Date/i.test(val) ) {
                 if ( /NaN|Invalid Date/i.test(val) ) {
-                    console.warn('[FormValidator::isDate] Provided value for field `'+ this.name +'` is not allowed: `'+ val +'`');
+                    console.warn('[FormValidator::isDate] Provided value for field `'+ escapeLogControlChars(this.name) +'` is not allowed: `'+ escapeLogControlChars(val) +'`');
                     errors['isDate'] = replace(this.error || local.errorLabels['isDate'], this, 'isDate');
 
                 }
@@ -6391,6 +6427,33 @@ function Routing() {
         reservedParams: ['controle', 'file','title', 'namespace', 'path'],
         notFound: {}
     };
+
+    /**
+     * #B830 (2026-10-09) — render the control characters of a value (C0 U+0000-U+001F, DEL
+     * and C1 U+007F-U+009F, the line separators U+2028 / U+2029) as visible escapes
+     * (`\n`/`\r`/`\t`, else `\uXXXX`) before it is written into a log message, so a request
+     * value substituted into a route URL cannot forge a physical log line (CWE-117).
+     * Declared inside `Routing()`: this file is also in the browser bundle, where a
+     * top-level function of the same name would meet the validator's copy.
+     * `test/lib/log-escape-parity-b830.test.js` fails when a copy drifts.
+     *
+     * @inner
+     * @private
+     * @param   {*} value - Coerced with `String()`.
+     * @returns {string} The value with its control characters shown as escapes.
+     * @example
+     * escapeLogControlChars('/a\nb'); // the five characters / a \ n b, on one physical line
+     */
+    function escapeLogControlChars(value) {
+        return String(value).replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/g, function (c) {
+            switch (c) {
+                case '\n': return '\\n';
+                case '\r': return '\\r';
+                case '\t': return '\\t';
+                default:   return '\\u' + ('000' + c.charCodeAt(0).toString(16)).slice(-4);
+            }
+        });
+    }
 
     self.getInstance = function(params) {
         return Routing.instance;
@@ -7935,7 +7998,11 @@ function Routing() {
             var paramList = route.url
                                 .match(/(\:(.*)\/|\:(.*)$)/g)
                                 .map(function(el){  return el.replace(/\//g, ''); }).join(', ');
-            msg = '[ RoutingHelper::getRoute(rule[, bundle, method]) ] : route [ %r ] param placeholder not defined: `' + route.url + '` !\n Check your route description to compare requirements against param variables [ '+ paramList +']';
+            // #B830 — `route.url` holds the request values already written into it, and the
+            // list below is cut out of it: both are written with their control characters as
+            // visible escapes, so neither can start a line of its own in the log
+            // was: … param placeholder not defined: `' + route.url + '` !\n Check … [ '+ paramList +']';
+            msg = '[ RoutingHelper::getRoute(rule[, bundle, method]) ] : route [ %r ] param placeholder not defined: `' + escapeLogControlChars(route.url) + '` !\n Check your route description to compare requirements against param variables [ '+ escapeLogControlChars(paramList) +']';
             msg = msg.replace(/\%r/, rule);
             var err = new Error(msg);
             console.warn( err );

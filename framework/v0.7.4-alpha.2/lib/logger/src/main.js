@@ -620,6 +620,28 @@ function Logger() {
 
 
 
+    /**
+     * The body behind every levelled method (`self.info`, `self.warn`, …). Drops
+     * the message if its severity is outside the active hierarchy, then builds a
+     * single `content` string from the arguments — a Function is stringified, an
+     * Error rendered via {@link inspectError} (#B434), any other object through
+     * {@link parse}, and a plain string kept as given.
+     *
+     * #B830 — a plain string argument is NO LONGER rewritten when it holds the two
+     * WRITTEN characters backslash + r/n/t; only real CR / LF / TAB are handled (CR
+     * normalised to LF, TAB kept), so a written "\n" stays literal text and cannot
+     * forge a log line. Legitimate multi-line arguments (an err.stack, a formatted
+     * block) are unchanged, and a framework site embeds a DECODED client value only
+     * after escaping its control characters at the site (part C).
+     *
+     * @inner
+     * @param {Object} opt - The resolved logger options for this group.
+     * @param {function} parse - The object renderer, passed in for out-of-closure recursion.
+     * @param {string} s - The level name (`info`, `warn`, …).
+     * @param {Arguments} args - The logging call's arguments.
+     * @param {function} cb - The dispatch callback (`emit`).
+     * @returns {void}
+     */
     var write = function(opt, parse, s, args, cb) {
         // caller is __stack[3]
         //console.log("----->" + __stack.toString().replace(/\,/g, '\n') );
@@ -651,10 +673,27 @@ function Logger() {
             }
             else {
 
-                if ( /(?:\\[rnt]|[\r\n\t])/.test(args[i]) ) { // special replacement for mixed string
+                // #B830 (2026-10-09) — the levelled writer must NOT turn the two
+                // WRITTEN characters backslash + r/n/t into a control character.
+                // The old test/replace also matched `\\r` / `\\n` / `\\t`, so a
+                // caller-supplied value containing the text "\n" became a real line
+                // feed: a logged client value could then forge a physical log line
+                // (CWE-117), and escaping the value first (JSON.stringify) did not
+                // help, because the two characters it produces were rewritten here.
+                // Real CR / LF / TAB are handled exactly as before (CR normalised to
+                // LF for the terminal, TAB kept), so a legitimate multi-line string
+                // argument — an err.stack, a formatted block — is unchanged. A
+                // framework site that embeds a DECODED client value escapes the
+                // value's control characters AT THE SITE (part C, escapeLogControlChars).
+                // was:
+                //     if ( /(?:\\[rnt]|[\r\n\t])/.test(args[i]) ) { // special replacement for mixed string
+                //         args[i] = args[i]
+                //             .replace(/(?:\\[rn]|[\r\n])/gm, String.fromCharCode('10'))
+                //             .replace(/(?:\\[t]|[\t])/gm, String.fromCharCode('09'));
+                if ( /[\r\n\t]/.test(args[i]) ) { // real control characters only
                     args[i] = args[i]
-                        .replace(/(?:\\[rn]|[\r\n])/gm, String.fromCharCode('10')) // \r 10, but should be 13, but will be 10 because of the terminal
-                        .replace(/(?:\\[t]|[\t])/gm, String.fromCharCode('09'))
+                        .replace(/[\r\n]/gm, String.fromCharCode('10')) // \r 10, but should be 13, but will be 10 because of the terminal
+                        .replace(/[\t]/gm, String.fromCharCode('09'))
                     ;
                     /**
                      *  Oct   Dec   Hex   Char
@@ -721,6 +760,55 @@ function Logger() {
         }
     }
 
+    /**
+     * #B830 (2026-10-09) — render the control characters of a value as visible escapes before
+     * it is written into a log or error message, so a client-supplied value cannot forge a
+     * physical log line (CWE-117). The escaped set: C0 (U+0000-U+001F), DEL and C1
+     * (U+007F-U+009F), and the line separators U+2028 / U+2029 — every character a terminal or
+     * a line-based reader can take for a line break or a control sequence. `\n`, `\r`, `\t`
+     * become the two-character sequences; any other character of the set becomes `\uXXXX`;
+     * every other character is left untouched, so a value holding none comes back unchanged.
+     * Deliberately duplicated — in the logger, core/server.js, core/server.isaac.js,
+     * core/controller/controller.js, controller.render-swig.js, helpers/context.js, lib/lane,
+     * lib/routing and the validator — the way `escapeForJsonString` is (#B600): the logger is
+     * server-side only and two of those files are in the browser bundle, so no single
+     * requireable home serves them all without adding a public API surface.
+     * `test/lib/log-escape-parity-b830.test.js` fails when a copy drifts. The log redaction
+     * reads these escapes back (`lib/logger/src/redact.js`, `decodeView`): a change of the set
+     * here is a change there. Here it serves `parse()`: the keys and the
+     * string values of a logged object or array.
+     *
+     * @inner
+     * @param   {*} s - Coerced with `String()`.
+     * @returns {string} The value with its control characters shown as escapes.
+     * @example
+     * escapeLogControlChars('a\nb'); // the four characters a \ n b, on one physical line
+     */
+    var escapeLogControlChars = function(s) {
+        return String(s).replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/g, function (c) {
+            switch (c) {
+                case '\n': return '\\n';
+                case '\r': return '\\r';
+                case '\t': return '\\t';
+                default:   return '\\u' + ('000' + c.charCodeAt(0).toString(16)).slice(-4);
+            }
+        });
+    };
+
+    /**
+     * Render a logged value (object or array) as a single-line string. Keys and
+     * string values pass through {@link escapeLogControlChars} (#B830) so no
+     * member can introduce a raw line break; a nested plain object recurses, and
+     * anything else an array or an object holds — a nested array, a Buffer, a
+     * number — is coerced to a string and written through the escaper too. A
+     * nested Error is the exception: it keeps its multi-line stack.
+     *
+     * @inner
+     * @param {function} parse - This function, passed for recursion (it runs outside the closure's scope).
+     * @param {Object|Array} obj - The value to render.
+     * @param {string} str - The accumulator the caller seeds (usually `""`).
+     * @returns {string} The rendered one-line representation, with a trailing space.
+     */
     var parse = function(parse, obj, str) {
 
         var l           = 0
@@ -732,29 +820,38 @@ function Logger() {
 
         for (var attr in obj) {
             ++l;
+            // #B830 — the key is DATA too: escape its control characters once per turn.
+            var _k = escapeLogControlChars(attr);
             if (isError(obj[attr])) {
                 // #B434 — a nested Error keeps its message and stack (it used to
                 // recurse into an enumerable-props walk and render as `{}`)
-                str += (isArray ? '' : '"'+attr+'": ') + inspectError(obj[attr]);
+                str += (isArray ? '' : '"'+_k+'": ') + inspectError(obj[attr]);
                 str += (l<len) ? ', ' : '';
             } else if (obj[attr] instanceof Function) {
-                str += attr +': [Function]';
+                str += _k +': [Function]';
                 // if you want ot have it all replace by the following line
                 //str += attr +':'+ obj[attr].toString();
                 str += (l<len) ? ', ' : ''
             } else if (obj[attr] instanceof Object && !isArray) {
-                str += '"'+attr+'": ';
+                str += '"'+_k+'": ';
                 str = parse(parse, obj[attr], str);
                 str += (l<len) ? ', ' : '';
             } else {
                 if (!isArray && typeof(obj[attr]) == 'string') {
-                    str += '"'+attr+'": "' + obj[attr]
+                    // #B830 — escape the string value's control characters, then the
+                    // existing quote-escaping (order-independent: neither touches the other's chars)
+                    str += '"'+_k+'": "' + escapeLogControlChars(obj[attr])
                             .replace(/\'/g, "\\'")
                             .replace(/\"/g, '\\"') +'"';
                 } else if (isArray) {
-                    str += ( typeof(obj[attr]) != 'string' ) ? obj[attr] : '"'+ obj[attr] +'"'
+                    // #B830 — a non-string element (a nested array, a Buffer, a number) goes
+                    // through the escaper too: `'' + value` reads exactly as before when the
+                    // value holds no control character, and a string inside a nested array
+                    // can no longer carry a raw line break into the line
+                    str += ( typeof(obj[attr]) != 'string' ) ? escapeLogControlChars('' + obj[attr]) : '"'+ escapeLogControlChars(obj[attr]) +'"'
                 } else {
-                    str += '"'+attr+'": ' + obj[attr]
+                    // #B830 — same for a value that is neither a string nor a plain object
+                    str += '"'+_k+'": ' + escapeLogControlChars('' + obj[attr])
                 }
                 str += (l<len) ? ', ' : ''
             }

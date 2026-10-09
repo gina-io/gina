@@ -120,6 +120,68 @@ var STACK_FRAME = /\n\s+at\s/;
  */
 var DETAIL_KEYS = ['title', 'message', 'error'];
 
+/**
+ * #B830 (2026-10-09) — render the control characters of a value as visible escapes before
+ * it is written into a log or error message, so a client-supplied value cannot forge a
+ * physical log line (CWE-117). The escaped set: C0 (U+0000-U+001F), DEL and C1
+ * (U+007F-U+009F), and the line separators U+2028 / U+2029 — every character a terminal or
+ * a line-based reader can take for a line break or a control sequence. `\n`, `\r`, `\t`
+ * become the two-character sequences; any other character of the set becomes `\uXXXX`;
+ * every other character is left untouched, so a value holding none comes back unchanged.
+ * Deliberately duplicated — in the logger, core/server.js, core/server.isaac.js,
+ * core/controller/controller.js, controller.render-swig.js, helpers/context.js, lib/lane,
+ * lib/routing and the validator — the way `escapeForJsonString` is (#B600): the logger is
+ * server-side only and two of those files are in the browser bundle, so no single
+ * requireable home serves them all without adding a public API surface.
+ * `test/lib/log-escape-parity-b830.test.js` fails when a copy drifts. The log redaction
+ * reads these escapes back (`lib/logger/src/redact.js`, `decodeView`): a change of the set
+ * here is a change there.
+ *
+ * @inner
+ * @param   {*} value - Coerced with `String()`.
+ * @returns {string} The value with its control characters shown as escapes.
+ * @example
+ * escapeLogControlChars('a\nb'); // the four characters a \ n b, on one physical line
+ */
+function escapeLogControlChars(value) {
+    return String(value).replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/g, function (c) {
+        switch (c) {
+            case '\n': return '\\n';
+            case '\r': return '\\r';
+            case '\t': return '\\t';
+            default:   return '\\u' + ('000' + c.charCodeAt(0).toString(16)).slice(-4);
+        }
+    });
+}
+
+/**
+ * #B830 — render an error detail safe from line-forging while keeping its stack readable:
+ * the control characters of every line are escaped, and a REAL line feed is kept only
+ * before a line shaped like a V8 stack frame — whitespace, `at`, whitespace, then ANY
+ * text — or starting with `caused by:`; any other line feed (the break of a client value)
+ * becomes the visible escape. Log-only: the wire copy is shaped separately by the egress
+ * gate. Residual, accepted and documented: a value crafted to look like such a line renders
+ * as one, since the detail logs a caller-passed stack whole and a crafted frame line cannot
+ * be told from a real one.
+ *
+ * @inner
+ * @param   {*} detail - The composed error-detail string.
+ * @returns {string} The detail with injected line breaks neutralised, frame lines kept.
+ * @example
+ * escapeLogDetailKeepFrames('Error: a\nb\n    at f (x.js:1:1)');
+ * // 'Error: a\\nb' + a real line feed + '    at f (x.js:1:1)'
+ */
+function escapeLogDetailKeepFrames(detail) {
+    if (detail === null || typeof detail === 'undefined') { return ''; }
+    var lines = String(detail).split('\n');
+    var out = escapeLogControlChars(lines[0]);
+    for (var i = 1; i < lines.length; i++) {
+        var keep = /^\s+at\s/.test(lines[i]) || /^caused by:/.test(lines[i]);
+        out += (keep ? '\n' : '\\n') + escapeLogControlChars(lines[i]);
+    }
+    return out;
+}
+
 var _isDev   = null;
 var _isLocal = null;
 
@@ -646,7 +708,8 @@ function logLateCall(what, payload) {
     } catch (err) {
         text = String(payload);
     }
-    logger.warn('[ Lane ] '+ what +' called after the response was released — ignoring: '+ text);
+    // #B830 — the payload of a late call can hold a client value: frame lines kept, any other break escaped
+    logger.warn('[ Lane ] '+ what +' called after the response was released — ignoring: '+ escapeLogDetailKeepFrames(text));
 }
 
 /**
@@ -979,7 +1042,7 @@ function buildErrorObject(args, statusCodes) {
             if ( res.message && typeof(res.message) == 'string' ) {
                 errorObject.message = res.message;
             } else if ( res.message ) {
-                logger.warn('[ Lane ] Ignoring message because of the format.\n'+ res.message);
+                logger.warn('[ Lane ] Ignoring message because of the format.\n'+ escapeLogControlChars(res.message));
             }
         } else if ( typeof(last) == 'string' ) {
             errorObject.message = last || msg;
@@ -1083,7 +1146,7 @@ function writeError(ctx, args) {
         detail += '\ncaused by: '+ ( msg.cause.stack || msg.cause.message || msg.cause );
     }
     var bundle = conf.bundle || ( req.routing && req.routing.bundle ) || '-';
-    logger.error('[ BUNDLE ][ '+ bundle +' ][ Lane ][ ref '+ errorObject.ref +' ][ req '+ ( req._ginaReqId || '-' ) +' ] '+ req.method +' [ '+ ( errorObject.status || code ) +' ] '+ req.url + ( detail ? '\n'+ detail : '' ));
+    logger.error('[ BUNDLE ][ '+ bundle +' ][ Lane ][ ref '+ errorObject.ref +' ][ req '+ ( req._ginaReqId || '-' ) +' ] '+ req.method +' [ '+ ( errorObject.status || code ) +' ] '+ req.url + ( detail ? '\n'+ escapeLogDetailKeepFrames(detail) : '' ));
 
     // outside local scope: no `stack`, and a stack-bearing string keeps its first line (#B670)
     if ( !isLocalScope() ) {
