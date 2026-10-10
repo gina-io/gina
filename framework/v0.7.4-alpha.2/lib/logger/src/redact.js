@@ -378,7 +378,10 @@ function isEscapedCodePoint(cp) {
  * caller builds) does escape the backslash, as `\\`, and writes U+0008, U+000C
  * and a lone surrogate as `\b`, `\f` and `\uXXXX`; this reading leaves those as
  * written, so a secret holding one of them and logged JSON-escaped is still
- * printed (#B838).
+ * printed (#B838). A real carriage return is a separate residual of the same
+ * item: the levelled string path writes it as a line feed before the message
+ * reaches this module, so a secret holding one, logged inside a plain string
+ * at a level method, matches neither reading and is printed too.
  *
  * @memberof module:lib/logger/redact
  * @function decodeView

@@ -17,11 +17,13 @@
  *   02  apply() masks a quoted secret in the form each writer gives it
  *   03  the real logger: what reaches stdout, levelled and raw (one process per secret)
  *
- * Not covered, by design (#B838): a secret holding a backslash, U+0008, U+000C
- * or a lone surrogate, when it reaches the log JSON-escaped (an object through
- * `console.log`, or a JSON string the caller built, at any level): JSON writes
- * those characters as escapes the decoded reading leaves as written. No arm
- * asserts it either way.
+ * Not covered here (#B838, open): a secret holding a backslash, U+0008, U+000C
+ * or a lone surrogate, when it reaches the log JSON-escaped (an object or an
+ * array through `console.log`, or a JSON string the caller built, at any
+ * level): JSON writes those characters as escapes the decoded reading leaves
+ * as written. And a secret holding a carriage return inside a plain string
+ * passed to a level method, which writes it as a line feed before the
+ * redaction runs. No arm asserts either shape either way.
  *
  * The framework directory can be overridden (`GINA_B834_FW`) to run every
  * section against another tree: the red-first run against the pre-fix code.
