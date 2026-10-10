@@ -905,6 +905,8 @@ function Logger() {
                 if (!isArray && typeof(obj[attr]) == 'string') {
                     // #B830 — escape the string value's control characters, then the
                     // existing quote-escaping (order-independent: neither touches the other's chars)
+                    // #B834 — the redaction reads both escapings back (`redact.decodeView`): an escape
+                    // added here must be added there too, or a secret holding that character is printed
                     str += '"'+_k+'": "' + escapeLogControlChars(obj[attr])
                             .replace(/\'/g, "\\'")
                             .replace(/\"/g, '\\"') +'"';

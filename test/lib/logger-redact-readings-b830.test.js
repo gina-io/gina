@@ -19,6 +19,10 @@
  * purpose is not told from an escaped line feed, and a credential that itself
  * holds one must still be found as written.
  *
+ * Since #B834 the decoded reading also reads the two quote escapes the object
+ * writers add to a string value (backslash + double quote, backslash + single
+ * quote); `logger-redact-b834.test.js` covers that change.
+ *
  *   01  the decoded reading and its offset map
  *   02  no visible escape: byte for byte what one `replace` per rule gives
  *   03  the mapped replace equals the native one (every replacement form)
@@ -95,11 +99,14 @@ describe('01 - the decoded reading and its offset map', function () {
         assert.deepEqual(w.map, [0, 6, 7, 8, 10]);
     });
 
-    it('no visible escape gives null: a backslash alone, a Windows path, an escape of a printable character', function () {
+    it('no visible escape gives null: a backslash alone, a Windows path, a four-hex escape of a printable character', function () {
         assert.equal(redact.decodeView('GET [200] /files/42'), null);
         assert.equal(redact.decodeView('C:' + BS + 'Users' + BS + 'me'), null);
-        assert.equal(redact.decodeView('say ' + BS + '"hi' + BS + '"'), null);
         assert.equal(redact.decodeView('x' + BS + 'u0041y'), null);
+    });
+
+    it('a quote escape is read as the quote (#B834): the object writers escape the quotes of a string value', function () {
+        assert.equal(redact.decodeView('say ' + BS + '"hi' + BS + '"').text, 'say "hi"');
     });
 
     it('a WRITTEN backslash + n is read as a line feed too (the reading is not an inverse)', function () {

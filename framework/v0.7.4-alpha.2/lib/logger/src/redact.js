@@ -51,6 +51,13 @@
  * read as the character it stands for — and masks, in the message as written,
  * whatever either reading finds. See `apply()` and `decodeView()`.
  *
+ * QUOTE ESCAPES (#B834). The object writers also escape a string value's
+ * quotes before the message reaches this module: the levelled writer writes
+ * `\"` and `\'`, and the raw `console.log` path renders an object with
+ * `JSON.stringify` (`\"`). A secret value holding a quote then no longer
+ * matches as written; the decoded reading reads the two quote escapes too, so
+ * it is found and masked like a secret holding a line break.
+ *
  * @example
  * var redact = require('./redact');
  * var state  = redact.compileState([redact.compileBlock({ patterns: ['(?<![0-9a-f])[0-9a-f]{64}(?![0-9a-f])'] }, 'demo')]);
@@ -334,10 +341,15 @@ function compileState(blocks, secretValues) {
  * {@link isEscapedCodePoint} — the same set the escapers write, so the two
  * stay in step. Either hex case is read.
  *
+ * #B834 — plus the two quote escapes the object writers add to a string
+ * value: `\"` (the levelled writer, and `JSON.stringify` on the raw path) and
+ * `\'` (the levelled writer). Group 1 holds `n`, `r` or `t`, group 2 the four
+ * hex digits, group 3 the quote.
+ *
  * @constant
  * @type {RegExp}
  */
-var VISIBLE_ESCAPE_RE = /\\(?:([nrt])|u([0-9a-fA-F]{4}))/g;
+var VISIBLE_ESCAPE_RE = /\\(?:([nrt])|u([0-9a-fA-F]{4})|(["']))/g;
 
 /**
  * Is this code point one the log escapers write as `\uXXXX` (or as `\n`,
@@ -360,8 +372,11 @@ function isEscapedCodePoint(cp) {
  * decoded character in the message as written.
  *
  * The escapers do not escape the backslash itself, so the reading is not an
- * inverse: a `\n` the caller wrote on purpose reads as a line feed too. That
- * is why {@link apply} never matches on this reading ALONE.
+ * inverse: a `\n` (or, since #B834, a `\"`) the caller wrote on purpose reads
+ * as a line feed (or a quote) too. That is why {@link apply} never matches on
+ * this reading ALONE. On the raw path `JSON.stringify` does escape the
+ * backslash, as `\\`; this reading leaves that pair as written, so a secret
+ * holding a backslash and logged there is still printed (#B838).
  *
  * @memberof module:lib/logger/redact
  * @function decodeView
@@ -373,6 +388,7 @@ function isEscapedCodePoint(cp) {
  *
  * @example
  * redact.decodeView('a\\nb');            // → { text: 'a\nb', map: [0, 1, 3, 4] }
+ * redact.decodeView('a\\"b');            // → { text: 'a"b', map: [0, 1, 3, 4] } (#B834)
  * redact.decodeView('C:\\Users\\me');    // → null (no visible escape)
  */
 function decodeView(text) {
@@ -384,10 +400,12 @@ function decodeView(text) {
     while ((m = VISIBLE_ESCAPE_RE.exec(text)) !== null) {
         if (m[1]) {
             ch = m[1] === 'n' ? '\n' : (m[1] === 'r' ? '\r' : '\t');
-        } else {
+        } else if (m[2] != null) {
             cp = parseInt(m[2], 16);
             if (!isEscapedCodePoint(cp)) { continue; }
             ch = String.fromCharCode(cp);
+        } else {
+            ch = m[3];
         }
         for (i = last; i < m.index; i++) { map.push(i); }
         out += text.slice(last, m.index) + ch;
@@ -553,6 +571,10 @@ function maskSecretsOnBothReadings(secretRe, raw, view) {
  * told from an escaped line feed, and a credential holding one must still be
  * found as written. A message with no visible escape takes the first reading
  * only: one `replace` per rule, as before.
+ *
+ * #B834 — the decoded reading also reads the quote escapes an object's string
+ * values receive (`\"`, `\'`), so a secret holding a quote, logged inside an
+ * object or through `console.log`, is masked as well.
  *
  * @memberof module:lib/logger/redact
  * @function apply
