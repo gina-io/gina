@@ -381,7 +381,12 @@ function isEscapedCodePoint(cp) {
  * printed (#B838). A real carriage return is a separate residual of the same
  * item: the levelled string path writes it as a line feed before the message
  * reaches this module, so a secret holding one, logged inside a plain string
- * at a level method, matches neither reading and is printed too.
+ * at a level method, matches neither reading and is printed too. A third
+ * renderer is not read either: `util.inspect`, which writes an `Error` on both
+ * paths (`inspectError()` in main.js), writes a backslash as `\\`, a lone
+ * surrogate as `\uXXXX` and a control character as `\b`, `\f` or `\xNN`, so a
+ * secret held by one of an Error's own properties and holding one of those is
+ * printed as well.
  *
  * @memberof module:lib/logger/redact
  * @function decodeView
