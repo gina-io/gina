@@ -374,9 +374,11 @@ function isEscapedCodePoint(cp) {
  * The escapers do not escape the backslash itself, so the reading is not an
  * inverse: a `\n` (or, since #B834, a `\"`) the caller wrote on purpose reads
  * as a line feed (or a quote) too. That is why {@link apply} never matches on
- * this reading ALONE. On the raw path `JSON.stringify` does escape the
- * backslash, as `\\`; this reading leaves that pair as written, so a secret
- * holding a backslash and logged there is still printed (#B838).
+ * this reading ALONE. `JSON.stringify` (the raw path, and any JSON string a
+ * caller builds) does escape the backslash, as `\\`, and writes U+0008, U+000C
+ * and a lone surrogate as `\b`, `\f` and `\uXXXX`; this reading leaves those as
+ * written, so a secret holding one of them and logged JSON-escaped is still
+ * printed (#B838).
  *
  * @memberof module:lib/logger/redact
  * @function decodeView
