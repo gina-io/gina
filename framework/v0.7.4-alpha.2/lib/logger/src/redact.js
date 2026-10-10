@@ -58,12 +58,27 @@
  * matches as written; the decoded reading reads the two quote escapes too, so
  * it is found and masked like a secret holding a line break.
  *
+ * ESCAPE LAYERS (#B838). Two more renderers write a value before the message
+ * reaches this module, and both escape the backslash itself: `JSON.stringify`
+ * (the raw `console.log` path, and any JSON string a caller builds) and
+ * `util.inspect` (an `Error`, on both paths). The secret values are therefore
+ * searched on more readings: each layer of that escaping is read back, up to
+ * `MAX_ESCAPE_DEPTH` layers, from the message as written and from its decoded
+ * reading. `util.inspect` also lays a value's line breaks out (a long string
+ * is split after each line feed, a nested Error's message is indented), and
+ * the levelled string path writes a carriage return as a line feed: a secret's
+ * line breaks match those layouts. See `decodeEscapes()`, `secretSource()`
+ * and `apply()`.
+ *
  * @example
  * var redact = require('./redact');
  * var state  = redact.compileState([redact.compileBlock({ patterns: ['(?<![0-9a-f])[0-9a-f]{64}(?![0-9a-f])'] }, 'demo')]);
  * redact.apply(state, 'GET [200] /reset?token=abc123def456'); // → 'GET [200] /reset?token=[REDACTED]'
  * redact.apply(null,  'GET [200] /reset?token=abc123def456'); // → unchanged (no state)
  */
+
+// #B838 — read for one default only: util.inspect's `maxStringLength` (see compileState)
+var util = require('util');
 
 /**
  * The replacement text. Contains no `$`, so it is inert under
@@ -126,6 +141,82 @@ var BLOCK_KEYS = ['enabled', 'defaults', 'secrets', 'patterns'];
  */
 function escapeRegExp(s) {
     return s.replace(/[.*+?^${}()|[\]\\\/]/g, '\\$&');
+}
+
+/**
+ * The characters a renderer lays around a line break of a value (#B838):
+ * whitespace — the indentation `util.inspect` adds after each line feed of a
+ * nested Error's message or stack, and of a string a custom inspector
+ * returns — and the quotes and the plus sign of the joint it writes when it
+ * splits a long string after each line feed (`'line 1\n' +\n  'line 2'`).
+ *
+ * @constant
+ * @type {string}
+ */
+var LAYOUT_CLASS = '[\\s\'"`+]';
+
+/**
+ * One character of {@link LAYOUT_CLASS}, to test a character of a value.
+ *
+ * @constant
+ * @type {RegExp}
+ */
+var LAYOUT_CHAR_RE = /[\s'"`+]/;
+
+/**
+ * The regex source that finds one secret value (#B838). A value that holds no
+ * line break is matched literally, exactly as before. A line break is matched
+ * with the layout a renderer can give it:
+ *
+ *   - a carriage return matches a carriage return or a line feed — the
+ *     levelled string path writes the first as the second before the
+ *     redaction runs;
+ *   - a line feed followed by more of the value matches the line feed, then
+ *     any run of {@link LAYOUT_CLASS} characters. The layout characters the
+ *     value itself holds right after that line feed are part of the run, so
+ *     the run is always followed by a character outside the class: no two
+ *     variable-length parts are adjacent, and the match stays linear;
+ *   - at the very end of a value nothing is tolerated: the trailing characters
+ *     are matched as they are, so the mask stops where the value stops.
+ *
+ * The tolerance only ever widens what is masked.
+ *
+ * @inner
+ * @private
+ * @param {string} v - A secret value
+ * @returns {string} The regex source matching it
+ *
+ * @example
+ * secretSource('p@ss.w0rd');        // → 'p@ss\\.w0rd' (escapeRegExp, unchanged)
+ * secretSource('ab\r\ncd');         // → 'ab[\\r\\n]\\n[\\s\'"`+]*cd'
+ * secretSource('ab\n');             // → 'ab\\n' (nothing tolerated at the end)
+ */
+function secretSource(v) {
+    if (v.indexOf('\n') < 0 && v.indexOf('\r') < 0) {
+        return escapeRegExp(v);
+    }
+    var out = '', last = 0, i = 0, len = v.length, c, j;
+    while (i < len) {
+        c = v.charCodeAt(i);
+        if (c !== 13 && c !== 10) { i++; continue; }
+        out += escapeRegExp(v.slice(last, i));
+        if (c === 13) {
+            out += '[\\r\\n]';
+            i++;
+        } else {
+            j = i + 1;
+            while (j < len && LAYOUT_CHAR_RE.test(v.charAt(j))) { j++; }
+            if (j < len) {
+                out += '\\n' + LAYOUT_CLASS + '*';
+                i = j;
+            } else {
+                out += '\\n';
+                i++;
+            }
+        }
+        last = i;
+    }
+    return out + escapeRegExp(v.slice(last));
 }
 
 /**
@@ -270,6 +361,12 @@ function compileBlock(block, origin) {
  * has one logger for every bundle), and a pattern declared anywhere applies
  * everywhere. Duplicate patterns collapse to one.
  *
+ * #B838 — each secret value is compiled with {@link secretSource}, so its line
+ * breaks match the layout a renderer gives them, and a value longer than
+ * `util.inspect`'s `maxStringLength` (read when this runs; 10,000 by default)
+ * also masks the head `util.inspect` keeps of it. `secretCount` counts the
+ * values, not the heads.
+ *
  * @memberof module:lib/logger/redact
  * @function compileState
  * @param {Array<object>} blocks - Compiled blocks (from `compileBlock`)
@@ -323,9 +420,25 @@ function compileState(blocks, secretValues) {
         if (list.length > 0) {
             // Longest first: a value that is a prefix of another must not win the
             // alternation and leave the longer value's tail in the clear.
-            list.sort(function (a, b) { return b.length - a.length; });
-            secretRe = new RegExp(list.map(escapeRegExp).join('|'), 'g');
             secretCount = list.length;
+            // #B838 — `util.inspect` cuts a string longer than its `maxStringLength`
+            // (10,000 by default): what it keeps of such a value is its head, which
+            // matches no reading of the whole value. The head is masked as a value of
+            // its own; a secret that sits further inside a longer cut string is not
+            // covered (the cut then falls elsewhere).
+            var inspectMax = (util.inspect && util.inspect.defaultOptions) ? util.inspect.defaultOptions.maxStringLength : 10000;
+            if (typeof inspectMax === 'number' && isFinite(inspectMax) && inspectMax >= MIN_SECRET_LENGTH) {
+                for (i = 0; i < secretCount; i++) {
+                    if (list[i].length > inspectMax && !uniq[list[i].slice(0, inspectMax)]) {
+                        uniq[list[i].slice(0, inspectMax)] = true;
+                        list.push(list[i].slice(0, inspectMax));
+                    }
+                }
+            }
+            list.sort(function (a, b) { return b.length - a.length; });
+            // #B838 — a secret's line breaks match the layout a renderer gives them
+            // was: secretRe = new RegExp(list.map(escapeRegExp).join('|'), 'g');
+            secretRe = new RegExp(list.map(secretSource).join('|'), 'g');
         }
     }
 
@@ -374,19 +487,10 @@ function isEscapedCodePoint(cp) {
  * The escapers do not escape the backslash itself, so the reading is not an
  * inverse: a `\n` (or, since #B834, a `\"`) the caller wrote on purpose reads
  * as a line feed (or a quote) too. That is why {@link apply} never matches on
- * this reading ALONE. `JSON.stringify` (the raw path, and any JSON string a
- * caller builds) does escape the backslash, as `\\`, and writes U+0008, U+000C
- * and a lone surrogate as `\b`, `\f` and `\uXXXX`; this reading leaves those as
- * written, so a secret holding one of them and logged JSON-escaped is still
- * printed (#B838). A real carriage return is a separate residual of the same
- * item: the levelled string path writes it as a line feed before the message
- * reaches this module, so a secret holding one, logged inside a plain string
- * at a level method, matches neither reading and is printed too. A third
- * renderer is not read either: `util.inspect`, which writes an `Error` on both
- * paths (`inspectError()` in main.js), writes a backslash as `\\`, a lone
- * surrogate as `\uXXXX` and a control character as `\b`, `\f` or `\xNN`, so a
- * secret held by one of an Error's own properties and holding one of those is
- * printed as well.
+ * this reading ALONE. The renderers that DO escape the backslash —
+ * `JSON.stringify` and `util.inspect` — are read by {@link decodeEscapes}
+ * (#B838), one layer at a time; this reading is kept as it is for the
+ * logger's own object writer, whose output it inverts.
  *
  * @memberof module:lib/logger/redact
  * @function decodeView
@@ -428,6 +532,159 @@ function decodeView(text) {
     }
     for (i = last; i <= text.length; i++) { map.push(i); }
     return { text: out + text.slice(last), map: map };
+}
+
+/**
+ * How many layers of backslash escaping are read back (#B838). The logger
+ * itself stacks two — an `Error` held by an object logged through
+ * `console.log` is rendered by `util.inspect`, then by `JSON.stringify` — and
+ * a string the caller serialised before logging it adds a third.
+ *
+ * @constant
+ * @type {number}
+ */
+var MAX_ESCAPE_DEPTH = 3;
+
+/**
+ * A backslash that does NOT start one of the object writer's simple escapes
+ * (`\n`, `\r`, `\t`, `\"`, `\'`). A message that holds none of these and
+ * has a decoded reading needs no further reading (#B838): every backslash in
+ * it starts one of those five escapes, both grammars read each of them as the
+ * same character, so reading a layer back would give the decoded reading
+ * again. The common line — a logged object whose values hold quotes or line
+ * breaks — is therefore searched exactly as before.
+ *
+ * @constant
+ * @type {RegExp}
+ */
+var BEYOND_VIEW_RE = /\\(?![nrt"'])/;
+
+/**
+ * Read `n` hexadecimal digits of `text` starting at `at`.
+ *
+ * @inner
+ * @private
+ * @param {string} text
+ * @param {number} at - Offset of the first digit
+ * @param {number} n  - How many digits
+ * @returns {number} Their value, or -1 when one of them is not a hex digit
+ */
+function hexValue(text, at, n) {
+    var v = 0, c, k;
+    for (k = 0; k < n; k++) {
+        c = text.charCodeAt(at + k);
+        if (c >= 48 && c <= 57) { c -= 48; }
+        else if (c >= 97 && c <= 102) { c -= 87; }
+        else if (c >= 65 && c <= 70) { c -= 55; }
+        else { return -1; }
+        v = v * 16 + c;
+    }
+    return v;
+}
+
+/**
+ * Read ONE layer of backslash escaping back, as `JSON.stringify` and
+ * `util.inspect` write it (#B838): `\\`, `\"`, `\'`, `\/`, `\b`, `\f`, `\n`,
+ * `\r`, `\t`, `\xHH` (`util.inspect`: C0, U+007F to U+009F) and `\uHHHH`
+ * (`JSON.stringify`: C0; both: a lone surrogate). Any `\xHH` or `\uHHHH` is
+ * read, whatever the code unit, so a serialiser that escapes more characters
+ * than those two is read as well; an escape outside the grammar stays as
+ * written. One scan, with no regex: it runs on every logged line that holds a
+ * backslash. The single implementation of the grammar — {@link unescapeLayer}
+ * and {@link decodeEscapes} are its two forms.
+ *
+ * @inner
+ * @private
+ * @param {string}        text - A message, or a reading of it
+ * @param {number[]|null} map  - Receives, for each character of the result, its
+ *   offset in `text` (plus one trailing entry, `text.length`); `null` to skip
+ * @returns {string|null} The text with one layer read back; `null` when it holds no escape
+ */
+function readLayer(text, map) {
+    var i = text.indexOf('\\');
+    if (i < 0) {
+        return null;
+    }
+    var out = '', last = 0, len = text.length, ch, n, v, k;
+    while (i > -1 && i + 1 < len) {
+        n = 2; ch = null;
+        switch (text.charCodeAt(i + 1)) {
+            case 92:  ch = '\\'; break;
+            case 34:  ch = '"';  break;
+            case 39:  ch = '\''; break;
+            case 47:  ch = '/';  break;
+            case 98:  ch = '\b'; break;
+            case 102: ch = '\f'; break;
+            case 110: ch = '\n'; break;
+            case 114: ch = '\r'; break;
+            case 116: ch = '\t'; break;
+            case 120: v = hexValue(text, i + 2, 2); if (v > -1) { ch = String.fromCharCode(v); n = 4; } break;
+            case 117: v = hexValue(text, i + 2, 4); if (v > -1) { ch = String.fromCharCode(v); n = 6; } break;
+        }
+        if (ch === null) {
+            // not an escape of the grammar: it stays as written
+            i = text.indexOf('\\', i + 1);
+            continue;
+        }
+        if (map !== null) {
+            for (k = last; k < i; k++) { map.push(k); }
+            map.push(i);
+        }
+        out += text.slice(last, i) + ch;
+        last = i + n;
+        i = text.indexOf('\\', last);
+    }
+    if (last === 0) {
+        return null;
+    }
+    if (map !== null) {
+        for (k = last; k <= len; k++) { map.push(k); }
+    }
+    return out + text.slice(last);
+}
+
+/**
+ * Read one layer of backslash escaping back, text only: the fast form of
+ * {@link decodeEscapes}, used to search a reading before any offset is built.
+ *
+ * @inner
+ * @private
+ * @param {string} text - A message, or a reading of it
+ * @returns {string|null} The text with one layer removed; `null` when it holds no escape
+ */
+function unescapeLayer(text) {
+    return readLayer(text, null);
+}
+
+/**
+ * Build the UNESCAPED reading of a text (#B838): the same text with one layer
+ * of backslash escaping read back, plus the offset of each of its characters
+ * in the text it was read from — the shape {@link decodeView} returns.
+ *
+ * `JSON.stringify` and `util.inspect` both escape the backslash itself, so in
+ * their output every backslash starts an escape and this reading is an exact
+ * inverse of one layer. It is not one for the logger's own object writer,
+ * which leaves the backslash alone: a backslash followed by an escaped line
+ * feed is written `\\n` there, and reads here as a written `\n`. That writer
+ * keeps its own reading ({@link decodeView}), and {@link apply} searches both.
+ *
+ * @memberof module:lib/logger/redact
+ * @function decodeEscapes
+ * @param {string} text - A message, or a reading of it
+ * @returns {{text: string, map: number[]}|null} The unescaped text and, for
+ *   each of its characters, the offset where that character starts in `text`
+ *   (one extra trailing entry holds `text.length`); `null` when `text` holds
+ *   no escape of the grammar
+ *
+ * @example
+ * redact.decodeEscapes('a\\\\b');        // → { text: 'a\\b', map: [0, 1, 3, 4] } (an escaped backslash)
+ * redact.decodeEscapes('a\\x01b');       // → { text: 'a\u0001b', map: [0, 1, 5, 6] } (util.inspect)
+ * redact.decodeEscapes('a\\ud800b');     // → { text: 'a\ud800b', map: [0, 1, 7, 8] } (a lone surrogate)
+ * redact.decodeEscapes('C:\\Users\\me'); // → null (`\U` and `\m` are not escapes)
+ */
+function decodeEscapes(text) {
+    var map = [], out = readLayer(text, map);
+    return out === null ? null : { text: out, map: map };
 }
 
 /**
@@ -522,28 +779,83 @@ function replaceThroughView(rule, raw, view) {
 }
 
 /**
- * Mask the secret values on BOTH readings at once: the spans found in the
- * message as written and the spans found on its decoded reading are merged,
- * and every merged span becomes one marker. Merging keeps the longest-first
- * guarantee across the two readings — a short value found as written inside
- * a longer one found decoded cannot leave the longer one's head in the clear.
+ * Push every span of one reading that the secret alternation matches, as
+ * offsets in the message as written.
+ *
+ * @inner
+ * @private
+ * @param {RegExp}        secretRe - The compiled alternation (never matches the empty string)
+ * @param {string}        text     - The reading to search
+ * @param {number[]|null} map      - Offset in `text` → offset in the message as written; `null` when `text` is that message
+ * @param {Array<number[]>} spans  - Receives `[start, end]` pairs
+ * @returns {void}
+ */
+function collectSpans(secretRe, text, map, spans) {
+    var m;
+    secretRe.lastIndex = 0;
+    while ((m = secretRe.exec(text)) !== null) {
+        spans.push(map === null ? [m.index, m.index + m[0].length] : [map[m.index], map[m.index + m[0].length]]);
+    }
+    secretRe.lastIndex = 0;
+}
+
+/**
+ * Mask the secret values on EVERY reading at once: the spans found in the
+ * message as written, on its decoded reading, and on each layer of backslash
+ * escaping read back from either (#B838) are merged, and every merged span
+ * becomes one marker. Merging keeps the longest-first guarantee across the
+ * readings — a short value found as written inside a longer one found on
+ * another reading cannot leave the longer one's head in the clear.
+ *
+ * A layer is first read as text only ({@link unescapeLayer}); its offsets are
+ * built ({@link decodeEscapes}) only when a secret is found on it, so a line
+ * that holds escapes and no secret pays for the search alone. A reading equal
+ * to one already searched is not searched again.
+ *
+ * (Before #B838: `maskSecretsOnBothReadings`, the first two readings only.)
  *
  * @inner
  * @private
  * @param {RegExp} secretRe - The compiled alternation (never matches the empty string)
  * @param {string} raw      - The message as written
- * @param {{text: string, map: number[]}} view - Its decoded reading
+ * @param {{text: string, map: number[]}|null} view - Its decoded reading, or `null` when it has none
  * @returns {string} The message with every span masked
  */
-function maskSecretsOnBothReadings(secretRe, raw, view) {
-    var spans = [], m, i;
-    secretRe.lastIndex = 0;
-    while ((m = secretRe.exec(raw)) !== null) {
-        spans.push([m.index, m.index + m[0].length]);
+function maskSecretsOnReadings(secretRe, raw, view) {
+    var spans = [], seen = [raw], bases = [[raw, null]];
+    var b, d, k, i, text, next, map, froms;
+    collectSpans(secretRe, raw, null, spans);
+    if (view !== null) {
+        collectSpans(secretRe, view.text, view.map, spans);
+        seen.push(view.text);
+        bases.push([view.text, view.map]);
+        // nothing but the object writer's simple escapes: the two readings above are all there is
+        if (!BEYOND_VIEW_RE.test(raw)) { bases = []; }
     }
-    secretRe.lastIndex = 0;
-    while ((m = secretRe.exec(view.text)) !== null) {
-        spans.push([view.map[m.index], view.map[m.index + m[0].length]]);
+    for (b = 0; b < bases.length; b++) {
+        text  = bases[b][0];
+        froms = [];
+        for (d = 0; d < MAX_ESCAPE_DEPTH; d++) {
+            next = unescapeLayer(text);
+            if (next === null) { break; }
+            froms.push(text);
+            text = next;
+            if (seen.indexOf(text) > -1) { continue; }
+            seen.push(text);
+            secretRe.lastIndex = 0;
+            if (!secretRe.test(text)) { continue; }
+            // a secret is on this reading: build its offsets, layer by layer,
+            // down to the message as written
+            map = bases[b][1];
+            for (k = 0; k < froms.length; k++) {
+                next = decodeEscapes(froms[k]).map;
+                if (map !== null) {
+                    for (i = 0; i < next.length; i++) { next[i] = map[next[i]]; }
+                }
+                map = next;
+            }
+            collectSpans(secretRe, text, map, spans);
+        }
     }
     secretRe.lastIndex = 0;
     if (spans.length === 0) {
@@ -586,6 +898,18 @@ function maskSecretsOnBothReadings(secretRe, raw, view) {
  * values receive (`\"`, `\'`), so a secret holding a quote, logged inside an
  * object or through `console.log`, is masked as well.
  *
+ * #B838 — the secret values are searched on more readings than the pattern
+ * rules: `JSON.stringify` (the raw path, a JSON string a caller builds) and
+ * `util.inspect` (an `Error`) escape the backslash itself, so a message that
+ * holds a backslash is also read with each layer of that escaping read back
+ * ({@link decodeEscapes}), up to `MAX_ESCAPE_DEPTH` layers, from the message
+ * as written and from its decoded reading. A secret holding a backslash, a
+ * control character or a lone surrogate is then found whichever renderer
+ * wrote it, and so is one rendered more than once. The pattern rules keep
+ * their two readings. Not found: a value that is not written as its own
+ * characters (a Buffer's bytes, base64, URL-encoding), and a secret that sits
+ * inside a longer string `util.inspect` cut at its `maxStringLength`.
+ *
  * @memberof module:lib/logger/redact
  * @function apply
  * @param {object|null} state   - From `compileState()`; `null` = pass-through
@@ -606,19 +930,25 @@ function apply(state, content) {
         return content;
     }
     var view = decodeView(content), i, next;
-    if (view === null) {
-        // no visible escape: the message as written is the only reading
-        if (state.secretRe !== null) {
+    // #B838 — the secret values are read on every escape layer of a message that
+    // holds a backslash, whether or not it holds a visible escape of the object writer.
+    // was: (inside `if (view === null)`) content = content.replace(state.secretRe, MARKER);
+    //      (otherwise) next = maskSecretsOnBothReadings(state.secretRe, content, view);
+    if (state.secretRe !== null) {
+        if (content.indexOf('\\') < 0) {
+            // no backslash: the message as written is the only reading
             content = content.replace(state.secretRe, MARKER);
+        } else {
+            next = maskSecretsOnReadings(state.secretRe, content, view);
+            if (next !== content) { content = next; view = decodeView(content); }
         }
+    }
+    if (view === null) {
+        // no visible escape: the pattern rules read the message as written only
         for (i = 0; i < state.rules.length; i++) {
             content = content.replace(state.rules[i].re, state.rules[i].replacement);
         }
         return content;
-    }
-    if (state.secretRe !== null) {
-        next = maskSecretsOnBothReadings(state.secretRe, content, view);
-        if (next !== content) { content = next; view = decodeView(content); }
     }
     for (i = 0; i < state.rules.length; i++) {
         next = content.replace(state.rules[i].re, state.rules[i].replacement);
@@ -667,6 +997,7 @@ module.exports = {
     compileState      : compileState,
     apply             : apply,
     decodeView        : decodeView,
+    decodeEscapes     : decodeEscapes,
     replaceThroughView: replaceThroughView,
     partitionSecrets  : partitionSecrets
 };

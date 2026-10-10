@@ -17,15 +17,10 @@
  *   02  apply() masks a quoted secret in the form each writer gives it
  *   03  the real logger: what reaches stdout, levelled and raw (one process per secret)
  *
- * Not covered here (#B838, open). The decoded reading reads the escapes of the
- * logger's own object writer; three other renderers write a value differently
- * and are not read: `JSON.stringify` (an object, an array or a key through
- * `console.log`, or a JSON string the caller built) for a backslash, U+0008,
- * U+000C or a lone surrogate; `util.inspect` (an Error carrying the value in
- * one of its own properties, on both paths) for a backslash, a lone surrogate
- * or a control character; and the levelled string path, which writes a
- * carriage return as a line feed before the redaction runs. No arm asserts
- * any of them either way.
+ * Not covered here: a secret holding a backslash, a control character, a lone
+ * surrogate or a line break, and the renderers other than the two object
+ * writers (`JSON.stringify` for those characters, `util.inspect`, the levelled
+ * string path). `logger-redact-renderers-b838.test.js` covers them (#B838).
  *
  * The framework directory can be overridden (`GINA_B834_FW`) to run every
  * section against another tree: the red-first run against the pre-fix code.
