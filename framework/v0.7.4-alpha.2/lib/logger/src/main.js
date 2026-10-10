@@ -667,11 +667,16 @@ function Logger() {
                 // enumerable own props and drop the message and stack
                 content += inspectError(args[i]) + ' '
             }
-            else if (args[i] instanceof Object) {
+            // #B832 — a null-prototype object takes this path too (see isLoggableObject).
+            // was: else if (args[i] instanceof Object) {
+            else if (isLoggableObject(args[i])) {
                 // careful, [ parse ] will be out of the main execution context: passing it for recursive use
                 content += parse(parse, args[i], "")
             }
             else {
+                // #B832 — a Symbol cannot be coerced with `+`: write it with String()
+                // (the line-break test and the concatenation below would throw on it).
+                if ( typeof(args[i]) == 'symbol' ) args[i] = String(args[i]);
 
                 // #B830 (2026-10-09) — the levelled writer must NOT turn the two
                 // WRITTEN characters backslash + r/n/t into a control character.
@@ -796,12 +801,63 @@ function Logger() {
     };
 
     /**
+     * #B832 — tell whether a logged argument or value takes the OBJECT path.
+     * `instanceof Object` is false for a null-prototype object
+     * (`querystring.parse()`, `Object.create(null)`): it then fell into a
+     * string path, and coercing it there threw `Cannot convert object to
+     * primitive value` in the caller. A null-prototype object now takes the
+     * object path like any other object; nothing else changes path.
+     *
+     * @inner
+     * @param   {*} v - A logged argument, or a value a logged object holds.
+     * @returns {boolean} `true` for an `Object` instance or a null-prototype object.
+     * @example
+     * isLoggableObject({ a: 1 });             // true
+     * isLoggableObject(Object.create(null));  // true (was: false)
+     * isLoggableObject('a');                  // false
+     */
+    var isLoggableObject = function(v) {
+        return v instanceof Object
+            || ( v !== null && typeof(v) == 'object' && Object.getPrototypeOf(v) === null );
+    };
+
+    /**
+     * #B832 — coerce a value for the log line without throwing. `'' + v` throws
+     * on a Symbol, and on an object with no usable toString/valueOf: a
+     * null-prototype object, or an element `{"toString": "x"}` of a JSON body
+     * array. A Symbol is written with `String()`; a value whose coercion throws
+     * is written as its `Object.prototype.toString` tag, so an object inside an
+     * array reads `[object Object]` whatever its prototype. Every value that
+     * coerced before reads exactly as before.
+     *
+     * @inner
+     * @param   {*} v - The value to write.
+     * @returns {string} Its string form.
+     * @example
+     * toLogString(5);                    // '5'
+     * toLogString(Symbol('a'));          // 'Symbol(a)'
+     * toLogString(Object.create(null));  // '[object Object]'
+     */
+    var toLogString = function(v) {
+        if ( typeof(v) == 'symbol' ) return String(v);
+        try {
+            return '' + v;
+        } catch (coercionErr) {
+            return Object.prototype.toString.call(v);
+        }
+    };
+
+    /**
      * Render a logged value (object or array) as a single-line string. Keys and
      * string values pass through {@link escapeLogControlChars} (#B830) so no
      * member can introduce a raw line break; a nested plain object recurses, and
      * anything else an array or an object holds — a nested array, a Buffer, a
      * number — is coerced to a string and written through the escaper too. A
-     * nested Error is the exception: it keeps its multi-line stack.
+     * nested Error is the exception: it keeps its multi-line stack. Keys are
+     * counted with `Object.keys` and a value is coerced through
+     * {@link toLogString}, so a client-shaped object (an own `count` key, a
+     * null-prototype object, an array element `{"toString": "x"}`) cannot make
+     * the call throw (#B832).
      *
      * @inner
      * @param {function} parse - This function, passed for recursion (it runs outside the closure's scope).
@@ -811,8 +867,16 @@ function Logger() {
      */
     var parse = function(parse, obj, str) {
 
+        // #B832 — count the keys with Object.keys, not `obj.count()`: the helper is
+        // an ordinary property lookup, so an OWN key named `count` (a parsed body
+        // `{"count": 5}`) made the call throw, and a null-prototype object has no
+        // helper at all. `Object.prototype.count.call` (#B546's ownCount) is not
+        // enough here: it reads 0 on a null-prototype object or on one with an own
+        // `hasOwnProperty` key, which drops the commas. Object.keys returns the
+        // number the helper returns on every receiver it handles.
+        // was: , len = obj.count()
         var l           = 0
-            , len       = obj.count()
+            , len       = Object.keys(obj).length
             , isArray   = (obj instanceof Array) ? true : false
         ;
         str += (isArray) ? '[ ' : '{';
@@ -832,7 +896,8 @@ function Logger() {
                 // if you want ot have it all replace by the following line
                 //str += attr +':'+ obj[attr].toString();
                 str += (l<len) ? ', ' : ''
-            } else if (obj[attr] instanceof Object && !isArray) {
+            } else if (isLoggableObject(obj[attr]) && !isArray) {
+                // #B832 — a null-prototype value recurses too (was: `obj[attr] instanceof Object`)
                 str += '"'+_k+'": ';
                 str = parse(parse, obj[attr], str);
                 str += (l<len) ? ', ' : '';
@@ -848,10 +913,13 @@ function Logger() {
                     // through the escaper too: `'' + value` reads exactly as before when the
                     // value holds no control character, and a string inside a nested array
                     // can no longer carry a raw line break into the line
-                    str += ( typeof(obj[attr]) != 'string' ) ? escapeLogControlChars('' + obj[attr]) : '"'+ escapeLogControlChars(obj[attr]) +'"'
+                    // #B832 — toLogString, not `'' + value`: a null-prototype element or an
+                    // element {"toString": "x"} threw here (was: escapeLogControlChars('' + obj[attr]))
+                    str += ( typeof(obj[attr]) != 'string' ) ? escapeLogControlChars(toLogString(obj[attr])) : '"'+ escapeLogControlChars(obj[attr]) +'"'
                 } else {
                     // #B830 — same for a value that is neither a string nor a plain object
-                    str += '"'+_k+'": ' + escapeLogControlChars('' + obj[attr])
+                    // #B832 — toLogString: a Symbol value threw here (was: escapeLogControlChars('' + obj[attr]))
+                    str += '"'+_k+'": ' + escapeLogControlChars(toLogString(obj[attr]))
                 }
                 str += (l<len) ? ', ' : ''
             }
@@ -1020,11 +1088,13 @@ function Logger() {
             if (isError(args[i])) {
                 // #B434 — JSON.stringify(new Error()) is `{}`: message and stack are non-enumerable
                 content += inspectError(args[i]);
-            } else if (args[i] instanceof Object) {
+            } else if (isLoggableObject(args[i])) {
+                // #B832 — a null-prototype object takes this path too (was: `args[i] instanceof Object`)
                 //console.log("\n...", args[i], args[i].toString());
                 content += JSON.stringify(args[i], errorReplacer, '\t');
             } else {
-                content += args[i];
+                // #B832 — a Symbol cannot be concatenated: write it with String() (was: content += args[i];)
+                content += ( typeof(args[i]) == 'symbol' ) ? String(args[i]) : args[i];
 
                 // In case of formated entries - eg.: spawned server that is already returning formated logs
                 // if ( /(\[|\[\s+)debug/.test(args[i]) ) {
