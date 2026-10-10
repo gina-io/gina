@@ -1,0 +1,3 @@
+kind: Fixed
+body: '`Collection.find()` lists a row once when it matches several of the filter objects it is given. Two or more filter objects are an OR clause, and a row matching two of them was listed twice (three of them, three times): the result held the same row object more than once, `limit(n)` on it dropped a real row, and a chained `update()` met the row twice. The result now holds each matching row once, in collection order. A call whose filters cannot match the same row (two values of one key, for example) returns what it returned before (#B827).'
+time: 2026-10-10T02:34:23+01:00

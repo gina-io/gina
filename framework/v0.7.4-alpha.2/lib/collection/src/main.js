@@ -377,7 +377,8 @@ function Collection(content, options) {
      * find
      *
      * Filters the collection content with one or more filter objects.
-     * Passing more than one filter object acts as an OR clause.
+     * Passing more than one filter object acts as an OR clause: a row is listed
+     * once, in collection order, whatever the number of filters it matches (#B827).
      *
      * Every filter value must be DEFINED. A key whose value is `undefined`
      * makes the whole call throw an Error naming the offending key: the JSON
@@ -391,6 +392,11 @@ function Collection(content, options) {
      * @param {boolean} [withOrClause] - trailing boolean, forces OR mode
      * @throws {Error} when any filter key's value is `undefined`
      * @returns {array} result - decorated result set (chainable)
+     *
+     * @example
+     * var col = new Collection([{ name: 'a', g: 'x' }, { name: 'b', g: 'x' }, { name: 'c', g: 'y' }]);
+     * col.find({ g: 'x' });                  // rows `a` and `b`
+     * col.find({ name: 'a' }, { g: 'x' });   // rows `a` and `b` too: `a` matches both filters and is listed once
      */
     instance['find'] = function() {
         // reset
@@ -795,29 +801,14 @@ function Collection(content, options) {
                         }
 
                         if (matched == condition ) { // all conditions must be fulfilled to match
-                            // `this` {Array} is the result of the previous search or the current content
-                            // TODO - Add a switch
-                            if (
-                                withOrClause
-                                && notInSearchModeEnabled
-                                && searchIndex.indexOf(tmpContent[o]._uuid) < 0
-                                || notInSearchModeEnabled
-                                || !withOrClause
-                            ) {
-                                //console.debug('searchIndex ', searchIndex);
-                                if (!withOrClause || withOrClause && result.indexOf(tmpContent[o]._uuid) < 0 || notInSearchModeEnabled) {
-                                    result[i] = tmpContent[o];
-                                    ++i;
-                                }
-                            } else if (
-                                withOrClause
-                                && !notInSearchModeEnabled
-                            ) {
-                                if (result.indexOf(tmpContent[o]._uuid) < 0) {
-                                    result[i] = tmpContent[o];
-                                    ++i;
-                                }
-                            }
+                            // #B827 — a row is listed ONCE, whatever the number of filter objects
+                            // it matches; the remaining filters are not read for it. The guards that
+                            // stood here looked a `_uuid` STRING up in an array of ROWS, so they
+                            // never skipped anything: a row matching two filters of an OR call was
+                            // listed twice, and a limited result then lost a real row.
+                            result[i] = tmpContent[o];
+                            ++i;
+                            break;
                         }
 
                     }
