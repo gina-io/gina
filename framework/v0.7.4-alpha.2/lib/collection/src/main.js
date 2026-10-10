@@ -974,10 +974,24 @@ function Collection(content, options) {
      * of the resultset :
      *      .notIn(filter, false) where false must be a real boolean
      *
-     *
+     * #B826 — with a filter object the found rows ARE rows of the searched
+     * array. When no `key` is named and every found row is one, each is taken
+     * out as itself and no comparison key is read: rows carrying neither a
+     * `_uuid` nor an `id` (after `toRaw()` or `update()`) are no longer refused,
+     * and rows sharing an `id` no longer lose the wrong one. A named `key`, and
+     * rows that come from elsewhere (the array form), are compared by key as
+     * before: such rows must carry the named key, a `_uuid` or an `id`.
      *
      * @param {object|array} filters|arrayToFilter - works like find filterss
      * @param {string} [key] - unique id for comparison; faster when provided
+     * @returns {array} result - a copy of the searched rows without the rows found (chainable)
+     * @throws {Error} when rows from elsewhere share no usable comparison key
+     *
+     * @example
+     * var col = new Collection([{ name: 'a' }, { name: 'b' }]);
+     * col.toRaw();                         // strips the internal `_uuid` of the rows
+     * col.notIn({ name: 'b' });            // [{ name: 'a' }]
+     * col.notIn([{ name: 'b' }], 'name');  // rows from elsewhere: compared by the named key
     */
     instance['notIn'] =  function(){
 
@@ -1021,8 +1035,36 @@ function Collection(content, options) {
             notInSearchModeEnabled = false;
         }
 
+        // #B826 — identity first. With a filter object the found rows ARE rows of
+        // the searched array, so each one is taken out of the clone at its own
+        // place and no comparison key is read: rows carrying neither `_uuid` nor
+        // `id` no longer throw, and rows sharing an `id` no longer lose the wrong
+        // one. A key the caller named, and rows that come from elsewhere, keep
+        // the key comparison below.
+        var source          = ( Array.isArray(this) ) ? this : content
+            , byIdentity    = false
+            , s             = 0
+            , sLen          = foundResults.length
+        ;
+        if ( !key && sLen > 0 ) {
+            byIdentity = true;
+            for (; s < sLen; ++s) {
+                if ( source.indexOf(foundResults[s]) < 0 ) {
+                    byIdentity = false;
+                    break;
+                }
+            }
+        }
 
-        if (foundResults.length > 0) {
+        if (byIdentity) {
+            // `currentResult` is the clone of `source`, row for row: going
+            // backwards keeps the places still to visit aligned
+            for (s = source.length - 1; s > -1; --s) {
+                if ( foundResults.indexOf(source[s]) > -1 ) {
+                    currentResult.splice(s, 1);
+                }
+            }
+        } else if (foundResults.length > 0) {
 
             // check key
             if (
@@ -1527,7 +1569,10 @@ function Collection(content, options) {
      * .delete({ car: 'toyota', color: red }, { car: 'ford' } ) // will delete all `toyota red cars` & all `ford cars`
      *
      *  N.B.: will not affect current result - just returning the DIFF
-     *  If you
+     *
+     * Delegates to `notIn()`: the rows found are taken out as themselves when
+     * no key is named, so a row needs neither a `_uuid` nor an `id` (#B826).
+     *
      * @param {object} filter - same as `.find(filter)`
      * @param {string|boolean} [ uuid | disabled ] - by default, Collection is using its internal _uuid
      * If you want to delete without key comparison, disable `uuid` search mode
