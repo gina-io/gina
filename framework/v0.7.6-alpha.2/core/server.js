@@ -8360,7 +8360,8 @@ function Server(options) {
      * that matched. Every method check uses the request's own method, whatever
      * protocol the bundle is configured for (#B645). Once a rule matches, the method's
      * bag holds each URL placeholder's value (#B954), and a top-level JSON array body
-     * reaches the action as that array, on a path's first request too (#B953).
+     * reaches the action as that array, on a path's first request too (#B953), at its arrival
+     * length on every request: a placeholder named with digits only stays in `req.params` (#B965).
      *
      * @inner
      * @private
@@ -8930,6 +8931,16 @@ function Server(options) {
             if ( _bodyIsBagArray ) {
                 req.body = _bagArray;
             }
+        }
+
+        // #B965 — on a warm route-cache hit the bag is still the array the request arrived with, and the
+        // router's fill (lib/routing `fitsWithRequirements` writes a URL value where the bag has none of
+        // that name) made a placeholder named with digits only an element past the array's end (`:5`
+        // beside a two-element body: length 6, 3 holes), while the first request kept the array as it
+        // arrived. Cut back to its arrival length, the array leaves that value in `req.params`, as on a
+        // first request; a cold match has left `_bagArray` itself, at that length already.
+        if ( matched && _bagArray !== null && Array.isArray(req[_reqMethodKey]) && req[_reqMethodKey].length > _bagArray.length ) {
+            req[_reqMethodKey].length = _bagArray.length;
         }
 
         // #B954 / #B957 — once a rule has matched, a URL placeholder's value wins over a query or
