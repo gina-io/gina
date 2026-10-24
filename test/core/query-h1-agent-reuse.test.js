@@ -104,8 +104,8 @@ describe('01 - #P44 source pins', function () {
         assert.ok(fn.indexOf('keepSocketAlive = function() { return false; }') > -1, 'eviction is graceful');
     });
 
-    it('CONTROL: isRetryableMethod is still invoked at exactly 5 sites', function () {
-        assert.strictEqual((SRC.match(/isRetryableMethod\(options/g) || []).length, 5);
+    it('CONTROL: isRetryableMethod is still invoked at exactly 4 sites', function () {
+        assert.strictEqual((SRC.match(/isRetryableMethod\(options/g) || []).length, 4);
     });
 });
 

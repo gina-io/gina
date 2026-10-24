@@ -6937,9 +6937,13 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
      * Sends an HTTP/2 request to an upstream bundle (inter-bundle `self.query()`).
      * Caches sessions per-authority. Validates session freshness via pre-flight PING
      * before sending on a cached session whose last PONG is older than HTTP2_PREFLIGHT_STALE_MS.
-     * Retries up to HTTP2_MAX_RETRIES times on transient failures (timeout, stream error,
-     * premature close, 502, pre-flight failure) with HTTP2_RETRY_DELAY_MS backoff on 2nd+ retry.
-     * ECONNREFUSED is never retried. A JSON-shaped response body is parsed and delivered as
+     * Retries up to HTTP2_MAX_RETRIES times on transient failures (stream error, premature
+     * close, 502, pre-flight failure) with HTTP2_RETRY_DELAY_MS backoff on 2nd+ retry.
+     * ECONNREFUSED is never retried, and neither is a stream timeout (#B967): the call fails
+     * TIMEOUT at `requestTimeout` and only its stream is cancelled (RST_STREAM CANCEL); a
+     * connected session is kept and marked stale, so the next call's pre-flight PING proves
+     * or evicts it, and a session that never finished connecting is evicted and destroyed.
+     * A JSON-shaped response body is parsed and delivered as
      * it came, exactly like the HTTP/1.1 handler does: no `status` is added to a body that has
      * none (#P47 F6).
      *
@@ -7096,6 +7100,11 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
             }
 
             client = browser.connect(authority, options);
+            // #B967 — the stream timeout tells a session that never connected by its 'connect' event:
+            // Bun reports client.connecting false before the TLS handshake completes (measured on
+            // 1.2.21, 1.3.14 and 1.4.2), while Node and Bun emit 'connect' only once the session is connected
+            client._ginaConnected = false;
+            client.once('connect', function onSessionConnected() { client._ginaConnected = true; });
             client._lastPongAt = Date.now(); // session just connected — inherently validated
 
             // Optional but recommended on M4/Orbstack
@@ -7472,8 +7481,9 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
         // (1,000 burst, then 33/s): the cached session was GOAWAY'd with INTERNAL_ERROR after
         // ~1,000 calls, silently on the server side. A settled stream closes itself within
         // milliseconds of `end` (the listener drop alone releases it — measured); an errored
-        // or timed-out one is torn down by its own error or by the session destroy the retry
-        // paths run, so nothing here needs a close.
+        // one is torn down by its own error or by the session destroy the retry paths run,
+        // and a timed-out one by the RST_STREAM(CANCEL) the timeout handler sends right after
+        // this release (#B967), so nothing here needs a close.
         // replaced: try { if (!req.closed && !req.destroyed) { req.close(); } } catch (e) {}
         var _finalized = false;
         var _finalizeStream = function _finalizeStream() {
@@ -7497,40 +7507,42 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
         // Stream-level timeout — mirrors the HTTP/1 path (handleHTTP1ClientRequest line ~2744).
         // Without this, a stream that receives no events hangs indefinitely (OrbStack ARM64
         // silently drops idle inter-container TCP connections without RST or FIN).
-        // On timeout: evict the dead session and retry with a fresh connection (up to
-        // HTTP2_MAX_RETRIES times, with HTTP2_RETRY_DELAY_MS backoff on 2nd+ retry).
+        // #B967 — a timeout fails this call with TIMEOUT and is never re-sent: a timed-out
+        // stream is no proof of a dead connection (measured: the re-send ran mostly against a
+        // live but slow upstream, which then ran the action again), and the session destroy
+        // that preceded it failed every sibling stream on the session (#B628). A connected
+        // session is kept and marked stale, so the next call's pre-flight PING proves it or
+        // evicts it (the keepalive PING finds a dead one too); a session that never finished
+        // connecting carried nothing out and is evicted and destroyed (a graceful close would
+        // wait forever for a connection that never came), so the next call opens a fresh one.
+        // replaced: evict the session + client.destroy(), then re-send a safe method (or a
+        //   retryUnsafe call) up to HTTP2_MAX_RETRIES, the second retry after HTTP2_RETRY_DELAY_MS
         var _streamTimeout = parseTimeout(options.requestTimeout) || 10000;
         req.setTimeout(_streamTimeout, function onStreamTimeout() {
             if (isFinished) return;
             isFinished = true;
-            console.warn('[HTTP2] Stream timeout ('+ (_streamTimeout > 1000 ? (_streamTimeout / 1000) + 's' : _streamTimeout + 'ms') +') on '+ options[':method'] +' '+ options[':path'] +' — evicting dead session (attempt '+ (retryCount + 1) +'/'+ (HTTP2_MAX_RETRIES + 1) +')');
-            // Synchronous eviction ensures the retry below creates a fresh session.
-            // #B625 — only our entry (a later attempt's session must survive). #B628 — the
-            // destroy() below still takes every sibling stream on this session with it;
-            // deliberately unchanged here, filed as a candidate.
-            if (_isCached(sessKey, client)) {
-                cache.delete(sessKey);
-                var _tIdx = self.serverInstance._http2Sessions.indexOf(sessKey);
-                if (_tIdx !== -1) self.serverInstance._http2Sessions.splice(_tIdx, 1);
+            var _tLabel = _streamTimeout > 1000 ? (_streamTimeout / 1000) + 's' : _streamTimeout + 'ms';
+            // a session without the flag (the boot warmup's) falls back to client.connecting
+            if (client._ginaConnected === false || (client._ginaConnected === undefined && client.connecting)) {
+                console.warn('[HTTP2] Stream timeout ('+ _tLabel +') on '+ options[':method'] +' '+ options[':path'] +' — the session never connected: evicting it, no re-send');
+                if (_isCached(sessKey, client)) { cache.delete(sessKey); } // #B625 — only our entry
+                if (!client.destroyed) client.destroy(); // no error arg — suppresses session 'error' event
+            } else {
+                console.warn('[HTTP2] Stream timeout ('+ _tLabel +') on '+ options[':method'] +' '+ options[':path'] +' — cancelling this stream, no re-send');
+                // stale: the next call PINGs the session first (HTTP2_PREFLIGHT_STALE_MS)
+                client._lastPongAt = Date.now() - HTTP2_PREFLIGHT_STALE_MS - 1;
             }
-            if (!client.destroyed) client.destroy(); // no error arg — suppresses session 'error' event
-            // #B53 — only re-send non-idempotent methods when the caller opted in (replay-safe).
-            if (retryCount < HTTP2_MAX_RETRIES && isRetryableMethod(options[':method'], options.retryUnsafe)) {
-                options.queryData = options._body;
-                var _tNext = retryCount + 1;
-                if (_tNext > 1) {
-                    // Backoff on 2nd+ retry — gives OrbStack time to stabilize
-                    return setTimeout(function() {
-                        handleHTTP2ClientRequest(browser, options, callback, _tNext, isCritical);
-                    }, HTTP2_RETRY_DELAY_MS);
-                }
-                return handleHTTP2ClientRequest(browser, options, callback, _tNext, isCritical);
-            }
-            // All retries exhausted — surface the error (H4: typed GinaHttp2Error)
-            var _timeoutMsg = '[HTTP2] No response from '+ options[':authority'] +' after '+ (_streamTimeout > 1000 ? (_streamTimeout / 1000) + 's' : _streamTimeout + 'ms') +' (exhausted '+ HTTP2_MAX_RETRIES +' retries)';
+            // RST_STREAM(CANCEL) for this stream only (a pending one just leaves the queue); its
+            // stream error comes after _finalizeStream() dropped the listeners, so a no-op takes it
+            var _cancelStream = function _cancelStream() {
+                try { req.on('error', function onCancelledStreamError() {}); } catch (e) {}
+                try { if (!req.closed && !req.destroyed) { req.close(browser.constants.NGHTTP2_CANCEL); } } catch (e) {}
+            };
+            var _timeoutMsg = '[HTTP2] No response from '+ options[':authority'] +' after '+ _tLabel;
             var _timeoutErr = new GinaHttp2Error(_timeoutMsg, { code: 'TIMEOUT', retryable: false, status: 503, retryCount: retryCount });
             // #B52 — release the settled stream (covers both the swallow-return and the callback below)
             _finalizeStream();
+            _cancelStream();
             // H3: if non-critical, swallow and return
             if (_swallowIfNonCritical(_timeoutErr)) return;
             try {
