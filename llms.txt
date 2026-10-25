@@ -203,6 +203,8 @@ Controlled by `"routeNameAsFilenameEnabled": true` in `templates.json`. Override
 
 **Layoutless renders** (`self.renderWithoutLayout(data)`) expose the controller's data BOTH at top level (`{{ var }}`) AND under `page.data` — fragment templates (e.g. popin/dialog content) rely on the `{% set data = page.data %}` path, both engines. (Implementation invariant: the `page.data` copy precedes the userData merge — the deep-merge returns its FIRST argument, so reversing the order aliases `page.data` to the whole context and the fragment's XHR-data serialization throws on the circular structure → HTTP 500.)
 
+**The data object is read, never written** (0.7.6) — every render delegate combines a per-render copy of the object passed to `self.render()` / `self.renderWithoutLayout()` (`core/controller/render-data.js`, `copyForRender(userData, data)`, called before the first combine statement): the object, its `page`, `page.view`, `page.data`, `page.environment`, `gina` and `session` members, and every member gina's render data also holds (at the top level or under `page.data`), are new nodes for the render; everything else is shared, so templates read the same values and one object can be passed on every request. Up to 0.7.5 the combine wrote the request's session block (`page.data.session`), its `page.view` and its Csrf values (`gina.csrfToken`, `gina.csrfInput`) into the object, so an object reused across requests carried one request's values into later pages (#B988). Class instances and built-ins (`Date`, `Map`, `Buffer`) are not copied (one passed as the object or placed at one of those paths keeps the 0.7.5 behaviour), and a change made to the object after the call may no longer reach the template.
+
 ---
 
 ## Entity (ORM) pattern

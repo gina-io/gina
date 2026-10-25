@@ -128,6 +128,8 @@ var inspectorRedact = require('lib/inspector-redact');
 var emitInspectorWindowData = require('./inspector-window-emit');
 // #RWATCH S3 — stale-release banner injector (server-side inline; gated inert).
 var releaseBanner = require('./release-banner');
+// #B988 — the per-render copy of the action's object, so the combine never writes into it.
+var renderData    = require('./render-data');
 
 /**
  * #B554 — HTML-escape a value before it is concatenated into an error page.
@@ -1227,6 +1229,10 @@ module.exports = async function renderNunjucks(userData, displayInspector, errOp
     //       This is the `render-swig.js:593` step nunjucks was missing; without
     //       it a controller passing a partial `page.environment` clobbers
     //       webroot/hostname/version (§4 parity rule).
+    //
+    // #B988 — all three run on a copy of the action's object: (a) and (b) place
+    // its members inside gina's data, where (c), `set()` and later writes reach them.
+    userData = renderData.copyForRender(userData, data);
     if (userData && typeof(userData) === 'object') {
         // (a) Branching stash
         if (!userData.page) {

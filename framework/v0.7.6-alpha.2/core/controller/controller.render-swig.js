@@ -20,6 +20,8 @@ var emitInspectorWindowData = require('./inspector-window-emit');
 var releaseBanner = require('./release-banner');
 // #B765 — the size and the switch of the automatic preload hints, shared with controller.js.
 var preloadHints  = require('./preload-hints');
+// #B988 — the per-render copy of the action's object, so the combine never writes into it.
+var renderData    = require('./render-data');
 // Precompiled regex — avoids per-request RegExp allocation (#P3)
 var blacklistRe       = /[<>]/g;
 
@@ -861,6 +863,13 @@ module.exports = async function render(userData, displayInspector, errOptions, d
     ) ? true : false;
 
     try {
+
+        // #B988 — combine a copy of the action's object, never the object itself: the
+        // three branches below make it the target of `merge` (which fills the keys it
+        // lacks) or alias it as `data.page.data`, and the session block, the Csrf token,
+        // `page.view` and the dev Inspector keys were written into it, so an object the
+        // action passes to several renders carried one request's values into the next.
+        userData = renderData.copyForRender(userData, data);
 
         if (!userData) {
             userData = { page: { view: {}}}

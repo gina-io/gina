@@ -6,6 +6,8 @@ const lib = require('./../../lib') || require.cache[require.resolve('./../../lib
 // binding keeps every log line here on the redacting, container-dispatched
 // writer regardless of that side effect.
 var console = lib.logger;
+// #B988 — the per-render copy of the action's object (kept in lockstep with render-swig.js).
+var renderData = require('./render-data');
 // Inherited from controller
 var self, local, SuperController, getData, hasViews, setResources, SwigFilters, headersSent;
 
@@ -265,6 +267,10 @@ module.exports = async function render(userData, displayInspector, errOptions, d
     }
 
     try {
+
+        // #B988 — combine a copy of the action's object, never the object itself (see
+        // the same call in controller.render-swig.js).
+        userData = renderData.copyForRender(userData, data);
 
         if (!userData) {
             userData = { page: { view: {}}}

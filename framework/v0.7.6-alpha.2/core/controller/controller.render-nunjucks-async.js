@@ -97,6 +97,8 @@ const Collection = libRef.Collection;
 // Sibling-file require, cache-hit-deduped across dev evictions — the same
 // shape the sync delegates use (render-swig.js:14 / render-nunjucks.js:129).
 const releaseBanner = require('./release-banner');
+// #B988 — the per-render copy of the action's object, so the combine never writes into it.
+const renderData = require('./render-data');
 
 /**
  * Lazily construct the process-wide render-context AsyncLocalStorage, parked on
@@ -639,6 +641,9 @@ module.exports = async function renderNunjucksAsync(userData, displayInspector, 
     //   (b) top-level merge with per-key `page` handling (preserves page.view etc.),
     //   (c) framework-data restore (re-overlay getData() so page.environment /
     //       page.view / page.data.session survive a partial page.* from the controller).
+    // #B988 — on a copy of the action's object: (a) and (b) place its members inside
+    // gina's data, where (c) and later writes reach them.
+    userData = renderData.copyForRender(userData, data);
     if (userData && typeof(userData) === 'object') {
         if (!userData.page) {
             if (!data.page.data) { data.page.data = {}; }
