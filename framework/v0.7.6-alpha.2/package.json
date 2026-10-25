@@ -3,7 +3,7 @@
   "version": "0.7.6-alpha.2",
   "dependencies": {
     "@rhinostone/busboy": "^1.6.1",
-    "@rhinostone/swig": "^2.9.5",
+    "@rhinostone/swig": "^2.9.6",
     "intl-messageformat": "^11.2.4",
     "psl": "^1.15.0",
     "ws": "^8.21.0"
