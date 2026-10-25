@@ -8451,10 +8451,22 @@ function ValidatorPlugin(rules, data, formId, culture) {
     /**
      * bindUploadResetOrDeleteTrigger
      *
-     * @param {string} bindingType - `reset`or `delete`
-     * @param {object} $uploadTrigger - HTMLFormElement
-     * @param {number} index
+     * Binds the reset (staged file) or delete (saved file) control of the file at `index`: the
+     * element `<input id>-<index>-<bindingType>-trigger`, or the id the input declares through
+     * `data-gina-form-upload-<bindingType>-trigger`. A control already bound is left as it is.
+     * Warns when the control is missing only where the page had to provide it: a delete control,
+     * or a declared id. A reset control missing under its default id is created by gina when the
+     * staging succeeds (#B292).
      *
+     * @inner
+     * @param {string} bindingType - `reset` or `delete`
+     * @param {object} $uploadTrigger - the file input (HTMLInputElement)
+     * @param {number} index - the file's index in the input
+     * @returns {void}
+     *
+     * @example
+     * // a staged file's reset control, bound once the staging succeeded
+     * bindUploadResetOrDeleteTrigger('reset', $input, 0); // binds #avatar-0-reset-trigger
      */
      var bindUploadResetOrDeleteTrigger = function(bindingType, $uploadTrigger, index) {
 
@@ -8502,7 +8514,13 @@ function ValidatorPlugin(rules, data, formId, culture) {
                 });
             }
             $uploadResetOrDeleteTrigger.isBinded = true;
-        } else {
+        } else if ( !$uploadResetOrDeleteTrigger && ( bindingType != 'reset' || customTriggerId ) ) {
+            // #B292 — the `else` also warned for a trigger found and already bound (a re-bind,
+            // `$forms[id].reBind()`), and for a reset trigger missing under its default id, which
+            // gina creates itself when the staging succeeds (onUpload). It warns now only when the
+            // page had to provide the trigger: a delete trigger, or an id declared through
+            // `data-gina-form-upload-<reset|delete>-trigger`.
+            // was: } else {
             console.warn('[FormValidator::bindForm][upload]['+$uploadTrigger.id+'] : did not find `upload '+bindingType+' trigger`.\nPlease, make sure that your '+bindingType+' element ID is `'+ uploadResetOrDeleteTriggerId +'`, or add to your file input ('+ $uploadTrigger.id +') -> `data-gina-form-upload-'+bindingType+'-trigger="your-custom-id"` definition.');
         }
     }
