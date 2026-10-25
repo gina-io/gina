@@ -11,6 +11,9 @@ const renderCache       = new lib.RenderCache();
 var statusCodes         = requireJSON( _( getPath('gina').core + '/status.codes') );
 // Inspector secret redaction (dev-mode only — never touches the actual response body)
 var inspectorRedact     = require('lib/inspector-redact');
+// #B992 — `copyOwn()`: the Inspector sidecars are written into a copy of the
+// action's object, never into the object itself (the #B988 / #B672 home).
+var renderData          = require('./render-data');
 
 // Inherited from controller.
 // #B63 (sibling of the render-swig #B61 / render-stream #B62 race fixes):
@@ -136,6 +139,12 @@ async function writeCache(bundle, opt, jsonContent, req, res, cacheIsEnabled, th
  *
  * Serialises `jsonObj` to JSON, sets appropriate content-type headers,
  * writes the response, and nulls per-request refs on every exit path.
+ *
+ * The object is read, not written: when the Inspector sidecars (`__ginaQueries`,
+ * `__ginaFlow`) are added, in dev or for an internal caller in an instrumentation
+ * window, they go into a copy made by `copyOwn()` (core/controller/render-data.js),
+ * so an object passed to several renderJSON calls never carries one request's
+ * sidecars into another response (#B992). A class instance is not copied.
  *
  * @param {object|string} jsonObj     - Data to serialise. Parsed if passed as a string.
  * @param {object}        deps        - Inherited refs from SuperController
@@ -382,7 +391,13 @@ module.exports = function renderJSON(jsonObj, deps) {
         // #INS10 — in a prod window, attach the RAW cross-bundle query sidecar ONLY when the
         // request came from an internal caller (inbound x-gina-inspector header) that will
         // strip it (controller.js extract path); never to an external client. Dev unchanged.
+        // #B992 — both sidecars are written into a copy of the action's object, made at the
+        // first write and reused by the second (`renderData.copyOwn()`: one level deep, the
+        // members shared). Written into the object itself, a memoized response object kept
+        // one request's query log and timeline and sent them in every later response.
+        var _sidecarCopy = null;
         if ((self.isCacheless() || ((process.gina && process.gina._inspectorWindowUntil > Date.now()) && request && request.headers && request.headers['x-gina-inspector'] === 'true')) && local._queryLog && local._queryLog.length > 0) {
+            jsonObj = _sidecarCopy = _sidecarCopy || renderData.copyOwn(jsonObj);
             jsonObj.__ginaQueries = local._queryLog;
         }
 
@@ -390,6 +405,7 @@ module.exports = function renderJSON(jsonObj, deps) {
         // propagation (mirrors __ginaQueries pattern).
         // #INS10 — same internal-caller gating as __ginaQueries above (no external leak in a window).
         if ((self.isCacheless() || ((process.gina && process.gina._inspectorWindowUntil > Date.now()) && request && request.headers && request.headers['x-gina-inspector'] === 'true')) && local._timeline && local._timeline.entries && local._timeline.entries.length > 0) {
+            jsonObj = _sidecarCopy = _sidecarCopy || renderData.copyOwn(jsonObj);
             jsonObj.__ginaFlow = local._timeline.entries;
         }
 
