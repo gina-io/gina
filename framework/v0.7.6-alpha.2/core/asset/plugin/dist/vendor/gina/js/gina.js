@@ -29486,9 +29486,19 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/loading-state', 'lib/merge'
                     }
                     // NB.: `type == 'action'` will be handled by the form validator
                     if ( type == 'link' ) {
-                        var linkHref = event.target.getAttribute('href') || null;
+                        // #B977: read the link's `href` and `target` from `event.currentTarget`, the
+                        // `<a>` register() bound this listener on, not from `event.target`, the node
+                        // actually clicked. A click on markup nested inside the link (an icon, a
+                        // `<span>` label) read no `target` there, took the in-popin branch below and
+                        // loaded the link's page into the popin instead of opening its window, which
+                        // the popin guide promises. The close branch below reads `event.currentTarget`
+                        // for the same reason (#B301). The in-popin dispatch keeps `event.target`: its
+                        // event bubbles to this link's own listener, which loads `$element.href`.
+                        // was: var linkHref = event.target.getAttribute('href') || null;
+                        // was: var linkTarget = event.target.getAttribute('target');
+                        var linkHref = event.currentTarget.getAttribute('href') || null;
                         // console.debug('This is a link', event.target);
-                        var linkTarget = event.target.getAttribute('target');
+                        var linkTarget = event.currentTarget.getAttribute('target');
                         if ( linkTarget != null && linkTarget != '' ) {
                             var _window = window.open(linkHref, linkTarget);
                             // #B974 — the link opened another window: nothing loads into
