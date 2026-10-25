@@ -73,8 +73,10 @@ module.exports = async function render(userData, displayInspector, errOptions, d
                                 typeof(userData.isRenderingCustomError) != 'undefined'
                                 && /^true$/i.test(userData.isRenderingCustomError)
                             ) ? true : false;
-    if (isRenderingCustomError)
-        delete userData.isRenderingCustomError;
+    // #B988 — the flag is stripped from the per-render copy, right after `copyForRender()`
+    // in the combine below (kept in lockstep with controller.render-swig.js).
+    // was: if (isRenderingCustomError)
+    // was:     delete userData.isRenderingCustomError;
 
     var localOptions = (errOptions) ? errOptions : local.options;
     localOptions.renderingStack.push( self.name );
@@ -271,6 +273,9 @@ module.exports = async function render(userData, displayInspector, errOptions, d
         // #B988 — combine a copy of the action's object, never the object itself (see
         // the same call in controller.render-swig.js).
         userData = renderData.copyForRender(userData, data);
+        // the legacy flag, read into `isRenderingCustomError` above, leaves the copy only
+        if (isRenderingCustomError)
+            delete userData.isRenderingCustomError;
 
         if (!userData) {
             userData = { page: { view: {}}}

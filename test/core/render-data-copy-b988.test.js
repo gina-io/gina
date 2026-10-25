@@ -188,6 +188,14 @@ var SWIG_ANCHOR = 'if (!userData) {';
 var SWIG_END    = 'data = merge(data, getData());';
 /** The combine block of the async and nunjucks delegates. */
 var NJ_ANCHOR   = "if (userData && typeof(userData) === 'object') {";
+/**
+ * The one statement the swig and v1 delegates run between the call and the combine: the
+ * legacy error flag leaves the copy (whitespace-normalised). The other delegates run none.
+ */
+var FLAG_STRIP  = {
+    swig : "if (isRenderingCustomError && userData && typeof(userData.isRenderingCustomError) != 'undefined') delete userData.isRenderingCustomError;",
+    v1   : 'if (isRenderingCustomError) delete userData.isRenderingCustomError;'
+};
 
 /**
  * The combine region of a delegate, from the copy line when the source has one (else from
@@ -541,6 +549,62 @@ describe('#B988 §01 — copyForRender(): which nodes are new, which stay shared
         assert.equal(c, o, 'a node below the cap is shared');
         assert.equal(depth, rd.MAX_DEPTH + 1, 'the first shared node sits just below MAX_DEPTH');
     });
+
+    it('01.11 every shape lib/merge descends into is copied: a drift guard on the isObject replica, whose controls show it can fail', function () {
+        var rd = helper();
+        class Model { constructor() { this.a = 1; } }
+        class List extends Array {}
+        function Legacy() { this.a = 1; }
+        var ownIsPrototypeOf = { isPrototypeOf: function () { return false; } };
+        // [label, a fresh member of that shape]
+        var SWEEP = [
+            ['a plain object',                                     function () { return { a: 1 }; }],
+            ['a null-prototype object',                            function () { var o = Object.create(null); o.a = 1; return o; }],
+            ['an object on a plain prototype',                     function () { var o = Object.create({ inherited: 1 }); o.a = 1; return o; }],
+            ['an object on a prototype with its own isPrototypeOf', function () { var o = Object.create(ownIsPrototypeOf); o.a = 1; return o; }],
+            ['JSON with a "constructor" object',                   function () { return JSON.parse('{"constructor":{},"a":1}'); }],
+            ['JSON with a "constructor" null',                     function () { return JSON.parse('{"constructor":null,"a":1}'); }],
+            ['Object.create(Object.prototype)',                    function () { var o = Object.create(Object.prototype); o.a = 1; return o; }],
+            ['a Proxy of a plain object',                          function () { return new Proxy({ a: 1 }, {}); }],
+            ['a class instance with an own constructor key',       function () { var o = new Model(); o.constructor = {}; return o; }],
+            ['a class instance',                                   function () { return new Model(); }],
+            ['a function-constructor instance',                    function () { return new Legacy(); }],
+            ['an array',                                           function () { return [1, 2]; }],
+            ['an array subclass',                                  function () { var x = new List(); x.push(1); return x; }],
+            ['a Date',                                             function () { return new Date(0); }],
+            ['a Map',                                              function () { return new Map(); }],
+            ['a Buffer',                                           function () { return Buffer.from('x'); }],
+            ['a RegExp',                                           function () { return /x/; }],
+            ['a function',                                         function () { return function f() {}; }],
+            ['an object with Symbol.toStringTag',                  function () { var o = { a: 1 }; o[Symbol.toStringTag] = 'Thing'; return o; }],
+            ['an object with nodeType',                            function () { return { nodeType: 1, a: 1 }; }],
+            ['an object with setInterval',                         function () { return { setInterval: function () {}, a: 1 }; }],
+            ['a frozen plain object',                              function () { return Object.freeze({ a: 1 }); }]
+        ];
+        var make = function (label) {
+            var row = SWEEP.filter(function (s) { return s[0] === label; })[0];
+            assert.ok(row, 'CONTROL: the sweep holds « ' + label + ' »');
+            return row[1];
+        };
+        // whether lib/merge writes into the member (descends) rather than replacing it or throwing
+        var mergeDescends = function (makeMember) {
+            var member = makeMember(), target = { k: member };
+            try { merge(target, { k: { __b988probe__: 1 } }); } catch (e) { return false; }
+            return target.k === member && member.__b988probe__ === 1;
+        };
+        // the shapes merge descends into that a copy function leaves shared
+        var underCopies = function (copy) {
+            return SWEEP.filter(function (s) {
+                if (!mergeDescends(s[1])) { return false; }
+                var member = s[1]();
+                return copy({ k: member }, { k: { z: 1 } }).k === member;
+            }).map(function (s) { return s[0]; });
+        };
+        assert.equal(mergeDescends(make('a plain object')), true, 'CONTROL: merge descends into a plain object');
+        assert.equal(mergeDescends(make('a class instance')), false, 'CONTROL: merge replaces a class instance');
+        assert.ok(underCopies(function (x) { return x; }).length > 0, 'CONTROL: a copy that shares everything is caught');
+        assert.deepEqual(underCopies(rd.copyForRender), [], 'no shape merge descends into is left shared');
+    });
 });
 
 
@@ -627,6 +691,26 @@ describe('#B988 §02 — each delegate\'s combine leaves the action\'s object as
             assert.ok(leaks.indexOf(expected) > -1, 'the 0.7.5 shape leaks: ' + expected + '\n(leaks: ' + leaks.join(' | ') + ')');
         });
     });
+
+    it('02.F the legacy error flag: an object that carries it keeps it, and the data the template receives does not (swig, v1)', function () {
+        [['swig', false], ['swig', true], ['v1', false]].forEach(function (c) {
+            var key = c[0], layoutless = c[1], label = key + (layoutless ? ', layoutless' : ', layout');
+            var fn = new Function(
+                'userData', 'data', 'renderData', 'merge', 'getData', 'setResources', 'localOptions', 'req', 'local',
+                'isWithoutLayout', 'isRenderingCustomError', 'Collection', 'JSON', 'template',
+                combineRegion(key).body + '\nreturn data;'
+            );
+            var env = newRequest({ sid: 'sid-A', token: 'tok-A', url: '/app/a', withSession: true, isWithoutLayout: layoutless });
+            var shared = { isRenderingCustomError: 'true', status: 404, title: 'shared' };
+            var snapshot = JSON.parse(JSON.stringify(shared));
+            var data = fn(shared, env.data, renderData, merge, env.getData, env.setResources, env.localOptions,
+                env.req, env.local, layoutless, true, Collection, JSON_SHIM, undefined);
+            var holder = (data.page && data.page.data && data.page.data.status === 404) ? data.page.data : data;
+            assert.deepEqual(shared, snapshot, label + ': the object keeps its keys');
+            assert.equal(holder.status, 404, label + ': CONTROL: the template data holds the object\'s values');
+            assert.equal('isRenderingCustomError' in holder, false, label + ': the template data lacks the flag');
+        });
+    });
 });
 
 
@@ -645,7 +729,8 @@ describe('#B988 §03 — each delegate copies the action\'s object before its co
             var cAt = st.indexOf(COPY_LINE), aAt = st.indexOf(anchor);
             assert.ok(aAt > -1, 'CONTROL: the combine anchor is in the source');
             assert.ok(cAt > -1 && cAt < aAt, 'the call precedes the combine');
-            assert.equal(st.slice(cAt + COPY_LINE.length, aAt).trim(), '', 'nothing runs between the call and the combine');
+            var between = st.slice(cAt + COPY_LINE.length, aAt).replace(/\s+/g, ' ').trim();
+            assert.equal(between, FLAG_STRIP[key] || '', 'nothing but the legacy flag strip runs between the call and the combine');
         });
     });
 
@@ -654,5 +739,15 @@ describe('#B988 §03 — each delegate copies the action\'s object before its co
         var text = fs.readFileSync(buildJson, 'utf8');
         assert.ok(text.indexOf('inline-script') === -1 && text.indexOf('core/controller') === -1, 'CONTROL: no controller module is bundled');
         assert.equal(text.indexOf('render-data'), -1);
+    });
+
+    it('03.7 swig and v1 strip the legacy error flag from the copy: one strip, after the call', function () {
+        ['swig', 'v1'].forEach(function (key) {
+            var st = STRIPPED[key];
+            var cAt = st.indexOf(COPY_LINE), dAt = st.indexOf('delete userData.isRenderingCustomError');
+            assert.ok(cAt > -1, key + ': CONTROL: the call is in the source');
+            assert.equal(count(st, 'delete userData.isRenderingCustomError'), 1, key + ': one strip');
+            assert.ok(dAt > cAt, key + ': the strip follows the call');
+        });
     });
 });

@@ -411,8 +411,10 @@ module.exports = async function render(userData, displayInspector, errOptions, d
                                     && String(userData.isRenderingCustomError).toLowerCase() === 'true')
                                 || localOptions.isRenderingCustomError === true
                             ) ? true : false;
-    if (isRenderingCustomError && userData && typeof(userData.isRenderingCustomError) != 'undefined')
-        delete userData.isRenderingCustomError;
+    // #B988 — the flag is stripped from the per-render copy, right after `copyForRender()`
+    // in the combine below, so the object the action passed is never written.
+    // was: if (isRenderingCustomError && userData && typeof(userData.isRenderingCustomError) != 'undefined')
+    // was:     delete userData.isRenderingCustomError;
 
     localOptions.renderingStack.push( self.name );
     // preventing multiple call of self.render() when controller is rendering from another required controller
@@ -870,6 +872,9 @@ module.exports = async function render(userData, displayInspector, errOptions, d
         // `page.view` and the dev Inspector keys were written into it, so an object the
         // action passes to several renders carried one request's values into the next.
         userData = renderData.copyForRender(userData, data);
+        // the legacy flag, read into `isRenderingCustomError` above, leaves the copy only
+        if (isRenderingCustomError && userData && typeof(userData.isRenderingCustomError) != 'undefined')
+            delete userData.isRenderingCustomError;
 
         if (!userData) {
             userData = { page: { view: {}}}
