@@ -122,6 +122,10 @@ var _carryRedactPatterns = inspectorRedact.compile(inspectorRedact.DEFAULT_PATTE
 // `link` header and the 103 Early Hints), shared with controller.render-swig.js.
 var preloadHints    = require('./preload-hints');
 
+// #B672 — `copyOwn()`: throwError() merges into a copy of the app's error object,
+// never into the object itself (the same home as the render delegates' #B988 copy).
+var renderData      = require('./render-data');
+
 /**
  * #A11Y3 — BCP-47 language tag for a framework-generated document.
  *
@@ -9850,7 +9854,9 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
                     if (_lastArg.stack)   errorObject.stack   = _lastArg.stack;
                     if (!errorObject.error) errorObject.error  = _lastArg.message || standardErrorMessage;
                 } else {
-                    errorObject = merge(_lastArg, errorObject);
+                    // #B672 — merge into a copy: the app's object is never written.
+                    // was: errorObject = merge(_lastArg, errorObject);
+                    errorObject = merge(renderData.copyOwn(_lastArg), errorObject);
                 }
             } else if (
                 !(arguments[arguments.length-1] instanceof Error)
@@ -9870,7 +9876,14 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
                 && typeof(res.error) != 'undefined'
                 && typeof(res.errors) != 'undefined'
             ) { // ApiError merge
-                errorObject = merge(arguments[arguments.length-1], errorObject)
+                // #B672 — merge into a copy of the app's object. As the target of the
+                // merge, the object itself received `status`, then the incident `ref`, a
+                // callsite `stack` and the custom error page's data, so an object reused
+                // across requests (a module-level error catalogue) answered a later
+                // request with the first request's ref and, carrying a stack, lost its
+                // `fields` on the HTML page.
+                // was: errorObject = merge(arguments[arguments.length-1], errorObject)
+                errorObject = merge(renderData.copyOwn(arguments[arguments.length-1]), errorObject)
             }
 
             // #B518 — a ONE-argument error object keeps its `message` and its `ref`.
@@ -9885,7 +9898,8 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
             // built. Both values are checked downstream like any other: the ref is
             // honoured only when relay-safe, and a message carrying a stack keeps its
             // first line outside the local scope (#B670). After the ApiError merge
-            // above `errorObject` IS the caller's object, so nothing is written there.
+            // above `errorObject` is a copy of the caller's object (#B672), which
+            // carries the same `message` and `ref`, so nothing is written there.
             if ( arguments.length == 1 && res && typeof(res) == 'object' ) {
                 if ( typeof(errorObject.message) == 'undefined' && typeof(res.message) == 'string' && res.message != '' ) {
                     errorObject.message = res.message;
@@ -10356,18 +10370,26 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
                     // via renderCustomError at L5266-5281 are consumer-owned.
                     if (msg.stack && _isLocalScope) {
 
+                        // #B672 — trim a local copy: `msg` is the caller's own object (an
+                        // Error or a plain object passed as the last argument), and the
+                        // trimmed text used to be written back into its `stack` at every call.
+                        // was: if (msg.error) { msg.stack = msg.stack.replace(msg.error, '') }
+                        // was: if (msg.message) { msg.stack = msg.stack.replace(msg.message, '') }
+                        // was: msg.stack = msg.stack.replace('Error:', '').replace(' ', '');
+                        var _msgStack = msg.stack;
+
                         if (msg.error) {
-                            msg.stack = msg.stack.replace(msg.error, '')
+                            _msgStack = _msgStack.replace(msg.error, '')
                         }
 
                         if (msg.message) {
-                            msg.stack = msg.stack.replace(msg.message, '')
+                            _msgStack = _msgStack.replace(msg.message, '')
                         }
 
-                        msg.stack = msg.stack.replace('Error:', '').replace(' ', '');
+                        _msgStack = _msgStack.replace('Error:', '').replace(' ', '');
                         // was: msgString += '<pre class="'+ eCode +' stack">'+ msg.stack +'</pre>';
                         // #B554 — escape: this value is caller-supplied and reached the page as markup.
-                        msgString += '<pre class="'+ eCode +' stack">'+ _escapeHtml(msg.stack) +'</pre>';
+                        msgString += '<pre class="'+ eCode +' stack">'+ _escapeHtml(_msgStack) +'</pre>';
                     }
 
                 } else {

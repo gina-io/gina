@@ -55,6 +55,14 @@
  * Nodes nested deeper than MAX_DEPTH stay references. Inherited members are not copied (the
  * walk reads own keys only).
  *
+ * ## `copyOwn()`
+ *
+ * The same copy one level deep, for an app's object that gina merges into outside a render
+ * (#B672): `throwError()`'s one-argument API-error form becomes the target of `lib/merge`,
+ * then receives the response's `status`, its incident `ref`, a callsite `stack` and the
+ * custom error page's data. `copyOwn()` gives gina a copy to write into; its members are
+ * shared.
+ *
  * Server-side only: `core/controller` is not part of the browser bundle.
  *
  * @module core/controller/render-data
@@ -90,6 +98,16 @@ var ALWAYS_COPIED = Object.freeze({
     gina    : Object.freeze({}),
     session : Object.freeze({})
 });
+
+/**
+ * The shape `copyOwn()` aligns with an object: it holds no member, so the object itself is
+ * copied and every member stays a reference. Frozen, never written.
+ *
+ * @constant
+ * @type {object}
+ * @private
+ */
+var TOP_LEVEL_ONLY = Object.freeze({});
 
 /** @constant {function} @private */
 var hasOwn   = Object.prototype.hasOwnProperty;
@@ -277,8 +295,43 @@ function copyForRender(userData, envelope) {
     return copyNode(userData, shapes, 0, new Map());
 }
 
+/**
+ * Returns a copy of an app's object for gina to write into, one level deep (#B672). The copy
+ * has the object's prototype and every own key with its descriptor, like a node copied by
+ * `copyForRender()`: data properties become writable and configurable (a frozen object gives
+ * a writable copy), accessors stay accessors and are not called, symbol and non-enumerable
+ * keys are kept. Every member value is shared, except a member that refers back to the object
+ * itself, which refers to the copy.
+ *
+ * A value that is not a copyable node is returned as is: `undefined`, `null`, a primitive, an
+ * `Error`, a `Date`, a function, or a class instance, whose internal slots and private fields
+ * would not survive a copy; gina writes into such a value as before.
+ *
+ * @memberof module:core/controller/render-data
+ * @param {*} value - the app's object (in `throwError()`, the one-argument error object)
+ * @returns {*} a new object with the same prototype and own properties, or `value` itself
+ *   when it is not a copyable node
+ *
+ * @example
+ * var renderData = require('./render-data');
+ * // throwError(), the one-argument API-error form: merge into a copy, not into the app's object
+ * errorObject = merge(renderData.copyOwn(arguments[arguments.length-1]), errorObject);
+ *
+ * @example
+ * var shared = Object.freeze({ error: 'Invalid input', fields: { email: 'required' } });
+ * var copy   = renderData.copyOwn(shared);
+ * copy !== shared;                 // true
+ * copy.fields === shared.fields;   // true: members are shared
+ * copy.ref = 'r1';                 // allowed: the copy is writable
+ * renderData.copyOwn(new Error('x')) instanceof Error; // true: returned as is
+ */
+function copyOwn(value) {
+    return copyNode(value, [TOP_LEVEL_ONLY], 0, new Map());
+}
+
 module.exports = {
     copyForRender : copyForRender,
+    copyOwn       : copyOwn,
     /**
      * Exposed for the unit tests only.
      *

@@ -1921,10 +1921,11 @@ describe('13 - throwError HTML branch: stack rendered only in local scope', func
         if (msg.error)   msgString += '<pre class="'+ eCode +' message">'+ _escapeHtml(msg.error) +'</pre>';
         if (msg.message) msgString += '<pre class="'+ eCode +' message">'+ _escapeHtml(msg.message) +'</pre>';
         if (msg.stack && isLocalScope) {
-            if (msg.error)   msg.stack = msg.stack.replace(msg.error, '');
-            if (msg.message) msg.stack = msg.stack.replace(msg.message, '');
-            msg.stack = msg.stack.replace('Error:', '').replace(' ', '');
-            msgString += '<pre class="'+ eCode +' stack">'+ _escapeHtml(msg.stack) +'</pre>';
+            var _msgStack = msg.stack;
+            if (msg.error)   _msgStack = _msgStack.replace(msg.error, '');
+            if (msg.message) _msgStack = _msgStack.replace(msg.message, '');
+            _msgStack = _msgStack.replace('Error:', '').replace(' ', '');
+            msgString += '<pre class="'+ eCode +' stack">'+ _escapeHtml(_msgStack) +'</pre>';
         }
         return msgString;
     }
