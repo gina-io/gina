@@ -57,11 +57,12 @@
  *
  * ## `copyOwn()`
  *
- * The same copy one level deep, for an app's object that gina merges into outside a render
- * (#B672): `throwError()`'s one-argument API-error form becomes the target of `lib/merge`,
- * then receives the response's `status`, its incident `ref`, a callsite `stack` and the
- * custom error page's data. `copyOwn()` gives gina a copy to write into; its members are
- * shared.
+ * The same copy one level deep, for an app's object that gina writes into outside the
+ * render delegates' combine: `throwError()`'s one-argument API-error form becomes the
+ * target of `lib/merge`, then receives the response's `status`, its incident `ref`, a
+ * callsite `stack` and the custom error page's data (#B672); `renderJSON()` adds its
+ * Inspector sidecars, `__ginaQueries` and `__ginaFlow` (#B992). `copyOwn()` gives gina a
+ * copy to write into; its members are shared.
  *
  * Server-side only: `core/controller` is not part of the browser bundle.
  *
@@ -308,7 +309,8 @@ function copyForRender(userData, envelope) {
  * would not survive a copy; gina writes into such a value as before.
  *
  * @memberof module:core/controller/render-data
- * @param {*} value - the app's object (in `throwError()`, the one-argument error object)
+ * @param {*} value - the app's object (in `throwError()`, the one-argument error object; in
+ *   `renderJSON()`, the object passed to it)
  * @returns {*} a new object with the same prototype and own properties, or `value` itself
  *   when it is not a copyable node
  *
