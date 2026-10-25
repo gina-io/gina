@@ -6943,6 +6943,15 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
      * TIMEOUT at `requestTimeout` and only its stream is cancelled (RST_STREAM CANCEL); a
      * connected session is kept and marked stale, so the next call's pre-flight PING proves
      * or evicts it, and a session that never finished connecting is evicted and destroyed.
+     * A retry never destroys a session that other streams still use (#B968, #B628, #B982):
+     * a premature close, a 502 or a stream reset evicts the session from the cache, and the
+     * eviction's cleanup closes it gracefully, so its other streams finish; a session error or
+     * a connection reset (the session itself is gone) still destroys it. A stream that ends
+     * without its response (no response headers, or an empty body on a destroyed session)
+     * follows the premature-close rule. A call that was never sent (its stream still pending,
+     * or its session never connected) is re-sent for any method (#B981), and a session that
+     * failed to connect on its own (a refused connection, a failed TLS handshake) answers with
+     * that error, typed as the stream-error path types it, and is never re-sent.
      * A JSON-shaped response body is parsed and delivered as
      * it came, exactly like the HTTP/1.1 handler does: no `status` is added to a body that has
      * none (#P47 F6).
@@ -7125,6 +7134,13 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
             };
 
             client.on('error', (error) => {
+                // #B981 — record the error that ended this session BEFORE it connected (a refused connection, a failed
+                // TLS handshake). On Bun 1.2 / 1.3 its streams then end without a response, and 'connect' may still fire
+                // after this event (measured after a failed handshake), so the state is captured here for the shared
+                // handler (_onStreamIncomplete) to read; Node and Bun 1.4 cancel those streams with this error as the
+                // cause instead. Query-path sessions only: the flag is set where they are created, and the boot
+                // warmup's sessions carry none.
+                if (client._ginaConnected === false) { client._ginaConnectError = error; }
                 // #H9 — the whole listener body is wrapped in try/catch so that a throw
                 // from enhancement (undefined options.protocol/scheme), cache mutation,
                 // or self.throwError cannot escape an 'error' event and become an
@@ -7579,19 +7595,35 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
             // goaway/close listeners evict it), one that merely refused a stream is
             // healthy and reused. The refused stream is already destroyed by the reset
             // and its timer cleared with it (measured), so there is nothing to release.
+            // #B981 — the third case: a stream cancelled while still PENDING (never
+            // submitted, no stream id) by our own session destroy, which passes no error,
+            // so the cancel has no cause (the stream timeout's destroy of a session that
+            // never connected, the keepalive's deadline). A cancel WITH a cause comes from
+            // a session that failed on its own (a refused connection, a failed handshake:
+            // Node and Bun 1.4 give its pending streams that error as the cause); it takes
+            // the generic terminal below, typed ECONNREFUSED or STREAM_ERROR, never retried.
             var _neverProcessed = (errorCode === 'ERR_HTTP2_GOAWAY_SESSION')
-                || (errorCode === 'ERR_HTTP2_STREAM_ERROR' && req.rstCode === 7 /* NGHTTP2_REFUSED_STREAM */);
+                || (errorCode === 'ERR_HTTP2_STREAM_ERROR' && req.rstCode === 7 /* NGHTTP2_REFUSED_STREAM */)
+                || (errorCode === 'ERR_HTTP2_STREAM_CANCEL' && req.pending === true && !error.cause); // #B981 — never submitted, cancelled by our own destroy
             if (retryCount < HTTP2_MAX_RETRIES && _neverProcessed) {
                 isFinished = true;
                 options.queryData = options._body; // restore body for retry
                 var _npNext = retryCount + 1;
-                console.warn('[HTTP2][RETRYING] Request on '+ options[':path'] +' was refused before it was processed ('+ (errorCode === 'ERR_HTTP2_GOAWAY_SESSION' ? errorCode : 'REFUSED_STREAM') +') — retry '+ _npNext +'/'+ HTTP2_MAX_RETRIES +', any method');
+                console.warn('[HTTP2][RETRYING] Request on '+ options[':path'] +' was refused before it was processed ('+ (errorCode === 'ERR_HTTP2_STREAM_ERROR' ? 'REFUSED_STREAM' : errorCode) +') — retry '+ _npNext +'/'+ HTTP2_MAX_RETRIES +', any method');
                 if (_npNext > 1) {
                     return setTimeout(function() {
                         handleHTTP2ClientRequest(browser, options, callback, _npNext, isCritical);
                     }, HTTP2_RETRY_DELAY_MS);
                 }
                 return handleHTTP2ClientRequest(browser, options, callback, _npNext, isCritical);
+            }
+
+            // #B968 — an OPEN stream cancelled by our own session destroy (a cancel with no cause): Bun 1.4 reports it
+            // this way, while Node and Bun 1.2 / 1.3 end such a stream without a response (onEnd below). Either way the
+            // stream ended without its response, and the shared handler decides: re-sent or PREMATURE_CLOSE.
+            if (errorCode === 'ERR_HTTP2_STREAM_CANCEL' && !error.cause) {
+                isFinished = true;
+                return _onStreamIncomplete();
             }
 
             // If the session closed exactly when we sent the request (Race Condition)
@@ -7615,7 +7647,10 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
                     if (_eIdx !== -1) self.serverInstance._http2Sessions.splice(_eIdx, 1);
                     _eIdx = null;
                 }
-                if (!client.destroyed) client.destroy();
+                // #B982 — ERR_HTTP2_STREAM_ERROR is the upstream resetting THIS stream: the session is evicted above
+                // (its cleanup closes it gracefully, so the other streams on it finish) and kept alive here. A session
+                // error or a connection reset means the session itself is gone, and it is torn down as before.
+                if (errorCode !== 'ERR_HTTP2_STREAM_ERROR' && !client.destroyed) client.destroy();
                 options.queryData = options._body; // restore body for retry
                 var _eNext = retryCount + 1;
                 console.warn('[HTTP2][RETRYING] Stream failed on '+ options[':path'] +' ('+ errorCode +') — retry '+ _eNext +'/'+ HTTP2_MAX_RETRIES);
@@ -7694,43 +7729,99 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
         // (no callback, no query#complete). Now retries with a fresh session on
         // premature close — covers GOAWAY race, server timeout, and network reset.
         // Retries up to HTTP2_MAX_RETRIES times with backoff.
-        req.on('close', function onQueryClosed() {
-            if (isFinished) return;
-            isFinished = true;
-            console.warn('[HTTP2] Premature stream close on '+ options[':method'] +' '+ options[':path'] +' — GOAWAY / session reset (attempt '+ (retryCount + 1) +'/'+ (HTTP2_MAX_RETRIES + 1) +')');
-            // #B53 — only re-send non-idempotent methods when the caller opted in (replay-safe).
-            if (retryCount < HTTP2_MAX_RETRIES && isRetryableMethod(options[':method'], options.retryUnsafe)) {
-                if (_isCached(sessKey, client)) { // #B625 — only our entry
-                    cache.delete(sessKey);
-                    var _cIdx = self.serverInstance._http2Sessions.indexOf(sessKey);
-                    if (_cIdx !== -1) self.serverInstance._http2Sessions.splice(_cIdx, 1);
+        /**
+         * One handler for every stream that ended without its complete response (#B968, #B981), whichever
+         * event says so: `close` before `end` (H1), `end` with no response headers or with an empty body on
+         * a destroyed session (onEnd below), and an open stream cancelled by our own session destroy (Bun 1.4,
+         * onQueryError above). In order:
+         * 1. the session failed to connect on its own (`client._ginaConnectError`, recorded by its `error`
+         *    listener before `connect`): that error is the answer, typed ECONNREFUSED (503) for a refused or
+         *    reset connection and STREAM_ERROR (500) otherwise, and the call is never re-sent;
+         * 2. nothing was sent (the stream is still pending, or its session never connected): re-sent for any
+         *    method within HTTP2_MAX_RETRIES, with nothing to evict;
+         * 3. else a safe method, or a `retryUnsafe` call, is re-sent on a fresh session: this one is evicted,
+         *    and the eviction's cleanup closes it gracefully, so its other streams still finish (#B628's class);
+         * 4. else the call fails PREMATURE_CLOSE (503).
+         * Terminals 1 and 4 release the settled stream (#B52) and deliver through the one swallow / callback
+         * sequence; the re-sends release nothing, as every retry branch of this handler.
+         *
+         * @inner
+         * @private
+         * @returns {void}
+         */
+        var _onStreamIncomplete = function _onStreamIncomplete() {
+            var _incompleteErr;
+            // #B981 — the session failed to connect on its own (its 'error' fired before 'connect': a refused connection,
+            // a failed TLS handshake). Bun 1.2 / 1.3 then end its streams without a response, so that error is the answer,
+            // typed as the stream error path types it on Node and Bun 1.4 (a cancel whose cause it is), and never re-sent:
+            // re-sent from here, a call to a dead port never settled on Bun 1.2 / 1.3 (measured: it hung until its timeout).
+            var _connectErr = client._ginaConnectError || null;
+            if (_connectErr) {
+                var _refused = /ECONNREFUSED|ECONNRESET/.test(String(_connectErr.code));
+                _incompleteErr = new GinaHttp2Error('[HTTP2] '+ _connectErr.message, {
+                    code       : _refused ? 'ECONNREFUSED' : 'STREAM_ERROR',
+                    retryable  : retryCount < HTTP2_MAX_RETRIES,
+                    status     : _refused ? 503 : 500,
+                    retryCount : retryCount
+                });
+                _incompleteErr.cause = _connectErr;
+                if (_connectErr.accessPoint) { _incompleteErr.accessPoint = _connectErr.accessPoint; }
+            } else {
+                // #B981 — nothing was sent: the stream is still pending, or its session never connected (our own
+                // destroy: the stream timeout's, the keepalive's) — replay-safe for ANY method, nothing to evict
+                if (retryCount < HTTP2_MAX_RETRIES && (req.pending === true || client._ginaConnected === false)) {
+                    options.queryData = options._body;
+                    var _nsNext = retryCount + 1;
+                    console.warn('[HTTP2][RETRYING] Request on '+ options[':path'] +' was never sent (its session never connected) — retry '+ _nsNext +'/'+ HTTP2_MAX_RETRIES +', any method');
+                    if (_nsNext > 1) {
+                        return setTimeout(function() {
+                            handleHTTP2ClientRequest(browser, options, callback, _nsNext, isCritical);
+                        }, HTTP2_RETRY_DELAY_MS);
+                    }
+                    return handleHTTP2ClientRequest(browser, options, callback, _nsNext, isCritical);
                 }
-                if (!client.destroyed) client.destroy();
-                options.queryData = options._body;
-                var _cNext = retryCount + 1;
-                if (_cNext > 1) {
-                    return setTimeout(function() {
-                        handleHTTP2ClientRequest(browser, options, callback, _cNext, isCritical);
-                    }, HTTP2_RETRY_DELAY_MS);
+                console.warn('[HTTP2] Premature stream close on '+ options[':method'] +' '+ options[':path'] +' — no complete response: its session was destroyed, or the stream was reset (attempt '+ (retryCount + 1) +'/'+ (HTTP2_MAX_RETRIES + 1) +')');
+                // #B53 — only re-send non-idempotent methods when the caller opted in (replay-safe).
+                if (retryCount < HTTP2_MAX_RETRIES && isRetryableMethod(options[':method'], options.retryUnsafe)) {
+                    // #B968 — evicted, never destroyed: the eviction's cleanup closes the session gracefully, so the other
+                    // streams in flight on it still finish (a destroy failed them all, the #B628 class)
+                    if (_isCached(sessKey, client)) { // #B625 — only our entry
+                        cache.delete(sessKey);
+                        var _cIdx = self.serverInstance._http2Sessions.indexOf(sessKey);
+                        if (_cIdx !== -1) self.serverInstance._http2Sessions.splice(_cIdx, 1);
+                    }
+                    // (until 0.7.6 this retry also tore the session down, which failed every other stream on it)
+                    options.queryData = options._body;
+                    var _cNext = retryCount + 1;
+                    if (_cNext > 1) {
+                        return setTimeout(function() {
+                            handleHTTP2ClientRequest(browser, options, callback, _cNext, isCritical);
+                        }, HTTP2_RETRY_DELAY_MS);
+                    }
+                    return handleHTTP2ClientRequest(browser, options, callback, _cNext, isCritical);
                 }
-                return handleHTTP2ClientRequest(browser, options, callback, _cNext, isCritical);
+                // H4: typed GinaHttp2Error — callers can check err.code === 'PREMATURE_CLOSE'
+                _incompleteErr = new GinaHttp2Error('[HTTP2] Stream closed before response was complete (GOAWAY / session timeout / network reset)', {
+                    code       : 'PREMATURE_CLOSE',
+                    retryable  : false,
+                    status     : 503,
+                    retryCount : retryCount
+                });
             }
-            // H4: typed GinaHttp2Error — callers can check err.code === 'PREMATURE_CLOSE'
-            var prematureCloseErr = new GinaHttp2Error('[HTTP2] Stream closed before response was complete (GOAWAY / session timeout / network reset)', {
-                code       : 'PREMATURE_CLOSE',
-                retryable  : false,
-                status     : 503,
-                retryCount : retryCount
-            });
             // #B52 — release the settled stream (covers both the swallow-return and the callback below)
             _finalizeStream();
             // H3: if non-critical, swallow and return
-            if (_swallowIfNonCritical(prematureCloseErr)) return;
+            if (_swallowIfNonCritical(_incompleteErr)) return;
             try {
-                _ownAsyncCbRejection(callback(prematureCloseErr));
+                _ownAsyncCbRejection(callback(_incompleteErr));
             } catch (_syncCbErr) {
                 _ownSyncCbThrow(_syncCbErr);
             }
+        };
+        req.on('close', function onQueryClosed() {
+            if (isFinished) return;
+            isFinished = true;
+            _onStreamIncomplete();
         });
 
         req.on('end', function onEnd() {
@@ -7741,16 +7832,19 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
             // Assemble chunks into a single string — one allocation, one conversion
             data = Buffer.concat(chunks).toString();
 
-            // 2. Guard Clause: Handle empty responses or aborted streams
+            // 2. Guard Clause: a stream that ended without its response, then an empty response
+            // #B968 — no response headers, or an empty body on a session destroyed under it, is not a response: the
+            // shared handler re-sends or fails it. The stream's own `destroyed` is no longer read: Bun 1.2 / 1.3 set
+            // it at every normal end, which turned every empty body (HEAD, 204, an empty 404) into a 500. Known limit
+            // (#B985): on Bun 1.2 / 1.3 the session also reads destroyed while it closes gracefully, so an empty body
+            // completing then is read as incomplete (a safe method is sent again, an unsafe one fails).
+            if (httpStatus === null || ((!data || data.trim() === "") && client.destroyed)) {
+                return _onStreamIncomplete();
+            }
             if (!data || data.trim() === "") {
-                // If aborted, handle it specifically
-                if (req.aborted || req.destroyed) {
-                    data = { status: 500, error: new Error('Request aborted by client or server') };
-                } else {
-                    // Might be a 204 No Content, but usually the upstream bundle should return {}
-                    console.warn('[HTTP2] Empty response received');
-                    data = { status: 200, empty: true };
-                }
+                // Might be a 204 No Content, but usually the upstream bundle should return {}
+                console.warn('[HTTP2] Empty response received');
+                data = { status: 200, empty: true };
             }
 
             // H2 fix: 502 from nginx means the upstream bundle was unreachable (idle TCP
@@ -7761,12 +7855,13 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
                 var _502Next = retryCount + 1;
                 console.warn('[HTTP2][RETRYING] 502 from '+ options[':authority'] + options[':path'] +' — retry '+ _502Next +'/'+ HTTP2_MAX_RETRIES +' in 2s');
                 setTimeout(function onHttp2RetryAfter502() {
+                    // #B628 (its 502 half) — evicted, not torn down: the eviction's cleanup closes the session
+                    // gracefully, so the other streams in flight on it still answer (before 0.7.6 they all failed)
                     if (_isCached(sessKey, client)) { // #B625 — only our entry
                         cache.delete(sessKey);
                         var _rIdx = self.serverInstance._http2Sessions.indexOf(sessKey);
                         if (_rIdx !== -1) self.serverInstance._http2Sessions.splice(_rIdx, 1);
                     }
-                    if (!client.destroyed) client.destroy();
                     options.queryData = options._body;
                     handleHTTP2ClientRequest(browser, options, callback, _502Next, isCritical);
                 }, 2000);
