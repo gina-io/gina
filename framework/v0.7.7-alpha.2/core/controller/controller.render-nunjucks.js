@@ -553,7 +553,8 @@ function injectInspectorScripts(html, data, self, local, displayInspector) {
  *
  *   1. HEAD + HTTP/2 stream  → `stream.respond({content-type, content-length, :status})` + `stream.end()`
  *   2. HEAD + HTTP/1.1       → `res.setHeader(content-type/content-length)` + `res.end()` (no body)
- *   3. body + HTTP/2 stream  → `stream.respond({content-type, :status})` + `stream.end(html)`
+ *   3. body + HTTP/2 stream  → `stream.respond({content-type, content-length, :status})` + `stream.end(html)`
+ *      (no content-length on a 204, 205 or 304, which carry no content)
  *   4. body + HTTP/1.1       → `res.end(html)` (content-type set earlier)
  *
  * The HTTP/2 branches merge headers set earlier in the pipeline (CORS,
@@ -659,6 +660,8 @@ function sendHtmlResponse(local, html, req, res) {
                     try { if (!stream.destroyed && !stream.closed) stream.sendTrailers(_trailers); } catch (_e) { /* best-effort */ }
                 });
             }
+            // #B1005 — declare the body's length, so a client can tell a body cut short from a complete one (#B985); not on a 204, 205 or 304, which carry no content (a Node client resets a 204 or 205 that declares a length)
+            if ( ( typeof(html) == 'string' || ( typeof(html) == 'object' && Buffer.isBuffer(html) ) ) && [204, 205, 304].indexOf(+_streamHeaders[':status']) < 0 ) { _streamHeaders['content-length'] = Buffer.byteLength(html); }
             stream.respond(_streamHeaders, _trailers ? { waitForTrailers: true } : undefined);
         }
         stream.end(html);

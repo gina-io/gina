@@ -8209,6 +8209,8 @@ function Server(options) {
                 var _sh = { ':status': 200 };
                 var _pending = res.getHeaders ? res.getHeaders() : {};
                 for (var ph in _pending) { _sh[ph] = _pending[ph]; }
+                // #B1005 — declare the body's length, so a client can tell a body cut short from a complete one (#B985)
+                if ( typeof(_hitContent) == 'string' || ( typeof(_hitContent) == 'object' && Buffer.isBuffer(_hitContent) ) ) { _sh['content-length'] = Buffer.byteLength(_hitContent); }
                 res.stream.respond(_sh);
                 res.stream.end(_hitContent);
                 // #B750 — `headersSent` is a getter-only accessor on the HTTP/2 compat

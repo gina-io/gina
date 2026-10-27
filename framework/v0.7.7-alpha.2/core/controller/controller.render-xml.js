@@ -195,6 +195,8 @@ module.exports = function renderXML(xmlContent, contentType, deps) {
                         try { if (!stream.destroyed && !stream.closed) stream.sendTrailers(_trailers); } catch (_e) { /* best-effort */ }
                     });
                 }
+                // #B1005 — declare the body's length, so a client can tell a body cut short from a complete one (#B985); not on a 204, 205 or 304, which carry no content (a Node client resets a 204 or 205 that declares a length)
+                if ( ( typeof(data) == 'string' || ( typeof(data) == 'object' && Buffer.isBuffer(data) ) ) && [204, 205, 304].indexOf(+_streamHeaders[':status']) < 0 ) { _streamHeaders['content-length'] = Buffer.byteLength(data); }
                 stream.respond(_streamHeaders, _trailers ? { waitForTrailers: true } : undefined);
             }
 

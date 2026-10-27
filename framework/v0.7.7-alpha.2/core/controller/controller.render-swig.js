@@ -1517,6 +1517,8 @@ module.exports = async function render(userData, displayInspector, errOptions, d
                                     try { if (!stream.destroyed && !stream.closed) stream.sendTrailers(_trailers); } catch (_e) { /* best-effort */ }
                                 });
                             }
+                            // #B1005 — declare the body's length, so a client can tell a body cut short from a complete one (#B985); not on a 204, 205 or 304, which carry no content (a Node client resets a 204 or 205 that declares a length)
+                            if ( ( typeof(htmlContent) == 'string' || ( typeof(htmlContent) == 'object' && Buffer.isBuffer(htmlContent) ) ) && [204, 205, 304].indexOf(+_streamHeaders[':status']) < 0 ) { _streamHeaders['content-length'] = Buffer.byteLength(htmlContent); }
                             stream.respond(_streamHeaders, _trailers ? { waitForTrailers: true } : undefined);
                         }
                         stream.end(htmlContent);
@@ -2227,6 +2229,8 @@ module.exports = async function render(userData, displayInspector, errOptions, d
                                     try { if (!stream.destroyed && !stream.closed) stream.sendTrailers(_trailers); } catch (_e) { /* best-effort */ }
                                 });
                             }
+                            // #B1005 — declare the body's length, so a client can tell a body cut short from a complete one (#B985); not on a 204, 205 or 304, which carry no content (a Node client resets a 204 or 205 that declares a length)
+                            if ( ( typeof(htmlContent) == 'string' || ( typeof(htmlContent) == 'object' && Buffer.isBuffer(htmlContent) ) ) && [204, 205, 304].indexOf(+_streamHeaders2[':status']) < 0 ) { _streamHeaders2['content-length'] = Buffer.byteLength(htmlContent); }
                             stream.respond(_streamHeaders2, _trailers ? { waitForTrailers: true } : undefined);
                         }
                         stream.end(htmlContent);

@@ -412,6 +412,8 @@ function sendHtmlResponse(local, html, req, res) {
                     try { if (!stream.destroyed && !stream.closed) stream.sendTrailers(_trailers); } catch (_e) { /* best-effort */ }
                 });
             }
+            // #B1005 — declare the body's length, so a client can tell a body cut short from a complete one (#B985); not on a 204, 205 or 304, which carry no content (a Node client resets a 204 or 205 that declares a length)
+            if ( ( typeof(html) == 'string' || ( typeof(html) == 'object' && Buffer.isBuffer(html) ) ) && [204, 205, 304].indexOf(+_streamHeaders[':status']) < 0 ) { _streamHeaders['content-length'] = Buffer.byteLength(html); }
             stream.respond(_streamHeaders, _trailers ? { waitForTrailers: true } : undefined);
         }
         stream.end(html);

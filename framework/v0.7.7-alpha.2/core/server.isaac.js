@@ -2962,11 +2962,12 @@ function ServerEngineClass(options) {
                             typeof(cachedContentObj.fromMemory) != 'undefined'
                         ) {
                             console.info(request.method +' [200]['+ cacheStatus +'] '+ request.url);
-                            return response.end(
-                                _rn
-                                    ? lib.RenderCache.swapNonces(cachedContentObj.content, _rn.oldNonces, _rn.nonce)
-                                    : cachedContentObj.content
-                            );
+                            // #B1005 — declare the body's length, so a client can tell a body cut short from a complete one (#B985)
+                            var _hitBody = _rn
+                                ? lib.RenderCache.swapNonces(cachedContentObj.content, _rn.oldNonces, _rn.nonce)
+                                : cachedContentObj.content;
+                            if ( typeof(_hitBody) == 'string' || ( typeof(_hitBody) == 'object' && Buffer.isBuffer(_hitBody) ) ) { response.setHeader('content-length', Buffer.byteLength(_hitBody)); }
+                            return response.end(_hitBody);
                         }
 
                         filename  =  _(cachedContentObj.filename, true);
@@ -2983,7 +2984,10 @@ function ServerEngineClass(options) {
                                     return response.end(''+ (err.message || err));
                                 }
                                 console.info(request.method +' [200] '+ request.url);
-                                return response.end( lib.RenderCache.swapNonces(fileContent, _rn.oldNonces, _rn.nonce) );
+                                // #B1005 — declare the body's length, so a client can tell a body cut short from a complete one (#B985)
+                                var _hitBodyFs = lib.RenderCache.swapNonces(fileContent, _rn.oldNonces, _rn.nonce);
+                                if ( typeof(_hitBodyFs) == 'string' || ( typeof(_hitBodyFs) == 'object' && Buffer.isBuffer(_hitBodyFs) ) ) { response.setHeader('content-length', Buffer.byteLength(_hitBodyFs)); }
+                                return response.end(_hitBodyFs);
                             });
                         }
 
