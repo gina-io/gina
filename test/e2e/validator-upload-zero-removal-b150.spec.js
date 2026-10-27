@@ -44,6 +44,11 @@
  */
 
 const { test, expect } = require('@playwright/test');
+// WebKit hands Playwright no body for gina's Blob staging request, so a mock reading the staged
+// file names from it would answer "no files" there: copy each Blob body into a header that
+// requestBody() falls back to (helpers/request-body.js, #B996).
+const { copyBlobBodies, requestBody } = require('./helpers/request-body');
+test.beforeEach(async ({ context }) => { await context.addInitScript(copyBlobBodies); });
 
 const PORT = process.env.GINA_E2E_PORT || '3179';
 const BASE = 'http://localhost:' + PORT + '/';
@@ -101,7 +106,7 @@ async function open(pw, html, answer, extraRoutes) {
     }
     if (answer) {
         await pw.route('**/upload-stage', async (route) => {
-            const s = (route.request().postDataBuffer() || Buffer.alloc(0)).toString('latin1');
+            const s = (requestBody(route.request()) || Buffer.alloc(0)).toString('latin1');
             const names = [];
             const re = /filename="([^"]+)"/g;
             let m;
@@ -316,7 +321,7 @@ test.describe('#B150 reproduction attempt — a reset or a delete that removes n
             if (stagings === 1) {
                 return route.fulfill({ status: 500, contentType: 'application/json; charset=utf-8', body: JSON.stringify({ status: 500, error: 'staging refused' }) });
             }
-            const s = (route.request().postDataBuffer() || Buffer.alloc(0)).toString('latin1');
+            const s = (requestBody(route.request()) || Buffer.alloc(0)).toString('latin1');
             const names = []; const re = /filename="([^"]+)"/g; let m;
             while ((m = re.exec(s))) { names.push(m[1]); }
             await route.fulfill({ status: 200, contentType: 'application/json; charset=utf-8', body: JSON.stringify({ files: names.map(ANSWERS.image) }) });

@@ -36,6 +36,11 @@
  */
 
 const { test, expect } = require('@playwright/test');
+// WebKit hands Playwright no body for gina's Blob staging request, so a mock reading the staged
+// file names from it would answer "no files" there: copy each Blob body into a header that
+// requestBody() falls back to (helpers/request-body.js, #B996).
+const { copyBlobBodies, requestBody } = require('./helpers/request-body');
+test.beforeEach(async ({ context }) => { await context.addInitScript(copyBlobBodies); });
 const fs = require('fs');
 
 const PORT = process.env.GINA_E2E_PORT || '3179';
@@ -96,7 +101,7 @@ async function open(pw, html) {
         });
     }
     await pw.route('**/upload-stage', async (route) => {
-        const s = (route.request().postDataBuffer() || Buffer.alloc(0)).toString('latin1');
+        const s = (requestBody(route.request()) || Buffer.alloc(0)).toString('latin1');
         const names = [];
         const re = /filename="([^"]+)"/g;
         let m;
