@@ -30,8 +30,9 @@
  *                                         same tree, path handling and mime map as
  *                                         the real handler (core/server.js:4622)
  *   GET /_gina/agent                   -> SSE stub: connected `data` frame (bundle
- *                                         identity e2e@dev) + one `log` frame; no
- *                                         `upgrade` listener, so the SPA's WS
+ *                                         identity e2e@dev) + one `log` frame; a
+ *                                         WebSocket upgrade is refused (404, then
+ *                                         the socket closes), so the SPA's WS
  *                                         attempt fails into its real SSE fallback
  *   GET /_gina/logs                    -> SSE stub, one canned log frame
  *   GET /_gina/indexes                 -> { connectors: {} } (zero-connector shape)
@@ -764,6 +765,16 @@ const server = http.createServer(function (req, res) {
                 fs.readFileSync(insFile, insBinary ? undefined : 'utf8'));
         }
         if (url === '/_gina/agent') {
+            // A WebSocket upgrade reaches this handler because the server has no
+            // `upgrade` listener (Node then treats it as a plain request). Refuse it
+            // as gina's agent handler refuses an upgrade (core/server.js
+            // attachInspectorAgentWs: a status line, then the socket closes), so the
+            // SPA's WebSocket fails on every engine: answered with the SSE stream,
+            // Linux WebKit kept the socket pending and the fallback never started.
+            if (req.headers.upgrade) {
+                res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8', 'connection': 'close' });
+                return res.end('Not Found');
+            }
             // SSE agent stub — mirrors the real handler's connect sequence
             // (core/server.js:4732-4760): `:ok` preamble, then the no-snapshot
             // "connected" `data` frame carrying the bundle identity, then one
