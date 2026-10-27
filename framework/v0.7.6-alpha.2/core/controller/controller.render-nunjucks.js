@@ -171,10 +171,10 @@ var _escapeHtml = function(value) {
 // the lib registry so the dev-mode hot-reload evictions of `lib/index.js`
 // don't poison the reference across requests.
 //
-// FRAMEWORK PATCH: mirror render-swig.js's `|| require.cache[...]`
+// Mirror render-swig.js's `|| require.cache[...]`
 // fallback. server.isaac.js refreshCore() overwrites the lib cache entry with the
 // exports value (not a Module object), so a plain `require()` here returns
-// undefined and crashes the module-level read. Push upstream to gina-io/gina.
+// undefined and crashes the module-level read.
 var libRef          = require('../../lib') || require.cache[require.resolve('../../lib')];
 // #B433 hardening — bind the logger explicitly. Until now this file reached it
 // only because lib/routing reassigns the global at require time; an explicit
@@ -702,7 +702,7 @@ function sendHtmlResponse(local, html, req, res) {
  *   received; the caller runs both render calls inside the store with it (#B519)
  */
 function registerGinaFilters(env, self, local, localOptions, req, res) {
-    // FRAMEWORK PATCH: use module-scope libRef fallback so
+    // Use the module-scope libRef fallback so
     // refreshCore's malformed cache entry doesn't return undefined here.
     var nunjucksFilters = (libRef && libRef.nunjucksFilters)
         || require('../../lib/nunjucks-filters');
@@ -745,12 +745,12 @@ function registerGinaFilters(env, self, local, localOptions, req, res) {
         res:         res
     });
 
-    // FRAMEWORK PATCH: apply bundle-level filter wraps registered
+    // Apply bundle-level filter wraps registered
     // on process state. Bundle-level monkey-patches on `lib.nunjucksFilters`
     // don't survive refreshCore() (which creates a fresh lib singleton ~per-
     // request in dev mode), so bundles register their wrap on
     // `process.gina._bundleFilterWraps[bundleName]` and the framework applies
-    // them here. Push upstream to gina-io/gina alongside Bugs A-D.
+    // them here.
     var bundleFilterWraps = (process.gina && process.gina._bundleFilterWraps) || {};
     Object.keys(bundleFilterWraps).forEach(function (bundleName) {
         var wrap = bundleFilterWraps[bundleName];
@@ -1165,7 +1165,7 @@ module.exports = async function renderNunjucks(userData, displayInspector, errOp
     // Fetch the nunjucks module from the process-cache. `get()` throws if
     // the bundle-startup load did not succeed — we surface that cleanly
     // via throwError so the usual error page pipeline handles it.
-    // FRAMEWORK PATCH: use module-scope libRef fallback.
+    // Uses the module-scope libRef fallback.
     var nunjucks;
     try {
         nunjucks = (libRef && libRef.nunjucksResolver)
@@ -1286,13 +1286,13 @@ module.exports = async function renderNunjucks(userData, displayInspector, errOp
         data = merge(data, { page: { data: { session: sessionBlock } } });
     }
 
-    // FRAMEWORK PATCH: Bug J — alias `data.data` to `data.page.data`
+    // Alias `data.data` to `data.page.data`
     // so page-shell `{% set X = data.Y %}` resolves under nunjucks layout
     // inheritance. Mirrors swig's `_layouts/layout.html:1` `{% set data = page.data %}`.
-    // Without this, page-shells like `estimate/get.njk:11 {% set document = data.document %}`
+    // Without this, a page shell such as `{% set document = data.document %}`
     // evaluate to undefined (no `data` key in the env.render context object) and
-    // the .overview section renders empty even though page.data.document is fully
-    // populated. Push upstream to gina-io/gina alongside Bugs A-I.
+    // the section that reads it renders empty even though page.data.document is fully
+    // populated.
     if (data && data.page && data.page.data) {
         data.data = data.page.data;
     }
@@ -1489,14 +1489,13 @@ module.exports = async function renderNunjucks(userData, displayInspector, errOp
         try { console.warn('[render-nunjucks] asset injection skipped: ' + (assetErr.message || assetErr)); } catch (e) {}
     }
 
-    // FRAMEWORK PATCH: substitute {{ page.X }} / {{ page.environment.X }}
+    // Substitute {{ page.X }} / {{ page.environment.X }}
     // placeholders inside ginaLoader (gina.onload.min.js), which is inserted as a literal
     // HTML string by injectAssets() and therefore cannot rely on nunjucks to resolve its
     // tokens. Mirrors render-swig.js:572-582 (flatten dict) + 1276 (whisper call). Without
     // this, `window.onGinaLoaded` throws a JSON.parse SyntaxError on every page, leaving
     // gina.popin / gina.session / gina.forms / window.onGenericXhrResponse undefined and
-    // breaking every legacy popin + form-submit. Push upstream to gina-io/gina alongside
-    // Bugs A-E.
+    // breaking every legacy popin + form-submit.
     try {
         if (data && data.page && typeof data.page === 'object' && typeof whisper === 'function') {
             var ginaLoaderDic = {};

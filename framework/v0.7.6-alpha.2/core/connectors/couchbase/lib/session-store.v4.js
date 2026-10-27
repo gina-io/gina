@@ -171,12 +171,11 @@ module.exports = function(session, bundle){
         }
         if (err) return fn(err);
         if (!data || !data.value) return fn();
-        // FRAMEWORK PATCH: handle the case where data.value is
+        // Handle the case where data.value is
         // already a parsed object (Couchbase Node.js SDK 4.x JsonTranscoder
         // returns the decoded value, not the raw bytes). Without this, calling
         // .toString() on an object produces "[object Object]" which JSON.parse
         // can't handle and every authenticated request 500s on session-retrieval.
-        // Push upstream to gina-io/gina.
         if (typeof data.value === 'object' && !Buffer.isBuffer(data.value)) {
             console.debug('[SessionStore v4] (1) GOT data (already-parsed object)');
             return fn(null, data.value);

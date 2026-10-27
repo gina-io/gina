@@ -3589,7 +3589,7 @@ function Server(options) {
             //         .replace(/((src|href|srcset)\=\"|(src|href|srcset)\=\')/g, '')
             //         .replace(/\"/g, '')
             // ;
-            // FRAMEWORK PATCH: drop the `^` anchor so the
+            // Drop the `^` anchor so the
             // decorative-quote strip is also skipped when `{{ }}` is embedded
             // mid-string (e.g. `css/main.css?cache={{ ''|formatDate('HH:MM:ss') }}`).
             // Without this, inner Swig string-literal quotes get stripped, the
@@ -6286,7 +6286,7 @@ function Server(options) {
                 ) {
 
                     installH2SendShim(response); // #B562
-                    // FRAMEWORK PATCH: Bug I — per-request dispatcher
+                    // A per-request dispatcher (createNextMiddleware)
                     var nextMiddleware = createNextMiddleware();
                     nextMiddleware._index        = 0;
                     nextMiddleware._count        = self.instance._expressMiddlewares.length-1;
@@ -7988,7 +7988,7 @@ function Server(options) {
      * @private
      * @param {Error|boolean} err - Error from the previous middleware, or false
      */
-    // FRAMEWORK PATCH: Bug I — wrap nextMiddleware in a
+    // Wrap nextMiddleware in a
     // per-request factory. The original function held dispatch state on its
     // own properties (._index, ._request, ._response, ._next, ._nextAction).
     // Under concurrent requests, request B's setup at the entry point
@@ -7997,7 +7997,7 @@ function Server(options) {
     // sporadic 500s when express-session correctly populated req.session for
     // A but CSRF then ran with B's req that never went through session.
     // Each call to createNextMiddleware now returns a fresh function with
-    // closure-isolated state. Push upstream to gina-io/gina.
+    // closure-isolated state.
     var createNextMiddleware = function() {
     var nextMiddleware = function(err) {
 
@@ -9039,7 +9039,7 @@ function Server(options) {
 
             if ( /^isaac/.test(self.engine) && self.instance._expressMiddlewares.length > 0) {
                 installH2SendShim(res); // #B562
-                // FRAMEWORK PATCH: Bug I — per-request dispatcher
+                // A per-request dispatcher (createNextMiddleware)
                 var nextMiddleware = createNextMiddleware();
                 nextMiddleware._index        = 0;
                 nextMiddleware._count        = self.instance._expressMiddlewares.length-1;

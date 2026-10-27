@@ -273,9 +273,9 @@ if (process.argv.length >= 3 /**&& /gina$/.test(process.argv[1])*/ ) {
                         evar = false
                     }
 
-                    // FRAMEWORK PATCH: mirror ctxObj.envVars into process.env so
+                    // Mirror ctxObj.envVars into process.env so
                     // third-party plugins (Csrf, future env-readers) see what filterArgs() stripped
-                    // in the supervisor before spawn. Push upstream to gina-io/gina.
+                    // in the supervisor before spawn.
                     if ( typeof(obj[a]) != 'undefined' && obj[a] !== null ) {
                         process.env[a] = String(obj[a]);
                     }

@@ -692,7 +692,7 @@ module.exports = async function renderNunjucksAsync(userData, displayInspector, 
         data = merge(data, { page: { data: { session: sessionBlock } } });
     }
 
-    // Bug-J — alias `data.data` to `data.page.data` so page-shell
+    // Alias `data.data` to `data.page.data` so page-shell
     // `{% set X = data.Y %}` resolves under nunjucks layout inheritance (swig
     // does this via `_layouts/layout.html` `{% set data = page.data %}`). Without
     // it a page-shell's `{% set document = data.document %}` evaluates to

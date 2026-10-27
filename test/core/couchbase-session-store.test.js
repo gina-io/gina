@@ -280,7 +280,7 @@ describe('06 - session-store.v4: get() handles JsonTranscoder pre-decoded object
     var src;
     before(function () { src = fs.readFileSync(STORE_V4, 'utf8'); });
 
-    it('source: FRAMEWORK PATCH marker for the JsonTranscoder branch is present', function () {
+    it('source: the comment explaining the JsonTranscoder branch is present', function () {
         // Negative-invariant lock against an accidental revert.
         assert.ok(
             src.indexOf('JsonTranscoder') > -1,
