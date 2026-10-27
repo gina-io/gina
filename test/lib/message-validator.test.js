@@ -148,7 +148,7 @@ describe('message-validator §01 — wiring pins', function () {
         var code = stripLineComments(CTRL_SRC);
         var flashIdx  = code.indexOf("typeof(res.flash) != 'undefined'");
         var errorsIdx = code.indexOf("typeof(res.errors) != 'undefined'");
-        var mergeIdx  = code.indexOf('errorObject = merge(arguments[arguments.length-1], errorObject)');
+        var mergeIdx  = code.indexOf('errorObject = merge(renderData.copyOwn(arguments[arguments.length-1]), errorObject)');
         assert.ok(flashIdx > -1, 'anti-vacuity: the stripped source must still carry the pre-existing flash disjunct');
         assert.ok(errorsIdx > -1, 'the errors disjunct must exist in CODE (not a comment)');
         assert.ok(mergeIdx > errorsIdx, 'the errors disjunct must gate the ApiError merge');

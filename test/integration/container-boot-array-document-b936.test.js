@@ -17,11 +17,11 @@
  *       (isaac's multi-parameter branch JSON-parses the value, so the helper never sees it), an object
  *       `inheritedData`, an `application/json` array body (verbatim JSON.parse, #B28), a plain GET.
  *
- * The boot's FIRST POST, whatever its content type, reaches the action with `req.post` re-keyed by
- * index (`{ "0": …, "1": … }`) while `req.body` keeps the array, and every later POST gets the array
- * itself (#B953, measured 2026-10-21: on a cold route the routing loop copies the body's keys into a
- * fresh object). So the POST arms pin `req.body` and the element values of `req.post`, never the
- * container `req.post` arrives in.
+ * Before 0.7.6 the boot's FIRST POST to a path, whatever its content type, reached the action with
+ * `req.post` re-keyed by index (`{ "0": …, "1": … }`) while `req.body` kept the array, and every later
+ * POST got the array itself (#B953: on a cold route the routing loop matched on an `Object.assign`
+ * copy of the bag). The POST arms pin `req.body` and the element values of `req.post`, which hold on
+ * both sides of that fix; container-boot-array-bag-b953.test.js pins the container.
  *
  * Every request carries a client timeout, so a pre-fix run FAILS instead of hanging the suite.
  *

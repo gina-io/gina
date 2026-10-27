@@ -66,6 +66,10 @@ async function submitAndCollect(page) {
     // submit client-side — without this the XHR never fires and BOTH arms read
     // "no error event" for the wrong reason (measured: the positive control
     // failed until the field was filled).
+    // On a Safari user agent (the webkit project carries one) gina keeps an autocomplete="off"
+    // field readonly until it is focused (its autofill workaround), and fill() requires an
+    // editable element before it focuses it: focus first, as a user does (#B996).
+    await page.focus('#ref-input');
     await page.fill('#ref-input', 'ABC123');
     await page.waitForTimeout(400);
     await page.click('#acform-submit');

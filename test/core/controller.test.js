@@ -1921,10 +1921,11 @@ describe('13 - throwError HTML branch: stack rendered only in local scope', func
         if (msg.error)   msgString += '<pre class="'+ eCode +' message">'+ _escapeHtml(msg.error) +'</pre>';
         if (msg.message) msgString += '<pre class="'+ eCode +' message">'+ _escapeHtml(msg.message) +'</pre>';
         if (msg.stack && isLocalScope) {
-            if (msg.error)   msg.stack = msg.stack.replace(msg.error, '');
-            if (msg.message) msg.stack = msg.stack.replace(msg.message, '');
-            msg.stack = msg.stack.replace('Error:', '').replace(' ', '');
-            msgString += '<pre class="'+ eCode +' stack">'+ _escapeHtml(msg.stack) +'</pre>';
+            var _msgStack = msg.stack;
+            if (msg.error)   _msgStack = _msgStack.replace(msg.error, '');
+            if (msg.message) _msgStack = _msgStack.replace(msg.message, '');
+            _msgStack = _msgStack.replace('Error:', '').replace(' ', '');
+            msgString += '<pre class="'+ eCode +' stack">'+ _escapeHtml(_msgStack) +'</pre>';
         }
         return msgString;
     }
@@ -3431,11 +3432,12 @@ describe('29 - query: settled HTTP/2 stream released at every non-retry terminal
     // non-critical swallow, so cleanup happens on BOTH the swallow-return and the
     // callback/emit path. The 5th call is the onEnd success terminal, placed ahead
     // of the ALPN/parse path (no swallow follows it). The retry branches do NOT
-    // finalize — they client.destroy() the whole session, tearing the stream down.
+    // finalize — by then the old stream has ended, errored or been cancelled.
     // The two pre-flight PING swallow sites have no request stream yet, so they
     // correctly do not finalize. (That is why this pins the finalize->swallow
-    // ORDERING count, not a raw swallow count: there are 7 _swallowIfNonCritical
-    // tokens in the block — 1 comment + 4 terminals + 2 pre-flight.)
+    // ORDERING count, not a raw swallow count: there are 9 _swallowIfNonCritical
+    // tokens in the block — 1 comment, the definition, the #B612 session-gone
+    // catch, 4 terminals and 2 pre-flight.)
     it('each typed-error terminal finalizes the stream BEFORE its non-critical swallow', function() {
         var h2Start = src.indexOf('var handleHTTP2ClientRequest = function(');
         var h2End   = src.indexOf('var getSession = function()');

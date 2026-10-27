@@ -202,8 +202,8 @@ describe('04 - wiring pins: the init site arms the sweep the way the timer itsel
         assert.match(ACTIVE, /parseTimeout\(_uploadSettings\.autoTmpCleanupTimeout\)/);
     });
 
-    it('the call is deferred (setImmediate) and floored at 1h', function() {
-        assert.match(ACTIVE, /setImmediate\(function\(\)\s*\{\s*sweepStagedUploadOrphans\(_sweepDirs,\s*Math\.max\(_sweepTimeoutMs,\s*3600000\)/);
+    it('the call is deferred (setImmediate) and given a 1h margin above the timeout', function() {
+        assert.match(ACTIVE, /setImmediate\(function\(\)\s*\{\s*sweepStagedUploadOrphans\(_sweepDirs,\s*_sweepTimeoutMs\s*\+\s*3600000\s*,/);
     });
 
     it('the staging-dir set mirrors the write site: global landing dir + per-group paths', function() {

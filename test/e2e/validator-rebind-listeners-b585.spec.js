@@ -24,7 +24,8 @@
  * with the same reference counts once and distinct closures count separately. Counts are
  * read before and after the operation under test. Every arm is a control for the others:
  *
- *   01 counts stay at 1 after two reBind()          (RED before the fix: 3)
+ *   01 counts stay at one bind's set after two reBind() (RED before the fix: 3): 1 per type, and
+ *      2 for the field's focusin and focusout on a Safari UA (the autofill workaround's own pair)
  *   02 a .on('submit') handler still owns the submit after reBind()   (RED: bypassed)
  *   03 re-registering .on('success') after reBind() does not double-fire (RED: fired twice)
  *   04 destroy() leaves 0 listeners, a re-bind + fresh .on() fires once (RED: old handler too —
@@ -120,6 +121,10 @@ async function bootAutocomplete(page) {
  * (measured: handler 0 on both sides, the trigger un-gated only after the refusal).
  */
 async function fillAndSubmitNatively(page) {
+    // On a Safari user agent (the webkit project carries one) gina keeps an autocomplete="off"
+    // field readonly until it is focused (its autofill workaround), and fill() requires an
+    // editable element before it focuses it: focus first, as a user does (#B996).
+    await page.focus('#ref-input');
     await page.fill('#ref-input', 'ABC');
     await page.locator('#ref-input').blur();
     await page.waitForTimeout(400);
@@ -136,6 +141,23 @@ function counts(page, id) {
         });
         return out;
     }, id);
+}
+
+/**
+ * gina's own Safari check (#B135): a Safari user agent without a Chrome token, which the webkit
+ * project carries. On such a UA the validator's autofill workaround attaches its own focusin and
+ * focusout pair to an autocomplete="off" field, beside the live check's (#B996).
+ */
+function isSafariUa(page) {
+    return page.evaluate(() => /safari/i.test(navigator.userAgent) && !/chrom(e|ium)/i.test(navigator.userAgent));
+}
+
+/** The field's counts against one bind's set: 1 per type, 2 for focusin and focusout on a Safari UA. */
+function expectField(actual, safari, label) {
+    FIELD_TYPES.forEach(function (t) {
+        const n = (safari && (t === 'focusin.ref-input' || t === 'focusout.ref-input')) ? 2 : 1;
+        expect(actual[t], label + ': ' + t).toBe(n);
+    });
 }
 
 function expectEach(actual, types, n, label) {
@@ -160,6 +182,10 @@ async function reBindTwice(page) {
 }
 
 async function fillAndSubmit(page) {
+    // On a Safari user agent (the webkit project carries one) gina keeps an autocomplete="off"
+    // field readonly until it is focused (its autofill workaround), and fill() requires an
+    // editable element before it focuses it: focus first, as a user does (#B996).
+    await page.focus('#ref-input');
     await page.fill('#ref-input', 'ABC');
     await page.waitForTimeout(400);
     await page.click('#acform-submit', { force: true });
@@ -170,17 +196,19 @@ test.describe('#B585 — reBind() does not stack listeners; destroy() detaches t
 
     test('01 - after two reBind() every listener of one bind is attached exactly once', async ({ page }) => {
         await bootAutocomplete(page);
+        const safari = await isSafariUa(page);
 
-        // positive control: the scene attaches each of them once on the first bind
+        // positive control: the scene attaches each of them once on the first bind (on a Safari
+        // UA the field's focusin and focusout twice: the autofill workaround's own pair)
         const before = await counts(page, 'acform');
         expectEach(before, FORM_TYPES, 1, 'after the first bind, form');
-        expectEach(await counts(page, 'ref-input'), FIELD_TYPES, 1, 'after the first bind, field');
+        expectField(await counts(page, 'ref-input'), safari, 'after the first bind, field');
         expectEach(await counts(page, 'acform-submit'), TRIGGER_TYPES, 1, 'after the first bind, trigger');
 
         await reBindTwice(page);
 
         expectEach(await counts(page, 'acform'), FORM_TYPES, 1, 'after two reBind(), form');
-        expectEach(await counts(page, 'ref-input'), FIELD_TYPES, 1, 'after two reBind(), field');
+        expectField(await counts(page, 'ref-input'), safari, 'after two reBind(), field');
         expectEach(await counts(page, 'acform-submit'), TRIGGER_TYPES, 1, 'after two reBind(), trigger');
     });
 

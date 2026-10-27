@@ -18,8 +18,9 @@
  *
  * Strategy:
  *  - 01 source pins on the shipped `main.js` (comment-stripped where a `was:` line would match):
- *    the fields are built on every selection, the reset link id, the staging answer kept on the
- *    input, ONE removal request, one prefix rule, the container a selection resolves.
+ *    the fields are built on every staging that succeeds (#B960: no longer at the selection, whose
+ *    first one binds the reset triggers the page holds), the reset link id, the staging answer
+ *    kept on the input, ONE removal request, one prefix rule, the container a selection resolves.
  *  - 02 behaviour: the REAL helper bytes (brace-walked from the source) evaluated inside a jsdom
  *    window's own realm, on real forms: getUploadFieldPrefix, getUploadFileNodes,
  *    removeUploadEntryFields, restoreRemovedUploadFields, buildUploadHiddenFields,
@@ -145,21 +146,28 @@ describe('#B858 - #B862 staged-upload fields after a reset or a delete (source p
         onRemoveCode = stripComments(extractFn(src, 'onUploadResetOrDelete'));
     });
 
-    it('01.1 #B858 - the selection that creates the virtual upload form builds the fields through the helper, binding the reset triggers', function () {
-        assert.equal(count(code, 'var fieldPrefix = getUploadFieldPrefix($el);'), 1);
-        assert.equal(count(code, 'hiddenFields = buildUploadHiddenFields($el, fieldPrefix, files.length, mandatoryFields, true);'), 1);
+    it('01.1 #B858 - the selection that creates the virtual upload form binds the reset triggers; the staging success builds the fields through the helper (#B960)', function () {
+        // #B960 — the fields are built when the staging succeeds (onUpload), no longer at the selection
+        // was: assert.equal(count(code, 'var fieldPrefix = getUploadFieldPrefix($el);'), 1);
+        // was: assert.equal(count(code, 'hiddenFields = buildUploadHiddenFields($el, fieldPrefix, files.length, mandatoryFields, true);'), 1);
+        assert.equal(count(code, 'for (var _r = 0, _rLen = files.length; _r < _rLen; ++_r) {'), 1, 'the creating selection loops over its files');
+        assert.equal(count(code, "bindUploadResetOrDeleteTrigger('reset', $el, _r);"), 1, 'and binds each file\'s reset trigger');
+        assert.equal(count(code, 'hiddenFields = buildUploadHiddenFields('), 0, 'no field is built at the selection');
+        assert.equal(count(onUploadCode, 'uploadProperties.uploadFields = buildUploadHiddenFields($uploadTriger, getUploadFieldPrefix($uploadTriger), files.length, uploadProperties.mandatoryFields, false);'), 1, 'the staging success builds them');
         // the collect + auto-create loop lives in the helper only, not inline in the change handler
         assert.equal(count(code, 'for (var _f = 0, _fLen = filesLength; _f < _fLen; ++_f) {'), 1);
         assert.equal(count(code, 'for (var _f = 0, _fLen = files.length; _f < _fLen; ++_f) {'), 0);
     });
 
-    it('01.2 #B858 - a selection that finds the virtual form builds its fields again, from the live element, without binding', function () {
+    it('01.2 #B858 - a selection that finds the virtual form reads it from the live element, and builds no field (#B960)', function () {
         var live    = code.indexOf('$uploadForm = document.getElementById(uploadFormId) || $uploadForm;');
-        var guard   = code.indexOf('if ( $el.form && $uploadForm.uploadProperties ) {', live);
-        var rebuild = code.indexOf('$uploadForm.uploadProperties.uploadFields = buildUploadHiddenFields($el, getUploadFieldPrefix($el), files.length, $uploadForm.uploadProperties.mandatoryFields, false);', live);
         assert.ok(live > -1, 'the live element is looked up on the document');
-        assert.ok(guard > live && rebuild > guard, 'the rebuild follows the lookup, guarded on the form and its properties');
-        assert.equal(count(code, 'buildUploadHiddenFields($el, getUploadFieldPrefix($el), files.length, $uploadForm.uploadProperties.mandatoryFields, false)'), 1);
+        // #B960 — the rebuild that followed the lookup is gone: the staging success builds the fields
+        // was: var guard   = code.indexOf('if ( $el.form && $uploadForm.uploadProperties ) {', live);
+        // was: var rebuild = code.indexOf('$uploadForm.uploadProperties.uploadFields = buildUploadHiddenFields($el, getUploadFieldPrefix($el), files.length, $uploadForm.uploadProperties.mandatoryFields, false);', live);
+        // was: assert.ok(guard > live && rebuild > guard, 'the rebuild follows the lookup, guarded on the form and its properties');
+        // was: assert.equal(count(code, 'buildUploadHiddenFields($el, getUploadFieldPrefix($el), files.length, $uploadForm.uploadProperties.mandatoryFields, false)'), 1);
+        assert.equal(code.indexOf('buildUploadHiddenFields(', live), -1, 'no build follows the lookup');
     });
 
     it('01.3 #B861 - the reset link id is `<file input id>-<f>-reset-trigger`, not derived from the container id', function () {

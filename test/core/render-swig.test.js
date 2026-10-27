@@ -1480,48 +1480,64 @@ describe('16 - CSP nonce: page.cspNonce template var + statusbar include', funct
 // session. The guard is now `instanceof Date` (the block also subtracts dates
 // and calls `.format`, both of which require a real Date). render-v1.js (the
 // legacy delegate) carries the byte-identical fix.
+// #B989 — the block, with its guard, moved into render-session.js, which all five
+// HTML delegates call: the (a) pins read it there, and pin that render-swig.js and
+// render-v1.js call it.
 describe('17 - browser-session cookie: null _expires skipped, not .format()-ed (HTTP 500 fix)', function() {
 
-    var SOURCE_V1 = path.join(require('../fw'), 'core/controller/controller.render-v1.js');
+    var SOURCE_V1      = path.join(require('../fw'), 'core/controller/controller.render-v1.js');
+    var SOURCE_SESSION = path.join(require('../fw'), 'core/controller/render-session.js');
 
     // Comment-strip so the explanatory comments above each guard (which mention
     // the historical `!= 'undefined'` wording) cannot satisfy the source pins.
     function strip(s) { return s.replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, ''); }
-    function swigCode() { return strip(fs.readFileSync(SOURCE, 'utf8')); }
-    function v1Code()   { return strip(fs.readFileSync(SOURCE_V1, 'utf8')); }
+    function swigCode()    { return strip(fs.readFileSync(SOURCE, 'utf8')); }
+    function v1Code()      { return strip(fs.readFileSync(SOURCE_V1, 'utf8')); }
+    function sessionCode() { return strip(fs.readFileSync(SOURCE_SESSION, 'utf8')); }
 
     // ── (a) source pins: the FIXED guard is in place, the OLD buggy guard is gone ──
 
-    it('render-swig.js gates the expiry block on `_expires instanceof Date`', function() {
+    it('render-session.js gates the expiry block on `_expires instanceof Date`', function() {
         assert.ok(
-            /req\.session\.cookie\._expires\s+instanceof\s+Date/.test(swigCode()),
-            'expected `req.session.cookie._expires instanceof Date` guard in render-swig.js'
+            /req\.session\.cookie\._expires\s+instanceof\s+Date/.test(sessionCode()),
+            'expected `req.session.cookie._expires instanceof Date` guard in render-session.js'
         );
     });
 
-    it("render-swig.js no longer uses the `typeof(... _expires) != 'undefined'` guard (null passes it)", function() {
+    it("render-session.js does not use the `typeof(... _expires) != 'undefined'` guard (null passes it)", function() {
         assert.ok(
-            !/typeof\(\s*req\.session\.cookie\._expires\s*\)\s*!=\s*'undefined'/.test(swigCode()),
+            !/typeof\(\s*req\.session\.cookie\._expires\s*\)\s*!=\s*'undefined'/.test(sessionCode()),
             "the buggy `typeof(req.session.cookie._expires) != 'undefined'` guard must be gone"
         );
     });
 
-    it("render-swig.js still calls .format('isoDateTime') INSIDE the Date-gated block (happy path intact)", function() {
+    it("render-session.js still calls .format('isoDateTime') INSIDE the Date-gated block (happy path intact)", function() {
         assert.ok(
-            /req\.session\.cookie\._expires\s+instanceof\s+Date[\s\S]{0,1000}?\.format\('isoDateTime'\)/.test(swigCode()),
+            /req\.session\.cookie\._expires\s+instanceof\s+Date[\s\S]{0,1000}?\.format\('isoDateTime'\)/.test(sessionCode()),
             "expected .format('isoDateTime') to remain inside the instanceof-Date-gated block"
         );
     });
 
-    it('render-v1.js (legacy delegate) carries the identical instanceof-Date fix', function() {
-        var s = v1Code();
+    it('render-session.js, which render-v1.js (legacy delegate) also calls, carries the instanceof-Date fix', function() {
+        var s = sessionCode();
         assert.ok(
-            /local\.req\.session\.cookie\._expires\s+instanceof\s+Date/.test(s),
-            'expected `local.req.session.cookie._expires instanceof Date` guard in render-v1.js'
+            /req\.session\.cookie\._expires\s+instanceof\s+Date/.test(s),
+            'expected `req.session.cookie._expires instanceof Date` guard in render-session.js'
         );
         assert.ok(
-            !/typeof\(\s*local\.req\.session\.cookie\._expires\s*\)\s*!=\s*'undefined'/.test(s),
-            'the buggy typeof guard must be gone from render-v1.js too'
+            !/typeof\(\s*req\.session\.cookie\._expires\s*\)\s*!=\s*'undefined'/.test(s),
+            'the buggy typeof guard must be gone from render-session.js too'
+        );
+    });
+
+    it('render-swig.js and render-v1.js build the block with renderSession.addSessionBlock() (#B989)', function() {
+        assert.ok(
+            /renderSession\.addSessionBlock\(\s*data\s*,\s*req\s*\)/.test(swigCode()),
+            'expected render-swig.js to call `renderSession.addSessionBlock(data, req)`'
+        );
+        assert.ok(
+            /renderSession\.addSessionBlock\(\s*data\s*,\s*local\.req\s*\)/.test(v1Code()),
+            'expected render-v1.js to call `renderSession.addSessionBlock(data, local.req)`'
         );
     });
 

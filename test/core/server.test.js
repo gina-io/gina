@@ -213,11 +213,11 @@ describe('getAssets — embedded Swig expressions preserve inner quotes', functi
         src = fs.readFileSync(SOURCE, 'utf8');
     });
 
-    it('source: FRAMEWORK PATCH marker for the strip-guard anchor fix is present', function() {
+    it('source: the comment explaining the strip-guard anchor fix is present', function() {
         // Regression guard against an accidental revert during a future merge/sync.
         assert.ok(
-            src.indexOf('FRAMEWORK PATCH: drop the `^` anchor') > -1,
-            'expected FRAMEWORK PATCH marker explaining the strip-guard anchor fix in core/server.js'
+            src.indexOf('Drop the `^` anchor so the') > -1,
+            'expected the comment explaining the strip-guard anchor fix in core/server.js'
         );
     });
 
@@ -283,7 +283,7 @@ describe('getAssets — embedded Swig expressions preserve inner quotes', functi
 });
 
 
-// ─── Bug I — createNextMiddleware factory isolates per-request dispatch state ──
+// ─── createNextMiddleware factory isolates per-request dispatch state ──
 //
 // Pre-fix shape: a single module-scope `nextMiddleware` function held its
 // dispatch state on its own function-object properties (`._index`, `._count`,
@@ -301,7 +301,7 @@ describe('getAssets — embedded Swig expressions preserve inner quotes', functi
 // and exercises the closure-isolation invariant on a pure-logic replica
 // of the entry-point setup pattern.
 
-describe('Bug I — createNextMiddleware factory isolates per-request dispatch state', function () {
+describe('createNextMiddleware factory isolates per-request dispatch state', function () {
 
     var src;
 
@@ -309,10 +309,10 @@ describe('Bug I — createNextMiddleware factory isolates per-request dispatch s
         src = fs.readFileSync(SOURCE, 'utf8');
     });
 
-    it('source: FRAMEWORK PATCH marker for Bug I is present', function () {
+    it('source: the comment explaining the per-request dispatcher fix is present', function () {
         assert.ok(
-            src.indexOf('FRAMEWORK PATCH: Bug I') > -1,
-            'expected FRAMEWORK PATCH marker explaining the per-request dispatcher fix'
+            src.indexOf('Wrap nextMiddleware in a') > -1,
+            'expected the comment explaining the per-request dispatcher fix'
         );
     });
 

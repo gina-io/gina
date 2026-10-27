@@ -81,35 +81,37 @@ function swallowIfNonCritical(isCritical, err) {
 }
 
 /**
- * onStreamTimeout — stream-level timeout handler.
+ * onStreamTimeout — stream-level timeout handler (#B967: the call fails TIMEOUT and is never re-sent).
  *
  * ctx fields:
  *   isFinished  { value: bool }   mutable box
- *   retryCount  number            current retry attempt (0 = first try)
- *   maxRetries  number            max retry attempts (default 2)
+ *   retryCount  number            the attempt the call is on (another branch may have re-sent it)
  *   isCritical  bool
  *   streamTimeout number (ms)
+ *   staleMs     number (ms)       HTTP2_PREFLIGHT_STALE_MS
  *   options     object  (must have ':authority', ':method', ':path')
- *   client      { destroyed, destroy() }
- *   cache       { delete(k) }
+ *   client      { destroyed, connecting, _ginaConnected, _lastPongAt, destroy() }
+ *   cache       { get(k), delete(k) }
  *   sessKey     string
- *   sessions    string[]  (_http2Sessions mirror)
- *   callback    function|undefined
+ *   sessions    string[]  (_http2Sessions mirror; the handler leaves it alone)
+ *   callback    function   (query() always supplies one)
  *   self        EventEmitter-like
  *
- * Returns { action: 'noop'|'retry'|'callback'|'swallowed', err? }
+ * Returns { action: 'noop'|'callback'|'swallowed', err? }
  */
 function onStreamTimeoutLogic(ctx) {
     if (ctx.isFinished.value) return { action: 'noop' };
     ctx.isFinished.value = true;
 
-    ctx.cache.delete(ctx.sessKey);
-    var tIdx = ctx.sessions.indexOf(ctx.sessKey);
-    if (tIdx !== -1) ctx.sessions.splice(tIdx, 1);
-    if (!ctx.client.destroyed) ctx.client.destroy();
-
-    if (ctx.retryCount < ctx.maxRetries) {
-        return { action: 'retry' };
+    // the shipped rule (#B967): the 'connect' flag the query path sets, client.connecting for an unflagged session
+    if (ctx.client._ginaConnected === false || (ctx.client._ginaConnected === undefined && ctx.client.connecting)) {
+        // never connected: evict our own cache entry (#B625) and destroy the session
+        var entry = ctx.cache.get(ctx.sessKey);
+        if (entry && (entry === ctx.client || entry.value === ctx.client)) ctx.cache.delete(ctx.sessKey);
+        if (!ctx.client.destroyed) ctx.client.destroy();
+    } else {
+        // connected: kept, and marked stale so the next call PINGs it first
+        ctx.client._lastPongAt = Date.now() - ctx.staleMs - 1;
     }
 
     var ms  = ctx.streamTimeout;
@@ -126,20 +128,42 @@ function onStreamTimeoutLogic(ctx) {
 }
 
 /**
- * onQueryClosed — premature stream-close handler (#H1 fix).
+ * onQueryClosed — premature stream-close handler (#H1 fix); since #B968 the shared handler
+ * (_onStreamIncomplete) that the stream's close, end and cancel listeners call.
  *
- * ctx fields: same as onStreamTimeoutLogic plus sessions array.
+ * ctx fields: same as onStreamTimeoutLogic plus sessions array, and pending (req.pending);
+ * client._ginaConnectError is the error that ended the session before it connected (#B981).
  * Returns { action: 'noop'|'retry'|'callback'|'swallowed', err? }
  */
 function onQueryClosedLogic(ctx) {
     if (ctx.isFinished.value) return { action: 'noop' };
     ctx.isFinished.value = true;
 
+    // #B981 — a session that failed to connect on its own (its error recorded before 'connect'): not re-sent, the
+    // error typed as the stream error path types it (ECONNREFUSED 503 for a refused or reset connection)
+    if (ctx.client._ginaConnectError) {
+        var cErr    = ctx.client._ginaConnectError;
+        var refused = /ECONNREFUSED|ECONNRESET/.test(String(cErr.code));
+        var connErr = new GinaHttp2Error('[HTTP2] ' + cErr.message, {
+            code: refused ? 'ECONNREFUSED' : 'STREAM_ERROR', retryable: ctx.retryCount < ctx.maxRetries,
+            status: refused ? 503 : 500, retryCount: ctx.retryCount
+        });
+        connErr.cause = cErr;
+        if (swallowIfNonCritical(ctx.isCritical, connErr)) return { action: 'swallowed', err: connErr };
+        ctx.callback(connErr);
+        return { action: 'callback', err: connErr };
+    }
+
+    // #B981 — nothing was sent (a pending stream, or a session that never connected): retried, nothing evicted
+    if (ctx.retryCount < ctx.maxRetries && (ctx.pending === true || ctx.client._ginaConnected === false)) {
+        return { action: 'retry', neverSent: true };
+    }
+
     if (ctx.retryCount < ctx.maxRetries) {
         ctx.cache.delete(ctx.sessKey);
         var cIdx = ctx.sessions.indexOf(ctx.sessKey);
         if (cIdx !== -1) ctx.sessions.splice(cIdx, 1);
-        if (!ctx.client.destroyed) ctx.client.destroy();
+        // #B968 — evicted, never destroyed: the cache cleanup closes it gracefully, so its streams in flight finish
         return { action: 'retry' };
     }
 
@@ -175,7 +199,8 @@ function onQueryErrorLogic(ctx) {
     if (ctx.retryCount < ctx.maxRetries && (errorCode === 'ERR_HTTP2_STREAM_ERROR' || errorCode === 'ERR_HTTP2_SESSION_ERROR' || errorCode === 'ECONNRESET')) {
         ctx.isFinished.value = true;
         ctx.cache.delete(ctx.sessKey);
-        if (!ctx.client.destroyed) ctx.client.destroy();
+        // #B628 — a stream error resets this stream only: its session is evicted (closed gracefully), not destroyed
+        if (errorCode !== 'ERR_HTTP2_STREAM_ERROR' && !ctx.client.destroyed) ctx.client.destroy();
         return { action: 'retry' };
     }
 
@@ -275,6 +300,7 @@ function makeCtx(overrides) {
         maxRetries  : 2,
         isCritical  : true,
         streamTimeout: 10000,
+        staleMs     : 3000,      // HTTP2_PREFLIGHT_STALE_MS in controller.js
         options     : makeOptions(),
         client      : makeClient(),
         cache       : makeCache(),
@@ -520,40 +546,74 @@ describe('04 - onStreamTimeout handler — stream-level timeout (#H4)', function
     });
 
     it('sets isFinished to true on first call', function() {
-        var ctx = makeCtx({ retryCount: 0 });
+        var ctx = makeCtx({ retryCount: 0, callback: function() {} });
         onStreamTimeoutLogic(ctx);
         assert.equal(ctx.isFinished.value, true);
     });
 
-    it('first attempt (retryCount=0) returns retry action', function() {
-        var ctx = makeCtx({ retryCount: 0 });
+    it('first attempt (retryCount=0): never re-sent, fails TIMEOUT at once (#B967)', function() {
+        var got = null;
+        var ctx = makeCtx({ retryCount: 0, callback: function(err) { got = err; } });
         var result = onStreamTimeoutLogic(ctx);
-        assert.equal(result.action, 'retry');
+        assert.equal(result.action, 'callback');
+        assert.equal(got.code, 'TIMEOUT');
+        assert.equal(got.retryCount, 0);
     });
 
-    it('first attempt: destroys client if not already destroyed', function() {
-        var ctx = makeCtx({ retryCount: 0 });
+    it('first attempt, connected session: kept, not destroyed, its cache and sessions entries untouched (#B967, #B628)', function() {
+        var ctx = makeCtx({ retryCount: 0, callback: function() {} });
+        ctx.cache.set(ctx.sessKey, ctx.client);
         onStreamTimeoutLogic(ctx);
+        assert.equal(ctx.client._destroyCalled, false);
+        assert.equal(ctx.cache._deleted.length, 0);
+        assert.ok(ctx.sessions.indexOf(ctx.sessKey) > -1);
+    });
+
+    it('first attempt, connected session: marked stale, so the next call PINGs it first (#B967)', function() {
+        var ctx = makeCtx({ retryCount: 0, callback: function() {} });
+        var before = Date.now();
+        onStreamTimeoutLogic(ctx);
+        assert.ok(ctx.client._lastPongAt < before - ctx.staleMs + 1);
+    });
+
+    it('first attempt, never-connected session: evicted from the cache and destroyed (#B967)', function() {
+        var ctx = makeCtx({ retryCount: 0, callback: function() {} });
+        ctx.client.connecting = true;
+        ctx.cache.set(ctx.sessKey, ctx.client);
+        onStreamTimeoutLogic(ctx);
+        assert.ok(ctx.cache._deleted.indexOf(ctx.sessKey) > -1);
         assert.equal(ctx.client._destroyCalled, true);
     });
 
-    it('first attempt: does NOT destroy client if already destroyed', function() {
-        var ctx = makeCtx({ retryCount: 0, client: makeClient(true) });
+    it('first attempt, never-connected session: not destroyed twice, and another session cached under the key is kept (#B625)', function() {
+        var ctx = makeCtx({ retryCount: 0, client: makeClient(true), callback: function() {} });
+        ctx.client.connecting = true;
+        ctx.cache.set(ctx.sessKey, makeClient());   // a later attempt's session
         onStreamTimeoutLogic(ctx);
         assert.equal(ctx.client._destroyCalled, false);
+        assert.equal(ctx.cache._deleted.length, 0);
     });
 
-    it('first attempt: sessKey is deleted from cache', function() {
-        var ctx = makeCtx({ retryCount: 0 });
+    it('first attempt, flagged session that never connected (`_ginaConnected` false, `connecting` false, as Bun reads it): evicted and destroyed (#B967)', function() {
+        var ctx = makeCtx({ retryCount: 0, callback: function() {} });
+        ctx.client._ginaConnected = false;
+        ctx.client.connecting = false;
+        ctx.cache.set(ctx.sessKey, ctx.client);
         onStreamTimeoutLogic(ctx);
         assert.ok(ctx.cache._deleted.indexOf(ctx.sessKey) > -1);
+        assert.equal(ctx.client._destroyCalled, true);
     });
 
-    it('first attempt: sessKey is removed from sessions array', function() {
-        var ctx = makeCtx({ retryCount: 0, sessions: ['http2session:api.test.local', 'other'] });
+    it('first attempt, flagged connected session: kept and marked stale whatever `connecting` reads (#B967)', function() {
+        var ctx = makeCtx({ retryCount: 0, callback: function() {} });
+        ctx.client._ginaConnected = true;
+        ctx.client.connecting = true;
+        ctx.cache.set(ctx.sessKey, ctx.client);
+        var before = Date.now();
         onStreamTimeoutLogic(ctx);
-        assert.equal(ctx.sessions.indexOf('http2session:api.test.local'), -1);
-        assert.ok(ctx.sessions.indexOf('other') > -1); // only target removed
+        assert.equal(ctx.client._destroyCalled, false);
+        assert.equal(ctx.cache._deleted.length, 0);
+        assert.ok(ctx.client._lastPongAt < before - ctx.staleMs + 1);
     });
 
     it('retry attempt (retryCount exhausted, isCritical=true, callback): calls callback with GinaHttp2Error', function(_, done) {
@@ -632,10 +692,56 @@ describe('05 - onQueryClosed handler — GOAWAY / premature stream close (#H1)',
         assert.equal(ctx.sessions.length, 0);
     });
 
-    it('first attempt: client is destroyed', function() {
+    it('first attempt: the session is evicted, not destroyed (#B968: its streams in flight finish)', function() {
         var ctx = makeCtx({ retryCount: 0 });
         onQueryClosedLogic(ctx);
-        assert.equal(ctx.client._destroyCalled, true);
+        assert.equal(ctx.client._destroyCalled, false);
+        assert.ok(ctx.cache._deleted.indexOf(ctx.sessKey) > -1);
+    });
+
+    it('#B981 — a pending stream (never sent): retried, nothing evicted or destroyed', function() {
+        var ctx = makeCtx({ retryCount: 0, pending: true });
+        var result = onQueryClosedLogic(ctx);
+        assert.equal(result.action, 'retry');
+        assert.equal(result.neverSent, true);
+        assert.equal(ctx.cache._deleted.length, 0);
+        assert.equal(ctx.client._destroyCalled, false);
+    });
+
+    it('#B981 — a stream on a session that never connected (the Bun 1.2 / 1.3 shape): retried, nothing evicted', function() {
+        var client = makeClient();
+        client._ginaConnected = false;
+        var ctx = makeCtx({ retryCount: 0, client: client });
+        var result = onQueryClosedLogic(ctx);
+        assert.equal(result.action, 'retry');
+        assert.equal(result.neverSent, true);
+        assert.equal(ctx.cache._deleted.length, 0);
+    });
+
+    it('#B981 — a session that failed to connect on its own (ECONNREFUSED): not re-sent, typed ECONNREFUSED 503', function() {
+        var received = null;
+        var client = makeClient();
+        client._ginaConnected = false;
+        client._ginaConnectError = Object.assign(new Error('connect ECONNREFUSED 127.0.0.1:1'), { code: 'ECONNREFUSED' });
+        var ctx = makeCtx({ retryCount: 0, client: client, callback: function(err) { received = err; } });
+        var result = onQueryClosedLogic(ctx);
+        assert.equal(result.action, 'callback');
+        assert.equal(received.code, 'ECONNREFUSED');
+        assert.equal(received.status, 503);
+        assert.equal(received.cause, client._ginaConnectError);
+        assert.equal(ctx.cache._deleted.length, 0);
+        assert.equal(client._destroyCalled, false);
+    });
+
+    it('#B981 — a failed TLS handshake (Bun 1.2 / 1.3 still emit connect after it): not re-sent, typed STREAM_ERROR 500', function() {
+        var client = makeClient();
+        client._ginaConnected = true;
+        client._ginaConnectError = Object.assign(new Error('wrong version number'), { code: 'ERR_HTTP2_ERROR' });
+        var ctx = makeCtx({ retryCount: 0, client: client, callback: function() {} });
+        var result = onQueryClosedLogic(ctx);
+        assert.equal(result.action, 'callback');
+        assert.equal(result.err.code, 'STREAM_ERROR');
+        assert.equal(result.err.status, 500);
     });
 
     it('retry attempt (retryCount exhausted), callback: calls callback with GinaHttp2Error', function(_, done) {
@@ -721,8 +827,16 @@ describe('06 - onQueryError handler — stream error / connection error', functi
         assert.equal(result.err.retryable, false);
     });
 
-    it('ERR_HTTP2_STREAM_ERROR retry: client destroyed on retry path', function() {
+    it('ERR_HTTP2_STREAM_ERROR retry: the session is evicted, not destroyed (#B628: the error resets this stream only)', function() {
         var err = Object.assign(new Error('stream'), { code: 'ERR_HTTP2_STREAM_ERROR' });
+        var ctx = makeCtx({ retryCount: 0, error: err });
+        onQueryErrorLogic(ctx);
+        assert.equal(ctx.client._destroyCalled, false);
+        assert.ok(ctx.cache._deleted.indexOf(ctx.sessKey) > -1);
+    });
+
+    it('ECONNRESET retry: the dead session is destroyed (only a stream error keeps it)', function() {
+        var err = Object.assign(new Error('reset'), { code: 'ECONNRESET' });
         var ctx = makeCtx({ retryCount: 0, error: err });
         onQueryErrorLogic(ctx);
         assert.equal(ctx.client._destroyCalled, true);
@@ -1087,9 +1201,9 @@ describe('10 - #B53 source structure — guard wired into every retry branch', f
             'retryUnsafe must be in _NON_HTTP_OPTS so it cannot leak as an HTTP header');
     });
 
-    it('HTTP/2 timeout + close branches gate retry on the method guard (2 bare-budget sites)', function() {
+    it('HTTP/2 close branch gates retry on the method guard (1 bare-budget site; the timeout re-sends nothing, #B967)', function() {
         var n = (src.match(/if \(retryCount < HTTP2_MAX_RETRIES && isRetryableMethod\(options\[':method'\], options\.retryUnsafe\)\) \{/g) || []).length;
-        assert.equal(n, 2, 'expected the bare-budget guard form in exactly the timeout + close branches');
+        assert.equal(n, 1, 'expected the bare-budget guard form in exactly the close branch');
     });
 
     it('HTTP/2 stream-error branch gates retry on the method guard (whitelist: stream error, session error #B612, ECONNRESET)', function() {
@@ -1110,9 +1224,9 @@ describe('10 - #B53 source structure — guard wired into every retry branch', f
             'handleHTTP1ClientRequest must also check the method guard');
     });
 
-    it('the guard is invoked at exactly 5 call sites (4 HTTP/2 + 1 HTTP/1)', function() {
+    it('the guard is invoked at exactly 4 call sites (3 HTTP/2 + 1 HTTP/1)', function() {
         var calls = (src.match(/isRetryableMethod\(options/g) || []).length;
-        assert.equal(calls, 5, 'expected exactly 5 isRetryableMethod(options...) call sites');
+        assert.equal(calls, 4, 'expected exactly 4 isRetryableMethod(options...) call sites');
     });
 
 });

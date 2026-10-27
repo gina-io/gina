@@ -79,7 +79,7 @@ var CTL_SITES = [
     "' title\">'+ _escapeHtml(msg.title) +'</pre>'",
     "' message\">'+ _escapeHtml(msg.error) +'</pre>'",
     "' message\">'+ _escapeHtml(msg.message) +'</pre>'",
-    "' stack\">'+ _escapeHtml(msg.stack) +'</pre>'",
+    "' stack\">'+ _escapeHtml(_msgStack) +'</pre>'",
     "' title\">'+ _escapeHtml(title) +'</pre>'",
     "' message\">'+ _escapeHtml(message) +'</pre>'",
     "' stack\">'+ _escapeHtml(stack) +'</pre>'"

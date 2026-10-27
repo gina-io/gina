@@ -307,7 +307,7 @@ describe('02 - gh#76 §8: source pins', function () {
             'the useDialogMode + once-guard gate');
         assert.match(slice, /\$el\._ginaCloseSyncBound\s*=\s*true;/, 'the once-bind flag');
         assert.match(slice,
-            /addEventListener\(\s*['"]close['"][\s\S]{0,220}?if\s*\(\s*\$popin\.isOpen\s*\|\|\s*\$popin\.isLoading\s*\)[\s\S]{0,80}?popinClose\(\s*\$popin\.name\s*\)/,
+            /addEventListener\(\s*['"]close['"][\s\S]{0,220}?if\s*\(\s*\$popin\.isOpen\s*\|\|\s*\$popin\.isLoading\s*\)[\s\S]{0,200}?popinClose\(\s*\$popin\.name\s*\)/,
             'the close handler guards on isOpen OR isLoading, then runs popinClose($popin.name)');
     });
 

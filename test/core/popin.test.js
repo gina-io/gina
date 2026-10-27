@@ -1681,7 +1681,7 @@ describe('27 - Popin: native <dialog> UA-close routes through popinClose', funct
     it('source: the close listener runs popinClose only while still flagged open or loading (gh#76 §8)', function () {
         assert.match(
             getPopinSrc(),
-            /addEventListener\(\s*['"]close['"][\s\S]{0,220}?if\s*\(\s*\$popin\.isOpen\s*\|\|\s*\$popin\.isLoading\s*\)[\s\S]{0,80}?popinClose\(\s*\$popin\.name\s*\)/,
+            /addEventListener\(\s*['"]close['"][\s\S]{0,220}?if\s*\(\s*\$popin\.isOpen\s*\|\|\s*\$popin\.isLoading\s*\)[\s\S]{0,200}?popinClose\(\s*\$popin\.name\s*\)/,
             'close handler must guard on $popin.isOpen || $popin.isLoading then call popinClose($popin.name)'
         );
     });

@@ -33,6 +33,11 @@
  */
 
 const { test, expect } = require('@playwright/test');
+// WebKit hands Playwright no body for gina's Blob staging request, so a mock reading the staged
+// file names from it would answer "no files" there: copy each Blob body into a header that
+// requestBody() falls back to (helpers/request-body.js, #B996).
+const { copyBlobBodies, requestBody } = require('./helpers/request-body');
+test.beforeEach(async ({ context }) => { await context.addInitScript(copyBlobBodies); });
 
 const PORT = process.env.GINA_E2E_PORT || '3179';
 const BASE = 'http://localhost:' + PORT + '/';
@@ -91,7 +96,7 @@ async function boot(pw) {
     pw.on('pageerror', (e) => sink.errors.push(String((e && e.message) || e)));
     await pw.route('**/upload-stage', (route) => {
         const req = route.request();
-        const buf = req.postDataBuffer();
+        const buf = requestBody(req);
         const body = buf ? buf.toString('latin1') : '';
         sink.stage.push({ ct: req.headers()['content-type'] || null, filename: stagedName(buf),
             groups: (body.match(/group="[^"]*"/g) || []), bytes: buf ? buf.length : 0 });
@@ -99,7 +104,7 @@ async function boot(pw) {
     });
     await pw.route('**/upload-save', (route) => {
         const req = route.request();
-        const buf = req.postDataBuffer();
+        const buf = requestBody(req);
         sink.save.push({ ct: req.headers()['content-type'] || null, bytes: buf ? buf.length : 0 });
         return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
     });

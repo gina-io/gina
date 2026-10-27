@@ -23,7 +23,10 @@
  *   GINA_E2E_ENGINES=all npx playwright test test/e2e/validator-autocomplete-paste.spec.js --project=webkit
  *
  * Instrument notes:
- *   - The clipboard is seeded by a REAL copy (select-all + Meta+C in an
+ *   - Chords are pressed as `ControlOrMeta+…`: Meta on macOS, Control on Linux,
+ *     whose WebKit does not run the editing commands for Meta chords (the clipboard
+ *     control below read "" there with Meta). gina's chord bail covers both keys.
+ *   - The clipboard is seeded by a REAL copy (select-all + copy chord in an
  *     un-bound control input injected post-boot) and proven usable by a REAL
  *     paste into that same control before any arm runs — a can-fire control
  *     for the clipboard instrument itself.
@@ -57,10 +60,10 @@ test.describe('#B444 — native chords on the autocomplete-intercepted field (we
         await page.click('#clip-control');
         await page.fill('#clip-control', 'PASTED');
         await page.click('#clip-control');
-        await page.keyboard.press('Meta+a');
-        await page.keyboard.press('Meta+c');
+        await page.keyboard.press('ControlOrMeta+a');
+        await page.keyboard.press('ControlOrMeta+c');
         await page.fill('#clip-control', '');
-        await page.keyboard.press('Meta+v');
+        await page.keyboard.press('ControlOrMeta+v');
         await page.waitForTimeout(120);
         const ctrl = await page.evaluate(() => document.getElementById('clip-control').value);
         expect(ctrl, 'clipboard instrument must fire on the un-bound control before any arm counts').toBe('PASTED');
@@ -78,7 +81,7 @@ test.describe('#B444 — native chords on the autocomplete-intercepted field (we
     test('01 - paste lands with no prior typing', async ({ page }) => {
         await page.evaluate(() => { document.getElementById('ref-input').value = ''; });
         await page.click('#ref-input');
-        await page.keyboard.press('Meta+v');
+        await page.keyboard.press('ControlOrMeta+v');
         await page.waitForTimeout(150);
         const v = await page.evaluate(() => document.getElementById('ref-input').value);
         expect(v, 'Meta+V must insert into the shimmed field').toBe('PASTED');
@@ -91,7 +94,7 @@ test.describe('#B444 — native chords on the autocomplete-intercepted field (we
         await page.waitForTimeout(150);
         const typed = await page.evaluate(() => document.getElementById('ref-input').value);
         expect(typed, 'the interception must still own typing - a doubled value means the native insert leaked').toBe('abc');
-        await page.keyboard.press('Meta+v');
+        await page.keyboard.press('ControlOrMeta+v');
         await page.waitForTimeout(150);
         const v = await page.evaluate(() => document.getElementById('ref-input').value);
         expect(v, 'paste must append at the caret after typed content').toBe('abcPASTED');
@@ -102,7 +105,7 @@ test.describe('#B444 — native chords on the autocomplete-intercepted field (we
         await page.click('#ref-input');
         await page.keyboard.type('xyz', { delay: 70 });
         await page.waitForTimeout(150);
-        await page.keyboard.press('Meta+a');
+        await page.keyboard.press('ControlOrMeta+a');
         await page.waitForTimeout(100);
         const sel = await page.evaluate(() => {
             const el = document.getElementById('ref-input');
@@ -121,7 +124,7 @@ test.describe('#B444 — native chords on the autocomplete-intercepted field (we
             document.getElementById('ref-input').value = '';
         });
         await page.click('#ref-input');
-        await page.keyboard.press('Meta+v');
+        await page.keyboard.press('ControlOrMeta+v');
         await page.waitForTimeout(150);
         const seen = await page.evaluate(() => window.__pasteSeen);
         expect(seen, 'the native paste event must reach the field').toBe(1);

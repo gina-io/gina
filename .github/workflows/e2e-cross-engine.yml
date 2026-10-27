@@ -33,6 +33,11 @@ on:
         default: 'all'
         type: choice
         options: ['all', 'chromium']
+      spec:
+        description: 'Spec file(s) to run, space-separated paths under test/e2e (empty: the whole suite)'
+        required: false
+        default: ''
+        type: string
 
 concurrency:
   group: e2e-cross-engine-${{ github.ref }}
@@ -45,8 +50,9 @@ jobs:
   cross-engine:
     name: Playwright (${{ inputs.engines || 'all' }})
     runs-on: ubuntu-latest
-    # Generous vs the ~1min single-engine job: three engines, three browser downloads.
-    timeout-minutes: 30
+    # Three engines, three browser downloads: 30 minutes cancelled the whole-suite run at test
+    # 1391 of 1521 on 2026-10-25.
+    timeout-minutes: 45
 
     steps:
       - name: Checkout
@@ -70,10 +76,15 @@ jobs:
         # projects; unset (the default everywhere else) keeps it Chromium-only.
         env:
           GINA_E2E_ENGINES: ${{ inputs.engines || 'all' }}
-        run: npx playwright test test/e2e
+          # The input reaches the shell as a variable, never as interpolated code.
+          E2E_SPEC: ${{ inputs.spec }}
+        # A trace for each failing test, uploaded by the step below (the config records one
+        # only on a retry, and CI runs none).
+        run: npx playwright test ${E2E_SPEC:-test/e2e} --trace=retain-on-failure
 
       - name: Upload traces on failure
-        if: ${{ failure() }}
+        # A run the ceiling cuts off ends `cancelled`, not `failure`: upload its traces too.
+        if: ${{ failure() || cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: playwright-traces-cross-engine
