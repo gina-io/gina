@@ -6951,8 +6951,11 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
      * a premature close, a 502 or a stream reset evicts the session from the cache, and the
      * eviction's cleanup closes it gracefully, so its other streams finish; a session error or
      * a connection reset (the session itself is gone) still destroys it. A stream that ends
-     * without its response (no response headers, or an empty body on a destroyed session)
-     * follows the premature-close rule. A call that was never sent (its stream still pending,
+     * without its complete response (no response headers, a body shorter than its
+     * content-length, any body on a session gina tore down itself, or an empty body on a stream
+     * cancelled under it, #B985) follows the premature-close rule; a body with no
+     * content-length cut by a FIN or a reset is taken as received (#B1004). A call that was
+     * never sent (its stream still pending,
      * or its session never connected) is re-sent for any method (#B981), and a session that
      * failed to connect on its own (a refused connection, a failed TLS handshake) answers with
      * that error, typed as the stream-error path types it, and is never re-sent.
@@ -7270,7 +7273,7 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
                     clearInterval(_pingInterval);
                     _pingInterval = null; client._ginaKeepalive = null;
                     console.warn('[HTTP2] PING timeout — evicting dead session proactively: '+ sessKey);
-                    if (!client.destroyed) client.destroy();
+                    if (!client.destroyed) { client._ginaTornDown = true; client.destroy(); }
                     if (_isCached(sessKey, client)) { // #B625
                         cache.delete(sessKey);
                         var _pingDeadErrIdx = self.serverInstance._http2Sessions.indexOf(sessKey);
@@ -7289,7 +7292,7 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
                         clearInterval(_pingInterval);
                         _pingInterval = null; client._ginaKeepalive = null;
                         console.warn('[HTTP2] PING failed — evicting dead session proactively: '+ sessKey);
-                        if (!client.destroyed) client.destroy();
+                        if (!client.destroyed) { client._ginaTornDown = true; client.destroy(); }
                         if (_isCached(sessKey, client)) { // #B625
                             cache.delete(sessKey);
                             var _pingErrIdx = self.serverInstance._http2Sessions.indexOf(sessKey);
@@ -7455,7 +7458,7 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
                 if (_rqIdx !== -1) self.serverInstance._http2Sessions.splice(_rqIdx, 1);
                 _rqIdx = null;
             }
-            try { if (!client.destroyed) client.destroy(); } catch (_destroyErr) {}
+            try { if (!client.destroyed) { client._ginaTornDown = true; client.destroy(); } } catch (_destroyErr) {}
             if (retryCount < HTTP2_MAX_RETRIES) {
                 console.warn('[HTTP2][RETRYING] Session '+ sessKey +' was gone before the request was sent ('+ (_reqErr && _reqErr.code || _reqErr) +') — retry '+ (retryCount + 1) +'/'+ HTTP2_MAX_RETRIES +' on a fresh session');
                 options.queryData = options._body || body;
@@ -7486,6 +7489,8 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
         let isFinished  = false;
         let data        = '';
         let httpStatus  = null; // captured from the HTTP/2 HEADERS frame (:status pseudo-header)
+        // #B985 — the response's content-length, compared at `end` with the bytes received
+        let declaredLength = null;
         const chunks    = []; // collect Buffer chunks — avoids peak-memory doubling from string concat
 
         // #B52 — release the settled outbound stream so the cached HTTP/2 session stops
@@ -7518,6 +7523,9 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
         // (e.g. 502 Bad Gateway) are indistinguishable from JSON parse failures.
         req.on('response', function onResponseHeaders(respHeaders) {
             httpStatus = +respHeaders[':status'] || null;
+            var _cl = respHeaders['content-length'];
+            if (Array.isArray(_cl)) { _cl = _cl[0]; }
+            declaredLength = (typeof(_cl) == 'string' && /^\d+$/.test(_cl.trim())) ? parseInt(_cl, 10) : ((typeof(_cl) == 'number' && _cl >= 0) ? _cl : null);
             // #B627 — a response is proof of life: a busy session never goes stale, so it
             // never pre-flight-pings (the keepalive's 5 s cadence against the 3 s stale
             // threshold used to make ~40% of calls ping first — audit F2).
@@ -7546,7 +7554,7 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
             if (client._ginaConnected === false || (client._ginaConnected === undefined && client.connecting)) {
                 console.warn('[HTTP2] Stream timeout ('+ _tLabel +') on '+ options[':method'] +' '+ options[':path'] +' — the session never connected: evicting it, no re-send');
                 if (_isCached(sessKey, client)) { cache.delete(sessKey); } // #B625 — only our entry
-                if (!client.destroyed) client.destroy(); // no error arg — suppresses session 'error' event
+                if (!client.destroyed) { client._ginaTornDown = true; client.destroy(); } // no error arg — suppresses session 'error' event
             } else {
                 console.warn('[HTTP2] Stream timeout ('+ _tLabel +') on '+ options[':method'] +' '+ options[':path'] +' — cancelling this stream, no re-send');
                 // stale: the next call PINGs the session first (HTTP2_PREFLIGHT_STALE_MS)
@@ -7654,7 +7662,7 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
                 // #B982 — ERR_HTTP2_STREAM_ERROR is the upstream resetting THIS stream: the session is evicted above
                 // (its cleanup closes it gracefully, so the other streams on it finish) and kept alive here. A session
                 // error or a connection reset means the session itself is gone, and it is torn down as before.
-                if (errorCode !== 'ERR_HTTP2_STREAM_ERROR' && !client.destroyed) client.destroy();
+                if (errorCode !== 'ERR_HTTP2_STREAM_ERROR' && !client.destroyed) { client._ginaTornDown = true; client.destroy(); }
                 options.queryData = options._body; // restore body for retry
                 var _eNext = retryCount + 1;
                 console.warn('[HTTP2][RETRYING] Stream failed on '+ options[':path'] +' ('+ errorCode +') — retry '+ _eNext +'/'+ HTTP2_MAX_RETRIES);
@@ -7735,8 +7743,9 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
         // Retries up to HTTP2_MAX_RETRIES times with backoff.
         /**
          * One handler for every stream that ended without its complete response (#B968, #B981), whichever
-         * event says so: `close` before `end` (H1), `end` with no response headers or with an empty body on
-         * a destroyed session (onEnd below), and an open stream cancelled by our own session destroy (Bun 1.4,
+         * event says so: `close` before `end` (H1); `end` with no response headers, with a body shorter than
+         * its content-length, on a session gina tore down itself, or with an empty body on a stream cancelled
+         * under it (onEnd below, #B985); and an open stream cancelled by our own session destroy (Bun 1.4,
          * onQueryError above). In order:
          * 1. the session failed to connect on its own (`client._ginaConnectError`, recorded by its `error`
          *    listener before `connect`): that error is the answer, typed ECONNREFUSED (503) for a refused or
@@ -7834,15 +7843,22 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
             isFinished = true;
 
             // Assemble chunks into a single string — one allocation, one conversion
-            data = Buffer.concat(chunks).toString();
+            var _bodyBuf = Buffer.concat(chunks);
+            data = _bodyBuf.toString();
 
-            // 2. Guard Clause: a stream that ended without its response, then an empty response
-            // #B968 — no response headers, or an empty body on a session destroyed under it, is not a response: the
-            // shared handler re-sends or fails it. The stream's own `destroyed` is no longer read: Bun 1.2 / 1.3 set
-            // it at every normal end, which turned every empty body (HEAD, 204, an empty 404) into a 500. Known limit
-            // (#B985): on Bun 1.2 / 1.3 the session also reads destroyed while it closes gracefully, so an empty body
-            // completing then is read as incomplete (a safe method is sent again, an unsafe one fails).
-            if (httpStatus === null || ((!data || data.trim() === "") && client.destroyed)) {
+            // 2. Guard Clause: a stream that ended without its complete response, then an empty response
+            // #B968 — no response headers is not a response: the shared handler re-sends or fails it. The stream's
+            // own `destroyed` is not read: Bun 1.2 / 1.3 set it at every normal end, which turned every empty body
+            // (HEAD, 204, an empty 404) into a 500.
+            // #B985 — nor is a body cut short: one shorter than the response's content-length (bytes; a HEAD, a 204
+            // or a 304 declares a length it never sends), any body on a session gina tore down itself (the flag set
+            // at each of its destroy sites, the boot warmup's included), and an empty body on a stream cancelled
+            // under it (`rstCode` > 0). The session's `destroyed` is no longer read: on Bun 1.2 / 1.3 it also reads
+            // true when a complete response ends while the session closes gracefully. `rstCode` is not read for a
+            // non-empty body: on Bun 1.2.21 a complete body followed by a close reads 8 too, racily. So a body with
+            // no content-length cut by a FIN or a reset is still taken as received (#B1004).
+            var _shortBody = declaredLength !== null && _bodyBuf.length < declaredLength && !/^head$/i.test(options[':method']) && httpStatus !== 204 && httpStatus !== 304;
+            if (httpStatus === null || _shortBody || client._ginaTornDown === true || ((!data || data.trim() === "") && req.rstCode > 0)) {
                 return _onStreamIncomplete();
             }
             if (!data || data.trim() === "") {
@@ -8157,7 +8173,7 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
                     var _pfIdx = self.serverInstance._http2Sessions.indexOf(sessKey);
                     if (_pfIdx !== -1) self.serverInstance._http2Sessions.splice(_pfIdx, 1);
                 }
-                if (!client.destroyed) client.destroy();
+                if (!client.destroyed) { client._ginaTornDown = true; client.destroy(); }
                 if (retryCount < HTTP2_MAX_RETRIES) {
                     options.queryData = options._body || body;
                     var _pfNext = retryCount + 1;
@@ -8193,7 +8209,7 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
                         var _pfEIdx = self.serverInstance._http2Sessions.indexOf(sessKey);
                         if (_pfEIdx !== -1) self.serverInstance._http2Sessions.splice(_pfEIdx, 1);
                     }
-                    if (!client.destroyed) client.destroy();
+                    if (!client.destroyed) { client._ginaTornDown = true; client.destroy(); }
                     if (retryCount < HTTP2_MAX_RETRIES) {
                         options.queryData = options._body || body;
                         var _pfENext = retryCount + 1;

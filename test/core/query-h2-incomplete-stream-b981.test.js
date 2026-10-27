@@ -274,10 +274,10 @@ describe('01 - source: one handler for a stream that ended without its response;
         assert.ok(/_finalizeStream\(\);\s*if \(_swallowIfNonCritical\(_incompleteErr\)\) return;/.test(body), 'its terminals release the stream, then deliver');
     });
 
-    it('close before end, end without its response, and an empty body on a destroyed session all reach it', function () {
+    it('close before end, end without its response, a body shorter than its length, a session gina tore down, and an empty body on a stream cancelled under it all reach it (#B985)', function () {
         assert.ok(/req\.on\('close', function onQueryClosed\(\) \{\s*if \(isFinished\) return;\s*isFinished = true;\s*_onStreamIncomplete\(\);/.test(code), 'the close listener');
         var onEnd = code.slice(es, ee);
-        assert.ok(/if \(httpStatus === null \|\| \(\(!data \|\| data\.trim\(\) === ""\) && client\.destroyed\)\) \{\s*return _onStreamIncomplete\(\);/.test(onEnd), 'the onEnd guard');
+        assert.ok(/if \(httpStatus === null \|\| _shortBody \|\| client\._ginaTornDown === true \|\| \(\(!data \|\| data\.trim\(\) === ""\) && req\.rstCode > 0\)\) \{\s*return _onStreamIncomplete\(\);/.test(onEnd), 'the onEnd guard');
         assert.equal(onEnd.indexOf('req.aborted || req.destroyed'), -1, "the stream's own destroyed flag is no longer read (Bun 1.2 / 1.3 set it at every normal end)");
         assert.equal(onEnd.indexOf('Request aborted by client or server'), -1, 'and no uncoded 500 is built there');
     });
@@ -292,7 +292,7 @@ describe('01 - source: one handler for a stream that ended without its response;
     });
 
     it('a stream error keeps its session; a session error or a connection reset still tears it down (#B982)', function () {
-        assert.ok(code.indexOf("if (errorCode !== 'ERR_HTTP2_STREAM_ERROR' && !client.destroyed) client.destroy();", wl) > wl);
+        assert.ok(code.indexOf("if (errorCode !== 'ERR_HTTP2_STREAM_ERROR' && !client.destroyed) { client._ginaTornDown = true; client.destroy(); }", wl) > wl);
     });
 });
 

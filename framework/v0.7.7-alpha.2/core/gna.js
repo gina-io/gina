@@ -2201,7 +2201,7 @@ isBundleMounted(projects, bundlesPath, getContext('bundle'), function onBundleMo
                                                         if (wPingErr) {
                                                             console.warn('[warmup] Initial PING failed for '+ authority +': '+ wPingErr.message);
                                                             _wCleanup();
-                                                            if (!_wClient.destroyed) _wClient.destroy();
+                                                            if (!_wClient.destroyed) { _wClient._ginaTornDown = true; _wClient.destroy(); }
                                                             return;
                                                         }
                                                         console.info('[warmup] HTTP/2 session ready for '+ authority +' (PING RTT: '+ ~~wDuration +'ms)');
@@ -2216,7 +2216,7 @@ isBundleMounted(projects, bundlesPath, getContext('bundle'), function onBundleMo
                                                             var _wDeadline = setTimeout(function() {
                                                                 console.warn('[warmup] PING deadline exceeded for '+ authority +' — evicting session');
                                                                 _wCleanup();
-                                                                if (!_wClient.destroyed) _wClient.destroy();
+                                                                if (!_wClient.destroyed) { _wClient._ginaTornDown = true; _wClient.destroy(); }
                                                             }, 3000);
                                                             var _wOnKeepalivePong = function(keepAliveErr) {
                                                                 clearTimeout(_wDeadline);
@@ -2245,7 +2245,7 @@ isBundleMounted(projects, bundlesPath, getContext('bundle'), function onBundleMo
                                                         } catch (wPingThrow) { // destroyed before `connect` fired — never throw out of a listener
                                                             console.warn('[warmup] Initial PING could not be sent for '+ authority +': '+ (wPingThrow && wPingThrow.message));
                                                             _wCleanup();
-                                                            if (!_wClient.destroyed) _wClient.destroy();
+                                                            if (!_wClient.destroyed) { _wClient._ginaTornDown = true; _wClient.destroy(); }
                                                         }
                                                     };
                                                     if (_wClient.connecting) { _wClient.once('connect', _wInitialPing); } else { _wInitialPing(); }

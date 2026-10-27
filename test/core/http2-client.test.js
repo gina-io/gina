@@ -108,7 +108,8 @@ function onStreamTimeoutLogic(ctx) {
         // never connected: evict our own cache entry (#B625) and destroy the session
         var entry = ctx.cache.get(ctx.sessKey);
         if (entry && (entry === ctx.client || entry.value === ctx.client)) ctx.cache.delete(ctx.sessKey);
-        if (!ctx.client.destroyed) ctx.client.destroy();
+        // #B985 — gina's own teardown is flagged, so a stream cut short by it is not read as complete at its end
+        if (!ctx.client.destroyed) { ctx.client._ginaTornDown = true; ctx.client.destroy(); }
     } else {
         // connected: kept, and marked stale so the next call PINGs it first
         ctx.client._lastPongAt = Date.now() - ctx.staleMs - 1;
@@ -200,7 +201,7 @@ function onQueryErrorLogic(ctx) {
         ctx.isFinished.value = true;
         ctx.cache.delete(ctx.sessKey);
         // #B628 — a stream error resets this stream only: its session is evicted (closed gracefully), not destroyed
-        if (errorCode !== 'ERR_HTTP2_STREAM_ERROR' && !ctx.client.destroyed) ctx.client.destroy();
+        if (errorCode !== 'ERR_HTTP2_STREAM_ERROR' && !ctx.client.destroyed) { ctx.client._ginaTornDown = true; ctx.client.destroy(); } // #B985 — flagged
         return { action: 'retry' };
     }
 
@@ -583,6 +584,7 @@ describe('04 - onStreamTimeout handler — stream-level timeout (#H4)', function
         onStreamTimeoutLogic(ctx);
         assert.ok(ctx.cache._deleted.indexOf(ctx.sessKey) > -1);
         assert.equal(ctx.client._destroyCalled, true);
+        assert.equal(ctx.client._ginaTornDown, true, 'marked as torn down by gina (#B985)');
     });
 
     it('first attempt, never-connected session: not destroyed twice, and another session cached under the key is kept (#B625)', function() {
@@ -592,6 +594,7 @@ describe('04 - onStreamTimeout handler — stream-level timeout (#H4)', function
         onStreamTimeoutLogic(ctx);
         assert.equal(ctx.client._destroyCalled, false);
         assert.equal(ctx.cache._deleted.length, 0);
+        assert.equal(ctx.client._ginaTornDown, undefined, 'a session already destroyed is not marked (#B985)');
     });
 
     it('first attempt, flagged session that never connected (`_ginaConnected` false, `connecting` false, as Bun reads it): evicted and destroyed (#B967)', function() {
@@ -602,6 +605,7 @@ describe('04 - onStreamTimeout handler — stream-level timeout (#H4)', function
         onStreamTimeoutLogic(ctx);
         assert.ok(ctx.cache._deleted.indexOf(ctx.sessKey) > -1);
         assert.equal(ctx.client._destroyCalled, true);
+        assert.equal(ctx.client._ginaTornDown, true, 'marked as torn down by gina (#B985)');
     });
 
     it('first attempt, flagged connected session: kept and marked stale whatever `connecting` reads (#B967)', function() {
@@ -813,6 +817,7 @@ describe('06 - onQueryError handler — stream error / connection error', functi
         var result = onQueryErrorLogic(ctx);
         assert.equal(result.action, 'retry');
         assert.ok(ctx.client.destroyed, 'the dead session is destroyed on the retry path');
+        assert.equal(ctx.client._ginaTornDown, true, 'marked as torn down by gina (#B985)');
     });
 
     it('#B612 — ERR_HTTP2_SESSION_ERROR + retryCount exhausted → callback with the STREAM_ERROR code, status 500', function() {
@@ -833,6 +838,7 @@ describe('06 - onQueryError handler — stream error / connection error', functi
         onQueryErrorLogic(ctx);
         assert.equal(ctx.client._destroyCalled, false);
         assert.ok(ctx.cache._deleted.indexOf(ctx.sessKey) > -1);
+        assert.notEqual(ctx.client._ginaTornDown, true, 'an evicted session is not marked torn down (#B985)');
     });
 
     it('ECONNRESET retry: the dead session is destroyed (only a stream error keeps it)', function() {
@@ -840,6 +846,7 @@ describe('06 - onQueryError handler — stream error / connection error', functi
         var ctx = makeCtx({ retryCount: 0, error: err });
         onQueryErrorLogic(ctx);
         assert.equal(ctx.client._destroyCalled, true);
+        assert.equal(ctx.client._ginaTornDown, true, 'marked as torn down by gina (#B985)');
     });
 
     it('ERR_HTTP2_STREAM_ERROR + retryCount exhausted → callback, STREAM_ERROR code', function() {
