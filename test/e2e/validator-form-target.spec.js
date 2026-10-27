@@ -90,7 +90,12 @@ async function routeScene(page, o) {
     await page.route('**/frag/x76.html', async (r) => { await sleep(o.popinDelay || 0); await r.fulfill({ status: 200, contentType: 'text/html; charset=utf-8', body: o.frag || FRAG }); });
     // gh#76 §6 — `o.headers`: response headers the sink answers with (X-Gina-Retarget / -Reswap / -Reselect)
     // gh#76 §7 — `o.status`: the status the sink answers with (a 500 exercises the settle's release arms)
-    await page.route('**/x76/save', async (r) => { log.saves++; log.sendAt.push(Date.now()); await sleep(o.formDelay || 0); await r.fulfill(Object.assign({ status: o.status || 200 }, ANSWERS[o.answer || 'html'], ( o.headers ? { headers: o.headers } : {} ))); log.doneAt.push(Date.now()); });
+    await page.route('**/x76/save', async (r) => { log.saves++; log.sendAt.push(Date.now()); await sleep(o.formDelay || 0);
+        // `doneAt` is stamped as the answer is handed to the browser: a submit that waits for the
+        // answer can only be sent after it, while a stamp taken after `await r.fulfill()` can land
+        // 1-9 ms after the queued request's own stamp (the two are Node-side events).
+        log.doneAt.push(Date.now());
+        await r.fulfill(Object.assign({ status: o.status || 200 }, ANSWERS[o.answer || 'html'], ( o.headers ? { headers: o.headers } : {} ))); });
     await page.route('**/x76/save2', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' }));
     await page.route('**/js/x76-swap.js', (r) => { log.scriptHits++; r.fulfill({ status: 200, contentType: 'application/javascript', body: 'window.__x76swap=(window.__x76swap||0)+1;' }); });
     return log;
