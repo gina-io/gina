@@ -22,6 +22,8 @@ var releaseBanner = require('./release-banner');
 var preloadHints  = require('./preload-hints');
 // #B988 — the per-render copy of the action's object, so the combine never writes into it.
 var renderData    = require('./render-data');
+// #B989 — the request's session block (`page.data.session`), shared by the five HTML delegates.
+var renderSession = require('./render-session');
 // Precompiled regex — avoids per-request RegExp allocation (#P3)
 var blacklistRe       = /[<>]/g;
 
@@ -455,42 +457,9 @@ module.exports = async function render(userData, displayInspector, errOptions, d
 
     try {
         data = getData();
-        // Display session
-        if (
-            typeof(req.session) != 'undefined'
-        ) {
-            if ( typeof(data.page.data) == 'undefined' ) {
-                data.page.data = {};
-            }
-
-            // A browser-session cookie has no expiry: _expires is null after a
-            // store round-trip. `typeof null === 'object'` slipped past the old
-            // `!= 'undefined'` guard, then null.format() threw (HTTP 500). This
-            // block needs a real Date (date subtraction + .format), so gate on that.
-            if ( req.session.cookie._expires instanceof Date ) {
-                var dateEnd = req.session.cookie._expires;
-                var dateStart = ( typeof(req.session.lastModified) != 'undefined')
-                                ? new Date(req.session.lastModified)
-                                : new Date()
-                ;
-                var elapsed = dateEnd - dateStart;
-                // var expiresAt =
-                if ( typeof(data.page.data.session) == 'undefined' ) {
-                    data.page.data.session = {
-                        id          : req.session.id,
-                        lastModified: req.session.lastModified
-                    };
-                }
-                // In milliseconds
-                data.page.data.session.createdAt    = req.session.createdAt;
-                data.page.data.session.expiresAt    = dateEnd.format('isoDateTime');
-                data.page.data.session.timeout      = elapsed;
-
-                dateEnd     = null;
-                dateStart   = null;
-                elapsed     = null;
-            }
-        }
+        // Display session — #B989: the block, with its `instanceof Date` guard on the session
+        // cookie's expiry, is built by render-session.js for all five HTML delegates.
+        renderSession.addSessionBlock(data, req);
 
         // in case `req.routing.param.file` has been changed on the fly
         if (

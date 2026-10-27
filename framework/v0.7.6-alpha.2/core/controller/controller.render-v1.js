@@ -8,6 +8,8 @@ const lib = require('./../../lib') || require.cache[require.resolve('./../../lib
 var console = lib.logger;
 // #B988 — the per-render copy of the action's object (kept in lockstep with render-swig.js).
 var renderData = require('./render-data');
+// #B989 — the request's session block (kept in lockstep with render-swig.js).
+var renderSession = require('./render-session');
 // Inherited from controller
 var self, local, SuperController, getData, hasViews, setResources, SwigFilters, headersSent;
 
@@ -98,42 +100,8 @@ module.exports = async function render(userData, displayInspector, errOptions, d
 
     try {
         data = getData();
-        // Display session
-        if (
-            typeof(local.req.session) != 'undefined'
-        ) {
-            if ( typeof(data.page.data) == 'undefined' ) {
-                data.page.data = {};
-            }
-
-            // Same browser-session-cookie crash as render-swig.js: _expires is
-            // null after a store round-trip, `typeof null === 'object'` passed
-            // the old `!= 'undefined'` guard, then null.format() threw (HTTP 500).
-            // Gate on a real Date (date subtraction + .format both require one).
-            if ( local.req.session.cookie._expires instanceof Date ) {
-                var dateEnd = local.req.session.cookie._expires;
-                var dateStart = ( typeof(local.req.session.lastModified) != 'undefined')
-                                ? new Date(local.req.session.lastModified)
-                                : new Date()
-                ;
-                var elapsed = dateEnd - dateStart;
-                // var expiresAt =
-                if ( typeof(data.page.data.session) == 'undefined' ) {
-                    data.page.data.session = {
-                        id          : local.req.session.id,
-                        lastModified: local.req.session.lastModified
-                    };
-                }
-                // In milliseconds
-                data.page.data.session.createdAt    = local.req.session.createdAt;
-                data.page.data.session.expiresAt    = dateEnd.format('isoDateTime');
-                data.page.data.session.timeout      = elapsed;
-
-                dateEnd     = null;
-                dateStart   = null;
-                elapsed     = null;
-            }
-        }
+        // Display session — #B989: built by render-session.js (in lockstep with render-swig.js).
+        renderSession.addSessionBlock(data, local.req);
 
         // in case `local.req.routing.param.file` has been changed on the fly
         if (

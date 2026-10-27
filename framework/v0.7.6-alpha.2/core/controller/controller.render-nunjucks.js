@@ -130,6 +130,8 @@ var emitInspectorWindowData = require('./inspector-window-emit');
 var releaseBanner = require('./release-banner');
 // #B988 — the per-render copy of the action's object, so the combine never writes into it.
 var renderData    = require('./render-data');
+// #B989 — the request's session block (`page.data.session`), shared by the five HTML delegates.
+var renderSession = require('./render-session');
 
 /**
  * #B554 — HTML-escape a value before it is concatenated into an error page.
@@ -941,6 +943,23 @@ function injectAssets(html, data, localOptions, cspNonce) {
             '<script type="text/javascript" nonce="' + cspNonce + '">'
         );
     }
+    // #B989 — fill the bootstrap's `{{ page.data.session.<key> }}` placeholders here, in the
+    // bootstrap string, with the request's session block (escaped as swig's autoescape escapes
+    // it) or with nothing, as swig renders a missing value. The whisper() pass after the render
+    // runs over the whole page, so given the session keys it would also put the session id into
+    // text rendered from app data. Inline, not through render-session.js:
+    // test/lib/render-engine-dispatch.test.js compiles this function on its own.
+    if (typeof ginaLoader === 'string' && ginaLoader.indexOf('{{ page.data.session.') > -1) {
+        var _session = (data.page.data && typeof(data.page.data.session) == 'object') ? data.page.data.session : null;
+        ginaLoader = ginaLoader.replace(/\{\{ page\.data\.session\.([a-zA-Z]+) \}\}/g, function (s, key) {
+            var v = (_session && Object.prototype.hasOwnProperty.call(_session, key)) ? _session[key] : undefined;
+            if (v === null || typeof(v) == 'undefined') { return ''; }
+            if (typeof(v) != 'string') { return String(v); }
+            return v.replace(/&(?!amp;|lt;|gt;|quot;|#39;)/g, '&amp;').replace(/[<>"']/g, function (ch) {
+                return ch === '<' ? '&lt;' : ch === '>' ? '&gt;' : ch === '"' ? '&quot;' : '&#39;';
+            });
+        });
+    }
     var externalPlugins = (tpl && Array.isArray(tpl.externalPlugins)) ? tpl.externalPlugins : [];
     var hasHead         = /<\/head>/i.test(html);
     var hasBody         = /<\/body>/i.test(html);
@@ -1182,6 +1201,9 @@ module.exports = async function renderNunjucks(userData, displayInspector, errOp
     } catch (dataErr) {
         return self.throwError(dataErr);
     }
+    // #B989 — the request's session block, built where the swig delegate builds it: before the
+    // combine, so `copyForRender()` below copies an action's own `session` member.
+    var sessionBlock = renderSession.addSessionBlock(data, req);
 
     // Error-interception mirror — render-swig.js:522-555 has identical logic.
     // When render(err) is called with a non-2xx status + an `error` object,
@@ -1224,8 +1246,9 @@ module.exports = async function renderNunjucks(userData, displayInspector, errOp
     //       userData.page merges INTO data.page (per-key) so a controller
     //       passing `page.*` does not wholesale-replace the subtree.
     //   (c) Framework-data restore — re-overlay getData() so the deep merge
-    //       brings back any framework-injected page.environment/page.view/
-    //       page.data.session keys that (b)'s per-key page write dropped.
+    //       brings back any framework-injected page.environment/page.view
+    //       keys that (b)'s per-key page write dropped. getData() never holds
+    //       the session block: #B989 merges it back after the combine.
     //       This is the `render-swig.js:593` step nunjucks was missing; without
     //       it a controller passing a partial `page.environment` clobbers
     //       webroot/hostname/version (§4 parity rule).
@@ -1253,8 +1276,14 @@ module.exports = async function renderNunjucks(userData, displayInspector, errOp
             }
         });
         // (c) Restore framework page.* — deep-merge getData() back on top so
-        // page.environment/page.view/page.data.session survive (b).
+        // page.environment/page.view survive (b).
         data = merge(data, getData());
+    }
+    // #B989 — the combine above puts an action's own `page.data` or `session` member in the
+    // place of gina's, where the swig delegate merges the two: merge the session block back, so
+    // the action's keys win and the block adds the keys its member lacks, as there.
+    if (sessionBlock) {
+        data = merge(data, { page: { data: { session: sessionBlock } } });
     }
 
     // FRAMEWORK PATCH: Bug J — alias `data.data` to `data.page.data`
@@ -1479,13 +1508,17 @@ module.exports = async function renderNunjucks(userData, displayInspector, errOp
                     ginaLoaderDic['page.environment.' + _k] = data.page.environment[_k];
                 }
             }
-            // gina.onload.min.js also references `{{ page.data.session.X }}` (depth 3)
-            // for session id/timeout/createdAt/lastModified — flatten that level too.
-            if (data.page.data && typeof data.page.data === 'object' && data.page.data.session && typeof data.page.data.session === 'object') {
-                for (var _s in data.page.data.session) {
-                    ginaLoaderDic['page.data.session.' + _s] = data.page.data.session[_s];
-                }
-            }
+            // #B989 — the session placeholders of gina.onload.min.js are filled in the bootstrap
+            // string, in injectAssets(): this pass runs over the whole page, so the session keys
+            // stay out of its dictionary (given them, it put the session id into text rendered
+            // from app data). The flattening it did, commented out:
+            // // gina.onload.min.js also references `{{ page.data.session.X }}` (depth 3)
+            // // for session id/timeout/createdAt/lastModified — flatten that level too.
+            // if (data.page.data && typeof data.page.data === 'object' && data.page.data.session && typeof data.page.data.session === 'object') {
+            //     for (var _s in data.page.data.session) {
+            //         ginaLoaderDic['page.data.session.' + _s] = data.page.data.session[_s];
+            //     }
+            // }
             html = whisper(ginaLoaderDic, html, /\{{ ([a-zA-Z.]+) \}}/g);
         }
     } catch (whisperErr) {
