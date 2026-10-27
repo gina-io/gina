@@ -39,7 +39,7 @@
         framework-free so the spec validates the native-dialog + CSS layer without
         booting the full gina runtime. The contract here is kept in lock-step with
         popin/main.js (wireTriggerAria / associateLabel / focusInitial /
-        applyNonModalShims / popinClose focus-return).
+        applyNonModalShims / popinClose focus-return / bindNativeCloseSync).
     -->
     <script>
         (function () {
@@ -70,6 +70,15 @@
                 document.body.removeAttribute('data-gina-popin-scroll-lock');
                 if ($el.__onKeydown) { $el.removeEventListener('keydown', $el.__onKeydown); $el.__onKeydown = null; }
             }
+            // Mirror of popin/main.js bindNativeCloseSync: a native close (Escape on a modal,
+            // a method="dialog" form) runs the plugin's close, whose teardown returns focus to
+            // the trigger; focus is never left to the browser's own restoration, which has
+            // nothing to restore where a click does not focus a button (WebKit on macOS).
+            function bindNativeCloseSync($el) {
+                if ($el.__closeSyncBound) { return; }
+                $el.__closeSyncBound = true;
+                $el.addEventListener('close', function () { close($el); });
+            }
             function close($el) {
                 if (typeof $el.close === 'function') { $el.close(); } else { $el.removeAttribute('open'); }
                 removeNonModalShims($el);
@@ -87,6 +96,7 @@
                     $trigger.setAttribute('aria-haspopup', 'dialog');
                     $trigger.setAttribute('aria-controls', id);
                     associateLabel($el);
+                    bindNativeCloseSync($el);
                     var attr = $trigger.getAttribute('data-gina-dialog-modal');
                     var modal = (attr != null && attr !== 'false');
                     if (modal) {
