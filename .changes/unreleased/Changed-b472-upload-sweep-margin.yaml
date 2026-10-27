@@ -1,3 +1,0 @@
-kind: Changed
-body: 'The boot-time sweep of staged upload parts (armed by `upload.autoTmpCleanupTimeout`) now removes a part once its mtime is older than the timeout plus one hour; it was the timeout floored at one hour. With a timeout of an hour or more the sweep acted at the moment the owning process''s own timer would, as read on the sweeping node''s clock, so on a staging directory shared between nodes a clock running ahead of the file''s, or an attribute cache serving an older mtime, could remove a part before its owner''s timer would. The extra hour absorbs that; parts a restart stranded wait one hour longer. Restart your bundles (#B472).'
-time: 2026-10-22T11:54:27+01:00

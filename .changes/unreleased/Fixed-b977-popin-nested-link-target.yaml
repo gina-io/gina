@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'A click on an element inside a popin link that has a `target` (an icon, or a `<span>` label in `<a href="…" target="_blank">`) now opens that window, as a click on the link itself does. The popin read the link''s `href` and `target` from the element clicked, which carries neither, so such a click loaded the link''s page into the popin instead. A plain link (no `id`, no `#` and no `target`) still loads its page into the same popin, whichever element inside it is clicked. Browser-bundled: restart the bundle and re-bake it (`gina bundle:build`) to pick it up. (#B977)'
-time: 2026-10-25T16:59:17+01:00

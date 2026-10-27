@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'In an edit form, the delete link of a saved file now goes away when a new selection replaces that file, wherever the link sits. The staging success empties the preview container, which took a delete link placed inside it but not one placed after it (the shape the uploads guide documents), so that link stayed on the page, bound to a file the input no longer held: activating it sent no request, removed nothing, and logged the zero-match warning. The replaced entries are kept on the input until a staging succeeds, over a failed staging or an empty selection, and their links are then removed as a delete removes one. Re-bake your bundles (#B150).'
-time: 2026-10-22T16:50:05+01:00

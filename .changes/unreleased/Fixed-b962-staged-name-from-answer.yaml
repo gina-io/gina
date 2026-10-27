@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'A staged file input''s `name` field now takes the staging answer''s `name`, like every other field, so a new file chosen in an edit form submits its own name rather than the saved file''s. The field was filled only while it was empty: an edit form that declares it submitted the saved file''s name beside the new file''s location and original filename, and a second file chosen on the same input submitted the first file''s name. A staging answer without a `name` key leaves the field as it is, so a page that relied on a declared `name` surviving a replacement can keep that value in a field the answer does not return. Re-bake your bundles (#B962).'
-time: 2026-10-23T13:14:09+01:00

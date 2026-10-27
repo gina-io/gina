@@ -1,3 +1,0 @@
-kind: Added
-body: 'Templates can read the project''s own package version as `page.environment.packageVersion`: the `version` field of the project''s `package.json`, read once per process. The field is not set when the project has no `package.json` or no `version` in it, so `{% if page.environment.packageVersion %}` guards a version badge. It is not `${projectVersion}`, which in configuration files is the version in the gina manifest. Restart your bundles (#TPL3).'
-time: 2026-10-22T11:51:15+01:00

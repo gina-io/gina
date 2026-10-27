@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'A staged file input''s reset and delete links keep working after a `change` that carries no file (an emptied selection). Such a change emptied the input''s record of the files it shows while their previews and hidden fields stayed in the form, so a reset or delete link then sent no request, removed nothing, and logged the zero-match warning. The listener now returns before it writes anything. Re-bake your bundles (#B959).'
-time: 2026-10-22T18:03:13+01:00

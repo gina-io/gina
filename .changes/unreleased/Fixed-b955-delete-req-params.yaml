@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'On a `DELETE` route whose regex `requirements` cover its URL placeholders, `req.params` now carries the URL values (`req.params.id` on `"url": "/items/:id"` with `"requirements": { "id": "/^[0-9]+$/" }`), as it does on a `DELETE` route without requirements and on every `GET` route. The router matched such a route in its own branch, which wrote the values to `req.delete` only, so `req.params.id` was undefined there. A placeholder the route does not bind in `param` stays out of `req.params`, as on `GET`. Browser-bundled: restart the bundle and rebuild your bundles (`gina bundle:build`) to pick it up. (#B955)'
-time: 2026-10-21T22:20:14+01:00

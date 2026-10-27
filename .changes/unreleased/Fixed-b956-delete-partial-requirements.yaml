@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'A DELETE route whose `requirements` cover only some of its URL placeholders now matches. The router matches a DELETE route that declares `requirements` in a branch of its own, which skipped a placeholder without a requirement instead of scoring it, so such a route answered 404 on every request while the same route on GET matched; the branch now accepts any non-empty segment for that placeholder, as the GET path does, and sets `req.delete` and `req.params` from it. The browser bundle carries the router: restart and re-bake your bundles (#B956).'
-time: 2026-10-22T07:45:57+01:00
