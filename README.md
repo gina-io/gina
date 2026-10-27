@@ -69,59 +69,56 @@ open http://localhost:3100
 
 > **npm 12+** blocks install scripts by default, and gina's post-install bootstraps `~/.gina` and the framework dependencies. Install with `npm install -g gina@latest --allow-scripts=gina`, or allow it once for all global installs with `npm config set allow-scripts=gina --location=user`. (Not needed on npm ≤ 11.)
 
-## What's in 0.7.5
+## What's in 0.7.6
 
-> **Restart your bundles *and* rebuild them.** The form validator, the routing
-> library's `getRoute()`, `Collection` and the request-data parser are
-> browser-bundled, so `gina.min.js` changed and `gina bundle:restart` alone leaves
-> the old client running: rebuild each consuming bundle, then restart it. If your
-> build copies `gina.min.js` into your own static files, rebuild that copy before
-> the restart. A framework already running picks up the CLI fixes after
-> `gina framework:restart`.
+> **Restart your bundles *and* rebuild them.** The form validator's staged
+> uploads, the popin and the routing library are browser-bundled, so
+> `gina.min.js` changed and `gina bundle:restart` alone leaves the old client
+> running: rebuild each consuming bundle, then restart it. If your build copies
+> `gina.min.js` into your own static files, rebuild that copy before the restart.
 
-> **Read before upgrading — some changes can change an answer.** A Couchbase entry
-> of `connectors.json` without a `scope` now gives its entities the bundle's
-> `NODE_SCOPE`, so the documents it inserted with `_scope: "_default"` stop
-> matching: stamp them with the environment's scope, or set `"scope": "_default"`
-> on the entry. Data stored through a SQLite or DuckDB entry that names neither
-> `file` nor `database` is in `undefined.sqlite` or `undefined.duckdb` in the gina
-> home: set the entry's `file` to it before upgrading (such a DuckDB entry now stops
-> the boot). A bundle that sets `swig.useProject: true` now renders with the
-> project's own `@rhinostone/swig`, a `swig.package` frontend the bundle cannot load
-> stops it at startup, and a grouped expression renders the value of its group
-> (`{{ (1 + 2) * 3 }}` gave 7). On a rule with several URLs, `getRoute()` and the
-> `getUrl` filters compose the URL the values complete (`urlIndex` 0 keeps the
-> first), and a key both in a `self.query()` path and in its data keeps the path's
-> value. Bracket keys that mix indexes and names now give an object, an unticked
-> optional boolean checkbox posts `false`, and a required checkbox that carries a
-> value must be ticked. The [migration notes](https://gina.io/docs/migration) list
-> every behaviour change.
+> **Read before upgrading — some changes can change an answer.** A URL
+> placeholder's value now wins over a query-string or body key of the same name
+> on every request, in `req.get`, `req.post` and the other method objects as in
+> `req.params`; the client's value stays readable in `req.originalUrl`,
+> `req.query` or `req.rawBody`. An HTTP/2 `self.query()` that reaches its
+> `requestTimeout` fails with `TIMEOUT` and is not sent again. `self.render()`,
+> `self.renderWithoutLayout()`, `self.renderJSON()` and `self.throwError()` no
+> longer write into the object an action passes them: an action that read gina's
+> additions back from its own object (`page.data.session`, `gina.csrfToken`, an
+> incident `ref`, the Inspector sidecars) reads them elsewhere, and a change it
+> makes to the object after calling the render may no longer reach the template.
+> Swig 2.9.6 renders on a copy of the data it is given: a template's `{% set %}`
+> no longer lands in that object, a top-level property that is not enumerable is
+> no longer visible, and the output before an `{% import %}` is now kept. A
+> top-level JSON array body is the array on every request, a path's first
+> included, and pages rendered with an async swig loader or with nunjucks now
+> carry the request's session. The [migration notes](https://gina.io/docs/migration)
+> list every behaviour change.
 
-**The forms-and-containers release.** Three security fixes, two of them on the
-template-path advisory GHSA-3vmh-634f-vwm3 published with 0.7.4: a query or body
-value could replace a URL segment in a route's template path after the segment had
-passed the route's `requirements` (the residual the advisory stated), and the router
-let an escaping value into `param.path` and `param.namespace` before its
-path-traversal check (the renderers still refused it). Gina also requires
-`@rhinostone/swig` `^2.8.3`, which escapes a template's filename in the code it
-compiles (GHSA-q89c-947c-m7xr). Sixty-one fixes follow: nineteen in the form
-validator, `getRoute()`'s URL choice and query string, how `self.query()` and
-`forward` send their data, the container launchers and the `~/.gina` files, the
-connectors' scope and model directories, and swig's grouped expressions and project
-frontends. On native Windows, gina now stops with one message: run it inside WSL2 or
-a Docker container. Full detail in [CHANGELOG.md](./CHANGELOG.md).
+**The render-isolation release.** Three security fixes keep request data out of
+the objects an action passes to gina: `self.render()` and
+`self.renderWithoutLayout()` no longer write a request's session id, CSRF token
+and URL into them, `self.renderJSON()` no longer writes its Inspector sidecars
+into them, and Gina requires `@rhinostone/swig` `^2.9.6`, which renders on a copy
+of the data it is given (GHSA-25w8-77gg-4ccw), bounds async renders
+(GHSA-86pr-x856-xrq5), keeps a cached layout unchanged (GHSA-g628-5x3r-g298),
+runs `striptags` in linear time (GHSA-rvx7-jqr9-c242) and caps swig-core ranges
+(GHSA-f8f4-95q3-38qw). Three changes, one addition and fifteen fixes follow: staged
+uploads in the form validator, the popin, HTTP/2 `self.query()` retries, `DELETE`
+routes, JSON array bodies, `self.throwError()`, the session block on every
+renderer, swig's `{% import %}`, and the filters a route middleware's template
+sees. Full detail in [CHANGELOG.md](./CHANGELOG.md).
 
-- **Security — a route's template path keeps its URL value (#B877, #B883).** A placeholder of `param.file` that is a URL segment takes the URL value, and the router refuses a `param.path` or `param.namespace` value holding a `..` segment or starting with a separator. A redirect route that takes `param.path` from a query value starting with `/` is refused, also when the key has a requirement.
-- **Security — swig escapes a template's filename (#B942).** Up to 2.8.2, swig wrote the including template's filename into the compiled template without escaping it. Gina requires `^2.8.3` in both manifests; a project copy loaded through `swig.useProject` keeps its own version, so update it there.
-- **Changed — `getRoute()` composes the URL the values complete (#B374), and the path's value wins in `self.query()` (#B945).** Without `urlIndex`, a rule with several URLs composes a URL whose placeholders all receive a value, preferring the one that uses the most of them; a forward route's static `param` reaches its target as written.
-- **Fixed — the form validator (#B879, #B880, #B802, #B881, #B884, #B885, #B913, #B886, #B914, #B915, #B916, #B918, #B919, #B920, #B921, #B923, #B926, #B929, #B931).** A `_case_` condition is matched against its own driving field, reads a `/pattern/` case and a regular-expression rule key wherever its block sits, stops applying when it no longer holds, refuses a group it makes required from the first submit, and its targets are live-checked. A required checkbox that carries a value must be ticked; an optional boolean one posts `false`. A field follows only the masters whose whole ids its `data-gina-form-element-group` lists, regular-expression characters included. Each bound form holds its own copy of its rule set. `reBind()` keeps the rule set `data-gina-form-rule` names and uses the rules you pass, `unbind()` works with no argument, `tel`, `url`, `search`, `time`, `datetime-local`, `month` and `week` inputs are live-checked, and a `<select>` change re-checks the form with its own rules.
-- **Fixed — `query` rules and `self.query()` (#B951, #B950, #B945, #B952).** A browser `query` rule on GET (the default), HEAD or DELETE sends its data in the URL; a rule aimed at its own bundle works under `gina-container` without a `proxy` entry for it; `self.query()` and `forward` send the data of a GET, HEAD or DELETE once, in the query string, and the data of a PATCH as a JSON body.
-- **Fixed — `getRoute()` (#B374, #B220, #B943, #B944, #B946).** It composes the URL `urlIndex` names and refuses an index that names none, appends a value bound only to another URL as a query parameter, repeats no value, and keeps a value holding a comma whole.
-- **Fixed — request data (#B596, #B936, #B594).** Bracket keys that mix indexes and names nest to one object, whatever their order; a top-level JSON array document is parsed into its elements.
-- **Fixed — containers and the `~/.gina` files (#K8s7, #B895, #B892, #B934, #B928, #B891, #B938, #B687, #B857, #B852, #B890, #B906, #B905).** `gina-container` reads `GINA_HOMEDIR`, names a missing `manifest.json`, and accepts a comment or a trailing comma in the files it reads, as every reader of `manifest.json` and `main.json` now does; `gina-init` no longer dials the MQ port; state and pid files are written whole, and a process that creates the run directory is registered; a project or `~/.gina` file that cannot be used is refused in one line instead of stopping the framework; a failed `node_modules` link no longer reads as a successful start.
-- **Fixed — connectors (#B893, #B900, #B894, #B901, #B907, #B909, #B911).** A Couchbase entry without `scope` uses `NODE_SCOPE`, as documented, and one named differently from its bucket no longer stops the boot; an entry keyed by its connector type loads without `connector`; model directories follow the entry's `database` or `keyspace`, with no `models/undefined/` and no `undefined.sqlite`; a DuckDB entry that names neither `file` nor `database` stops the boot.
-- **Fixed — swig (#B940, #B932, #B925, #B924).** A grouped expression renders the value of its group (swig 2.8.2 and later); `swig.useProject` and `swig.package` take effect in a running bundle, and a frontend that cannot load stops it with `SWIG_PACKAGE_UNAVAILABLE`; the settings schema lists every frontend.
-- **Fixed — platform and CLI (#B888, #B889, #B363, #B927, #B902, #B903, #B917, #B823, #B824).** Native Windows stops with one message pointing to WSL2 or Docker; the "not started" hint no longer asks for `sudo`; `project:add` leaves an existing `package.json` as it is; the helpers load in a fixed order under Bun; the `onInitialize` sample that `bundle:add` writes works in a bundle named `event`, `app` or `express`; the https credentials error is spelled correctly; a `requireJSON()` parse error quotes the file around the error; a `Collection` filter on one field of an array of objects finds its rows, and `setSearchOption()` refuses a per-field `skipEval`.
+- **Security — a render no longer writes into the object an action passes (#B988, #B992).** `self.render()` and `self.renderWithoutLayout()` combine a copy of the object, so a module-level or `require()`d object no longer carries the first request's session id, CSRF token and URL into later pages; `self.renderJSON()` writes its Inspector sidecars (`__ginaQueries`, `__ginaFlow`) into a copy, so a cached response object no longer sends one request's query log to later clients. A class instance passed as the object is not copied.
+- **Security — swig `^2.9.6` (#B963, #B973, #B983, #B997).** Swig renders on a copy of the locals a caller passes (GHSA-25w8-77gg-4ccw), fails a render on the async loader path once more than 1,000 templates are nested instead of exhausting the heap (GHSA-86pr-x856-xrq5), keeps a page's block override out of a cached layout (GHSA-g628-5x3r-g298), runs `striptags` in linear time (GHSA-rvx7-jqr9-c242) and returns an empty swig-core range above 1,000,000 elements (GHSA-f8f4-95q3-38qw). A project copy loaded through `swig.useProject`, or a frontend selected through `swig.package`, keeps its own version, so update it there.
+- **Changed — a URL placeholder's value wins (#B954, #B957), an HTTP/2 timeout is final (#B967, #B970, #B628), and the staged-upload sweep waits an hour longer (#B472).** On a route `/items/:grp/:id`, `?id=99` or `{ "id": "99" }` no longer replaces the URL value in `req.get`, `req.post` and the other method objects; a `self.query()` to an HTTP/2 upstream that reaches its `requestTimeout` fails with `TIMEOUT` and is not resent, and on a connected session only that request is cancelled; the boot-time sweep removes a staged upload part once it is older than the timeout plus one hour.
+- **Added — `page.environment.packageVersion` (#TPL3).** Templates read the project's own `package.json` version, read once per process; it is not set when the project has no `package.json` or no `version` in it.
+- **Fixed — staged uploads in the form validator (#B150, #B959, #B960, #B961, #B962, #B292).** A saved file's delete link goes away when a new selection replaces it; reset and delete links keep working after an emptied selection, after a failed staging and while a file uploads; a new file's own `name` is submitted; the trigger warning names only a control the page must provide.
+- **Fixed — the popin (#B974, #B975, #B977).** A popin closes after a link inside it loaded a page, and a click on an element inside a link with a `target` opens that window.
+- **Fixed — HTTP/2 `self.query()` retries (#B981, #B968, #B982, #B628).** A retry after a 502, a stream error or a stream that ended early leaves the other calls on its session alone, and a call that was never sent is sent again on a new session.
+- **Fixed — routing and request data (#B955, #B956, #B953, #B965).** A `DELETE` route whose regex `requirements` cover its placeholders sets `req.params`, one whose requirements cover only some of them matches, and a top-level JSON array body is the array on every request, a path's first included.
+- **Fixed — rendering (#B672, #B989, #B978, #TPL3).** `self.throwError()` no longer writes into the error object an action passes; pages rendered with an async swig loader or with nunjucks carry the request's session in `page.data.session` and in the client bootstrap; swig keeps the output before an `{% import %}`, and async-loader templates render includes inside loops; a template a route middleware renders sees the filters `controllers/setup.js` registers.
 
 ## Documentation
 
