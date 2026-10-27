@@ -153,7 +153,10 @@ async function sceneWithCommittedError(page, seen) {
     await page.click('#parent x-agree button');           // satisfy `agree`
     await page.click('#note');
     await page.keyboard.type('nope', { delay: 20 });
-    await page.keyboard.press('Tab');                     // blur -> commit the error
+    // Blur -> commit the error, by a click on the page: #note is the page's last
+    // focusable element, and a Tab past it left the focus on the field in
+    // Playwright's Firefox, so the error was never committed there.
+    await page.mouse.click(5, 5);
 
     await expect.poll(async () => {
         const s = await readState(page);
