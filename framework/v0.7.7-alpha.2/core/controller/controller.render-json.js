@@ -141,10 +141,12 @@ async function writeCache(bundle, opt, jsonContent, req, res, cacheIsEnabled, th
  * writes the response, and nulls per-request refs on every exit path.
  *
  * The object is read, not written: when the Inspector sidecars (`__ginaQueries`,
- * `__ginaFlow`) are added, in dev or for an internal caller in an instrumentation
- * window, they go into a copy made by `copyOwn()` (core/controller/render-data.js),
- * so an object passed to several renderJSON calls never carries one request's
- * sidecars into another response (#B992). A class instance is not copied.
+ * `__ginaFlow`) are added, in dev only, they go into a copy made by `copyOwn()`
+ * (core/controller/render-data.js), so an object passed to several renderJSON calls
+ * never carries one request's sidecars into another response (#B992). A class
+ * instance is not copied. During a production instrumentation window no sidecar is
+ * added, whatever the request's headers: the window's capture leaves only over the
+ * authenticated `/_gina/agent` channel (#B993).
  *
  * @param {object|string} jsonObj     - Data to serialise. Parsed if passed as a string.
  * @param {object}        deps        - Inherited refs from SuperController
@@ -388,23 +390,32 @@ module.exports = function renderJSON(jsonObj, deps) {
         // back as __ginaQueries in the JSON response body. A's query()
         // callback extracts, merges into its own _queryLog, and deletes
         // the field before the data reaches the controller action.
-        // #INS10 — in a prod window, attach the RAW cross-bundle query sidecar ONLY when the
-        // request came from an internal caller (inbound x-gina-inspector header) that will
-        // strip it (controller.js extract path); never to an external client. Dev unchanged.
+        // #B993 — dev only. #INS10 also attached both sidecars during a production
+        // instrumentation window when the request carried the header self.query() sets on a
+        // cross-bundle call, meant as an internal-caller marker; but any client can send that
+        // header, so while a window was open an unauthenticated request received its own raw
+        // query log (the statement text, the .sql file's server path, the bound values with
+        // inspector.queries.captureValues) and its timeline. In a window the captured data now
+        // leaves only over the authenticated /_gina/agent channel, and a caller's Inspector no
+        // longer shows a callee's queries merged into its own: each bundle's own window
+        // streams them. The previous gate is kept below, commented out.
         // #B992 — both sidecars are written into a copy of the action's object, made at the
         // first write and reused by the second (`renderData.copyOwn()`: one level deep, the
         // members shared). Written into the object itself, a memoized response object kept
         // one request's query log and timeline and sent them in every later response.
         var _sidecarCopy = null;
-        if ((self.isCacheless() || ((process.gina && process.gina._inspectorWindowUntil > Date.now()) && request && request.headers && request.headers['x-gina-inspector'] === 'true')) && local._queryLog && local._queryLog.length > 0) {
+        // if ((self.isCacheless() || ((process.gina && process.gina._inspectorWindowUntil > Date.now()) && request && request.headers && request.headers['x-gina-inspector'] === 'true')) && local._queryLog && local._queryLog.length > 0) {
+        if (self.isCacheless() && local._queryLog && local._queryLog.length > 0) {
             jsonObj = _sidecarCopy = _sidecarCopy || renderData.copyOwn(jsonObj);
             jsonObj.__ginaQueries = local._queryLog;
         }
 
         // #FI — embed timeline entries as a sidecar for cross-bundle flow
         // propagation (mirrors __ginaQueries pattern).
-        // #INS10 — same internal-caller gating as __ginaQueries above (no external leak in a window).
-        if ((self.isCacheless() || ((process.gina && process.gina._inspectorWindowUntil > Date.now()) && request && request.headers && request.headers['x-gina-inspector'] === 'true')) && local._timeline && local._timeline.entries && local._timeline.entries.length > 0) {
+        // #B993 — dev only, as __ginaQueries above: the header that attached it in a production
+        // window is client-controlled. The previous gate is kept below, commented out.
+        // if ((self.isCacheless() || ((process.gina && process.gina._inspectorWindowUntil > Date.now()) && request && request.headers && request.headers['x-gina-inspector'] === 'true')) && local._timeline && local._timeline.entries && local._timeline.entries.length > 0) {
+        if (self.isCacheless() && local._timeline && local._timeline.entries && local._timeline.entries.length > 0) {
             jsonObj = _sidecarCopy = _sidecarCopy || renderData.copyOwn(jsonObj);
             jsonObj.__ginaFlow = local._timeline.entries;
         }

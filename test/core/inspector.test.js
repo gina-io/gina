@@ -8057,17 +8057,19 @@ describe('72 - #INS10 window egress is authenticated + leak-safe', function() {
             'the flow-close gate must open on the window');
     });
 
-    it('render-json cross-bundle sidecars emit raw data ONLY to internal callers in a window', function() {
+    it('render-json cross-bundle sidecars emit raw data only in dev (#B993: the header is client-controlled)', function() {
         var src = fs.readFileSync(path.join(FW, 'core/controller/controller.render-json.js'), 'utf8');
         var qi = src.indexOf('jsonObj.__ginaQueries = local._queryLog;');
         var qGate = src.substring(src.lastIndexOf('if (', qi), qi);
         assert.ok(qGate.indexOf('self.isCacheless()') > -1, 'dev path preserved (sidecar emits in dev)');
-        assert.ok(qGate.indexOf(WINDOW) > -1, 'window path present');
-        assert.ok(qGate.indexOf("x-gina-inspector'] === 'true'") > -1,
-            'in a window the raw sidecar must be gated on the inbound internal header (no external leak)');
+        assert.equal(qGate.indexOf(WINDOW), -1, '#B993: the raw query sidecar must not open on the window');
+        assert.equal(qGate.indexOf('x-gina-inspector'), -1,
+            '#B993: the raw query sidecar must not trust the x-gina-inspector header (any client can send it)');
         var fi = src.indexOf('jsonObj.__ginaFlow = local._timeline.entries;');
         var fGate = src.substring(src.lastIndexOf('if (', fi), fi);
-        assert.ok(fGate.indexOf("x-gina-inspector'] === 'true'") > -1, '__ginaFlow sidecar also header-gated in a window');
+        assert.ok(fGate.indexOf('self.isCacheless()') > -1, 'dev path preserved (__ginaFlow emits in dev)');
+        assert.equal(fGate.indexOf(WINDOW), -1, '#B993: the __ginaFlow sidecar must not open on the window');
+        assert.equal(fGate.indexOf('x-gina-inspector'), -1, '#B993: the __ginaFlow sidecar must not trust the header');
     });
 
     it('controller cross-bundle header-set + extract open on the window', function() {
