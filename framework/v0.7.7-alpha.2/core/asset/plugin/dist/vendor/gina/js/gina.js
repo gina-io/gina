@@ -29434,7 +29434,9 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/loading-state', 'lib/merge'
              * popin when clicked or opened in its `target` window, or a close button (`type`
              * 'close'). A close button whose id is a `popin.click.*` trigger id, an element that
              * is also a legacy trigger, dispatches that trigger instead of closing the popin
-             * (#B301, #B995).
+             * (#B301, #B995). An element carrying `disabled` (any value but "false") does nothing
+             * when clicked, wherever the click lands on it (#B994); on a native form control the
+             * browser enforces `disabled` itself (#B296).
              *
              * @inner
              * @param {string} type - 'link' or 'close'; a link without `data-gina-popin-is-link="true"` is treated as 'action'
@@ -29493,9 +29495,16 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/loading-state', 'lib/merge'
                     // popin open with nothing marked. A target-phase guard bound after gina's own
                     // listener (:1327) does NOT reproduce it — gina runs first — so this site is
                     // narrower than openFromTrigger's, but real.
+                    // #B994: read the element this listener is bound on (the link or close button
+                    // register() bound), not `event.target`, the node actually clicked: a click on
+                    // markup inside a link carrying `disabled` (an icon, a `<span>` label) found no
+                    // `disabled` there, passed this gate and loaded the link into the popin, while
+                    // a click on the link itself was ignored.
+                    // was: !('disabled' in event.target)
+                    // was: && event.target.getAttribute('disabled') != null && event.target.getAttribute('disabled') != 'false'
                     if (
-                        !('disabled' in event.target)
-                        && event.target.getAttribute('disabled') != null && event.target.getAttribute('disabled') != 'false'
+                        !('disabled' in event.currentTarget)
+                        && event.currentTarget.getAttribute('disabled') != null && event.currentTarget.getAttribute('disabled') != 'false'
                     ) {
                         return false;
                     }
@@ -29739,8 +29748,20 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/loading-state', 'lib/merge'
             ;
 
             for (; i < len; ++i) {
-                // if is disabled, stop propagation
-                if ( $link[i].getAttribute('disabled') != null ) {
+                // #B1008: a link carrying `disabled` is bound like any other, and register()'s
+                // click gate ignores its clicks for as long as it carries the attribute.
+                // Skipping it here left it to the browser: a click anywhere on it navigated the
+                // whole page, it stayed unbound once `disabled` was removed, and
+                // `disabled="false"` was skipped too.
+                // An anchor with no `href` carrying `disabled` (any value) is still skipped, as
+                // before: the browser follows nothing on it, and binding it would write the
+                // `href="#"` and the id below, which make a disabled control focusable and
+                // announce it as a link while it does nothing.
+                // was: // if is disabled, stop propagation
+                // was: if ( $link[i].getAttribute('disabled') != null ) {
+                // was:     continue;
+                // was: }
+                if ( !$link[i].getAttribute('href') && $link[i].getAttribute('disabled') != null ) {
                     continue;
                 }
 
@@ -29787,6 +29808,18 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/loading-state', 'lib/merge'
                 if ( !/^(null|\s*)$/.test($link[i].getAttribute('href')) ) {
                     addListener(gina, $link[i], 'click', function(linkEvent) {
                         linkEvent.preventDefault();
+
+                        // #B1007: a link carrying `disabled` loads nothing (register()'s click gate
+                        // ignores it), so its click starts no redirect: setting the flag here left
+                        // it set with no load to clear it, and `gina.popin.close(name)` and a form's
+                        // `close()` then did nothing. The same predicate as that gate.
+                        var $clickedLink = linkEvent.currentTarget;
+                        if (
+                            !('disabled' in $clickedLink)
+                            && $clickedLink.getAttribute('disabled') != null && $clickedLink.getAttribute('disabled') != 'false'
+                        ) {
+                            return;
+                        }
 
                         $popin.isRedirecting = true;
 
