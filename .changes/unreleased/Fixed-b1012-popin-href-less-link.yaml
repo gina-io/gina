@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'A click on an `<a>` with no `href`, or with `href=""`, in popin content no longer leaves the popin unable to close. Before, `gina.popin.close(name)` and a form''s `close()` did nothing after such a click, a close from the anchor''s own click handler included, because the popin waited for a load that never came. Such an anchor still loads nothing and keeps the `href="#"` Gina gives it; in a popin registered with the validator, its click no longer appends the inherited data of the form around it to that `href` (a link''s load still carries it). Browser-bundled: restart the bundle and re-bake it (`gina bundle:build`) to pick it up. (#B1012)'
+time: 2026-10-28T05:11:36+01:00

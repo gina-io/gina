@@ -1950,7 +1950,13 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/loading-state', 'lib/merge'
                 }
 
 
-                if ( !/^(null|\s*)$/.test($link[i].getAttribute('href')) ) {
+                // #B1012: only an anchor that had an `href` of its own (`isLink`, set above) gets
+                // this listener. One with no `href`, or `href=""`, is given `href="#"` above, and
+                // the `href` test let that through, so its click set `$popin.isRedirecting` while
+                // register() binds it as an action that loads nothing: the flag then stayed set,
+                // and `gina.popin.close(name)` and a form's `close()` did nothing.
+                // was: if ( !/^(null|\s*)$/.test($link[i].getAttribute('href')) ) {
+                if ( isLink && !/^(null|\s*)$/.test($link[i].getAttribute('href')) ) {
                     addListener(gina, $link[i], 'click', function(linkEvent) {
                         linkEvent.preventDefault();
 
