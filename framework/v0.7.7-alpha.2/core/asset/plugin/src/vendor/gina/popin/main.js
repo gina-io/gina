@@ -1577,11 +1577,14 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/loading-state', 'lib/merge'
              *
              * Binds one element of the popin content: a link (`type` 'link'), loaded into this
              * popin when clicked or opened in its `target` window, or a close button (`type`
-             * 'close'). A close button whose id is a `popin.click.*` trigger id, an element that
-             * is also a legacy trigger, dispatches that trigger instead of closing the popin
-             * (#B301, #B995). An element carrying `disabled` (any value but "false") does nothing
-             * when clicked, wherever the click lands on it (#B994); on a native form control the
-             * browser enforces `disabled` itself (#B296).
+             * 'close'). A link carrying `download`, or whose URL has a scheme other than http(s), is
+             * left to the browser (#B1016, #B1018). An `<a>` the bind loop typed as an action because
+             * it had no `href` follows the same rules once the page has given it one (#B1015); its
+             * load carries no `?inheritedData` (#B1019). A close button whose id is a `popin.click.*`
+             * trigger id, an element that is also a legacy trigger, dispatches that trigger instead of
+             * closing the popin (#B301, #B995). An element carrying `disabled` (any value but "false")
+             * does nothing when clicked, wherever the click lands on it (#B994); on a native form
+             * control the browser enforces `disabled` itself (#B296).
              *
              * @inner
              * @param {string} type - 'link' or 'close'; a link without `data-gina-popin-is-link="true"` is treated as 'action'
@@ -1632,6 +1635,59 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/loading-state', 'lib/merge'
                 });
 
                 addListener(gina, $element, 'click', function(event) {
+                    // #B1016, #B1018: a link carrying `download`, or whose URL has a scheme other than
+                    // http(s) (`mailto:`, `tel:`, `javascript:`), is left to the browser, which saves the
+                    // file or hands the URL to its handler. Before, its click was cancelled below and the
+                    // URL fetched by XHR: a file was written into the popin, and any other scheme failed
+                    // with an error. The scheme test reads the `href` as written.
+                    if (
+                        type == 'link'
+                        && ( event.currentTarget.getAttribute('download') != null
+                            || /^[a-z][a-z0-9+.\-]*:/i.test(event.currentTarget.getAttribute('href')) && !/^https?:/i.test(event.currentTarget.getAttribute('href')) )
+                        && ( event.currentTarget.getAttribute('disabled') == null || event.currentTarget.getAttribute('disabled') == 'false' )
+                    ) {
+                        // left to the browser: its default goes ahead, and the click stops here, as gina's
+                        // other clicks in popin content do (bindOpen's document click proxy cancels any click
+                        // whose target id starts with `popin.click.`)
+                        event.stopPropagation();
+                        return;
+                    }
+                    // #B1015: an `<a>` the bind loop below typed as an action because it had no `href` (it
+                    // wrote `href="#"` and `data-gina-popin-is-link="false"` on it) follows the link rules
+                    // once the page has given it a real `href`: its click loads that page into this popin,
+                    // and one carrying a `target`, a `download`, a `#` in its URL or a scheme other than
+                    // http(s) is left to the browser, which opens that window, saves the file, moves to the
+                    // fragment or hands the URL to its handler. Before, the click was cancelled below and
+                    // nothing happened. A legacy trigger keeps its own dispatch (its id matches
+                    // `_rePopinClick`), and an `<a>` carrying `disabled` still does nothing. Its load
+                    // carries no `?inheritedData`: a link bound with its `href` gets that from its own click
+                    // listener in the bind loop below (#B1019).
+                    if (
+                        type == 'action'
+                        && /^false$/i.test(event.currentTarget.getAttribute('data-gina-popin-is-link'))
+                        && !_rePopinClick.test(event.currentTarget.id)
+                        && event.currentTarget.getAttribute('href') && event.currentTarget.getAttribute('href') != '#'
+                        && ( event.currentTarget.getAttribute('disabled') == null || event.currentTarget.getAttribute('disabled') == 'false' )
+                    ) {
+                        if (
+                            event.currentTarget.getAttribute('target') != null && event.currentTarget.getAttribute('target') != ''
+                            || event.currentTarget.getAttribute('download') != null
+                            || /#/.test(event.currentTarget.getAttribute('href'))
+                            || /^[a-z][a-z0-9+.\-]*:/i.test(event.currentTarget.getAttribute('href')) && !/^https?:/i.test(event.currentTarget.getAttribute('href'))
+                        ) {
+                            // left to the browser: its default goes ahead, and the click stops here, as gina's
+                            // other clicks in popin content do (bindOpen's document click proxy cancels any click
+                            // whose target id starts with `popin.click.`)
+                            event.stopPropagation();
+                            return;
+                        }
+                        cancelEvent(event);
+                        // a link bound with its `href` has this set by its own click listener (the bind
+                        // loop below): the popin then waits for the load, as it does for a link
+                        $popin.isRedirecting = true;
+                        triggerEvent(gina, event.target, event.currentTarget.id, $popin);
+                        return;
+                    }
                     cancelEvent(event);
                     // ignore disabled
                     // #B296: native `disabled` counts only where the browser does not enforce it —
@@ -1958,6 +2014,25 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/loading-state', 'lib/merge'
                 // was: if ( !/^(null|\s*)$/.test($link[i].getAttribute('href')) ) {
                 if ( isLink && !/^(null|\s*)$/.test($link[i].getAttribute('href')) ) {
                     addListener(gina, $link[i], 'click', function(linkEvent) {
+                        // #B1015: an `<a>` register() typed as an action (`data-gina-popin-is-link="false"`)
+                        // gets this listener only when the content is bound again after the page gave it an
+                        // `href` (a partial swap keeps it). register()'s listener handles its click: here, this
+                        // listener's `preventDefault()` kept the browser from following it (a `target`, a
+                        // `download`, a fragment) and its flag stayed set with nothing loading.
+                        if ( /^false$/i.test(linkEvent.currentTarget.getAttribute('data-gina-popin-is-link')) ) {
+                            return;
+                        }
+                        // #B1016, #B1018: a link carrying `download`, or whose URL has a scheme other than
+                        // http(s), is left to the browser (register() lets its click through): nothing loads
+                        // into the popin, so no redirect starts, and its `href` is not given the inherited
+                        // data of its form below.
+                        if (
+                            ( linkEvent.currentTarget.getAttribute('download') != null
+                                || /^[a-z][a-z0-9+.\-]*:/i.test(linkEvent.currentTarget.getAttribute('href')) && !/^https?:/i.test(linkEvent.currentTarget.getAttribute('href')) )
+                            && ( linkEvent.currentTarget.getAttribute('disabled') == null || linkEvent.currentTarget.getAttribute('disabled') == 'false' )
+                        ) {
+                            return;
+                        }
                         linkEvent.preventDefault();
 
                         // #B1007: a link carrying `disabled` loads nothing (register()'s click gate

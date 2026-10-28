@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'A link in popin content whose URL has a scheme other than http(s) (`mailto:`, `tel:`, `javascript:`) is now left to the browser, as it is outside a popin. Before, its click fetched the URL by XHR, which failed with an error and opened nothing. The test reads the `href` as written, so a URL written with leading spaces is still fetched. Browser-bundled: restart the bundle and re-bake it (`gina bundle:build`) to pick it up. (#B1018)'
+time: 2026-10-28T22:39:37+01:00
