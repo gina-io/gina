@@ -1572,6 +1572,21 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/loading-state', 'lib/merge'
             }
 
 
+            /**
+             * register
+             *
+             * Binds one element of the popin content: a link (`type` 'link'), loaded into this
+             * popin when clicked or opened in its `target` window, or a close button (`type`
+             * 'close'). A close button whose id is a `popin.click.*` trigger id, an element that
+             * is also a legacy trigger, dispatches that trigger instead of closing the popin
+             * (#B301, #B995).
+             *
+             * @inner
+             * @param {string} type - 'link' or 'close'; a link without `data-gina-popin-is-link="true"` is treated as 'action'
+             * @param {string} evt - the element's id, which is also the name of its custom event
+             * @param {HTMLElement} $element - the element to bind
+             * @returns {void}
+             */
             var register = function (type, evt, $element) {
                 var isLink = $element.getAttribute('data-gina-popin-is-link');
                 isLink = ( /^true$/i.test(isLink) ) ? true : false;
@@ -1685,7 +1700,8 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/loading-state', 'lib/merge'
                         // `event.currentTarget` — and treat a `popin.click.*` id as the SOLE
                         // exception, which preserves the dual-role element (a trigger that is also
                         // a close button; `bindOpen` scans the whole document, so it is reachable)
-                        // exactly as before.
+                        // exactly as before. Its dispatch reads `event.currentTarget` too since
+                        // #B995 (below).
                         // The element's id is deliberately NOT touched: the `$close` teardown
                         // sweep removes this listener via `gina.events[eId] == eId`, i.e. it
                         // depends on the event name and the element id being the same string.
@@ -1700,10 +1716,18 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/loading-state', 'lib/merge'
 
                         if ( _isClickTrigger ) {
                             cancelEvent(event);
-                            var _evt = event.target.id;
+                            // #B995: dispatch the trigger this listener is bound on, the element
+                            // `_isClickTrigger` was just read from, not `event.target`, the node
+                            // actually clicked. A click on markup added inside the trigger after
+                            // bindOpen stamped it (markup with no proxyClick listener of its own)
+                            // read that node's id, matched nothing, and did nothing, since
+                            // cancelEvent above had already swallowed the click.
+                            // was: var _evt = event.target.id;
+                            var _evt = event.currentTarget.id;
 
                             if ( _rePopinClick.test(_evt) ) {
-                                triggerEvent(gina, event.target, _evt, event.detail);
+                                // was: triggerEvent(gina, event.target, _evt, event.detail);
+                                triggerEvent(gina, event.currentTarget, _evt, event.detail);
                             }
 
                         }
