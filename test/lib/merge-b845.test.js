@@ -16,10 +16,12 @@
  * Any other inherited value (an entity's .sql-derived query methods, a class's own
  * `toString`) keeps the documented target-wins rule; that boundary is pinned in 08.
  *
- * RED-FIRST (measured on the unfixed bytes, 2026-10-30): 15 of 27 red — the arms of
+ * RED-FIRST (measured on the unfixed tree, 2026-10-30): 15 of 27 red — the arms of
  * 01 (6), 03 (2), 05, 08b, 08c, 11 and 13, plus the two source pins of 14; the
- * controls (02, 04, 06, 07, 08a, 09, 10, 12) pass on both revisions. The dist pins
- * (15) are red before the rebuild.
+ * controls (02, 04, 06, 07, 08a, 09a, 10, 12) pass on both revisions. The dist pins
+ * (15) are red before the rebuild. Re-measured through the `GINA_MERGE_SRC` seam on
+ * a replica of the pre-fix lib after 09b was added: 14 of 30 red (the 13 behavioural
+ * arms above plus 09b; the four pins read the fixed tree).
  */
 'use strict';
 
@@ -35,7 +37,9 @@ var REPO_ROOT = path.resolve(__dirname, '..', '..');
 var MAIN_SRC  = path.join(FRAMEWORK, 'lib/merge/src/main.js');
 var DIST_JS   = path.join(FRAMEWORK, 'core/asset/plugin/dist/vendor/gina/js/gina.js');
 var DIST_MIN  = path.join(FRAMEWORK, 'core/asset/plugin/dist/vendor/gina/js/gina.min.js');
-var merge     = require(path.join(FRAMEWORK, 'lib/merge'));
+// the behavioural arms take the lib from the seam (a pre-fix replica, a published tree); the pins read the tree
+var MERGE_SRC = process.env.GINA_MERGE_SRC || MAIN_SRC;
+var merge     = require(MERGE_SRC);
 var hasOwn    = Object.prototype.hasOwnProperty;
 
 /** The built-in Object.prototype members a form field or JSON key can be named after. */
@@ -159,8 +163,8 @@ describe('08 - the boundary: only a value held THROUGH Object.prototype counts a
 
 
 // ─── 09  the entity contract ─────────────────────────────────────────────────
-describe('09 - CONTROL: inherited enumerable SOURCE members are still copied (the #B446 follow-up contract)', function () {
-    it('merge({}, new Entity()) carries the prototype query method and the own field', function () {
+describe('09 - the entity contract: inherited enumerable SOURCE members are copied (the #B446 follow-up contract)', function () {
+    it('a: CONTROL — merge({}, new Entity()) carries the prototype query method and the own field', function () {
         function Entity() { this.name = 'demo'; }
         util.inherits(Entity, EventEmitter);
         Entity.prototype.getOneById = function () { return 'proto'; };
@@ -168,6 +172,16 @@ describe('09 - CONTROL: inherited enumerable SOURCE members are still copied (th
         assert.equal(typeof m.getOneById, 'function');
         assert.equal(m.getOneById(), 'proto');
         assert.equal(m.name, 'demo');
+    });
+    it('b: a SOURCE prototype\'s own toString / valueOf now reach a plain target too (they used to be replaced by the built-in)', function () {
+        function Entity() { this.name = 'demo'; }
+        Entity.prototype.toString = function () { return 'entity:' + this.name; };
+        Entity.prototype.valueOf  = function () { return 42; };
+        var m = merge({}, new Entity());
+        assert.equal(m.toString, Entity.prototype.toString, 'the source prototype method, not Object.prototype.toString');
+        assert.equal(String(m), 'entity:demo');
+        assert.equal(m.valueOf, Entity.prototype.valueOf);
+        assert.equal(m + 0, 42);
     });
 });
 

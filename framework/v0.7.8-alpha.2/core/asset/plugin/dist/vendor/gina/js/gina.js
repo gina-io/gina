@@ -2514,7 +2514,9 @@ function Merge() {
      * rules path.
      *
      * An OBJECT element of `options` fills a HOLE of `target` (an index the
-     * target lacks) by copying its keys; an occupied index — an existing
+     * target lacks) by copying the keys the slot lacks — ownership is tested
+     * through the built-in `hasOwnProperty`, which an own key of that name
+     * cannot shadow (#B849); an occupied index — an existing
      * object, a primitive or `null` — is never written into. That guard is
      * #B437: the hole test runs on the deduped rebuild, whose indexes shift
      * against a target carrying duplicate primitives, so the key write used to
@@ -2772,7 +2774,14 @@ function Merge() {
                                 // #B446
                                 if ( isUnsafeMergeKey(k) ) { continue }
 
-                                if (!newTarget[a].hasOwnProperty(k)) {
+                                // #B849 — the own-key test goes through the built-in, which no own key
+                                // can shadow: an element whose own `hasOwnProperty` is data (a PUT body
+                                // `list[0][hasOwnProperty]=1&list[0][b]=2`) threw « newTarget[a].hasOwnProperty
+                                // is not a function » on the next key, and on the first key when the
+                                // element IS the source object (pushed by reference above), so the
+                                // whole request answered 500.
+                                // was: if (!newTarget[a].hasOwnProperty(k)) {
+                                if (!Object.prototype.hasOwnProperty.call(newTarget[a], k)) {
                                     newTarget[a][k] = options[a][k]
                                 }
                             }
@@ -32856,10 +32865,9 @@ if ( typeof(JSON.clone) == 'undefined' ) {
      * JSON.clone
      * Clone JSON object
      *
-     * Changes made here must be reflected in:
-     *  - gina/lib/prototypes.js
-     *  - gina/framework/version/helpers/prototypes.js
-     *  - gina/framework/version/core/asset/plugin/src/vendor/gina/js/utils/polyfill.js
+     * This is the browser copy. Changes made here must be reflected in the server
+     * implementation:
+     *  - gina/utils/prototypes.json_clone.js
      *
      * @param {object} source
      * @param {object} [target]
@@ -32880,7 +32888,11 @@ if ( typeof(JSON.clone) == 'undefined' ) {
         ;
 
         while (i<len) {
-            target[keys[i]] = (typeof target[keys[i]] == 'undefined') ? clone(source[keys[i]], null) : target[keys[i]];
+            // #B849 — fill when the target has no OWN value for the key: read through the prototype
+            // chain, a fresh target "had" `toString`, `valueOf`, `hasOwnProperty` or `count`, and the
+            // inherited function was written back over the source's value (see the server copy).
+            // was: target[keys[i]] = (typeof target[keys[i]] == 'undefined') ? clone(source[keys[i]], null) : target[keys[i]];
+            target[keys[i]] = (typeof target[keys[i]] == 'undefined' || !Object.prototype.hasOwnProperty.call(target, keys[i])) ? clone(source[keys[i]], null) : target[keys[i]];
             i++;
         }
         i = null; len = null; keys = null;
