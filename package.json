@@ -116,7 +116,7 @@
   "readmeFilename": "README.md",
   "dependencies": {
     "@rhinostone/busboy": "^1.6.1",
-    "@rhinostone/swig": "^2.9.6",
+    "@rhinostone/swig": "^2.9.11",
     "engine.io": "^6.6.10",
     "psl": "^1.15.0",
     "ws": "^8.21.0"
