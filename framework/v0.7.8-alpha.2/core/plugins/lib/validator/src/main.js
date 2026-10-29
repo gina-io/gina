@@ -5684,6 +5684,33 @@ function ValidatorPlugin(rules, data, formId, culture) {
     };
 
     /**
+     * hasLiveStagedFiles — #B990: whether a file input still shows files it staged. Its entries
+     * (`customFiles`) are then the files of its last successful staging — a staged file's entry
+     * carries no `deleteLinkId`, a saved file's does — and the reset control of one of them,
+     * `<input id>-<index>-reset-trigger`, is on the page. A re-bind leaves such an input's entries
+     * as they are rather than reading its preview container as saved files; once the page has
+     * replaced the container (a saved file shown after a save), the controls are gone and the
+     * container is read again.
+     *
+     * @inner
+     * @private
+     * @param {HTMLElement} $uploadTrigger - the file input
+     * @returns {boolean} true while a staged file of the input has its reset control on the page
+     *
+     * @example
+     * hasLiveStagedFiles(document.getElementById('avatar')); // true after a staging, false after its reset
+     */
+    var hasLiveStagedFiles = function($uploadTrigger) {
+        var entries = $uploadTrigger.customFiles || [];
+        for (var i = 0, len = entries.length; i < len; ++i) {
+            if ( entries[i] && !entries[i].deleteLinkId && document.getElementById($uploadTrigger.id + '-' + i + '-reset-trigger') ) {
+                return true;
+            }
+        }
+        return false;
+    };
+
+    /**
      * removeUploadEntryFields — #B858/#B862: removes from a file input's form the controls of one
      * of its files, `<prefix>[index]…` (except those marked `data-gina-form-upload-is-locked`), and
      * keeps them on the input so that the next selection puts them back
@@ -9489,6 +9516,12 @@ function ValidatorPlugin(rules, data, formId, culture) {
                     && !/none/i.test(window.getComputedStyle($previewContainer).display)
                     // for safety
                     && !/none/i.test($previewContainer.parentElement.style.display)
+                    // #B990 — a re-bind (`reBind()`, `.bind()`, a bind after `destroy()`) while the input
+                    // showed files it had staged read their previews as saved files: an image became a
+                    // saved entry and warned about a delete link the page never had, and a file shown
+                    // without an image left no entry, so its reset did nothing and the form saved the
+                    // file. The input's entries stand while its staged files are on the page.
+                    && !hasLiveStagedFiles($uploadTrigger)
                 ) {
 
                     var $deleteLink = null, index = 0, bindingType = 'delete';
