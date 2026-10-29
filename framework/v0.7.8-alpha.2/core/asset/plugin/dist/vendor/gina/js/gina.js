@@ -2154,7 +2154,11 @@ define("requireLib", function(){});
  *
  * - Objects are merged recursively.
  * - Missing keys are always filled from `source`; on a CONFLICTING key the
- *   `target` value is preserved by default.
+ *   `target` value is preserved by default. A key the target holds only through
+ *   `Object.prototype` (`toString`, `valueOf`, `hasOwnProperty`, `count`…) is a
+ *   MISSING key and is filled (#B845); a key the target owns, or inherits from
+ *   any other prototype (an entity's query methods, a class's own `toString`),
+ *   is a conflict.
  * - Pass `true` as the last argument (`override`) to make `source` win instead.
  * - Arrays of primitives merge as an ordered union: the target's elements first,
  *   then every source element the result lacks. A number the source repeats more
@@ -2206,6 +2210,27 @@ function Merge() {
         return k === '__proto__' || k === 'constructor' || k === 'prototype';
     };
 
+    var hasOwn = Object.prototype.hasOwnProperty;
+
+    /**
+     * #B845 — true when `value`, already read as `target[name]`, is not the target's
+     * own property and is exactly what Object.prototype supplies for that name: the
+     * target holds it only THROUGH Object.prototype (`toString`, `valueOf`,
+     * `hasOwnProperty`, gina's installed `count`…). For the fill-only rule such a key
+     * is a MISSING key. A value inherited from any other prototype (an entity's
+     * `.sql`-derived query methods, a class's own `toString`) is not matched, so the
+     * documented target-wins rule still applies to it.
+     *
+     * @param {object} target - the object being filled
+     * @param {string} name   - the key under test
+     * @param {*}      value  - `target[name]`, as read through the prototype chain
+     * @returns {boolean} true when the key counts as missing on `target`
+     * @private
+     */
+    var isHeldThroughObjectPrototype = function(target, name, value) {
+        return !hasOwn.call(target, name) && value === Object.prototype[name];
+    };
+
     var newTarget           = []
         , originalValueshasBeenCached = false
         //, keyComparison     = 'id' // use for collections merging [{ id: 'val1' }, { id: 'val2' }, {id: 'val3' }, ...]
@@ -2233,6 +2258,7 @@ function Merge() {
      * merge([1, 2],   [3, 4], true)      // [3, 4]
      * merge({ a: [null, 'x'] }, { a: [null, 'x'] })  // { a: [null, 'x'] } — null elements are preserved (#B226)
      * merge({ ports: [8080, 8124] }, { ports: [8124] })  // { ports: [8080, 8124] } — a value already present is not pushed again (#B436)
+     * merge({}, { toString: 'x' })        // { toString: 'x' } — a key held only through Object.prototype is missing, so it is filled (#B845)
      */
     var browse = function (_target, _source) {
 
@@ -2440,10 +2466,20 @@ function Merge() {
 
                             } else if (copy !== undefined) {
                                 //[proposal] Don't override existing if prop defined or override @ false
+                                // #B845 — `src` is read THROUGH the prototype chain (`src = target[ name ]`
+                                // above), so on a plain target a key named after an Object.prototype
+                                // member (`toString`, `hasOwnProperty`, gina's `count`…) read as an
+                                // existing value, and the inherited FUNCTION was written back here as an
+                                // own key over the source's value — a PUT form field so named reached
+                                // the action as nothing. A value the target holds only through
+                                // Object.prototype is not the target's: it is filled. Any other
+                                // inherited value keeps the target-wins rule (see the helper).
+                                // was: if ( typeof(src) != 'undefined' && src != null && src !== copy && !override ) {
                                 if (
                                     typeof(src) != 'undefined'
                                     && src != null
                                     && src !== copy && !override
+                                    && !isHeldThroughObjectPrototype(target, name, src)
                                 ) {
                                     target[ name ] = src;
                                 } else {
