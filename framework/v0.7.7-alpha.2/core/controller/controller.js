@@ -5606,7 +5606,12 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
      *   `await require('util').promisify(self.query)(options, {})`.
      *   A non-2xx upstream status rejects the promisified call with the plain
      *   `{status, error, message}` object; a connection failure rejects with a
-     *   native `Error`.
+     *   native `Error`. The status is the body's `status` when the upstream
+     *   sent one. Otherwise a 4xx or 5xx that the status-code map knows is
+     *   read from the response's status line (#B984): `error` is the map's
+     *   label and `message` the body text, the JSON text, or the label for an
+     *   empty body. Up to 0.7.6 such an answer was a success; a status the map
+     *   does not know (599) still is.
      *   `onComplete(cb)` itself delivers err-first (#B404): on failure
      *   `cb(err)` with `data` undefined — a plain `{status, error}` object for
      *   a non-2xx status or a transport failure, a native `Error` for a
@@ -6706,6 +6711,8 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
      * linear 500 ms × attempt backoff. Every terminal — transport error, ALPN
      * mismatch, unparsable body, non-2xx, success — delivers through `callback`;
      * nothing is emitted here (the `query#complete` fallback belongs to `query()`).
+     * A non-2xx is the body's `status` or, for a 4xx or 5xx whose body carries
+     * none, the response's status when the status-code map knows it (#B984).
      *
      * @inner
      * @param {object}   browser         - HTTP/1.x client module (node:http or node:https)
@@ -6817,6 +6824,16 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
                 }
 
                 try {
+                    // #B984 — a 4xx / 5xx answer whose body carries no gina `status` (an empty body, text, JSON
+                    // without `status`, the HTML page a proxy answers with itself) is an error carrying the
+                    // response's status when gina's status-code map knows it: `error` is the map's label,
+                    // `message` the body text, the JSON text or the label. Up to 0.7.6 only the body's `status`
+                    // was read, so such an answer reached the callback as a success. A body carrying `status`
+                    // still decides, and a status the map does not know (599) is delivered as before.
+                    var _statusLabel = local.options.conf.server.coreConfiguration.statusCodes[res.statusCode];
+                    if ( /^[45]\d\d$/.test(String(res.statusCode)) && typeof(_statusLabel) != 'undefined' && !( data && typeof(data) == 'object' && typeof(data.status) != 'undefined' ) ) {
+                        data = { status: +res.statusCode, error: _statusLabel, message: (typeof(data) == 'string' ? data : JSON.stringify(data)) || _statusLabel };
+                    }
                     if ( data.status && !/^2/.test(data.status) && typeof(local.options.conf.server.coreConfiguration.statusCodes[data.status]) != 'undefined' ) {
                         // replaced: self.throwError(data) — throwError() bypasses the callback,
                         // preventing controllers from implementing graceful degradation (e.g. degraded
@@ -6961,7 +6978,9 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
      * that error, typed as the stream-error path types it, and is never re-sent.
      * A JSON-shaped response body is parsed and delivered as
      * it came, exactly like the HTTP/1.1 handler does: no `status` is added to a body that has
-     * none (#P47 F6).
+     * none (#P47 F6). As on HTTP/1.1, a 4xx or 5xx whose body carries no `status` is an error
+     * carrying the response's status when the status-code map knows it (#B984); an empty one
+     * is no longer delivered as `{ status: 200, empty: true }`.
      *
      * @inner
      * @param {object}   browser     - HTTP/2 client module (node:http2)
@@ -7862,9 +7881,15 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
                 return _onStreamIncomplete();
             }
             if (!data || data.trim() === "") {
-                // Might be a 204 No Content, but usually the upstream bundle should return {}
-                console.warn('[HTTP2] Empty response received');
-                data = { status: 200, empty: true };
+                if (/^[45]\d\d$/.test(String(httpStatus)) && typeof local.options.conf.server.coreConfiguration.statusCodes[httpStatus] !== 'undefined') {
+                    // #B984 — an empty 4xx / 5xx that gina's status-code map knows is no success: it stays
+                    // empty and the status line decides below (up to 0.7.6 it was stamped as the success here)
+                    data = '';
+                } else {
+                    // Might be a 204 No Content, but usually the upstream bundle should return {}
+                    console.warn('[HTTP2] Empty response received');
+                    data = { status: 200, empty: true };
+                }
             }
 
             // H2 fix: 502 from nginx means the upstream bundle was unreachable (idle TCP
@@ -7952,6 +7977,15 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
             }
 
             try {
+                // #B984 — the HTTP/1.1 handler's rule: a 4xx / 5xx answer whose body carries no gina `status`
+                // becomes `{ status, error, message }` from the status line when gina's status-code map knows
+                // the status, and the body-status decision below delivers it. A body carrying `status` still
+                // decides; a 502 never gets here (retried above, then BAD_GATEWAY). Placed above the redirect
+                // intercept, so the decision block after `Error code handling` stays as it was.
+                var _statusLabel = local.options.conf.server.coreConfiguration.statusCodes[httpStatus];
+                if (/^[45]\d\d$/.test(String(httpStatus)) && typeof _statusLabel !== 'undefined' && !(data && typeof data === 'object' && typeof data.status !== 'undefined')) {
+                    data = { status: httpStatus, error: _statusLabel, message: (typeof data === 'string' ? data : JSON.stringify(data)) || _statusLabel };
+                }
                 // Intercepting fallback redirect (3xx)
                 // #B33 — local.res may be null when the response lands after a terminal
                 // exit released the triplet; skip the intercept and fall through to the
