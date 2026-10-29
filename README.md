@@ -69,56 +69,47 @@ open http://localhost:3100
 
 > **npm 12+** blocks install scripts by default, and gina's post-install bootstraps `~/.gina` and the framework dependencies. Install with `npm install -g gina@latest --allow-scripts=gina`, or allow it once for all global installs with `npm config set allow-scripts=gina --location=user`. (Not needed on npm ≤ 11.)
 
-## What's in 0.7.6
+## What's in 0.7.7
 
-> **Restart your bundles *and* rebuild them.** The form validator's staged
-> uploads, the popin and the routing library are browser-bundled, so
+> **Restart your bundles *and* rebuild them.** The popin is browser-bundled, so
 > `gina.min.js` changed and `gina bundle:restart` alone leaves the old client
 > running: rebuild each consuming bundle, then restart it. If your build copies
 > `gina.min.js` into your own static files, rebuild that copy before the restart.
 
-> **Read before upgrading — some changes can change an answer.** A URL
-> placeholder's value now wins over a query-string or body key of the same name
-> on every request, in `req.get`, `req.post` and the other method objects as in
-> `req.params`; the client's value stays readable in `req.originalUrl`,
-> `req.query` or `req.rawBody`. An HTTP/2 `self.query()` that reaches its
-> `requestTimeout` fails with `TIMEOUT` and is not sent again. `self.render()`,
-> `self.renderWithoutLayout()`, `self.renderJSON()` and `self.throwError()` no
-> longer write into the object an action passes them: an action that read gina's
-> additions back from its own object (`page.data.session`, `gina.csrfToken`, an
-> incident `ref`, the Inspector sidecars) reads them elsewhere, and a change it
-> makes to the object after calling the render may no longer reach the template.
-> Swig 2.9.6 renders on a copy of the data it is given: a template's `{% set %}`
-> no longer lands in that object, a top-level property that is not enumerable is
-> no longer visible, and the output before an `{% import %}` is now kept. A
-> top-level JSON array body is the array on every request, a path's first
-> included, and pages rendered with an async swig loader or with nunjucks now
-> carry the request's session. The [migration notes](https://gina.io/docs/migration)
-> list every behaviour change.
+> **Read before upgrading — some changes can change an answer.** A
+> `self.query()` answer with a 4xx or 5xx status that gina's status map knows,
+> and a body that carries no gina `status` (an empty body, text, JSON without
+> `status`, the HTML page a proxy answers with itself), now reaches the caller as
+> an error carrying that status, over HTTP/1.1 and HTTP/2, and a `forward` route
+> answers it with that status where it relayed a 200. An HTTP/2 `self.query()`
+> body cut short is sent again for a safe method (or with `retryUnsafe`) and
+> otherwise fails `PREMATURE_CLOSE` (503). `self.renderJSON()` adds its Inspector
+> sidecars in development only, so during a production instrumentation window a
+> caller's Inspector no longer shows the queries and timeline of a bundle it
+> calls. Swig 2.9.11 changes what some templates render: a filter in a `set`,
+> `if`, `elseif`, `for`, `include` or `filter` tag argument applies to its own
+> operand, a filter after a literal in an output that holds an operator applies to
+> the literal, and an output whose last filter returns undefined or null renders
+> an empty string. ws 8.22.0 lowers the default fragment limits of the WebSocket
+> servers gina runs. The [migration notes](https://gina.io/docs/migration) list
+> every behaviour change.
 
-**The render-isolation release.** Three security fixes keep request data out of
-the objects an action passes to gina: `self.render()` and
-`self.renderWithoutLayout()` no longer write a request's session id, CSRF token
-and URL into them, `self.renderJSON()` no longer writes its Inspector sidecars
-into them, and Gina requires `@rhinostone/swig` `^2.9.6`, which renders on a copy
-of the data it is given (GHSA-25w8-77gg-4ccw), bounds async renders
-(GHSA-86pr-x856-xrq5), keeps a cached layout unchanged (GHSA-g628-5x3r-g298),
-runs `striptags` in linear time (GHSA-rvx7-jqr9-c242) and caps swig-core ranges
-(GHSA-f8f4-95q3-38qw). Three changes, one addition and fifteen fixes follow: staged
-uploads in the form validator, the popin, HTTP/2 `self.query()` retries, `DELETE`
-routes, JSON array bodies, `self.throwError()`, the session block on every
-renderer, swig's `{% import %}`, and the filters a route middleware's template
-sees. Full detail in [CHANGELOG.md](./CHANGELOG.md).
+**The query-answer release.** Two security fixes: during a production
+instrumentation window, `self.renderJSON()` no longer adds a request's query log
+and timeline to the response of a client that asks for them with
+`x-gina-inspector: true`, and Gina requires `ws` `^8.22.0`, whose default
+fragment limits complete the fix of GHSA-96hv-2xvq-fx4p. Gina also requires
+`@rhinostone/swig` `^2.9.11`, a fix release that changes some template output.
+Nine fixes follow: `self.query()` delivers a 4xx or 5xx answer and an HTTP/2 body
+cut short as errors, HTTP/2 success answers declare their `content-length`, and
+six popin fixes cover links and close buttons. Full detail in
+[CHANGELOG.md](./CHANGELOG.md).
 
-- **Security — a render no longer writes into the object an action passes (#B988, #B992).** `self.render()` and `self.renderWithoutLayout()` combine a copy of the object, so a module-level or `require()`d object no longer carries the first request's session id, CSRF token and URL into later pages; `self.renderJSON()` writes its Inspector sidecars (`__ginaQueries`, `__ginaFlow`) into a copy, so a cached response object no longer sends one request's query log to later clients. A class instance passed as the object is not copied.
-- **Security — swig `^2.9.6` (#B963, #B973, #B983, #B997).** Swig renders on a copy of the locals a caller passes (GHSA-25w8-77gg-4ccw), fails a render on the async loader path once more than 1,000 templates are nested instead of exhausting the heap (GHSA-86pr-x856-xrq5), keeps a page's block override out of a cached layout (GHSA-g628-5x3r-g298), runs `striptags` in linear time (GHSA-rvx7-jqr9-c242) and returns an empty swig-core range above 1,000,000 elements (GHSA-f8f4-95q3-38qw). A project copy loaded through `swig.useProject`, or a frontend selected through `swig.package`, keeps its own version, so update it there.
-- **Changed — a URL placeholder's value wins (#B954, #B957), an HTTP/2 timeout is final (#B967, #B970, #B628), and the staged-upload sweep waits an hour longer (#B472).** On a route `/items/:grp/:id`, `?id=99` or `{ "id": "99" }` no longer replaces the URL value in `req.get`, `req.post` and the other method objects; a `self.query()` to an HTTP/2 upstream that reaches its `requestTimeout` fails with `TIMEOUT` and is not resent, and on a connected session only that request is cancelled; the boot-time sweep removes a staged upload part once it is older than the timeout plus one hour.
-- **Added — `page.environment.packageVersion` (#TPL3).** Templates read the project's own `package.json` version, read once per process; it is not set when the project has no `package.json` or no `version` in it.
-- **Fixed — staged uploads in the form validator (#B150, #B959, #B960, #B961, #B962, #B292).** A saved file's delete link goes away when a new selection replaces it; reset and delete links keep working after an emptied selection, after a failed staging and while a file uploads; a new file's own `name` is submitted; the trigger warning names only a control the page must provide.
-- **Fixed — the popin (#B974, #B975, #B977).** A popin closes after a link inside it loaded a page, and a click on an element inside a link with a `target` opens that window.
-- **Fixed — HTTP/2 `self.query()` retries (#B981, #B968, #B982, #B628).** A retry after a 502, a stream error or a stream that ended early leaves the other calls on its session alone, and a call that was never sent is sent again on a new session.
-- **Fixed — routing and request data (#B955, #B956, #B953, #B965).** A `DELETE` route whose regex `requirements` cover its placeholders sets `req.params`, one whose requirements cover only some of them matches, and a top-level JSON array body is the array on every request, a path's first included.
-- **Fixed — rendering (#B672, #B989, #B978, #TPL3).** `self.throwError()` no longer writes into the error object an action passes; pages rendered with an async swig loader or with nunjucks carry the request's session in `page.data.session` and in the client bootstrap; swig keeps the output before an `{% import %}`, and async-loader templates render includes inside loops; a template a route middleware renders sees the filters `controllers/setup.js` registers.
+- **Security — the Inspector sidecars in development only (#B993).** While a window opened through `/_gina/instrument` was open, `self.renderJSON()` added the request's query log (`__ginaQueries`) and timeline (`__ginaFlow`) to the JSON response of any request carrying `x-gina-inspector: true`, a header any client can send. The sidecars are now added in development only; during a window the capture leaves only over the authenticated `/_gina/agent` channel, so open a window on each bundle that serves the page. Affects 0.4.0 to 0.7.6, for a bundle that enables `inspector.instrumentation` and while a window is open.
+- **Security — ws `^8.22.0` (#B1024).** ws 8.21.1 lowered the default `maxBufferedChunks` and `maxFragments` limits and counts empty fragments toward them, completing the fix of GHSA-96hv-2xvq-fx4p (ws issue #2331). The Inspector's agent channel and an application's `ioServer` run on those defaults; the new floor moves a project off ws 8.21.0 even when its lockfile pins it.
+- **Changed — swig `^2.9.11` (#B1022).** A filter in a `set`, `if`, `elseif`, `for`, `include` or `filter` tag argument applies to its own operand, so `{% set y = a + f(x)|upper %}` applies `upper` to `f(x)` only, where it applied it to `a + f(x)`; a filter after a literal in an output that holds an operator or a ternary applies to the literal (`{{ 3|default(1) + 1 }}` gives 4, where it gave 3); an output whose last filter returns undefined or null renders an empty string, where swig printed the word. A project copy loaded through `swig.useProject`, or a frontend selected through `swig.package`, keeps its own version.
+- **Fixed — `self.query()` answers (#B984, #B985, #B1005).** A 4xx or 5xx answer whose body carries no gina `status` reaches the caller as `{ status, error, message }` on both transports when gina's status map knows the status, and a `forward` route answers it through `self.throwError()`; an HTTP/2 body shorter than its `content-length`, or on a session gina tore down itself, follows the premature-close rule; over HTTP/2 a success answer declares its `content-length` (a 204, 205 or 304 still declares none, and `renderStream()` still sends none).
+- **Fixed — the popin (#B994, #B995, #B1012, #B1015, #B1016, #B1018).** A link or close element carrying `disabled` does nothing when clicked, wherever the click lands, and works again once `disabled` is removed; a click on markup added inside a close button that is also a legacy trigger dispatches the trigger; an `<a>` with no `href` no longer leaves the popin unable to close, and one the page gives an `href` later works as a link; a link carrying `download`, or a URL with a scheme other than http(s), is left to the browser.
 
 ## Documentation
 

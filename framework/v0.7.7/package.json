@@ -1,0 +1,11 @@
+{
+  "name": "gina-framework",
+  "version": "0.7.7",
+  "dependencies": {
+    "@rhinostone/busboy": "^1.6.1",
+    "@rhinostone/swig": "^2.9.11",
+    "intl-messageformat": "^11.2.4",
+    "psl": "^1.15.0",
+    "ws": "^8.22.0"
+  }
+}

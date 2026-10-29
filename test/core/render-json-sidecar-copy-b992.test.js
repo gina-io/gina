@@ -3,9 +3,10 @@
  * #B992 — `self.renderJSON()` writes its Inspector sidecars into a copy of the object an action
  * passes, never into the object itself.
  *
- * In development, and during a production instrumentation window for a request carrying
- * `x-gina-inspector: true`, renderJSON adds the request's query log (`__ginaQueries`) and its
- * timeline (`__ginaFlow`) to the response object when they are not empty. Up to 0.7.5 it added
+ * In development, renderJSON adds the request's query log (`__ginaQueries`) and its timeline
+ * (`__ginaFlow`) to the response object when they are not empty (up to 0.7.6 also during a
+ * production instrumentation window, for a request carrying `x-gina-inspector: true`; dev only
+ * since #B993, render-json-sidecar-window-b993.test.js). Up to 0.7.5 it added
  * them to the action's own object, so an object the action passes to several renderJSON calls (a
  * memoized response) kept the first request's sidecars, and every later response that reused it
  * sent them, to any client and after the window had closed. The fix writes them into a copy made
@@ -20,8 +21,8 @@
  *       still in it (the pins of §01 can fail)
  *   §01 source pins - render-json requires render-data once; each sidecar write is preceded by the
  *       copy; the two assignment statements are unchanged
- *   §02 the extracted block - control: no query log, nothing written; a window request with the
- *       header and a query gets the sidecar on a copy and the memoized object stays as it was; an
+ *   §02 the extracted block - control: no query log, nothing written; a dev request with a query
+ *       gets the sidecar on a copy and the memoized object stays as it was; an
  *       external request in the window and a request after it send nothing of the first; in dev,
  *       one copy carries both sidecars; a class instance keeps the old behaviour
  *
@@ -149,9 +150,9 @@ describe('#B992 §02 - the shipped sidecar block', function () {
         assert.deepEqual(Object.keys(memo), ['items']);
     });
 
-    it('a window request with the header and a query: the response carries its log, the memoized object does not', function () {
+    it('a dev request with a query: the response carries its log, the memoized object does not', function () {
         var memo = { items: [1, 2] };
-        var out  = run(memo, { windowUntil: Date.now() + 60000, headers: HEADER, queries: Q_A });
+        var out  = run(memo, { dev: true, queries: Q_A });
         assert.deepEqual(out.__ginaQueries, Q_A, 'harness fault: the sidecar was not written');
         assert.equal(out.items, memo.items, 'a member is shared');
         assert.deepEqual(Object.keys(memo), ['items'], '#B992: the sidecar was written into the action\'s object');
