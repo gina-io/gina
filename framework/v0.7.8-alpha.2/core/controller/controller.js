@@ -5612,6 +5612,10 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
      *   label and `message` the body text, the JSON text, or the label for an
      *   empty body. Up to 0.7.6 such an answer was a success; a status the map
      *   does not know (599) still is.
+     *   An HTTP/1.1 call that reaches `requestTimeout` fails with a native
+     *   `Error` coded `ETIMEDOUT`, `status` 503 and `retryCount` (#B969), so
+     *   the handle and `throwError(err)` answer 503, as for an HTTP/2 timeout
+     *   (a `GinaHttp2Error` coded `TIMEOUT`).
      *   `onComplete(cb)` itself delivers err-first (#B404): on failure
      *   `cb(err)` with `data` undefined — a plain `{status, error}` object for
      *   a non-2xx status or a transport failure, a native `Error` for a
@@ -6713,6 +6717,10 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
      * nothing is emitted here (the `query#complete` fallback belongs to `query()`).
      * A non-2xx is the body's `status` or, for a 4xx or 5xx whose body carries
      * none, the response's status when the status-code map knows it (#B984).
+     * An attempt that reaches `options.requestTimeout` fails with a native `Error`
+     * coded `ETIMEDOUT`, `status` 503 and `retryCount` (the attempt it was on),
+     * message « [HTTP1] No response from <hostname> after <time> », whether or not
+     * the response had started (#B969); it goes through the same re-send rule.
      *
      * @inner
      * @param {object}   browser         - HTTP/1.x client module (node:http or node:https)
@@ -6892,8 +6900,21 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
             }
         });
 
-        req.setTimeout(parseTimeout(options.requestTimeout), () => {
-            req.destroy(); // Will trigger 'error' event
+        // #B969 — a timeout fails with its own error, whether or not the response had started. A bare
+        // req.destroy() failed it like a reset connection (« socket hang up », ECONNRESET, which the
+        // rewrite above turns into « could not connect » for a bundle port), and once the response
+        // headers had arrived it emitted no error at all, so the call never called back. ETIMEDOUT is a
+        // transport code the #MS5 breaker counts; status 503 and the label as an HTTP/2 timeout (#B967);
+        // `retryCount` is the attempt it was on. The re-send rule above is unchanged.
+        // replaced: req.destroy(); // Will trigger 'error' event
+        var _requestTimeout = parseTimeout(options.requestTimeout);
+        req.setTimeout(_requestTimeout, () => {
+            var _tLabel = _requestTimeout > 1000 ? (_requestTimeout / 1000) + 's' : _requestTimeout + 'ms';
+            var _timeoutErr = new Error('[HTTP1] No response from '+ (options.hostname || options.host) +' after '+ _tLabel);
+            _timeoutErr.code       = 'ETIMEDOUT';
+            _timeoutErr.status     = 503;
+            _timeoutErr.retryCount = retryCount;
+            req.destroy(_timeoutErr); // emits 'error' with it, also once the response has started
         });
 
 
