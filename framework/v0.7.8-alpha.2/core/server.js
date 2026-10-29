@@ -9100,7 +9100,8 @@ function Server(options) {
      * @private
      * @param {object} res - Server response object
      * @param {number} code - HTTP status code (e.g. 404, 500)
-     * @param {string|object} msg - Error message string or error object
+     * @param {string|Error|object} msg - Error message string, an `Error` (written as its
+     *   stack text, cut to its first line outside the local scope — #B841) or an error object
      * @param {function} next - Next middleware callback
      */
     var throwError = function(res, code, msg, next) {
@@ -9163,6 +9164,19 @@ function Server(options) {
         }
         var _displayCode = ( typeof(code) == 'object' && code && typeof(code.status) != 'undefined' ) ? code.status : code;
         console.error('[ BUNDLE ][ '+ self.appName +' ][ ref '+ ref +' ][ req '+ ( _req._ginaReqId || '-' ) +' ] '+ _req.method +' [ '+ _displayCode +' ] '+ _req.url + ( _errDetail ? '\n'+ escapeLogDetailKeepFrames(_errDetail) : '' ));
+
+        // #B841 — an Error passed as `msg` is read as its stack text, the string the other feeders
+        // pass (`err.stack`). Its `message` and `stack` are not enumerable, so the JSON bodies below
+        // wrote it as `"error":{}`, a custom error page received the object itself (rendered
+        // `[object Object]`), and outside the local scope the gate below deleted the caller's own
+        // stack (JSON.clone hands an Error back as is). Feeders: the POST and PATCH body branches (a
+        // malformed application/json body), the requireController and reverse-routing catches in
+        // router.js, and a bundle's setup.js through the engine alias of this function. The pairing
+        // line above has logged it in full; the gate keeps the stack in the local scope and its
+        // first line elsewhere. The brand test also counts a subclass and another realm's Error.
+        if ( Object.prototype.toString.call(msg) === '[object Error]' ) {
+            msg = ( typeof(msg.stack) == 'string' && msg.stack ) ? msg.stack : String(msg);
+        }
 
         // #B131 — scope-gated stack egress. Feeders (router.js action/middleware
         // catches, server.js internals) pass `err.stack` pre-flattened as `msg`,

@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'An error that reaches the server''s error responder as an `Error` object now answers with its text (#B841): the JSON error body read `"error":{}` and a custom error page printed `[object Object]` as its message. It reached this way: a POST or PATCH whose `application/json` body does not parse, a `requireController()` call whose controller throws while it is built, and a bundle''s `controllers/setup.js` calling `this.throwError(res, code, err)` with an `Error`. The text is the error''s stack in the local scope and its first line elsewhere, as for an error passed as `err.stack`. Outside the local scope the error object passed in also keeps its `stack`, which the responder deleted.'
+time: 2026-10-29T22:42:41+01:00
