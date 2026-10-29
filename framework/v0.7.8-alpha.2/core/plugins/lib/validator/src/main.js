@@ -5429,7 +5429,10 @@ function ValidatorPlugin(rules, data, formId, culture) {
                     // announcing a placeholder.
                     $img.alt    = files[f].originalFilename || '';
                     $img.style.display = 'none';
-                    $img.setAttribute('data-upload-original-filename', files[f].originalFilename);
+                    // #B1027 — a file the staging answer did not name is not named « undefined »
+                    if ( files[f].originalFilename ) {
+                        $img.setAttribute('data-upload-original-filename', files[f].originalFilename);
+                    }
                     $img.setAttribute('data-upload-reset-link-id', $resetLink.id);
 
                     // TODO - Remove this; we don't want it by default, the dev can force it by hand if needed
@@ -5571,8 +5574,15 @@ function ValidatorPlugin(rules, data, formId, culture) {
                                 $img.style.display = 'none';
                                 // retrieve img `originalFilename` (not the preview img[key] `originalFilename`)
                                 // these 2 metadatas will be used to remove files from the server
-                                $img.setAttribute('data-upload-original-filename', files[f].originalFilename);
-                                $img.setAttribute('data-upload-preview-original-filename', files[f][key].originalFilename);
+                                // #B1027 — a file the staging answer did not name is not named « undefined »
+                                if ( files[f].originalFilename ) {
+                                    $img.setAttribute('data-upload-original-filename', files[f].originalFilename);
+                                }
+                                // #B1027 — a preview the staging answer did not name (the guide's `preview` example carries
+                                // no `originalFilename`) wrote the text « undefined », which its reset then sent for removal
+                                if ( files[f][key].originalFilename ) {
+                                    $img.setAttribute('data-upload-preview-original-filename', files[f][key].originalFilename);
+                                }
                                 // in order to retrieve and remove reset link
                                 $img.setAttribute('data-upload-reset-link-id', $resetLink.id);
 
@@ -6082,7 +6092,7 @@ function ValidatorPlugin(rules, data, formId, culture) {
                 // the names the staging answer gave — the ones its <img> preview carries
                 childNodeFile           = ( stagedFiles[f] && stagedFiles[f].originalFilename )
                                         ? stagedFiles[f].originalFilename
-                                        : ( entry.nodes.length ) ? entry.nodes[0].getAttribute('data-upload-original-filename') : files[f].name;
+                                        : ( entry.nodes.length && entry.nodes[0].getAttribute('data-upload-original-filename') ) ? entry.nodes[0].getAttribute('data-upload-original-filename') : files[f].name;
                 childNodeFilePreview    = ( stagedFiles[f] && stagedFiles[f].preview && stagedFiles[f].preview.originalFilename )
                                         ? stagedFiles[f].preview.originalFilename
                                         : ( entry.nodes.length ) ? entry.nodes[0].getAttribute('data-upload-preview-original-filename') : null;
