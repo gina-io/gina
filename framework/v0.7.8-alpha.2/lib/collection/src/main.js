@@ -25,6 +25,10 @@
  * defined). An explicitly empty `{}` filter is legal and matches every
  * record; `null` is a legal needle comparing strictly against stored values.
  *
+ * `notIn` and `delete` return the searched rows without the rows they
+ * exclude, so on an empty collection, or an empty query result, they
+ * return `[]`.
+ *
  * A key holding a dot is a property path (`'address.city'`), also inside an
  * array of objects (`'reviews[*].ratings.score'`). A dotted key that is not a
  * property path matches nothing. A single field after `[*]` (`'tags[*].label'`)
@@ -1032,6 +1036,12 @@ function Collection(content, options) {
      * rows that come from elsewhere (the array form), are compared by key as
      * before: such rows must carry the named key, a `_uuid` or an `id`.
      *
+     * #B1029 — an empty source returns an empty result: there is no row to
+     * keep. Until 0.7.7 the array form, `notIn(rows, key)`, returned `rows`
+     * itself when the searched array was empty (a new Collection over `[]`, or
+     * an empty query result chained into `notIn`), so the call handed back the
+     * very rows it excludes. `delete()` delegates here and returns `[]` too.
+     *
      * @param {object|array} filters|arrayToFilter - works like find filterss
      * @param {string} [key] - unique id for comparison; faster when provided
      * @returns {array} result - a copy of the searched rows without the rows found (chainable)
@@ -1164,8 +1174,12 @@ function Collection(content, options) {
                     }
                 }
             } else if ( typeof(currentResult[c]) == 'undefined' ) { //empty source case
+                // #B1029 — an empty source holds no row to keep, so the result is
+                // that empty clone. This branch used to return the rows found
+                // (« current === found »): the very rows `notIn` excludes, none
+                // of which belong to the source.
                 // means that since we don't have a source to compare, current === found
-                currentResult = JSON.clone(foundResults);
+                // currentResult = JSON.clone(foundResults);
 
             } else { // search based on provided filters
                 // for every single result found

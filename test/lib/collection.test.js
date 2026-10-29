@@ -119,22 +119,22 @@ describe('02 - notIn', function () {
         hotels: JSON.parse(fs.readFileSync(path.join(dataDir, 'hotel.json')))
     };
 
-    it('notIn from empty source: Hotel WHERE country === France, limit 2', function () {
+    it('notIn from empty source returns [] (#B1029): Hotel WHERE country === France, limit 2', function () {
         var hotels = new Collection(data.hotels);
         var emptySourceCollection = new Collection([]);
 
-        var result = emptySourceCollection.notIn(
-            hotels
-                .find({ country: 'France' })
-                .limit(2)
-        ).toRaw();
+        var found = hotels
+            .find({ country: 'France' })
+            .limit(2);
+        assert.equal(found.length, 2, 'control: two hotels are found to exclude');
 
-        var mocks = JSON.parse(fs.readFileSync(path.join(resultDir, 'find/findHotelWhereCountryIsFrance.json')))
-            .splice(0, 2);
+        var result = emptySourceCollection.notIn(found).toRaw();
 
+        // #B1029 — an empty source has no row to keep. Up to 0.7.7 the rows
+        // found came back as the result (« current === found »).
         assert.equal(Array.isArray(result), true);
-        assert.equal(result.length, mocks.length);
-        assert.deepStrictEqual(result, mocks);
+        assert.equal(result.length, 0);
+        assert.deepStrictEqual(result, []);
     });
 });
 
