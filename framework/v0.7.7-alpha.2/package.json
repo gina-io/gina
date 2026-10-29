@@ -6,6 +6,6 @@
     "@rhinostone/swig": "^2.9.11",
     "intl-messageformat": "^11.2.4",
     "psl": "^1.15.0",
-    "ws": "^8.21.0"
+    "ws": "^8.22.0"
   }
 }

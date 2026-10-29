@@ -119,7 +119,7 @@
     "@rhinostone/swig": "^2.9.11",
     "engine.io": "^6.6.10",
     "psl": "^1.15.0",
-    "ws": "^8.21.0"
+    "ws": "^8.22.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.48.0",

@@ -1,0 +1,3 @@
+kind: Security
+body: 'Gina now requires `ws` `^8.22.0` in both manifests (#B1024), so installing gina 0.7.7 moves a project off ws 8.21.0 even when its lockfile pins it. ws 8.21.1 lowered the default `maxBufferedChunks` and `maxFragments` limits and counts empty fragments toward them, completing the fix of GHSA-96hv-2xvq-fx4p: under the 8.21.0 defaults, a client sending many fragments could still exhaust a WebSocket server''s memory (ws issue #2331). Gina''s WebSocket servers run on those defaults: the Inspector''s agent channel (refused outside development unless it is enabled with its key) and the engine.io server an application starts through `ioServer`. No advisory names 8.21.0. Restart your bundles.'
+time: 2026-10-29T02:52:51+01:00
