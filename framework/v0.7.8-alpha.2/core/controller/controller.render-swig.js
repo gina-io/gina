@@ -404,15 +404,22 @@ module.exports = async function render(userData, displayInspector, errOptions, d
     // localOptions must be resolved before the isRenderingCustomError check below
     // because renderCustomError() sets the flag on local.options, not on userData.
     var localOptions = (errOptions) ? errOptions : local.options;
-    // isRenderingCustomError is true when either:
-    // - userData carries the flag (legacy path via throwError pass-through)
-    // - local.options / errOptions carries it (set by renderCustomError at controller.js)
-    var isRenderingCustomError = (
-                                (typeof(userData) != 'undefined' && userData !== null
-                                    && typeof(userData.isRenderingCustomError) != 'undefined'
-                                    && String(userData.isRenderingCustomError).toLowerCase() === 'true')
-                                || localOptions.isRenderingCustomError === true
-                            ) ? true : false;
+    // #B873 — a custom-error render is one whose options carry the flag: renderCustomError sets it
+    // on local.options (controller.js), and every gina error page renders through it, as the
+    // control of the `custom-error-page` route both throwError twins dispatch. The render data
+    // could set it too, so an action rendering request data (`self.render(req.get)`) let a
+    // request value switch its page into the error-page mode (answered 500). The nunjucks
+    // delegate and both async delegates read the options flag only.
+    // was: // isRenderingCustomError is true when either:
+    // was: // - userData carries the flag (legacy path via throwError pass-through)
+    // was: // - local.options / errOptions carries it (set by renderCustomError at controller.js)
+    // was: var isRenderingCustomError = (
+    // was:                             (typeof(userData) != 'undefined' && userData !== null
+    // was:                                 && typeof(userData.isRenderingCustomError) != 'undefined'
+    // was:                                 && String(userData.isRenderingCustomError).toLowerCase() === 'true')
+    // was:                             || localOptions.isRenderingCustomError === true
+    // was:                         ) ? true : false;
+    var isRenderingCustomError = (localOptions.isRenderingCustomError === true);
     // #B988 — the flag is stripped from the per-render copy, right after `copyForRender()`
     // in the combine below, so the object the action passed is never written.
     // was: if (isRenderingCustomError && userData && typeof(userData.isRenderingCustomError) != 'undefined')
