@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'With the swig engine, an action that renders request data, such as `self.render(req.get)`, no longer switches into error-page rendering when the request carries `isRenderingCustomError=true` (#B873): such a request answered 500. Only gina''s own error-page rendering sets that mode now, as with the nunjucks engine.'
+time: 2026-10-29T22:42:42+01:00
