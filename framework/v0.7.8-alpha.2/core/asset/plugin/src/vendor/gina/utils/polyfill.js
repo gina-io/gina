@@ -37,10 +37,9 @@ if ( typeof(JSON.clone) == 'undefined' ) {
      * JSON.clone
      * Clone JSON object
      *
-     * Changes made here must be reflected in:
-     *  - gina/lib/prototypes.js
-     *  - gina/framework/version/helpers/prototypes.js
-     *  - gina/framework/version/core/asset/plugin/src/vendor/gina/js/utils/polyfill.js
+     * This is the browser copy. Changes made here must be reflected in the server
+     * implementation:
+     *  - gina/utils/prototypes.json_clone.js
      *
      * @param {object} source
      * @param {object} [target]
@@ -61,7 +60,11 @@ if ( typeof(JSON.clone) == 'undefined' ) {
         ;
 
         while (i<len) {
-            target[keys[i]] = (typeof target[keys[i]] == 'undefined') ? clone(source[keys[i]], null) : target[keys[i]];
+            // #B849 — fill when the target has no OWN value for the key: read through the prototype
+            // chain, a fresh target "had" `toString`, `valueOf`, `hasOwnProperty` or `count`, and the
+            // inherited function was written back over the source's value (see the server copy).
+            // was: target[keys[i]] = (typeof target[keys[i]] == 'undefined') ? clone(source[keys[i]], null) : target[keys[i]];
+            target[keys[i]] = (typeof target[keys[i]] == 'undefined' || !Object.prototype.hasOwnProperty.call(target, keys[i])) ? clone(source[keys[i]], null) : target[keys[i]];
             i++;
         }
         i = null; len = null; keys = null;
