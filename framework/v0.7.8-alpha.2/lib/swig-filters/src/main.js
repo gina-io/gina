@@ -510,7 +510,25 @@ function SwigFilters(conf) {
         return url
     }
 
-    // Extends default `length` filter
+    /**
+     * Extends the default `length` filter: the length of a string or an array, the
+     * key count of a plain object, and the result of `count()` on a collection-style
+     * object that defines one (e.g. a Gina collection).
+     *
+     * A string, primitive or String object, gives its own `.length`. `undefined` and
+     * `null` give 0; swig hands a filter "" for a missing or null variable, so
+     * `{{ missing | length }}` renders 0.
+     *
+     * @memberof SwigFilters
+     * @param {*} input - Any value with a `.length` or `.count()`
+     * @param {*} [obj] - Unused
+     * @returns {number} The length / count
+     *
+     * @example
+     *   {{ "hello" | length }}   {# => 5 #}
+     *   {{ users | length }}     {# a collection: users.count() #}
+     *   {% if title | length %}<h1>{{ title }}</h1>{% endif %}
+     */
     self.length = function (input, obj) {
 
         // Match upstream nunjucks `runtime.length` / Jinja2: undefined or null → 0.
@@ -519,6 +537,13 @@ function SwigFilters(conf) {
         // variable through `| length`.
         if ( input == null ) {
             return 0
+        }
+        // #B846 — a string's length is its own `.length`. Every string reaches the
+        // `count()` helper below, and on a String receiver the helper runs
+        // `JSON.parse(this)` first: on text that is not JSON it returns `undefined`, so
+        // `{{ "abc" | length }}` rendered empty and `{% if s | length %}` was false.
+        if ( typeof(input) == 'string' || input instanceof String ) {
+            return input.length
         }
         // #B546 — the `typeof(input.count) != 'undefined'` guard below is itself blind to
         // the collision it needs to survive: gina installs a `count()` helper on
