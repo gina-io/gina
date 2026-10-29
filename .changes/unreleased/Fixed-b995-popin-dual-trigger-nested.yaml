@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'A click on markup added inside a popin close button that is also a legacy trigger (a `.gina-popin-close` element carrying `data-gina-popin-name`), after that trigger was registered, now dispatches the trigger, as a click on the button itself does. The popin read the trigger''s event name from the element clicked, so a node added later (an icon, a label) matched nothing and the click did nothing; markup already inside the button when the trigger was registered was not affected. Browser-bundled: restart the bundle and re-bake it (`gina bundle:build`) to pick it up. (#B995)'
-time: 2026-10-27T17:31:55+01:00

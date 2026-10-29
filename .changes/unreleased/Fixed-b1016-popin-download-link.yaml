@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'A link carrying `download` in popin content is now left to the browser, which saves the file. Before, its click loaded the file into the popin by XHR and wrote its bytes there. Inside a form carrying inherited data, in a popin registered with the validator, such a link is saved from its `href` as written, with no `?inheritedData`. A link that carries its own `id` is handled as before: its click closes the popin. Browser-bundled: restart the bundle and re-bake it (`gina bundle:build`) to pick it up. (#B1016)'
-time: 2026-10-28T22:39:37+01:00

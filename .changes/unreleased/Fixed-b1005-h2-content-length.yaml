@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'Over HTTP/2, a success answer now declares its `content-length`, as it already did over HTTP/1.1 (#B1005): `renderJSON()`, `render()` with swig or nunjucks (with or without an async loader), `renderXML()`, and an answer served from the render cache. A client can then tell a body cut short from a complete one, which gina''s own `self.query()` does since this release. A 204, 205 or 304 answer still declares none: a Node.js HTTP/2 client resets a 204 or 205 that declares a length. `renderStream()` still sends no length.'
-time: 2026-10-27T13:16:48+01:00
