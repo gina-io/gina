@@ -505,6 +505,8 @@ function NunjucksFilters(conf) {
     /**
      * Extends the default `length` filter to honour collection-style
      * objects that expose a `.count()` method (e.g. Gina collections).
+     * A string gives its own `.length`: a primitive, a String object, or the
+     * SafeString that `| safe` wraps a string in. `undefined` and `null` give 0.
      *
      * @memberof NunjucksFilters
      * @param {*} input - Any value with a `.length` or `.count()`
@@ -513,6 +515,7 @@ function NunjucksFilters(conf) {
      *
      * @example
      *   {{ users | length }}
+     *   {{ "hello" | length }}   {# => 5 #}
      */
     self.length = function (input, obj) {
         // Match upstream nunjucks `runtime.length` / Jinja2: undefined or null → 0.
@@ -521,6 +524,15 @@ function NunjucksFilters(conf) {
         // variable through `| length`.
         if ( input == null ) {
             return 0;
+        }
+        // #B846 — a string's length is its own `.length`. Every string reaches the
+        // `count()` helper below, and on a String receiver the helper runs
+        // `JSON.parse(this)` first: on text that is not JSON it returns `undefined`, so
+        // `{{ "abc" | length }}` rendered empty and `{% if s | length %}` was false. A
+        // nunjucks SafeString inherits from `String.prototype`, so `instanceof String`
+        // covers `| safe` too.
+        if ( typeof(input) == 'string' || input instanceof String ) {
+            return input.length;
         }
         // #B546 — the `typeof(input.count) != 'undefined'` guard below is itself blind to
         // the collision it needs to survive: gina installs a `count()` helper on
