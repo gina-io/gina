@@ -16358,11 +16358,22 @@ function ValidatorPlugin(rules, data, formId, culture) {
 
     /**
      * Reset fields
+     * Restores each bound control to the value it had when the form was bound, then runs the one pass of
+     * a reset: the error display and the `errors` store are cleared, nothing is painted, and the submit
+     * trigger is re-read (#B1037). While the values are written the live check stays out of it
+     * (`isBeingReseted`, read by the live listeners), and `resetCount` tells a pass already on its way
+     * that the form it was checking is gone. A control removed from the page since the bind is skipped.
      *
      * @param {object|string} [$form|formId]
+     * @param {boolean} [isOnResetMode=false] - the path of a `reset` event: `text` and `hidden` inputs
+     *   then end on their `defaultValue`, as a native reset leaves them, and not on their value at bind
      *
+     * @returns {object} the form's record
+     *
+     * @example
+     * gina.validator.$forms['signup'].resetFields();
      * */
-    var resetFields = function($form) {
+    var resetFields = function($form, isOnResetMode) {
         var _id = null;
         if ( typeof($form) == 'undefined' ) {
             if ( typeof(this.target) != 'undefined' ) {
@@ -16392,40 +16403,68 @@ function ValidatorPlugin(rules, data, formId, culture) {
                 , value         = null // current value
                 , defaultValue  = null
             ;
+            var resetInfo = null;
             $form.isBeingReseted = true;
-            for (var f in $form.fieldsSet) {
+            $form.resetCount = ( $form.resetCount || 0 ) + 1;
+            // the flag must come down whatever happens here: left up, it would silence the form's live
+            // check for good
+            try {
+                for (var f in $form.fieldsSet) {
 
-                $element    = document.getElementById(f);
-                type        = $element.tagName.toLowerCase();
-                tagName     = $element.tagName;
+                    $element    = document.getElementById(f);
+                    // a field removed from the page since the bind has nothing to restore
+                    if ( !$element ) { continue; }
+                    type        = $element.tagName.toLowerCase();
+                    tagName     = $element.tagName;
 
-                if ( /textarea/i.test(tagName) ) {
-                    defaultValue = $form.fieldsSet[f].defaultValue;
-                    $element.value = defaultValue;
-                    triggerEvent(gina, $element, 'change');
-                    continue;
-                }
-
-                if (type == 'input') {
-
-                    defaultValue = $form.fieldsSet[f].defaultValue;
-
-                    if ( /^(checkbox|radio)$/i.test($element.type) ) {
-                        $element.checked = $form.fieldsSet[f].defaultChecked;
-                    } else if ( !/^(checkbox|radio)$/i.test($element.type) ) {
+                    if ( /textarea/i.test(tagName) ) {
+                        defaultValue = $form.fieldsSet[f].defaultValue;
                         $element.value = defaultValue;
+                        triggerEvent(gina, $element, 'change');
+                        continue;
                     }
-                    triggerEvent(gina, $element, 'change');
 
-                } else if ( type == 'select' ) {
-                    defaultValue = $form.fieldsSet[f].selectedIndex || 0;
-                    $element.selectedIndex = defaultValue;
-                    $element.dataset.value = $element.options[ $element.selectedIndex ].value;
-                    triggerEvent(gina, $element, 'change');
+                    if (type == 'input') {
+
+                        defaultValue = $form.fieldsSet[f].defaultValue;
+
+                        if ( /^(checkbox|radio)$/i.test($element.type) ) {
+                            $element.checked = $form.fieldsSet[f].defaultChecked;
+                        } else if ( !/^(checkbox|radio)$/i.test($element.type) ) {
+                            $element.value = defaultValue;
+                        }
+                        triggerEvent(gina, $element, 'change');
+
+                    } else if ( type == 'select' ) {
+                        defaultValue = $form.fieldsSet[f].selectedIndex || 0;
+                        $element.selectedIndex = defaultValue;
+                        // an empty select has no option to read
+                        $element.dataset.value = ( $element.options[ $element.selectedIndex ] ) ? $element.options[ $element.selectedIndex ].value : '';
+                        triggerEvent(gina, $element, 'change');
+                    }
+
                 }
-
+                // On reset mode the collector writes `text` and `hidden` values too: still under the flag
+                resetInfo = ( isOnResetMode === true )
+                    ? getFormValidationInfos($form.target, $form.rules, true)
+                    : getFormValidationInfos($form.target, $form.rules);
+            } finally {
+                delete $form.isBeingReseted;
             }
-            delete $form.isBeingReseted;
+
+            // The one pass of a reset: it stores and paints nothing (`isSilentPass`, read by validate's
+            // `query` waiter), it only re-reads the gate. `ginaFormIsResetting` is one-shot, consumed by the
+            // call that follows it.
+            $form.target.dataset.ginaFormIsResetting = true;
+            $form.errors = {};
+            handleErrorsDisplay($form.target, {});
+            var onSilentResetValidation = function(result) {
+                var isFormValid = result.isValid();
+                console.debug('silent reset validation result[isValid:'+isFormValid+']: ', result);
+                updateSubmitTriggerState( $form.target , isFormValid );
+            };
+            onSilentResetValidation.isSilentPass = true;
+            validate($form.target, resetInfo.fields, resetInfo.$fields, $form.rules, onSilentResetValidation);
         }
 
         return $form
@@ -21271,6 +21310,13 @@ function ValidatorPlugin(rules, data, formId, culture) {
                     addListener(gina, $el, eventsList, function(event) {
                         event.preventDefault();
                         clearTimeout(liveCheckTimer);
+                        // #B1037 — a reset restores values, it touches nothing: `resetFields` ends with the
+                        // one pass of a reset. Read before the radio and checkbox `once` logic: their pass is
+                        // deferred, so it would run after the reset has cleared the display.
+                        var $liveForm = instance.$forms[event.target.form.getAttribute('id')];
+                        if ( $liveForm.isBeingReseted ) {
+                            return false;
+                        }
                         if ( !once && /^changed\./i.test(event.type) || !once && /^(radio|checkbox)$/i.test(event.target.type) ) {
                             once = true;
                         } else if (once && /^changed\./i.test(event.type) || once && /^(radio|checkbox)$/i.test(event.target.type) ) {
@@ -21284,12 +21330,24 @@ function ValidatorPlugin(rules, data, formId, culture) {
                             return false;
                         }
 
+                        // #B1037 — a pass that started before a reset (an async `query` verdict, a deferred
+                        // radio pass, the keyup timer) must not paint the restored form; it leaves the
+                        // flags its end would have left
+                        var resetCountAtStart = $liveForm.resetCount || 0;
+                        var isStaleAfterReset = function() {
+                            if ( ( $liveForm.resetCount || 0 ) == resetCountAtStart ) {
+                                return false;
+                            }
+                            $liveForm.isValidating = false;
+                            once = false;
+                            return true;
+                        };
+
                         var processEvent = function() {
 
-                            // if ( typeof($form.isBeingReseted) != 'undefined' && /^true$/.test($form.isBeingReseted) ) {
-                            //     handleErrorsDisplay(event.target.form, {}, null, event.target.name);
-                            //     return cancelEvent(event);
-                            // }
+                            if ( isStaleAfterReset() ) {
+                                return;
+                            }
 
                             if ( !/^(password)$/i.test(event.target.type) ) {
                                 console.debug('processing: ' + event.target.name+ '/'+ event.target.id);
@@ -21320,6 +21378,9 @@ function ValidatorPlugin(rules, data, formId, culture) {
 
                             instance.$forms[event.target.form.getAttribute('id')].isValidating = true;
                             validate(event.target, localField, $localField, $form.rules, function onLiveValidation(result){
+                                if ( isStaleAfterReset() ) {
+                                    return;
+                                }
                                 // instance.$forms[event.target.form.getAttribute('id')].isValidating = false;
                                 //console.debug('validation on processEvent(...) ', result);
 
@@ -21352,6 +21413,9 @@ function ValidatorPlugin(rules, data, formId, culture) {
                                 instance.$forms[formId].isValidating = true;
                                 validate($gForm, gFields, $gFields, gRules, function onSilentGlobalLiveValidation(gResult){
                                     instance.$forms[formId].isValidating = false;
+                                    if ( isStaleAfterReset() ) {
+                                        return;
+                                    }
                                     console.debug('['+ formId +'] onSilentGlobalLiveValidation: '+ gResult.isValid(), gResult, gFields);
                                     // var isFormValid = ( gResult.isValid() && instance.$forms[formId].errors && instance.$forms[formId].errors.count() == 0 )? true : false;
                                     var isFormValid = gResult.isValid();
@@ -23496,7 +23560,9 @@ function ValidatorPlugin(rules, data, formId, culture) {
             // was: /^(true)$/i.test($form.target.dataset.ginaFormLiveCheckEnabled && $form.rules.count() > 0)
             if (
                 /^(true)$/i.test($form.target.dataset.ginaFormLiveCheckEnabled) && $form.rules.count() > 0
-                // && typeof($form.isBeingReseted) == 'undefined'
+                // #B1037 — a reset restores values, it touches nothing: `resetFields` ends with the one
+                // pass of a reset
+                && !instance.$forms[$el.form.getAttribute('id')].isBeingReseted
             ) {
                 var localField = {}, $localField = {}, $localForm = null;
                 // #B781 — the select is read from `$el`, the element this function is given. It
@@ -23510,9 +23576,18 @@ function ValidatorPlugin(rules, data, formId, culture) {
                 localField[$el.name]     = $el.value;
                 $localField[$el.name]    = $el;
 
+                // #B1037 — same stale pass as processEvent's (keep the two copies in sync)
+                var resetCountAtStart = instance.$forms[$localForm.getAttribute('id')].resetCount || 0;
+                var isStaleAfterReset = function() {
+                    return ( instance.$forms[$localForm.getAttribute('id')].resetCount || 0 ) != resetCountAtStart;
+                };
+
                 instance.$forms[$localForm.getAttribute('id')].isValidating = true;
                 validate($el, localField, $localField, $form.rules, function onLiveValidation(result){
                     instance.$forms[$localForm.getAttribute('id')].isValidating = false;
+                    if ( isStaleAfterReset() ) {
+                        return;
+                    }
                     var isFormValid = result.isValid();
                     //console.debug('onSilentPreGlobalLiveValidation: '+ isFormValid, result);
                     if (isFormValid) {
@@ -23543,6 +23618,9 @@ function ValidatorPlugin(rules, data, formId, culture) {
                     instance.$forms[formId].isValidating = true;
                     validate($gForm, gFields, $gFields, gRules, function onSilentGlobalLiveValidation(gResult){
                         instance.$forms[formId].isValidating = false;
+                        if ( isStaleAfterReset() ) {
+                            return;
+                        }
                         console.debug('[updateSelect]: onSilentGlobalLiveValidation: '+ gResult.isValid(), gResult);
                         // Fixed on 2025-03-16
                         var isFormValid = gResult.isValid();
@@ -24547,22 +24625,7 @@ function ValidatorPlugin(rules, data, formId, culture) {
 
                     var _id             = e.currentTarget.id || e.target.id
                     var $form           = instance.$forms[_id];
-                    $form.target.dataset.ginaFormIsResetting = true;
-                    resetFields($form);
-                    // forcing it
-                    var validationInfo  = getFormValidationInfos($form.target, $form.rules, true);
-                    var fields          = validationInfo.fields;
-                    var $fields         = validationInfo.$fields;
-
-                    validate($form.target, fields, $fields, $form.rules, function onSilentResetValidation(result){
-                        var isFormValid = result.isValid();
-                        console.debug('silent reset validation result[isValid:'+isFormValid+']: ', result);
-                        //resetting error display
-                        handleErrorsDisplay($form.target, {});
-
-                        updateSubmitTriggerState( $form.target , isFormValid );
-                        $form.target.dataset.ginaFormIsResetting = false;
-                    });
+                    resetFields($form, true);
                 }) })
             }
             // Form-level proxies: capture bubbled events from in-tree controls.
@@ -26283,7 +26346,8 @@ function ValidatorPlugin(rules, data, formId, culture) {
      * @param {object} rules - the rule set to apply. The pass works on a copy of it (#B885): a
      *   `_case_` application, an exclusion or a RegExp alias found during the pass never reaches
      *   the object the caller holds
-     * @param {callback} cb
+     * @param {callback} cb - with `cb.isSilentPass` (#B1037) a `query` verdict is neither stored nor
+     *   painted here: the caller reads the result
      * @param {string} [culture] // #i18n — server form-body path only; forwarded to FormValidator
      */
     var validate = function($formOrElement, fields, $fields, rules, cb, culture) {
@@ -26339,6 +26403,8 @@ function ValidatorPlugin(rules, data, formId, culture) {
             // a sync-only verdict and send() fired while the query XHR was in
             // flight). Pass-local by construction, so only the first case matches.
             , armedAsyncFields  = {}
+            // #B1037 — the form's reset count when this pass started, read by the `query` waiter
+            , resetCountAtPassStart = 0
         ;
 
 
@@ -26555,6 +26621,14 @@ function ValidatorPlugin(rules, data, formId, culture) {
                                 }
                                 var formId      = $currentForm.getAttribute('id');
                                 var isFormValid = null;
+                                // #B1037 — the form was reset since this pass started, so the value it
+                                // judged is gone: nothing of this verdict is stored, painted or given to
+                                // the gate. The pass still completes for its caller.
+                                var isStaleVerdict = ( instance.$forms[formId].resetCount || 0 ) != resetCountAtPassStart;
+                                // A silent pass (the one of a reset) stores and paints nothing either; its
+                                // caller reads the result. A flag on the callback, as `isRevealCompletion`
+                                // is: it lives and dies with the pass, so it cannot stay up.
+                                var isDisplayHeld = isStaleVerdict || !!( cb && cb.isSilentPass );
 
                                 if (
                                     hasParsedAllRules
@@ -26592,14 +26666,16 @@ function ValidatorPlugin(rules, data, formId, culture) {
                                             instance.$forms[formId].errors = {}
                                         }
                                         // Fixed on 2025-03-16
-                                        if ( typeof(cb._errors[field]) != 'undefined' ) {
+                                        if ( typeof(cb._errors[field]) != 'undefined' && !isDisplayHeld ) {
                                             instance.$forms[formId].errors[field] = cb._errors[field];
                                         }
                                         console.debug('[A] Refreshing warning/error on field '+ field);
                                         if (
-                                            !isFormValid && /^true|false$/i.test(instance.$forms[formId].isValidating)
-                                            || d[field].target.value != ''
-
+                                            !isDisplayHeld
+                                            && (
+                                                !isFormValid && /^true|false$/i.test(instance.$forms[formId].isValidating)
+                                                || d[field].target.value != ''
+                                            )
                                         ) {
                                             refreshWarning($allFields[field]);
                                             handleErrorsDisplay($currentForm, cb._errors, cb._data, field);
@@ -26693,7 +26769,7 @@ function ValidatorPlugin(rules, data, formId, culture) {
                                     if (isFormValid) {
                                         needsGlobalReValidation = true;
                                     }
-                                    if (!isFormValid && /^true|false$/i.test(instance.$forms[formId].isValidating)) {
+                                    if (!isFormValid && /^true|false$/i.test(instance.$forms[formId].isValidating) && !isDisplayHeld) {
                                         console.debug('[1] Should update error display now ', cb._errors);
                                         instance.$forms[formId].errors = merge(cb._errors, instance.$forms[formId].errors);
                                         refreshWarning($allFields[field]);
@@ -26733,8 +26809,13 @@ function ValidatorPlugin(rules, data, formId, culture) {
                                     triggerEvent(gina, $formOrElement, 'validated.' + formId, cb);
                                 }
 
+                                // #B1037 — a stale verdict starts no pass
+                                if (isStaleVerdict) {
+                                    needsGlobalReValidation = false;
+                                }
+
                                 if (needsGlobalReValidation) {
-                                    validate($currentForm, allFields, $allFields, rules, function onSilentQueryGlobalLiveValidation(gResult){
+                                    var onSilentQueryGlobalLiveValidation = function(gResult){
                                         instance.$forms[formId].isValidating = false;
                                         // console.debug('['+ formId +'] onSilentQueryGlobalLiveValidation: '+ gResult.isValid(), gResult);
                                         isFormValid = gResult.isValid();
@@ -26751,9 +26832,13 @@ function ValidatorPlugin(rules, data, formId, culture) {
                                             window.ginaToolbar.update('forms', objCallback);
                                         }
 
-                                        handleErrorsDisplay($currentForm, gResult.error, gResult.data, field);
+                                        if ( !isDisplayHeld ) {
+                                            handleErrorsDisplay($currentForm, gResult.error, gResult.data, field);
+                                        }
                                         updateSubmitTriggerState( $currentForm, isFormValid);
-                                    })
+                                    };
+                                    onSilentQueryGlobalLiveValidation.isSilentPass = isDisplayHeld;
+                                    validate($currentForm, allFields, $allFields, rules, onSilentQueryGlobalLiveValidation);
                                 }
 
                             });
@@ -26804,6 +26889,7 @@ function ValidatorPlugin(rules, data, formId, culture) {
                 instance.$forms[id].fields = fields;
                 d = new FormValidator(fields, $fields, xhrOptions, instance.$forms[id].fieldsSet);
             }
+            resetCountAtPassStart = instance.$forms[id].resetCount || 0;
         } else {
             d = new FormValidator(fields, null, xhrOptions, undefined, culture);
         }
