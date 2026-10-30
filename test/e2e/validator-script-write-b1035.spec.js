@@ -32,6 +32,11 @@
  *      value through the setter on Safari and WebKit)
  *   18 CONTROL — a `tel` input and a textarea have no value setter: a write re-checks nothing, and a
  *      `change` dispatched after it does
+ *   19 #B1035 — a user's pick on a boolean radio, refused by its rule, paints: the framework writes
+ *      that value through the setter on the click, and it is no script's write   (RED on the arc's first
+ *      cut: the review of 2026-10-30)
+ *   19b #B1035 — the same through a `<label for>`
+ *   20 CONTROL — a value radio, refused by its rule, paints
  *
  * Instruments, armed right before the action: a synchronous hook on `setAttribute`, a MutationObserver
  * on the live region, a `requestAnimationFrame` count of frames showing an error.
@@ -458,4 +463,33 @@ test.describe('#B1035 — a script\'s write is nobody\'s touch', function () {
             expect(run.errors).toEqual([]);
         });
     }
+
+    for (const [label, name, target] of [
+        ['19', 'a click on the radio', '#no'],
+        ['19b', 'a click on its label', '#for-no']
+    ]) {
+        test(label + ' #B1035 — a pick on a boolean radio, refused by its rule, paints: ' + name, async ({ page }) => {
+            const run = await open(page, form('boolr', wrap('<input id="yes" type="radio" name="agree" value="true">')
+                + wrap('<label id="for-no" for="no">No</label><input id="no" type="radio" name="agree" value="false">')), ['boolr']);
+            await page.locator(target).click();
+            await page.waitForTimeout(AFTER);
+            const r = await read(page, 'boolr');
+            expect(r.messages, 'the message of the refused pick').toEqual(['Condition not satisfied']);
+            expect(r.gated, 'the gate closed').toBe('true');
+            expect(r.errors, 'the store holds it').toEqual(['agree']);
+            expect(run.errors).toEqual([]);
+        });
+    }
+
+    test('20 CONTROL — a value radio, refused by its rule, paints', async ({ page }) => {
+        const run = await open(page, form('valr', wrap('<input id="a" type="radio" name="pick" value="a">')
+            + wrap('<input id="b" type="radio" name="pick" value="b">')), ['valr']);
+        await page.locator('#b').click();
+        await page.waitForTimeout(AFTER);
+        const r = await read(page, 'valr');
+        expect(r.messages).toEqual(['Condition not satisfied']);
+        expect(r.gated).toBe('true');
+        expect(run.errors).toEqual([]);
+    });
+
 });

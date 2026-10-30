@@ -413,7 +413,9 @@ const B1035_FORMS_JSON = JSON.stringify({ rules: {
     seeded:   { req: { isRequired: true }, keep: { isRequired: true }, mail: { isRequired: true, isEmail: true }, hid: { isRequired: true } },
     emptyone: { req: { isRequired: true }, keep: { isRequired: true } },
     query:    { r3: { isRequired: true }, q3: { isRequired: true, query: { url: '/uniq', method: 'GET', validIf: true } } },
-    nosetter: { tel1: { isRequired: true }, note: { isRequired: true } }
+    nosetter: { tel1: { isRequired: true }, note: { isRequired: true } },
+    boolr:    { agree: { is: '/^true$/' } },
+    valr:     { pick: { is: '/^a$/' } }
 } });
 
 // #B1036 — the forms whisper of the shared-field-id spec (test/e2e/validator-shared-field-id-b1036.spec.js):
@@ -434,7 +436,13 @@ const B1037_FORMS_JSON = JSON.stringify({ rules: {
     radonly: { rad: { isRequired: true } },
     others:  { o1: { isRequired: true }, o2: { isRequired: true } },
     bools:   { r3: { isRequired: true }, a1: { isRequired: true, isBoolean: true }, a2: { isRequired: true, isBoolean: true },
-               a3: { isRequired: true, isBoolean: true }, a4: { isRequired: true, isBoolean: true } }
+               a3: { isRequired: true, isBoolean: true }, a4: { isRequired: true, isBoolean: true } },
+    grp:     { r3: { isRequired: true }, m: { isBoolean: true }, dep: { isRequired: true } },
+    qfirst:  { q3: { isRequired: true, query: B1037_QUERY }, r3: { isRequired: true } },
+    qq:      { q3: { isRequired: true, query: B1037_QUERY }, q4: { isRequired: true, query: B1037_QUERY }, r3: { isRequired: true } },
+    qval:    { r3: { isRequired: true }, q3: { isRequired: true, query: { url: '/uniq', method: 'GET', data: { v: '$q3' }, validIf: true } } },
+    qoff:    { q3: { query: B1037_QUERY }, r3: { isRequired: true } },
+    tri:     { r3: { isRequired: true }, q3: { isRequired: true, query: B1037_QUERY }, t3: { isRequired: true } }
 } });
 
 // #B921 — the forms whisper of the RegExp-key spec (test/e2e/validator-case-regex-key-b921.spec.js). Each

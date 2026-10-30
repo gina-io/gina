@@ -2791,8 +2791,9 @@ function ValidatorPlugin(rules, data, formId, culture) {
      * Reset fields
      * Restores each bound control to the value it had when the form was bound, then runs the one pass of
      * a reset: the error display and the `errors` store are cleared, nothing is painted, and the submit
-     * trigger is re-read (#B1037). While the values are written the live check stays out of it
-     * (`isBeingReseted`, read by the live listeners), and `resetCount` tells a pass already on its way
+     * trigger is re-read (#B1037). With live check off, `resetFields()` runs no pass; a master checkbox's
+     * timer reads the form once more, its group applied. While the values are written the live check stays
+     * out of it (`isBeingReseted`, read by the live listeners), and `resetCount` tells a pass already on its way
      * that the form it was checking is gone. A control removed from the page since the bind is skipped,
      * and each control is looked for among the form's own, should its id be shared (#B1036).
      *
@@ -2904,10 +2905,23 @@ function ValidatorPlugin(rules, data, formId, culture) {
             var onSilentResetValidation = function(result) {
                 var isFormValid = result.isValid();
                 console.debug('silent reset validation result[isValid:'+isFormValid+']: ', result);
+                // a request in flight holds the trigger, and its settle releases it: the `true` branch
+                // would clear that lock
+                if ( isFormValid && /^true$/i.test($form.isSending) ) {
+                    return;
+                }
                 updateSubmitTriggerState( $form.target , isFormValid );
             };
             onSilentResetValidation.isSilentPass = true;
-            validate($form.target, resetInfo.fields, resetInfo.$fields, $form.rules, onSilentResetValidation);
+            // The rescue of a clean verdict on a `query` field not last (#B348): this pass writes neither
+            // `isSubmitting` nor `isValidating` either, so no other branch of the waiter would call it back.
+            onSilentResetValidation.isRevealCompletion = true;
+            // Live check off: the trigger is never gated, so `resetFields()` has nothing to re-read, and the
+            // pass would send its `query` and clear a native `disabled` the page set. A `reset` event keeps
+            // its pass, as it always had.
+            if ( isOnResetMode === true || !/^false$/i.test($form.target.dataset.ginaFormLiveCheckEnabled) ) {
+                validate($form.target, resetInfo.fields, resetInfo.$fields, $form.rules, onSilentResetValidation);
+            }
         }
 
         return $form
@@ -7780,7 +7794,9 @@ function ValidatorPlugin(rules, data, formId, culture) {
                         // paints only what already shows: a message may change or clear, a new one waits for a
                         // touch. Same box as handleErrorsDisplay: the classes sit on the wrapper's parent.
                         var $errorBox = ( /form\-item\-wrapper$/.test(event.target.parentNode.className) ) ? event.target.parentNode.parentNode : event.target.parentNode;
-                        var isQuietWrite = !!event.target.ginaFormIsScriptWrite && !/form\-item\-(error|warning)/.test($errorBox.className);
+                        // A radio stays out: `updateRadio` writes a boolean pair's value through the setter on the
+                        // user's own pick, and that dispatch is the pick's live check.
+                        var isQuietWrite = !!event.target.ginaFormIsScriptWrite && !/^radio$/i.test(event.target.type) && !/form\-item\-(error|warning)/.test($errorBox.className);
 
                         // #B1037 — a pass that started before a reset (an async `query` verdict, a deferred
                         // radio pass, the keyup timer) must not paint the restored form; it leaves the
@@ -10391,6 +10407,22 @@ function ValidatorPlugin(rules, data, formId, culture) {
             // #B929 — every regexp character of the id is escaped.
             // was: var re              = new RegExp('(^|\\s)' + $el.id.replace(/\-|\_|\@|\#|\.|\[|\]/g, '\\$&') + '(\\s|$)');
             var re              = new RegExp('(^|\\s)' + $el.id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(\\s|$)');
+            // #B1037 — during a reset, a master's group is applied on the timer below, after the reset's
+            // pass has read the form with the group's old state: that timer reads it again.
+            var isGroupReadAfterReset = false;
+            if ( !isInit && $form.isBeingReseted ) {
+                for (let id in allFormGroupedElements) {
+                    if ( re.test(allFormGroupedElements[id].group) ) {
+                        isGroupReadAfterReset = true;
+                        break;
+                    }
+                }
+            }
+            var readGroupAfterReset = function() {
+                if ( isGroupReadAfterReset && instance.$forms[$form.id] ) {
+                    revalidateSilently(instance.$forms[$form.id]);
+                }
+            };
             // set to checked if not checked: false -> true
             if ( !checked || checked == 'null' || checked == 'false' || checked == '' ) {
 
@@ -10401,6 +10433,7 @@ function ValidatorPlugin(rules, data, formId, culture) {
                         // means that the checkbox is member of another group
                         triggerHandleCheckBoxGroupDependencies($el, checkBoxGroup, true);
                         updateGroupChildrenState($el);
+                        readGroupAfterReset();
                     }, 0);
                 } else {
                     updateGroupChildrenState($el);
@@ -10425,6 +10458,7 @@ function ValidatorPlugin(rules, data, formId, culture) {
                         // means that the checkbox is member of another group
                         triggerHandleCheckBoxGroupDependencies($el, checkBoxGroup, false);
                         updateGroupChildrenState($el);
+                        readGroupAfterReset();
                     }, 0);
                     $el.setAttribute('checked', 'checked');
                 } else {
@@ -11377,7 +11411,11 @@ function ValidatorPlugin(rules, data, formId, culture) {
                     }
                     instance.$forms[id].isSubmitting = true;
                     instance.$forms[id].isSending = false;
+                    var resetCountAtClick = instance.$forms[id].resetCount || 0;
                     validate($target, fields, $fields, rule, function onClickValidation(result){
+                        if ( releaseSubmitRefusedAfterReset(instance.$forms[id], resetCountAtClick, result) ) {
+                            return;
+                        }
                         triggerEvent(gina, $target, 'validate.' + _id, result)
                     })
                 }
@@ -11758,8 +11796,12 @@ function ValidatorPlugin(rules, data, formId, culture) {
                     instance.$forms[id].isSending = false;
                 }
                 instance.$forms[id].isValidating = true;
+                var resetCountAtSubmit = instance.$forms[id].resetCount || 0;
                 validate($target, fields, $fields, rule, function onSubmitValidation(result){
                     instance.$forms[id].isValidating = false;
+                    if ( releaseSubmitRefusedAfterReset(instance.$forms[id], resetCountAtSubmit, result) ) {
+                        return;
+                    }
                     // var isFormValid = result.isValid();
                     // if (isFormValid) {
                     //     //resetting error display
@@ -11826,6 +11868,34 @@ function ValidatorPlugin(rules, data, formId, culture) {
         }
 
     } // EO bindForm()
+
+    /**
+     * releaseSubmitRefusedAfterReset
+     *
+     * #B1037 — a submit that waited for its `query` verdict while the form was reset: a refusal judged
+     * values that are gone, so it paints nothing and moves no focus on the restored form; only what the
+     * refusal would have released is released. A valid verdict still sends: the user asked for those
+     * values, and a script that submits then resets must not lose its request.
+     *
+     * @inner
+     * @param {object} $formInstance - the form's record
+     * @param {number} resetCountAtStart - the record's `resetCount` when the submit pass started
+     * @param {object} result - the pass's result (`isValid()`)
+     * @returns {boolean} true when the refusal was dropped: the caller stops there
+     *
+     * @example
+     * if ( releaseSubmitRefusedAfterReset(instance.$forms[id], resetCountAtClick, result) ) { return; }
+     */
+    var releaseSubmitRefusedAfterReset = function($formInstance, resetCountAtStart, result) {
+        if ( !$formInstance || ( $formInstance.resetCount || 0 ) == resetCountAtStart || result.isValid() ) {
+            return false;
+        }
+        $formInstance.isSubmitting = false;
+        if ( !/^true$/i.test($formInstance.isSending) ) {
+            disarmSubmitLoading($formInstance);
+        }
+        return true;
+    };
 
     /**
      * updateSubmitTriggerState
@@ -12061,9 +12131,12 @@ function ValidatorPlugin(rules, data, formId, culture) {
             return;
         }
         var validationInfo = excludeWithheldAutofill(getFormValidationInfos($formInstance.target, $formInstance.rules));
-        validate($formInstance.target, validationInfo.fields, validationInfo.$fields, $formInstance.rules, function onSilentAutofillValidation(result) {
+        var onSilentAutofillValidation = function(result) {
             updateSubmitTriggerState($formInstance, result.isValid());
-        });
+        };
+        // #B1037 — a `query` verdict of this pass is neither stored nor painted either
+        onSilentAutofillValidation.isSilentPass = true;
+        validate($formInstance.target, validationInfo.fields, validationInfo.$fields, $formInstance.rules, onSilentAutofillValidation);
     };
 
     /**
@@ -12838,7 +12911,7 @@ function ValidatorPlugin(rules, data, formId, culture) {
      *   `_case_` application, an exclusion or a RegExp alias found during the pass never reaches
      *   the object the caller holds
      * @param {callback} cb - with `cb.isSilentPass` (#B1037) a `query` verdict is neither stored nor
-     *   painted here: the caller reads the result
+     *   painted here, and the pass waits for the answer to its own value: the caller reads the result
      * @param {string} [culture] // #i18n — server form-body path only; forwarded to FormValidator
      */
     var validate = function($formOrElement, fields, $fields, rules, cb, culture) {
@@ -13080,6 +13153,17 @@ function ValidatorPlugin(rules, data, formId, culture) {
                             //console.debug('Adding listner '+asyncEvt);
                             addListener(gina, $asyncField, asyncEvt, function onasyncCompleted(event) {
                                 event.preventDefault();
+                                // #B1037 — the answer to another value (the request of an earlier pass; each
+                                // settle wakes every waiter of the field). A silent pass has no later pass to
+                                // correct it: it waits for the answer to its own value. The engine lowercases
+                                // the value it answers for.
+                                if (
+                                    cb && cb.isSilentPass
+                                    && event.detail && d[field]
+                                    && String(event.detail.value).toLowerCase() != String(d[field].value).toLowerCase()
+                                ) {
+                                    return;
+                                }
                                 // #B332/#B334 — one settle per waiter. Waiters stack per pass
                                 // now, so each must consume exactly one wake-up and leave the
                                 // node: the registry-only `removeListener` in the completion
@@ -13300,7 +13384,11 @@ function ValidatorPlugin(rules, data, formId, culture) {
                                     triggerEvent(gina, $formOrElement, 'validated.' + formId, cb);
                                 }
 
-                                // #B1037 — a stale verdict starts no pass
+                                // #B1037 — a stale verdict starts no pass, and leaves the flag that pass's end
+                                // would have put down
+                                if (isStaleVerdict && needsGlobalReValidation) {
+                                    instance.$forms[formId].isValidating = false;
+                                }
                                 if (isStaleVerdict) {
                                     needsGlobalReValidation = false;
                                 }

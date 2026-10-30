@@ -41,6 +41,28 @@
  *   19 #B1037 — the same reset from the form's success path, after a real POST          (RED)
  *   20 CONTROL — a reset of one form leaves another form's message and live check working
  *
+ * From the review of 2026-10-30 (RED on the arc's first cut unless labelled):
+ *
+ *   21, 21b #B1037 — a master checkbox ticked, reset: its dependent goes off on a timer, after the
+ *      reset's pass; the gate opens and the first click posts
+ *   22 #B1037 — a master ticked in the markup, unticked, reset: the required dependent is back, the
+ *      gate closes
+ *   23, 23b #B1037 — the query field first, or two query fields, clean after the reset: the gate is
+ *      re-read and the first click posts (RED before the arc too)
+ *   24 #B1037 — the answer to the old value comes back first: the reset's pass waits for its own
+ *   24b CONTROL — the restored value's answer comes back first
+ *   25, 25b #B1037 — `resetFields()` with live check off, or no rule set: no `query`, the page's native
+ *      `disabled` on the trigger stays
+ *   25c CONTROL — `form.reset()` with live check off keeps its pass
+ *   26, 26b #B1037 — a reset while a request is in flight: the trigger stays locked (26b: RED before
+ *      the arc too)
+ *   27 CONTROL — `resetFields()` in flight, the restored form invalid: the gate closes and stays closed
+ *   28 #B1037 — a submit waiting for its `query`, form.reset(), the answer refuses: nothing painted, no
+ *      focus moved, the latch and the loading state released, and a later submit works  (RED before the
+ *      arc too)
+ *   28b CONTROL — the answer accepts: the request leaves with the values the click asked for
+ *   29 #B1037 — a clean verdict on a query field not last, after a reset: `isValidating` is down
+ *
  * Instruments, armed right before the action: a synchronous hook on `setAttribute` (a MutationObserver
  * reads `aria-invalid` after the task, so it cannot see a true→false inside one), a MutationObserver on
  * the live region, a `requestAnimationFrame` count of frames showing an error.
@@ -633,4 +655,254 @@ test.describe('#B1037 — a form reset runs no live check', function () {
         expect(fixed.gated, 'the gate opened').toBeNull();
         expect(run.errors).toEqual([]);
     });
+
+    /** A seeded required text, a master checkbox, and a required field that depends on it. */
+    function groupForm(isMasterTicked) {
+        return form('grp', wrap('<input id="r3" type="text" name="r3" value="seed">')
+            + wrap('<input id="m" type="checkbox" name="m"' + (isMasterTicked ? ' checked' : '') + '>')
+            + wrap('<input id="dep" type="text" name="dep" data-gina-form-element-group="m">'));
+    }
+
+    for (const [label, name, reset] of [
+        ['21', 'form.reset()', () => { document.getElementById('grp').reset(); }],
+        ['21b', 'resetFields()', () => { window.gina.validator.$forms.grp.resetFields(); }]
+    ]) {
+        test(label + ' #B1037 — a master checkbox ticked, ' + name + ': its dependent goes off, the gate opens, the first click posts', async ({ page }) => {
+            const run = await open(page, groupForm(false), ['grp']);
+            await page.locator('#m').click();
+            await page.waitForTimeout(500);
+            expect((await read(page, 'grp')).gated, 'the required dependent, empty, closed the gate').toBe('true');
+            await arm(page);
+            await page.evaluate(reset);
+            await page.waitForTimeout(AFTER);
+            const r = await read(page, 'grp');
+            expectClean(r);
+            expect(await page.isDisabled('#dep'), 'the dependent is off').toBe(true);
+            expect(r.gated, 'the form is valid').toBeNull();
+            await page.locator('#grp-submit').click();
+            await page.waitForTimeout(AFTER);
+            expect(run.posts.length, 'the first click posts').toBe(1);
+            expect(run.errors).toEqual([]);
+        });
+    }
+
+    test('22 #B1037 — a master ticked in the markup, unticked, form.reset(): the required dependent is back, the gate closes', async ({ page }) => {
+        const run = await open(page, groupForm(true), ['grp']);
+        await page.locator('#m').click();
+        await page.waitForTimeout(500);
+        expect((await read(page, 'grp')).gated, 'the dependent is off, the form valid').toBeNull();
+        await arm(page);
+        await page.evaluate(() => { document.getElementById('grp').reset(); });
+        await page.waitForTimeout(AFTER);
+        const r = await read(page, 'grp');
+        expect(await page.isDisabled('#dep'), 'the dependent is back').toBe(false);
+        expect(r.gated, 'required and empty').toBe('true');
+        expect(r.painted, 'nothing painted').toBe(0);
+        expect(run.errors).toEqual([]);
+    });
+
+    for (const [label, name, id, extra] of [
+        ['23', 'the query field first', 'qfirst', ''],
+        ['23b', 'two query fields', 'qq', wrap('<input id="q4" type="text" name="q4" value="seed">')]
+    ]) {
+        test(label + ' #B1037 — ' + name + ', clean after form.reset(): the gate is re-read, the first click posts', async ({ page }) => {
+            await answerQueries(page, true, 100);
+            const run = await open(page, form(id, wrap('<input id="q3" type="text" name="q3" value="seed">') + extra
+                + wrap('<input id="r3" type="text" name="r3" value="seed">')), [id]);
+            await page.locator('#r3').click();
+            await page.locator('#r3').selectText();
+            await page.keyboard.press('Backspace');
+            await page.waitForTimeout(KEYUP);
+            await blur(page);
+            await page.waitForTimeout(300);
+            expect((await read(page, id)).gated, 'the emptied field closed the gate').toBe('true');
+            // armed in the task of the reset: the error of the emptied field shows until then
+            await page.evaluate((f) => { window.__b1037.armed = true; document.getElementById(f).reset(); }, id);
+            await page.waitForTimeout(AFTER);
+            const r = await read(page, id);
+            expectClean(r);
+            expect(r.gated, 'the restored form is valid').toBeNull();
+            await page.locator('#' + id + '-submit').click();
+            await page.waitForTimeout(AFTER);
+            expect(run.posts.length, 'the first click posts').toBe(1);
+            expect(run.errors).toEqual([]);
+        });
+    }
+
+    for (const [label, name, taken, seed] of [
+        ['24 #B1037', 'the answer to the old value first', 250, 800],
+        ['24b CONTROL', 'the restored value\'s answer first', 800, 100]
+    ]) {
+        test(label + ' — a refused value on the wire, form.reset(), ' + name + ': the gate opens, the first click posts', async ({ page }) => {
+            await page.route('**/uniq*', async (route) => {
+                const v = new URL(route.request().url()).searchParams.get('v');
+                await new Promise((res) => setTimeout(res, v === 'taken' ? taken : seed));
+                await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ isValid: v !== 'taken' }) });
+            });
+            const run = await open(page, form('qval', wrap('<input id="r3" type="text" name="r3" value="seed">')
+                + wrap('<input id="q3" type="text" name="q3" value="seed">')), ['qval']);
+            await page.waitForTimeout(1000);
+            await page.locator('#q3').click();
+            await page.locator('#q3').selectText();
+            await page.locator('#q3').pressSequentially('taken', { delay: 10 });
+            // past the keyup timer: its query is on the wire
+            await page.waitForTimeout(1100);
+            await arm(page);
+            await page.evaluate(() => { document.getElementById('qval').reset(); });
+            await page.waitForTimeout(1500);
+            const r = await read(page, 'qval');
+            expectClean(r);
+            expect(await page.inputValue('#q3')).toBe('seed');
+            expect(r.gated, 'the restored form is valid').toBeNull();
+            await page.locator('#qval-submit').click();
+            await page.waitForTimeout(AFTER);
+            expect(run.posts.length, 'the first click posts').toBe(1);
+            expect(run.errors).toEqual([]);
+        });
+    }
+
+    test('25 #B1037 — resetFields() with live check off: no query sent, the page\'s native disabled stays', async ({ page }) => {
+        const queries = await answerQueries(page, true, 50);
+        const run = await open(page, '<form id="qoff" data-gina-form-rule="qoff" data-gina-form-live-check-enabled="false" action="/ac-sink" method="post">'
+            + wrap('<input id="q3" type="text" name="q3" value="seed">') + wrap('<input id="r3" type="text" name="r3" value="seed">') + buttons('qoff'), ['qoff']);
+        await page.evaluate(() => { document.getElementById('qoff-submit').disabled = true; document.getElementById('r3').value = 'typed'; });
+        const before = queries.n;
+        await page.evaluate(() => { window.gina.validator.$forms.qoff.resetFields(); });
+        await page.waitForTimeout(AFTER);
+        expect(await page.inputValue('#r3'), 'restored').toBe('seed');
+        expect(queries.n - before, 'no query').toBe(0);
+        expect(await page.isDisabled('#qoff-submit'), 'the page\'s disabled stays').toBe(true);
+        expect(run.errors).toEqual([]);
+    });
+
+    test('25b #B1037 — resetFields() on a form with no rule set: the page\'s native disabled stays', async ({ page }) => {
+        const run = await open(page, '<form id="norule" data-gina-form-target="this" action="/ac-sink" method="post">'
+            + wrap('<input id="r3" type="text" name="r3" value="seed">') + wrap('<input id="b1" type="checkbox" name="b1">') + buttons('norule'), ['norule']);
+        await page.evaluate(() => { document.getElementById('norule-submit').disabled = true; document.getElementById('r3').value = 'typed'; });
+        await page.evaluate(() => { window.gina.validator.$forms.norule.resetFields(); });
+        await page.waitForTimeout(AFTER);
+        expect(await page.inputValue('#r3'), 'restored').toBe('seed');
+        expect(await page.isDisabled('#norule-submit'), 'the page\'s disabled stays').toBe(true);
+        expect(run.errors).toEqual([]);
+    });
+
+    test('25c CONTROL — form.reset() with live check off keeps its pass', async ({ page }) => {
+        const queries = await answerQueries(page, true, 50);
+        const run = await open(page, '<form id="qoff" data-gina-form-rule="qoff" data-gina-form-live-check-enabled="false" action="/ac-sink" method="post">'
+            + wrap('<input id="q3" type="text" name="q3" value="seed">') + wrap('<input id="r3" type="text" name="r3" value="seed">') + buttons('qoff'), ['qoff']);
+        const before = queries.n;
+        await page.evaluate(() => { document.getElementById('qoff').reset(); });
+        await page.waitForTimeout(AFTER);
+        expect(queries.n - before, 'its query left').toBe(1);
+        expect(run.errors).toEqual([]);
+    });
+
+    for (const [label, name, reset] of [
+        ['26', 'resetFields()', () => { window.gina.validator.$forms.texts.resetFields(); }],
+        ['26b', 'form.reset()', () => { document.getElementById('texts').reset(); }]
+    ]) {
+        test(label + ' #B1037 — ' + name + ' while a request is in flight: the trigger stays locked until it settles', async ({ page }) => {
+            await page.route('**/ac-sink*', async (route) => {
+                await new Promise((res) => setTimeout(res, 800));
+                await route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
+            });
+            const run = await open(page, textsForm(true), ['texts']);
+            await page.locator('#texts-submit').click();
+            await page.waitForTimeout(150);
+            expect(await page.isDisabled('#texts-submit'), 'locked for the request').toBe(true);
+            await page.evaluate(reset);
+            await page.waitForTimeout(100);
+            expect(await page.isDisabled('#texts-submit'), 'still locked').toBe(true);
+            await page.waitForTimeout(1100);
+            expect(await page.isDisabled('#texts-submit'), 'released by the settle').toBe(false);
+            expect(run.posts.length).toBe(1);
+            expect(run.errors).toEqual([]);
+        });
+    }
+
+    test('27 CONTROL — resetFields() in flight, the restored form invalid: the gate closes and stays closed', async ({ page }) => {
+        await page.route('**/ac-sink*', async (route) => {
+            await new Promise((res) => setTimeout(res, 800));
+            await route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
+        });
+        const run = await open(page, textsForm(false), ['texts']);
+        await typeBoth(page);
+        await blur(page);
+        expect((await read(page, 'texts')).gated, 'filled, the gate is open').toBeNull();
+        await page.locator('#texts-submit').click();
+        await page.waitForTimeout(150);
+        await page.evaluate(() => { window.gina.validator.$forms.texts.resetFields(); });
+        await page.waitForTimeout(1300);
+        const r = await read(page, 'texts');
+        expect(r.gated, 'empty and required').toBe('true');
+        expect(r.painted, 'nothing painted').toBe(0);
+        expect(run.posts.length).toBe(1);
+        expect(run.errors).toEqual([]);
+    });
+
+
+    for (const [label, name, isValid] of [
+        ['28 #B1037', 'the answer refuses: nothing painted, no focus moved, the submit released', false],
+        ['28b CONTROL', 'the answer accepts: the request leaves with the clicked values', true]
+    ]) {
+        test(label + ' — a submit waiting for its query, form.reset(), ' + name, async ({ page }) => {
+            await page.route('**/uniq*', async (route) => {
+                const v = new URL(route.request().url()).searchParams.get('v');
+                await new Promise((res) => setTimeout(res, 500));
+                await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ isValid: (v === 'other') ? isValid : true }) });
+            });
+            const run = await open(page, form('qval', wrap('<input id="r3" type="text" name="r3" value="seed">')
+                + wrap('<input id="q3" type="text" name="q3" value="seed">')), ['qval']);
+            await page.waitForTimeout(800);
+            await page.locator('#q3').click();
+            await page.locator('#q3').selectText();
+            await page.locator('#q3').pressSequentially('other', { delay: 5 });
+            await page.locator('#qval-submit').click();
+            await page.waitForTimeout(80);
+            expect(await page.evaluate(() => window.gina.validator.$forms.qval.isSubmitting), 'the submit waits for its verdict').toBe(true);
+            await page.evaluate(() => { window.__b1037.armed = true; document.getElementById('qval').reset(); });
+            await page.waitForTimeout(1300);
+            const r = await read(page, 'qval');
+            const state = await page.evaluate(() => {
+                const h = window.gina.validator.$forms.qval;
+                return { isSubmitting: h.isSubmitting, active: document.activeElement && document.activeElement.id,
+                    loading: document.getElementById('qval-submit').getAttribute('data-gina-loading') };
+            });
+            expect(state.isSubmitting, 'the latch is released').toBeFalsy();
+            expect(state.loading, 'the loading state is released').toBe('false');
+            expect(await page.inputValue('#q3')).toBe('seed');
+            if (isValid) {
+                expect(run.posts.length, 'one request').toBe(1);
+                expect(JSON.parse(run.posts[0]).q3, 'the value the click asked for').toBe('other');
+            } else {
+                expectClean(r);
+                expect(state.active, 'no focus moved onto a field').not.toBe('q3');
+                expect(run.posts.length, 'no request').toBe(0);
+                expect(r.gated, 'the restored form is valid').toBeNull();
+                await page.locator('#qval-submit').click();
+                await page.waitForTimeout(AFTER);
+                expect(run.posts.length, 'a later submit works').toBe(1);
+            }
+            expect(run.errors).toEqual([]);
+        });
+    }
+
+
+    test('29 #B1037 — a query on the wire, form.reset(), a clean verdict on a field not last: isValidating is down', async ({ page }) => {
+        await answerQueries(page, true, 400);
+        const run = await open(page, form('tri', wrap('<input id="r3" type="text" name="r3">')
+            + wrap('<input id="q3" type="text" name="q3" value="seedq">') + wrap('<input id="t3" type="text" name="t3" value="seedt">')), ['tri']);
+        await page.waitForTimeout(600);
+        await page.locator('#q3').click();
+        await page.locator('#q3').pressSequentially('x', { delay: 5 });
+        await page.waitForTimeout(1100);
+        const isValidating = () => page.evaluate(() => window.gina.validator.$forms.tri.isValidating);
+        expect(await isValidating(), 'the pass is on its way').toBe(true);
+        await page.evaluate(() => { document.getElementById('tri').reset(); });
+        await page.waitForTimeout(AFTER);
+        expect(await isValidating(), 'its flag is down').toBeFalsy();
+        expect((await read(page, 'tri')).painted, 'nothing painted').toBe(0);
+        expect(run.errors).toEqual([]);
+    });
+
 });
