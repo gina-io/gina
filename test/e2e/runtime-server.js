@@ -91,6 +91,8 @@
  *   GET /js/gina.onload.b926.js        -> built onload with the required value-carrying checkbox whisper
  *   GET /js/gina.onload.b931.js        -> built onload with the shared-rule-set whisper (#B931; the spec
  *                                         builds its pages through /x76-page, same /ac-sink)
+ *   GET /js/gina.onload.b1035.js       -> built onload with the script-write whisper (#B1035; the spec builds
+ *                                         its pages through /x76-page, same /ac-sink)
  *   GET /js/gina.onload.b1036.js       -> built onload with the shared-field-id whisper (#B1036; the spec builds
  *                                         its pages through /x76-page, same /ac-sink)
  *   GET /js/gina.onload.b1037.js       -> built onload with the form-reset whisper (#B1037; the spec builds
@@ -405,6 +407,15 @@ const B931_FORMS_JSON = JSON.stringify({ rules: {
     boolreq: { ref: { isRequired: true }, agree: { isRequired: true } }
 } });
 
+// #B1035 — the forms whisper of the script-write spec (test/e2e/validator-script-write-b1035.spec.js): required
+// text and hidden controls, an email check, a `query` rule, a field with no value setter.
+const B1035_FORMS_JSON = JSON.stringify({ rules: {
+    seeded:   { req: { isRequired: true }, keep: { isRequired: true }, mail: { isRequired: true, isEmail: true }, hid: { isRequired: true } },
+    emptyone: { req: { isRequired: true }, keep: { isRequired: true } },
+    query:    { r3: { isRequired: true }, q3: { isRequired: true, query: { url: '/uniq', method: 'GET', validIf: true } } },
+    nosetter: { tel1: { isRequired: true }, note: { isRequired: true } }
+} });
+
 // #B1036 — the forms whisper of the shared-field-id spec (test/e2e/validator-shared-field-id-b1036.spec.js):
 // two forms, one required field each.
 const B1036_FORMS_JSON = JSON.stringify({ rules: {
@@ -691,6 +702,9 @@ const server = http.createServer(function (req, res) {
         }
         if (url === '/js/gina.onload.b931.js') {
             return send(res, 200, 'application/javascript; charset=utf-8', renderOnload(B931_FORMS_JSON));
+        }
+        if (url === '/js/gina.onload.b1035.js') {
+            return send(res, 200, 'application/javascript; charset=utf-8', renderOnload(B1035_FORMS_JSON));
         }
         if (url === '/js/gina.onload.b1036.js') {
             return send(res, 200, 'application/javascript; charset=utf-8', renderOnload(B1036_FORMS_JSON));

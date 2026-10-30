@@ -21125,7 +21125,10 @@ function ValidatorPlugin(rules, data, formId, culture) {
 
             if ( typeof(gina.events[_evt]) != 'undefined' ) {
                 console.debug('trigger event on: ', this.name, _evt);
+                // #B1035 — a script's write is nobody's touch: read synchronously by the live listener
+                this.ginaFormIsScriptWrite = true;
                 triggerEvent(gina, this, _evt, val);
+                delete this.ginaFormIsScriptWrite;
             }
             //changing back to custom setter
             Object.defineProperty(this, 'value', descriptor);
@@ -21342,6 +21345,12 @@ function ValidatorPlugin(rules, data, formId, culture) {
                             return false;
                         }
 
+                        // #B1035 — a script's write re-checks the form and updates the gate and the store, but
+                        // paints only what already shows: a message may change or clear, a new one waits for a
+                        // touch. Same box as handleErrorsDisplay: the classes sit on the wrapper's parent.
+                        var $errorBox = ( /form\-item\-wrapper$/.test(event.target.parentNode.className) ) ? event.target.parentNode.parentNode : event.target.parentNode;
+                        var isQuietWrite = !!event.target.ginaFormIsScriptWrite && !/form\-item\-(error|warning)/.test($errorBox.className);
+
                         // #B1037 — a pass that started before a reset (an async `query` verdict, a deferred
                         // radio pass, the keyup timer) must not paint the restored form; it leaves the
                         // flags its end would have left
@@ -21378,7 +21387,7 @@ function ValidatorPlugin(rules, data, formId, culture) {
                                 if (!errors || errors.count() == 0) {
                                     handleErrorsDisplay(event.target.form, {}, null, event.target.name);
                                     return cancelEvent(event);
-                                } else {
+                                } else if ( !isQuietWrite ) {
                                     handleErrorsDisplay(event.target.form, errors, null, event.target.name);
                                 }
                             }
@@ -21389,7 +21398,7 @@ function ValidatorPlugin(rules, data, formId, culture) {
                             $localField[event.target.name]    = event.target;
 
                             instance.$forms[event.target.form.getAttribute('id')].isValidating = true;
-                            validate(event.target, localField, $localField, $form.rules, function onLiveValidation(result){
+                            var onLiveValidation = function(result){
                                 if ( isStaleAfterReset() ) {
                                     return;
                                 }
@@ -21398,17 +21407,20 @@ function ValidatorPlugin(rules, data, formId, culture) {
 
                                 var isFormValid = result.isValid();
                                 //console.debug('onSilentPreGlobalLiveValidation: '+ isFormValid, result);
-                                if (isFormValid) {
-                                    //resetting error display
-                                    // #B922 — a field wired only because a `_case_` condition names it (#B884)
-                                    // has no rule in this pass, which therefore reads valid: its `true` cleared
-                                    // the native `disabled` a page script had set, before the whole-form pass
-                                    // below gated the form. For such a field the whole-form pass alone writes
-                                    // the submit trigger.
-                                    // was: handleErrorsDisplay(event.target.form, {}, result.data, event.target.name);
-                                    handleErrorsDisplay(event.target.form, {}, result.data, event.target.name, isCaseTarget);
-                                } else {
-                                    handleErrorsDisplay(event.target.form, result.error, result.data, event.target.name);
+                                // #B1035 — a quiet write paints nothing new; a valid verdict still clears
+                                if ( isFormValid || !isQuietWrite ) {
+                                    if (isFormValid) {
+                                        //resetting error display
+                                        // #B922 — a field wired only because a `_case_` condition names it (#B884)
+                                        // has no rule in this pass, which therefore reads valid: its `true` cleared
+                                        // the native `disabled` a page script had set, before the whole-form pass
+                                        // below gated the form. For such a field the whole-form pass alone writes
+                                        // the submit trigger.
+                                        // was: handleErrorsDisplay(event.target.form, {}, result.data, event.target.name);
+                                        handleErrorsDisplay(event.target.form, {}, result.data, event.target.name, isCaseTarget);
+                                    } else {
+                                        handleErrorsDisplay(event.target.form, result.error, result.data, event.target.name);
+                                    }
                                 }
                                 //updateSubmitTriggerState( event.target.form, isFormValid );
                                 // data-gina-form-required-before-submit
@@ -21423,7 +21435,7 @@ function ValidatorPlugin(rules, data, formId, culture) {
                                 gRules   = instance.$forms[formId].rules;
                                 // Don't be tempted to revome fields that has already been validated
                                 instance.$forms[formId].isValidating = true;
-                                validate($gForm, gFields, $gFields, gRules, function onSilentGlobalLiveValidation(gResult){
+                                var onSilentGlobalLiveValidation = function(gResult){
                                     instance.$forms[formId].isValidating = false;
                                     if ( isStaleAfterReset() ) {
                                         return;
@@ -21454,7 +21466,7 @@ function ValidatorPlugin(rules, data, formId, culture) {
                                         // submit button state; untouched fields should not show errors
                                         // until the user interacts with them or submits.
                                         var _touchedField = event.target.name;
-                                        if ( typeof(gResult.error[_touchedField]) != 'undefined' ) {
+                                        if ( typeof(gResult.error[_touchedField]) != 'undefined' && !isQuietWrite ) {
                                             refreshWarning($gFields[_touchedField]);
                                             handleErrorsDisplay($gForm, gResult.error, gResult.data, _touchedField);
                                         }
@@ -21492,9 +21504,13 @@ function ValidatorPlugin(rules, data, formId, culture) {
                                     updateSubmitTriggerState( $gForm, isFormValid);
 
                                     once = false;
-                                })
+                                };
+                                onSilentGlobalLiveValidation.isSilentPass = isQuietWrite;
+                                validate($gForm, gFields, $gFields, gRules, onSilentGlobalLiveValidation);
 
-                            });
+                            };
+                            onLiveValidation.isSilentPass = isQuietWrite;
+                            validate(event.target, localField, $localField, $form.rules, onLiveValidation);
 
 
                             return;

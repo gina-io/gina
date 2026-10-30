@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'A value written by a script no longer paints an error on a field nobody touched (#B1035). `el.value = …` still re-checks the form: the submit control opens or closes, the error is stored, and a click on a gated submit control reveals it. It paints nothing new: no message, no `aria-invalid`, nothing in the live region. A message already showing changes or clears. To show the error at once, dispatch a real `change` after the write. Up to 0.7.7 the write ran the live check as a user''s change would, so the field showed its error and the live region announced it. A write to a `<textarea>`, or to a `tel`, `url`, `search`, `time`, `datetime-local`, `month` or `week` input, re-checks nothing, as before.'
+time: 2026-10-30T20:25:00+01:00
