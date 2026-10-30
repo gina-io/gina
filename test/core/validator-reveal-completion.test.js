@@ -22,6 +22,10 @@
  * submit carries no marker and is deliberately untouched (its own entry
  * gates any fix on a repro).
  *
+ * #B1037 stamps the same identity on the silent pass of a form reset
+ * (`onSilentResetValidation`): that pass writes neither flag either, so on a
+ * clean verdict only this else-if calls it back.
+ *
  * Division of labor (the #B319 pattern):
  *  - BEHAVIORAL choreography: test/e2e/validator-reveal-starve.spec.js —
  *    red-first validated (arm 01 failed the starve signature on the pre-fix
@@ -99,8 +103,8 @@ before(function () {
 // ============================================================================
 describe('#B348 — source pins', function () {
 
-    it('01 - the identity is stamped exactly once, inside revealValidationState, BEFORE the validate call', function () {
-        assert.equal(countOf(activeSrc, '.isRevealCompletion = true;'), 1, 'stamp count (active code)');
+    it('01 - the identity is stamped exactly twice, in revealValidationState and on the silent reset pass (#B1037), each BEFORE its validate call', function () {
+        assert.equal(countOf(activeSrc, '.isRevealCompletion = true;'), 2, 'stamp count (active code)');
         var fn = extractFn(activeSrc, 'var revealValidationState = function($formInstance) {');
         var stampIdx = fn.indexOf('onDisabledTriggerReveal.isRevealCompletion = true;');
         var passIdx  = fn.indexOf('validate($target');
@@ -108,6 +112,11 @@ describe('#B348 — source pins', function () {
         assert.ok(passIdx > stampIdx, 'the stamp must precede the validate call that carries the cb');
         assert.ok(fn.indexOf('onDisabledTriggerReveal);', passIdx) > -1,
             'the stamped named callback must be what the pass receives');
+        var resetStampIdx = activeSrc.indexOf('onSilentResetValidation.isRevealCompletion = true;');
+        var resetPassIdx  = activeSrc.indexOf('$form.rules, onSilentResetValidation);');
+        assert.ok(resetStampIdx > -1, 'stamp missing from the silent reset pass');
+        assert.ok(resetPassIdx > resetStampIdx,
+            'the stamp must precede the validate call that carries the silent reset pass');
     });
 
     it('02 - the waiter rescue consults the identity exactly once, terminal-gated', function () {
@@ -132,8 +141,8 @@ describe('#B348 — source pins', function () {
         assert.ok(revalid > rescue, 'rescue must sit before the needsGlobalReValidation block');
     });
 
-    it('04 - exactly two code occurrences of the identity exist (stamp + consult) — no third site adopted it silently', function () {
-        assert.equal(countOf(activeSrc, 'isRevealCompletion'), 2);
+    it('04 - exactly three code occurrences of the identity exist (two stamps + consult) — no further site adopted it silently', function () {
+        assert.equal(countOf(activeSrc, 'isRevealCompletion'), 3);
     });
 
 });
@@ -209,9 +218,9 @@ describe('#B348 — dist pins', function () {
             'dist must carry the source verbatim, comments included');
     });
 
-    it('09 - gina.min.js carries the stamp + the consult (property name survives Closure; comments stripped)', function () {
-        assert.equal(countOf(minSrc, 'isRevealCompletion'), 2,
-            'exactly the stamp and the consult must survive minification');
+    it('09 - gina.min.js carries the two stamps + the consult (property name survives Closure; comments stripped)', function () {
+        assert.equal(countOf(minSrc, 'isRevealCompletion'), 3,
+            'exactly the two stamps and the consult must survive minification');
     });
 
 });

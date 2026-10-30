@@ -327,14 +327,15 @@ describe('05 - source pins: latch set / gate / clear + the #B192 release', funct
         );
     });
 
-    it('the complete write roster: exactly two arms and exactly three releases (#B346 added one of each)', function () {
+    it('the complete write roster: exactly two arms and exactly four releases (#B346 added one of each, #B1037 a release)', function () {
         assert.deepEqual(
             mainSrc.match(/isSubmitting\s*=\s*(?:true|false)/g) || [],
-            ['isSubmitting = false', 'isSubmitting = false', 'isSubmitting = true', 'isSubmitting = true', 'isSubmitting = false'],
+            ['isSubmitting = false', 'isSubmitting = false', 'isSubmitting = true', 'isSubmitting = true', 'isSubmitting = false', 'isSubmitting = false'],
             // file order, NOT call order: the internal validate.<id> handler is declared
             // ABOVE bindSubmitEl, so the #B192 release precedes that arm textually.
-            'in file order: the XHR settle (:2203), the #B192 release (:8243), the bindSubmitEl arm (:8387), '
-            + 'the #B346 pending-window latch (:8744), the #B346 pre-submit.<id> release (:8762)'
+            'in file order: the XHR settle (:3736), the #B192 release (:11254), the bindSubmitEl arm (:11412), '
+            + 'the #B346 pending-window latch (:11795), the #B346 pre-submit.<id> release (:11817), '
+            + 'the #B1037 refusal dropped after a reset (:11893)'
         );
     });
 
@@ -347,9 +348,9 @@ describe('05 - source pins: latch set / gate / clear + the #B192 release', funct
 
 // 06 - dist fidelity: the browser bundle actually carries the release
 describe('06 - dist fidelity: the rebuilt bundle carries the release', function () {
-    it('gina.min.js carries THREE isSubmitting releases (Closure emits `false` as `!1`)', function () {
-        assert.equal((distSrc.match(/isSubmitting\s*=\s*!1/g) || []).length, 3,
-            'the XHR settle + the #B192 release + the #B346 pre-submit.<id> release');
+    it('gina.min.js carries FOUR isSubmitting releases (Closure emits `false` as `!1`)', function () {
+        assert.equal((distSrc.match(/isSubmitting\s*=\s*!1/g) || []).length, 4,
+            'the XHR settle + the #B192 release + the #B346 pre-submit.<id> release + the #B1037 refusal dropped after a reset');
     });
 
     it('gina.min.js carries exactly TWO arms (`true` as `!0`) — bindSubmitEl\'s and the #B346 pending-window latch', function () {
@@ -359,8 +360,8 @@ describe('06 - dist fidelity: the rebuilt bundle carries the release', function 
         assert.equal((distSrc.match(/isSubmitting\s*=\s*!0/g) || []).length, 2);
     });
 
-    it('the un-minified prod intermediate carries the readable release form three times', function () {
-        assert.equal((distUnminSrc.match(/isSubmitting = false/g) || []).length, 3);
+    it('the un-minified prod intermediate carries the readable release form four times', function () {
+        assert.equal((distUnminSrc.match(/isSubmitting = false/g) || []).length, 4);
         assert.match(distUnminSrc, /#B192 — release the submit latch/);
     });
 
