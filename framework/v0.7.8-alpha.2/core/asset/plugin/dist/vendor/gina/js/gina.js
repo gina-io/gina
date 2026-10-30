@@ -16362,7 +16362,8 @@ function ValidatorPlugin(rules, data, formId, culture) {
      * a reset: the error display and the `errors` store are cleared, nothing is painted, and the submit
      * trigger is re-read (#B1037). While the values are written the live check stays out of it
      * (`isBeingReseted`, read by the live listeners), and `resetCount` tells a pass already on its way
-     * that the form it was checking is gone. A control removed from the page since the bind is skipped.
+     * that the form it was checking is gone. A control removed from the page since the bind is skipped,
+     * and each control is looked for among the form's own, should its id be shared (#B1036).
      *
      * @param {object|string} [$form|formId]
      * @param {boolean} [isOnResetMode=false] - the path of a `reset` event: `text` and `hidden` inputs
@@ -16412,6 +16413,17 @@ function ValidatorPlugin(rules, data, formId, culture) {
                 for (var f in $form.fieldsSet) {
 
                     $element    = document.getElementById(f);
+                    // #B1036 — getElementById answers the first holder of the id in the page, here not
+                    // one of this form's controls: look among the form's own
+                    if ( $element && $element.form != $form.target && $form.target.elements ) {
+                        $element = null;
+                        for (var e = 0, eLen = $form.target.elements.length; e < eLen; ++e) {
+                            if ( $form.target.elements[e].id === f ) {
+                                $element = $form.target.elements[e];
+                                break;
+                            }
+                        }
+                    }
                     // a field removed from the page since the bind has nothing to restore
                     if ( !$element ) { continue; }
                     type        = $element.tagName.toLowerCase();
@@ -22024,6 +22036,38 @@ function ValidatorPlugin(rules, data, formId, culture) {
 
     }
 
+    /**
+     * warnSharedFieldId
+     * #B1036 — `gina.events['registered.<id>']`, `change.<id>` and `keyup.<id>` are global and keyed by
+     * the id, so of two controls that share an id only the first gets a value setter and a live listener.
+     * Nothing else would say so: the second field shows no error and its form's submit control stays
+     * gated while the user types. Warns once per form and id; never throws, this runs inside a bind.
+     *
+     * @inner
+     * @param {object} $form - the form's record
+     * @param {object} $el - the control whose registration was refused
+     * @returns {void}
+     *
+     * @example
+     * warnSharedFieldId(instance.$forms['second'], document.querySelector('#second [name="ref"]'));
+     */
+    var warnedSharedFieldIds = {};
+    var warnSharedFieldId = function($form, $el) {
+        var formId = ( $form.target ) ? $form.target.getAttribute('id') : '';
+        var key = formId + '#' + $el.id;
+        if ( warnedSharedFieldIds[key] ) {
+            return;
+        }
+        try {
+            if ( document.querySelectorAll('[id="'+ $el.id.replace(/["\\]/g, '\\$&') +'"]').length > 1 ) {
+                warnedSharedFieldIds[key] = true;
+                console.warn('[FormValidator] form `#'+ formId +'`: the id `'+ $el.id +'` is used more than once in this page, so this field gets no live check: give each control its own id.');
+            }
+        } catch (err) {
+            // an id no selector can quote: nothing to say about it
+        }
+    }
+
     var registerForLiveChecking = function($form, $el) {
         // A form-associated custom element (FACE) is the only hyphenated tagName that
         // reaches this point (collected via getOwnedFaces). It exposes its own `.value`
@@ -22034,11 +22078,11 @@ function ValidatorPlugin(rules, data, formId, culture) {
         // `change` per the author contract, and gina has no `input` proxy for native inputs).
         var isCustomEl = ( $el.tagName.indexOf('-') > -1 );
         // Filter supported elements
-        if (
-            !isCustomEl && !/^(input|textarea)$/i.test($el.tagName)
-            ||
-            typeof(gina.events['registered.' + $el.id]) != 'undefined'
-        ) {
+        if ( !isCustomEl && !/^(input|textarea)$/i.test($el.tagName) ) {
+            return
+        }
+        if ( typeof(gina.events['registered.' + $el.id]) != 'undefined' ) {
+            warnSharedFieldId($form, $el);
             return
         }
         // Mutation obeserver - all but type == files, and custom elements (hazard a)
