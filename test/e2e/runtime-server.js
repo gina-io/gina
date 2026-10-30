@@ -91,6 +91,8 @@
  *   GET /js/gina.onload.b926.js        -> built onload with the required value-carrying checkbox whisper
  *   GET /js/gina.onload.b931.js        -> built onload with the shared-rule-set whisper (#B931; the spec
  *                                         builds its pages through /x76-page, same /ac-sink)
+ *   GET /js/gina.onload.b1036.js       -> built onload with the shared-field-id whisper (#B1036; the spec builds
+ *                                         its pages through /x76-page, same /ac-sink)
  *   GET /js/gina.onload.b1037.js       -> built onload with the form-reset whisper (#B1037; the spec builds
  *                                         its pages through /x76-page, same /ac-sink)
  *   GET /js/gina.onload.b921.js        -> built onload with the RegExp-key-in-a-condition whisper
@@ -403,6 +405,13 @@ const B931_FORMS_JSON = JSON.stringify({ rules: {
     boolreq: { ref: { isRequired: true }, agree: { isRequired: true } }
 } });
 
+// #B1036 — the forms whisper of the shared-field-id spec (test/e2e/validator-shared-field-id-b1036.spec.js):
+// two forms, one required field each.
+const B1036_FORMS_JSON = JSON.stringify({ rules: {
+    fa: { ref: { isRequired: true } },
+    fb: { ref: { isRequired: true } }
+} });
+
 // #B1037 — the forms whisper of the form-reset spec (test/e2e/validator-form-reset-b1037.spec.js): required
 // text controls, every control type, a `query` rule on an input and on a select, required booleans.
 const B1037_QUERY = { url: '/uniq', method: 'GET', validIf: true };
@@ -682,6 +691,9 @@ const server = http.createServer(function (req, res) {
         }
         if (url === '/js/gina.onload.b931.js') {
             return send(res, 200, 'application/javascript; charset=utf-8', renderOnload(B931_FORMS_JSON));
+        }
+        if (url === '/js/gina.onload.b1036.js') {
+            return send(res, 200, 'application/javascript; charset=utf-8', renderOnload(B1036_FORMS_JSON));
         }
         if (url === '/js/gina.onload.b1037.js') {
             return send(res, 200, 'application/javascript; charset=utf-8', renderOnload(B1037_FORMS_JSON));

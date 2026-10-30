@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'Two forms that share a field id no longer interfere on a reset, and the bind now says so (#B1036). Live checking keys its listeners on the id, so of two controls with one id only the first is live-checked; that stays, duplicate ids being invalid HTML. Up to 0.7.7 nothing said so, and the second form''s `.resetFields()`, or a reset of that form, emptied the first form''s field and painted its error. The bind now warns once per form and id, and a reset works on the form''s own controls, also when an element that is not a control holds the id first in the page.'
+time: 2026-10-30T20:16:49+01:00
