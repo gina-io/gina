@@ -97,11 +97,13 @@ function control(id, tag, type, value) {
  * @param {object} opt.fieldsSet - the record's `fieldsSet`
  * @param {Array} [opt.args] - what follows the record in the call
  * @param {function} [opt.onTrigger] - called on each `triggerEvent`
+ * @param {string} [opt.liveCheck] - the form's `ginaFormLiveCheckEnabled`, as a bind writes it
  * @returns {{record: object, calls: Array, thrown: Error|null, passCb: function|null, target: object}}
  */
 function runReset(opt) {
     var calls = [], passCb = { fn: null };
     var target = { dataset: {}, getAttribute: function () { return 'f1'; } };
+    if (opt.liveCheck) { target.dataset.ginaFormLiveCheckEnabled = opt.liveCheck; }
     Object.keys(opt.controls).forEach(function (id) { opt.controls[id].form = target; });
     var record = { target: target, fieldsSet: opt.fieldsSet, rules: {}, errors: { old: {} } };
     var isUp = function () { return record.isBeingReseted === true; };
@@ -201,6 +203,65 @@ describe('validator-form-reset-b1037 §02 — source pins', function () {
     it('02.6 the pass count is read once, on the client path', function () {
         assert.equal(count(ACTIVE, 'resetCountAtPassStart = instance.$forms[id].resetCount || 0;'), 1);
     });
+
+    it('02.7 the reset pass takes the rescue of a clean verdict on a query field not last (#B348)', function () {
+        assert.equal(count(RESET_FN, 'onSilentResetValidation.isRevealCompletion = true;'), 1);
+        assert.ok(ACTIVE.indexOf('&& cb && cb.isRevealCompletion') > -1, 'the rescue reads it');
+    });
+
+    it('02.8 a silent pass ignores the answer to another value, before the waiter consumes its one wake-up', function () {
+        var at = ACTIVE.indexOf('function onasyncCompleted(event) {');
+        var guard = ACTIVE.indexOf('String(event.detail.value).toLowerCase() != String(d[field].value).toLowerCase()', at);
+        var consume = ACTIVE.indexOf('event.currentTarget.removeEventListener(event.type, onasyncCompleted, false);', at);
+        assert.ok(at > -1 && guard > -1 && consume > -1);
+        assert.ok(guard < consume);
+        assert.ok(ACTIVE.substring(at, guard).indexOf('cb && cb.isSilentPass') > -1, 'only a silent pass');
+    });
+
+    it('02.11 a stale verdict that would have started the inner pass puts its flag down', function () {
+        var guard = ACTIVE.indexOf('if (isStaleVerdict && needsGlobalReValidation) {');
+        assert.ok(guard > -1);
+        assert.ok(ACTIVE.indexOf('instance.$forms[formId].isValidating = false;', guard) - guard < 120);
+        assert.ok(guard < ACTIVE.indexOf('if (isStaleVerdict) {'), 'read before it is cancelled');
+    });
+
+    it('02.10 a submit refused after a reset is released with nothing painted; a valid one still sends', function () {
+        var fn = cutFunction(ACTIVE, 'var releaseSubmitRefusedAfterReset = function(');
+        var calls = [];
+        var run = new Function('disarmSubmitLoading', 'return (' + fn + ');')(function (r) { calls.push('disarm'); });
+        var record = function () { return { resetCount: 2, isSubmitting: true }; };
+        var refused = { isValid: function () { return false; } }, valid = { isValid: function () { return true; } };
+        assert.equal(run(undefined, 1, refused), false, 'a destroyed record: nothing to release');
+        var r = record();
+        assert.equal(run(r, 1, refused), true, 'refused after a reset: dropped');
+        assert.equal(r.isSubmitting, false);
+        assert.deepEqual(calls, ['disarm']);
+        r = record();
+        assert.equal(run(r, 1, valid), false, 'valid after a reset: it goes on');
+        assert.equal(r.isSubmitting, true);
+        r = record();
+        assert.equal(run(r, 2, refused), false, 'no reset: the refusal goes on');
+        assert.equal(r.isSubmitting, true);
+        calls.length = 0;
+        r = record();
+        r.isSending = true;
+        assert.equal(run(r, 1, refused), true);
+        assert.deepEqual(calls, [], 'an earlier request in flight keeps its loading state');
+        assert.equal(count(ACTIVE, 'if ( releaseSubmitRefusedAfterReset(instance.$forms[id], resetCountAtClick, result) ) {'), 1, 'the click');
+        assert.equal(count(ACTIVE, 'if ( releaseSubmitRefusedAfterReset(instance.$forms[id], resetCountAtSubmit, result) ) {'), 1, 'submit()');
+    });
+
+    it('02.9 after a reset, the timer of a master checkbox reads the form again, group applied, silently', function () {
+        var fn = cutFunction(ACTIVE, 'var updateCheckBox = function(');
+        assert.ok(fn.indexOf('if ( !isInit && $form.isBeingReseted ) {') > -1);
+        assert.equal(count(fn, 'readGroupAfterReset();'), 2, 'both timers');
+        ['triggerHandleCheckBoxGroupDependencies($el, checkBoxGroup, true);', 'triggerHandleCheckBoxGroupDependencies($el, checkBoxGroup, false);'].forEach(function (apply) {
+            assert.ok(fn.indexOf(apply) > -1);
+            assert.ok(fn.indexOf('readGroupAfterReset();', fn.indexOf(apply)) > fn.indexOf(apply), 'after the group is applied');
+        });
+        var silent = cutFunction(ACTIVE, 'var revalidateSilently = function(');
+        assert.equal(count(silent, 'onSilentAutofillValidation.isSilentPass = true;'), 1);
+    });
 });
 
 describe('validator-form-reset-b1037 §03 — resetFields executed on the shipped bytes', function () {
@@ -291,6 +352,29 @@ describe('validator-form-reset-b1037 §03 — resetFields executed on the shippe
         assert.equal(sel.dataset.value, '');
     });
 
+    it('03.8 live check off: resetFields() runs no pass, a reset event keeps it; the display is cleared on both', function () {
+        var off = runReset({ controls: controls(), fieldsSet: fieldsSet, liveCheck: 'false' });
+        assert.equal(off.calls.filter(function (c) { return c[0] === 'validate'; }).length, 0, 'resetFields(): no pass');
+        assert.equal(off.calls.filter(function (c) { return c[0] === 'clear'; }).length, 1, 'the display is cleared');
+        var event = runReset({ controls: controls(), fieldsSet: fieldsSet, liveCheck: 'false', args: [true] });
+        assert.equal(event.calls.filter(function (c) { return c[0] === 'validate'; }).length, 1, 'a reset event: its pass');
+        var on = runReset({ controls: controls(), fieldsSet: fieldsSet, liveCheck: 'true' });
+        assert.equal(on.calls.filter(function (c) { return c[0] === 'validate'; }).length, 1, 'live check on: its pass');
+    });
+
+    it('03.9 a request in flight: a valid verdict leaves the trigger to the settle, an invalid one still gates', function () {
+        var r = runReset({ controls: controls(), fieldsSet: fieldsSet });
+        r.record.isSending = true;
+        var before = r.calls.length;
+        r.passCb({ isValid: function () { return true; } });
+        assert.deepEqual(r.calls.slice(before), [], 'the lock stays');
+        r.passCb({ isValid: function () { return false; } });
+        assert.deepEqual(r.calls.slice(before), [['gate', true, false]]);
+        r.record.isSending = false;
+        r.passCb({ isValid: function () { return true; } });
+        assert.deepEqual(r.calls.slice(-1), [['gate', true, true]], 'settled: the gate is written');
+    });
+
     it('03.7 the flag comes down when the loop throws, and the error still reaches the caller', function () {
         var r = runReset({
             controls: controls(), fieldsSet: fieldsSet,
@@ -318,6 +402,9 @@ describe('validator-form-reset-b1037 §04 — dist fidelity', function () {
         assert.equal(count(RAW, 'onSilentResetValidation.isSilentPass = true;'), 1);
         assert.equal(count(RAW, 'var isDisplayHeld = isStaleVerdict || !!( cb && cb.isSilentPass );'), 1);
         assert.equal(count(RAW, 'resetFields($form, true);'), 1);
+        assert.equal(count(RAW, 'onSilentResetValidation.isRevealCompletion = true;'), 1);
+        assert.equal(count(RAW, 'readGroupAfterReset();'), 2);
+        assert.equal(count(RAW, 'String(event.detail.value).toLowerCase() != String(d[field].value).toLowerCase()'), 1);
     });
 
     it('04.2 gina.min.js: the flag and the count at the top of the reset, the try', function () {
@@ -331,5 +418,7 @@ describe('validator-form-reset-b1037 §04 — dist fidelity', function () {
     it('04.4 gina.min.js: the silent pass is marked and read', function () {
         assert.match(MIN, tokens('.isSilentPass=', '!0'));
         assert.match(MIN, tokens('.isSilentPass)'));
+        assert.match(MIN, tokens('.isRevealCompletion=', '!0'));
+        assert.match(MIN, tokens('.detail.value).toLowerCase()'));
     });
 });

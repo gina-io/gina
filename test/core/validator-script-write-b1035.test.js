@@ -105,6 +105,7 @@ describe('validator-script-write-b1035 §02 — source pins', function () {
 
     it('02.2 the listener reads the mark before anything is deferred', function () {
         var read = LIVE.indexOf('var isQuietWrite = !!event.target.ginaFormIsScriptWrite');
+        assert.ok(LIVE.indexOf('var isQuietWrite = !!event.target.ginaFormIsScriptWrite && !/^radio$/i.test(event.target.type)') > -1, 'a radio stays out: its pick is a user\'s');
         var defer = LIVE.indexOf('var processEvent = function()');
         assert.ok(read > -1, 'the read');
         assert.ok(defer > -1, 'the anchor');
