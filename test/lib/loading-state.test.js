@@ -397,14 +397,15 @@ describe('06 - validator arm/disarm call sites (source pins)', function () {
             + '(the #B346 pending carve-out is the only sanctioned widening, and its own arms refuse authored marks)');
     });
 
-    it('disarms on exactly the six terminal paths — and NOWHERE else', function () {
-        // 1 JSDoc @example + 6 call sites. The count is the guard: a further release added
+    it('disarms on exactly the seven terminal paths — and NOWHERE else', function () {
+        // 1 JSDoc @example + 7 call sites. The count is the guard: a further release added
         // without thinking about in-flight ownership is how the mid-flight-clear bug returns.
         // It earned its keep at #gh76 slice 2, catching path (d) below releasing unconditionally.
         // #B726 added path (f), approved as a structural change: a cancelled staged-upload wait.
+        // #B1037 added path (g), approved the same way: a refusal dropped because the form was reset.
         var sites = validatorSrc.match(/disarmSubmitLoading\(/g) || [];
-        assert.equal(sites.length, 7,
-            'expected the JSDoc example plus exactly 6 disarm call sites, found ' + sites.length);
+        assert.equal(sites.length, 8,
+            'expected the JSDoc example plus exactly 7 disarm call sites, found ' + sites.length);
 
         // (a) validation-rejected — the #B247 motivating path, which never reaches an XHR
         assert.ok(/disarmSubmitLoading\(_loadingForm\)/.test(validatorSrc),
@@ -433,6 +434,12 @@ describe('06 - validator arm/disarm call sites (source pins)', function () {
         //     flight owns that state, and its settle releases it.
         assert.ok(/if \( !\/\^true\$\/i\.test\(\$formRecord\.isSending\) \) \{\n\s*disarmSubmitLoading\(\$formRecord\);\n\s*\}/.test(validatorSrc),
             'the cancelled staged-upload wait must release only the loading state it owns');
+        // (g) #B1037 — a submit that waited for its `query` verdict while the form was reset: the
+        //     refusal is dropped, so no request lifecycle will ever release the busy state its
+        //     gesture armed. Gated on ownership like (a) and (f): a request of the form's own
+        //     still in flight owns that state, and its settle releases it.
+        assert.ok(/if \( !\/\^true\$\/i\.test\(\$formInstance\.isSending\) \) \{\n\s*disarmSubmitLoading\(\$formInstance\);\n\s*\}/.test(validatorSrc),
+            'a refusal dropped after a reset must release only the loading state it owns');
     });
 
     it('arming is FIRST-WINS — a second attempt mid-flight must not steal the stash', function () {
