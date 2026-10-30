@@ -91,6 +91,8 @@
  *   GET /js/gina.onload.b926.js        -> built onload with the required value-carrying checkbox whisper
  *   GET /js/gina.onload.b931.js        -> built onload with the shared-rule-set whisper (#B931; the spec
  *                                         builds its pages through /x76-page, same /ac-sink)
+ *   GET /js/gina.onload.b1037.js       -> built onload with the form-reset whisper (#B1037; the spec builds
+ *                                         its pages through /x76-page, same /ac-sink)
  *   GET /js/gina.onload.b921.js        -> built onload with the RegExp-key-in-a-condition whisper
  *                                         (#B922; the spec builds its pages through /x76-page,
  *                                         same /ac-sink)
@@ -401,6 +403,20 @@ const B931_FORMS_JSON = JSON.stringify({ rules: {
     boolreq: { ref: { isRequired: true }, agree: { isRequired: true } }
 } });
 
+// #B1037 — the forms whisper of the form-reset spec (test/e2e/validator-form-reset-b1037.spec.js): required
+// text controls, every control type, a `query` rule on an input and on a select, required booleans.
+const B1037_QUERY = { url: '/uniq', method: 'GET', validIf: true };
+const B1037_FORMS_JSON = JSON.stringify({ rules: {
+    texts:   { r3: { isRequired: true }, t3: { isRequired: true } },
+    mixed:   { r3: { isRequired: true }, sel: { isRequired: true }, chk: { isRequired: true }, rad: { isRequired: true } },
+    query:   { r3: { isRequired: true }, q3: { isRequired: true, query: B1037_QUERY } },
+    selq:    { r3: { isRequired: true }, sel: { isRequired: true, query: B1037_QUERY } },
+    radonly: { rad: { isRequired: true } },
+    others:  { o1: { isRequired: true }, o2: { isRequired: true } },
+    bools:   { r3: { isRequired: true }, a1: { isRequired: true, isBoolean: true }, a2: { isRequired: true, isBoolean: true },
+               a3: { isRequired: true, isBoolean: true }, a4: { isRequired: true, isBoolean: true } }
+} });
+
 // #B921 — the forms whisper of the RegExp-key spec (test/e2e/validator-case-regex-key-b921.spec.js). Each
 // rule set puts a RegExp key (`"/^x$/"`) inside a `_case_` condition, in one block position or another.
 const B921_NEVER = { conditions: [ { case: 'never', rules: { x: { isString: true } } } ] };
@@ -666,6 +682,9 @@ const server = http.createServer(function (req, res) {
         }
         if (url === '/js/gina.onload.b931.js') {
             return send(res, 200, 'application/javascript; charset=utf-8', renderOnload(B931_FORMS_JSON));
+        }
+        if (url === '/js/gina.onload.b1037.js') {
+            return send(res, 200, 'application/javascript; charset=utf-8', renderOnload(B1037_FORMS_JSON));
         }
         if (url === '/js/gina.onload.b921.js') {
             return send(res, 200, 'application/javascript; charset=utf-8', renderOnload(B921_FORMS_JSON));
