@@ -12714,7 +12714,8 @@ function ValidatorPlugin(rules, data, formId, culture) {
      * @param {object} rules - the rule set to apply. The pass works on a copy of it (#B885): a
      *   `_case_` application, an exclusion or a RegExp alias found during the pass never reaches
      *   the object the caller holds
-     * @param {callback} cb
+     * @param {callback} cb - with `cb.judgedQueries` (#B1039), a map of the fields whose `query` verdict
+     *   is in: this pass does not ask them again
      * @param {string} [culture] // #i18n — server form-body path only; forwarded to FormValidator
      */
     var validate = function($formOrElement, fields, $fields, rules, cb, culture) {
@@ -12921,6 +12922,12 @@ function ValidatorPlugin(rules, data, formId, culture) {
                     } else {
                         // query rule case
                         if ( /^query$/.test(rule) ) {
+                            // #B1039 — the pass a clean verdict starts (below) does not ask again a field
+                            // whose verdict is in: it would answer at once, and its clean verdict would
+                            // start the same pass, with no end.
+                            if ( cb && cb.judgedQueries && cb.judgedQueries[field] ) {
+                                continue;
+                            }
                             $asyncField     = $fields[field];
                             $asyncFieldId   = $asyncField.getAttribute('id');
                             asyncEvt        = 'asyncCompleted.'+ $asyncFieldId;
@@ -13165,7 +13172,15 @@ function ValidatorPlugin(rules, data, formId, culture) {
                                 }
 
                                 if (needsGlobalReValidation) {
-                                    validate($currentForm, allFields, $allFields, rules, function onSilentQueryGlobalLiveValidation(gResult){
+                                    // #B1039 — this arm leaves its field in the pass's input, and a `_case_`
+                                    // driver stays there whatever its rules (#B230). The field has to stay: a
+                                    // driver's entry is its case value, and without it a radio group reads its
+                                    // first radio, whichever is checked. So the pass is told not to ask it again.
+                                    // A copy per pass, since each `query` field of a form starts a chain of its
+                                    // own; the set only grows along a chain, so the chain ends.
+                                    var judgedQueries = ( cb && cb.judgedQueries ) ? JSON.clone(cb.judgedQueries) : {};
+                                    judgedQueries[field] = true;
+                                    var onSilentQueryGlobalLiveValidation = function(gResult){
                                         instance.$forms[formId].isValidating = false;
                                         // console.debug('['+ formId +'] onSilentQueryGlobalLiveValidation: '+ gResult.isValid(), gResult);
                                         isFormValid = gResult.isValid();
@@ -13184,7 +13199,9 @@ function ValidatorPlugin(rules, data, formId, culture) {
 
                                         handleErrorsDisplay($currentForm, gResult.error, gResult.data, field);
                                         updateSubmitTriggerState( $currentForm, isFormValid);
-                                    })
+                                    };
+                                    onSilentQueryGlobalLiveValidation.judgedQueries = judgedQueries;
+                                    validate($currentForm, allFields, $allFields, rules, onSilentQueryGlobalLiveValidation);
                                 }
 
                             });
