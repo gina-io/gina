@@ -7540,7 +7540,8 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
         // #B612 — a session that died between the cache read and this send (a GOAWAY that
         // landed during the pre-flight window, a keepalive eviction, a drain) makes
         // request() THROW synchronously — ERR_HTTP2_INVALID_SESSION on a destroyed session,
-        // ERR_HTTP2_GOAWAY_SESSION on a closed one (measured on node v25.3.0). No HEADERS
+        // ERR_HTTP2_GOAWAY_SESSION on a closed one (measured on node v25.3.0; Node 24, Node 26
+        // and Bun 1.4 return a stream that errors instead: onQueryError, #B1054). No HEADERS
         // frame was sent, so a retry on a fresh session is replay-safe for EVERY method
         // (the pre-flight PING precedent, deliberately not gated on isRetryableMethod).
         // Unguarded, the throw escaped: on the first attempt as an untyped error through
@@ -7719,7 +7720,12 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
             // a session that failed on its own (a refused connection, a failed handshake:
             // Node and Bun 1.4 give its pending streams that error as the cause); it takes
             // the generic terminal below, typed ECONNREFUSED or STREAM_ERROR, never retried.
+            // #B1054 — the fourth case: a stream created on a session already destroyed, nothing sent. Node 22 and 25
+            // throw it into the #B612 catch above; Node 24, Node 26 and Bun 1.4 return a stream that errors with this
+            // code. A pre-flight PING cancelled by the keepalive deadline's destroy sends the call anyway (#B627) and
+            // lands here.
             var _neverProcessed = (errorCode === 'ERR_HTTP2_GOAWAY_SESSION')
+                || (errorCode === 'ERR_HTTP2_INVALID_SESSION')
                 || (errorCode === 'ERR_HTTP2_STREAM_ERROR' && req.rstCode === 7 /* NGHTTP2_REFUSED_STREAM */)
                 || (errorCode === 'ERR_HTTP2_STREAM_CANCEL' && req.pending === true && !error.cause); // #B981 — never submitted, cancelled by our own destroy
             if (retryCount < HTTP2_MAX_RETRIES && _neverProcessed) {
