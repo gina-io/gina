@@ -782,7 +782,8 @@ function PathHelper() {
      *
      * @callback callback
      * @param {boolean|Error} errResponse - `false` on success, an `Error` on
-     *      failure (#B227 — was a plain string on stream-copy failures)
+     *      failure (#B227 — was a plain string on stream-copy failures). A target
+     *      that already is the source is a no-op (#B1046).
      * @param {string} [pathResponse]
      *
      * @example
@@ -809,6 +810,15 @@ function PathHelper() {
         //Enter dir & start rm.
         var p = self.value;
         //console.debug("starting copying ", p, " => ", target);
+
+        // #B1046 — a folder copied onto itself was removed first (strategy 3C), then copied
+        // from nothing: the callback reported a success and the folder was gone.
+        if ( isSamePath(p, target) ) {
+            process.nextTick(function() {
+                cb(false, target)
+            });
+            return;
+        }
 
         cp(p, target, excluded)
             .onComplete( function(err, destination, method) {
@@ -1364,7 +1374,7 @@ function PathHelper() {
      * (#B1045): the callback receives `false` or an `Error`, and with no callback
      * a failure is logged, never thrown. A source that another move or remove took
      * after this copy finished is not a failure: the copy is in place and the source
-     * is gone.
+     * is gone. A target that already is the source is a no-op (#B1046).
      *
      * @param {function} [callback]
      * @param {boolean|Error} callback.errResponse - `false` on success, an `Error`
@@ -1396,6 +1406,10 @@ function PathHelper() {
             if ( !found ) {
                 return settle( new Error(' mv() - source [ '+p+' ] does not exists !') )
             }
+            // #B1046 — copied onto itself and then removed, the file was gone
+            if ( isSamePath(p, target) ) {
+                return settle(false)
+            }
             var moving;
             try {
                 moving = mv(self, target);
@@ -1410,6 +1424,29 @@ function PathHelper() {
                 settle(err)
             })
         })
+    }
+
+    /**
+     * Whether two paths name one file: same resolved path, or the same inode (a
+     * case-insensitive filesystem, a symlinked parent, a hard link). `lstat`, so a
+     * symlink is not its target. A path that does not exist names nothing.
+     *
+     * @inner
+     * @private
+     * @param {string} a
+     * @param {string} b
+     * @returns {boolean}
+     */
+    var isSamePath = function(a, b) {
+        try {
+            if ( Path.resolve(a) === Path.resolve(b) ) {
+                return true
+            }
+            var statsA = fs.lstatSync(a), statsB = fs.lstatSync(b);
+            return statsA.ino === statsB.ino && statsA.dev === statsB.dev
+        } catch (e) {
+            return false
+        }
     }
 
     var mv = function(self, target) {
