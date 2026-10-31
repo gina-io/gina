@@ -594,6 +594,19 @@ function getDependencies(gina, cb) {
     // Creating a custom event
     var depsEventBus = new EventTarget();
 
+    /**
+     * Fetches a mandatory client dependency and dispatches `deps.loaded` once, with the failure if there is
+     * one. When no answer was read, it asks again after 300 ms, 1 s and 2.5 s before calling that a failure
+     * (#B1044): a navigation can have cut the fetch, and the page may stay. An answer from the server (an
+     * HTTP error, a body that is not JSON) fails at once.
+     *
+     * @inner
+     * @param {string} name - the key of `gina.config` that receives the parsed body
+     * @param {object} opt
+     * @param {string} opt.url
+     * @param {number} [opt.attempt] - the retries spent so far; this function counts them
+     * @returns {Promise<void>}
+     */
     async function loadRoutingConf(name, opt) {
 
         var filenameOrUrl   = opt.url;
@@ -634,6 +647,15 @@ function getDependencies(gina, cb) {
             );
 
         } catch (RoutingLoadErr) {
+            // #B1044 — no answer was read: a navigation may have cut this fetch. WebKit rejects it when the
+            // navigation starts and refuses a new fetch until that navigation ends, and the page is still
+            // there if it answers a 204 or a download. Ask again before calling it a failure: a page really
+            // left never gets to the end of this, and a page that stays gets its table.
+            opt.attempt = opt.attempt || 0;
+            if ( result === null && !( response && !response.ok ) && opt.attempt < 3 ) {
+                setTimeout(function() { loadRoutingConf(name, opt); }, [300, 1000, 2500][opt.attempt++]);
+                return;
+            }
             // There was an error
             err = new Error('[ROUTING] Could not load routing\n'+ (RoutingLoadErr.stack || RoutingLoadErr.message || RoutingLoadErr) );
 
