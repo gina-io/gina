@@ -177,6 +177,64 @@ var a11yErrorDocument = function(code, bodyHtml, req) {
         + '<body><main>'+ bodyHtml +'</main></body></html>';
 };
 
+/**
+ * Whether this process runs under Bun: the HTTP/2 client's two runtime differences (#B971, #B1052) read it.
+ *
+ * @inner
+ * @constant {boolean}
+ */
+var _RUNTIME_IS_BUN = require(__dirname + '/../../../../utils/runtime').isBun();
+
+/**
+ * #B971 — gives an HTTP/2 client stream its own timer on Bun, where `ClientHttp2Stream.setTimeout()` is the
+ * session's (`session.setTimeout()`, every Bun read: 1.2.21, 1.3.14, 1.4.0 to 1.4.2). There, each call replaced
+ * the session's one timer and left a `timeout` listener behind, and when the timer fired every call's callback
+ * ran, whatever its `requestTimeout`. On 1.4.x a call that ended cleared it for all the others, and inbound frames
+ * refreshed it, so with the 5 s keepalive PING a timeout above 5 s never fired.
+ *
+ * Replaces `req.setTimeout` on this stream only, so the code that calls it reads the same on every runtime. The timer
+ * follows what Node's stream timer does (measured on Node 24): response headers do not refresh it, data does, the
+ * completed upload does (`finish`: the query path sends its body with one `req.end(body)`, and Node counts the timeout
+ * from that write's completion), and an upload that still moves does not time out. The two signals for that last one
+ * are the ones a Bun client shows against a flow-controlling peer on all three versions: the body has not finished
+ * and the session's outbound queue changed since the last look. The queue is the session's, so another stream's
+ * upload can keep a stalled upload alive for as long as it moves; Node's own check also reads a session counter.
+ *
+ * Not called on Node, whose stream timer already does all this.
+ *
+ * @inner
+ * @private
+ * @param {object} req - the client stream `client.request()` returned
+ * @param {object} client - its session, read for `state.outboundQueueSize`
+ * @returns {void}
+ *
+ * @example
+ * if (_RUNTIME_IS_BUN) { _ownBunStreamTimeout(req, client); }
+ * req.setTimeout(10000, onStreamTimeout); // this stream's timer
+ * req.setTimeout(0);                      // cleared; the session's other streams keep theirs
+ */
+var _ownBunStreamTimeout = function _ownBunStreamTimeout(req, client) {
+    var _timer = null, _onTimeout = null, _queued = null;
+    var _touch = function _touch() { if (_timer) { _timer.refresh(); } };
+    var _clear = function _clear() { if (_timer) { clearTimeout(_timer); _timer = null; } _onTimeout = null; };
+    var _queueSize = function _queueSize() { try { return client.state.outboundQueueSize; } catch (e) { return null; } };
+    var _expired = function _expired() {
+        var _q = _queueSize();
+        if (!req.writableFinished && _q !== _queued) { _queued = _q; _timer.refresh(); return; }
+        _timer = null;
+        var _cb = _onTimeout; _onTimeout = null;
+        if (_cb) { _cb(); }
+    };
+    req.on('data', _touch);
+    req.on('finish', _touch);
+    req.on('close', _clear);
+    req.setTimeout = function setStreamTimeout(ms, cb) {
+        _clear();
+        if (ms > 0) { _onTimeout = cb; _queued = _queueSize(); _timer = setTimeout(_expired, ms); if (_timer.unref) { _timer.unref(); } }
+        return req;
+    };
+};
+
 // #B3 — persist resolver and cache across dev-mode cache-busts.
 // controller.js is re-required on every request when isCacheless (dev mode), which would
 // create a new Resolver and Cache instance each time, silently abandoning in-flight DNS
@@ -7526,6 +7584,9 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
             }
         }
 
+        // #B971 — on Bun the req.setTimeout() calls below are this stream's own timer, not the session's
+        if (_RUNTIME_IS_BUN) { _ownBunStreamTimeout(req, client); }
+
         let isFinished  = false;
         let data        = '';
         let httpStatus  = null; // captured from the HTTP/2 HEADERS frame (:status pseudo-header)
@@ -7550,12 +7611,16 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
         // and a timed-out one by the RST_STREAM(CANCEL) the timeout handler sends right after
         // this release (#B967), so nothing here needs a close.
         // replaced: try { if (!req.closed && !req.destroyed) { req.close(); } } catch (e) {}
+        // #B1052 — the listeners stay on Bun: since 1.4.0 its client counts a request against the peer's stream limit
+        // until a `close` listener of its own on this stream runs, so dropping the listeners kept the count from
+        // falling and the session stopped sending at the limit (256 calls against an Isaac upstream's default). The
+        // handlers that settle the call read isFinished, so an event after the release finds nothing to do.
         var _finalized = false;
         var _finalizeStream = function _finalizeStream() {
             if (_finalized) { return; }
             _finalized = true;
             try { req.setTimeout(0); } catch (e) {}
-            try { req.removeAllListeners(); } catch (e) {}
+            if (!_RUNTIME_IS_BUN) { try { req.removeAllListeners(); } catch (e) {} }
         };
 
         // Capture the HTTP/2 response status code from the HEADERS frame.
