@@ -782,8 +782,9 @@ function PathHelper() {
      *
      * @callback callback
      * @param {boolean|Error} errResponse - `false` on success, an `Error` on
-     *      failure (#B227 — was a plain string on stream-copy failures). A target
-     *      that already is the source is a no-op (#B1046).
+     *      failure (#B227 — was a plain string on stream-copy failures). Copying a
+     *      folder, the walk copies all it can and reports its first failure at the
+     *      end (#B1047). A target that already is the source is a no-op (#B1046).
      * @param {string} [pathResponse]
      *
      * @example
@@ -972,7 +973,12 @@ function PathHelper() {
                                 destination = destination.splice(0, destination.length-1);
                                 destination = destination.join('/');
 
-                                readContent(source, destination, function(_list, _listTo) {
+                                readContent(source, destination, function(_list, _listTo, readErr) {
+                                    // #B1047
+                                    if (readErr) {
+                                        e.emit("cp#complete", readErr, oldDestination, method);
+                                        return
+                                    }
                                     var i = 0, list = [], listTo = [];
                                     _list = _list.splice(_list.indexOf(oldSource)+1);
                                     _listTo = _listTo.splice(_listTo.indexOf(oldDestination)+1);
@@ -990,8 +996,11 @@ function PathHelper() {
                             }
 
                         } else {
-                            console.error("onRemoved error: som'was wrong ");
-                            process.exit(1)
+                            // #B1047 — the destination could not be cleared, and the source is
+                            // untouched. This ended the whole process.
+                            // was: console.error("onRemoved error: som'was wrong ");
+                            //      process.exit(1)
+                            e.emit("cp#complete", err, destination, method)
                         }
                     };
 
@@ -1048,9 +1057,24 @@ function PathHelper() {
         //return this
     }
 
+    /**
+     * List a folder's entries, as source and target paths, for the copy walk.
+     *
+     * @inner
+     * @private
+     * @param {string} source - Folder to read
+     * @param {string} target - Folder the entries are copied to
+     * @param {function} callback - Called with `(list, listTo)`, or `([], [], err)` when
+     *      the read failed (#B1047)
+     * @returns {void}
+     */
     var readContent = function(source, target, callback) {
         fs.readdir(source, function(err, files) {
             var list = [], listTo = [];
+            // #B1047 — `files` is undefined on a failed read: the throw below reached the process
+            if (err) {
+                return callback(list, listTo, err)
+            }
             for (var i=0; i<files.length; ++i) {
                 list[i]     = _(source +'/'+ files[i]);
                 listTo[i]   = _(target +'/'+ files[i])
@@ -1072,8 +1096,9 @@ function PathHelper() {
      * @param {array} [list]
      * @param {array} [listTo]
      * @param {number} [i]
-     * @param {number} [c]
-     * @param {array} [paths]
+     * @param {Error} [walkErr] - First failure of the walk (#B1047): the walk still copies
+     *      everything it can, as it always did, and reports this at its end, so `mv()`
+     *      does not remove a source it could not copy in full.
      *
      * @private
      * */
@@ -1082,7 +1107,7 @@ function PathHelper() {
         callback(err);
     }
 
-    var browseCopy = function(sourceDir, destinationDir, excluded, callback, list, listTo, i) {
+    var browseCopy = function(sourceDir, destinationDir, excluded, callback, list, listTo, i, walkErr) {
         list = ( typeof(list) != 'undefined' ) ? list : [];
         listTo = ( typeof(listTo) != 'undefined' ) ? listTo : [];
         i = ( typeof(i) != 'undefined' ) ? i : 0;
@@ -1099,9 +1124,15 @@ function PathHelper() {
             if (list.length != i) {
                 copyError = new Error('cp() encountred a fatal error. You have to check your paths.\nSource: '+ sourceDir +'\nDestination: ' + destinationDir);
             }
-            end(callback, copyError);
+            end(callback, walkErr || copyError);
         } else {
             fs.lstat(sourceDir, function(err, stats) {
+
+                // #B1047 — `stats` is undefined on a failed lstat: the throw below reached the process
+                if (err) {
+                    ++i;
+                    return browseCopy(list[i], listTo[i], excluded, callback, list, listTo, i, walkErr || err)
+                }
 
                 if ( stats.isSymbolicLink() ) {
                     //console.debug('real path: ', fs.realpathSync(list[i]));
@@ -1109,11 +1140,12 @@ function PathHelper() {
                     try {
                         symlinkSync(fs.realpathSync(list[i]), listTo[i]);
                     } catch (realPathError) {
-                        throw realPathError;
+                        // #B1047 — was rethrown from this async callback, to the process
+                        walkErr = walkErr || realPathError;
                     }
 
                     ++i;
-                    browseCopy(list[i], listTo[i], excluded, callback, list, listTo, i)
+                    browseCopy(list[i], listTo[i], excluded, callback, list, listTo, i, walkErr)
                 } else if ( stats.isDirectory() ) {
 
                     var isExcluded = false;
@@ -1141,28 +1173,33 @@ function PathHelper() {
 
                         createDir.mkdir( function(err, path) {
                             if (!err) {
-                                readContent(sourceDir, destinationDir, function(_list, _listTo) {
+                                readContent(sourceDir, destinationDir, function(_list, _listTo, readErr) {
 
                                     for (var p=0; p<_list.length; ++p) {
                                         list.push(_list[p]);
                                         listTo.push(_listTo[p])
                                     }
                                     ++i;
-                                    browseCopy(list[i], listTo[i], excluded, callback, list, listTo, i)
+                                    browseCopy(list[i], listTo[i], excluded, callback, list, listTo, i, walkErr || readErr)
                                 })
                             } else {
-                                console.error(err)
+                                // #B1047 — was logged only, so the copy never completed
+                                console.error(err);
+                                ++i;
+                                browseCopy(list[i], listTo[i], excluded, callback, list, listTo, i, walkErr || err)
                             }
                         })
                     }  else {
                         ++i;
-                        browseCopy(list[i], listTo[i], excluded, callback, list, listTo, i)
+                        browseCopy(list[i], listTo[i], excluded, callback, list, listTo, i, walkErr)
                     }
 
                 } else {
                     copyFileToFile(sourceDir, destinationDir, i, function(err, file, i) {
+                        // #B1047 — the error was dropped: the walk reported a success, and mv()
+                        // then removed a source whose file it had not copied.
                         ++i;
-                        browseCopy(list[i], listTo[i], excluded, callback, list, listTo, i)
+                        browseCopy(list[i], listTo[i], excluded, callback, list, listTo, i, walkErr || err)
                     }, excluded)
                 }
             })
