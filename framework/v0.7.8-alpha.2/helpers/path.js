@@ -1427,7 +1427,8 @@ function PathHelper() {
      * (#B1045): the callback receives `false` or an `Error`, and with no callback
      * a failure is logged, never thrown. A source that another move or remove took
      * after this copy finished is not a failure: the copy is in place and the source
-     * is gone. A target that already is the source is a no-op (#B1046).
+     * is gone. A target that already is the source is a no-op (#B1046), and so is a file
+     * moved to the folder it already sits in; a rename that only changes the case renames.
      *
      * @param {function} [callback]
      * @param {boolean|Error} callback.errResponse - `false` on success, an `Error`
@@ -1461,6 +1462,19 @@ function PathHelper() {
             }
             // #B1046 — copied onto itself and then removed, the file was gone
             if ( isSamePath(p, target) ) {
+                if ( Path.resolve(p) === Path.resolve(target) ) {
+                    return settle(false)
+                }
+                // Another name of one file. On a case-insensitive filesystem this is a rename
+                // that only changes the case; rename(2) does it, and does nothing for a
+                // symlinked parent or a hard link.
+                return fs.rename(p, target, function(renameErr) {
+                    settle(renameErr || false)
+                })
+            }
+            // #B1046 — the copy takes a file to an existing folder under its own name: moved to
+            // the folder it already sits in, it landed on itself and was then removed.
+            if ( isSamePath(p, intoExistingFolder(p, target)) ) {
                 return settle(false)
             }
             var moving;
@@ -1480,6 +1494,41 @@ function PathHelper() {
     }
 
     /**
+     * Where the copy puts a file whose target is an existing folder: under the file's own
+     * name in it. Any other target is returned as is. `lstat`, as the copy reads them.
+     *
+     * @inner
+     * @private
+     * @param {string} source
+     * @param {string} target
+     * @returns {string} The path the copy would write
+     */
+    var intoExistingFolder = function(source, target) {
+        try {
+            if ( !fs.lstatSync(source).isDirectory() && fs.lstatSync(target).isDirectory() ) {
+                return Path.join(target, Path.basename(source))
+            }
+        } catch (e) {}
+        return target
+    }
+
+    /**
+     * Whether two stats name one file, compared as node's own `fs.cp()` does: from
+     * `bigint` stats, because an inode past 2^53 rounds alike as a Number, and never on
+     * an inode or device of 0, which a filesystem with no stable inode reports for
+     * every file.
+     *
+     * @inner
+     * @private
+     * @param {fs.BigIntStats} a
+     * @param {fs.BigIntStats} b
+     * @returns {boolean}
+     */
+    var isSameInode = function(a, b) {
+        return !!a.ino && !!a.dev && a.ino === b.ino && a.dev === b.dev
+    }
+
+    /**
      * Whether two paths name one file: same resolved path, or the same inode (a
      * case-insensitive filesystem, a symlinked parent, a hard link). `lstat`, so a
      * symlink is not its target. A path that does not exist names nothing.
@@ -1495,8 +1544,7 @@ function PathHelper() {
             if ( Path.resolve(a) === Path.resolve(b) ) {
                 return true
             }
-            var statsA = fs.lstatSync(a), statsB = fs.lstatSync(b);
-            return statsA.ino === statsB.ino && statsA.dev === statsB.dev
+            return isSameInode( fs.lstatSync(a, { bigint: true }), fs.lstatSync(b, { bigint: true }) )
         } catch (e) {
             return false
         }
