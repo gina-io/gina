@@ -387,7 +387,7 @@ describe('03 - this stream\'s timer belongs to this stream', function () {
         assertAnswered(await q(inst, { port: h.port, path: '/fast/0', requestTimeout: '5s' }), 'the warm-up');
         var x = q(inst, { port: h.port, path: '/hang/1' });
         await sleep(300);
-        var y = await q(inst, { port: h.port, path: '/fast/1' });
+        var y = await q(inst, { port: h.port, path: '/fast/1', requestTimeout: '5s' });
         assertAnswered(y, 'the fast sibling');
         var rx = await x;
         assertTimedOut(rx, 'the hung call');
