@@ -455,6 +455,9 @@ function PathHelper() {
     /**
      * _.mkdir() Create a folder if doesn't exists, else return path
      *
+     * A failure reaches the callback (#B1048). A concurrent mkdir of the same path is
+     * not a failure.
+     *
      * @param {string} permission Folder permission
      * @callback callback
      * */
@@ -481,7 +484,9 @@ function PathHelper() {
                             // process.exit(1)
                         }
 
-                        if (p == path  && typeof(callback) != 'undefined' && typeof(self.created) == 'undefined' ) {
+                        // #B1048 — was also gated on `p == path`, and a failure carries no path:
+                        // a failed mkdir never called back.
+                        if ( typeof(callback) != 'undefined' && typeof(self.created) == 'undefined' ) {
                             if (typeof(callback) != 'undefined') {
                                 callback(err, path)
                             } else if ( typeof(console.debug) != 'undefined' ) {
@@ -509,7 +514,8 @@ function PathHelper() {
         var addFolder = function(self, permission, pathArr, i, path) {
 
             fs.mkdir(path,  function(err){
-                if (!err) {
+                // #B1048 — EEXIST: a concurrent mkdir of the same path got there first
+                if ( !err || err.code == 'EEXIST' ) {
                     mkdir(self, permission, pathArr, i, path, e)
                 } else {
                     mkdirEnd(e, self, err)
@@ -928,6 +934,11 @@ function PathHelper() {
                     destination += '/' + folder;
 
                     var target = new _(destination).mkdir( function(err, path) {
+                        // #B1048 — no destination: copying nothing would read as a success
+                        if (err) {
+                            e.emit("cp#complete", err, destination, method);
+                            return
+                        }
                         browseCopy(source, path, excluded, function(err) {
                             //console.debug("copy Dir to Dir/ done");
                             e.emit("cp#complete", err, path, method)
@@ -955,6 +966,11 @@ function PathHelper() {
                             }
                             if (!isExcluded) {
                                 target = new _(destination).mkdir( function(err, path) {
+                                    // #B1048 — no destination: copying nothing would read as a success
+                                    if (err) {
+                                        e.emit("cp#complete", err, destination, method);
+                                        return
+                                    }
 
                                     browseCopy(source, path, excluded, function(err) {
                                         //console.debug("copy Dir to Dir done");
