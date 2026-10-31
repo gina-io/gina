@@ -1360,10 +1360,15 @@ function PathHelper() {
      *
      * @param {string} target
      *
-     * @callback callback
-     * @param {boolean|Error} errResponse - `false`/falsy on success, an `Error`
+     * Every call settles exactly once, whatever happens to the source meanwhile
+     * (#B1045): the callback receives `false` or an `Error`, and with no callback
+     * a failure is logged, never thrown. A source that another move or remove took
+     * after this copy finished is not a failure: the copy is in place and the source
+     * is gone.
+     *
+     * @param {function} [callback]
+     * @param {boolean|Error} callback.errResponse - `false` on success, an `Error`
      *      on failure (#B227 — was a plain string on stream-copy failures)
-     * @param {string} [pathResponse]
      *
      * @example
      *  new _('/tmp/staged.pdf').mv('/var/shared/final.pdf', function(err) {
@@ -1376,26 +1381,34 @@ function PathHelper() {
         var self = this;
         //Enter dir & start rm.
         var p = self.value;
+        // #B1045 — the one place a move settles. With no callback a failure used to be
+        // thrown from this async callback, or to call `undefined`: either way it reached the
+        // process, and proc.js ends a bundle on that.
+        var settle = function(err) {
+            if (err) {
+                console.error(err);
+            }
+            if ( typeof(callback) == 'function' ) {
+                callback(err)
+            }
+        };
         exists(p, function(found){
             if ( !found ) {
-                var err = new Error(' mv() - source [ '+p+' ] does not exists !');
-                console.error(err);
-                if ( !callback ) {
-                    throw err
-                }
-                callback(err)
-            } else {
-                mv(self, target)
-                    .onComplete( function(err, path){
-                        if (err) {
-                            console.error(err);
-                            return callback(err)
-                        }
-                        if (p == path && typeof(callback) != 'undefined') {
-                            callback(err)
-                        }
-                    })
+                return settle( new Error(' mv() - source [ '+p+' ] does not exists !') )
             }
+            var moving;
+            try {
+                moving = mv(self, target);
+            } catch (mvErr) {
+                // #B1045 — cp() throws synchronously when the source went away after the
+                // check above (another move or remove of it), and nothing could catch that
+                // here but the process.
+                return settle(mvErr)
+            }
+            // #B1045 — was also gated on `p == path`, which only ever repeated what err says
+            moving.onComplete( function(err){
+                settle(err)
+            })
         })
     }
 
@@ -1588,8 +1601,12 @@ function PathHelper() {
     /**
      * rm
      *
+     * A path another remove takes meanwhile is not a failure. Any other failure stops
+     * the walk and reaches the callback (#B1045): before, a denied unlink read as a
+     * success, and a failed lstat or readdir never called back.
+     *
      * @callback callback
-     * @param {string} errResponse
+     * @param {boolean|Error} errResponse - `false` on success, an `Error` on failure
      * @param {string} [pathResponse]
      * */
     _.prototype.rm = function(callback) {
@@ -1668,7 +1685,8 @@ function PathHelper() {
             if (i === list[l].length-1 ) {
                 i = 0;
                 fs.rmdir(list[l][i], function(err) {
-                    if (err) callback(err);
+                    // #B1045 — ENOENT: another remove got there first, the folder is gone
+                    if ( err && err.code != 'ENOENT' ) callback(err);
 
                     ++l;
                     removeFolders(list, l, i, callback)
@@ -1677,7 +1695,8 @@ function PathHelper() {
             } else {
                 ++i;
                 fs.rmdir(list[l][i], function(err) {
-                    if (err) callback(err);
+                    // #B1045 — ENOENT: another remove got there first, the folder is gone
+                    if ( err && err.code != 'ENOENT' ) callback(err);
 
                     removeFolders(list, l, i, callback)
                 })
@@ -1686,6 +1705,17 @@ function PathHelper() {
     }
 
 
+    /**
+     * List a folder's entries into the remove walk's list. A folder that is already
+     * gone has nothing to list (#B1045).
+     *
+     * @inner
+     * @private
+     * @param {string} source - Folder to read
+     * @param {array} list - The walk's list, extended in place
+     * @param {function} cb - Called with `(list)`, or `(list, err)` when the read failed
+     * @returns {void}
+     */
     var readContentToRemove = function(source, list, cb) {
         fs.readdir(source, function(err, files) {
             if (!err) {
@@ -1695,8 +1725,13 @@ function PathHelper() {
                     }
                 }
                 cb(list)
+            } else if ( err.code == 'ENOENT' ) {
+                // #B1045 — another remove got there first: nothing left to list
+                cb(list)
             } else {
-                console.error(err)
+                // #B1045 — was logged only, so the remove never completed
+                console.error(err);
+                cb(list, err)
             }
         })
     }
@@ -1739,19 +1774,34 @@ function PathHelper() {
                             folders[l].push(source)
                         }
 
-                        readContentToRemove(source, list, function(_list){
+                        readContentToRemove(source, list, function(_list, readErr){
+                            if (readErr) {
+                                return callback(readErr)
+                            }
                             ++i;
                             browseRemove(_list[i], callback, _list, folders, i)
                         })
 
                     } else {
                         removeFile(source, function(err) {
+                            // #B1045 — the error was dropped: a denied unlink reported a
+                            // success with the file still there. ENOENT: another remove got
+                            // there first.
+                            if ( err && err.code != 'ENOENT' ) {
+                                return callback(err)
+                            }
                             ++i;
                             browseRemove(list[i], callback, list, folders, i)
                         })
                     }
+                } else if ( err.code == 'ENOENT' ) {
+                    // #B1045 — another remove got there first. This was logged and never
+                    // called back, so a move or a remove of this path never completed.
+                    ++i;
+                    browseRemove(list[i], callback, list, folders, i)
                 } else {
-                    console.error(err)
+                    console.error(err);
+                    callback(err)
                 }
 
             })
@@ -1775,7 +1825,10 @@ function PathHelper() {
     var removeFile = function(filename, callback) {
         fs.unlink(filename, function(err){
             if (err) {
-                console.error(err.stack);
+                // #B1045 — ENOENT: another remove got there first, the caller carries on
+                if ( err.code != 'ENOENT' ) {
+                    console.error(err.stack);
+                }
                 callback(err)
             } else {
                 callback(false)
