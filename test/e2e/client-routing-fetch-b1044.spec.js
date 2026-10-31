@@ -15,7 +15,8 @@
  *   01 #B1044 — a link click cuts the fetch, the page is left: no message       (RED: the message)
  *   02 #B1044 — the same with a destination that takes 2.5 s: no message        (RED: the message)
  *   03 #B1044 — the navigation answers 204: the page gets its table, no message (RED on WebKit: no table)
- *   04 #B1044 — the navigation is a download: the same                          (RED on WebKit: no table)
+ *   04 #B1044 — the navigation is a download: the same                          (RED on WebKit: no table;
+ *      skipped on Linux WebKit, see the arm)
  *   05 #B1044 — the navigation answers 204 after 2 s: the same                  (RED on WebKit: no table)
  *   06 #B1044 — a network failure that passes: the handlers see the table       (RED: no table, the message)
  *   07 #B1044 — a network failure that stays: four attempts, then one message,
@@ -165,7 +166,11 @@ test.describe('#B1044 — a navigation that cuts the routing fetch', function ()
         expect(messages(await pageLog(page))).toEqual([]);
     });
 
-    test('04 #B1044 — the navigation is a download: the same', async ({ page }) => {
+    test('04 #B1044 — the navigation is a download: the same', async ({ page, browserName }) => {
+        // On Linux, once this engine's page has started a download, `route.fulfill` fails with « Target page,
+        // context or browser has been closed » while the page still answers: the retried fetch then gets no
+        // answer from this mock (the trace of the first CI run). macOS WebKit and Firefox run this arm.
+        test.skip(browserName === 'webkit' && process.platform === 'linux', 'route.fulfill stops working after a download');
         test.setTimeout(30000);
         await answerRouting(page, 2500);
         await page.route('**/' + DEST, (r) => r.fulfill({
