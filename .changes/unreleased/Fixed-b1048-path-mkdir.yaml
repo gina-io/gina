@@ -1,0 +1,3 @@
+kind: Fixed
+body: '`PathObject.mkdir()` now calls back on a failure (#B1048). The callback never ran when the folder could not be created, for instance under a read-only parent, or for one of two concurrent calls of the same path. A failure now reaches the callback, and two concurrent calls both succeed. A folder `cp()` or `mv()` whose destination cannot be created now reports it and copies nothing. Server-side: a bundle restart picks it up.'
+time: 2026-10-31T09:37:01+01:00
