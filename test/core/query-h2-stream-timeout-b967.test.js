@@ -28,9 +28,6 @@ var { execFileSync } = require('child_process');
 var FW = require('../fw');
 var SOURCE = path.join(FW, 'core', 'controller', 'controller.js');
 var C = http2.constants;
-// #B971 — under Bun (measured on 1.4.2 and 1.3.14) a client stream's timer does not fire while another
-// stream of its session is active; the sibling arm (§03) depends on it, so it is registered on Node only.
-var IS_BUN = !!(process.versions && process.versions.bun);
 
 process.env.NODE_PATH = (process.env.NODE_PATH ? process.env.NODE_PATH + path.delimiter : '') + FW;
 require('module').Module._initPaths();
@@ -240,7 +237,7 @@ describe('02 - a live but slow upstream: one run, TIMEOUT at requestTimeout, the
     });
 });
 
-if (!IS_BUN) describe('03 - a sibling stream survives another stream\'s timeout (#B628)', function () {
+describe('03 - a sibling stream survives another stream\'s timeout (#B628)', function () {
     var h = null, inst = null;
     before(async function () { h = await mkUpstream(); inst = makeInst(); });
     after(function () { destroyClientSessions(inst); closeUpstream(h); });
