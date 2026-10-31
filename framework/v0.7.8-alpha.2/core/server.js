@@ -6564,9 +6564,9 @@ function Server(options) {
                      * Wraps a multipart callback so that an exception raised in it is answered
                      * instead of reaching the process (#B843, #B844).
                      *
-                     * Used for the three Busboy listeners (text field, file part, end of body) and
-                     * for the callbacks nested in a file part (the part's stream included). When nothing
-                     * has answered or taken
+                     * Used for the three Busboy listeners (text field, file part, end of body), for
+                     * the callbacks nested in a file part (the part's stream included) and for the
+                     * request's 'close' listener. When nothing has answered or taken
                      * the request yet, the catch answers a 500 through `throwError`; otherwise it
                      * logs the stack. It never rethrows. `this`, the arguments and the return value
                      * pass through.
@@ -7096,6 +7096,17 @@ function Server(options) {
                             resumeAfterMultipart();
                         }
                     });
+
+                    // #B1061 — a client that goes away ends nothing: the pipe to the parser never
+                    // finishes and the write stream stays open. 'close' also fires at the normal end of
+                    // an upload, with the request read to its end and the parser still working: that
+                    // is not an abort, and neither is a 'close' after the parser has finished.
+                    request.on('close', guardMultipartListener(function onMultipartRequestClose() {
+                        if ( busboyDone || request.readableEnded ) {
+                            return;
+                        }
+                        abortMultipart();
+                    }));
 
                     // #B844 (review F3) — the three guarded registrations are made: remove the
                     // override, so that what pipe() registers next goes through busboy's own `on`

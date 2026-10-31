@@ -1,0 +1,3 @@
+kind: Security
+body: 'A multipart upload whose client goes away now stops the same way (#B1061), on HTTP/1.1 and HTTP/2: its write stream closes and the files it staged are removed. The normal end of an upload is unchanged. Pickup: a bundle restart, no re-bake.'
+time: 2026-10-31T16:19:28+01:00

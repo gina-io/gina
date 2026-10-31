@@ -1,5 +1,5 @@
 /**
- * #B1062 — a multipart request that does not complete.
+ * #B1062, #B1061 — a multipart request that does not complete.
  *
  * The multipart branch of core/server.js streams each file part to a staged temp file while the
  * body arrives. This file boots the REAL bin/gina-container (isaac, the default engine) and reads
@@ -8,11 +8,12 @@
  *   01  controls — complete uploads are unchanged, also on a slow disk (the request has ended and
  *       the parser has not, which is the normal end of an upload)
  *   02  a body that ends early is answered 400 and nothing stays staged
+ *   03  a client that goes away: its write stream closes and nothing stays staged
  *   05  the same over HTTP/2
  *
  * Instruments, each with a control that can fire: `staged()` walks the project for `.part` files
  * (01.1 reads one), `partDescriptors()` reads the bundle's open `.part` descriptors, /proc on Linux,
- * lsof elsewhere. A slow disk is a test double in the
+ * lsof elsewhere (03.1 reads one while the upload is held open). A slow disk is a test double in the
  * bundle's index.js, armed through the `p/slow` route, delaying each write of a staged file.
  *
  * Isolation: the container-boot-multipart-nested-throw-b844.test.js shape — a throwaway HOME and
@@ -438,7 +439,7 @@ function ready(t) {
 // Suite
 // ---------------------------------------------------------------------------
 
-describe('container-boot-multipart-abort — a multipart request that does not complete leaves nothing behind (#B1062)', function () {
+describe('container-boot-multipart-abort — a multipart request that does not complete leaves nothing behind (#B1062, #B1061)', function () {
 
     before(async function () {
         if (process.platform === 'win32') { skip = true; skipReason = 'gina-container is Unix-centric (win32 not supported)'; return; }
@@ -608,12 +609,98 @@ describe('container-boot-multipart-abort — a multipart request that does not c
 
     // ── 03 a client that goes away ───────────────────────────────────────────
 
+    it('03.1  an upload held open has one staged file open; its client gone, it has none', async function (t) {
+        if (!ready(t)) { return; }
+        var s = await up('03.1', H1);
+        var sock = await hold(H1, [fileHead('held.bin'), bytes(100 * 1024)]);
+        var held = await settle(function () { return partDescriptors(H1); }, function (n) { return n === 1; });
+        assert.equal(held, 1, '[instrument] partDescriptors() reads the upload in flight');
+        assert.equal(stagedSince(s.before).length, 1, '[instrument] staged() reads its file');
+        sock.destroy();
+        await assertNothingLeft('03.1', H1, s.before);
+        await assertAnswering('03.1', H1, s.mark);
+        var logged = H1.out.slice(s.mark);
+        assert.equal(logged.indexOf('[ onParseError ]'), -1, 'a client that goes away is not a parse failure: ' + logged.slice(-400));
+        assert.equal(logged.indexOf('POST [ 400 ]'), -1, 'and nothing answers it: ' + logged.slice(-400));
+    });
 
+    it('03.2  ten uploads cut one after the other leave nothing', async function (t) {
+        if (!ready(t)) { return; }
+        var s = await up('03.2', H1);
+        for (var i = 0; i < 10; ++i) {
+            var sock = await hold(H1, [fileHead('cut' + i + '.bin'), bytes(50 * 1024)]);
+            sock.destroy();
+        }
+        await assertNothingLeft('03.2', H1, s.before);
+        await assertAnswering('03.2', H1, s.mark);
+    });
 
+    it('03.3  the content-length shape a browser sends, cut mid-body, leaves nothing', async function (t) {
+        if (!ready(t)) { return; }
+        var s = await up('03.3', H1);
+        var sock = await hold(H1, [fileHead('cl.bin'), bytes(100 * 1024)], 500 * 1024);
+        var held = await settle(function () { return partDescriptors(H1); }, function (n) { return n === 1; });
+        assert.equal(held, 1, '[instrument] the upload is in flight');
+        sock.destroy();
+        await assertNothingLeft('03.3', H1, s.before);
+        await assertAnswering('03.3', H1, s.mark);
+    });
 
+    it('03.4  a complete file part and a second one in flight, cut: neither stays', async function (t) {
+        if (!ready(t)) { return; }
+        var s = await up('03.4', H1);
+        var sock = await hold(H1, [filePart('a.bin', bytes(4096)), fileHead('b.bin'), bytes(50 * 1024)]);
+        var two = await settle(function () { return stagedSince(s.before).length; }, function (n) { return n === 2; });
+        assert.equal(two, 2, '[instrument] both parts are staged before the cut');
+        sock.destroy();
+        await assertNothingLeft('03.4', H1, s.before);
+        await assertAnswering('03.4', H1, s.mark);
+    });
 
+    it('03.5  cut between two parts, with no part stream open: nothing stays', async function (t) {
+        if (!ready(t)) { return; }
+        var s = await up('03.5', H1);
+        var sock = await hold(H1, [filePart('a.bin', bytes(4096)), NEXT]);
+        var one = await settle(function () { return stagedSince(s.before).length; }, function (n) { return n === 1; });
+        assert.equal(one, 1, '[instrument] the first part is staged before the cut');
+        sock.destroy();
+        await assertNothingLeft('03.5', H1, s.before);
+        await assertAnswering('03.5', H1, s.mark);
+    });
 
+    it('03.6  cut while a slow disk is still writing a complete body: the descriptor closes and the bundle keeps answering', async function (t) {
+        if (!ready(t)) { return; }
+        var s = await up('03.6', H1);
+        await slowDisk(H1, 120);
+        try {
+            var body = Buffer.concat([filePart('tail.bin', bytes(300 * 1024)), CLOSING]);
+            var sock = await hold(H1, [body], body.length);
+            sock.destroy();
+        } finally { await slowDisk(H1, 0); }
+        var fds = await settle(function () { return partDescriptors(H1); }, function (n) { return n === 0; });
+        assert.equal(fds, 0, 'no staged file stays open');
+        await assertAnswering('03.6', H1, s.mark);
+    });
 
+    it('03.7  a body ending early, its client gone while the parser is still finishing: the bundle keeps answering', async function (t) {
+        if (!ready(t)) { return; }
+        var s = await up('03.7', H1);
+        await slowDisk(H1, 0, 400);
+        try {
+            var head = Buffer.concat([fileHead('x.bin'), bytes(2048)]);
+            var sock = await new Promise(function (resolve) {
+                var c = net.connect(H1.port, '127.0.0.1', function () {
+                    c.write('POST ' + H1.webroot + 'p/upstage HTTP/1.1\r\nHost: localhost\r\nContent-Type: ' + CT + '\r\nContent-Length: ' + head.length + '\r\n\r\n');
+                    c.write(head, function () { setTimeout(function () { resolve(c); }, 150); });
+                });
+                c.on('error', function () {});
+            });
+            sock.destroy();
+            await sleep(700);
+        } finally { await slowDisk(H1, 0); }
+        await assertAnswering('03.7', H1, s.mark);
+        await assertNothingLeft('03.7', H1, s.before);
+    });
 
     // ── 04 the whole-body cap with no content-length ─────────────────────────
 
@@ -640,7 +727,32 @@ describe('container-boot-multipart-abort — a multipart request that does not c
         await assertAnswering('05.1', H2, s.mark);
     });
 
+    it('05.2  a stream cancelled mid-upload by a client that ends it first (the node client) leaves nothing, and the session keeps working', async function (t) {
+        if (!ready(t)) { return; }
+        var s = await up('05.2', H2);
+        var session = await h2connect(H2);
+        var st = await h2call(H2, session, 'POST', 'p/upstage', Buffer.concat([fileHead('cut.bin'), bytes(80 * 1024)]), { 'content-type': CT }, true);
+        var held = await settle(function () { return partDescriptors(H2); }, function (n) { return n === 1; });
+        assert.equal(held, 1, '[instrument] the upload is in flight');
+        st.close(http2.constants.NGHTTP2_CANCEL);
+        await assertNothingLeft('05.2', H2, s.before);
+        var again = await h2call(H2, session, 'GET', 'p/ping');
+        try { session.close(); } catch (e) { /* ignore */ }
+        assert.equal(again.status, 200, 'the same session still answers: ' + JSON.stringify(again));
+        await assertAnswering('05.2', H2, s.mark);
+    });
 
+    it('05.3  a session destroyed mid-upload leaves nothing', async function (t) {
+        if (!ready(t)) { return; }
+        var s = await up('05.3', H2);
+        var session = await h2connect(H2);
+        await h2call(H2, session, 'POST', 'p/upstage', Buffer.concat([fileHead('gone.bin'), bytes(80 * 1024)]), { 'content-type': CT }, true);
+        var held = await settle(function () { return partDescriptors(H2); }, function (n) { return n === 1; });
+        assert.equal(held, 1, '[instrument] the upload is in flight');
+        session.destroy();
+        await assertNothingLeft('05.3', H2, s.before);
+        await assertAnswering('05.3', H2, s.mark);
+    });
 
     it('05.4  a body ending inside a file part is answered 400', async function (t) {
         if (!ready(t)) { return; }
@@ -672,6 +784,42 @@ describe('container-boot-multipart-abort — a multipart request that does not c
         await assertNothingLeft('05.6', H2, s.before);
     });
 
+    it('05.8  a stream reset with no end of body, as a browser cancels an upload: nothing stays, and it is not reported as a parse failure', async function (t) {
+        if (!ready(t)) { return; }
+        var s = await up('05.8', H2);
+        // the node client ends a stream before it resets it, so these frames are written by hand
+        var frame = function (type, flags, streamId, payload) {
+            var h = Buffer.alloc(9);
+            h.writeUIntBE(payload.length, 0, 3); h[3] = type; h[4] = flags; h.writeUInt32BE(streamId, 5);
+            return Buffer.concat([h, payload]);
+        };
+        var literal = function (name, value) {
+            assert.ok(name.length < 127 && value.length < 127, '[instrument] one-byte HPACK lengths');
+            return Buffer.concat([Buffer.from([0, name.length]), Buffer.from(name), Buffer.from([value.length]), Buffer.from(value)]);
+        };
+        var sock = await new Promise(function (resolve) {
+            var c = tls.connect({ host: '127.0.0.1', port: H2.port, ALPNProtocols: ['h2'], rejectUnauthorized: false }, function () { resolve(c); });
+            c.on('error', function () {});
+            c.on('data', function () {});
+        });
+        assert.equal(sock.alpnProtocol, 'h2', '[instrument] the connection speaks HTTP/2');
+        sock.write('PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n');
+        sock.write(frame(4, 0, 0, Buffer.alloc(0)));
+        sock.write(frame(1, 4, 1, Buffer.concat([
+            literal(':method', 'POST'), literal(':path', H2.webroot + 'p/upstage'), literal(':scheme', 'https'),
+            literal(':authority', 'localhost'), literal('content-type', CT)
+        ])));
+        sock.write(frame(0, 0, 1, Buffer.concat([fileHead('reset.bin'), bytes(8192)])));
+        var held = await settle(function () { return partDescriptors(H2); }, function (n) { return n === 1; });
+        assert.equal(held, 1, '[instrument] the upload is in flight');
+        sock.write(frame(3, 0, 1, Buffer.from([0, 0, 0, 8])));
+        await assertNothingLeft('05.8', H2, s.before);
+        sock.destroy();
+        await assertAnswering('05.8', H2, s.mark);
+        var logged = H2.out.slice(s.mark);
+        assert.equal(logged.indexOf('[ onParseError ]'), -1, 'a reset is not a parse failure: ' + logged.slice(-400));
+        assert.equal(logged.indexOf('POST [ 400 ]'), -1, 'and nothing answers it: ' + logged.slice(-400));
+    });
 
     it('05.9  a finished part removed by the stop: its cleanup timer finds it gone and does nothing', async function (t) {
         if (!ready(t)) { return; }

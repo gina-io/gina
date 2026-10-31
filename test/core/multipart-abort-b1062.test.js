@@ -1,5 +1,5 @@
 /**
- * #B1062 — stopping the upload of a multipart request that will not reach its action.
+ * #B1062, #B1061 — stopping the upload of a multipart request that will not reach its action.
  *
  * The multipart branch of core/server.js gained one shared stop, abortMultipart(), reached from the
  * part stream's 'error' listener, from the parser's 'error' listener, from the request's 'close' and
@@ -9,6 +9,8 @@
  * 02  premises on the REAL parser: what the design rides on, in the runtime that runs this file (the
  *     unit suite also runs under Bun).
  * 03  abortMultipart(), extracted from the source and run on real write streams and files.
+ * 04  premises on a REAL http server: what the request's 'close' reads at the end of a complete body
+ *     and for a client that goes away; the HTTP/2 arms run where the runtime can serve them.
  *
  * Seam: B1062_SERVER_SRC=<path to a core/server.js> reads THAT file (red-first on the file before this
  * change: the 01 and 03 arms fail, the premises do not depend on it).
@@ -20,6 +22,8 @@ var assert = require('node:assert/strict');
 var path   = require('path');
 var fs     = require('fs');
 var os     = require('os');
+var net    = require('net');
+var http   = require('http');
 var stream = require('stream');
 var Busboy = require('@rhinostone/busboy');
 
@@ -95,6 +99,12 @@ describe('01 - #B1062 source pins (comment-stripped)', function () {
         assert.ok(log > -1 && log < stop && stop < say, 'the upload stops ahead of the answer');
     });
 
+    it("01.5  the request's 'close' leaves a finished parse and the normal end of an upload alone", function () {
+        var a = active.indexOf("request.on('close', guardMultipartListener(function onMultipartRequestClose() {");
+        assert.ok(a > -1, 'registered through the guard');
+        var body = active.slice(a, a + 300);
+        assert.match(body, /if \( busboyDone \|\| request\.readableEnded \) \{\s*return;\s*\}\s*abortMultipart\(\);/);
+    });
 
 
     it('01.7  the two lines five suites pin stay as they were', function () {
@@ -265,4 +275,60 @@ describe('03 - #B1062 abortMultipart (extracted from core/server.js), on real st
             assert.equal(l[1].code, 'EACCES');
         });
     });
+});
+
+// ─── 04 — premises on a real server ───────────────────────────────────────────
+describe("04 - #B1061 premises on a real http server: what 'close' reads", function () {
+
+    /** A server whose request is piped into a sink, reporting what 'close' read. */
+    function serve(makeSink, onClose) {
+        return new Promise(function (resolve) {
+            var server = http.createServer(function (req, res) {
+                var sink = makeSink();
+                req.on('close', function () { onClose({ readableEnded: req.readableEnded, sinkFinished: sink.writableFinished }); });
+                sink.on('finish', function () { res.end('done'); });
+                req.pipe(sink);
+            });
+            server.listen(0, '127.0.0.1', function () { resolve(server); });
+        });
+    }
+
+    it("04.1  a complete body whose consumer is still working: 'close' reads the request as ended", async function () {
+        var reading = null;
+        var server = await serve(function () {
+            return new stream.Writable({ highWaterMark: 1, write: function (c, e, cb) { setTimeout(cb, 40); } });
+        }, function (r) { if (!reading) { reading = r; } });
+        var answered = await new Promise(function (resolve) {
+            var req = http.request({ host: '127.0.0.1', port: server.address().port, method: 'POST', agent: false }, function (res) {
+                res.resume();
+                res.on('end', function () { resolve(res.statusCode); });
+            });
+            for (var i = 0; i < 6; ++i) { req.write(Buffer.alloc(32 * 1024, 70)); }
+            req.end();
+        });
+        server.close();
+        assert.equal(answered, 200, 'the upload ran to its end');
+        assert.ok(reading, "'close' fired");
+        assert.equal(reading.readableEnded, true, JSON.stringify(reading));
+    });
+
+    it("04.2  a client that goes away mid-body: 'close' fires, reading the request as not ended", async function () {
+        var reading = null;
+        var server = await serve(function () {
+            return new stream.Writable({ write: function (c, e, cb) { cb(); } });
+        }, function (r) { if (!reading) { reading = r; } });
+        await new Promise(function (resolve) {
+            var sock = net.connect(server.address().port, '127.0.0.1', function () {
+                sock.write('POST / HTTP/1.1\r\nHost: localhost\r\nContent-Length: 100000\r\n\r\npartial', function () {
+                    setTimeout(function () { sock.destroy(); resolve(); }, 80);
+                });
+            });
+            sock.on('error', function () {});
+        });
+        for (var i = 0; i < 40 && !reading; ++i) { await sleep(25); }
+        server.close();
+        assert.ok(reading, "'close' fired");
+        assert.equal(reading.readableEnded, false, JSON.stringify(reading));
+    });
+
 });
