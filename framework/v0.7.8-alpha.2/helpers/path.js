@@ -790,7 +790,10 @@ function PathHelper() {
      * @param {boolean|Error} errResponse - `false` on success, an `Error` on
      *      failure (#B227 — was a plain string on stream-copy failures). Copying a
      *      folder, the walk copies all it can and reports its first failure at the
-     *      end (#B1047). A target that already is the source is a no-op (#B1046).
+     *      end (#B1047). A target that already is the source is a no-op (#B1046). A
+     *      folder onto a folder that holds it, or into itself unless `excluded` leaves
+     *      the destination out, is refused before anything is written: an `Error` coded
+     *      `EINVAL` (#B1050).
      * @param {string} [pathResponse]
      *
      * @example
@@ -946,6 +949,22 @@ function PathHelper() {
                     })
                 } else {
                     //3C.
+                    // #B1050 — clearing a destination that holds the source destroyed both, and
+                    // a folder copied into itself recursed until the path was too long. `excluded`
+                    // can leave the destination out of the walk, so that form stays allowed.
+                    var nested = false;
+                    if ( isInsideFolder(source, destination) ) {
+                        nested = 'cannot overwrite folder [ '+ destination +' ] with [ '+ source +' ]: it holds it'
+                    } else if ( excluded == undefined && isInsideFolder(destination, source) ) {
+                        nested = 'cannot copy folder [ '+ source +' ] into itself: [ '+ destination +' ]'
+                    }
+                    if (nested) {
+                        var nestedErr = new Error('cp() - '+ nested);
+                        nestedErr.code = 'EINVAL';
+                        e.emit("cp#complete", nestedErr, destination, method);
+                        return
+                    }
+
                     var onRemoved = function(err, target) {
                         // err: 99% means that it doesn't exist. Well, we don't care do we ?.
                         if (!err) {
@@ -1429,6 +1448,8 @@ function PathHelper() {
      * after this copy finished is not a failure: the copy is in place and the source
      * is gone. A target that already is the source is a no-op (#B1046), and so is a file
      * moved to the folder it already sits in; a rename that only changes the case renames.
+     * A folder moved onto a folder that holds it, or into itself, is refused before anything
+     * is written: an `Error` coded `EINVAL` (#B1050).
      *
      * @param {function} [callback]
      * @param {boolean|Error} callback.errResponse - `false` on success, an `Error`
@@ -1545,6 +1566,42 @@ function PathHelper() {
                 return true
             }
             return isSameInode( fs.lstatSync(a, { bigint: true }), fs.lstatSync(b, { bigint: true }) )
+        } catch (e) {
+            return false
+        }
+    }
+
+    /**
+     * Whether folder `outer` holds `inner`, at any depth. Compared by inode up from the
+     * real path of `inner`'s parent, so another spelling, another case or a symlinked
+     * parent counts. `inner` may not exist yet: the walk starts at its nearest existing
+     * parent. Neither end counts as a folder when it is a symlink: the copy clears the
+     * link and writes a real folder in its place.
+     *
+     * @inner
+     * @private
+     * @param {string} inner
+     * @param {string} outer
+     * @returns {boolean}
+     */
+    var isInsideFolder = function(inner, outer) {
+        try {
+            if ( fs.lstatSync(outer).isSymbolicLink() ) {
+                return false
+            }
+            var folder = fs.statSync(outer, { bigint: true }), p = Path.dirname(Path.resolve(inner)), up;
+            while ( !fs.existsSync(p) && p !== Path.dirname(p) ) {
+                p = Path.dirname(p)
+            }
+            p = fs.realpathSync(p);
+            do {
+                if ( isSameInode(fs.statSync(p, { bigint: true }), folder) ) {
+                    return true
+                }
+                up = p;
+                p = Path.dirname(p)
+            } while ( p !== up );
+            return false
         } catch (e) {
             return false
         }
