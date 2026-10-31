@@ -1796,9 +1796,10 @@ function PathHelper() {
     /**
      * rm
      *
-     * A path another remove takes meanwhile is not a failure. Any other failure stops
-     * the walk and reaches the callback (#B1045): before, a denied unlink read as a
-     * success, and a failed lstat or readdir never called back.
+     * A path another remove takes meanwhile is not a failure. Any other failure reaches
+     * the callback, once (#B1045): a failed lstat, readdir or unlink stops the walk, and
+     * after a failed rmdir it still tries the other folders. Before, a denied unlink read
+     * as a success, and a failed lstat or readdir never called back.
      *
      * @callback callback
      * @param {boolean|Error} errResponse - `false` on success, an `Error` on failure
