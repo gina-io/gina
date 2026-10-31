@@ -182,7 +182,7 @@
   "upload": {
     "_comment": "for more details, check out https://github.com/gina-io/busboy",
     "tmpPath": "${tmpPath}",
-    "maxFieldsSize": "2MB", // WHOLE-REQUEST cap vs Content-Length (431 past it); B/KB/MB/GB, bare number = MB
+    "maxFieldsSize": "2MB", // WHOLE-REQUEST cap, on the bytes received (431 past it); B/KB/MB/GB, bare number = MB
     "maxFields": 1000, // per-request FILE-COUNT cap (400 past it); 0 disables
     "maxTextFields": 1000, // #B92-adjacent — max multipart TEXT (non-file) fields per request; 0 = no limit
     "maxTextFieldSize": "1MB", // #B92-adjacent — per text-field size cap (B/KB/MB/GB, bare number = MB); 0 = no limit

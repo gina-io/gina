@@ -1,5 +1,6 @@
 /**
- * #B1062, #B1061 — a multipart request that does not complete.
+ * #B1062, #B1061, #B1056 — a multipart request that does not complete, or that is larger than
+ * `upload.maxFieldsSize` with no `content-length` to read.
  *
  * The multipart branch of core/server.js streams each file part to a staged temp file while the
  * body arrives. This file boots the REAL bin/gina-container (isaac, the default engine) and reads
@@ -9,6 +10,7 @@
  *       the parser has not, which is the normal end of an upload)
  *   02  a body that ends early is answered 400 and nothing stays staged
  *   03  a client that goes away: its write stream closes and nothing stays staged
+ *   04  the whole-body cap for a request with no `content-length`
  *   05  the same over HTTP/2
  *
  * Instruments, each with a control that can fire: `staged()` walks the project for `.part` files
@@ -439,7 +441,7 @@ function ready(t) {
 // Suite
 // ---------------------------------------------------------------------------
 
-describe('container-boot-multipart-abort — a multipart request that does not complete leaves nothing behind (#B1062, #B1061)', function () {
+describe('container-boot-multipart-abort — a multipart request that does not complete leaves nothing behind (#B1062, #B1061, #B1056)', function () {
 
     before(async function () {
         if (process.platform === 'win32') { skip = true; skipReason = 'gina-container is Unix-centric (win32 not supported)'; return; }
@@ -704,12 +706,96 @@ describe('container-boot-multipart-abort — a multipart request that does not c
 
     // ── 04 the whole-body cap with no content-length ─────────────────────────
 
+    it('04.1  CONTROL — over the cap with a content-length is answered 431', async function (t) {
+        if (!ready(t)) { return; }
+        var s = await up('04.1', H1);
+        var r = await call(H1, 'POST', 'p/upstage', Buffer.concat([filePart('big.bin', bytes(2 * CAP)), CLOSING]), { 'content-type': CT });
+        assert.equal(r.status, 431, JSON.stringify(r));
+        await assertAnswering('04.1', H1, s.mark);
+    });
 
+    it('04.2  under the cap with no content-length is answered 200, whole', async function (t) {
+        if (!ready(t)) { return; }
+        var s = await up('04.2', H1);
+        var size = 512 * 1024;
+        var r = await call(H1, 'POST', 'p/upstage', Buffer.concat([filePart('under.bin', bytes(size)), CLOSING]), { 'content-type': CT }, { chunked: true });
+        assert.equal(r.status, 200, JSON.stringify(r));
+        assert.deepEqual(r.json.files, [{ name: 'under.bin', size: size, onDisk: size }]);
+        await assertAnswering('04.2', H1, s.mark);
+    });
 
+    it('04.3  a body of exactly the cap is answered 200, with and without a content-length', async function (t) {
+        if (!ready(t)) { return; }
+        var s = await up('04.3', H1);
+        var overhead = Buffer.concat([fileHead('exact.bin'), Buffer.from('\r\n'), CLOSING]).length;
+        var body = Buffer.concat([filePart('exact.bin', bytes(CAP - overhead)), CLOSING]);
+        assert.equal(body.length, CAP, '[instrument] the body is exactly the cap');
+        var withLength = await call(H1, 'POST', 'p/upstage', body, { 'content-type': CT });
+        assert.equal(withLength.status, 200, JSON.stringify(withLength));
+        var chunked = await call(H1, 'POST', 'p/upstage', body, { 'content-type': CT }, { chunked: true });
+        assert.equal(chunked.status, 200, JSON.stringify(chunked));
+        assert.equal(chunked.json.files[0].onDisk, CAP - overhead);
+        await assertAnswering('04.3', H1, s.mark);
+    });
 
+    it('04.4  over the cap with no content-length does not reach the action, and nothing stays', async function (t) {
+        if (!ready(t)) { return; }
+        var s = await up('04.4', H1);
+        var r = await call(H1, 'POST', 'p/upstage', Buffer.concat([filePart('over.bin', bytes(2 * CAP)), CLOSING]), { 'content-type': CT }, { chunked: true });
+        t.diagnostic('04.4 the client read: ' + r.status + ' ' + (r.err || ''));
+        assert.notEqual(r.status, 200, 'the action must not run: ' + JSON.stringify(r));
+        if (r.status !== null) { assert.equal(r.status, 431, JSON.stringify(r)); }
+        await assertAnswering('04.4', H1, s.mark);
+        await assertNothingLeft('04.4', H1, s.before);
+    });
 
+    it('04.5  the same to a url no route matches', async function (t) {
+        if (!ready(t)) { return; }
+        var s = await up('04.5', H1);
+        var r = await call(H1, 'POST', 'no/such/route', Buffer.concat([filePart('over.bin', bytes(3 * CAP)), CLOSING]), { 'content-type': CT }, { chunked: true });
+        t.diagnostic('04.5 the client read: ' + r.status + ' ' + (r.err || ''));
+        assert.notEqual(r.status, 404, 'the body must not have been accepted: ' + JSON.stringify(r));
+        if (r.status !== null) { assert.equal(r.status, 431, JSON.stringify(r)); }
+        await assertAnswering('04.5', H1, s.mark);
+        await assertNothingLeft('04.5', H1, s.before);
+    });
 
+    it('04.6  a part that finished before the cap was reached does not stay either', async function (t) {
+        if (!ready(t)) { return; }
+        var s = await up('04.6', H1);
+        var body = Buffer.concat([filePart('first.bin', bytes(300 * 1024)), filePart('second.bin', bytes(2 * CAP)), CLOSING]);
+        var r = await call(H1, 'POST', 'p/upstage', body, { 'content-type': CT }, { chunked: true, piece: 32768, gapMs: 2 });
+        t.diagnostic('04.6 the client read: ' + r.status + ' ' + (r.err || ''));
+        assert.notEqual(r.status, 200, 'the action must not run: ' + JSON.stringify(r));
+        await assertAnswering('04.6', H1, s.mark);
+        await assertNothingLeft('04.6', H1, s.before);
+    });
 
+    it('04.7  after that answer the connection does not stay open for a body nobody reads', async function (t) {
+        if (!ready(t)) { return; }
+        var s = await up('04.7', H1);
+        var received = '', closed = false;
+        var sock = await new Promise(function (resolve) {
+            var c = net.connect(H1.port, '127.0.0.1', function () { resolve(c); });
+            c.on('error', function () {});
+            c.on('data', function (d) { received += d; });
+            c.on('close', function () { closed = true; });
+        });
+        sock.write('POST ' + H1.webroot + 'p/upstage HTTP/1.1\r\nHost: localhost\r\nContent-Type: ' + CT + '\r\nTransfer-Encoding: chunked\r\n\r\n');
+        for (var i = 0; i < 12 && !closed; ++i) {
+            var piece = (i === 0) ? Buffer.concat([fileHead('over.bin'), bytes(256 * 1024)]) : bytes(256 * 1024);
+            sock.write(piece.length.toString(16) + '\r\n');
+            sock.write(piece);
+            sock.write('\r\n');
+            await sleep(30);
+        }
+        var gone = await settle(function () { return closed; }, function (c) { return c === true; });
+        try { sock.destroy(); } catch (e) { /* ignore */ }
+        t.diagnostic('04.7 the client read: ' + (received.split('\r\n')[0] || '(nothing)'));
+        assert.equal(gone, true, 'the server closes the connection');
+        await assertAnswering('04.7', H1, s.mark);
+        await assertNothingLeft('04.7', H1, s.before);
+    });
 
     // ── 05 HTTP/2 ────────────────────────────────────────────────────────────
 
@@ -765,6 +851,19 @@ describe('container-boot-multipart-abort — a multipart request that does not c
         await assertNothingLeft('05.4', H2, s.before);
     });
 
+    it('05.5  over the cap with no content-length is answered 431, and the session keeps working', async function (t) {
+        if (!ready(t)) { return; }
+        var s = await up('05.5', H2);
+        var session = await h2connect(H2);
+        var r = await h2call(H2, session, 'POST', 'p/upstage', Buffer.concat([filePart('over.bin', bytes(2 * CAP)), CLOSING]), { 'content-type': CT });
+        var again = await h2call(H2, session, 'GET', 'p/ping');
+        try { session.close(); } catch (e) { /* ignore */ }
+        t.diagnostic('05.5 the client read: ' + r.status + ' ' + (r.err || '') + ' rst ' + r.rst);
+        assert.equal(r.status, 431, JSON.stringify(r));
+        assert.equal(again.status, 200, 'the same session still answers: ' + JSON.stringify(again));
+        await assertAnswering('05.5', H2, s.mark);
+        await assertNothingLeft('05.5', H2, s.before);
+    });
 
     it('05.6  a body ending early, the stream cancelled while the parser is still finishing: the bundle keeps answering', async function (t) {
         if (!ready(t)) { return; }

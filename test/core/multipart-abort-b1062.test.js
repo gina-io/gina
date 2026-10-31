@@ -1,5 +1,5 @@
 /**
- * #B1062, #B1061 — stopping the upload of a multipart request that will not reach its action.
+ * #B1062, #B1061, #B1056 — stopping the upload of a multipart request that will not reach its action.
  *
  * The multipart branch of core/server.js gained one shared stop, abortMultipart(), reached from the
  * part stream's 'error' listener, from the parser's 'error' listener, from the request's 'close' and
@@ -106,6 +106,18 @@ describe('01 - #B1062 source pins (comment-stripped)', function () {
         assert.match(body, /if \( busboyDone \|\| request\.readableEnded \) \{\s*return;\s*\}\s*abortMultipart\(\);/);
     });
 
+    it('01.6  the byte counter is gated on the cap, sits ahead of the pipe and answers as the header check does', function () {
+        var a = active.indexOf('if ( maxSize ) {');
+        var c = active.indexOf("request.on('data', guardMultipartListener(function onMultipartChunk(chunk) {");
+        var p = active.indexOf('request.pipe(busboy)');
+        assert.ok(a > -1 && c > a && p > c, 'gated, and registered before the pipe');
+        var message = "throwError(response, 431, 'Attachment exceeded maximum file size [ '+ opt.maxFieldsSize +' ]')";
+        assert.equal(countOf(active, message), 2, 'the header check and the counter answer alike');
+        var body = active.slice(c, p);
+        assert.ok(body.indexOf('abortMultipart();') < body.indexOf(message), 'the upload stops ahead of the answer');
+        assert.ok(body.indexOf('!response.headersSent && !request.handled') < body.indexOf(message), 'the answer is guarded');
+        assert.ok(body.indexOf(message) < body.indexOf('request.destroy()'), 'the request is destroyed after the answer');
+    });
 
     it('01.7  the two lines five suites pin stay as they were', function () {
         assert.match(active, /delete busboy\.on;\s*request\.pipe\(busboy\);/);
@@ -331,4 +343,14 @@ describe("04 - #B1061 premises on a real http server: what 'close' reads", funct
         assert.equal(reading.readableEnded, false, JSON.stringify(reading));
     });
 
+    it("04.3  a listener registered before the pipe sees each chunk first, and an unpipe in it does not recall that chunk", async function () {
+        var order = [];
+        var src = new stream.Readable({ read: function () {} });
+        var sink = new stream.Writable({ write: function (c, e, cb) { order.push('sink'); cb(); } });
+        src.on('data', function () { order.push('listener'); src.unpipe(sink); });
+        src.pipe(sink);
+        src.push(Buffer.from('one'));
+        await sleep(20);
+        assert.deepEqual(order, ['listener', 'sink']);
+    });
 });

@@ -6566,7 +6566,7 @@ function Server(options) {
                      *
                      * Used for the three Busboy listeners (text field, file part, end of body), for
                      * the callbacks nested in a file part (the part's stream included) and for the
-                     * request's 'close' listener. When nothing has answered or taken
+                     * request's 'close' and 'data' listeners. When nothing has answered or taken
                      * the request yet, the catch answers a 500 through `throwError`; otherwise it
                      * logs the stack. It never rethrows. `this`, the arguments and the return value
                      * pass through.
@@ -7108,6 +7108,27 @@ function Server(options) {
                         abortMultipart();
                     }));
 
+                    // #B1056 — the content-length check above reads a header, which a chunked or an
+                    // HTTP/2 request need not send, and the parser has no byte limit of its own. This
+                    // counts what the header would have said, ahead of the parser (the listener is
+                    // registered before the pipe), and answers as the header check does.
+                    if ( maxSize ) {
+                        var multipartBytes = 0;
+                        request.on('data', guardMultipartListener(function onMultipartChunk(chunk) {
+                            multipartBytes += chunk.length;
+                            if ( multipartBytes <= maxSize || multipartAborted ) {
+                                return;
+                            }
+                            abortMultipart();
+                            if ( !response.headersSent && !request.handled ) {
+                                request.handled = true;
+                                throwError(response, 431, 'Attachment exceeded maximum file size [ '+ opt.maxFieldsSize +' ]');
+                            }
+                            // Stop the peer streaming into a request nobody will read (#OW2).
+                            try { request.destroy() } catch (destroyErr) {}
+                        }));
+                    }
+
                     // #B844 (review F3) — the three guarded registrations are made: remove the
                     // override, so that what pipe() registers next goes through busboy's own `on`
                     // (a listener registered through the override is wrapped, and unpipe could no
@@ -7119,7 +7140,7 @@ function Server(options) {
 
                     // #OW2 — bound the non-multipart body accumulation (OWASP A10).
                     // The accumulator below is the ONLY unbounded growth on the request
-                    // path: multipart is capped by busboy + maxFieldsSize, but a plain
+                    // path: multipart is capped by maxFieldsSize (the byte counter above), but a plain
                     // JSON/urlencoded body grew until the process died. Counting the RAW
                     // chunk bytes (not the decoded string length) is what a cap has to
                     // measure — a multi-byte UTF-8 body is larger on the wire than its

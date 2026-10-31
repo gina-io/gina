@@ -1,0 +1,3 @@
+kind: Security
+body: '`upload.maxFieldsSize` now counts the bytes a multipart request sends (#B1056): past the cap the upload stops, the files it staged are removed, the request is answered HTTP 431 and the connection closes, so a client still writing may read the close instead of the answer. A request under the cap is unchanged. Pickup: a bundle restart, no re-bake.'
+time: 2026-10-31T16:19:54+01:00
