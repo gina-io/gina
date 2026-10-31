@@ -1,0 +1,3 @@
+kind: Security
+body: 'A multipart upload whose parse fails now stops at once (#B1062): the request stops feeding the parser, each write stream closes and every file the request staged is removed, the parts that had finished included. The client''s answer is unchanged, HTTP 400. Pickup: a bundle restart, no re-bake.'
+time: 2026-10-31T16:19:07+01:00

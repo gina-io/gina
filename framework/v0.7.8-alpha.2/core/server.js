@@ -6565,7 +6565,8 @@ function Server(options) {
                      * instead of reaching the process (#B843, #B844).
                      *
                      * Used for the three Busboy listeners (text field, file part, end of body) and
-                     * for the callbacks nested in a file part. When nothing has answered or taken
+                     * for the callbacks nested in a file part (the part's stream included). When nothing
+                     * has answered or taken
                      * the request yet, the catch answers a 500 through `throwError`; otherwise it
                      * logs the stack. It never rethrows. `this`, the arguments and the return value
                      * pass through.
@@ -6644,6 +6645,19 @@ function Server(options) {
                     // undefined, which the #B50 gate below resolves to `untagged`.
                     // was: busboy.on('file', function(fieldname, file, filename, encoding, mimetype, group) {
                     busboy.on('file', function(fieldname, file, info) {
+
+                        // #B1062 — the part's stream listens first, ahead of the refusals below: the
+                        // parser destroys it with an error when it fails on this part, and the error
+                        // needs a listener wherever the part goes. The client's answer comes from
+                        // onBusboyError; here the request's upload stops.
+                        file.on('error', guardMultipartListener(function onPartStreamError() {
+                            abortMultipart();
+                        }));
+                        // #B1062 — nothing is staged once the upload has stopped: the parser still
+                        // walks what it was given before the request stopped feeding it.
+                        if ( multipartAborted ) {
+                            return false;
+                        }
 
                         // Keep these as locals — do NOT inline `info.filename` /
                         // `info.dispositionParams.group` at the use sites below. The #B49
@@ -6987,6 +7001,50 @@ function Server(options) {
                         })
                     };
 
+                    var multipartAborted = false;
+                    /**
+                     * Stops the upload of a request that will not reach its action: the request stops
+                     * feeding the parser, each write stream closes and each file the request staged is
+                     * removed. Runs once per request and answers nothing.
+                     *
+                     * The parser is left as it is, not destroyed: destroying it emits an error on its
+                     * own listener and on the active part's stream, for a stop that is not a parse
+                     * failure, and with no more input and no reader it holds no resource. A destroyed
+                     * write stream emits no 'finish', so `pending` never reaches 0 and nothing resumes.
+                     * Each file is removed twice over, ENOENT tolerated: now, for a stream that has
+                     * closed already and emits no further 'close', and at 'close', since a stream still
+                     * opening creates its file after this call. The upload's `autoTmpCleanupTimeout`
+                     * timer finds the file gone and does nothing.
+                     *
+                     * @inner
+                     * @returns {void}
+                     * @example
+                     * request.on('close', function onClose() { abortMultipart(); });
+                     */
+                    var abortMultipart = function abortMultipart() {
+                        if ( multipartAborted ) {
+                            return;
+                        }
+                        multipartAborted = true;
+                        request.unpipe(busboy);
+                        console.debug('[ busboy ] [ onUploadStopped ] removing ' + writeStreams.length + ' staged file(s)');
+
+                        var removeStagedFile = function removeStagedFile(stagedPath) {
+                            fs.unlink(stagedPath, function onStagedFileRemoved(unlinkErr) {
+                                if ( unlinkErr && unlinkErr.code != 'ENOENT' ) {
+                                    console.error('[ busboy ] [ onStagedFileRemoveError ]', unlinkErr);
+                                }
+                            });
+                        };
+                        writeStreams.forEach(function eachWriteStream(writeStream) {
+                            writeStream.once('close', function onWriteStreamClosed() {
+                                removeStagedFile(writeStream.path);
+                            });
+                            writeStream.destroy();
+                            removeStagedFile(writeStream.path);
+                        });
+                    };
+
                     // #B97 — a malformed / empty / non-multipart body sent with a
                     // multipart/form-data content-type makes busboy emit 'error' (never
                     // 'finish'). With no listener this surfaced as an uncaughtException,
@@ -6996,6 +7054,9 @@ function Server(options) {
                     // write stream already failed and responded.
                     busboy.on('error', function onBusboyError(err) {
                         console.error('[ busboy ] [ onParseError ]', (err && err.message) ? err.message : err);
+                        // #B1062 — a failed parse never reaches 'finish', so nothing will resume:
+                        // the upload stops here, ahead of the answer.
+                        abortMultipart();
                         if (!response.headersSent && !request.handled) {
                             request.handled = true;
                             throwError(response, 400, 'Malformed multipart/form-data request', next);
@@ -9255,6 +9316,9 @@ function Server(options) {
                 // object passed to stream.respond).
                 header = completeHeaders(header, _req, res);
                 if ( /http\/2/.test(protocol) && stream) {
+                    // #B1062 — the guard the HTML branch below carries (#H2): a stream can close
+                    // between the moment an upload is parsed and its answer, and respond() throws then.
+                    if (stream.destroyed || stream.closed) { return; }
                     // #B562 — defer the raw send into the shim's base end() when one is installed,
                     // so a session middleware's on-headers cookie and save-on-end proxy both fire
                     // on an error response. The body is the closure's PARAMETER, never the
