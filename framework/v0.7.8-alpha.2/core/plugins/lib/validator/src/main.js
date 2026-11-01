@@ -8057,7 +8057,9 @@ function ValidatorPlugin(rules, data, formId, culture) {
      * Gated to REAL Safari at the registerForLiveChecking call site (#B135):
      * Chromium UAs carry the Safari token but were never this workaround's
      * target — they get native behavior. A `readonly` the page wrote stays the page's: the
-     * call site skips a field that binds with one, and focus lifts only gina's own mark.
+     * call site skips a field that binds with one, and focus lifts only gina's own mark. A field
+     * that already has focus when it binds takes the mark on blur (#B1067), and unbindForm lifts
+     * the mark with the binding (#B1068).
      *
      * @inner
      * @param {object} $el HTMLElement
@@ -8065,7 +8067,10 @@ function ValidatorPlugin(rules, data, formId, culture) {
      */
     var handleAutoComplete = function($el) {
 
-        $el.setAttribute('readonly', autoCompleteReadonlyMark);
+        // #B1067 — a field that already has focus gets no `focusin` to lift the mark: it takes it on blur
+        if ( $el !== document.activeElement ) {
+            $el.setAttribute('readonly', autoCompleteReadonlyMark);
+        }
         // #B585 — the form that owns the field carries the ledger unbindForm drains; resolved
         // tolerantly, so a harness that hands the handler a bare element still runs it
         var $ownerForm = ( $el.form && typeof(instance) != 'undefined' && instance && instance.$forms )
@@ -8439,7 +8444,8 @@ function ValidatorPlugin(rules, data, formId, culture) {
      * Detaches what the form's current binding attached and marks the record unbound. Since
      * #B585 this is the exact inverse of `bindForm`: the per-form ledger (`$form.boundListeners`)
      * and the reassociated-control side-table are drained by reference, the registry keys the
-     * binding wrote are released, the live-check registration flags are cleared, and the submit
+     * binding wrote are released, the live-check registration flags and gina's own `readonly` mark
+     * on a Safari `autocomplete="off"` field are cleared (#B1068), and the submit
      * trigger's marks (`data-gina-form-submit-trigger-for`, the `__ginaSubmitBoundFor` expando)
      * are released with the record's `submitTrigger` claim, so the next bind — on this record,
      * or on a fresh same-id record after `destroy()` — claims and binds the trigger again.
@@ -8555,6 +8561,11 @@ function ValidatorPlugin(rules, data, formId, culture) {
             let ownedId = ( typeof($owned[i].id) == 'string' && $owned[i].id ) ? $owned[i].id : ( $owned[i].getAttribute ? $owned[i].getAttribute('id') : null );
             if ( ownedId && typeof(gina.events['registered.' + ownedId]) != 'undefined' ) {
                 delete gina.events['registered.' + ownedId];
+            }
+            // #B1068 — gina's own `readonly` (autoCompleteReadonlyMark) goes with the binding: no
+            // `focusin` listener is left to lift it. A `readonly` the page wrote stays.
+            if ( $owned[i].getAttribute && $owned[i].getAttribute('readonly') == 'gina' ) {
+                $owned[i].removeAttribute('readonly');
             }
         }
 

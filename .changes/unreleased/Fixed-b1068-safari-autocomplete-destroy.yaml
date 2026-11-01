@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'On Safari, a live-checked `<input>` with `autocomplete="off"` (or `"false"`) can still be typed into after `.destroy()` or `.unbind()` (#B1068). gina''s own `readonly` stayed on the field with no listener left to lift it, so it took no keys while the form stayed on the page. Unbinding now removes that `readonly`; one you wrote stays, and binding the form again puts gina''s back. Browser-bundled: restart the bundle and re-bake it (`gina bundle:build`).'
+time: 2026-11-01T01:35:33+01:00

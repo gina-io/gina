@@ -8,6 +8,8 @@
  * and `number`, which have no Selection API, typed backwards and posted that way (`123` sent
  * `321`), Tab trapped or skipped, Enter did nothing, `maxlength` was ignored, an authored
  * `readonly` was lifted, no `input` event fired, and a `query` rule sent one request per key.
+ * By-catches of the same state: a field that already had focus when it bound took no keys (#B1067),
+ * and `destroy()` or `unbind()` left a field that could never take any (#B1068).
  *
  * webkit-project-ONLY, but for the last describe: the workaround is gated to REAL Safari UAs
  * (#B135), so on the other engines every arm would pass vacuously. Runs in the on-demand
@@ -274,6 +276,57 @@ test.describe('#B1055, #B1063, #B1064 — readonly until focus, native keys (web
         expect(await value(page, 'c1')).toBe('xy');
         await clickOn(page, 'd');
         expect(await mark(page, 'c1')).toBe('gina');
+    });
+
+    for (const [label, attr] of [['autocomplete="off"', ' autocomplete="off"'], ['plain, the control', '']]) {
+        test('12b - #B1067: a field with autofocus types at once: ' + label, async ({ page }) => {
+            await open(page, '<input id="a" type="text" name="ref" autofocus' + attr + '>' + NEXT);
+            expect(await active(page), 'control: it has focus at bind').toBe('a');
+            await page.keyboard.type('abc', { delay: 60 });
+            await page.waitForTimeout(120);
+            expect(await value(page, 'a')).toBe('abc');
+            await clickOn(page, 'd');
+            expect(await mark(page, 'a')).toBe(attr ? 'gina' : null);
+        });
+    }
+
+    test('12c - #B1067: a re-bind while the field has focus does not stop the typing', async ({ page }) => {
+        await open(page, OFF + NEXT);
+        await typeIn(page, 'a', 'a');
+        await page.evaluate(() => window.gina.validator.$forms.acform.reBind());
+        await page.waitForTimeout(200);
+        await page.keyboard.type('b', { delay: 60 });
+        await page.waitForTimeout(120);
+        expect(await value(page, 'a')).toBe('ab');
+        await clickOn(page, 'd');
+        expect(await mark(page, 'a')).toBe('gina');
+        await typeIn(page, 'a', 'c');
+        expect(await value(page, 'a')).toBe('abc');
+    });
+
+    for (const verb of ['destroy', 'unbind']) {
+        test('12d - #B1068: after ' + verb + '() the field types', async ({ page }) => {
+            await open(page, OFF + NEXT);
+            expect(await mark(page, 'a'), 'control: the mark was there').toBe('gina');
+            await page.evaluate((v) => window.gina.validator.$forms.acform[v](), verb);
+            await page.waitForTimeout(200);
+            expect(await mark(page, 'a')).toBeNull();
+            await typeIn(page, 'a', 'abc');
+            expect(await value(page, 'a')).toBe('abc');
+        });
+    }
+
+    test('12e - #B1068: destroy() then a new bind gives the mark back; a lock the page set survives destroy()', async ({ page }) => {
+        await open(page, OFF + PLAIN.replace('id="a"', 'id="k"').replace('name="ref"', 'name="k" autocomplete="off"') + NEXT);
+        await page.evaluate(() => { document.getElementById('k').readOnly = true; window.gina.validator.$forms.acform.destroy(); });
+        await page.waitForTimeout(200);
+        expect(await mark(page, 'k'), 'the page\'s lock').toBe('');
+        await page.evaluate(() => window.gina.validator.validateFormById('acform', 'acform'));
+        await page.waitForTimeout(300);
+        expect(await mark(page, 'a'), 'bound again').toBe('gina');
+        expect(await mark(page, 'k'), 'the page\'s lock, bound again').toBe('');
+        await typeIn(page, 'a', 'abc');
+        expect(await value(page, 'a')).toBe('abc');
     });
 
     test('13 - two re-binds at rest: one key, one character, and the mark comes back', async ({ page }) => {

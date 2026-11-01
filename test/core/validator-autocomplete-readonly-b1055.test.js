@@ -13,6 +13,10 @@
  * gina writes `readonly="gina"`: that value tells its own mark from a `readonly` the page wrote,
  * and a clone of a bound field carries it, so the clone still binds.
  *
+ * By-catches of the same state: a field that already had focus when it bound stayed `readonly`
+ * with no `focusin` to lift it (#B1067), and `destroy()` or `unbind()` left the mark on a field no
+ * listener could lift it from any more (#B1068).
+ *
  * Layers: source pins on the live shapes; the REAL handler and gate bytes, brace-walked out of
  * main.js and run against a fake element; dist pins on the built bundle. Each negative pin was
  * read firing on develop's bytes before the fix. The browser behaviour is pinned in
@@ -120,16 +124,17 @@ function makeEl(attrs) {
  * Runs the real handler bytes on an element and returns what a test drives.
  *
  * @param {object} el - the element from makeEl
+ * @param {boolean} [focused] - whether the field already has focus when it binds
  * @returns {{fire: function(string): void, listeners: string[], triggered: string[]}} the driver
  */
-function bind(el) {
+function bind(el, focused) {
     var listeners = {}, triggered = [];
     var addListener = function (target, $e, evt, fn) { listeners[evt] = fn; return fn; };
     var triggerEvent = function (target, $e, evt) { triggered.push(evt); };
     var handler = new Function(
-        'gina', 'addListener', 'triggerEvent', 'autoCompleteReadonlyMark',
+        'gina', 'addListener', 'triggerEvent', 'autoCompleteReadonlyMark', 'document',
         'return ( ' + fnText('handleAutoComplete') + ' );'
-    )({}, addListener, triggerEvent, MARK);
+    )({}, addListener, triggerEvent, MARK, { activeElement: focused ? el : null });
     handler(el);
     return {
         fire: function (evt) { listeners[evt]({ preventDefault: function () {}, currentTarget: el }); },
@@ -234,6 +239,44 @@ describe('#B1055 §02 — the real handler bytes, on a fake element', function (
         d.fire('focusout.f');
         assert.equal(el.getAttribute('readonly'), 'gina');
     });
+
+    it('02.6 - #B1067: a field that already has focus at bind stays editable, and takes the mark on blur', function () {
+        var el = makeEl();
+        var d = bind(el, true);
+        assert.equal(el.hasAttribute('readonly'), false);
+        d.fire('focusout.f');
+        assert.equal(el.getAttribute('readonly'), 'gina');
+    });
+});
+
+describe('#B1068 — unbindForm, the real bytes', function () {
+
+    /**
+     * Runs the real unbindForm bytes on a form holding one owned control.
+     *
+     * @param {object} el - the owned control, from makeEl
+     * @returns {object} the control, after the unbind
+     */
+    function unbind(el) {
+        var formEl = { id: 'u', elements: [el], removeEventListener: function () {}, getAttribute: function () { return 'u'; } };
+        var $form = { binded: true, target: formEl, boundListeners: [], reassociatedListeners: [] };
+        new Function('instance', 'gina', 'return ( ' + fnText('unbindForm') + ' );')({ $forms: { u: $form } }, { events: {} })($form);
+        return el;
+    }
+
+    it('03b.1 - the literal it compares is the mark', function () {
+        assert.ok(stripComments(fnText('unbindForm')).indexOf("getAttribute('readonly') == '" + MARK + "'") > -1);
+    });
+
+    it('03b.2 - gina\'s mark goes with the binding', function () {
+        assert.equal(unbind(makeEl({ readonly: 'gina' })).hasAttribute('readonly'), false);
+    });
+
+    ['', 'readonly'].forEach(function (value) {
+        it('03b.3 - a readonly="' + value + '" the page wrote stays', function () {
+            assert.equal(unbind(makeEl({ readonly: value })).getAttribute('readonly'), value);
+        });
+    });
 });
 
 describe('#B1055 §03 — the gate\'s real bytes', function () {
@@ -271,7 +314,7 @@ describe('#B1055 §04 — dist fidelity', function () {
 
     it('04.2 - gina.min.js writes the mark twice and reads it at the gate and at focus', function () {
         assert.equal(count(distMin, "setAttribute('readonly','gina')"), 2);
-        assert.equal((distMin.match(/getAttribute\('readonly'\)[!=]='gina'/g) || []).length, 2);
+        assert.equal((distMin.match(/getAttribute\('readonly'\)[!=]='gina'/g) || []).length, 3);
         assert.equal(count(distMin, "hasAttribute('readonly')"), 2);
     });
 
