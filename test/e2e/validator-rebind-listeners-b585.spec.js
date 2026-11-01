@@ -284,7 +284,7 @@ test.describe('#B585 — reBind() does not stack listeners; destroy() detaches t
     });
 
     test('05 - (webkit only) one keystroke inserts one character after two reBind()', async ({ page, browserName }) => {
-        test.skip(browserName !== 'webkit', 'the autocomplete interception is gated to REAL Safari UAs (#B135); only the webkit project carries one');
+        test.skip(browserName !== 'webkit', 'the autocomplete workaround is gated to REAL Safari UAs (#B135); only the webkit project carries one');
         await bootAutocomplete(page);
         await reBindTwice(page);
 

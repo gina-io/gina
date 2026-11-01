@@ -232,7 +232,7 @@ const UPLOAD_FORMS_JSON = JSON.stringify({ rules: { uploadform: { title: { isReq
 // a LIVE-CHECKED field is the reported scene (the live check is part of the
 // main-thread work occupying the window between keystrokes), and
 // autocomplete="off" in the fixture markup is what routes the field through
-// handleAutoComplete's keydown interception on a REAL-Safari UA.
+// handleAutoComplete (`readonly` until focus, #B1055) on a REAL-Safari UA.
 const AC_FORMS_JSON = JSON.stringify({ rules: { acform: { ref: { isRequired: true } } } });
 
 // #B478 - a non-empty forms whisper for the autofill-signal fixture. Same reason as
