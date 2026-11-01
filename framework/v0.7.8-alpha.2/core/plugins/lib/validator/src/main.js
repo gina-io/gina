@@ -8034,138 +8034,38 @@ function ValidatorPlugin(rules, data, formId, culture) {
 
 
 
-    var setSelectionRange = function($el, selectionStart, selectionEnd) {
-        if ($el.setSelectionRange) {
-            $el.focus();
-            $el.setSelectionRange(selectionStart, selectionEnd);
-        }
-        else if ($el.createTextRange) {
-            var range = $el.createTextRange();
-            range.collapse(true);
-            range.moveEnd  ('character', selectionEnd  );
-            range.moveStart('character', selectionStart);
-            range.select();
-        }
-    }
     /**
-     * setCaretToPos
-     * If called after change of `readonly`, use `$el.blur()` before the call
+     * autoCompleteReadonlyMark
+     * The value handleAutoComplete writes into a field's `readonly` attribute. It tells gina's
+     * own mark from a `readonly` the page wrote (`""` or `readonly`, in its markup or from a
+     * script), and a clone of a bound field carries it, which an expando would not.
      *
-     * @param {object} $el - HTMLElement
-     * @param {number} pos
+     * @constant
+     * @inner
+     * @type {string}
      */
-    var setCaretToPos = function ($el, pos) {
-        setSelectionRange($el, pos, pos);
-    }
-    /**
-     * commitCaret
-     * #B389 — commits the caret SYNCHRONOUSLY after a programmatic value
-     * rebuild and records the position on the element. Assigning `.value`
-     * collapses the selection to the END of the field (measured on WebKit
-     * and Chromium), and the deferred restore of the transient-readonly
-     * dance only runs two macrotasks later — so without a synchronous
-     * commit, any keystroke arriving inside that window reads a stale
-     * `selectionStart` and inserts at the wrong offset (scrambled fast
-     * input). The recorded position (`_ginaAcCaret`) is what the keydown
-     * interception trusts while a deferred restore is still in flight.
-     *
-     * @param {object} $el - HTMLElement
-     * @param {number} pos - caret position to commit
-     */
-    var commitCaret = function ($el, pos) {
-        setCaretToPos($el, pos);
-        $el._ginaAcCaret = pos;
-    }
-    /**
-     * queueCaretRestore
-     * #B389 — re-applies the transient readonly (the Safari autofill/
-     * autosuggest suppression — mechanism kept identical to the original
-     * dance) and queues the deferred caret restore. The restore re-asserts
-     * the LATEST committed caret (`_ginaAcCaret`) rather than the position
-     * captured at its own keystroke: a later keystroke may have advanced
-     * the caret while this restore sat in the queue, and re-applying a
-     * stale capture is what scrambled fast typing. `_ginaAcPending` counts
-     * restores in flight so the keydown interception knows when the
-     * element's own selection can be trusted again; the tracker is handed
-     * back (nulled) once the last pending restore has fired.
-     *
-     * @param {object} $el - HTMLElement
-     */
-    var queueCaretRestore = function ($el) {
-        $el._ginaAcPending = ($el._ginaAcPending || 0) + 1;
-        $el.setAttribute('readonly', 'readonly');
-        setTimeout(() => {
-            $el.removeAttribute('readonly');
-            setTimeout(() => {
-                // Guard on typeof — never truthiness: 0 is a valid caret
-                // position, and the cleared tracker is null.
-                if ( typeof($el._ginaAcCaret) == 'number' ) {
-                    setCaretToPos($el, $el._ginaAcCaret);
-                }
-                $el._ginaAcPending--;
-                if ( $el._ginaAcPending <= 0 ) {
-                    $el._ginaAcPending = 0;
-                    $el._ginaAcCaret = null;
-                }
-            }, 0);
-        }, 0);
-    }
+    var autoCompleteReadonlyMark = 'gina';
 
-    var isElementVisible = function($el) {
-        return ($el.offsetWidth > 0 || $el.offsetHeight > 0 || $el === document.activeElement) ? true : false;
-    }
-
-    var focusNextElement = function($el, isGoingBackward) {
-        // Add all elements we want to include in our selection
-        // Checkboxes and radios are just ignored: like for the default behavior
-        var focussableElements = 'a:not([disabled]), button:not([disabled]), input[type=text]:not([disabled]), select:not([disabled]), [tabindex]:not([disabled]):not([tabindex="-1"])';
-        if (document.activeElement && document.activeElement.form) {
-            var focussable = Array.prototype.filter.call(document.activeElement.form.querySelectorAll(focussableElements),
-            function (element) {
-                //Check for visibility while always include the current activeElement
-                return element.offsetWidth > 0 || element.offsetHeight > 0 || element === document.activeElement
-            });
-            var index = focussable.indexOf(document.activeElement);
-            if(index > -1) {
-                var direcion = focussable[index + 1]; // By default, going forward
-                if (isGoingBackward) {
-                    direcion = focussable[index - 1]
-                }
-                var nextElement = direcion || focussable[0];
-                nextElement.focus();
-            }
-        }
-    }
     /**
      * handleAutoComplete
-     * This is a temporary fix to handle safari autocomplete/autosuggest
-     * Will be removed when Safari honores autocomplete="off"
-     *
-     * Intercepts keydown on the field (preventDefault + a programmatic value
-     * rebuild behind a transient readonly) so the browser never sees typing
-     * and offers no autofill/autosuggest. Modifier chords (metaKey/ctrlKey)
-     * are deliberately NOT intercepted (#B134): they return before
-     * preventDefault so the native select-all/copy/paste/cut/undo defaults
-     * run — the rebuild cannot reproduce them.
+     * Keeps a field with `autocomplete="off"` out of Safari's AutoFill, which ignores
+     * the attribute but skips a readonly control when it fills a form: the field stays
+     * `readonly` except while it has focus. Every key stays native (#B1055, #B1063,
+     * #B1064: a keydown rebuild here reversed text on `email` and `number`, trapped Tab,
+     * dropped Enter, `maxlength` and the `input` event, and did not stop Safari's list).
      *
      * Gated to REAL Safari at the registerForLiveChecking call site (#B135):
      * Chromium UAs carry the Safari token but were never this workaround's
-     * target — they get native behavior.
+     * target — they get native behavior. A `readonly` the page wrote stays the page's: the
+     * call site skips a field that binds with one, and focus lifts only gina's own mark.
      *
-     * Caret integrity (#B389): every value rebuild commits the caret
-     * SYNCHRONOUSLY (commitCaret) and records it on the element; the
-     * deferred restore of the readonly dance (queueCaretRestore) re-asserts
-     * the LATEST committed position, and while a restore is in flight the
-     * keydown handler trusts the recorded caret over the element's own
-     * selection — a `.value` assignment parks the selection at the end of
-     * the field, so a fast next keystroke would otherwise read a stale
-     * position and compose scrambled text.
+     * @inner
      * @param {object} $el HTMLElement
-     * @param {number} [liveCheckTimer] - live-check debounce handle, cleared per intercepted keystroke
+     * @returns {void}
      */
-    var handleAutoComplete = function($el, liveCheckTimer) {
+    var handleAutoComplete = function($el) {
 
-        $el.setAttribute('readonly', 'readonly');
+        $el.setAttribute('readonly', autoCompleteReadonlyMark);
         // #B585 — the form that owns the field carries the ledger unbindForm drains; resolved
         // tolerantly, so a harness that hands the handler a bare element still runs it
         var $ownerForm = ( $el.form && typeof(instance) != 'undefined' && instance && instance.$forms )
@@ -8176,256 +8076,21 @@ function ValidatorPlugin(rules, data, formId, culture) {
         ledger.push({ el: $el, evt: 'focusout.'+ $el.id, fn:
         addListener(gina, $el, 'focusout.'+ $el.id, function(event) {
             event.preventDefault();
-            clearTimeout(liveCheckTimer);
 
             var $_el = event.currentTarget;
             triggerEvent(gina, $_el, 'change.'+ $_el.id);
-            $_el.setAttribute('readonly', 'readonly');
+            // a `readonly` the page set while the field had focus stays as the page wrote it
+            if ( !$_el.hasAttribute('readonly') ) {
+                $_el.setAttribute('readonly', autoCompleteReadonlyMark);
+            }
         }) });
         ledger.push({ el: $el, evt: 'focusin.'+ $el.id, fn:
         addListener(gina, $el, 'focusin.'+ $el.id, function(event) {
             event.preventDefault();
-            event.currentTarget.removeAttribute('readonly');
-
-            var evtName = 'keydown.'+ event.currentTarget.id;
-            // add once — judged by what is ATTACHED (the ledger) when the owner form is known:
-            // unbind detaches the handler, and a consumer belt restoring the registry key must
-            // not leave the field without its interception (#B585)
-            var isKeydownBound = false;
-            for (let _b = 0, _bLen = ledger.length; _b < _bLen; _b++) {
-                if ( ledger[_b].el === event.currentTarget && ledger[_b].evt === evtName ) { isKeydownBound = true; break; }
+            if ( event.currentTarget.getAttribute('readonly') == autoCompleteReadonlyMark ) {
+                event.currentTarget.removeAttribute('readonly');
             }
-            if ( ( $ownerForm ) ? !isKeydownBound : typeof(gina.events[evtName]) == 'undefined' ) {
-                ledger.push({ el: event.currentTarget, evt: evtName, fn:
-                addListener(gina, event.currentTarget, evtName, function(e) {
-                    // #B134 — modifier chords are NOT intercepted: return before
-                    // preventDefault so the native select-all/copy/paste/cut/undo
-                    // defaults run. The rebuild below cannot reproduce them — the
-                    // printable branch typed the chord letter into the field
-                    // (Cmd+A appended "a") and execCommand("paste") is inert in
-                    // unprivileged web content. The field is not readonly here
-                    // (focusin removed it), so the native edit lands and the
-                    // live-check picks it up on the keyup that follows.
-                    if ( e.metaKey || e.ctrlKey ) {
-                        return;
-                    }
-                    e.preventDefault();
-                    clearTimeout(liveCheckTimer);
-
-                    var $_el = e.currentTarget;
-                    var str = e.currentTarget.value;
-                    var posStart = $_el.selectionStart, posEnd = $_el.selectionEnd;
-                    // #B389 — while a deferred caret restore is in flight, the
-                    // element's own selection is NOT trustworthy: the last
-                    // rebuild parked the caret at the end of the field and the
-                    // restore only runs two macrotasks later. Trust the
-                    // committed caret instead, so consecutive fast keystrokes
-                    // compose the same string a native field would.
-                    if ( ($_el._ginaAcPending || 0) > 0 && typeof($_el._ginaAcCaret) == 'number' ) {
-                        posStart = posEnd = $_el._ginaAcCaret;
-                    }
-                    $_el.removeAttribute('readonly');
-                    //console.debug('pressed: '+ e.key+'('+ e.keyCode+')', ' S:'+posStart, ' E:'+posEnd, ' MAP: '+ JSON.stringify(keyboardMapping));
-                    switch (e.keyCode) {
-                        case 46: //Delete
-                            if (posStart != posEnd) {
-                                $_el.value = str.substring(0, posStart) + str.substring(posEnd);
-                                // #B391 — the posStart == 0 override below ate one
-                                // char MORE than the selection (native Delete
-                                // removes the selection only): "XY" with [0,1)
-                                // selected must give "Y", not "". The generic
-                                // rebuild above is already correct at position 0.
-                                // if (posStart == 0) {
-                                //     $_el.value = str.substring(posEnd+1);
-                                // }
-                            } else if (posStart == 0) {
-                                $_el.value = str.substring(posStart+1);
-                            } else {
-                                $_el.value = str.substring(0, posStart) + str.substring(posEnd+1);
-                            }
-
-                            // #B389 — synchronous caret commit + guarded deferred
-                            // restore (the retired tail below re-applied a stale
-                            // per-keystroke capture two macrotasks later; its
-                            // if/else chain always resolved to posStart anyway).
-                            // e.currentTarget.setAttribute('readonly', 'readonly');
-                            // setTimeout(() => {
-                            //     $_el.removeAttribute('readonly');
-                            //     setTimeout(() => {
-                            //         if (posStart != posEnd) {
-                            //             setCaretToPos($_el, posStart);
-                            //         } else if (posStart == 0) {
-                            //             setCaretToPos($_el, posStart);
-                            //         } else {
-                            //             setCaretToPos($_el, posStart);
-                            //         }
-                            //     }, 0)
-                            //
-                            // }, 0);
-                            commitCaret($_el, posStart);
-                            queueCaretRestore($_el);
-                            break
-                        case 8: //Backspace
-                            if (posStart != posEnd) {
-                                $_el.value = str.substring(0, posStart) + str.substring(posEnd);
-                                if (posStart == 0) {
-                                    $_el.value = str.substring(posEnd);
-                                }
-                            } else if (posStart == 0) {
-                                // #B390 — native Backspace at position 0 is a
-                                // NO-OP: nothing sits before the caret. The
-                                // retired rebuild below deleted the FIRST
-                                // character instead. No value change, no caret
-                                // move, no restore to queue.
-                                // $_el.value = str.substring(posStart+1);
-                                break;
-                            } else {
-                                $_el.value = str.substring(0, posStart-1) + str.substring(posEnd);
-                            }
-
-                            // #B389 — synchronous caret commit + guarded deferred
-                            // restore (the retired tail below re-applied a stale
-                            // per-keystroke capture two macrotasks later).
-                            // e.currentTarget.setAttribute('readonly', 'readonly');
-                            // setTimeout(() => {
-                            //     $_el.removeAttribute('readonly');
-                            //     setTimeout(() => {
-                            //         if (posStart != posEnd) {
-                            //             setCaretToPos($_el, posStart);
-                            //         } else if (posStart == 0) {
-                            //             setCaretToPos($_el, posStart);
-                            //         } else {
-                            //             setCaretToPos($_el, posStart-1);
-                            //         }
-                            //     }, 0)
-                            //
-                            // }, 0);
-                            commitCaret($_el, (posStart != posEnd) ? posStart : posStart-1);
-                            queueCaretRestore($_el);
-                            break;
-                        case 9: // Tab
-                            if (keyboardMapping[16] && keyboardMapping[9]) {
-                                focusNextElement($_el, true);
-                            } else {
-                                focusNextElement($_el);
-                            }
-                            break;
-                        case 13: // Enter
-                        case 16: // Shift
-                            break;
-                        case 37: // ArrowLeft
-                            console.debug('moving left ', posStart-1);
-                            // #B392 — setCaretToPos(-1) at position 0 coerces to
-                            // the unsigned maximum and clamps to the END of the
-                            // field (measured on WebKit and Chromium): floor at
-                            // 0. #B389 — commit through the tracker so a pending
-                            // deferred restore cannot undo the arrow move.
-                            // setCaretToPos($_el, posStart-1);
-                            commitCaret($_el, (posStart > 0) ? posStart-1 : 0);
-                            break;
-                        case 39: // ArrowRight
-                            if (posStart+1 < str.length+1) {
-                                // #B389 — through the tracker (see ArrowLeft).
-                                // setCaretToPos($_el, posStart+1);
-                                commitCaret($_el, posStart+1);
-                            }
-                            break;
-                        // Shortcuts
-                        // #B134 — the modifier-chord cases below are unreachable
-                        // since the e.metaKey/e.ctrlKey bail at the top of this
-                        // handler: chords now run natively, and the native
-                        // copy/cut/paste/select-all/undo defaults are correct
-                        // where these re-implementations were not (the paste
-                        // re-implementation was inert in unprivileged web
-                        // content, and undo-to-defaultValue wiped user input).
-                        // Kept commented for the record.
-                        // case 17: // CTRL
-                        // case 91: // CMD
-                        //     console.debug("CMD, CTRL hit");
-                        //     e.preventDefault();
-                        //     break;
-                        // case 67: // to handle CMD+C (copy)
-                        //     if (
-                        //         keyboardMapping[67] && keyboardMapping[91] // mac osx
-                        //         ||
-                        //         keyboardMapping[67] && keyboardMapping[17] // windows
-                        //     ) {
-                        //         $_el.setSelectionRange(posStart, posEnd);
-                        //         document.execCommand("copy");
-                        //         break;
-                        //     }
-                        // case 86: // to handle CMD+V (paste)
-                        //     if (
-                        //         keyboardMapping[86] && keyboardMapping[91] // mac osx
-                        //         ||
-                        //         keyboardMapping[86] && keyboardMapping[17] // windows
-                        //     ) {
-                        //         if (posStart != posEnd) {
-                        //             $_el.value = $_el.value.replace(str.substring(posStart, posEnd), '');
-                        //         }
-                        //         setCaretToPos($_el, posStart);
-                        //         document.execCommand("paste");
-                        //         break;
-                        //     }
-                        // case 88: // to handle CMD+X (cut)
-                        //     if (
-                        //         keyboardMapping[88] && keyboardMapping[91] // mac osx
-                        //         ||
-                        //         keyboardMapping[88] && keyboardMapping[17] // windows
-                        //     ) {
-                        //         $_el.setSelectionRange(posStart, posEnd);
-                        //         document.execCommand("cut");
-                        //         break;
-                        //     }
-                        // case 90: // to handle CMD+Z (undo)
-                        //     if (
-                        //         keyboardMapping[90] && keyboardMapping[91] // mac osx
-                        //         ||
-                        //         keyboardMapping[90] && keyboardMapping[17] // windows
-                        //     ) {
-                        //         $_el.value = $_el.defaultValue;
-                        //         break;
-                        //     }
-                        default:
-                            // Replace selection
-                            if (e.key.length > 1) {
-                                break;
-                            }
-                            if (posStart != posEnd) {
-                                $_el.value = str.substring(0, posStart) + e.key;
-                                if (posEnd-1 < str.length) {
-                                    $_el.value += str.substring(posEnd)
-                                }
-                            } else if (posStart == 0) {
-                                $_el.value = e.key + str.substring(posStart);
-                            } else {
-                                $_el.value = str.substring(0, posStart) + e.key + str.substring(posEnd);
-                            }
-                            // #B389 — synchronous caret commit + guarded deferred
-                            // restore. The retired tail below only restored the
-                            // caret two macrotasks after the `.value` assignment
-                            // (which parks it at the end of the field), so a fast
-                            // second keystroke read a stale selectionStart and
-                            // inserted at the wrong offset — text landed at the
-                            // end instead of the caret (gh issue #63).
-                            // e.currentTarget.setAttribute('readonly', 'readonly');
-                            // // Force restore last caret position
-                            // setTimeout(() => {
-                            //     $_el.removeAttribute('readonly');
-                            //     setTimeout(() => {
-                            //         setCaretToPos($_el, posStart+1);
-                            //     }, 0);
-                            //
-                            // }, 0);
-                            commitCaret($_el, posStart+1);
-                            queueCaretRestore($_el);
-                            break;
-                    } //EO Switch
-                }) });
-            }
-
         }) });
-
     }
 
     var registerForLiveChecking = function($form, $el) {
@@ -8470,14 +8135,17 @@ function ValidatorPlugin(rules, data, formId, culture) {
                     // handleAutoComplete header). WebKit-on-iOS third-party
                     // browsers (CriOS/FxiOS/EdgiOS — no "Chrome"/"Chromium"
                     // token) stay matched on purpose: they run Safari's engine.
+                    // A `readonly` the page wrote stays (#B1064); gina's own mark comes back on
+                    // a re-bind, and in a clone of a bound field.
                     var isAutoCompleteField = $el.getAttribute('autocomplete');
                     if (
                         /safari/i.test(navigator.userAgent)
                         && !/chrom(e|ium)/i.test(navigator.userAgent)
                         && isAutoCompleteField
                         && /^(off|false)/i.test(isAutoCompleteField)
+                        && ( !$el.hasAttribute('readonly') || $el.getAttribute('readonly') == autoCompleteReadonlyMark )
                     ) {
-                        handleAutoComplete($el, liveCheckTimer)
+                        handleAutoComplete($el)
                     }
                 }
                 break;

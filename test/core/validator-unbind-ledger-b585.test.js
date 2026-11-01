@@ -198,17 +198,17 @@ describe('#B585 §02 — addLiveForInput and handleAutoComplete ledger their att
         assert.equal(stripComments(SRC).indexOf('addEventListener(gina,'), -1);
     });
 
-    it('02.3 - handleAutoComplete resolves the owner form tolerantly and ledgers its three handlers', function () {
-        var fn = stripComments(extractFunctionExpression(SRC, 'var handleAutoComplete = function($el, liveCheckTimer) {'));
+    it('02.3 - handleAutoComplete resolves the owner form tolerantly and ledgers its two handlers', function () {
+        var fn = stripComments(extractFunctionExpression(SRC, 'var handleAutoComplete = function($el) {'));
         assert.ok(fn.indexOf("typeof(instance) != 'undefined'") > -1, 'a harness without `instance` must still run the handler');
         assert.equal(countRe(fn, pushed('ledger', '\\$el', "'focusout\\.'\\+ \\$el\\.id", "addListener\\(gina, \\$el, 'focusout\\.'\\+ \\$el\\.id, function\\(event\\) \\{")), 1);
         assert.equal(countRe(fn, pushed('ledger', '\\$el', "'focusin\\.'\\+ \\$el\\.id", "addListener\\(gina, \\$el, 'focusin\\.'\\+ \\$el\\.id, function\\(event\\) \\{")), 1);
-        assert.equal(countRe(fn, pushed('ledger', 'event\\.currentTarget', 'evtName', 'addListener\\(gina, event\\.currentTarget, evtName, function\\(e\\) \\{')), 1);
     });
 
-    it('02.4 - the lazy keydown add-once guard asks the ledger when the owner form is known, the registry key only as the fallback', function () {
-        var fn = stripComments(extractFunctionExpression(SRC, 'var handleAutoComplete = function($el, liveCheckTimer) {'));
-        assert.ok(fn.indexOf("if ( ( $ownerForm ) ? !isKeydownBound : typeof(gina.events[evtName]) == 'undefined' ) {") > -1);
+    it('02.4 - handleAutoComplete adds no keydown handler (#B1055 removed it, and its add-once guard)', function () {
+        var fn = stripComments(extractFunctionExpression(SRC, 'var handleAutoComplete = function($el) {'));
+        assert.equal(fn.indexOf('keydown'), -1);
+        assert.equal(fn.indexOf('isKeydownBound'), -1);
     });
 });
 

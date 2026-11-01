@@ -68,14 +68,6 @@ test.describe('#B444 — native chords on the autocomplete-intercepted field (we
         const ctrl = await page.evaluate(() => document.getElementById('clip-control').value);
         expect(ctrl, 'clipboard instrument must fire on the un-bound control before any arm counts').toBe('PASTED');
         await page.fill('#clip-control', '');
-
-        // the interception must be live on the shimmed field (real focus registers it)
-        await page.click('#ref-input');
-        await page.waitForFunction(() => {
-            const el = document.getElementById('ref-input');
-            const ev = new KeyboardEvent('keydown', { key: 'Shift', keyCode: 16, bubbles: true, cancelable: true });
-            return el.dispatchEvent(ev) === false;   // false = intercepted
-        });
     });
 
     test('01 - paste lands with no prior typing', async ({ page }) => {
