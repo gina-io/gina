@@ -69,47 +69,53 @@ open http://localhost:3100
 
 > **npm 12+** blocks install scripts by default, and gina's post-install bootstraps `~/.gina` and the framework dependencies. Install with `npm install -g gina@latest --allow-scripts=gina`, or allow it once for all global installs with `npm config set allow-scripts=gina --location=user`. (Not needed on npm ≤ 11.)
 
-## What's in 0.7.7
+## What's in 0.7.8
 
-> **Restart your bundles *and* rebuild them.** The popin is browser-bundled, so
+> **Restart your bundles *and* rebuild them.** Form validation, file staging,
+> the Safari `autocomplete="off"` fields, the routing fetch, the download name
+> parser, `merge()`, `JSON.clone` and `Collection` ship in the browser bundle, so
 > `gina.min.js` changed and `gina bundle:restart` alone leaves the old client
 > running: rebuild each consuming bundle, then restart it. If your build copies
-> `gina.min.js` into your own static files, rebuild that copy before the restart.
+> `gina.min.js` into your own static files, rebuild that copy before the
+> restart.
 
-> **Read before upgrading — some changes can change an answer.** A
-> `self.query()` answer with a 4xx or 5xx status that gina's status map knows,
-> and a body that carries no gina `status` (an empty body, text, JSON without
-> `status`, the HTML page a proxy answers with itself), now reaches the caller as
-> an error carrying that status, over HTTP/1.1 and HTTP/2, and a `forward` route
-> answers it with that status where it relayed a 200. An HTTP/2 `self.query()`
-> body cut short is sent again for a safe method (or with `retryUnsafe`) and
-> otherwise fails `PREMATURE_CLOSE` (503). `self.renderJSON()` adds its Inspector
-> sidecars in development only, so during a production instrumentation window a
-> caller's Inspector no longer shows the queries and timeline of a bundle it
-> calls. Swig 2.9.11 changes what some templates render: a filter in a `set`,
-> `if`, `elseif`, `for`, `include` or `filter` tag argument applies to its own
-> operand, a filter after a literal in an output that holds an operator applies to
-> the literal, and an output whose last filter returns undefined or null renders
-> an empty string. ws 8.22.0 lowers the default fragment limits of the WebSocket
-> servers gina runs. The [migration notes](https://gina.io/docs/migration) list
-> every behaviour change.
+> **Read before upgrading — some changes can change an answer.** Swig 2.11.0
+> changes what some native templates render: `date` of a missing or unparseable
+> value renders an empty string where it printed `NaN/NaN/NaN`, an undefined or
+> null filter or call result reads as an empty string at a `+` or unary operand,
+> and blocks nested in blocks follow one chain of definitions. The `length` filter
+> returns a string's length, and on swig `{{ missing | length }}` renders 0.
+> `Collection.notIn()` and `delete()` return `[]` on an empty source. A folder
+> `cp()` or `mv()` reports a file it could not copy, so `bundle:build`,
+> `project:build`, `bundle:copy` and `bundle:add` now fail on a file they could
+> not read. A multipart request past `upload.maxFieldsSize` is answered HTTP 431.
+> An HTTP/1.1 `self.query()` timeout fails with `ETIMEDOUT` and status 503, where
+> it failed as `ECONNRESET` with 500. A form reset, and a value a script writes,
+> no longer paint errors. On Safari, gina's own `readonly` on an
+> `autocomplete="off"` field now reads `readonly="gina"`. The
+> [migration notes](https://gina.io/docs/migration) list every behaviour change.
 
-**The query-answer release.** Two security fixes: during a production
-instrumentation window, `self.renderJSON()` no longer adds a request's query log
-and timeline to the response of a client that asks for them with
-`x-gina-inspector: true`, and Gina requires `ws` `^8.22.0`, whose default
-fragment limits complete the fix of GHSA-96hv-2xvq-fx4p. Gina also requires
-`@rhinostone/swig` `^2.9.11`, a fix release that changes some template output.
-Nine fixes follow: `self.query()` delivers a 4xx or 5xx answer and an HTTP/2 body
-cut short as errors, HTTP/2 success answers declare their `content-length`, and
-six popin fixes cover links and close buttons. Full detail in
+**The forms-and-files release.** Security fixes: one multipart request whose
+body ends inside a file part no longer ends the bundle process, and an upload
+that fails, is abandoned or passes `upload.maxFieldsSize` now stops and removes
+what it staged; two overlapping moves of one file no longer end the bundle
+process; on Bun 1.4, an HTTP/2 `self.query()` session no longer stops sending
+at the upstream's stream limit. Gina also requires `@rhinostone/swig`
+`^2.11.0`. The other fixes cover the path helper, form validation and file
+staging, Safari's `autocomplete="off"` fields, `self.query()` timeouts,
+downloads named outside Latin-1, the routing fetch, `merge()` and
+`JSON.clone`, and the server's error answers. Full detail in
 [CHANGELOG.md](./CHANGELOG.md).
 
-- **Security — the Inspector sidecars in development only (#B993).** While a window opened through `/_gina/instrument` was open, `self.renderJSON()` added the request's query log (`__ginaQueries`) and timeline (`__ginaFlow`) to the JSON response of any request carrying `x-gina-inspector: true`, a header any client can send. The sidecars are now added in development only; during a window the capture leaves only over the authenticated `/_gina/agent` channel, so open a window on each bundle that serves the page. Affects 0.4.0 to 0.7.6, for a bundle that enables `inspector.instrumentation` and while a window is open.
-- **Security — ws `^8.22.0` (#B1024).** ws 8.21.1 lowered the default `maxBufferedChunks` and `maxFragments` limits and counts empty fragments toward them, completing the fix of GHSA-96hv-2xvq-fx4p (ws issue #2331). The Inspector's agent channel and an application's `ioServer` run on those defaults; the new floor moves a project off ws 8.21.0 even when its lockfile pins it.
-- **Changed — swig `^2.9.11` (#B1022).** A filter in a `set`, `if`, `elseif`, `for`, `include` or `filter` tag argument applies to its own operand, so `{% set y = a + f(x)|upper %}` applies `upper` to `f(x)` only, where it applied it to `a + f(x)`; a filter after a literal in an output that holds an operator or a ternary applies to the literal (`{{ 3|default(1) + 1 }}` gives 4, where it gave 3); an output whose last filter returns undefined or null renders an empty string, where swig printed the word. A project copy loaded through `swig.useProject`, or a frontend selected through `swig.package`, keeps its own version.
-- **Fixed — `self.query()` answers (#B984, #B985, #B1005).** A 4xx or 5xx answer whose body carries no gina `status` reaches the caller as `{ status, error, message }` on both transports when gina's status map knows the status, and a `forward` route answers it through `self.throwError()`; an HTTP/2 body shorter than its `content-length`, or on a session gina tore down itself, follows the premature-close rule; over HTTP/2 a success answer declares its `content-length` (a 204, 205 or 304 still declares none, and `renderStream()` still sends none).
-- **Fixed — the popin (#B994, #B995, #B1012, #B1015, #B1016, #B1018).** A link or close element carrying `disabled` does nothing when clicked, wherever the click lands, and works again once `disabled` is removed; a click on markup added inside a close button that is also a legacy trigger dispatches the trigger; an `<a>` with no `href` no longer leaves the popin unable to close, and one the page gives an `href` later works as a link; a link carrying `download`, or a URL with a scheme other than http(s), is left to the browser.
+- **Security — multipart uploads (#B1062, #B1061, #B1056).** gina parses a multipart body before routing, so these needed no account and no upload route. A body that ended inside a file part raised an error that nothing listened for, which ended the bundle process; a failed parse now stops at once, closes every write stream and removes every file the request staged, and the client still gets HTTP 400. An upload whose client goes away now stops the same way, where its write stream stayed open for the life of the process. `upload.maxFieldsSize` now counts the bytes actually sent, where a request with no `content-length` could write past it: past the cap the upload stops, its files are removed and the request is answered HTTP 431.
+- **Security — overlapping moves of one file (#B1045).** Two `_().mv()` of the same file that overlapped could throw from an async callback, which ended the bundle process, or never call back. Every `mv()` and `rm()` now calls back once, whatever happens to its paths meanwhile.
+- **Security — HTTP/2 `self.query()` on Bun 1.4 (#B1052).** Gina dropped every listener of a finished stream, including Bun's own that gives the stream's slot back, so a session stopped sending once as many calls had completed on it as the upstream's stream limit (256 against a gina upstream's default), and later calls never called back. A finished stream now keeps its listeners on Bun. Node.js and Bun 1.2 and 1.3 were not affected.
+- **Changed — swig `^2.11.0` (#B1034, #B1072).** The native template changes come from swig 2.9.12 and 2.9.13; 2.10.0 and 2.11.0 change only the frontends (on swig-jinja2 and swig-django, `==`, `!=` and `in` now compare with Python's equality). A project copy loaded through `swig.useProject`, or a frontend selected through `swig.package`, keeps its own version.
+- **Fixed — the path helper (#B1046, #B1047, #B1048, #B1050).** `mv()` or `cp()` onto the source itself is a no-op that reports a success, where it destroyed the path; a folder copy reports a file it could not copy, and `mv()` then keeps its source; `mkdir()` calls back on a failure; a folder copied or moved into itself, or onto a folder that holds it, is refused with `EINVAL` before anything is written.
+- **Fixed — form validation and file staging (#B1035, #B1036, #B1037, #B1039, #B990, #B1027).** A value written by a script re-checks the form but paints nothing; a form reset runs no live check; two forms that share a field id no longer interfere on a reset, and the bind warns about it; a field whose only rule is `query`, or a `query` field driving a `_case_` block, no longer freezes the tab or streams requests; a form re-bound while files are staged keeps them; a reset no longer names a staged file « undefined ».
+- **Fixed — Safari `autocomplete="off"` fields (#B1055, #B1063, #B1064, #B1067, #B1068).** Every key is native while such a field has focus: `email` and `number` keep the typed order (`123` was posted as `321`), Tab, Enter, `maxlength` and the arrows work, `input` events fire, and a `query` rule waits for the typing pause. A field that has focus when gina binds it, and one left after `.destroy()`, take keys.
+- **Fixed — `self.query()` timeouts (#B969, #B971, #B1054).** An HTTP/1.1 timeout fails with `ETIMEDOUT` and status 503, and a body that stalls after its headers now calls back; on Bun, an HTTP/2 call's `requestTimeout` belongs to that call; on Node.js 24 and 26 and Bun 1.4, a call sent on a session just destroyed is re-sent on a fresh one.
+- **Fixed — downloads, the routing fetch and server answers (#B1073, #B1044, #B841, #B873, #B846, #B845, #B849, #B1029).** A download name above U+00FF is sent as a Latin-1 `filename` with an RFC 8187 `filename*`, where `downloadFromURL` and `downloadFromLocal` answered 500 and `serveFromStorage` ended the bundle process; a routing fetch that a navigation cuts is asked again; an `Error` reaching the server's error responder answers with its text; request data no longer switches a swig render into error-page mode; `| length` counts a string's characters; `merge()` and `JSON.clone` keep a key named after an `Object.prototype` member; `Collection.notIn()` and `delete()` return `[]` on an empty source.
 
 ## Documentation
 
