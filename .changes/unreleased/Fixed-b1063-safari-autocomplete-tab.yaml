@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'On Safari, Tab works on a live-checked `<input>` with `autocomplete="off"` (or `"false"`) (#B1063). It did nothing on `email`, `password`, `tel`, `number`, `url` and `search`; from a `text` field it skipped a `password`, an `email`, a `<textarea>` or a checkbox; and it stayed inside the form. Tab is native now, so it follows Safari''s own order, which skips buttons unless the user turned them on in Safari''s settings: gina''s own Tab used to stop on a button. Browser-bundled: restart the bundle and re-bake it (`gina bundle:build`).'
-time: 2026-11-01T01:20:17+01:00

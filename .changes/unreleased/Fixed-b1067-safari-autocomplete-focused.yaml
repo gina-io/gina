@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'On Safari, a live-checked `<input>` with `autocomplete="off"` (or `"false"`) that already has focus when gina binds it can be typed into at once (#B1067). It took `readonly` with no `focusin` to come and lift it, so an `autofocus` field, or a field the user was typing in during a `.reBind()`, took no keys until it was left and focused again. It now takes `readonly` when it loses focus. Browser-bundled: restart the bundle and re-bake it (`gina bundle:build`).'
-time: 2026-11-01T01:35:33+01:00

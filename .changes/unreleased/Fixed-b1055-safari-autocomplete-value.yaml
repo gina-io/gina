@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'On Safari, a live-checked `<input type="email">` or `<input type="number">` with `autocomplete="off"` (or `"false"`) now keeps what you type, in the order you typed it (#B1055). While such a field had focus, gina cancelled each key and rebuilt the value by hand. These two types have no text selection to place a character at, so `123` became `321`, was posted that way with no warning, and each key threw an uncaught `InvalidStateError`. The rebuild is gone: every key on such a field is native. Browser-bundled: restart the bundle and re-bake it (`gina bundle:build`).'
-time: 2026-11-01T01:20:17+01:00
