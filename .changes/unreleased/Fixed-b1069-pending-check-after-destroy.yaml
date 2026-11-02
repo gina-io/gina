@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'A live check still on its way when its form is destroyed — a keystroke''s check waiting out its one-second debounce, a radio or checkbox pick''s, or the answer of a `query` rule — no longer throws an uncaught TypeError (« Cannot set properties of undefined (setting ''isValidating'') », or « reading ''resetCount'' »); neither does one whose field was moved out of its form in the meantime. The check now stops with the form; while the form stays bound, nothing changes (#B1069).'
+time: 2026-11-02T21:18:30+01:00

@@ -21331,6 +21331,10 @@ function ValidatorPlugin(rules, data, formId, culture) {
      * checkbox, text, hidden, password, number, email, tel, url, search, and the date/time family
      * (date, time, datetime-local, month, week).
      *
+     * A check that waits (the keyup debounce, the deferred radio and checkbox pass) stops without
+     * touching anything when, by the time it runs, its form has no record any more (`destroy()`) or
+     * the field has left its form (#B1069).
+     *
      * @inner
      * @param {object} $form - form instance record (`instance.$forms[id]` shape: `.rules`, `.target`)
      * @param {object} $el - control to wire (DOMObject)
@@ -21491,6 +21495,13 @@ function ValidatorPlugin(rules, data, formId, culture) {
                         };
 
                         var processEvent = function() {
+
+                            // #B1069 — this check waited (the keyup debounce, the radio and checkbox 0 ms pass)
+                            // and the form went meanwhile: `destroy()` dropped its record, or the field left the
+                            // form. Nothing is left to check or paint; reading the record here threw.
+                            if ( !event.target.form || typeof(instance.$forms[event.target.form.getAttribute('id')]) == 'undefined' ) {
+                                return;
+                            }
 
                             if ( isStaleAfterReset() ) {
                                 return;
@@ -26277,7 +26288,8 @@ function ValidatorPlugin(rules, data, formId, culture) {
      * @param {callback} cb - with `cb.isSilentPass` (#B1037) a `query` verdict is neither stored nor
      *   painted here, and the pass waits for the answer to its own value: the caller reads the result.
      *   With `cb.judgedQueries` (#B1039), a map of the fields whose `query` verdict is in: this pass does
-     *   not ask them again
+     *   not ask them again. A `query` answer that arrives after the form went (its record dropped by
+     *   `destroy()`, or the field moved out of its form) ends the pass there: `cb` is not called (#B1069)
      * @param {string} [culture] // #i18n — server form-body path only; forwarded to FormValidator
      */
     var validate = function($formOrElement, fields, $fields, rules, cb, culture) {
@@ -26565,6 +26577,12 @@ function ValidatorPlugin(rules, data, formId, culture) {
                                 var $currentForm = $formOrElement;
                                 if ( !/^form$/i.test($formOrElement.tagName) ) {
                                     $currentForm  = $formOrElement.form;
+                                }
+                                // #B1069 — the answer came after its form went: `destroy()` dropped the record, or
+                                // the field left the form. The waiter has consumed its wake-up above; the pass ends
+                                // here, with nothing stored, painted or handed to its caller (reading the record threw).
+                                if ( !$currentForm || typeof(instance.$forms[$currentForm.getAttribute('id')]) == 'undefined' ) {
+                                    return;
                                 }
                                 var formId      = $currentForm.getAttribute('id');
                                 var isFormValid = null;
