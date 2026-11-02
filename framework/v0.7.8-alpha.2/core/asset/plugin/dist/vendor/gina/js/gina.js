@@ -9461,10 +9461,17 @@ function setupXhr(options) {
  * `\"` and `\\` unescaped). Returns an empty string when the header is
  * missing or carries no `filename` parameter (e.g. a bare `attachment`), so
  * the caller can hand the browser an empty `download` attribute and let it
- * derive a name instead of throwing mid-handler. The extended RFC 5987
- * parameter (`filename` followed by a star) is never matched — the star
- * breaks the `filename=` adjacency — so a header carrying both parameters
- * yields the plain one instead of folding the two values together.
+ * derive a name instead of throwing mid-handler.
+ *
+ * #B1073 — the extended RFC 8187 parameter (`filename` followed by a star,
+ * e.g. `UTF-8''l%E2%80%99offre.pdf`) carries a name the plain parameter
+ * cannot, and the server now sends it, beside a Latin-1 fallback, for any
+ * name above U+00FF. Browsers prefer it, so this parse does too: a UTF-8 or
+ * ISO-8859-1 extended value is decoded and returned. Any other charset, a
+ * malformed percent-encoding or an empty value falls back to the plain
+ * parameter. The two values are never folded together: the plain-parameter
+ * expression cannot match the starred name, because the star breaks the
+ * `filename=` adjacency.
  *
  * @function getFilenameFromContentDisposition
  * @param {string|null} contentDisposition - raw header value, e.g. from `xhr.getResponseHeader('Content-Disposition')`
@@ -9474,12 +9481,33 @@ function setupXhr(options) {
  *  getFilenameFromContentDisposition('attachment; filename="monthly report.pdf"');
  *  // -> 'monthly report.pdf'
  * @example
+ *  getFilenameFromContentDisposition('attachment; filename="l?offre.pdf"; filename*=UTF-8\'\'l%E2%80%99offre.pdf');
+ *  // -> 'l’offre.pdf'
+ * @example
  *  getFilenameFromContentDisposition('attachment');
  *  // -> ''
  */
 function getFilenameFromContentDisposition(contentDisposition) {
     if (!contentDisposition) {
         return '';
+    }
+    var extended = contentDisposition.match(/filename\*\s*=\s*"?([^'";\s]*)'[^']*'([^;\s"]*)/i);
+    if (extended) {
+        var charset = extended[1].toLowerCase(), decoded = '';
+        try {
+            if (charset === 'utf-8') {
+                decoded = decodeURIComponent(extended[2]);
+            } else if (charset === 'iso-8859-1') {
+                decoded = extended[2].replace(/%([0-9A-Fa-f][0-9A-Fa-f])/g, function (match, hex) {
+                    return String.fromCharCode(parseInt(hex, 16));
+                });
+            }
+        } catch (extendedErr) {
+            decoded = ''; // malformed percent-encoding: the plain parameter names the file
+        }
+        if (decoded) {
+            return decoded;
+        }
     }
     var found = contentDisposition.match(/filename\s*=\s*(?:"((?:[^"\\]|\\.)*)"|([^;]+))/i);
     if (!found) {

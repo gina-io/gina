@@ -131,13 +131,17 @@ describe('01 - the extracted parse handles every header shape', function () {
         assert.equal(parseFilename(null), '');
     });
 
-    it('the extended star-parameter alone is never read as the plain one', function () {
-        assert.equal(parseFilename("attachment; filename*=UTF-8''a%20b.pdf"), '');
+    // #B1073 (test change approved by Martin Luther ETOUMAN NDAMBWE, 2026-11-02, answered by
+    // 18:24:13 WAT): the parse now decodes and prefers the RFC 8187 extended parameter, as
+    // browsers do. Until then these two arms pinned « filename* is never read » ('' and
+    // 'plain.pdf'); the no-fold intent they carried stays asserted.
+    it('the extended star-parameter alone is decoded', function () {
+        assert.equal(parseFilename("attachment; filename*=UTF-8''a%20b.pdf"), 'a b.pdf');
     });
 
-    it('when both parameters are present the plain one wins — no fold', function () {
+    it('when both parameters are present the extended one wins — still no fold', function () {
         assert.equal(parseFilename("attachment; filename*=UTF-8''x.pdf; filename=plain.pdf"),
-            'plain.pdf');
+            'x.pdf');
     });
 
     it('an empty quoted-string yields ""', function () {

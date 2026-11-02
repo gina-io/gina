@@ -848,6 +848,21 @@ var _formsWhisperMemo = new WeakMap();
  * titles make those the common case; quoting keeps the header conformant
  * for every filename shape.
  *
+ * #B1073 — a name holding a character Node cannot send as a header byte
+ * (anything above U+00FF: a decomposed accent, a typographic apostrophe,
+ * CJK, emoji) made `setHeader` throw `ERR_INVALID_CHAR` on HTTP/1.1 — a 500,
+ * or a process exit when the throw ran inside an async callback — and was
+ * cut to the low byte of each UTF-16 unit on HTTP/2. The name is now
+ * NFC-normalised first, so a decomposed Latin accent becomes its Latin-1
+ * letter. A name whose every character Node accepts in a header value keeps
+ * exactly the bytes this function emitted before. Any other name follows
+ * RFC 6266 §4.3: a `filename` fallback in printable Latin-1 (every other
+ * character becomes `?`), then the RFC 8187 `filename*=UTF-8''<percent-
+ * encoded>` parameter, which browsers prefer — the shape the
+ * `content-disposition` package (Express) emits. The function never throws
+ * and never returns a value Node refuses: a lone surrogate becomes U+FFFD
+ * before encoding, and controls are percent-encoded in `filename*`.
+ *
  * @function formatAttachmentDisposition
  * @private
  * @param {string} filename - name the client should save the download as
@@ -856,9 +871,35 @@ var _formsWhisperMemo = new WeakMap();
  * @example
  *  formatAttachmentDisposition('monthly report.pdf');
  *  // -> 'attachment; filename="monthly report.pdf"'
+ * @example
+ *  formatAttachmentDisposition('l’offre.pdf');
+ *  // -> 'attachment; filename="l?offre.pdf"; filename*=UTF-8\'\'l%E2%80%99offre.pdf'
  */
 function formatAttachmentDisposition(filename) {
-    return 'attachment; filename="' + String(filename).replace(/[\\"]/g, '\\$&') + '"';
+    // was: return 'attachment; filename="' + String(filename).replace(/[\\"]/g, '\\$&') + '"';
+    // (#B1073: a name above U+00FF made setHeader throw on HTTP/1.1 and was mangled on HTTP/2)
+    var name = String(filename);
+    if ( typeof(name.toWellFormed) == 'function' ) {
+        name = name.toWellFormed();
+    }
+    name = name.normalize('NFC');
+    // every character Node accepts in a header value: today's exact bytes
+    if ( /^[\t\x20-\x7e\x80-\xff]*$/.test(name) ) {
+        return 'attachment; filename="' + name.replace(/[\\"]/g, '\\$&') + '"';
+    }
+    var encoded = null;
+    try {
+        encoded = encodeURIComponent(name);
+    } catch (encodeErr) {
+        // an engine without toWellFormed left a lone surrogate in place
+        encoded = encodeURIComponent(name.replace(/[\uD800-\uDFFF]/g, '\uFFFD'));
+    }
+    // RFC 8187 attr-char excludes ' ( ) * which encodeURIComponent leaves as they are
+    encoded = encoded.replace(/['()*]/g, function(c) {
+        return '%' + c.charCodeAt(0).toString(16).toUpperCase();
+    });
+    var fallback = name.replace(/[^\x20-\x7e\xa0-\xff]/g, '?').replace(/[\\"]/g, '\\$&');
+    return 'attachment; filename="' + fallback + '"; filename*=UTF-8\'\'' + encoded;
 }
 
 /**
@@ -4932,7 +4973,41 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
             return self.throwError(response, 500, acquireErr);
         }
 
-        driver.stat(key, function onServeStat(statErr, meta) {
+        /**
+         * #B1073 — every header below is set inside a storage driver's own
+         * event-loop callback, outside the action's synchronous frame, so a
+         * throw there (a header value Node refuses on HTTP/1.1, as a stored
+         * name above U+00FF did) escaped as an `uncaughtException` and the
+         * framework exited the bundle. Run each callback through this guard: a
+         * throw answers 500 through `throwError` instead. The serving headers
+         * already set (the object's strong ETag, the immutable caching) are
+         * removed first, so the error response never carries them. A throw
+         * after the response was released is logged and dropped.
+         *
+         * @inner
+         * @param {function} fn - The driver callback.
+         * @returns {function} The guarded callback (same arguments, same `this`).
+         */
+        var guardServeCallback = function(fn) {
+            return function() {
+                try {
+                    return fn.apply(this, arguments);
+                } catch (serveErr) {
+                    if ( local.res == null ) {
+                        console.error('[ Controller ] serveFromStorage(): error after the response was released: '+ ( ( serveErr && serveErr.stack ) || serveErr ));
+                        return;
+                    }
+                    if ( !response.headersSent && typeof(response.removeHeader) == 'function' ) {
+                        ['etag', 'last-modified', 'accept-ranges', 'cache-control', 'content-disposition', 'content-range', 'content-length'].forEach(function(h) {
+                            response.removeHeader(h);
+                        });
+                    }
+                    return self.throwError(response, 500, serveErr);
+                }
+            };
+        };
+
+        driver.stat(key, guardServeCallback(function onServeStat(statErr, meta) {
             // re-guard after the async hop (the #M1/#B37 discipline)
             if ( local.res == null ) {
                 return;
@@ -5016,7 +5091,7 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
                     cacheControl : ( typeof(opts.cacheControl) == 'string' && opts.cacheControl !== '' )
                         ? opts.cacheControl
                         : 'private, max-age=31536000, immutable'
-                }, function onServeResolve(resolveErr, resolved) {
+                }, guardServeCallback(function onServeResolve(resolveErr, resolved) {
                     if ( local.res == null ) {
                         return;
                     }
@@ -5035,7 +5110,7 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
                     response.statusCode = 307;
                     local.req = null; local.res = null; local.next = null;
                     return response.end();
-                });
+                }));
                 return;
             }
 
@@ -5095,7 +5170,7 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
             };
 
             if ( range ) {
-                driver.getRange(key, range.start, range.end, function onServeRange(rErr, readable) {
+                driver.getRange(key, range.start, range.end, guardServeCallback(function onServeRange(rErr, readable) {
                     if ( local.res == null ) {
                         return;
                     }
@@ -5108,11 +5183,11 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
                         'content-range'  : 'bytes ' + range.start + '-' + range.end + '/' + size,
                         'content-length' : String(range.end - range.start + 1)
                     }, readable);
-                });
+                }));
                 return;
             }
 
-            driver.get(key, function onServeGet(gErr, readable) {
+            driver.get(key, guardServeCallback(function onServeGet(gErr, readable) {
                 if ( local.res == null ) {
                     return;
                 }
@@ -5120,8 +5195,8 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
                     return self.throwError(response, ( gErr.code === 'STORAGE_NO_OBJECT' ) ? 404 : 500, gErr);
                 }
                 sendStream(200, { 'content-length': String(size) }, readable);
-            });
-        });
+            }));
+        }));
     }
 
 
