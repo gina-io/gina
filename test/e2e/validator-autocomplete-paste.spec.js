@@ -14,10 +14,11 @@
  * one layer below the proxy's cancel. Fixed by dispatching first and
  * cancelling only when the handler prevented the synthetic event.
  *
- * webkit-project-ONLY (same gate as validator-autocomplete-caret.spec.js):
- * the interception registers on real-Safari UAs only (#B135), so on chromium/
- * firefox no 'keydown.<id>' handler exists and the proxy never cancels —
- * every arm would pass vacuously. Runs in the on-demand cross-engine job and
+ * webkit-project-ONLY (same gate as validator-autocomplete-readonly-b1055.spec.js):
+ * the workaround runs on real-Safari UAs only (#B135), so on chromium/firefox
+ * no field is `readonly` until focus — every arm would pass vacuously. #B1055
+ * removed the interception itself, so typing is native and these arms keep the
+ * chords' guarantee. Runs in the on-demand cross-engine job and
  * locally via:
  *
  *   GINA_E2E_ENGINES=all npx playwright test test/e2e/validator-autocomplete-paste.spec.js --project=webkit
@@ -30,8 +31,8 @@
  *     un-bound control input injected post-boot) and proven usable by a REAL
  *     paste into that same control before any arm runs — a can-fire control
  *     for the clipboard instrument itself.
- *   - The typing arm guards the other direction: interception must still hold
- *     (value composed once, not doubled by a leaked native insert).
+ *   - The typing arm guards the other direction: the value is composed once,
+ *     not doubled.
  *   - Validated red-first against the pre-fix bundle (route-served): paste
  *     read "" and Cmd+A read a collapsed selection, with the clipboard
  *     control firing.
@@ -42,10 +43,10 @@ const { test, expect } = require('@playwright/test');
 const PORT = process.env.GINA_E2E_PORT || '3179';
 const BASE = 'http://localhost:' + PORT + '/';
 
-test.describe('#B444 — native chords on the autocomplete-intercepted field (webkit only)', () => {
+test.describe('#B444 — native chords on a Safari autocomplete="off" field (webkit only)', () => {
 
     test.skip(({ browserName }) => browserName !== 'webkit',
-        'the interception is gated to REAL Safari UAs (#B135); only the webkit project carries one');
+        'the workaround is gated to REAL Safari UAs (#B135); only the webkit project carries one');
 
     test.beforeEach(async ({ page }) => {
         await page.goto(BASE + 'autocomplete');
@@ -68,14 +69,6 @@ test.describe('#B444 — native chords on the autocomplete-intercepted field (we
         const ctrl = await page.evaluate(() => document.getElementById('clip-control').value);
         expect(ctrl, 'clipboard instrument must fire on the un-bound control before any arm counts').toBe('PASTED');
         await page.fill('#clip-control', '');
-
-        // the interception must be live on the shimmed field (real focus registers it)
-        await page.click('#ref-input');
-        await page.waitForFunction(() => {
-            const el = document.getElementById('ref-input');
-            const ev = new KeyboardEvent('keydown', { key: 'Shift', keyCode: 16, bubbles: true, cancelable: true });
-            return el.dispatchEvent(ev) === false;   // false = intercepted
-        });
     });
 
     test('01 - paste lands with no prior typing', async ({ page }) => {
@@ -87,13 +80,13 @@ test.describe('#B444 — native chords on the autocomplete-intercepted field (we
         expect(v, 'Meta+V must insert into the shimmed field').toBe('PASTED');
     });
 
-    test('02 - paste lands after typing, and typing itself stays intercepted (composed once)', async ({ page }) => {
+    test('02 - paste lands after typing, and the typing composes once', async ({ page }) => {
         await page.evaluate(() => { document.getElementById('ref-input').value = ''; });
         await page.click('#ref-input');
         await page.keyboard.type('abc', { delay: 70 });
         await page.waitForTimeout(150);
         const typed = await page.evaluate(() => document.getElementById('ref-input').value);
-        expect(typed, 'the interception must still own typing - a doubled value means the native insert leaked').toBe('abc');
+        expect(typed, 'the typing composes once - a doubled value means a key landed twice').toBe('abc');
         await page.keyboard.press('ControlOrMeta+v');
         await page.waitForTimeout(150);
         const v = await page.evaluate(() => document.getElementById('ref-input').value);

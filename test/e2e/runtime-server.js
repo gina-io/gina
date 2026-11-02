@@ -91,6 +91,12 @@
  *   GET /js/gina.onload.b926.js        -> built onload with the required value-carrying checkbox whisper
  *   GET /js/gina.onload.b931.js        -> built onload with the shared-rule-set whisper (#B931; the spec
  *                                         builds its pages through /x76-page, same /ac-sink)
+ *   GET /js/gina.onload.b1035.js       -> built onload with the script-write whisper (#B1035; the spec builds
+ *                                         its pages through /x76-page, same /ac-sink)
+ *   GET /js/gina.onload.b1036.js       -> built onload with the shared-field-id whisper (#B1036; the spec builds
+ *                                         its pages through /x76-page, same /ac-sink)
+ *   GET /js/gina.onload.b1037.js       -> built onload with the form-reset whisper (#B1037; the spec builds
+ *                                         its pages through /x76-page, same /ac-sink)
  *   GET /js/gina.onload.b921.js        -> built onload with the RegExp-key-in-a-condition whisper
  *                                         (#B922; the spec builds its pages through /x76-page,
  *                                         same /ac-sink)
@@ -232,7 +238,7 @@ const UPLOAD_FORMS_JSON = JSON.stringify({ rules: { uploadform: { title: { isReq
 // a LIVE-CHECKED field is the reported scene (the live check is part of the
 // main-thread work occupying the window between keystrokes), and
 // autocomplete="off" in the fixture markup is what routes the field through
-// handleAutoComplete's keydown interception on a REAL-Safari UA.
+// handleAutoComplete (`readonly` until focus, #B1055) on a REAL-Safari UA.
 const AC_FORMS_JSON = JSON.stringify({ rules: { acform: { ref: { isRequired: true } } } });
 
 // #B478 - a non-empty forms whisper for the autofill-signal fixture. Same reason as
@@ -399,6 +405,44 @@ const B931_FORMS_JSON = JSON.stringify({ rules: {
     shared:  { ref: { isRequired: true } },
     other:   { ref: { isRequired: true } },
     boolreq: { ref: { isRequired: true }, agree: { isRequired: true } }
+} });
+
+// #B1035 — the forms whisper of the script-write spec (test/e2e/validator-script-write-b1035.spec.js): required
+// text and hidden controls, an email check, a `query` rule, a field with no value setter.
+const B1035_FORMS_JSON = JSON.stringify({ rules: {
+    seeded:   { req: { isRequired: true }, keep: { isRequired: true }, mail: { isRequired: true, isEmail: true }, hid: { isRequired: true } },
+    emptyone: { req: { isRequired: true }, keep: { isRequired: true } },
+    query:    { r3: { isRequired: true }, q3: { isRequired: true, query: { url: '/uniq', method: 'GET', validIf: true } } },
+    nosetter: { tel1: { isRequired: true }, note: { isRequired: true } },
+    boolr:    { agree: { is: '/^true$/' } },
+    valr:     { pick: { is: '/^a$/' } }
+} });
+
+// #B1036 — the forms whisper of the shared-field-id spec (test/e2e/validator-shared-field-id-b1036.spec.js):
+// two forms, one required field each.
+const B1036_FORMS_JSON = JSON.stringify({ rules: {
+    fa: { ref: { isRequired: true } },
+    fb: { ref: { isRequired: true } }
+} });
+
+// #B1037 — the forms whisper of the form-reset spec (test/e2e/validator-form-reset-b1037.spec.js): required
+// text controls, every control type, a `query` rule on an input and on a select, required booleans.
+const B1037_QUERY = { url: '/uniq', method: 'GET', validIf: true };
+const B1037_FORMS_JSON = JSON.stringify({ rules: {
+    texts:   { r3: { isRequired: true }, t3: { isRequired: true } },
+    mixed:   { r3: { isRequired: true }, sel: { isRequired: true }, chk: { isRequired: true }, rad: { isRequired: true } },
+    query:   { r3: { isRequired: true }, q3: { isRequired: true, query: B1037_QUERY } },
+    selq:    { r3: { isRequired: true }, sel: { isRequired: true, query: B1037_QUERY } },
+    radonly: { rad: { isRequired: true } },
+    others:  { o1: { isRequired: true }, o2: { isRequired: true } },
+    bools:   { r3: { isRequired: true }, a1: { isRequired: true, isBoolean: true }, a2: { isRequired: true, isBoolean: true },
+               a3: { isRequired: true, isBoolean: true }, a4: { isRequired: true, isBoolean: true } },
+    grp:     { r3: { isRequired: true }, m: { isBoolean: true }, dep: { isRequired: true } },
+    qfirst:  { q3: { isRequired: true, query: B1037_QUERY }, r3: { isRequired: true } },
+    qq:      { q3: { isRequired: true, query: B1037_QUERY }, q4: { isRequired: true, query: B1037_QUERY }, r3: { isRequired: true } },
+    qval:    { r3: { isRequired: true }, q3: { isRequired: true, query: { url: '/uniq', method: 'GET', data: { v: '$q3' }, validIf: true } } },
+    qoff:    { q3: { query: B1037_QUERY }, r3: { isRequired: true } },
+    tri:     { r3: { isRequired: true }, q3: { isRequired: true, query: B1037_QUERY }, t3: { isRequired: true } }
 } });
 
 // #B921 — the forms whisper of the RegExp-key spec (test/e2e/validator-case-regex-key-b921.spec.js). Each
@@ -666,6 +710,15 @@ const server = http.createServer(function (req, res) {
         }
         if (url === '/js/gina.onload.b931.js') {
             return send(res, 200, 'application/javascript; charset=utf-8', renderOnload(B931_FORMS_JSON));
+        }
+        if (url === '/js/gina.onload.b1035.js') {
+            return send(res, 200, 'application/javascript; charset=utf-8', renderOnload(B1035_FORMS_JSON));
+        }
+        if (url === '/js/gina.onload.b1036.js') {
+            return send(res, 200, 'application/javascript; charset=utf-8', renderOnload(B1036_FORMS_JSON));
+        }
+        if (url === '/js/gina.onload.b1037.js') {
+            return send(res, 200, 'application/javascript; charset=utf-8', renderOnload(B1037_FORMS_JSON));
         }
         if (url === '/js/gina.onload.b921.js') {
             return send(res, 200, 'application/javascript; charset=utf-8', renderOnload(B921_FORMS_JSON));

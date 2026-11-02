@@ -9,7 +9,7 @@
  * registered namespaced handler. Pre-fix it called `cancelEvent(event)` on the
  * NATIVE event BEFORE that dispatch - unconditionally. preventDefault on a
  * native keydown suppresses the browser's own editing command, so on a
- * real-Safari UA (where handleAutoComplete registers exactly such a handler)
+ * real-Safari UA (where handleAutoComplete registered exactly such a handler, until #B1055)
  * EVERY modifier chord on a live-checked autocomplete-suppressed field was
  * dead: paste, select-all, copy, cut, undo - with no paste/beforeinput event
  * observable anywhere, because the command was cancelled at the keydown.

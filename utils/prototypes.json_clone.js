@@ -2,10 +2,10 @@
  * JSON.clone
  * Clone JSON object
  *
- * Changes made here must be reflected in:
- *  - gina/utils/prototypes.js
- *  - gina/framework/version/helpers/prototypes.js
- *  - gina/framework/version/core/asset/plugin/src/vendor/gina/js/utils/polyfill.js
+ * This is the one server implementation: `gina/utils/prototypes.js` and
+ * `gina/framework/version/helpers/prototypes.js` both require it. Changes made
+ * here must be reflected in the browser copy:
+ *  - gina/framework/version/core/asset/plugin/src/vendor/gina/utils/polyfill.js
  *
  * @param {object} source
  * @param {object} [target]
@@ -79,7 +79,14 @@ function JSONClone(source, target) {
                 // }
 
 
-                target[key] = (typeof(target[key]) == 'undefined' ) ? JSONClone(source[key], null) : target[key];
+                // #B849 — fill when the target has no OWN value for the key: `typeof(target[key])`
+                // reads through the prototype chain, so a fresh `{}` target "had" `toString`,
+                // `valueOf`, `hasOwnProperty` (and gina's installed `count`), and the inherited
+                // function was written back as an own key over the source's value (the #B845
+                // shape, in the cloner). The old test stays as the first operand, so every fill
+                // that happened before still happens.
+                // was: target[key] = (typeof(target[key]) == 'undefined' ) ? JSONClone(source[key], null) : target[key];
+                target[key] = ( typeof(target[key]) == 'undefined' || !Object.prototype.hasOwnProperty.call(target, key) ) ? JSONClone(source[key], null) : target[key];
             // } catch (jsonErr) {
             //     // warn = new Error('JSON.clone(...) Exception detected @ source['+key+']\nKey: '+ key +'\nType: '+ (typeof(source[key])) + '\nisArray ? '+ Array.isArray(source[key]) +'\n');
             //     // warn.stack = warn.stack.replace(/^Error\:\s+/g, '');

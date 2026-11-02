@@ -2,19 +2,19 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>gina autocomplete-interception caret e2e harness</title>
+    <title>gina Safari autocomplete e2e harness</title>
     <!-- Empty data-URI icon: suppress the favicon.ico request for a clean console. -->
     <link rel="icon" href="data:,">
     <link rel="stylesheet" href="/css/vendor/gina/gina.min.css">
 
     <!--
-        RUNTIME harness for #B389 (gh issue #63) — the Safari-autocomplete
-        keydown interception's caret integrity under fast typing. Boots the
+        RUNTIME harness for the Safari `autocomplete="off"` workaround (#B1055:
+        `readonly` until focus, every key native). Boots the
         REAL built gina bundle with a NON-EMPTY forms whisper
         (/js/gina.onload.autocomplete.js) so core.js scans + binds forms; the
         live-checked text input below carries autocomplete="off", which is
         what routes it through handleAutoComplete on a REAL-Safari UA
-        (#B135 gate) — the companion spec is therefore webkit-project-only.
+        (#B135 gate) — the companion specs are therefore webkit-project-only.
 
         Load order matches a real gina render: the onload defines
         onGinaLoaded + __ginaWebroot, THEN the gina bundle boots.
@@ -55,14 +55,13 @@
     </style>
 </head>
 <body>
-    <h1>gina autocomplete-interception caret harness</h1>
+    <h1>gina Safari autocomplete harness</h1>
 
     <!--
         A live-checked text field with autocomplete="off": on a REAL-Safari UA
         this is exactly the shape registerForLiveChecking routes through
-        handleAutoComplete (keydown interception + programmatic rebuild behind
-        a transient readonly). The field carries an explicit id — the
-        interception keys its per-element event names off $el.id.
+        handleAutoComplete (`readonly` until focus). The field carries an
+        explicit id — the workaround keys its per-element event names off $el.id.
     -->
     <form id="acform" data-gina-form-rule="acform" data-gina-form-live-check-enabled="true" action="/ac-sink" method="post">
         <label>Reference <input id="ref-input" type="text" name="ref" autocomplete="off"></label>

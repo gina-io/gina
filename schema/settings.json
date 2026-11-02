@@ -709,7 +709,7 @@
         },
         "maxFieldsSize": {
           "type": ["string", "number"],
-          "description": "WHOLE-REQUEST size cap, compared against the request Content-Length (HTTP 431 past it). Unit-suffixed string (B/KB/MB/GB); a bare number means MB. 0 or unset disables. Block-level only — a per-group override has no framework behaviour."
+          "description": "WHOLE-REQUEST size cap, compared against the request Content-Length and the bytes received (HTTP 431 past it). Unit-suffixed string (B/KB/MB/GB); a bare number means MB. 0 or unset disables. Block-level only — a per-group override has no framework behaviour."
         },
         "maxFields": {
           "type": "number",
