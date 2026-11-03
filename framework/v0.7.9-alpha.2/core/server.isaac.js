@@ -1309,9 +1309,19 @@ function ServerEngineClass(options) {
         // http2stream handle by the Router class & the SuperController class
         // See `${core}/router.js` & `${core}/controller/controller.js`
 
+        // #B1076 — the early-answer hooks of an HTTP/2 request on Bun: ./server.isaac.early-answer.js
+        var _earlyAnswer = require('./server.isaac.early-answer');
         server.on('request', (request, response) => {
 
             request.originalUrl = request.url;
+
+            // #B1076 — on Bun, a request whose body may still come is armed before any answer: an
+            // answer handed to its stream before keepOpen() discards the body (Bun 1.2 / 1.3 would
+            // otherwise keep everything the client sends), and the stream closes with NO_ERROR once
+            // that answer has gone out. keepOpen() is called where the body is read (core/server.js,
+            // its non-static branch), and inline by the SSE endpoints below. Nothing is armed on Node.js,
+            // over HTTP/1.1, or for a request whose body ended with its headers.
+            _earlyAnswer.arm(request, _earlyAnswer.RUNTIME_IS_BUN);
             // #FI — dev-mode request timeline for Inspector Flow tab
             // Only initialized when the Inspector has been opened (process.gina._inspectorActive)
             // #INS10 — or during a prod instrumentation window (process.gina._inspectorWindowUntil).
@@ -1848,6 +1858,7 @@ function ServerEngineClass(options) {
                     'x-content-type-options': 'nosniff'
                 });
                 var _rwWrite, _rwOnClose;
+                request._ginaStreamKeepOpen = true; // #B1076 — keepOpen(), inline: an SSE stream stays open by design, so its early-answer hooks must not discard or close it
                 // HTTP/2
                 if (response.stream) {
                     response.stream.respond({ ':status': 200, ..._rwSseHeaders });
@@ -2191,6 +2202,7 @@ function ServerEngineClass(options) {
                 });
 
                 var _write, _onClose;
+                request._ginaStreamKeepOpen = true; // #B1076 — keepOpen(), inline: an SSE stream stays open by design, so its early-answer hooks must not discard or close it
 
                 // HTTP/2
                 if (response.stream) {
@@ -2276,6 +2288,7 @@ function ServerEngineClass(options) {
                 });
 
                 var _agWrite, _agOnClose;
+                request._ginaStreamKeepOpen = true; // #B1076 — keepOpen(), inline: an SSE stream stays open by design, so its early-answer hooks must not discard or close it
 
                 // HTTP/2
                 if (response.stream) {
@@ -3213,6 +3226,8 @@ function ServerEngineClass(options) {
                 }
 
 
+                // #B1076 — no keepOpen() here: core/server.js calls it where its body read starts, since it
+                // answers some requests itself before that (the maintenance gate, the admin endpoints)
                 cb(request, response);
             }
         });
