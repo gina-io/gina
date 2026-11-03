@@ -16431,13 +16431,18 @@ function ValidatorPlugin(rules, data, formId, culture) {
 
     /**
      * Reset fields
-     * Restores each bound control to the value it had when the form was bound, then runs the one pass of
-     * a reset: the error display and the `errors` store are cleared, nothing is painted, and the submit
-     * trigger is re-read (#B1037). With live check off, `resetFields()` runs no pass; a master checkbox's
-     * timer reads the form once more, its group applied. While the values are written the live check stays
-     * out of it (`isBeingReseted`, read by the live listeners), and `resetCount` tells a pass already on its way
-     * that the form it was checking is gone. A control removed from the page since the bind is skipped,
-     * and each control is looked for among the form's own, should its id be shared (#B1036).
+     * Restores each bound control to the value it had when the form was bound (a form-associated custom
+     * element restores itself through its own `formResetCallback`, or keeps its value without one: see
+     * below), then runs the one pass of a reset: the error display and the `errors` store are cleared,
+     * nothing is painted, and the submit trigger is re-read (#B1037). With live check off, `resetFields()`
+     * runs no pass; a master checkbox's timer reads the form once more, its group applied. While the values
+     * are written the live check stays out of it (`isBeingReseted`, read by the live listeners), and
+     * `resetCount` tells a pass already on its way that the form it was checking is gone. A control removed
+     * from the page since the bind is skipped, and each control is looked for among the form's own, should
+     * its id be shared (#B1036). A form-associated custom element restores itself through its own
+     * `formResetCallback`, which the native reset gina cancels would have run: one without that callback
+     * keeps its value, as a native reset leaves it, and a callback that throws is reported without stopping
+     * the reset (#B1041).
      *
      * @param {object|string} [$form|formId]
      * @param {boolean} [isOnResetMode=false] - the path of a `reset` event: `text` and `hidden` inputs
@@ -16500,6 +16505,21 @@ function ValidatorPlugin(rules, data, formId, culture) {
                     }
                     // a field removed from the page since the bind has nothing to restore
                     if ( !$element ) { continue; }
+                    // #B1041 — a form-associated custom element (bound by `getOwnedFaces`: its tag name holds
+                    // a `-`) restores itself: gina cancels the native reset, which would have run the element's
+                    // own `formResetCallback`, so the reset calls it here. An element without one keeps its
+                    // value, as a native reset leaves it. A throwing callback is reported, as the browser
+                    // reports one, and the other fields are still restored.
+                    if ( $element.tagName.indexOf('-') > -1 ) {
+                        if ( typeof($element.formResetCallback) == 'function' ) {
+                            try {
+                                $element.formResetCallback();
+                            } catch (formResetErr) {
+                                setTimeout(function onFormResetCallbackError() { throw formResetErr; }, 0);
+                            }
+                        }
+                        continue;
+                    }
                     type        = $element.tagName.toLowerCase();
                     tagName     = $element.tagName;
 

@@ -99,6 +99,8 @@
  *                                         its pages through /x76-page, same /ac-sink)
  *   GET /js/gina.onload.b1038.js       -> built onload with the select whisper (#B1038; the spec builds
  *                                         its pages through /x76-page, same /ac-sink)
+ *   GET /js/gina.onload.b1041.js       -> built onload with the custom-element reset whisper (#B1041; the
+ *                                         spec builds its pages through /x76-page, same /ac-sink)
  *   GET /js/gina.onload.b921.js        -> built onload with the RegExp-key-in-a-condition whisper
  *                                         (#B922; the spec builds its pages through /x76-page,
  *                                         same /ac-sink)
@@ -453,6 +455,12 @@ const B1038_FORMS_JSON = JSON.stringify({ rules: {
     sel: { s1: { isRequired: true }, r3: { isRequired: true } }
 } });
 
+// #B1041 — the forms whisper of the custom-element reset spec (test/e2e/validator-reset-face-b1041.spec.js): a
+// required form-associated custom element beside a required text field.
+const B1041_FORMS_JSON = JSON.stringify({ rules: {
+    facer: { score: { isRequired: true }, r3: { isRequired: true } }
+} });
+
 // #B921 — the forms whisper of the RegExp-key spec (test/e2e/validator-case-regex-key-b921.spec.js). Each
 // rule set puts a RegExp key (`"/^x$/"`) inside a `_case_` condition, in one block position or another.
 const B921_NEVER = { conditions: [ { case: 'never', rules: { x: { isString: true } } } ] };
@@ -730,6 +738,9 @@ const server = http.createServer(function (req, res) {
         }
         if (url === '/js/gina.onload.b1038.js') {
             return send(res, 200, 'application/javascript; charset=utf-8', renderOnload(B1038_FORMS_JSON));
+        }
+        if (url === '/js/gina.onload.b1041.js') {
+            return send(res, 200, 'application/javascript; charset=utf-8', renderOnload(B1041_FORMS_JSON));
         }
         if (url === '/js/gina.onload.b921.js') {
             return send(res, 200, 'application/javascript; charset=utf-8', renderOnload(B921_FORMS_JSON));
