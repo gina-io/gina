@@ -6893,6 +6893,11 @@ function Server(options) {
                         // the request stays terminal at the 500 (the pre-#B143 semantics).
                         ++pending;
                         writeStreams[index].on('error', guardMultipartListener(function(err) {
+                            // #B1075 — abortMultipart() destroys a write stream with its write in flight,
+                            // which errors here: the upload has stopped, and its caller answers (the 400
+                            // of a failed parse, the 431 past maxFieldsSize) or the client has gone. A 500
+                            // now would replace an HTML answer still being rendered.
+                            if ( multipartAborted ) { return; }
                             console.error('[ busboy ] [ onWriteError ]', err);
                             throwError(response, 500, 'Internal server error\n' + err, next);
                             this.close();

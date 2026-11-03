@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'An HTML request whose multipart upload stops while a file part is still being written now gets the bundle''s custom error page for that stop: the 431 past `upload.maxFieldsSize` on a request that sends no `content-length`, or the 400 of a body that fails to parse after a large file part. The stop destroys that part''s write stream, and its error could answer the built-in 500 page while the custom page was still being rendered; a JSON answer, sent at once, was not affected. Pickup: a bundle restart, no re-bake (#B1075).'
+time: 2026-11-03T03:19:23+01:00

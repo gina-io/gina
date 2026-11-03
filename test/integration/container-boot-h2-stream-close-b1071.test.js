@@ -22,6 +22,10 @@
  *   R5       eight R1s on one session
  *   A0 A2 A3 the P0, R2 and R3 shapes as HTML requests, answered through the bundle's custom error page,
  *            which is rendered after throwError has returned: the page must go out whole before the close
+ *   A1, A3w  #B1075 — the R1 shape as an HTML request, and the R3 shape with a 512 KB file part still
+ *            being written when the parse fails: the upload's stop destroys that part's write stream with
+ *            its write in flight, and its error listener answered the built-in 500 page while the 431 or
+ *            400 page was still being rendered
  *
  * Instrument: `heldPost()` reads the answer, whether the stream closed before the client's own cleanup,
  * and its reset code. Both of its readings fire on the tree before this change, on Node: P0 reads a
@@ -33,8 +37,9 @@
  *
  * Seams, for a reading by hand:
  *   B1071_GINA_ROOT=<tree> boots THAT tree's launcher against a project scaffolded by THAT tree's CLI
- *   (red-first against the tree before this change, with no write to it: R1, R2, R3, R5, A2 and A3 fail
- *   on Node, P0 and A0 too on Bun 1.2 / 1.3);
+ *   (red-first against the tree before this change, with no write to it: on Node 25, R1, R2, R3, R5, A2
+ *   and A3 fail on the close and A1 and A3w on the built-in 500; with the bundle on Bun 1.2.21, all but
+ *   C0 and C1 fail on the close);
  *   B1071_RUNTIME=<path to a bun binary> runs the bundle on it (the CLI stays on this runtime);
  *   B1071_PUSH_LIMIT=<bytes> caps what one held stream may push (default 64 MB, since Bun 1.2 / 1.3 took
  *   a held stream's body without bound).
@@ -533,5 +538,15 @@ describe('container-boot-h2-stream-close — the server closes an HTTP/2 stream 
     it('A3  the R3 shape as an HTML request: the 400 page, whole, then the stream closes', async function (t) {
         if (!ready(t)) { return; }
         await probe(t, 'A3', Object.assign({ 'content-type': CT }, HTML), Buffer.concat([filePart('a.bin', bytes(4096)), BAD]), {}, { status: 400, html: true });
+    });
+
+    it('A1  the R1 shape as an HTML request: the 431 page, not the built-in 500, then the stream closes (#B1075)', async function (t) {
+        if (!ready(t)) { return; }
+        await probe(t, 'A1', Object.assign({ 'content-type': CT }, HTML), fileHead('over.bin'), {}, { status: 431, html: true });
+    });
+
+    it('A3w the R3 shape with a 512 KB file part still being written, as an HTML request: the 400 page, not the built-in 500 (#B1075)', async function (t) {
+        if (!ready(t)) { return; }
+        await probe(t, 'A3w', Object.assign({ 'content-type': CT }, HTML), Buffer.concat([filePart('big.bin', bytes(512 * 1024)), BAD]), {}, { status: 400, html: true });
     });
 });
