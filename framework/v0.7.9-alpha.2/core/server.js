@@ -411,6 +411,49 @@ var buildAllowHeader = function(ruleMethods) {
     return out.join(', ');
 };
 
+/**
+ * #B1071 — closes the HTTP/2 stream of a request whose body is no longer read, once its answer has gone
+ * out.
+ *
+ * Some answers go out while the client may still be sending its body: the 431 past
+ * `upload.maxFieldsSize`, the 413 past `server.maxBodySize`, the 400 of a multipart body that fails to
+ * parse. Over HTTP/2 the answer goes out on the request's own stream. Node closes a server stream by
+ * itself only when its body was never read, and `destroy()` on the compatibility request resets
+ * nothing, so once gina has read part of the body, the client may push one more stream window into a
+ * request nobody reads and is then left stalled; Bun 1.2 / 1.3, which apply no flow control to it,
+ * take everything the client sends.
+ *
+ * RFC 9113 § 8.1 lets a server that has sent a complete response ask the client to stop sending the
+ * request with RST_STREAM(NO_ERROR). The stream is closed once its writable side has finished, on the
+ * stream's own 'finish' (the compatibility response emits its 'finish' only from the stream's
+ * 'close'), because a close requested earlier ends the stream at once and loses an answer still being
+ * produced, such as a custom error page rendered after throwError has returned.
+ *
+ * Not for an answer that waits for trailers (Node's compatibility response always does, and the render
+ * delegates do once an action has registered trailers): its 'finish' comes before the trailers, and a
+ * close there drops them and leaves the client with no reset. The callers answer through throwError,
+ * whose HTTP/2 sends carry no trailers, during the body parse, before any action runs.
+ *
+ * @inner
+ * @param {object} request - The request just answered; `request.stream` is set over HTTP/2.
+ * @returns {boolean} `true` when the request has an HTTP/2 stream, which closes once its answer has
+ *   gone out; `false` otherwise (HTTP/1.1), and nothing is done.
+ * @example
+ * // the 431 past upload.maxFieldsSize, over HTTP/2:
+ * closeStreamAfterAnswer(req); // true: req.stream closes with NO_ERROR once the answer has gone out
+ * // the same over HTTP/1.1:
+ * closeStreamAfterAnswer(req); // false: there is no stream to close
+ */
+var closeStreamAfterAnswer = function(request) {
+    var stream = ( request && request.stream && typeof(request.stream.close) == 'function' ) ? request.stream : null;
+    if ( !stream ) { return false; }
+    var close = function() {
+        if ( !stream.closed && !stream.destroyed ) { stream.close(require('http2').constants.NGHTTP2_NO_ERROR); }
+    };
+    if ( stream.writableFinished ) { close(); } else { stream.once('finish', close); }
+    return true;
+};
+
 var parseByteSize = function(value) {
     if ( typeof(value) == 'number' ) { return value * 1024 * 1024; } // bare number = MB
     if ( typeof(value) != 'string' ) { return NaN; }
@@ -6374,7 +6417,11 @@ function Server(options) {
                     // cap (was: `fileSize > maxSize` with maxSize=NaN naturally skipped; maxSize=0
                     // would have rejected everything — 0 now means "no limit", as for maxFields).
                     if (maxSize && fileSize > maxSize) {
-                        return throwError(response, 431, 'Attachment exceeded maximum file size [ '+ opt.maxFieldsSize +' ]');
+                        // #B1071 — over HTTP/2 the stream is closed once the answer has gone out.
+                        // was: return throwError(response, 431, 'Attachment exceeded maximum file size [ '+ opt.maxFieldsSize +' ]');
+                        var answered = throwError(response, 431, 'Attachment exceeded maximum file size [ '+ opt.maxFieldsSize +' ]');
+                        closeStreamAfterAnswer(request);
+                        return answered;
                     }
 
                     // #B49 (2026-06-16) — honour the configured upload directory.
@@ -7061,6 +7108,8 @@ function Server(options) {
                             request.handled = true;
                             throwError(response, 400, 'Malformed multipart/form-data request', next);
                         }
+                        // #B1071 — over HTTP/2, close the stream once the answer has gone out.
+                        closeStreamAfterAnswer(request);
                     });
 
                     busboy.on('finish', function() {
@@ -7124,6 +7173,9 @@ function Server(options) {
                                 request.handled = true;
                                 throwError(response, 431, 'Attachment exceeded maximum file size [ '+ opt.maxFieldsSize +' ]');
                             }
+                            // #B1071 — over HTTP/2 the destroy below resets nothing: close the stream once
+                            // the answer has gone out.
+                            closeStreamAfterAnswer(request);
                             // Stop the peer streaming into a request nobody will read (#OW2).
                             try { request.destroy() } catch (destroyErr) {}
                         }));
@@ -7185,6 +7237,9 @@ function Server(options) {
                             _bodyRejected = true;
                             request.body  = '';
                             throwError(response, 413, 'Request body exceeded maximum size [ '+ _bodySrv.maxBodySize +' ]', next);
+                            // #B1071 — over HTTP/2 the destroy below resets nothing: close the stream once
+                            // the answer has gone out.
+                            closeStreamAfterAnswer(request);
                             // Stop the peer streaming into a request nobody will read.
                             try { request.destroy() } catch (destroyErr) {}
                             return
