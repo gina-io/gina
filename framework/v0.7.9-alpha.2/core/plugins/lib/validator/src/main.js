@@ -2798,7 +2798,10 @@ function ValidatorPlugin(rules, data, formId, culture) {
      * and each control is looked for among the form's own, should its id be shared (#B1036). Once the
      * values are restored, each radio's group is applied again through the hook the bind leaves on the
      * record (`applyRadioGroups`), so a field that names a radio follows it before the pass reads the form;
-     * a master checkbox's timer applies the radios' groups again before it reads the form (#B1040).
+     * a master checkbox's timer applies the radios' groups again before it reads the form (#B1040). A
+     * form-associated custom element restores itself through its own `formResetCallback`, which the native
+     * reset gina cancels would have run: one without that callback keeps its value, as a native reset
+     * leaves it, and a callback that throws is reported without stopping the reset (#B1041).
      *
      * @param {object|string} [$form|formId]
      * @param {boolean} [isOnResetMode=false] - the path of a `reset` event: `text` and `hidden` inputs
@@ -2861,6 +2864,21 @@ function ValidatorPlugin(rules, data, formId, culture) {
                     }
                     // a field removed from the page since the bind has nothing to restore
                     if ( !$element ) { continue; }
+                    // #B1041 — a form-associated custom element (bound by `getOwnedFaces`: its tag name holds
+                    // a `-`) restores itself: gina cancels the native reset, which would have run the element's
+                    // own `formResetCallback`, so the reset calls it here. An element without one keeps its
+                    // value, as a native reset leaves it. A throwing callback is reported, as the browser
+                    // reports one, and the other fields are still restored.
+                    if ( $element.tagName.indexOf('-') > -1 ) {
+                        if ( typeof($element.formResetCallback) == 'function' ) {
+                            try {
+                                $element.formResetCallback();
+                            } catch (formResetErr) {
+                                setTimeout(function onFormResetCallbackError() { throw formResetErr; }, 0);
+                            }
+                        }
+                        continue;
+                    }
                     type        = $element.tagName.toLowerCase();
                     tagName     = $element.tagName;
 
