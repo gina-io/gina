@@ -4236,10 +4236,15 @@ function ValidatorPlugin(rules, data, formId, culture) {
 
                         } catch (err) {
 
+                            // #B1083 — an answer came back and handling it failed (a JSON body
+                            // that does not parse, …): not a transport failure, so
+                            // `transportError: false`, and `contentType` says what came back.
                             result = {
                                 status:  422,
                                 error : err.message,
-                                stack : err.stack
+                                stack : err.stack,
+                                transportError : false,
+                                contentType : contentType
 
                             };
 
@@ -4296,7 +4301,14 @@ function ValidatorPlugin(rules, data, formId, culture) {
 
                     } else if ( xhr.status != 0) {
                         // XHR Error
-                        result = { 'status': xhr.status };
+                        // #B1083 — the server answered, so the request did not fail in transit:
+                        // `transportError: false` (the forms guide's contract; refuseSend's payload
+                        // carries it too), and `contentType` says what the answer is (its header as the
+                        // browser reads it, `null` when none), so a handler can tell a proxy's page in
+                        // `message` from a message the application wrote. On the normal path a JSON
+                        // body keeps its own keys (`merge(body, result)` keeps the target's).
+                        // was: result = { 'status': xhr.status };
+                        result = { 'status': xhr.status, 'transportError': false, 'contentType': contentType };
                         // handling blob xhr error
                         if ( /blob/.test(xhr.responseType) ) {
 
@@ -4331,6 +4343,11 @@ function ValidatorPlugin(rules, data, formId, culture) {
                                         } catch(err) {
                                             result = merge(result, err)
                                         }
+                                    } else if ( blobError ) {
+                                        // #B1083 — an answer sent as an attachment whose body is not
+                                        // JSON (a proxy's HTML page, plain text) keeps that body in
+                                        // `message`, as the normal case below does; it was dropped.
+                                        result.message = blobError;
                                     }
 
                                     if (!result.message)
