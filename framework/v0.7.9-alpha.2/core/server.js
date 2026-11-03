@@ -434,10 +434,18 @@ var buildAllowHeader = function(ruleMethods) {
  * close there drops them and leaves the client with no reset. The callers answer through throwError,
  * whose HTTP/2 sends carry no trailers, during the body parse, before any action runs.
  *
+ * #B1076 — a client that never reads the answer (a zero receive window) never lets it finish, so the close
+ * never runs; on Bun 1.2 / 1.3 the stream would meanwhile keep everything the client sends. On a request
+ * the Isaac listener armed (Bun, see server.isaac.early-answer.js), what the client still sends is
+ * therefore also discarded here, through the stream itself: the 431 counted on a request with no
+ * content-length and the 413 call request.destroy() right after this, which would undo a discard made
+ * through the compatibility request.
+ *
  * @inner
  * @param {object} request - The request just answered; `request.stream` is set over HTTP/2.
  * @returns {boolean} `true` when the request has an HTTP/2 stream, which closes once its answer has
- *   gone out; `false` otherwise (HTTP/1.1), and nothing is done.
+ *   gone out (and, when armed on Bun, whose body is discarded from now on); `false` otherwise
+ *   (HTTP/1.1), and nothing is done.
  * @example
  * // the 431 past upload.maxFieldsSize, over HTTP/2:
  * closeStreamAfterAnswer(req); // true: req.stream closes with NO_ERROR once the answer has gone out
@@ -451,6 +459,9 @@ var closeStreamAfterAnswer = function(request) {
         if ( !stream.closed && !stream.destroyed ) { stream.close(require('http2').constants.NGHTTP2_NO_ERROR); }
     };
     if ( stream.writableFinished ) { close(); } else { stream.once('finish', close); }
+    // #B1076 — the armed flag is read directly: a request that was never armed (Node.js, a request whose
+    // body ended with its headers) never reaches the early-answer module from here
+    if ( request._ginaStreamCloseArmed === true ) { earlyAnswer.discard(request); }
     return true;
 };
 
@@ -638,6 +649,10 @@ var routingLib      = lib.routing;
 // #P46 — the cold routing loop's candidate index: which rules could match a request
 // (server-only; kept out of lib/routing/src/, which the pre-commit gate treats as bundled).
 var routeCandidates = require('./server.route-candidates');
+// #B1076 — the early-answer hooks of an HTTP/2 request on Bun (armed by server.isaac.js's request
+// listener): this file calls keepOpen() where its body read starts, discards at its parse-time stops
+// and sends an armed binary static buffered.
+var earlyAnswer     = require('./server.isaac.early-answer');
 // #RC4 — the engine-agnostic render/output-cache read path (design f). One gen-0
 // instance (plain-required RenderCache survives refreshCore), pointed at the shared
 // Map per request via `from()`. Mirrors server.isaac.js's module-scope renderCache.
@@ -4287,6 +4302,9 @@ function Server(options) {
         if ( /http\/2/.test(protocol) ) {
 
             stream = response.stream;
+            // #B1076 — on an armed request (Bun, a body may still come), discard the body through the
+            // compatibility request before any answer below: see server.isaac.early-answer.js
+            earlyAnswer.discardThroughRequest(request);
         }
 
         var isCacheless       = bundleConf.isCacheless;
@@ -4590,7 +4608,18 @@ function Server(options) {
                             }
 
                             header  = completeHeaders(header, request, response);
-                            if (isBinary) {
+                            if ( isBinary && earlyAnswer.isArmed(request) ) {
+                                // #B1076 — an armed request (Bun, a body may still come) closes at its answer's
+                                // 'finish', and respondWithFile() finishes before the file is sent: send the
+                                // file buffered, so that 'finish' follows the bytes
+                                fs.readFile(filename, function onArmedStaticRead(readErr, buf) {
+                                    if (readErr) { return throwError(response, 404, 'Page not found: \n' + pathname, next); }
+                                    if ( stream.destroyed || stream.closed ) { return; }
+                                    header['content-length'] = buf.length;
+                                    stream.respond(header);
+                                    stream.end(buf);
+                                });
+                            } else if (isBinary) {
                                 stream.respondWithFile(filename, header)
                             } else {
                                 stream.respond(header);
@@ -6346,6 +6375,10 @@ function Server(options) {
                 }
 
             } else { // not a static request
+                // #B1076 — the body is read from here on and the router owns the answer: an armed request's
+                // early-answer hooks neither discard nor close it (its parse-time stops discard through
+                // closeStreamAfterAnswer)
+                earlyAnswer.keepOpen(request);
                 // init content
                 request.body    = ( typeof(request.body) != 'undefined' ) ? request.body : {};
                 request.get     = {};
