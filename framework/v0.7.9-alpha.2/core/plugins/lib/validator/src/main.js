@@ -9885,7 +9885,8 @@ function ValidatorPlugin(rules, data, formId, culture) {
                         }
 
                         updateSubmitTriggerState( $gForm, isFormValid);
-                        once = false;
+                        // #B1038 — no `once` is in scope here: the assignment wrote the page's `window.once`.
+                        // was: once = false;
                     })
 
                 });
