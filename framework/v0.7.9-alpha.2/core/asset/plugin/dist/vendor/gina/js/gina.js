@@ -16437,7 +16437,10 @@ function ValidatorPlugin(rules, data, formId, culture) {
      * timer reads the form once more, its group applied. While the values are written the live check stays
      * out of it (`isBeingReseted`, read by the live listeners), and `resetCount` tells a pass already on its way
      * that the form it was checking is gone. A control removed from the page since the bind is skipped,
-     * and each control is looked for among the form's own, should its id be shared (#B1036).
+     * and each control is looked for among the form's own, should its id be shared (#B1036). Once the
+     * values are restored, each radio's group is applied again through the hook the bind leaves on the
+     * record (`applyRadioGroups`), so a field that names a radio follows it before the pass reads the form;
+     * a master checkbox's timer applies the radios' groups again before it reads the form (#B1040).
      *
      * @param {object|string} [$form|formId]
      * @param {boolean} [isOnResetMode=false] - the path of a `reset` event: `text` and `hidden` inputs
@@ -16529,6 +16532,11 @@ function ValidatorPlugin(rules, data, formId, culture) {
                         triggerEvent(gina, $element, 'change');
                     }
 
+                }
+                // #B1040 — the radios are restored: each one's group is applied again, so the fields that name
+                // a radio follow it before the pass below reads the form (the collector skips a disabled control)
+                if ( typeof($form.applyRadioGroups) == 'function' ) {
+                    $form.applyRadioGroups();
                 }
                 // On reset mode the collector writes `text` and `hidden` values too: still under the flag
                 resetInfo = ( isOnResetMode === true )
@@ -23796,6 +23804,11 @@ function ValidatorPlugin(rules, data, formId, culture) {
             }
             var readGroupAfterReset = function() {
                 if ( isGroupReadAfterReset && instance.$forms[$form.id] ) {
+                    // #B1040 — a box grouped under a radio has just applied its own group from its ticked state
+                    // alone: the radios apply theirs again, so a field naming an unchecked radio stays off
+                    if ( typeof($form.applyRadioGroups) == 'function' ) {
+                        $form.applyRadioGroups();
+                    }
                     revalidateSilently(instance.$forms[$form.id]);
                 }
             };
@@ -24112,6 +24125,42 @@ function ValidatorPlugin(rules, data, formId, culture) {
                 }
             }
         }
+
+        /**
+         * Applies every radio's group again, from the radios' current `checked` and in the order the
+         * bind applied them: a checked radio's unchecked peers first, then the radio itself, as
+         * `updateRadio` does. `resetFields` calls it once the values are restored and before its pass
+         * (#B1040): a reset restores each radio's `checked` but takes none of the radio paths (a radio
+         * listens on its bare id and on the click proxy, never on `change`), so the fields that name a
+         * radio kept the state of the last pick. Each bind sets it again; `destroy()` drops it with the
+         * record.
+         *
+         * @inner
+         * @returns {undefined}
+         *
+         * @example
+         * instance.$forms['subscribe'].applyRadioGroups(); // once the radios' `checked` are restored
+         */
+        $form.applyRadioGroups = function onApplyRadioGroups() {
+            for (var r = 0, rLen = $inputs.length; r < rLen; ++r) {
+                if ( !/^radio$/i.test($inputs[r].type) ) {
+                    continue;
+                }
+                if ( $inputs[r].checked ) {
+                    for (var p = 0; p < rLen; ++p) {
+                        if (
+                            p != r
+                            && /^radio$/i.test($inputs[p].type)
+                            && $inputs[p].name === $inputs[r].name
+                            && $inputs[p].form === $inputs[r].form
+                        ) {
+                            handleGroupDependencies($inputs[p]);
+                        }
+                    }
+                }
+                handleGroupDependencies($inputs[r]);
+            }
+        };
 
 
         evt = 'click';

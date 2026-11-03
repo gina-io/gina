@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'A form reset (`form.reset()`, a reset button, or the handle''s `.resetFields()`) now applies each radio master''s group again: a field carrying `data-gina-form-element-group` that names a radio is disabled again, and left out of the posted data, when the reset unchecks that radio. It used to keep the state of the last pick, so after picking the radio and resetting, the field stayed enabled and was sent with the form, and a required one kept the submit control gated on a valid form. A checkbox grouped under a radio, and a field naming both, follow the radio after a reset as they do at page load. (#B1040)'
+time: 2026-11-03T16:17:26+01:00

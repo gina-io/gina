@@ -99,6 +99,8 @@
  *                                         its pages through /x76-page, same /ac-sink)
  *   GET /js/gina.onload.b1038.js       -> built onload with the select whisper (#B1038; the spec builds
  *                                         its pages through /x76-page, same /ac-sink)
+ *   GET /js/gina.onload.b1040.js       -> built onload with the radio-master reset whisper (#B1040; the
+ *                                         spec builds its pages through /x76-page, same /ac-sink)
  *   GET /js/gina.onload.b921.js        -> built onload with the RegExp-key-in-a-condition whisper
  *                                         (#B922; the spec builds its pages through /x76-page,
  *                                         same /ac-sink)
@@ -453,6 +455,17 @@ const B1038_FORMS_JSON = JSON.stringify({ rules: {
     sel: { s1: { isRequired: true }, r3: { isRequired: true } }
 } });
 
+// #B1040 — the forms whisper of the radio-master reset spec (test/e2e/validator-reset-radio-group-b1040.spec.js):
+// a required field naming a radio (`grpr`), a checkbox under a radio master with a field naming both (`grpc`,
+// `grpct`), a field naming two radios of two groups (`grp2`), and a checkbox master (`grpk`, the control).
+const B1040_FORMS_JSON = JSON.stringify({ rules: {
+    grpr:  { r3: { isRequired: true }, plan: { isRequired: true }, dep: { isRequired: true } },
+    grpc:  { r3: { isRequired: true }, plan: { isRequired: true }, cc: { isRequired: true } },
+    grpct: { r3: { isRequired: true }, plan: { isRequired: true }, cc: { isRequired: true } },
+    grp2:  { r3: { isRequired: true }, plan: { isRequired: true }, ship: { isRequired: true }, both: { isRequired: true } },
+    grpk:  { r3: { isRequired: true }, m: { isBoolean: true }, dep: { isRequired: true } }
+} });
+
 // #B921 — the forms whisper of the RegExp-key spec (test/e2e/validator-case-regex-key-b921.spec.js). Each
 // rule set puts a RegExp key (`"/^x$/"`) inside a `_case_` condition, in one block position or another.
 const B921_NEVER = { conditions: [ { case: 'never', rules: { x: { isString: true } } } ] };
@@ -730,6 +743,9 @@ const server = http.createServer(function (req, res) {
         }
         if (url === '/js/gina.onload.b1038.js') {
             return send(res, 200, 'application/javascript; charset=utf-8', renderOnload(B1038_FORMS_JSON));
+        }
+        if (url === '/js/gina.onload.b1040.js') {
+            return send(res, 200, 'application/javascript; charset=utf-8', renderOnload(B1040_FORMS_JSON));
         }
         if (url === '/js/gina.onload.b921.js') {
             return send(res, 200, 'application/javascript; charset=utf-8', renderOnload(B921_FORMS_JSON));
