@@ -51,8 +51,9 @@ jobs:
     name: Playwright (${{ inputs.engines || 'all' }})
     runs-on: ubuntu-latest
     # Three engines, three browser downloads: 30 minutes cancelled the whole-suite run at test
-    # 1391 of 1521 on 2026-10-25.
-    timeout-minutes: 45
+    # 1391 of 1521 on 2026-10-25. 45 minutes cancelled one at 45:02 on 2026-11-03, after its test
+    # step had passed; the whole-suite job took 41.0 to 43.8 minutes that day.
+    timeout-minutes: 60
 
     steps:
       - name: Checkout
