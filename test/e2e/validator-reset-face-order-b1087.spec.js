@@ -27,6 +27,10 @@
  *   05 CONTROL the same move without gina: the native reset of the old form leaves it alone
  *   06 CONTROL a component associated through its `form` attribute, outside the form element: still
  *      among the form's `elements`, so the form's reset runs its callback
+ *   07 two components, the first one's callback throws, form.reset() -> the second one's callback still
+ *      runs and restores it, and the error is reported once, on a timer (RED with one `try` around the
+ *      whole loop instead of one per callback)
+ *   08 CONTROL the same page without gina: the browser reports the error and runs the second callback
  *
  * Pre-fix arm: `GINA_B1087_PREFIX_BUNDLE=<path to a pre-fix gina.min.js>` serves that bundle instead of
  * the working-tree dist (the plugins subtract recipe).
@@ -60,6 +64,12 @@ const FORM_ATTR = '<form id="facer" data-gina-form-rule="facer" action="/ac-sink
     + '<div><input id="r3" type="text" name="r3" value="seed"></div>' + BUTTONS + '</form>'
     + '<div><x-rating id="score" name="score" form="facer"></x-rating></div>';
 
+/** A component whose callback throws, before the component that reads the text field. */
+const FORM_THROW = '<form id="facer" data-gina-form-rule="facer" action="/ac-sink" method="post">'
+    + '<div><x-thrower id="thrower" name="thrower"></x-thrower></div>'
+    + '<div><x-rating id="score" name="score"></x-rating></div>'
+    + '<div><input id="r3" type="text" name="r3" value="seed"></div>' + BUTTONS + '</form>';
+
 /**
  * Defines `x-rating`, a form-associated custom element whose value is '' until `commit(v)`; runs in the
  * page before its scripts. Its `formResetCallback` counts its calls, records the text field's value at
@@ -84,6 +94,27 @@ function defineRating() {
         this.value = '';
     };
     customElements.define('x-rating', XRating);
+}
+
+/**
+ * Defines `x-thrower`, a form-associated custom element whose `formResetCallback` counts its calls and
+ * then throws; runs in the page before its scripts, beside `defineRating`.
+ *
+ * @returns {undefined}
+ */
+function defineThrower() {
+    window.__throwerCalls = 0;
+    class XThrower extends HTMLElement {
+        static get formAssociated() { return true; }
+        constructor() { super(); this.internals_ = this.attachInternals(); this._v = ''; }
+        get value() { return this._v; }
+        set value(v) { this._v = v; this.internals_.setFormValue(v); }
+    }
+    XThrower.prototype.formResetCallback = function () {
+        window.__throwerCalls++;
+        throw new Error('b1087 thrower formResetCallback');
+    };
+    customElements.define('x-thrower', XThrower);
 }
 
 /**
@@ -242,5 +273,47 @@ test.describe('#B1087 — a reset runs a component\'s formResetCallback after th
         expect(after.calls, 'it is among the form\'s elements: its callback runs').toBe(1);
         expect(after.score).toBe('');
         expect(seen.errors).toEqual([]);
+    });
+
+    test('07 two components, the first one\'s callback throws, form.reset(): the second one\'s callback still runs, and the error is reported once, on a timer', async ({ page }) => {
+        await page.addInitScript(defineThrower);
+        const seen = await open(page, FORM_THROW, true);
+        await commit(page, '5');
+        await page.locator('#r3').fill('typed');
+        await page.locator('#r3').press('Tab');
+        await page.waitForTimeout(450);
+        const sync = await page.evaluate(() => {
+            var n = 0;
+            window.addEventListener('error', function () { n++; });
+            document.getElementById('facer').reset();
+            return n;
+        });
+        await page.waitForTimeout(800);
+        const after = await read(page);
+        const thrower = await page.evaluate(() => window.__throwerCalls);
+
+        expect(thrower, 'the first callback ran, and threw').toBe(1);
+        expect(after.calls, 'the second callback still ran, once').toBe(1);
+        expect(after.saw, 'after the text field was restored').toEqual(['seed']);
+        expect(after.score, 'and it restored its component').toBe('');
+        expect(after.r3).toBe('seed');
+        expect(sync, 'the error does not escape form.reset()').toBe(0);
+        expect(seen.errors, 'it is reported once, on a timer').toEqual(['b1087 thrower formResetCallback']);
+    });
+
+    test('08 CONTROL the same page without gina: the browser reports the throwing callback and still runs the second one', async ({ page }) => {
+        await page.addInitScript(defineThrower);
+        const seen = await open(page, FORM_THROW, false);
+        await commit(page, '5');
+        await page.locator('#r3').fill('typed');
+        await reset(page, 'form.reset');
+        const after = await read(page);
+        const thrower = await page.evaluate(() => window.__throwerCalls);
+
+        expect(thrower).toBe(1);
+        expect(after.calls, 'the native reading').toBe(1);
+        expect(after.saw).toEqual(['seed']);
+        expect(after.score).toBe('');
+        expect(seen.errors, 'the browser reports it once').toEqual(['b1087 thrower formResetCallback']);
     });
 });
