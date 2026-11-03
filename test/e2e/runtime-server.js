@@ -457,15 +457,29 @@ const B1038_FORMS_JSON = JSON.stringify({ rules: {
     sel: { s1: { isRequired: true }, r3: { isRequired: true } }
 } });
 
-// #B1040 — the forms whisper of the radio-master reset spec (test/e2e/validator-reset-radio-group-b1040.spec.js):
+// #B1040 — the forms whisper of the element-group reset spec (test/e2e/validator-reset-radio-group-b1040.spec.js):
 // a required field naming a radio (`grpr`), a checkbox under a radio master with a field naming both (`grpc`,
-// `grpct`), a field naming two radios of two groups (`grp2`), and a checkbox master (`grpk`, the control).
+// `grpct`), a field naming two radios of two groups (`grp2`), and a checkbox master (`grpk`, the control);
+// radios and a checkbox master in either page order with a field naming both (`grpo1`, `grpo2`, `grpl` with
+// live check off, `grpa` and `grpn` whose field loses its group attribute), a box under a radio that no field
+// names alone (`grpx`), a form in a popin (`grpp`), radios reassociated with form= (`grpf`), a form rebound
+// after a radio group was added (`grpb`), and two checkbox masters (`grpm`, the control).
 const B1040_FORMS_JSON = JSON.stringify({ rules: {
     grpr:  { r3: { isRequired: true }, plan: { isRequired: true }, dep: { isRequired: true } },
     grpc:  { r3: { isRequired: true }, plan: { isRequired: true }, cc: { isRequired: true } },
     grpct: { r3: { isRequired: true }, plan: { isRequired: true }, cc: { isRequired: true } },
     grp2:  { r3: { isRequired: true }, plan: { isRequired: true }, ship: { isRequired: true }, both: { isRequired: true } },
-    grpk:  { r3: { isRequired: true }, m: { isBoolean: true }, dep: { isRequired: true } }
+    grpk:  { r3: { isRequired: true }, m: { isBoolean: true }, dep: { isRequired: true } },
+    grpo1: { r3: { isRequired: true }, plan: { isRequired: true }, G: { isRequired: true }, F: { isRequired: true } },
+    grpo2: { r3: { isRequired: true }, plan: { isRequired: true }, G: { isRequired: true }, F: { isRequired: true } },
+    grpl:  { r3: { isRequired: true }, plan: { isRequired: true }, G: { isRequired: true }, F: { isRequired: true } },
+    grpa:  { r3: { isRequired: true } },
+    grpn:  { r3: { isRequired: true } },
+    grpx:  { r3: { isRequired: true }, plan: { isRequired: true }, F2: { isRequired: true } },
+    grpp:  { r3: { isRequired: true }, plan: { isRequired: true }, dep: { isRequired: true } },
+    grpf:  { r3: { isRequired: true }, plan: { isRequired: true }, dep: { isRequired: true } },
+    grpb:  { r3: { isRequired: true }, plan: { isRequired: true }, dep: { isRequired: true } },
+    grpm:  { r3: { isRequired: true }, H: { isRequired: true }, K: { isRequired: true } }
 } });
 
 // #B1041 — the forms whisper of the custom-element reset spec (test/e2e/validator-reset-face-b1041.spec.js): a

@@ -16431,17 +16431,19 @@ function ValidatorPlugin(rules, data, formId, culture) {
 
     /**
      * Reset fields
-     * Restores each bound control to the value it had when the form was bound, then runs the one pass of
-     * a reset: the error display and the `errors` store are cleared, nothing is painted, and the submit
-     * trigger is re-read (#B1037). With live check off, `resetFields()` runs no pass; a master checkbox's
-     * timer reads the form once more, its group applied. While the values are written the live check stays
+     * Restores each bound control to the value it had when the form was bound (a form-associated custom
+     * element restores itself through its own `formResetCallback`, or keeps its value without one: see
+     * below), then runs the one pass of a reset: the error display and the `errors` store are cleared,
+     * nothing is painted, and the submit trigger is re-read (#B1037). With live check off, `resetFields()`
+     * runs no pass; a master checkbox's timer reads the form once more, its group applied. While the values are written the live check stays
      * out of it (`isBeingReseted`, read by the live listeners), and `resetCount` tells a pass already on its way
      * that the form it was checking is gone. A control removed from the page since the bind is skipped,
      * and each control is looked for among the form's own, should its id be shared (#B1036). Once the
-     * values are restored, each radio's group is applied again through the hook the bind leaves on the
-     * record (`applyRadioGroups`), so a field that names a radio follows it before the pass reads the form;
-     * a master checkbox's timer applies the radios' groups again before it reads the form (#B1040). A
-     * form-associated custom element restores itself through its own `formResetCallback`, which the native
+     * values are restored, the group of every radio and checkbox is applied again in page order, as at
+     * page load, through the hook the bind leaves on the record (`applyElementGroups`), so the fields that
+     * name them follow before the pass reads the form; a master checkbox's timer applies them again before
+     * it reads the form (#B1040). A form-associated custom element restores itself through its own
+     * `formResetCallback`, which the native
      * reset gina cancels would have run: one without that callback keeps its value, as a native reset
      * leaves it, and a callback that throws is reported without stopping the reset (#B1041). A submit
      * waiting for a staged upload of the form (#B726) is dropped, so the upload's settle replays nothing,
@@ -16564,10 +16566,11 @@ function ValidatorPlugin(rules, data, formId, culture) {
                     }
 
                 }
-                // #B1040 — the radios are restored: each one's group is applied again, so the fields that name
-                // a radio follow it before the pass below reads the form (the collector skips a disabled control)
-                if ( typeof($form.applyRadioGroups) == 'function' ) {
-                    $form.applyRadioGroups();
+                // #B1040 — the radios and checkboxes are restored: their groups are applied again as at page
+                // load, so the fields that name them follow before the pass below reads the form (the
+                // collector skips a disabled control)
+                if ( typeof($form.applyElementGroups) == 'function' ) {
+                    $form.applyElementGroups();
                 }
                 // On reset mode the collector writes `text` and `hidden` values too: still under the flag
                 resetInfo = ( isOnResetMode === true )
@@ -23835,10 +23838,11 @@ function ValidatorPlugin(rules, data, formId, culture) {
             }
             var readGroupAfterReset = function() {
                 if ( isGroupReadAfterReset && instance.$forms[$form.id] ) {
-                    // #B1040 — a box grouped under a radio has just applied its own group from its ticked state
-                    // alone: the radios apply theirs again, so a field naming an unchecked radio stays off
-                    if ( typeof($form.applyRadioGroups) == 'function' ) {
-                        $form.applyRadioGroups();
+                    // #B1040 — this box has just applied its own group, after the reset's pass: every radio and
+                    // checkbox applies its group again in page order, as at page load, so a box under a radio
+                    // cannot re-enable a field its unchecked radio turned off
+                    if ( typeof($form.applyElementGroups) == 'function' ) {
+                        $form.applyElementGroups();
                     }
                     revalidateSilently(instance.$forms[$form.id]);
                 }
@@ -23948,6 +23952,14 @@ function ValidatorPlugin(rules, data, formId, culture) {
             // was: re = new RegExp(extendedGroupName);
             re = new RegExp('(^|\\s)' + extendedGroupName + '(\\s|$)');
             for (let id in allFormGroupedElements) {
+                // #B1040 — a field whose `data-gina-form-element-group` the page removed after the bind: its
+                // recorded group does not name this radio, and the attribute read below threw on null, on
+                // each radio pick and, through applyElementGroups, on each reset (stopped before its pass).
+                // The field is left as it is. The test stays out of the condition below, whose text #B919's
+                // bundle control counts.
+                if ( !re.test(allFormGroupedElements[id].group) && allFormGroupedElements[id].target.getAttribute('data-gina-form-element-group') == null ) {
+                    continue;
+                }
                 // #B919 — was: the branch below disabled, and excluded, EVERY grouped field that is
                 // not a radio or a checkbox, whichever radio this runs for; only the next branch
                 // re-enabled the fields of $el's own group. So a radio click, or the bind of a later
@@ -24158,22 +24170,46 @@ function ValidatorPlugin(rules, data, formId, culture) {
         }
 
         /**
-         * Applies every radio's group again, from the radios' current `checked` and in the order the
-         * bind applied them: a checked radio's unchecked peers first, then the radio itself, as
-         * `updateRadio` does. `resetFields` calls it once the values are restored and before its pass
-         * (#B1040): a reset restores each radio's `checked` but takes none of the radio paths (a radio
-         * listens on its bare id and on the click proxy, never on `change`), so the fields that name a
-         * radio kept the state of the last pick. Each bind sets it again; `destroy()` drops it with the
-         * record.
+         * Applies the group of every radio and checkbox of the form again, from their current state and
+         * as the bind applied them at page load (#B1040): one pass over the form's controls in their page
+         * order (`form.elements`, which holds the controls reassociated with `form=` too), the radios and
+         * the checkboxes in the same pass. A checkbox replays the bind's checkbox branch: when a field's
+         * group names that checkbox alone and the box is unticked or disabled, every field whose group
+         * names it is disabled, then the box applies its children's state (`updateGroupChildrenState`).
+         * A radio applies its group as `updateRadio` does at bind: a checked radio's unchecked peers
+         * first, then the radio itself. A field that names a radio and a checkbox follows whichever comes
+         * last in the page, at bind and here alike (#B1082), so the pass keeps the page order rather than
+         * applying one kind after the other. A checkbox's id is compared with each id of a field's group,
+         * the group split on white space: the bind's whole-id test (#B923) with no id to escape (#B929).
+         *
+         * `resetFields` calls it once the values are restored and before its pass. A reset restores each
+         * radio's `checked` but `updateRadio` never runs from `change` (with live check on, a radio's
+         * `change.<id>` runs only the live check, #B228, which the reset holds off), so the fields that
+         * name a radio kept the state of the last pick. A master checkbox's reset timer applies its own
+         * group after the reset's pass and calls this again before it reads the form once more (#B1037),
+         * so the page-order result is the one that stands. Each bind sets it again; `destroy()` drops it
+         * with the record.
          *
          * @inner
          * @returns {undefined}
          *
          * @example
-         * instance.$forms['subscribe'].applyRadioGroups(); // once the radios' `checked` are restored
+         * instance.$forms['subscribe'].applyElementGroups(); // once the controls' `checked` are restored
          */
-        $form.applyRadioGroups = function onApplyRadioGroups() {
+        $form.applyElementGroups = function onApplyElementGroups() {
             for (var r = 0, rLen = $inputs.length; r < rLen; ++r) {
+                // a checkbox: the bind's checkbox branch (the loop above), then its children's state
+                if ( /^checkbox$/i.test($inputs[r].type) ) {
+                    if ( allFormGroupNames.indexOf($inputs[r].id) > -1 && ( $inputs[r].disabled || !$inputs[r].checked ) ) {
+                        for (var g in allFormGroupedElements) {
+                            if ( String(allFormGroupedElements[g].group).split(/\s+/).indexOf($inputs[r].id) > -1 ) {
+                                allFormGroupedElements[g].target.disabled = true;
+                            }
+                        }
+                    }
+                    updateGroupChildrenState($inputs[r]);
+                    continue;
+                }
                 if ( !/^radio$/i.test($inputs[r].type) ) {
                     continue;
                 }
