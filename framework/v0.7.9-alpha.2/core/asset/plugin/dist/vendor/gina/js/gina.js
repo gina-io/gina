@@ -16443,7 +16443,10 @@ function ValidatorPlugin(rules, data, formId, culture) {
      * a master checkbox's timer applies the radios' groups again before it reads the form (#B1040). A
      * form-associated custom element restores itself through its own `formResetCallback`, which the native
      * reset gina cancels would have run: one without that callback keeps its value, as a native reset
-     * leaves it, and a callback that throws is reported without stopping the reset (#B1041).
+     * leaves it, and a callback that throws is reported without stopping the reset (#B1041). A submit
+     * waiting for a staged upload of the form (#B726) is dropped, so the upload's settle replays nothing,
+     * and the busy state its gesture armed is released, unless a request of the form's own is in flight
+     * (#B1043).
      *
      * @param {object|string} [$form|formId]
      * @param {boolean} [isOnResetMode=false] - the path of a `reset` event: `text` and `hidden` inputs
@@ -16473,6 +16476,16 @@ function ValidatorPlugin(rules, data, formId, culture) {
             }
 
             $form = instance.$forms[_id]
+        }
+
+        // #B1043 — a submit waiting for a staged upload of this form (#B726) belongs to the values the reset
+        // replaces: drop it, so the upload's settle replays nothing, and release the busy state its gesture
+        // armed, unless a request of the form's own is in flight (its settle owns that state)
+        if ( $form.stagedUploadWait ) {
+            $form.stagedUploadWait = null;
+            if ( !/^true$/i.test($form.isSending) ) {
+                disarmSubmitLoading($form);
+            }
         }
 
         if ($form.fieldsSet) {
