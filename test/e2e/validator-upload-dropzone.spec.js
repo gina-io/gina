@@ -102,15 +102,23 @@ test.describe('#R8 staged-upload dropzone (real bundle, real DataTransfer)', () 
     });
 
     test('04 - a dropped file is assigned to the owning input', async ({ page }) => {
+        // #B1059 — read the input at its `change`, the moment the drop assigns the file: this fixture's
+        // staging always fails (no upload action, the default route is not served: POST /null, 404), and
+        // a failed staging now empties the input, so a read after it saw nothing (approved by Martin
+        // Luther ETOUMAN NDAMBWE, 2026-11-04, by 18:46:27 WAT).
+        // was: the poll below read `el.files` after the drop, whatever the staging had done meanwhile
+        await page.evaluate(() => {
+            window.__droppedAtChange = [];
+            document.getElementById('doc').addEventListener('change', (e) => {
+                window.__droppedAtChange.push(e.target.files && e.target.files.length ? e.target.files[0].name : null);
+            }, true);
+        });
         await dispatchDrag(page, 'dragenter', 'file');
         await dispatchDrag(page, 'dragover', 'file');
         await dispatchDrag(page, 'drop', 'file');
 
         // The behavioural payoff: the drop must reach the <input type="file">, which
         // is what makes the dropped file part of the eventual submission.
-        await expect.poll(async () => await page.evaluate(() => {
-            const el = document.getElementById('doc');
-            return el.files && el.files.length ? el.files[0].name : null;
-        })).toBe('dropped.txt');
+        await expect.poll(async () => await page.evaluate(() => window.__droppedAtChange[0] || null)).toBe('dropped.txt');
     });
 });

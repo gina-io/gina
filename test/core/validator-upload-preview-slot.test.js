@@ -220,12 +220,18 @@ describe('#B459 03 - dist fidelity: the two new comparisons survive minification
         distJs = fs.readFileSync(DIST_JS, 'utf8');
     });
 
+    // #B1057 arc — Closure wraps gina.min.js at a position that moves with any byte added before it, and
+    // a rebuild put the wrap inside `C!=⏎'preview'`: the strict needle read 0 on unchanged code. The two
+    // counts now tolerate whitespace at the token boundary (approved by Martin Luther ETOUMAN NDAMBWE,
+    // 2026-11-04, by 18:46:27 WAT). Measured: 0 on v0.6.28, 1 on v0.6.29 and every later bundle.
+    // was: assert.equal(count(distJs, "!='preview'") + count(distJs, "'preview'!="), 1);
     it('03.1 the guard on the shared assignment compiles to a `preview` inequality (0 before the fix, 1 after)', function () {
-        assert.equal(count(distJs, "!='preview'") + count(distJs, "'preview'!="), 1);
+        assert.equal((distJs.match(/!=\s*'preview'|'preview'\s*!=/g) || []).length, 1);
     });
 
+    // was: assert.equal(count(distJs, "=='preview'") + count(distJs, "'preview'=="), 3);
     it('03.2 the carve-out adds one `preview` equality to the two the plugin already carried (2 before the fix, 3 after)', function () {
-        assert.equal(count(distJs, "=='preview'") + count(distJs, "'preview'=="), 3);
+        assert.equal((distJs.match(/==\s*'preview'|'preview'\s*==/g) || []).length, 3);
     });
 
     it('03.3 control: the quoted literal count moves from 2 to 4 - the pin above is what changed, nothing else', function () {
