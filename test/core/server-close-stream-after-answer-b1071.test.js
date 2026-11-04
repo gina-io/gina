@@ -4,7 +4,8 @@
  *
  * 01  source pins (comment-stripped): the helper sits at module scope, four stops call it (the 431
  *     before the body is read, the 400 of a failed parse, the 431 by the byte counter, the 413 past
- *     server.maxBodySize) and the two request.destroy() lines stay.
+ *     server.maxBodySize), and so does the stop of the multipart refusals (#B1086), and the two
+ *     request.destroy() lines stay.
  * 02  the helper, extracted from the source and run on stand-in streams: when it closes, with which
  *     code, and when it does nothing.
  *
@@ -50,8 +51,9 @@ describe('01 - #B1071 source pins (comment-stripped)', function () {
         assert.ok(active.indexOf(decl) < active.indexOf(LF + 'var parseByteSize = function(value) {'));
     });
 
-    it('01.2  four stops call it, each after its answer', function () {
-        assert.equal(countOf(active, 'closeStreamAfterAnswer(request);'), 4);
+    it('01.2  four stops call it, each after its answer, and so does the multipart refusals\' stop (#B1086): five calls', function () {
+        // #B1086 — the fifth call is stopRefusedMultipart()'s (test/core/multipart-refusal-stop-b1086.test.js pins it)
+        assert.equal(countOf(active, 'closeStreamAfterAnswer(request);'), 5);
 
         // the 431 sent before the body is read: answer, close, then return what the answer returned
         assert.match(active, /var answered = throwError\(response, 431, 'Attachment exceeded maximum file size \[ '\+ opt\.maxFieldsSize \+' \]'\);\s*closeStreamAfterAnswer\(request\);\s*return answered;/);

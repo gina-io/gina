@@ -92,16 +92,17 @@ describe('02 - #B844 the guard (extracted from core/server.js)', function () {
 
     /** Runs fn through the guard with the given request/response state; returns what was called. */
     function run(state, fn, method) {
-        var calls = { error: [], throwError: [] };
+        var calls = { error: [], throwError: [], stop: [] };
         var response = { headersSent: !!state.headersSent };
         var request  = { handled: !!state.handled, method: method || 'POST' };
         var next     = function next() {};
-        var guard = new Function('response', 'request', 'throwError', 'next', 'console',
+        var guard = new Function('response', 'request', 'throwError', 'next', 'console', 'stopRefusedMultipart',
             helpers + LF + guardText + LF + 'return guardMultipartListener;')(
             response, request,
             function (res, code, msg, nx) { calls.throwError.push({ res: res, code: code, msg: String(msg), next: nx }); },
             next,
-            { error: function () { calls.error.push(Array.prototype.slice.call(arguments).map(String)); } });
+            { error: function () { calls.error.push(Array.prototype.slice.call(arguments).map(String)); } },
+            function () { calls.stop.push('stop@' + calls.throwError.length); });
         var out = { calls: calls, request: request, response: response, next: next, threw: null };
         try { out.ret = guard(fn).call({ tag: 'ctx' }, 1, 2); } catch (e) { out.threw = e; }
         return out;
@@ -126,6 +127,7 @@ describe('02 - #B844 the guard (extracted from core/server.js)', function () {
         assert.equal(r.calls.throwError[0].msg.indexOf('Could not evaluate PUT request data.' + LF), 0, r.calls.throwError[0].msg.slice(0, 80));
         assert.match(r.calls.throwError[0].msg, /\n\s+at\s/, 'the stack goes to throwError, which logs it on the pairing line');
         assert.equal(r.request.handled, true);
+        assert.deepEqual(r.calls.stop, ['stop@1'], '#B1086 — the upload stops, after the answer');
     });
 
     it('02.3  the message line is written with visible escapes: no argument holds a real line feed', function () {
@@ -149,6 +151,7 @@ describe('02 - #B844 the guard (extracted from core/server.js)', function () {
             assert.match(line, /\n\s+at\s/, 'the stack is there');
             assert.ok(isFrameOnly(line), 'a real line break only before a frame line: ' + JSON.stringify(line.slice(0, 200)));
             assert.ok(line.indexOf('a\\nFORGED') > -1, 'the quoted line feed is a visible escape there too');
+            assert.deepEqual(r.calls.stop, [], '#B1086 — nothing stops a request already answered or handed off');
         });
     });
 
@@ -158,6 +161,7 @@ describe('02 - #B844 the guard (extracted from core/server.js)', function () {
         assert.equal(r.calls.throwError.length, 1);
         assert.ok(r.calls.throwError[0].msg.indexOf('plain text') > -1);
         assert.ok(r.calls.error[0].join(' ').indexOf('plain text') > -1, 'and it is logged');
+        assert.deepEqual(r.calls.stop, ['stop@1'], '#B1086 — the upload stops, after the answer');
     });
 
     it('02.7  `this`, the arguments and the return value pass through, and nothing is logged', function () {
@@ -166,6 +170,7 @@ describe('02 - #B844 the guard (extracted from core/server.js)', function () {
         assert.equal(r.calls.error.length, 0);
         assert.equal(r.calls.throwError.length, 0);
         assert.equal(r.request.handled, false);
+        assert.deepEqual(r.calls.stop, [], '#B1086 — nothing throws, nothing stops');
     });
 });
 

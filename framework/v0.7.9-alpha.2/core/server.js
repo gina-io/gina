@@ -6669,6 +6669,8 @@ function Server(options) {
                                 if (!response.headersSent && !request.handled) {
                                     request.handled = true;
                                     throwError(response, 500, 'Could not evaluate ' + request.method + ' request data.\n' + ((listenerErr && listenerErr.stack) ? listenerErr.stack : listenerErr), next);
+                                    // #B1086 — stop the upload too: a throw in 'file' leaves its part unread, a throw in 'field' lets the parser go on
+                                    stopRefusedMultipart();
                                 } else {
                                     // #B844 (review F4) — nothing answers here: the request is already answered
                                     // or handed off, or this is the cleanup timer's callback. No pairing line will
@@ -6693,6 +6695,8 @@ function Server(options) {
                             if ( !response.headersSent && !request.handled ) {
                                 request.handled = true;
                                 throwError(response, 400, 'multipart text field `'+ escapeLogControlChars(name) +'` exceeds the allowed size. See the `upload.maxTextFieldSize` definition in settings.json.', next);
+                                // #B1086 — stop the upload: the parser would go on and stage later file parts that nobody owns
+                                stopRefusedMultipart();
                             }
                             return;
                         }
@@ -6712,6 +6716,8 @@ function Server(options) {
                         if ( !response.headersSent && !request.handled ) {
                             request.handled = true;
                             throwError(response, 400, 'too many multipart text fields (max '+ maxTextFields +'). See the `upload.maxTextFields` definition in settings.json.', next);
+                            // #B1086 — stop the upload: the parser would go on and stage later file parts that nobody owns
+                            stopRefusedMultipart();
                         }
                     });
 
@@ -6767,6 +6773,8 @@ function Server(options) {
                         var maxFields = parseInt(opt.maxFields, 10);
                         if ( maxFields && fileCount > maxFields ) {
                             throwError(response, 400, 'too many upload fields (max '+ maxFields +'). See the `upload.maxFields` definition in settings.json.');
+                            // #B1086 — the refused part is never read: stop the upload, and close the stream once the answer is out
+                            stopRefusedMultipart();
                             return false;
                         }
 
@@ -6812,6 +6820,8 @@ function Server(options) {
                         // deny an unconfigured upload group (was: silently streamed through)
                         if ( typeof(opt.groups) == 'undefined' || typeof(opt.groups[fileGroup]) == 'undefined' ) {
                             throwError(response, 400, '`'+ escapeLogControlChars(fileGroup) +'` is not a configured upload group. See the `upload.groups` definition in settings.json.');
+                            // #B1086 — the refused part is never read: stop the upload, and close the stream once the answer is out
+                            stopRefusedMultipart();
                             return false;
                         }
 
@@ -6827,6 +6837,8 @@ function Server(options) {
 
                             if ( ext.indexOf(fileExt) < 0 ) {
                                 throwError(response, 400, '`'+ escapeLogControlChars(fileExt) +'` is not an allowed extension. See `'+ escapeLogControlChars(fileGroup) +'` upload group definition.');
+                                // #B1086 — the refused part is never read: stop the upload, and close the stream once the answer is out
+                                stopRefusedMultipart();
                                 return false;
                             }
                         }
@@ -6837,6 +6849,8 @@ function Server(options) {
                             && fileCount > 1
                         ) {
                             throwError(response, 400, 'multiple uploads not allowed. See `'+ fileGroup +'` upload group definition.');
+                            // #B1086 — the refused part is never read: stop the upload, and close the stream once the answer is out
+                            stopRefusedMultipart();
                             return false;
                         }
 
@@ -6907,6 +6921,8 @@ function Server(options) {
                         } catch (mkdirErr) {
                             console.error('[ busboy ] [ onUploadDirError ]', mkdirErr);
                             throwError(response, 500, 'upload destination for group `'+ escapeLogControlChars(fileGroup) +'` is not creatable ('+ fileUploadDir +')\n' + mkdirErr, next);
+                            // #B1086 — the refused part is never read: stop the upload, and close the stream once the answer is out
+                            stopRefusedMultipart();
                             return false;
                         }
 
@@ -6934,6 +6950,8 @@ function Server(options) {
                             console.error('[ busboy ] [ onWriteError ]', err);
                             throwError(response, 500, 'Internal server error\n' + err, next);
                             this.close();
+                            // #B1086 — the part is no longer written: stop the upload, and close the stream once the answer is out
+                            stopRefusedMultipart();
                             return;
                         }));
                         writeStreams[index].on('finish', guardMultipartListener(function() {
@@ -7128,6 +7146,35 @@ function Server(options) {
                             writeStream.destroy();
                             removeStagedFile(writeStream.path);
                         });
+                    };
+
+                    /**
+                     * #B1086 — stops the upload of a request refused while its body is parsed, once the refusal is answered.
+                     *
+                     * The upload stops (abortMultipart: the request no longer feeds the parser, the files it staged are
+                     * removed), the request is held, then, over HTTP/2, the request's stream closes with NO_ERROR once the
+                     * answer has gone out, and on Bun what the client still sends is discarded (closeStreamAfterAnswer,
+                     * #B1071 / #B1076). The hold is for a refusal answered after the parser has stopped taking input (the
+                     * write stream's 'error'): there unpipe() resumes the request, and its byte counter would read and drop
+                     * whatever a client that never reads the answer keeps sending; held, that client stays at the stream
+                     * window on Node.js. Without the stop a refused file part is never read, so the parser waits on it
+                     * while the client keeps sending, and a refused text field lets the parser go on and stage later file
+                     * parts that nobody owns. The shape of the stop of a parse that fails (onBusboyError). It answers
+                     * nothing, and a second call does nothing more.
+                     *
+                     * @inner
+                     * @returns {void}
+                     * @example
+                     * // in a busboy listener, right after a refusal has been answered:
+                     * stopRefusedMultipart();
+                     */
+                    var stopRefusedMultipart = function stopRefusedMultipart() {
+                        abortMultipart();
+                        // the write stream's 'error' answers after the parser has stopped taking input: unpipe() then
+                        // runs the pipe's pending drain handler, which resumes a request that still has a 'data'
+                        // listener (the #B1056 counter), so hold it: on Node.js the client stays at the stream window
+                        request.pause();
+                        closeStreamAfterAnswer(request);
                     };
 
                     // #B97 — a malformed / empty / non-multipart body sent with a
