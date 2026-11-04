@@ -19519,6 +19519,11 @@ function ValidatorPlugin(rules, data, formId, culture) {
                 fadeIn($resetLink);
             } // EO for f
         }
+        // #B1058 — the files the input holds changed (taken over, or the pending selection dropped):
+        // the gate of a rule on it follows, before a submit that waited for this upload is decided
+        if ( $uploadTriger ) {
+            resyncStagedUploadGate($uploadTriger);
+        }
     }
 
     /**
@@ -19607,6 +19612,64 @@ function ValidatorPlugin(rules, data, formId, culture) {
             }
         }
         return false;
+    };
+
+    /**
+     * getStagedUploadValue — #B1058: the value a rule of a staged file input judges. The input never
+     * posts its own value (the browser's placeholder path, #B725), so its rules judge the files it
+     * holds: the names of its entries (`customFiles`: the files of its last successful staging, or
+     * the saved files an edit form shows) and of a selection still staging (`pendingFiles`), joined
+     * with ', ', or '' when it holds none. A selection in flight counts, so the file being sent
+     * satisfies `isRequired` while it uploads; a failed staging drops it.
+     *
+     * @inner
+     * @private
+     * @param {HTMLInputElement} $input - the staged file input
+     * @returns {string} the names of the files it holds, or ''
+     *
+     * @example
+     * getStagedUploadValue(document.getElementById('avatar')); // 'me.png' once a file is staged, '' after its reset
+     */
+    var getStagedUploadValue = function($input) {
+        var names = [], lists = [ $input.customFiles, $input.pendingFiles ], list = null;
+        for (var l = 0; l < lists.length; ++l) {
+            list = lists[l];
+            if ( !list ) {
+                continue;
+            }
+            for (var e = 0, eLen = list.length; e < eLen; ++e) {
+                if ( list[e] && list[e].name ) {
+                    names.push(list[e].name);
+                }
+            }
+        }
+        return names.join(', ');
+    };
+
+    /**
+     * resyncStagedUploadGate — #B1058: re-derives the gate of a staged file input's form (see
+     * revalidateSilently) when the files the input holds change: a selection, a staging settle, a
+     * reset or a delete. The live check does it for a field the user edits; a file input has none.
+     * Only for an input that has a rule, the one case where the gate can depend on it. Without it a
+     * required staged input kept the submit trigger marked not ready after its staging, so a click
+     * only re-synced the trigger and sent nothing, and a click made while the file uploaded was lost.
+     *
+     * @inner
+     * @private
+     * @param {HTMLInputElement} $input - the staged file input
+     * @returns {void}
+     *
+     * @example
+     * resyncStagedUploadGate(document.getElementById('avatar')); // the trigger opens once the file is staged
+     */
+    var resyncStagedUploadGate = function($input) {
+        var $form = ( $input && $input.form ) ? $input.form : null;
+        var formId = ( $form && typeof($form.getAttribute) == 'function' ) ? $form.getAttribute('id') : null;
+        var $formRecord = ( formId && typeof(instance.$forms[formId]) != 'undefined' ) ? instance.$forms[formId] : null;
+        if ( !$formRecord || !$formRecord.rules || typeof($formRecord.rules[$input.name]) == 'undefined' ) {
+            return;
+        }
+        revalidateSilently($formRecord);
     };
 
     /**
@@ -20128,6 +20191,8 @@ function ValidatorPlugin(rules, data, formId, culture) {
                 $uploadTrigger.value        = '';
                 $uploadTrigger.stagedFiles  = [];
             }
+            // #B1058 — the removed files no longer count for a rule of the input: the gate follows
+            resyncStagedUploadGate($uploadTrigger);
             //update toolbar
             if (gina && envIsDev && isGFFCtx && typeof(window.ginaToolbar) != 'undefined' && window.ginaToolbar ) {
                 try {
@@ -23270,6 +23335,8 @@ function ValidatorPlugin(rules, data, formId, culture) {
                     // was: $el._replacedStoredFiles = ( $el._replacedStoredFiles || [] ).concat(_replacedStoredFiles);
                     // was: $el.customFiles = Array.from(files);
                     $el.pendingFiles = Array.from(files);
+                    // #B1058 — the file now staging counts for a rule of the input: the gate follows it
+                    resyncStagedUploadGate($el);
 
 
 
@@ -25279,6 +25346,12 @@ function ValidatorPlugin(rules, data, formId, culture) {
                     // #B725 (gh#83 part 2) — a staged file input's `.value` is the browser
                     // placeholder `C:\fakepath\<name>`; its real data travels through the
                     // staged hidden fields, so keep it out of the XHR payload.
+                    // #B1058 — a rule of the input judges the files it holds (getStagedUploadValue);
+                    // validate() leaves that value out of the data. Without a value no rule ran:
+                    // `isRequired` on a staged input refused nothing.
+                    if ( rules && typeof(rules[name]) != 'undefined' ) {
+                        fields[name] = getStagedUploadValue($target[i]);
+                    }
                 } else {
                     fields[name]    = $target[i].value;
                 }
@@ -26000,6 +26073,9 @@ function ValidatorPlugin(rules, data, formId, culture) {
      * value-carrying checkbox whose own rule declares a truthy `isRequired` is
      * collected as an empty string the same way (#B926): `isRequired` on it
      * means « must be ticked ». A boolean checkbox posts its live state instead.
+     * A staged file input (`data-gina-form-upload-action`) never gives its own
+     * value (#B725); when it has a rule it is collected with the names of the
+     * files it holds, which validate() judges and leaves out of the data (#B1058).
      *
      * @param {object} $form - form target (DOMObject), not the instance
      * @param {object} [rules]
@@ -26197,6 +26273,12 @@ function ValidatorPlugin(rules, data, formId, culture) {
                 // placeholder `C:\fakepath\<name>`; its real data travels through the staged
                 // hidden fields, so keep it out of the XHR payload. The element is still
                 // registered in `$fields` below for any rule that inspects it.
+                // #B1058 — a rule of the input judges the files it holds (getStagedUploadValue);
+                // validate() leaves that value out of the data. Without a value no rule ran:
+                // `isRequired` on a staged input refused nothing.
+                if ( rules && typeof(rules[name]) != 'undefined' ) {
+                    fields[name] = getStagedUploadValue($form[i]);
+                }
             } else {
                 fields[name] = $form[i].value;
             }
@@ -27909,6 +27991,25 @@ function ValidatorPlugin(rules, data, formId, culture) {
 
             if (i <= 0 && subLevelRules < 0) {
 
+                // #B1058 — a staged file input is judged on the files it holds (getStagedUploadValue) and
+                // never sent: its value leaves the data here, once every rule of the pass has run, since
+                // `isRequired(false)` takes a name back out of the exclusions. A pass without controls
+                // (the server's) has nothing to leave out. Written inline: this block is run on its own
+                // by the tests that lift forEachField, with only the names it already used.
+                if ( $fields ) {
+                    for (var stagedName in fields) {
+                        if (
+                            $fields[stagedName]
+                            && $fields[stagedName].type == 'file'
+                            && typeof($fields[stagedName].getAttribute) == 'function'
+                            && $fields[stagedName].getAttribute('data-gina-form-upload-action')
+                            && d[stagedName]
+                            && typeof(d[stagedName].exclude) == 'function'
+                        ) {
+                            d[stagedName].exclude(true);
+                        }
+                    }
+                }
                 var errors = d['getErrors']();
                 // adding data attribute to handle display refresh
                 for (var field in errors) {

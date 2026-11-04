@@ -1,7 +1,8 @@
 'use strict';
 
 /**
- * #B1059 and #B1057 — a staged file input after a failed staging, and after a smaller re-selection.
+ * #B1059, #B1057 and #B1058 — a staged file input after a failed staging, after a smaller
+ * re-selection, and under its own rules.
  *
  * #B1059: a failed staging dropped the pending selection (#B960) but left the file input holding it,
  * so its value still named the file (`C:\fakepath\<name>`). Choosing that same file again then fired
@@ -15,6 +16,12 @@
  * the fix those fields go, as a reset takes them out (a locked field stays), and a later, larger
  * selection brings back the ones the page declared.
  *
+ * #B1058: a staged file input was collected without a value (#B725), so none of its rules ran:
+ * `isRequired` on it let the form be sent with no file. Since the fix an input that has a rule is
+ * judged on the files it holds (its entries and a selection still staging), its value never rides the
+ * body, and the gate of a live-checked form follows those files (at the selection, the staging settle
+ * and a reset).
+ *
  *   A1  [#B1059] a failed staging empties the input, and choosing the same file again stages it (CDP)
  *   A2  CONTROL  after a failed staging, choosing another file stages it (both engines, both bundles)
  *   A3  [#B1059] a staged file, a failed staging of a second file, then that second file again (CDP):
@@ -27,6 +34,15 @@
  *   B4  [#B1057] three, one, then three again: a field the page declared at index 1 goes and comes back
  *   B5  [#B1057] a locked field at an index the new selection no longer has stays in the form
  *   B6  [#B1057] an edit form showing two saved files, one file chosen: the save posts the new file only
+ *   C1  [#B1058] required, no file: the submit is refused and the input is marked invalid
+ *   C2  [#B1058] required, a staged file: the first click sends it, with no scalar for the input
+ *   C3  optional (`isRequired: false`), no file: the form is sent without the staged input
+ *   C4  optional, a staged file: the file rides the body, and no scalar does
+ *   C5  [#B1058] required, after a failed staging: the submit is refused
+ *   C6  required, an edit form showing a saved file: the first click sends the saved file
+ *   C7  [#B1058] required, a click while the file uploads: the submit waits and sends once
+ *   C8  [#B1058] required, a staged file then its reset: the trigger is not ready again, the submit refused
+ *   C9  CONTROL  no rule on the staged input, no file: the form is sent without it
  *
  * A1 and A3 choose files over CDP (`DOM.setFileInputFiles`), Chromium only: a real re-pick of the same
  * path is the one that fires `cancel`, while Playwright's `setInputFiles` hands the page new files on
@@ -39,7 +55,10 @@
  * RED-FIRST: B1057_PREFIX_BUNDLE=<path to a pre-fix gina.min.js> serves those bytes to every arm
  * (page.route, nothing written to the tree; A2 and B3 assert that the swap ran). On develop
  * `60fa83d78`'s bundle and on the published 0.7.8 bundle, A1, A3, A4 and B1, B2, B4, B5, B6 fail, and
- * A2 and B3 pass.
+ * A2 and B3 pass. On develop `45a13e465`'s bundle (measured 2026-11-04, Chromium) the same eight fail,
+ * and so do C1, C5 and C8, while C2, C3, C4, C6, C7 and C9 pass: with no rule run, every form is sent.
+ * On a bundle with the #B1058 change but without the gate re-sync, C2, C7 and C8 fail, each where the
+ * trigger stays not ready after the staging or while the file uploads.
  *
  * Run (local; WebKit: GINA_E2E_ENGINES=all ... --project=webkit):
  *   GINA_E2E_PORT=3292 npx playwright test test/e2e/validator-upload-staged-b1057.spec.js --project=chromium --workers=1
@@ -106,7 +125,27 @@ const SAVED_TWO = '<input id="docA" type="file" name="doc" multiple ' + ACTIONS 
     + '<div><a href="#" id="docA-0-delete-trigger">Delete</a> <a href="#" id="docA-1-delete-trigger">Delete</a></div>'
     + '<p id="docA-error" hidden></p>';
 
+// an edit form showing one saved file, with its fields and its delete link
+const SAVED_ONE = '<input id="docA" type="file" name="doc" ' + ACTIONS + '>'
+    + '<input type="hidden" name="doc[0][name]" value="old.png"><input type="hidden" name="doc[0][location]" value="/media/stored/old.png">'
+    + '<div id="docA-preview"><img src="/upload-tmp/old.png" data-upload-original-filename="old.png" alt=""></div>'
+    + '<div><a href="#" id="docA-0-delete-trigger">Delete</a></div><p id="docA-error" hidden></p>';
+
 function page(inner) { return head('/js/gina.onload.b459.js') + FORM_OPEN + inner + FORM_CLOSE + DECLARED + '</body></html>'; }
+
+/**
+ * A page whose form keeps the id `b459form` and takes its rules from one of the #B1058 rule sets
+ * (`b1058req`: `doc` required; `b1058opt`: `doc` optional), served by `/js/gina.onload.b1058.js`.
+ *
+ * @param {string} ruleSet - the rule set the form names in `data-gina-form-rule`
+ * @param {string} inner - the form's controls after the title
+ * @returns {string} the page
+ */
+function pageRules(ruleSet, inner) {
+    return head('/js/gina.onload.b1058.js')
+        + '<form id="b459form" data-gina-form-rule="' + ruleSet + '" action="/upload-save" method="post">'
+        + '<input id="titleA" type="text" name="title" value="t">' + inner + FORM_CLOSE + DECLARED + '</body></html>';
+}
 function file(name) { return { name: name, mimeType: 'image/png', buffer: PNG }; }
 
 /**
@@ -287,6 +326,37 @@ async function save(pw, log) {
     let body = log.saves[log.saves.length - 1];
     try { body = JSON.parse(body); } catch (e) { /* kept as text */ }
     return { sent: true, doc: (body && typeof body === 'object' && 'doc' in body) ? body.doc : (body && typeof body === 'object' ? '(no doc key)' : body) };
+}
+
+/** Whether the submit trigger carries the framework's not-ready mark (#B312), and the file input's aria-invalid. */
+function gate(pw) {
+    return pw.evaluate(() => ({
+        gated: document.getElementById('b459form-submit').getAttribute('data-gina-form-submit-gated'),
+        docInvalid: document.getElementById('docA').getAttribute('aria-invalid')
+    }));
+}
+
+/**
+ * Clicks the submit trigger once and waits 1.5 s: the count of save requests that click sent, and
+ * the last save body parsed (or as text).
+ *
+ * @param {object} pw - the Playwright page
+ * @param {object} log - the arm's record
+ * @returns {Promise<{sent: number, body: *}>}
+ */
+async function clickOnce(pw, log) {
+    const before = log.saves.length;
+    await pw.click('#b459form-submit', { force: true });
+    await pw.waitForTimeout(1500);
+    let body = log.saves.length ? log.saves[log.saves.length - 1] : null;
+    const raw = body;
+    try { body = JSON.parse(body); } catch (e) { /* kept as text */ }
+    return { sent: log.saves.length - before, body: body, raw: raw };
+}
+
+/** What a save body holds under `doc`: '(no doc key)', or the posted value. */
+function docOf(body) {
+    return (body && typeof body === 'object') ? (('doc' in body) ? body.doc : '(no doc key)') : body;
 }
 
 /** The positive control of the red-first seam: the swapped bundle was served. */
@@ -546,6 +616,140 @@ test.describe('#B1057 - a smaller selection takes out the fields of the files it
         expect(Array.isArray(saved.doc) ? saved.doc.map((d) => d && d.location) : saved.doc, 'the save posts the new file only')
             .toEqual(['/tmp/uploads/staged-d.png']);
         expect(log.remove, 'no removal request').toEqual([]);
+        expect(log.errors).toEqual([]);
+    });
+});
+
+test.describe('#B1058 - a rule on a staged file input judges the files it holds', () => {
+
+    test('C1 required, no file: the submit is refused and the input is marked invalid', async ({ page: pw }) => {
+        const log = await open(pw, pageRules('b1058req', FRESH), []);
+        const atBind = await gate(pw);
+        const click = await clickOnce(pw, log);
+        const after = await gate(pw);
+        record('C1', log, { atBind: atBind, sent: click.sent, after: after });
+        expect(click.sent, 'nothing is sent').toBe(0);
+        expect(after.docInvalid, 'the staged input is marked invalid').toBe('true');
+        expect(log.errors).toEqual([]);
+    });
+
+    test('C2 required, a staged file: the first click sends the file, and no scalar rides the body', async ({ page: pw }) => {
+        const log = await open(pw, pageRules('b1058req', FRESH), [{ ok: 'a.png' }]);
+        const atBind = await gate(pw);
+        await pw.setInputFiles('#docA', file('a.png'));
+        const done = await staged(log, 1) && await filled(pw, 'doc[0][location]', '/tmp/uploads/staged-a.png');
+        const afterStaging = await gate(pw);
+        const click = await clickOnce(pw, log);
+        record('C2', log, { atBind: atBind, filled: done, afterStaging: afterStaging, sent: click.sent, doc: docOf(click.body) });
+        expect(done, 'the staging filled the form').toBe(true);
+        expect(afterStaging.gated, 'the staged file opens the submit trigger').toBe(null);
+        expect(click.sent, 'the first click sends').toBe(1);
+        expect(Array.isArray(docOf(click.body)) && docOf(click.body).map((d) => d && d.originalFilename), 'the staged file rides the body').toEqual(['a.png']);
+        expect(click.raw, 'the input\'s own value is not posted').not.toContain('fakepath');
+        expect(click.raw, 'no scalar for the staged input').not.toContain('"doc":"');
+        expect(log.errors).toEqual([]);
+    });
+
+    test('C3 optional, no file: the form is sent without the staged input', async ({ page: pw }) => {
+        const log = await open(pw, pageRules('b1058opt', FRESH), []);
+        const click = await clickOnce(pw, log);
+        record('C3', log, { sent: click.sent, doc: docOf(click.body) });
+        expect(click.sent, 'the form is sent').toBe(1);
+        expect(docOf(click.body), 'with no doc key').toBe('(no doc key)');
+        expect(log.errors).toEqual([]);
+    });
+
+    test('C4 optional, a staged file: the file rides the body, and no scalar does', async ({ page: pw }) => {
+        const log = await open(pw, pageRules('b1058opt', FRESH), [{ ok: 'a.png' }]);
+        await pw.setInputFiles('#docA', file('a.png'));
+        const done = await staged(log, 1) && await filled(pw, 'doc[0][location]', '/tmp/uploads/staged-a.png');
+        const click = await clickOnce(pw, log);
+        record('C4', log, { filled: done, sent: click.sent, doc: docOf(click.body) });
+        expect(done).toBe(true);
+        expect(click.sent, 'the first click sends').toBe(1);
+        expect(Array.isArray(docOf(click.body)) && docOf(click.body).map((d) => d && d.originalFilename)).toEqual(['a.png']);
+        expect(click.raw, 'no scalar for the staged input').not.toContain('"doc":"');
+        expect(log.errors).toEqual([]);
+    });
+
+    test('C5 required, after a failed staging: the submit is refused', async ({ page: pw }) => {
+        const log = await open(pw, pageRules('b1058req', FRESH), [{ fail: true }]);
+        await pw.setInputFiles('#docA', file('a.png'));
+        const shown = await errorShown(pw);
+        await pw.waitForTimeout(300);
+        const afterFailure = await gate(pw);
+        const click = await clickOnce(pw, log);
+        const after = await gate(pw);
+        record('C5', log, { errorShown: shown, afterFailure: afterFailure, sent: click.sent, after: after });
+        expect(shown, 'the staging error is shown').toBe(true);
+        expect(click.sent, 'nothing is sent').toBe(0);
+        expect(after.docInvalid, 'the staged input is marked invalid').toBe('true');
+        expect(log.errors).toEqual([]);
+    });
+
+    test('C6 required, an edit form showing a saved file: the first click sends the saved file', async ({ page: pw }) => {
+        const log = await open(pw, pageRules('b1058req', SAVED_ONE), []);
+        const atBind = await gate(pw);
+        const click = await clickOnce(pw, log);
+        record('C6', log, { atBind: atBind, sent: click.sent, doc: docOf(click.body) });
+        expect(atBind.gated, 'the saved file satisfies the rule at bind').toBe(null);
+        expect(click.sent, 'the first click sends').toBe(1);
+        expect(docOf(click.body), 'the saved file\'s fields ride the body').toEqual([{ name: 'old.png', location: '/media/stored/old.png' }]);
+        expect(log.errors).toEqual([]);
+    });
+
+    test('C7 required, a click while the file uploads: the submit waits and sends once', async ({ page: pw }) => {
+        const log = await open(pw, pageRules('b1058req', FRESH), [{ ok: 'a.png', delay: 1500 }]);
+        await pw.setInputFiles('#docA', file('a.png'));
+        const sent = await staged(log, 1);
+        await pw.waitForTimeout(300);
+        const inFlight = await gate(pw);
+        await pw.click('#b459form-submit', { force: true });
+        await pw.waitForTimeout(400);
+        const savesDuringFlight = log.saves.length;
+        const done = await filled(pw, 'doc[0][location]', '/tmp/uploads/staged-a.png', 6000);
+        await expect.poll(() => log.saves.length, { timeout: 6000 }).toBe(1).catch(() => {});
+        await pw.waitForTimeout(500);
+        let body = log.saves.length ? log.saves[log.saves.length - 1] : null;
+        try { body = JSON.parse(body); } catch (e) { /* kept as text */ }
+        record('C7', log, { sent: sent, inFlight: inFlight, savesDuringFlight: savesDuringFlight, filled: done, saves: log.saves.length, doc: docOf(body) });
+        expect(sent, 'the file is sent for staging').toBe(true);
+        expect(inFlight.gated, 'the file in flight opens the submit trigger').toBe(null);
+        expect(savesDuringFlight, 'nothing is sent while the file uploads').toBe(0);
+        expect(done, 'the staging fills the form').toBe(true);
+        expect(log.saves.length, 'the waiting submit sends once').toBe(1);
+        expect(Array.isArray(docOf(body)) && docOf(body).map((d) => d && d.originalFilename)).toEqual(['a.png']);
+        expect(log.errors).toEqual([]);
+    });
+
+    test('C8 required, a staged file then its reset: the trigger is marked not ready again and the submit is refused', async ({ page: pw }) => {
+        const log = await open(pw, pageRules('b1058req', FRESH), [{ ok: 'a.png' }]);
+        await pw.setInputFiles('#docA', file('a.png'));
+        const done = await staged(log, 1) && await filled(pw, 'doc[0][location]', '/tmp/uploads/staged-a.png');
+        const afterStaging = await gate(pw);
+        await pw.click('#docA-0-reset-trigger');
+        await expect.poll(() => log.remove.length, { timeout: 4000 }).toBe(1).catch(() => {});
+        await pw.waitForTimeout(300);
+        const afterReset = await gate(pw);
+        const click = await clickOnce(pw, log);
+        const after = await gate(pw);
+        record('C8', log, { filled: done, afterStaging: afterStaging, afterReset: afterReset, sent: click.sent, after: after });
+        expect(done).toBe(true);
+        expect(afterStaging.gated, 'the staged file opens the trigger').toBe(null);
+        expect(log.remove, 'the reset unstages the file').toEqual(['POST {"files":["a.png"]}']);
+        expect(afterReset.gated, 'the reset marks the trigger not ready again').toBe('true');
+        expect(click.sent, 'nothing is sent').toBe(0);
+        expect(after.docInvalid, 'the staged input is marked invalid').toBe('true');
+        expect(log.errors).toEqual([]);
+    });
+
+    test('C9 CONTROL - no rule on the staged input, no file: the form is sent without it', async ({ page: pw }) => {
+        const log = await open(pw, page(FRESH), []);
+        const click = await clickOnce(pw, log);
+        record('C9', log, { sent: click.sent, doc: docOf(click.body) });
+        swapRan(log);
+        expect(click.sent, 'the form is sent').toBe(1);
+        expect(docOf(click.body), 'with no doc key').toBe('(no doc key)');
         expect(log.errors).toEqual([]);
     });
 });

@@ -106,6 +106,8 @@
  *                                         same /ac-sink)
  *   GET /js/gina.onload.b596.js        -> built onload with the mixed bracket-keys whisper (#B596; the
  *                                         spec builds its pages through /x76-page, same /ac-sink)
+ *   GET /js/gina.onload.b1058.js       -> built onload with the staged-input rules whisper (#B1058; the
+ *                                         spec builds its pages through /x76-page, same staging routes)
  *   GET /link-gate                     -> fixtures/link-disabled-gate.html (#B310
  *                                         link disabled-gate harness; same sink)
  *   GET /link-shared                   -> fixtures/link-same-url.html (#B287
@@ -486,6 +488,14 @@ const B921_FORMS_JSON = JSON.stringify({ rules: {
 const B596_FORMS_JSON = JSON.stringify({ rules: {
     mixform: { ref: { isRequired: true } }
 } });
+// #B1058 — the forms whisper of the staged-upload spec (test/e2e/validator-upload-staged-b1057.spec.js):
+// rule sets in which the staged file input `doc` carries a rule, required or optional. The spec's
+// form keeps its id and names one of these sets in `data-gina-form-rule`.
+const B1058_FORMS_JSON = JSON.stringify({ rules: {
+    b1058req:     { title: { isRequired: true }, doc: { isRequired: true } },
+    b1058opt:     { title: { isRequired: true }, doc: { isRequired: false } },
+    b459declared: { title: { isRequired: true } }
+} });
 // The staging answer the client consumes (guide: `files[]` entries; the NESTED
 // `preview` object is the app-provided variant the client renders from `preview.tmpUri`).
 const B459_STAGE_JSON = JSON.stringify({ files: [{
@@ -747,6 +757,9 @@ const server = http.createServer(function (req, res) {
         }
         if (url === '/js/gina.onload.b596.js') {
             return send(res, 200, 'application/javascript; charset=utf-8', renderOnload(B596_FORMS_JSON));
+        }
+        if (url === '/js/gina.onload.b1058.js') {
+            return send(res, 200, 'application/javascript; charset=utf-8', renderOnload(B1058_FORMS_JSON));
         }
         // #B459 — the staged-upload preview-fields fixture and its three endpoints.
         if (url === '/js/gina.onload.b459.js') {
