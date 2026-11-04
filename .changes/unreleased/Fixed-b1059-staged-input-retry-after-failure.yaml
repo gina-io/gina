@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'A staged file input (`data-gina-form-upload-action`) whose staging failed now lets the same file be chosen again. The failed staging dropped the pending selection but left the input holding it, so its value still named the file, and choosing that file again staged nothing: Chromium fires `cancel`, not `change`, for a re-pick of the file an input already holds. The input''s value is now emptied when its staging fails. The files it held before keep their previews, reset links and fields, and a staging that a newer selection superseded leaves that selection on the input. (#B1059)'
+time: 2026-11-04T19:11:20+01:00

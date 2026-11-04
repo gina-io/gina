@@ -19061,7 +19061,7 @@ function ValidatorPlugin(rules, data, formId, culture) {
      * it carries replacing its field's value (`name` included, #B962), and the previews and reset
      * links are rendered. On a failure the error is shown or announced, and only the pending
      * selection is dropped: the previews, the controls, the entries and the hidden fields stay as
-     * they were.
+     * they were. The input's value is emptied too, so the same file can be chosen again (#B1059).
      *
      * @inner
      * @private
@@ -19134,6 +19134,11 @@ function ValidatorPlugin(rules, data, formId, culture) {
         // the reset and delete links, the input's entries and the form's hidden fields stay as they were
         if ( status != 'success' && $uploadTriger ) {
             $uploadTriger.pendingFiles = null;
+            // #B1059 — the input let go of the failed selection: it kept naming the file, so choosing
+            // that same file again fired `cancel` instead of `change` (Chromium) and nothing was staged.
+            // A superseded staging never reaches this settle (it ends on its abort), so a newer
+            // selection still staging keeps its file.
+            $uploadTriger.value = '';
         }
 
         if ($error && status != 'success') { // handle errors first
