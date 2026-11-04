@@ -2252,7 +2252,8 @@ function Merge() {
      *   rewritten: inside an object both sides hold, a subtree the target lacks is
      *   referenced, not walked (#B428), while a key the target lacks at the top level
      *   is copied, an array through the array merge and an object as a shallow copy
-     *   whose arrays are merged the same way (#B1078)
+     *   whose arrays are merged the same way; with `override` such a top-level array
+     *   is the source's own array (#B1078)
      *
      * @example
      * merge({ a: 1 }, { b: 2 })          // { a: 1, b: 2 }
@@ -2522,8 +2523,10 @@ function Merge() {
      * becomes `null`), and any other value is the element itself. The browser's
      * copy (polyfill.js) copies only enumerable own keys and keeps an own
      * `undefined`, which can only stop its scan sooner, so a true answer holds there
-     * too. For the one key name the two copies treat apart, `'undefined'`, and for a
-     * `keyComparison` that is not a string, the answer is false. Only a string,
+     * too. For the one key name the two copies treat apart, `'undefined'`, for
+     * `'__proto__'` (neither copy can hold it as an own key: the write runs the
+     * accessor, so the loop reads the prototype) and for a `keyComparison` that is
+     * not a string, the answer is false. Only a string,
      * boolean, null or non-NaN number key can be matched; any other key returns
      * false, and the loop decides, as before.
      *
@@ -2543,6 +2546,10 @@ function Merge() {
         // the server's JSON.clone skips an own key named 'undefined' and the browser's
         // copies it: for that name, or a key that is not a string, the loop decides
         if ( typeof(keyComparison) != 'string' || keyComparison === 'undefined' ) { return false }
+        // an own key named '__proto__' (JSON.parse yields one) is written through the
+        // Object.prototype accessor by both clones, so a clone never holds it as data
+        // and the loop reads the prototype where this check reads the value
+        if ( keyComparison === '__proto__' ) { return false }
         for (; t < tLen; ++t) {
             // the loop's own id list skips the same null slots
             if (newTarget[t] == null) { continue }

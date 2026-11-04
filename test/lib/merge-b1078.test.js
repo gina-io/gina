@@ -24,7 +24,8 @@
  * The browser bundle runs the same source with the polyfill's `JSON.clone`, which
  * copies only enumerable own keys, keeps an own `undefined`, and copies a key named
  * `'undefined'` that the server's clone skips. The check returns false for that key
- * name, so the loop decides there (§05).
+ * name, so the loop decides there (§05), and for `'__proto__'`, which neither clone
+ * can hold as an own key: its write runs the accessor (§02, §03).
  *
  * Covered (BEHAVIOURAL unless marked — the real lib is driven):
  *   01  cost: five slow shapes, each under 500 ms (RED pre-fix: 2.9–4.9 s each)
@@ -324,6 +325,16 @@ describe('02 - results are unchanged (values read on the pre-fix bytes)', functi
         assert.equal(out[0], t[0]);
     });
 
+    it('a collection compared on a key named __proto__: a clone cannot hold that own key, so the loop decides, as before', function () {
+        // JSON.parse yields an OWN __proto__ data key; a clone's write of it runs the accessor
+        var t = JSON.parse('[{"__proto__":"x","v":1}]'), s = JSON.parse('[{"__proto__":"x","v":2}]');
+        var out = merge.setKeyComparison('__proto__')(t, s);
+        assert.equal(out.length, 2);
+        assert.equal(out[0], t[0]);
+        assert.equal(out[1].v, 2);
+        assert.notEqual(out[1], s[1], 'a clone');
+    });
+
     it('arrays of primitives: strings deduplicated, numbers topped up by count', function () {
         assert.deepEqual(merge({ k: 'x' }, { tags: ['a', 'a', 'b'] }).tags, ['a', 'b']);
         assert.deepEqual(merge({ k: 'x' }, { tags: [25, 25, 1] }).tags, [25, 1, 25]);
@@ -406,6 +417,10 @@ describe('03 - collectionAddsNothing answers per branch (lifted from the source)
         assert.equal(adds()([{ undefined: 'a' }], [{ undefined: 'a' }], 'undefined'), false);
         assert.equal(adds()([{ 1: 'a' }], [{ 1: 'a' }], 1), false);
     });
+
+    it('the key name __proto__: false, even when both sides hold the same own value', function () {
+        assert.equal(adds()(JSON.parse('[{"__proto__":"x"}]'), JSON.parse('[{"__proto__":"x"}]'), '__proto__'), false);
+    });
 });
 
 
@@ -470,6 +485,7 @@ describe('06 - source pins', function () {
     it('the check is defined once, and returns false for the key name undefined or a non-string key', function () {
         assert.equal(count(code, 'var collectionAddsNothing = function(options, newTarget, keyComparison) {'), 1);
         assert.equal(count(code, "if ( typeof(keyComparison) != 'string' || keyComparison === 'undefined' ) { return false }"), 1);
+        assert.equal(count(code, "if ( keyComparison === '__proto__' ) { return false }"), 1);
     });
 
     it('the non-override collection branch asks it once, before cloning the source', function () {
@@ -510,6 +526,7 @@ describe('07 - dist pins: the browser bundle carries the change', function () {
         var code = codeOf(js);
         assert.equal(count(code, 'var collectionAddsNothing = function(options, newTarget, keyComparison) {'), 1);
         assert.equal(count(code, "if ( typeof(keyComparison) != 'string' || keyComparison === 'undefined' ) { return false }"), 1);
+        assert.equal(count(code, "if ( keyComparison === '__proto__' ) { return false }"), 1);
         assert.equal(count(code, 'if ( collectionAddsNothing(options, newTarget, keyComparison) ) {'), 1);
         assert.equal(count(code, 'newTargetIds.indexOf('), 0);
         assert.ok(count(code, 'newTargetIds.push(') > 0, 'anti-vacuity: the merge module is in the bundle');
@@ -519,6 +536,7 @@ describe('07 - dist pins: the browser bundle carries the change', function () {
         var min = fs.readFileSync(DIST_MIN, 'utf8').replace(/\n/g, '');
         function n(re) { return (min.match(re) || []).length; }
         assert.equal(n(/typeof (\w+)!='string'\|\|\1==='undefined'/g), 1, 'the guard');
+        assert.equal(n(/typeof (\w+)!='string'\|\|\1==='undefined'\|\|\1==='__proto__'/g), 1, 'the guard folds the __proto__ test in');
         assert.equal(n(/if\((\w+)\)return (\w+);(\w+)=JSON\.clone\((\w+)\)/g), 1, 'the early return before the clone');
         assert.equal(n(/\{if\((\w+)\[(\w+)\]\[(\w+)\]!==\1\[\2\]\[\3\]\|\|!(\w+)\.has\(\1\[\2\]\[\3\]\)\)\{(\w+)\.push\(\1\[\2\]\)/g), 1, 'the non-override Set test');
         assert.equal(n(/(\w+)\[(\w+)\]\[(\w+)\]===\1\[\2\]\[\3\]&&(\w+)\.has\(\1\[\2\]\[\3\]\)/g), 3, 'the override Set tests');
