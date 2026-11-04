@@ -5314,8 +5314,9 @@ function ValidatorPlugin(rules, data, formId, culture) {
      * emptied, the delete links of the stored entries the selection replaces go (#B150), its files
      * become the entries the reset and delete links act on (`customFiles`, from `pendingFiles`),
      * the hidden fields are built (see buildUploadHiddenFields) and filled from the answer, each key
-     * it carries replacing its field's value (`name` included, #B962), and the previews and reset
-     * links are rendered. On a failure the error is shown or announced, and only the pending
+     * it carries replacing its field's value (`name` included, #B962), the fields of the indices the
+     * input held beyond the new selection are taken out of the form (see removeUploadEntryFields,
+     * #B1057), and the previews and reset links are rendered. On a failure the error is shown or announced, and only the pending
      * selection is dropped: the previews, the controls, the entries and the hidden fields stay as
      * they were. The input's value is emptied too, so the same file can be chosen again (#B1059).
      *
@@ -5475,6 +5476,8 @@ function ValidatorPlugin(rules, data, formId, culture) {
                 // replaced ones in `_replacedStoredFiles`, and the fields were built at the selection.
                 // was: the replaced entries came from $uploadTriger._replacedStoredFiles, then emptied
                 var replacedStoredFiles = ( $uploadTriger.customFiles || [] ).filter(function (entry) { return entry && entry.deleteLinkId; });
+                // #B1057 — the count of files the input held before this selection takes it over
+                var heldFilesCount = ( $uploadTriger.customFiles || [] ).length;
                 for (var r = 0, rLen = replacedStoredFiles.length; r < rLen; ++r) {
                     var $replacedLink = document.getElementById(replacedStoredFiles[r].deleteLinkId);
                     if ($replacedLink) {
@@ -5489,6 +5492,13 @@ function ValidatorPlugin(rules, data, formId, culture) {
                 $uploadTriger.pendingFiles = null;
                 if ( $uploadTriger.form ) {
                     uploadProperties.uploadFields = buildUploadHiddenFields($uploadTriger, getUploadFieldPrefix($uploadTriger), files.length, uploadProperties.mandatoryFields, false);
+                    // #B1057 — a selection with fewer files than the input held leaves the indices it no
+                    // longer has: their fields go, as a reset takes them out (a locked field stays, and a
+                    // later, larger selection puts back the ones the page declared). They stayed, so the form
+                    // posted the replaced files beside the new ones while the page showed the new ones only.
+                    for (var staleIndex = files.length; staleIndex < heldFilesCount; ++staleIndex) {
+                        removeUploadEntryFields($uploadTriger, getUploadFieldPrefix($uploadTriger), staleIndex);
+                    }
                 }
             }
             for (var f = 0, fLen = files.length; f<fLen; ++f) {
@@ -5857,7 +5867,8 @@ function ValidatorPlugin(rules, data, formId, culture) {
 
     /**
      * removeUploadEntryFields — #B858/#B862: removes from a file input's form the controls of one
-     * of its files, `<prefix>[index]…` (except those marked `data-gina-form-upload-is-locked`), and
+     * of its files, `<prefix>[index]…` (except those marked `data-gina-form-upload-is-locked`), on a
+     * reset, a delete, or a staged selection with fewer files than the input held (#B1057), and
      * keeps them on the input so that the next selection puts them back
      * (see restoreRemovedUploadFields): a page's declared fields — `[preview][*]` sub-fields, a
      * caption — are part of the form, not of the file.

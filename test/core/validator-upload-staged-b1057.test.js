@@ -40,6 +40,18 @@ var DROP_LINE   = '$uploadTriger.pendingFiles = null;';
 var VALUE_CLEAR = "$uploadTriger.value = '';";
 var ERROR_HEAD  = "if ($error && status != 'success') {";
 
+// #B1057 — the success branch: the count held before the take-over, the build, then the removal of
+// the indices the new selection no longer has, before the per-file loop fills the fields
+var TAKEOVER     = '$uploadTriger.customFiles = $uploadTriger.pendingFiles || [];';
+var BUILD        = 'uploadProperties.uploadFields = buildUploadHiddenFields($uploadTriger, getUploadFieldPrefix($uploadTriger), files.length, uploadProperties.mandatoryFields, false);';
+var FILE_LOOP    = 'for (var f = 0, fLen = files.length; f<fLen; ++f) {';
+var HELD         = 'var heldFilesCount = ( $uploadTriger.customFiles || [] ).length;';
+var STALE_LOOP   = 'for (var staleIndex = files.length; staleIndex < heldFilesCount; ++staleIndex) {';
+var STALE_REMOVE = 'removeUploadEntryFields($uploadTriger, getUploadFieldPrefix($uploadTriger), staleIndex);';
+// the minified held count `b=(a.customFiles||[]).length`, and the loop `f=x.length;f<b;++f)zb(a,Ra(a),f)`
+var MIN_HELD  = /([\w$]+)\s*=\s*\(\s*([\w$]+)\.customFiles\s*\|\|\s*\[\]\s*\)\.length/g;
+var MIN_STALE = /([\w$]+)\s*=\s*[\w$]+\.length\s*;\s*\1\s*<\s*([\w$]+)\s*;\s*\+\+\s*\1\s*\)\s*([\w$]+)\(\s*([\w$]+)\s*,\s*[\w$]+\(\s*\4\s*\)\s*,\s*\1\s*\)/g;
+
 // the minified failure drop: the pending selection dropped, then the value emptied, on one input
 // (Closure emits `a.pendingFiles=null,a.value=''`; either quote is accepted)
 var MIN_DROP = /([\w$]+)\.pendingFiles\s*=\s*null\s*,\s*\1\.value\s*=\s*(?:''|"")/g;
@@ -153,6 +165,32 @@ function assertFailureDrop(fn, label) {
     assert.equal(count(fn, VALUE_CLEAR), 1, label + ': onUpload empties the value nowhere else');
 }
 
+/**
+ * Asserts the take-over of `onUpload`'s success branch: the count of files the input held is read
+ * before the take-over, and after the fields are built, the fields of every index from the new
+ * selection's length up to that count are taken out of the form, still inside the block that
+ * builds them, before the per-file loop fills the fields.
+ *
+ * @inner
+ * @param {string} fn - the text of onUpload
+ * @param {string} label - names the text in the messages
+ * @returns {void}
+ */
+function assertStaleRemoval(fn, label) {
+    assert.equal(count(fn, HELD), 1, label + ': the held count');
+    assert.equal(count(fn, TAKEOVER), 1, label + ': the take-over');
+    assert.equal(count(fn, BUILD), 1, label + ': the build');
+    assert.equal(count(fn, STALE_LOOP), 1, label + ': the loop over the stale indices');
+    assert.equal(count(fn, STALE_REMOVE), 1, label + ': the removal of a stale index');
+    var held = fn.indexOf(HELD), takeover = fn.indexOf(TAKEOVER), build = fn.indexOf(BUILD),
+        staleLoop = fn.indexOf(STALE_LOOP), staleRemove = fn.indexOf(STALE_REMOVE), loop = fn.indexOf(FILE_LOOP);
+    assert.ok(loop > -1, label + ': the per-file loop');
+    assert.ok(held < takeover, label + ': the held count is read before the take-over replaces the entries');
+    assert.ok(takeover < build && build < staleLoop && staleLoop < staleRemove && staleRemove < loop,
+        label + ': taken over, built, then the stale indices removed, before the per-file loop');
+    assert.equal(fn.slice(build, staleLoop).indexOf('}'), -1, label + ': the removal sits in the block that builds the fields');
+}
+
 describe('#B1059 - a failed staging empties the staged file input', function () {
     var src  = fs.readFileSync(MAIN, 'utf8');
     var code = stripComments(src);
@@ -193,6 +231,46 @@ describe('#B1059 - a failed staging empties the staged file input', function () 
         it('[instrument] the minified bundle still carries the pending drop the pin above extends', function () {
             var min = fs.readFileSync(DIST_MIN, 'utf8');
             assert.ok((min.match(/\.pendingFiles\s*=\s*null/g) || []).length >= 2, 'the failure and the success drops survive minification');
+        });
+    });
+});
+
+describe('#B1057 - a smaller selection takes out the fields of the indices it no longer has', function () {
+    var src  = fs.readFileSync(MAIN, 'utf8');
+    var code = stripComments(src);
+
+    describe('03 - source pins (comment-stripped)', function () {
+        it('03.1 - the held count is read before the take-over, and the stale indices are removed after the build', function () {
+            assertStaleRemoval(onUploadText(code, 'src'), 'src');
+        });
+
+        it('03.2 - the build stays the one build of the fields (#B960)', function () {
+            assert.equal(count(code, 'buildUploadHiddenFields('), 1);
+        });
+
+        it('[instrument] the raw source carries the anchors the stripped reads use', function () {
+            assert.ok(count(src, TAKEOVER) >= 1 && count(src, BUILD) >= 1 && count(src, FILE_LOOP) >= 1,
+                'the stripped reads above are not vacuous');
+        });
+    });
+
+    describe('04 - dist fidelity', function () {
+        it('04.1 - the unminified bundle carries the same take-over', function () {
+            var raw = stripComments(fs.readFileSync(DIST_RAW, 'utf8'));
+            assertStaleRemoval(onUploadText(raw, 'gina.js'), 'gina.js');
+        });
+
+        it('04.2 - the minified bundle reads the held count and removes the indices up to it, on the same input', function () {
+            // Closure emits `b=(a.customFiles||[]).length` and folds the build into the loop:
+            // `for(c.uploadFields=Kb(…),f=x.length;f<b;++f)zb(a,Ra(a),f)`. The names change with every
+            // build, so the two shapes are matched apart and tied by the names they capture.
+            var min = fs.readFileSync(DIST_MIN, 'utf8');
+            var held  = Array.from(min.matchAll(MIN_HELD));
+            var stale = Array.from(min.matchAll(MIN_STALE));
+            assert.equal(held.length, 1, 'one held count');
+            assert.equal(stale.length, 1, 'one loop over the stale indices');
+            assert.equal(stale[0][2], held[0][1], 'the loop runs up to the held count');
+            assert.equal(stale[0][4], held[0][2], 'and removes the indices of the input the count was read from');
         });
     });
 });

@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * #B1059 — a staged file input after a failed staging.
+ * #B1059 and #B1057 — a staged file input after a failed staging, and after a smaller re-selection.
  *
  * #B1059: a failed staging dropped the pending selection (#B960) but left the file input holding it,
  * so its value still named the file (`C:\fakepath\<name>`). Choosing that same file again then fired
@@ -9,12 +9,24 @@
  * that had failed. Since the fix a failed staging also empties the input's value, so the same file can
  * be chosen again; the files the input already held stay, as #B960 keeps them.
  *
+ * #B1057: a staging that succeeds takes the input over (#B960), but the hidden fields of the indices
+ * the new selection no longer has stayed in the form: three files staged, then one, and the form
+ * posted the new file plus the second and third replaced ones, while the page showed one file. Since
+ * the fix those fields go, as a reset takes them out (a locked field stays), and a later, larger
+ * selection brings back the ones the page declared.
+ *
  *   A1  [#B1059] a failed staging empties the input, and choosing the same file again stages it (CDP)
  *   A2  CONTROL  after a failed staging, choosing another file stages it (both engines, both bundles)
  *   A3  [#B1059] a staged file, a failed staging of a second file, then that second file again (CDP):
  *       the first file stays until the retry succeeds, and the save posts the second file only
  *   A4  [#B1059] a superseded staging empties nothing: the newer selection stays on the input while it
  *       stages, and its own failure empties the input
+ *   B1  [#B1057] three files chosen, then one: the save posts the one file (picker)
+ *   B2  [#B1057] the same by drop on a dropzone
+ *   B3  CONTROL  one file, then three: the save posts the three (both bundles)
+ *   B4  [#B1057] three, one, then three again: a field the page declared at index 1 goes and comes back
+ *   B5  [#B1057] a locked field at an index the new selection no longer has stays in the form
+ *   B6  [#B1057] an edit form showing two saved files, one file chosen: the save posts the new file only
  *
  * A1 and A3 choose files over CDP (`DOM.setFileInputFiles`), Chromium only: a real re-pick of the same
  * path is the one that fires `cancel`, while Playwright's `setInputFiles` hands the page new files on
@@ -25,8 +37,9 @@
  * (HTTP 500) or `{ cut: true }` (the connection is reset), with an optional `delay` in ms.
  *
  * RED-FIRST: B1057_PREFIX_BUNDLE=<path to a pre-fix gina.min.js> serves those bytes to every arm
- * (page.route, nothing written to the tree; A2 asserts that the swap ran). On develop `60fa83d78`'s
- * bundle and on the published 0.7.8 bundle, A1, A3 and A4 fail and A2 passes.
+ * (page.route, nothing written to the tree; A2 and B3 assert that the swap ran). On develop
+ * `60fa83d78`'s bundle and on the published 0.7.8 bundle, A1, A3, A4 and B1, B2, B4, B5, B6 fail, and
+ * A2 and B3 pass.
  *
  * Run (local; WebKit: GINA_E2E_ENGINES=all ... --project=webkit):
  *   GINA_E2E_PORT=3292 npx playwright test test/e2e/validator-upload-staged-b1057.spec.js --project=chromium --workers=1
@@ -75,6 +88,23 @@ const FRESH = '<input id="docA" type="file" name="doc" ' + ACTIONS + '>'
 const EVENTS = '<script>window.__ev={change:0,cancel:0};(function(){var i=document.getElementById("docA");'
     + 'i.addEventListener("change",function(){window.__ev.change++},true);'
     + 'i.addEventListener("cancel",function(){window.__ev.cancel++},true);}());</script>';
+
+// a multi-file input with a dropzone
+const MULTI = '<input id="docA" type="file" name="doc" multiple ' + ACTIONS + ' data-gina-form-upload-dropzone="zoneA">'
+    + '<div id="docA-preview"></div><p id="docA-error" hidden></p>'
+    + '<div id="zoneA" style="display:block;width:300px;height:80px">drop here</div>';
+// declared by the page at index 1, a field the staging answer does not fill
+const DECLARED_AT_1 = '<input type="hidden" name="doc[1][caption]" value="">';
+// a locked field at index 2
+const LOCKED_AT_2 = '<input type="hidden" name="doc[2][tag]" value="keep" data-gina-form-upload-is-locked="true">';
+// an edit form showing two saved files, each with its fields and its delete link
+const SAVED_TWO = '<input id="docA" type="file" name="doc" multiple ' + ACTIONS + '>'
+    + '<input type="hidden" name="doc[0][name]" value="old0.png"><input type="hidden" name="doc[0][location]" value="/media/stored/old0.png">'
+    + '<input type="hidden" name="doc[1][name]" value="old1.png"><input type="hidden" name="doc[1][location]" value="/media/stored/old1.png">'
+    + '<div id="docA-preview"><img src="/upload-tmp/old0.png" data-upload-original-filename="old0.png" alt="">'
+    + '<img src="/upload-tmp/old1.png" data-upload-original-filename="old1.png" alt=""></div>'
+    + '<div><a href="#" id="docA-0-delete-trigger">Delete</a> <a href="#" id="docA-1-delete-trigger">Delete</a></div>'
+    + '<p id="docA-error" hidden></p>';
 
 function page(inner) { return head('/js/gina.onload.b459.js') + FORM_OPEN + inner + FORM_CLOSE + DECLARED + '</body></html>'; }
 function file(name) { return { name: name, mimeType: 'image/png', buffer: PNG }; }
@@ -169,6 +199,7 @@ function state(pw) {
             events: window.__ev ? Object.assign({}, window.__ev) : null,
             previewSrcs: Array.from($pv.querySelectorAll('img')).map((i) => i.getAttribute('src')),
             resetLinks: Array.from(document.querySelectorAll('[id^="docA-"][id$="-reset-trigger"]')).map((a) => a.id),
+            deleteLinks: Array.from(document.querySelectorAll('[id^="docA-"][id$="-delete-trigger"]')).map((a) => a.id),
             customFiles: ($in.customFiles || []).map((f) => f.name),
             pendingFiles: $in.pendingFiles ? $in.pendingFiles.map((f) => f.name) : null
         };
@@ -217,6 +248,34 @@ async function cdpPick(cdp, filePath) {
     const { root } = await cdp.send('DOM.getDocument');
     const { nodeId } = await cdp.send('DOM.querySelector', { nodeId: root.nodeId, selector: '#docA' });
     await cdp.send('DOM.setFileInputFiles', { files: [filePath], nodeId });
+}
+
+/**
+ * Drops files on zoneA, as a drag from the desktop does (real DataTransfer, real DragEvents).
+ *
+ * @param {object} pw - the Playwright page
+ * @param {Array<string>} names - the dropped files' names
+ * @returns {Promise<number>} the count of files the drop carried
+ */
+function drop(pw, names) {
+    return pw.evaluate(({ names, b64 }) => {
+        const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+        const dt = new DataTransfer();
+        names.forEach((n) => dt.items.add(new File([bytes], n, { type: 'image/png' })));
+        const z = document.getElementById('zoneA');
+        ['dragenter', 'dragover', 'drop'].forEach((t) => z.dispatchEvent(new DragEvent(t, { bubbles: true, cancelable: true, dataTransfer: dt })));
+        return dt.files.length;
+    }, { names: names, b64: PNG.toString('base64') });
+}
+
+/** The indices of the controls in `fieldMap`, sorted, as numbers. */
+function indices(fieldMap) {
+    return Array.from(new Set(Object.keys(fieldMap).map((n) => Number((n.match(/\[(\d+)\]/) || [])[1])))).sort((a, b) => a - b);
+}
+
+/** The original filenames a save posted under `doc`, in order (null for an entry without one). */
+function postedNames(saved) {
+    return Array.isArray(saved.doc) ? saved.doc.map((d) => (d && d.originalFilename) || null) : saved.doc;
 }
 
 /** Submits form b459form: what its save request posted under `doc`. */
@@ -361,6 +420,132 @@ test.describe('#B1059 - a failed staging empties the file input', () => {
         expect(afterSupersededAnswer.value, 'and the superseded staging empties nothing more').toBe('');
         expect(afterSupersededAnswer.customFiles, 'nor takes the input over').toEqual([]);
         expect(fieldsAtEnd, 'no field was written').toEqual({});
+        expect(log.errors).toEqual([]);
+    });
+});
+
+test.describe('#B1057 - a smaller selection takes out the fields of the files it replaced', () => {
+
+    /**
+     * Chooses three files, then one, through `choose` (the picker or a drop), and saves.
+     *
+     * @param {object} pw - the Playwright page
+     * @param {Function} choose - (names) => Promise, one selection
+     * @returns {Promise<object>} the readings
+     */
+    async function threeThenOne(pw, choose) {
+        const log = await open(pw, page(MULTI), [{ ok: ['a.png', 'b.png', 'c.png'] }, { ok: 'd.png' }]);
+        await choose(['a.png', 'b.png', 'c.png']);
+        const three = await staged(log, 1) && await filled(pw, 'doc[2][location]', '/tmp/uploads/staged-c.png');
+        await choose(['d.png']);
+        const one = await staged(log, 2) && await filled(pw, 'doc[0][location]', '/tmp/uploads/staged-d.png');
+        await pw.waitForTimeout(200);
+        const after = await state(pw);
+        const fieldsAfter = await fields(pw);
+        const saved = await save(pw, log);
+        return { log: log, three: three, one: one, after: after, fieldsAfter: fieldsAfter, saved: saved };
+    }
+
+    function assertThreeThenOne(r) {
+        expect(r.three && r.one, 'both stagings filled the form').toBe(true);
+        expect(r.after.customFiles, 'the input holds the one file').toEqual(['d.png']);
+        expect(r.after.previewSrcs, 'the page shows the one file').toEqual(['/upload-tmp/staged-d.png']);
+        expect(r.after.resetLinks, 'with one reset link').toEqual(['docA-0-reset-trigger']);
+        expect(indices(r.fieldsAfter), 'only index 0 has fields').toEqual([0]);
+        expect(r.saved.sent, 'the save request was captured').toBe(true);
+        expect(postedNames(r.saved), 'the save posts the one file').toEqual(['d.png']);
+        expect(r.log.remove, 'no removal request: a replaced staged file is not unstaged').toEqual([]);
+        expect(r.log.errors).toEqual([]);
+    }
+
+    test('B1 three files chosen, then one: the save posts the one file (picker)', async ({ page: pw }) => {
+        const r = await threeThenOne(pw, (names) => pw.setInputFiles('#docA', names.map(file)));
+        record('B1', r.log, { three: r.three, one: r.one, after: r.after, fieldIndices: indices(r.fieldsAfter), save: postedNames(r.saved) });
+        assertThreeThenOne(r);
+    });
+
+    test('B2 three files dropped, then one: the save posts the one file (dropzone)', async ({ page: pw }) => {
+        const r = await threeThenOne(pw, (names) => drop(pw, names));
+        record('B2', r.log, { three: r.three, one: r.one, after: r.after, fieldIndices: indices(r.fieldsAfter), save: postedNames(r.saved) });
+        assertThreeThenOne(r);
+    });
+
+    test('B3 CONTROL - one file, then three: the save posts the three', async ({ page: pw }) => {
+        const log = await open(pw, page(MULTI), [{ ok: 'a.png' }, { ok: ['b.png', 'c.png', 'd.png'] }]);
+        await pw.setInputFiles('#docA', file('a.png'));
+        const one = await staged(log, 1) && await filled(pw, 'doc[0][location]', '/tmp/uploads/staged-a.png');
+        await pw.setInputFiles('#docA', ['b.png', 'c.png', 'd.png'].map(file));
+        const three = await staged(log, 2) && await filled(pw, 'doc[2][location]', '/tmp/uploads/staged-d.png');
+        const fieldsAfter = await fields(pw);
+        const saved = await save(pw, log);
+        record('B3', log, { one: one, three: three, fieldIndices: indices(fieldsAfter), save: postedNames(saved) });
+        swapRan(log);
+        expect(one && three, 'both stagings filled the form').toBe(true);
+        expect(indices(fieldsAfter)).toEqual([0, 1, 2]);
+        expect(postedNames(saved), 'the save posts the three files').toEqual(['b.png', 'c.png', 'd.png']);
+        expect(log.errors).toEqual([]);
+    });
+
+    test('B4 three, one, then three again: a field the page declared at index 1 goes, then comes back', async ({ page: pw }) => {
+        const log = await open(pw, page(MULTI + DECLARED_AT_1), [{ ok: ['a.png', 'b.png', 'c.png'] }, { ok: 'd.png' }, { ok: ['e.png', 'f.png', 'g.png'] }]);
+        await pw.setInputFiles('#docA', ['a.png', 'b.png', 'c.png'].map(file));
+        const first = await staged(log, 1) && await filled(pw, 'doc[2][location]', '/tmp/uploads/staged-c.png');
+        const fieldsAfterThree = await fields(pw);
+        await pw.setInputFiles('#docA', file('d.png'));
+        const second = await staged(log, 2) && await filled(pw, 'doc[0][location]', '/tmp/uploads/staged-d.png');
+        await pw.waitForTimeout(200);
+        const fieldsAfterOne = await fields(pw);
+        await pw.setInputFiles('#docA', ['e.png', 'f.png', 'g.png'].map(file));
+        const third = await staged(log, 3) && await filled(pw, 'doc[2][location]', '/tmp/uploads/staged-g.png');
+        const fieldsAfterThreeAgain = await fields(pw);
+        const saved = await save(pw, log);
+        record('B4', log, { first: first, second: second, third: third, afterThree: 'doc[1][caption]' in fieldsAfterThree,
+            afterOne: indices(fieldsAfterOne), afterOneCaption: 'doc[1][caption]' in fieldsAfterOne,
+            afterThreeAgain: indices(fieldsAfterThreeAgain), afterThreeAgainCaption: fieldsAfterThreeAgain['doc[1][caption]'], save: postedNames(saved) });
+        expect(first && second && third, 'the three stagings filled the form').toBe(true);
+        expect('doc[1][caption]' in fieldsAfterThree, 'the declared field is in the form').toBe(true);
+        expect(indices(fieldsAfterOne), 'after one file, only index 0 has fields').toEqual([0]);
+        expect('doc[1][caption]' in fieldsAfterOne, 'the declared field went with index 1').toBe(false);
+        expect(fieldsAfterThreeAgain['doc[1][caption]'], 'it comes back, empty, with the next file at index 1').toBe('');
+        expect(postedNames(saved), 'the save posts the last three files').toEqual(['e.png', 'f.png', 'g.png']);
+        expect(log.errors).toEqual([]);
+    });
+
+    test('B5 a locked field at an index the new selection no longer has stays in the form', async ({ page: pw }) => {
+        const log = await open(pw, page(MULTI + LOCKED_AT_2), [{ ok: ['a.png', 'b.png', 'c.png'] }, { ok: 'd.png' }]);
+        await pw.setInputFiles('#docA', ['a.png', 'b.png', 'c.png'].map(file));
+        const three = await staged(log, 1) && await filled(pw, 'doc[2][location]', '/tmp/uploads/staged-c.png');
+        await pw.setInputFiles('#docA', file('d.png'));
+        const one = await staged(log, 2) && await filled(pw, 'doc[0][location]', '/tmp/uploads/staged-d.png');
+        await pw.waitForTimeout(200);
+        const fieldsAfter = await fields(pw);
+        const stale = Object.keys(fieldsAfter).filter((n) => /^doc\[[12]\]/.test(n));
+        record('B5', log, { three: three, one: one, stale: stale, locked: fieldsAfter['doc[2][tag]'] });
+        expect(three && one, 'both stagings filled the form').toBe(true);
+        expect(fieldsAfter['doc[2][tag]'], 'the locked field stays, with its value').toBe('keep');
+        expect(stale, 'and is the only field left at indices 1 and 2').toEqual(['doc[2][tag]']);
+        expect(log.errors).toEqual([]);
+    });
+
+    test('B6 an edit form showing two saved files, one file chosen: the save posts the new file only', async ({ page: pw }) => {
+        const log = await open(pw, page(SAVED_TWO), [{ ok: 'd.png' }]);
+        const before = await state(pw);
+        await pw.setInputFiles('#docA', file('d.png'));
+        const one = await staged(log, 1) && await filled(pw, 'doc[0][location]', '/tmp/uploads/staged-d.png');
+        await pw.waitForTimeout(200);
+        const after = await state(pw);
+        const fieldsAfter = await fields(pw);
+        const saved = await save(pw, log);
+        record('B6', log, { before: before, one: one, after: after, fieldIndices: indices(fieldsAfter),
+            save: Array.isArray(saved.doc) ? saved.doc.map((d) => d && d.location) : saved.doc });
+        expect(before.customFiles, 'the two saved files are the input\'s entries').toEqual(['old0.png', 'old1.png']);
+        expect(one, 'the staging filled the form').toBe(true);
+        expect(after.deleteLinks, 'both saved files\' delete links went (#B150)').toEqual([]);
+        expect(after.customFiles, 'the new file takes the input over').toEqual(['d.png']);
+        expect(indices(fieldsAfter), 'only index 0 has fields').toEqual([0]);
+        expect(Array.isArray(saved.doc) ? saved.doc.map((d) => d && d.location) : saved.doc, 'the save posts the new file only')
+            .toEqual(['/tmp/uploads/staged-d.png']);
+        expect(log.remove, 'no removal request').toEqual([]);
         expect(log.errors).toEqual([]);
     });
 });
