@@ -99,8 +99,12 @@ function Merge() {
      * @param {object|Array} target    - Target (base) object or array
      * @param {object|Array} source    - Source object or array to merge into target
      * @param {boolean}      [override=false] - Pass `true` to let `source` overwrite existing target keys; by default they are preserved
-     * @returns {object|Array} Merged result (mutates and returns `target`; never
-     *   rewrites `source` — a subtree the target lacks is referenced, not walked, #B428)
+     * @returns {object|Array} Merged result. An object `target` is mutated and
+     *   returned; an array merge usually returns a new array. `source` is never
+     *   rewritten: inside an object both sides hold, a subtree the target lacks is
+     *   referenced, not walked (#B428), while a key the target lacks at the top level
+     *   is copied, an array through the array merge and an object as a shallow copy
+     *   whose arrays are merged the same way (#B1078)
      *
      * @example
      * merge({ a: 1 }, { b: 2 })          // { a: 1, b: 2 }
@@ -354,6 +358,81 @@ function Merge() {
     };
 
     /**
+     * #B1078 — true when the id-keyed collection loop of `mergeArray` (its
+     * non-override branch) would push nothing, so its result is the target's copy
+     * as it stands. That loop compares each element of a deep clone of `options`
+     * with the ids of `newTarget`: it pushes a clone only when the clone's key is
+     * not among those ids, and its scan stops for good at the first element that is
+     * null or whose clone lacks the key. When every element before that point has a
+     * key the target already holds, the loop pushes nothing, yet it rescans
+     * `options` to its end once per target element: about N^3 steps with the
+     * `indexOf` it used per step, N^2 with the `Set` below, for a collection merged
+     * into an empty target or one holding the same ids.
+     *
+     * Each key is read as the server's `JSON.clone` hands it to the loop: a plain
+     * object or array is copied by its own keys (an own key holding `undefined`
+     * becomes `null`), and any other value is the element itself. The browser's
+     * copy (polyfill.js) copies only enumerable own keys and keeps an own
+     * `undefined`, which can only stop its scan sooner, so a true answer holds there
+     * too. For the one key name the two copies treat apart, `'undefined'`, and for a
+     * `keyComparison` that is not a string, the answer is false. Only a string,
+     * boolean, null or non-NaN number key can be matched; any other key returns
+     * false, and the loop decides, as before.
+     *
+     * @inner
+     * @private
+     * @param {Array}  options       - Source array (the loop's `_options`, before its clone)
+     * @param {Array}  newTarget     - The target's copy the loop starts from
+     * @param {string} keyComparison - The key the collection is compared on
+     * @returns {boolean} true when the loop would leave `newTarget` unchanged
+     *
+     * @example
+     * collectionAddsNothing([{ id: 'a' }], [{ id: 'a' }, { id: 'b' }], 'id') // true
+     * collectionAddsNothing([{ id: 'c' }], [{ id: 'a' }], 'id')              // false
+     */
+    var collectionAddsNothing = function(options, newTarget, keyComparison) {
+        var ids = new Set(), t = 0, tLen = newTarget.length, n = 0, nLen = options.length, el = null, key = null;
+        // the server's JSON.clone skips an own key named 'undefined' and the browser's
+        // copies it: for that name, or a key that is not a string, the loop decides
+        if ( typeof(keyComparison) != 'string' || keyComparison === 'undefined' ) { return false }
+        for (; t < tLen; ++t) {
+            // the loop's own id list skips the same null slots
+            if (newTarget[t] == null) { continue }
+            ids.add(newTarget[t][keyComparison]);
+        }
+        for (; n < nLen; ++n) {
+            el = options[n];
+            // a null element stops the loop's scan: nothing after it is read
+            if (el == null) { return true }
+            if ( typeof(el) != 'object' || ( el.constructor != Object && el.constructor != Array ) ) {
+                // JSON.clone hands back anything but a plain object or array as is
+                key = el[keyComparison];
+            } else if ( !hasOwn.call(el, keyComparison) ) {
+                // the clone holds only own keys
+                key = ( el.constructor == Array ) ? [][keyComparison] : {}[keyComparison];
+            } else {
+                key = el[keyComparison];
+                if ( typeof(key) == 'undefined' ) { key = null }
+            }
+            // a clone with no key stops the loop's scan too
+            if ( typeof(key) == 'undefined' ) { return true }
+            if (
+                !(
+                    typeof(key) == 'string'
+                    || typeof(key) == 'boolean'
+                    // undefined returned above, so `== null` is the null key here
+                    || key == null
+                    || ( typeof(key) == 'number' && key === key )
+                )
+            ) {
+                return false
+            }
+            if ( !ids.has(key) ) { return false }
+        }
+        return true
+    };
+
+    /**
      * Merge two arrays. Will not merge function items: this is normal.
      * Merging plain arrays is OK, merging collections is still experimental.
      *
@@ -416,6 +495,8 @@ function Merge() {
                     if (newTarget[nt] == null) { continue; }
                     newTargetIds.push(newTarget[nt][keyComparison]);
                 }
+                // #B1078 — the ids in a Set for the membership tests below (NaN is never found, as with indexOf)
+                var newTargetIdSet = new Set(newTargetIds);
 
                 var _options    = JSON.clone(options);
                 var index       = 0;
@@ -443,14 +524,17 @@ function Merge() {
 
                         if (_options[a][keyComparison] === target[n][keyComparison] ) {
 
-                            if (newTargetIds.indexOf(_options[a][keyComparison]) > -1) {
+                            // was: if (newTargetIds.indexOf(_options[a][keyComparison]) > -1) {
+                            if ( _options[a][keyComparison] === _options[a][keyComparison] && newTargetIdSet.has(_options[a][keyComparison]) ) {
 
                                 newTarget[index] = _options[a];
                                 ++index;
 
-                            } else if (newTargetIds.indexOf(_options[a][keyComparison]) == -1) {
+                            // was: } else if (newTargetIds.indexOf(_options[a][keyComparison]) == -1) {
+                            } else if ( _options[a][keyComparison] !== _options[a][keyComparison] || !newTargetIdSet.has(_options[a][keyComparison]) ) {
 
                                 newTargetIds.push(_options[a][keyComparison]);
+                                newTargetIdSet.add(_options[a][keyComparison]);
                                 //newTarget.push(_options[a]);
                                 newTarget[index] = _options[a];
                                 ++index;
@@ -458,9 +542,11 @@ function Merge() {
 
                             break label;
 
-                        } else if (newTargetIds.indexOf(_options[a][keyComparison]) == -1) {
+                        // was: } else if (newTargetIds.indexOf(_options[a][keyComparison]) == -1) {
+                        } else if ( _options[a][keyComparison] !== _options[a][keyComparison] || !newTargetIdSet.has(_options[a][keyComparison]) ) {
 
                             newTargetIds.push(_options[a][keyComparison]);
+                            newTargetIdSet.add(_options[a][keyComparison]);
                             newTarget.push(_options[a]);
                         }
                     } // EO For
@@ -531,6 +617,10 @@ function Merge() {
             ) {
 
                 newTarget       = (Array.isArray(target)) ? Array.from(target) : JSON.clone(target);
+                // #B1078 — nothing in `options` can be pushed: skip the clone and the loop
+                if ( collectionAddsNothing(options, newTarget, keyComparison) ) {
+                    return newTarget;
+                }
                 var _options    = JSON.clone(options);
                 var next        = null;
 
@@ -541,6 +631,9 @@ function Merge() {
                     if (newTarget[a] == null) { continue; }
                     newTargetIds.push(newTarget[a][keyComparison]);
                 }
+                // #B1078 — the ids in a Set, for the membership test below. `indexOf` never
+                // finds NaN (NaN !== NaN): the test skips the Set for it, as before.
+                var newTargetIdSet = new Set(newTargetIds);
                 a = 0;
                 for (; a < aLen; ++a) {
 
@@ -556,9 +649,11 @@ function Merge() {
 
                             ) {
 
-                                if ( newTargetIds.indexOf(_options[n][keyComparison]) == -1 ) {
+                                // was: if ( newTargetIds.indexOf(_options[n][keyComparison]) == -1 ) {
+                                if ( _options[n][keyComparison] !== _options[n][keyComparison] || !newTargetIdSet.has(_options[n][keyComparison]) ) {
                                     newTarget.push(_options[n]);
                                     newTargetIds.push(_options[n][keyComparison]);
+                                    newTargetIdSet.add(_options[n][keyComparison]);
 
                                     next = n+1;
 
