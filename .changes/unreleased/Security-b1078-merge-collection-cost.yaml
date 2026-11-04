@@ -1,3 +1,3 @@
-kind: Fixed
+kind: Security
 body: 'Merging an array of objects compared on their `id` (or on the key set with `merge.setKeyComparison()`) no longer takes time cubic in its length when the target already holds every id: a source array the target lacks, `merge([], items)`, an array inside an object the target lacks, and a target holding the same ids. Such a merge of 2,000 objects took about 4 to 5 seconds and blocked the event loop; it now takes a few milliseconds. With `override`, a target holding the same 40,000 ids went from about 3 seconds to under 30 ms. Results are unchanged, except that an element that refers to itself no longer throws `RangeError: Maximum call stack size exceeded` when every id is already present. `lib/merge` is in the browser bundle: restart the bundle and rebuild its static assets (`gina bundle:build`). (#B1078)'
 time: 2026-11-04T15:09:59+01:00
