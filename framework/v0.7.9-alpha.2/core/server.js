@@ -6818,7 +6818,16 @@ function Server(options) {
                         var fileGroup = ( typeof(group) != 'undefined' && group ) ? group : 'untagged';
 
                         // deny an unconfigured upload group (was: silently streamed through)
-                        if ( typeof(opt.groups) == 'undefined' || typeof(opt.groups[fileGroup]) == 'undefined' ) {
+                        // #B1089 (2026-11-05) — an OWN key of `opt.groups`, not any name that resolves on it:
+                        // `opt.groups` is a plain object, so `opt.groups['__proto__']` is `Object.prototype`,
+                        // `['constructor']` is `Object`, and every own name of `Object.prototype`
+                        // (`hasOwnProperty`, `toString`, …) is a function — none reads `'undefined'`. A part
+                        // tagged with such a group passed this gate, and the rules read on it below
+                        // (`allowedExtensions`, `isMultipleAllowed`, `path`) read `undefined` and were
+                        // skipped: any extension, several files in a single-file group, staged to the
+                        // global upload directory — around a restricted `untagged` group. Was:
+                        // if ( typeof(opt.groups) == 'undefined' || typeof(opt.groups[fileGroup]) == 'undefined' ) {
+                        if ( typeof(opt.groups) == 'undefined' || !Object.prototype.hasOwnProperty.call(opt.groups, fileGroup) ) {
                             throwError(response, 400, '`'+ escapeLogControlChars(fileGroup) +'` is not a configured upload group. See the `upload.groups` definition in settings.json.');
                             // #B1086 — the refused part is never read: stop the upload, and close the stream once the answer is out
                             stopRefusedMultipart();

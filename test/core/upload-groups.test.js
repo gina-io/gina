@@ -38,7 +38,8 @@ describe('01 - upload groups: server.js source pins (#B50)', function() {
     });
 
     it('denies an unconfigured upload group (400)', function() {
-        assert.match(active, /typeof\(opt\.groups\[fileGroup\]\)\s*==\s*'undefined'/);
+        // #B1089: an own key of opt.groups, not a name that resolves through Object.prototype
+        assert.match(active, /!Object\.prototype\.hasOwnProperty\.call\(opt\.groups,\s*fileGroup\)/);
         assert.match(active, /is not a configured upload group/);
     });
 
@@ -59,7 +60,7 @@ describe('02 - upload groups: classification replica (#B50)', function() {
     // mirror of the server.js busboy 'file' handler group-enforcement logic
     function classifyUpload(group, opt, fileCount, fileExt) {
         var fileGroup = ( typeof(group) !== 'undefined' && group ) ? group : 'untagged';
-        if ( typeof(opt.groups) === 'undefined' || typeof(opt.groups[fileGroup]) === 'undefined' ) {
+        if ( typeof(opt.groups) === 'undefined' || !Object.prototype.hasOwnProperty.call(opt.groups, fileGroup) ) { // #B1089
             return { action: 'deny-unconfigured', group: fileGroup };
         }
         var g = opt.groups[fileGroup];
