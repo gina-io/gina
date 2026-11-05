@@ -19679,7 +19679,8 @@ function ValidatorPlugin(rules, data, formId, culture) {
      * resyncStagedUploadGate — #B1058: re-derives the gate of a staged file input's form (see
      * revalidateSilently) when the files the input holds change: a selection, a staging settle, a
      * reset or a delete. The live check does it for a field the user edits; a file input has none.
-     * Only for an input that has a rule, the one case where the gate can depend on it. Without it a
+     * Only for an input that has a rule, or a form whose rules hold a `_case_` key (a condition's rule can
+     * judge the input, #B1095): the cases where the gate can depend on it. Without it a
      * required staged input kept the submit trigger marked not ready after its staging, so a click
      * only re-synced the trigger and sent nothing, and a click made while the file uploaded was lost.
      *
@@ -19695,6 +19696,16 @@ function ValidatorPlugin(rules, data, formId, culture) {
         var $form = ( $input && $input.form ) ? $input.form : null;
         var formId = ( $form && typeof($form.getAttribute) == 'function' ) ? $form.getAttribute('id') : null;
         var $formRecord = ( formId && typeof(instance.$forms[formId]) != 'undefined' ) ? instance.$forms[formId] : null;
+        // #B1095 — a `_case_` condition's rule can judge the input too: a form whose rules hold one is
+        // re-validated, whatever the input's own rules
+        if ( $formRecord && $formRecord.rules ) {
+            for (var ruleKey in $formRecord.rules) {
+                if ( /^_case_/.test(ruleKey) ) {
+                    revalidateSilently($formRecord);
+                    return;
+                }
+            }
+        }
         if ( !$formRecord || !$formRecord.rules || typeof($formRecord.rules[$input.name]) == 'undefined' ) {
             return;
         }
@@ -27307,6 +27318,59 @@ function ValidatorPlugin(rules, data, formId, culture) {
             };
 
             /**
+             * isStagedUploadControl
+             * #B1095 — whether a control is a staged file input: a file input that names its staging
+             * action (`data-gina-form-upload-action`), as the collectors and the terminal exclusion test
+             * it. Declared here, inside forEachField, so the function stays self-contained.
+             *
+             * @inner
+             * @param {object} $control - a control of the form, or undefined
+             * @returns {boolean} true for a staged file input
+             *
+             * @example
+             * isStagedUploadControl($fields['avatar']); // true for <input type="file" data-gina-form-upload-action="/media/stage">
+             */
+            var isStagedUploadControl = function($control) {
+                return !!(
+                    $control
+                    && $control.type == 'file'
+                    && typeof($control.getAttribute) == 'function'
+                    && $control.getAttribute('data-gina-form-upload-action')
+                );
+            };
+
+            /**
+             * stagedUploadValueOf
+             * #B1095 — the value a rule of a staged file input judges, as the collectors give it
+             * (getStagedUploadValue, which forEachField cannot call: the suites that lift forEachField
+             * pass it only the names it uses): the names of the files the input holds, its entries
+             * (`customFiles`) then a selection still staging (`pendingFiles`), joined with ', ', or ''
+             * when it holds none. Declared here, inside forEachField, so the function stays self-contained.
+             *
+             * @inner
+             * @param {object} $control - the staged file input
+             * @returns {string} the names of the files it holds, or ''
+             *
+             * @example
+             * stagedUploadValueOf($fields['avatar']); // 'me.png' once a file is staged, '' after its reset
+             */
+            var stagedUploadValueOf = function($control) {
+                var names = [], list = null;
+                for (var l = 0; l < 2; ++l) {
+                    list = ( l == 0 ) ? $control.customFiles : $control.pendingFiles;
+                    if ( !list ) {
+                        continue;
+                    }
+                    for (var e = 0, eLen = list.length; e < eLen; ++e) {
+                        if ( list[e] && list[e].name ) {
+                            names.push(list[e].name);
+                        }
+                    }
+                }
+                return names.join(', ');
+            };
+
+            /**
              * getCaseRegExp
              * #B918 — reads a condition's `case` written `/pattern/flags` (e.g. `"/^individual$/"`)
              * and returns the regular expression it describes; any other `case` (a value, an Array of
@@ -27776,6 +27840,22 @@ function ValidatorPlugin(rules, data, formId, culture) {
                                                 d.addField(_r, fields[_r]);
                                             }
 
+                                            // #B1095 — a staged file input this matching condition names, which the pass
+                                            // never collected (the collectors give a staged input the names of its files
+                                            // only under a rule of its own, #B1058): enter those names, as they do, so the
+                                            // condition's rule judges the files it holds, once per pass (`d[_r]` marks it
+                                            // entered). Its value never reaches the data: the terminal block leaves every
+                                            // staged control out (#B1099). The guard's first line holds both reads, so
+                                            // #B914's `d[_r]` line above stays the only one of its kind.
+                                            if (
+                                                typeof(fields[_r]) == 'undefined' && typeof(d[_r]) == 'undefined'
+                                                && isStagedUploadControl($fields[_r])
+                                                && localRuleObj
+                                            ) {
+                                                fields[_r] = stagedUploadValueOf($fields[_r]);
+                                                d.addField(_r, fields[_r]);
+                                            }
+
                                             // check each field against rule only if rule exists 2/3
                                             //if ( caseName != _r && typeof(rules[_r]) != 'undefined' ) {
                                             if ( caseName != _r && typeof(rules[_r]) != 'undefined' && typeof(fields[_r]) != 'undefined' ) {
@@ -27944,7 +28024,8 @@ function ValidatorPlugin(rules, data, formId, culture) {
                                                     && typeof($fields[localField]) != 'undefined'
                                                     && typeof($fields[localField].value) != 'undefined'
                                                 ) {
-                                                    fields[localField] = $fields[localField].value;//caseValue is not goo here
+                                                    // #B1095 — a staged file input is judged on the files it holds, as below
+                                                    fields[localField] = ( isStagedUploadControl($fields[localField]) ) ? stagedUploadValueOf($fields[localField]) : $fields[localField].value;//caseValue is not goo here
                                                     if (isGFFCtx && /(true|false)/i.test(fields[localField] ) ) {
                                                         if (fields[localField] == "true")
                                                             fields[localField]  = true;
@@ -27985,7 +28066,10 @@ function ValidatorPlugin(rules, data, formId, culture) {
                                             && typeof($fields[f]) != 'undefined'
                                             && typeof($fields[f].value) != 'undefined'
                                         ) {
-                                            fields[f] = $fields[f].value;
+                                            // #B1095 — a staged file input is judged on the files it holds, as the collectors
+                                            // judge it, never on its own value ('' for an edit form's saved file, the
+                                            // browser's placeholder after a staging)
+                                            fields[f] = ( isStagedUploadControl($fields[f]) ) ? stagedUploadValueOf($fields[f]) : $fields[f].value;
                                             if (isGFFCtx && /(true|false)/i.test(fields[f] ) ) {
                                                 if (fields[f] == "true")
                                                     fields[f]  = true;
