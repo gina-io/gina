@@ -97,11 +97,17 @@
  *                                         its pages through /x76-page, same /ac-sink)
  *   GET /js/gina.onload.b1037.js       -> built onload with the form-reset whisper (#B1037; the spec builds
  *                                         its pages through /x76-page, same /ac-sink)
+ *   GET /js/gina.onload.b1038.js       -> built onload with the select whisper (#B1038; the spec builds
+ *                                         its pages through /x76-page, same /ac-sink)
+ *   GET /js/gina.onload.b1041.js       -> built onload with the custom-element reset whisper (#B1041; the
+ *                                         spec builds its pages through /x76-page, same /ac-sink)
  *   GET /js/gina.onload.b921.js        -> built onload with the RegExp-key-in-a-condition whisper
  *                                         (#B922; the spec builds its pages through /x76-page,
  *                                         same /ac-sink)
  *   GET /js/gina.onload.b596.js        -> built onload with the mixed bracket-keys whisper (#B596; the
  *                                         spec builds its pages through /x76-page, same /ac-sink)
+ *   GET /js/gina.onload.b1058.js       -> built onload with the staged-input rules whisper (#B1058; the
+ *                                         spec builds its pages through /x76-page, same staging routes)
  *   GET /link-gate                     -> fixtures/link-disabled-gate.html (#B310
  *                                         link disabled-gate harness; same sink)
  *   GET /link-shared                   -> fixtures/link-same-url.html (#B287
@@ -445,6 +451,18 @@ const B1037_FORMS_JSON = JSON.stringify({ rules: {
     tri:     { r3: { isRequired: true }, q3: { isRequired: true, query: B1037_QUERY }, t3: { isRequired: true } }
 } });
 
+// #B1038 — the forms whisper of the select spec (test/e2e/validator-select-global-once-b1038.spec.js): a
+// required select beside a required text field, so a select change moves the submit control's gate.
+const B1038_FORMS_JSON = JSON.stringify({ rules: {
+    sel: { s1: { isRequired: true }, r3: { isRequired: true } }
+} });
+
+// #B1041 — the forms whisper of the custom-element reset spec (test/e2e/validator-reset-face-b1041.spec.js): a
+// required form-associated custom element beside a required text field.
+const B1041_FORMS_JSON = JSON.stringify({ rules: {
+    facer: { score: { isRequired: true }, r3: { isRequired: true } }
+} });
+
 // #B921 — the forms whisper of the RegExp-key spec (test/e2e/validator-case-regex-key-b921.spec.js). Each
 // rule set puts a RegExp key (`"/^x$/"`) inside a `_case_` condition, in one block position or another.
 const B921_NEVER = { conditions: [ { case: 'never', rules: { x: { isString: true } } } ] };
@@ -469,6 +487,14 @@ const B921_FORMS_JSON = JSON.stringify({ rules: {
 // one rule, so the posted body carries every field the page renders.
 const B596_FORMS_JSON = JSON.stringify({ rules: {
     mixform: { ref: { isRequired: true } }
+} });
+// #B1058 — the forms whisper of the staged-upload spec (test/e2e/validator-upload-staged-b1057.spec.js):
+// rule sets in which the staged file input `doc` carries a rule, required or optional. The spec's
+// form keeps its id and names one of these sets in `data-gina-form-rule`.
+const B1058_FORMS_JSON = JSON.stringify({ rules: {
+    b1058req:     { title: { isRequired: true }, doc: { isRequired: true } },
+    b1058opt:     { title: { isRequired: true }, doc: { isRequired: false } },
+    b459declared: { title: { isRequired: true } }
 } });
 // The staging answer the client consumes (guide: `files[]` entries; the NESTED
 // `preview` object is the app-provided variant the client renders from `preview.tmpUri`).
@@ -720,11 +746,20 @@ const server = http.createServer(function (req, res) {
         if (url === '/js/gina.onload.b1037.js') {
             return send(res, 200, 'application/javascript; charset=utf-8', renderOnload(B1037_FORMS_JSON));
         }
+        if (url === '/js/gina.onload.b1038.js') {
+            return send(res, 200, 'application/javascript; charset=utf-8', renderOnload(B1038_FORMS_JSON));
+        }
+        if (url === '/js/gina.onload.b1041.js') {
+            return send(res, 200, 'application/javascript; charset=utf-8', renderOnload(B1041_FORMS_JSON));
+        }
         if (url === '/js/gina.onload.b921.js') {
             return send(res, 200, 'application/javascript; charset=utf-8', renderOnload(B921_FORMS_JSON));
         }
         if (url === '/js/gina.onload.b596.js') {
             return send(res, 200, 'application/javascript; charset=utf-8', renderOnload(B596_FORMS_JSON));
+        }
+        if (url === '/js/gina.onload.b1058.js') {
+            return send(res, 200, 'application/javascript; charset=utf-8', renderOnload(B1058_FORMS_JSON));
         }
         // #B459 — the staged-upload preview-fields fixture and its three endpoints.
         if (url === '/js/gina.onload.b459.js') {

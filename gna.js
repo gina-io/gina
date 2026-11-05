@@ -15,14 +15,14 @@
 'use strict';
 
 // Framework core — the main gna module (lifecycle hooks, lib, etc.)
-var _gna = require('./framework/v0.7.8/core/gna');
+var _gna = require('./framework/v0.7.9/core/gna');
 
 // SuperController and EntitySuper — loaded from their source modules
-var SuperController = require('./framework/v0.7.8/core/controller');
-var EntitySuper     = require('./framework/v0.7.8/core/model/entity');
+var SuperController = require('./framework/v0.7.9/core/controller');
+var EntitySuper     = require('./framework/v0.7.9/core/model/entity');
 
 // uuid — from the lib registry
-var uuid = require('./framework/v0.7.8/lib/uuid');
+var uuid = require('./framework/v0.7.9/lib/uuid');
 
 module.exports = {
 

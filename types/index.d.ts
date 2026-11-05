@@ -363,8 +363,12 @@ declare namespace gina {
 
         /**
          * Record HTTP/2 response trailers to send after the body
-         * (`:`-prefixed pseudo-headers are stripped; best-effort no-op on
-         * HTTP/1.1).
+         * (best-effort; a no-op on HTTP/1.1). Only the fields the HTTP/2
+         * layer can send are kept, under their lower-case names: a
+         * `:`-prefixed pseudo-header, a name that is not an HTTP token, a
+         * connection-specific name, a value that is neither a string nor
+         * a number, and a string value holding a character other than a
+         * tab, U+0020 to U+007E and U+0080 to U+00FF are dropped.
          * @returns `this` for chaining
          */
         sendTrailers(fields: object): this;
