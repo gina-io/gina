@@ -408,6 +408,8 @@ function sendHtmlResponse(local, html, req, res) {
                 if (!(_shk in _streamHeaders)) { _streamHeaders[_shk] = _pendingHeaders[_shk]; }
             }
             if (_trailers) {
+                // #B1080 — the compat response registered its own 'wantTrailers' listener before this one and sends its trailers from it, so a raw sendTrailers() comes too late: hand it each field (a field it refuses is dropped). The listener below stays for a stream with no compat response.
+                if (typeof(res.addTrailers) == 'function') Object.keys(_trailers).forEach(function(_tk) { var _tf = {}; _tf[_tk] = _trailers[_tk]; try { res.addTrailers(_tf); } catch (_e) { /* best-effort */ } });
                 stream.once('wantTrailers', function() {
                     try { if (!stream.destroyed && !stream.closed) stream.sendTrailers(_trailers); } catch (_e) { /* best-effort */ }
                 });

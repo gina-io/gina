@@ -3302,20 +3302,34 @@ function SuperController(options) {
      * after the response body.
      *
      * Opt-in and best-effort: calling this only RECORDS the trailer fields; the
-     * active render delegate (renderStream / renderJSON / swig / nunjucks) then
-     * sets `waitForTrailers: true` on `stream.respond()` and sends the trailers
-     * in the HTTP/2 `wantTrailers` event after the final DATA frame. When no
-     * trailers are registered the response path is byte-for-byte unchanged, so
-     * existing bundles are unaffected.
+     * active render delegate (renderJSON / renderStream / renderXML / swig /
+     * nunjucks, from disk or a memory loader) then sets `waitForTrailers: true`
+     * on `stream.respond()` and hands each field to the HTTP/2 compatibility
+     * response (`response.addTrailers()`), whose own `wantTrailers` listener
+     * sends them after the final DATA frame. The delegate's own `wantTrailers`
+     * listener on the raw stream stays as the fallback for a stream with no
+     * compatibility response (#B1080: through 0.7.8 it was the only path, and it
+     * ran after the compatibility layer had already sent its own empty trailer
+     * list, so no field arrived). When no trailers are registered the response
+     * path is byte-for-byte unchanged, so existing bundles are unaffected.
      *
      * Trailers here are an HTTP/2-only mechanism. On HTTP/1.1 the call is a
      * silent no-op (the chunked-trailer path is out of scope). HEAD responses,
-     * already-destroyed streams, and the framework error path never emit
-     * trailers.
+     * a 204 (its stream ends with its headers) and already-destroyed streams
+     * never emit trailers, and neither does an answer `throwError()` gives (a
+     * custom error page, a JSON error body): it drops the recorded fields.
      *
      * Pseudo-header keys (those beginning with `:`) are stripped — HTTP/2
-     * forbids pseudo-headers in a trailing HEADERS frame. Other header validity
-     * is the caller's responsibility.
+     * forbids pseudo-headers in a trailing HEADERS frame. So is every field the
+     * HTTP/2 layer could not send: it sends them all in one call after the body,
+     * and one such field would make that call throw (#B1080) — a name that is
+     * not an HTTP token, a connection-specific name (`connection`, `upgrade`,
+     * `http2-settings`, `keep-alive`, `proxy-connection`, `transfer-encoding`,
+     * and `te` unless its value is `trailers`), a value that is neither a
+     * string nor a number, and a string value holding a character other than a
+     * tab, U+0020 to U+007E and U+0080 to U+00FF (a CR, a LF, a NUL or another
+     * control character, DEL, or a character above U+00FF). Names are stored
+     * trimmed and lower-case, as HTTP/2 sends them; the other fields are sent.
      *
      * Typical use is gRPC-style streaming (a final `grpc-status` / `grpc-message`)
      * or a content-integrity `Digest` emitted after a chunked body.
@@ -3337,7 +3351,14 @@ function SuperController(options) {
         for (var k in fields) {
             if (!Object.prototype.hasOwnProperty.call(fields, k)) continue;
             if (k.charAt(0) === ':') continue;
-            _clean[k] = fields[k];
+            // #B1080 — the HTTP/2 layer sends every recorded field in ONE call after the body, and a field it cannot send makes that call throw outside the delegates' try/catch (the stream never ends, or the bundle stops): keep only a field it can send — an HTTP token name (RFC 9110) that is not connection-specific (RFC 9113 §8.2.2), with a number value or a string value made only of a tab, U+0020 to U+007E and U+0080 to U+00FF (Node's header-value rule; the HTTP/2 layer cannot send another value as given) — under the name it sends (trimmed, lower-case)
+            var _name  = k.trim().toLowerCase();
+            var _value = fields[k];
+            if ( !/^[\^_`a-z\-0-9!#$%&'*+.|~]+$/.test(_name) ) continue;
+            if ( /^(connection|upgrade|http2-settings|keep-alive|proxy-connection|transfer-encoding)$/.test(_name) || _name === 'te' && _value !== 'trailers' ) continue;
+            if ( typeof(_value) !== 'string' && typeof(_value) !== 'number' ) continue;
+            if ( typeof(_value) === 'string' && /[^\t\x20-\x7e\x80-\xff]/.test(_value) ) continue;
+            _clean[_name] = _value;
             _has = true;
         }
         // Arm the trailer path only when at least one valid field remains.
@@ -9847,6 +9868,10 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
      * caught by an up-front guard so the HTTP/2 `res.stream` and the
      * errorObject-build `res.error` reads can't deref null first (#B44).
      *
+     * HTTP/2 trailers: the fields an action recorded with `self.sendTrailers()`
+     * are dropped when throwError() starts, so no answer it gives (a custom
+     * error page, a JSON error body) carries them (#B1080).
+     *
      * @param {object} [ res ]
      * @param {number} code
      * @param {string} msg
@@ -9869,6 +9894,8 @@ if ( /^local$/i.test(process.env.NODE_SCOPE) ) {
      * return self.throwError({ status: 502, message: 'upstream refused', ref: 'ORDER-42' });
      * */
     this.throwError = function(res, code, msg) {
+        // #B1080 — an error answer replaces the action's answer: drop the trailer fields the action recorded with self.sendTrailers(), so no answer given here carries them
+        local._trailers = null;
 
         // #CE1 — capture the transient-classified error source (if any)
         // BEFORE the call-shape normalizations below reassign res/code/msg.
