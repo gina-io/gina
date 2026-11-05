@@ -16,8 +16,9 @@
  *   then every source element the result lacks. A number the source repeats more
  *   often than the result is topped up to the source's count (`[25]` + `[25,25]`
  *   gives `[25,25]`), a value already present is never pushed again, and merging
- *   the same source a second time is a no-op (#B436). A nested array is merged
- *   once per level.
+ *   the same source a second time is a no-op (#B436). A `NaN` is present once the
+ *   result holds one, and it is never topped up (`[1,NaN]` + `[NaN,2]` gives
+ *   `[1,NaN,2]`, #B1091). A nested array is merged once per level.
  *
  * @example
  * var merge = require('lib/merge');
@@ -115,6 +116,7 @@ function Merge() {
      * merge([1, 2],   [3, 4], true)      // [3, 4]
      * merge({ a: [null, 'x'] }, { a: [null, 'x'] })  // { a: [null, 'x'] } — null elements are preserved (#B226)
      * merge({ ports: [8080, 8124] }, { ports: [8124] })  // { ports: [8080, 8124] } — a value already present is not pushed again (#B436)
+     * merge([1, NaN], [NaN, 2])          // [1, NaN, 2] — a NaN the result holds is present too (#B1091)
      * merge({}, { toString: 'x' })        // { toString: 'x' } — a key held only through Object.prototype is missing, so it is filled (#B845)
      */
     var browse = function (_target, _source) {
@@ -440,6 +442,24 @@ function Merge() {
     };
 
     /**
+     * Whether `x` is `NaN`, the one value that is not equal to itself (#B1091): the
+     * primitive push in `mergeArray` passes it to `some()`, because `indexOf` never
+     * finds a `NaN`.
+     *
+     * @inner
+     * @private
+     * @param {*} x - An element of the array being merged into
+     * @returns {boolean} true when `x` is `NaN`
+     *
+     * @example
+     * [1, NaN].some(isNaNElement)   // true
+     * [1, 'NaN'].some(isNaNElement) // false
+     */
+    var isNaNElement = function(x) {
+        return x !== x;
+    };
+
+    /**
      * Merge two arrays. Will not merge function items: this is normal.
      * Merging plain arrays is OK, merging collections is still experimental.
      *
@@ -464,7 +484,9 @@ function Merge() {
      * source element the result lacks. A `number` the source carries more often
      * than the result so far is pushed again, up to the source's count (#B436):
      * the comparison is by COUNT, so a number already present at another index
-     * is never duplicated and merging the same source twice is a no-op.
+     * is never duplicated and merging the same source twice is a no-op. `NaN`,
+     * which `indexOf` never finds, is present once the result holds a `NaN`, and
+     * it is never topped up (#B1091).
      *
      * @inner
      * @private
@@ -785,7 +807,14 @@ function Merge() {
                         // array with string key
                         // #B226 — same typeof-null exception as the rebuild above
                         // was: else if (newTarget.indexOf(options[a]) == -1 && typeof(options[a]) != 'object') {
-                        else if (newTarget.indexOf(options[a]) == -1 && ( typeof(options[a]) != 'object' || options[a] === null )) {
+                        // #B1091 — `indexOf` never finds `NaN`, so a `NaN` the result already held was
+                        // pushed again: `[1, NaN]` + `[NaN, 2]` gave `[1, NaN, NaN, 2]`. On the createMode pass,
+                        // once the index-merge branch above has rebound `newTarget` to the array this loop
+                        // walks, each such push lengthened that array, and the merge never returned. For
+                        // `NaN` only, the push now also asks whether the result holds a `NaN` already
+                        // (ES5, for the browser bundle); every other value takes the test it took before.
+                        // was: else if (newTarget.indexOf(options[a]) == -1 && ( typeof(options[a]) != 'object' || options[a] === null ))
+                        else if (newTarget.indexOf(options[a]) == -1 && ( typeof(options[a]) != 'object' || options[a] === null ) && ( options[a] === options[a] || !newTarget.some(isNaNElement) )) {
                             newTarget.push(options[a]);
                         }
                         // collection without keyComparison
