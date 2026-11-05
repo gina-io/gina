@@ -69,55 +69,56 @@ open http://localhost:3100
 
 > **npm 12+** blocks install scripts by default, and gina's post-install bootstraps `~/.gina` and the framework dependencies. Install with `npm install -g gina@latest --allow-scripts=gina`, or allow it once for all global installs with `npm config set allow-scripts=gina --location=user`. (Not needed on npm ≤ 11.)
 
-## What's in 0.7.8
+## What's in 0.7.9
 
-> **Restart your bundles *and* rebuild them.** Form validation, file staging,
-> the Safari `autocomplete="off"` fields, the routing fetch, the download name
-> parser, `merge()`, `JSON.clone` and `Collection` ship in the browser bundle, so
-> `gina.min.js` changed and `gina bundle:restart` alone leaves the old client
-> running: rebuild each consuming bundle, then restart it. If your build copies
+> **Restart your bundles *and* rebuild them.** Form validation, form resets,
+> file staging and `merge()` ship in the browser bundle, so `gina.min.js`
+> changed and `gina bundle:restart` alone leaves the old client running:
+> rebuild each consuming bundle, then restart it. If your build copies
 > `gina.min.js` into your own static files, rebuild that copy before the
 > restart.
 
-> **Read before upgrading — some changes can change an answer.** Swig 2.11.0
-> changes what some native templates render: `date` of a missing or unparseable
-> value renders an empty string where it printed `NaN/NaN/NaN`, an undefined or
-> null filter or call result reads as an empty string at a `+` or unary operand,
-> and blocks nested in blocks follow one chain of definitions. The `length` filter
-> returns a string's length, and on swig `{{ missing | length }}` renders 0.
-> `Collection.notIn()` and `delete()` return `[]` on an empty source. A folder
-> `cp()` or `mv()` reports a file it could not copy, so `bundle:build`,
-> `project:build`, `bundle:copy` and `bundle:add` now fail on a file they could
-> not read. A multipart request past `upload.maxFieldsSize` is answered HTTP 431.
-> An HTTP/1.1 `self.query()` timeout fails with `ETIMEDOUT` and status 503, where
-> it failed as `ECONNRESET` with 500. A form reset, and a value a script writes,
-> no longer paint errors. On Safari, gina's own `readonly` on an
-> `autocomplete="off"` field now reads `readonly="gina"`. The
+> **Read before upgrading — some changes can change an answer.** Swig 2.12.1
+> reads a key from the template data that names `__proto__`, `constructor` or
+> `prototype` as missing, and a native `{% set %}` whose bracket target is
+> given such a key throws when the template runs. An upload part whose `group`
+> names a member of `Object.prototype` is answered HTTP 400. A form reset now
+> runs a form-associated custom element's `formResetCallback`, and drops a
+> submit that was waiting for a staged upload instead of replaying it once the
+> upload ends. A rule on a staged file input runs again, so a required one
+> with no file refuses the submit; a staged input that takes a selection of
+> fewer files posts only those, and one whose staging failed is emptied. A
+> form's error callback payload now carries `transportError: false` and
+> `contentType` whenever the server answered. `merge()` adds a `NaN` only when
+> the result holds none. Over HTTP/2, a request answered before its body has
+> been read now has its stream closed with `RST_STREAM(NO_ERROR)` once the
+> answer has gone out, and `self.sendTrailers()` now delivers its fields. The
 > [migration notes](https://gina.io/docs/migration) list every behaviour change.
 
-**The forms-and-files release.** Security fixes: one multipart request whose
-body ends inside a file part no longer ends the bundle process, and an upload
-that fails, is abandoned or passes `upload.maxFieldsSize` now stops and removes
-what it staged; two overlapping moves of one file no longer end the bundle
-process; on Bun 1.4, an HTTP/2 `self.query()` session no longer stops sending
-at the upstream's stream limit; a stored file served as a download under a
-name above U+00FF no longer ends the bundle process on HTTP/1.1. Gina also
-requires `@rhinostone/swig` `^2.11.0`. The other fixes cover the path helper,
-form validation and file staging, Safari's `autocomplete="off"` fields,
-`self.query()` timeouts, the routing fetch, `merge()` and `JSON.clone`, and
-the server's error answers. Full detail in
+**The HTTP/2 and uploads release.** Security fixes: over HTTP/2, a request
+answered before its body has been read, or a multipart upload refused while its
+body is parsed, no longer keeps its stream open, and on Bun 1.2 and 1.3 the
+bundle no longer holds what the client keeps sending; merging an array of
+objects compared on their `id` no longer takes time cubic in its length; an
+upload part whose `group` names a member of `Object.prototype` no longer
+sidesteps the configured allow-list; and gina requires `@rhinostone/swig`
+`^2.12.1`, whose earlier releases let a key from the template data reach the
+prototype chain. The other fixes cover form resets, staged file inputs, live
+checks, form error callbacks, `self.sendTrailers()` over HTTP/2, `merge()`
+with `NaN`, and the error page of an upload that stops. Full detail in
 [CHANGELOG.md](./CHANGELOG.md).
 
-- **Security — multipart uploads (#B1062, #B1061, #B1056).** gina parses a multipart body before routing, so these needed no account and no upload route. A body that ended inside a file part raised an error that nothing listened for, which ended the bundle process; a failed parse now stops at once, closes every write stream and removes every file the request staged, and the client still gets HTTP 400. An upload whose client goes away now stops the same way, where its write stream stayed open for the life of the process. `upload.maxFieldsSize` now counts the bytes actually sent, where a request with no `content-length` could write past it: past the cap the upload stops, its files are removed and the request is answered HTTP 431.
-- **Security — overlapping moves of one file (#B1045).** Two `_().mv()` of the same file that overlapped could throw from an async callback, which ended the bundle process, or never call back. Every `mv()` and `rm()` now calls back once, whatever happens to its paths meanwhile.
-- **Security — HTTP/2 `self.query()` on Bun 1.4 (#B1052).** Gina dropped every listener of a finished stream, including Bun's own that gives the stream's slot back, so a session stopped sending once as many calls had completed on it as the upstream's stream limit (256 against a gina upstream's default), and later calls never called back. A finished stream now keeps its listeners on Bun. Node.js and Bun 1.2 and 1.3 were not affected.
-- **Security — download names above U+00FF (#B1073).** `downloadFromURL`, `downloadFromLocal` and `serveFromStorage` wrote a file name holding a character above U+00FF (a decomposed accent, a typographic apostrophe, CJK, emoji) raw into the `Content-Disposition` header, which Node refuses on HTTP/1.1: the first two answered 500, and `serveFromStorage` with `download` or `filename` ended the bundle process. Such a name is now sent as a Latin-1 `filename` with an RFC 8187 `filename*`, and a throw inside `serveFromStorage`'s storage callbacks answers 500 instead of ending the process; the browser bundle's download path reads `filename*`.
-- **Changed — swig `^2.11.0` (#B1034, #B1072).** The native template changes come from swig 2.9.12 and 2.9.13; 2.10.0 and 2.11.0 change only the frontends (on swig-jinja2 and swig-django, `==`, `!=` and `in` now compare with Python's equality). A project copy loaded through `swig.useProject`, or a frontend selected through `swig.package`, keeps its own version.
-- **Fixed — the path helper (#B1046, #B1047, #B1048, #B1050).** `mv()` or `cp()` onto the source itself is a no-op that reports a success, where it destroyed the path; a folder copy reports a file it could not copy, and `mv()` then keeps its source; `mkdir()` calls back on a failure; a folder copied or moved into itself, or onto a folder that holds it, is refused with `EINVAL` before anything is written.
-- **Fixed — form validation and file staging (#B1035, #B1036, #B1037, #B1039, #B990, #B1027).** A value written by a script re-checks the form but paints nothing; a form reset runs no live check; two forms that share a field id no longer interfere on a reset, and the bind warns about it; a field whose only rule is `query`, or a `query` field driving a `_case_` block, no longer freezes the tab or streams requests; a form re-bound while files are staged keeps them; a reset no longer names a staged file « undefined ».
-- **Fixed — Safari `autocomplete="off"` fields (#B1055, #B1063, #B1064, #B1067, #B1068).** Every key is native while such a field has focus: `email` and `number` keep the typed order (`123` was posted as `321`), Tab, Enter, `maxlength` and the arrows work, `input` events fire, and a `query` rule waits for the typing pause. A field that has focus when gina binds it, and one left after `.destroy()`, take keys.
-- **Fixed — `self.query()` timeouts (#B969, #B971, #B1054).** An HTTP/1.1 timeout fails with `ETIMEDOUT` and status 503, and a body that stalls after its headers now calls back; on Bun, an HTTP/2 call's `requestTimeout` belongs to that call; on Node.js 24 and 26 and Bun 1.4, a call sent on a session just destroyed is re-sent on a fresh one.
-- **Fixed — the routing fetch and server answers (#B1044, #B841, #B873, #B846, #B845, #B849, #B1029).** A routing fetch that a navigation cuts is asked again; an `Error` reaching the server's error responder answers with its text; request data no longer switches a swig render into error-page mode; `| length` counts a string's characters; `merge()` and `JSON.clone` keep a key named after an `Object.prototype` member; `Collection.notIn()` and `delete()` return `[]` on an empty source.
+- **Security — HTTP/2 requests answered before their body is read (#B1071, #B1076, #B1086).** Over HTTP/2, a request answered while its client was still sending the body kept its stream open: the 413 past `server.maxBodySize`, the 431 past `upload.maxFieldsSize`, the 400 of a multipart body that fails to parse, the refusals gina gives while it parses a multipart body (too many files, an upload group that is not configured, an extension the group does not allow, a second file in a single-file group, the text-field limits, and the 500s of an upload directory that cannot be created, a write error or a multipart listener that throws), and, on Bun, the answers given before the body is read (the `/_gina/*` control endpoints, the cross-origin guard, the maintenance gate, the admin endpoints, a static file answered to a request that carries a body). On Bun 1.2 and 1.3 the bundle held everything the client kept sending in memory, without bound; on Node.js and Bun 1.4 the stream stayed open with the client held at its window. The server now closes the stream with `RST_STREAM(NO_ERROR)` once the answer has gone out, removes the parts a refused upload staged, and on Bun discards the unread body. HTTP/1.1 answers are unchanged.
+- **Security — merging id-keyed arrays (#B1078).** Merging an array of objects compared on their `id` (or on the key set with `merge.setKeyComparison()`) took time cubic in its length when the target already held every id: 2,000 objects took about 4 to 5 seconds and blocked the event loop. It now takes a few milliseconds. Results are unchanged, except that an element that refers to itself no longer throws `RangeError` when every id is already present.
+- **Security — upload groups named after `Object.prototype` members (#B1089).** An upload part whose `group` named a member of `Object.prototype` (`__proto__`, `constructor`, `hasOwnProperty`, `toString`, …) passed the configured-group check, and the group's rules were skipped: the file was accepted whatever its extension, a single-file group accepted several, and the file was staged to the default upload directory. Such a part is now answered HTTP 400 as an unconfigured group.
+- **Security — swig `^2.12.1` (#B1088).** Up to 2.12.0, a key from the template data that names `__proto__`, `constructor` or `prototype` reached the prototype chain wherever a template read a value with it: a subscript printed the Object constructor, a call on such a value could run text from the data as JavaScript, and a native `{% set %}` whose bracket target took the key put a property on `Object.prototype` for the whole process (advisory GHSA-8mf3-p375-389g). A template is exposed when it indexes a value with a key that the request controls. Gina compiles a template each time it renders it and stores no compiled output, so a restart picks the fix up; a project copy loaded through `swig.useProject`, or a frontend selected through `swig.package`, keeps its own version: update it there.
+- **Fixed — form resets (#B1041, #B1087, #B1043).** A reset (`form.reset()`, a reset button, or the handle's `.resetFields()`) now restores a form-associated custom element through its own `formResetCallback`, once the form's other controls are restored, as a native reset does; a callback that throws is reported without stopping the reset of the other fields. A reset also drops a submit that was waiting for one of the form's staged uploads and releases the busy state that submit armed, where the submit used to be replayed with the restored values once the upload succeeded.
+- **Fixed — staged file inputs (#B1058, #B1057, #B1059).** A rule on a staged file input, declared under the input's name, runs again: none ran since 0.7.2, so `isRequired` let the form be sent with no file. An input that takes a selection of fewer files no longer posts the files it replaced, and after a failed staging the same file can be chosen again.
+- **Fixed — live checks (#B1069, #B1038).** A live check still on its way when its form is destroyed (a debounced keystroke, a radio or checkbox pick, a `query` answer) no longer throws an uncaught `TypeError`, and changing a live-checked `<select>` no longer writes a page global named `once`.
+- **Fixed — form error callbacks (#B1083).** The error callback's payload now carries `transportError: false` and `contentType` whenever the server answered, so a reverse proxy's HTML page can be told apart from a message the application wrote; an answer sent as an attachment keeps a body that is not JSON in `message`, where it was dropped.
+- **Fixed — HTTP/2 trailers (#B1080).** `self.sendTrailers(fields)` delivers its fields over HTTP/2: in every release from 0.4.0 through 0.7.8, no field arrived. A field the HTTP/2 layer cannot send is dropped when it is recorded, and an answer that `throwError()` gives carries no trailers.
+- **Fixed — `merge()` with `NaN` (#B1091).** When an array inside an object the target lacks held two or more object elements followed by `NaN`, or when an array was merged with itself, `merge()` never returned and the heap ran out. A `NaN` is now present once the result holds one, and it is never topped up.
+- **Fixed — the error page of an upload that stops (#B1075).** An HTML request whose multipart upload stops while a file part is still being written now gets the bundle's custom error page, where the stopped write stream's error could answer the built-in 500 page first.
 
 ## Documentation
 
