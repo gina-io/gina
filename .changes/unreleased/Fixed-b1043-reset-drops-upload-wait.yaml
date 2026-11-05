@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'A form reset (`form.reset()`, a reset button, or the handle''s `.resetFields()`) now drops a submit that waits for one of the form''s staged uploads to finish, and releases the busy state that submit armed (`data-gina-loading` back to `false`), unless a request of the form''s own is still in flight. The submit used to stay waiting: its trigger stayed busy after the reset, and when the upload succeeded the submit was replayed, posting the restored values with the staged file''s metadata. (#B1043)'
-time: 2026-11-03T16:43:51+01:00

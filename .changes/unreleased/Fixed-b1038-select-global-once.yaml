@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'Changing a live-checked `<select>` no longer writes a page global named `once`. The select''s whole-form check ended with an assignment to an undeclared `once`, so a page''s own `window.once` was set to `false` after each select change, and a page that had no such variable got one. (#B1038)'
-time: 2026-11-03T16:04:03+01:00
