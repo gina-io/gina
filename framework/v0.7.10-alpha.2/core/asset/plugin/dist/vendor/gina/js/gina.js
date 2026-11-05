@@ -28025,8 +28025,15 @@ function ValidatorPlugin(rules, data, formId, culture) {
                 // `isRequired(false)` takes a name back out of the exclusions. A pass without controls
                 // (the server's) has nothing to leave out. Written inline: this block is run on its own
                 // by the tests that lift forEachField, with only the names it already used.
+                // #B1099 — the loop walks the controls, not the collected values: the scan loop's check of
+                // a field that a matching `_case_` condition names deletes it from `fields` once its rules
+                // are applied (checkFieldAgainstRules), so a staged input with a top-level rule that such a
+                // condition also named had left `fields` by now, and its value (its files' names, or '')
+                // was posted beside its hidden fields. Every staged control that has an engine field is
+                // left out, whichever site of the pass judged it.
+                // was: for (var stagedName in fields) {
                 if ( $fields ) {
-                    for (var stagedName in fields) {
+                    for (var stagedName in $fields) {
                         if (
                             $fields[stagedName]
                             && $fields[stagedName].type == 'file'

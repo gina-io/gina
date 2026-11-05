@@ -308,7 +308,7 @@ var RESET_DECL     = 'var onUploadResetOrDelete = function($uploadTrigger, bindi
 
 // the exclusion, written inline in forEachField's terminal block (a helper call there breaks the
 // suites that lift forEachField into a harness)
-var EXCLUSION = /if\s*\(\s*\$fields\s*\)\s*\{\s*for\s*\(\s*var\s+stagedName\s+in\s+fields\s*\)\s*\{\s*if\s*\(\s*\$fields\[stagedName\]\s*&&\s*\$fields\[stagedName\]\.type\s*==\s*'file'\s*&&\s*typeof\(\$fields\[stagedName\]\.getAttribute\)\s*==\s*'function'\s*&&\s*\$fields\[stagedName\]\.getAttribute\('data-gina-form-upload-action'\)\s*&&\s*d\[stagedName\]\s*&&\s*typeof\(d\[stagedName\]\.exclude\)\s*==\s*'function'\s*\)\s*\{\s*d\[stagedName\]\.exclude\(true\)\s*;\s*\}\s*\}\s*\}/g;
+var EXCLUSION = /if\s*\(\s*\$fields\s*\)\s*\{\s*for\s*\(\s*var\s+stagedName\s+in\s+\$fields\s*\)\s*\{\s*if\s*\(\s*\$fields\[stagedName\]\s*&&\s*\$fields\[stagedName\]\.type\s*==\s*'file'\s*&&\s*typeof\(\$fields\[stagedName\]\.getAttribute\)\s*==\s*'function'\s*&&\s*\$fields\[stagedName\]\.getAttribute\('data-gina-form-upload-action'\)\s*&&\s*d\[stagedName\]\s*&&\s*typeof\(d\[stagedName\]\.exclude\)\s*==\s*'function'\s*\)\s*\{\s*d\[stagedName\]\.exclude\(true\)\s*;\s*\}\s*\}\s*\}/g;
 
 // the three re-syncs of the gate: at the selection, as onUpload's last statement, after a reset or a delete
 var GATE_AT_SELECTION = /\$el\.pendingFiles\s*=\s*Array\.from\(\s*files\s*\)\s*;\s*resyncStagedUploadGate\(\s*\$el\s*\)\s*;/g;
