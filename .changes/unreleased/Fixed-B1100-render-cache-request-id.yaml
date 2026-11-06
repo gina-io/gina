@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'A page served from the render cache now answers with its own `X-Request-Id`. A hit answered with the id of the request that filled the entry, even when the request sent its own `X-Request-Id`; on the Isaac engine the hit now resolves its own id (a valid inbound one is kept, else a new one is generated), and on both engines a hit no longer replays the stored one. Pickup: a bundle restart, no re-bake (#B1100).'
-time: 2026-11-06T13:38:17+01:00
