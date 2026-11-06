@@ -8490,7 +8490,15 @@ function Server(options) {
         // The page's own headers first, then the cache metadata.
         if ( hit.responseHeaders ) {
             var _hitHeaders = _rn ? _rn.headers : hit.responseHeaders;
-            for (var h in _hitHeaders) { res.setHeader(h, _hitHeaders[h]); }
+            for (var h in _hitHeaders) {
+                // #B1100 / #B1101 — never replay the filling request's per-request headers:
+                // this response keeps the X-Request-Id onInstance set for it, and any cookie its
+                // own middleware set (on express the bundle's session and CSRF layers run before
+                // this hit). The store drops them; an entry stored by an older release (a redis
+                // L2 value) may still carry them. Keep in sync with the isaac pre-routing read.
+                if ( lib.RenderCache.isPerRequestHeader(h) ) { continue; }
+                res.setHeader(h, _hitHeaders[h]);
+            }
         }
         // #RC5 — ONE header string, set AND logged from the same var (the prior dual
         // construction at setHeader + console.info was a drift hazard).
