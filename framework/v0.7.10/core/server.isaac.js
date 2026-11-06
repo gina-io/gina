@@ -320,6 +320,31 @@ function escapeLogDetailKeepFrames(detail) {
 }
 
 /**
+ * #B1100 — resolve a request's correlation id: a sanitised inbound `X-Request-Id` (kept only
+ * when it matches `/^[\w.\-]{1,128}$/`, so a client value cannot forge a log line), else a
+ * fresh UUID. A twin of `_resolveRequestId` in core/server.js (#M12b), duplicated the way
+ * escapeLogControlChars is: that one is private to server.js, and this engine's pre-routing
+ * render-cache hit answers before `onInstance` gives every other request its id.
+ * `test/core/render-cache-replay-per-request-b1100.test.js` fails when the two drift.
+ *
+ * @inner
+ * @private
+ * @memberof module:gina/core/server.isaac
+ * @param   {object} request - The incoming request (its `headers` read).
+ * @returns {string} The inbound id when valid, else a new UUID.
+ * @example
+ * resolveRequestId({ headers: { 'x-request-id': 'r-123' } }); // 'r-123'
+ * resolveRequestId({ headers: { 'x-request-id': 'a b' } });   // a fresh UUID
+ */
+var resolveRequestId = function(request) {
+    var _inbound = request && request.headers && request.headers['x-request-id'];
+    if ( _inbound && /^[\w.\-]{1,128}$/.test(_inbound) ) {
+        return _inbound;
+    }
+    return crypto.randomUUID();
+};
+
+/**
  * Reloads all core and lib modules from disk by replacing their require.cache
  * entries with fresh exports. Excludes gna.js itself. Also refreshes the
  * plugins index so the running instance picks up any hot-reloaded code.
@@ -2945,9 +2970,22 @@ function ServerEngineClass(options) {
                         if ( typeof(cachedContentObj.responseHeaders) != 'undefined' ) {
                             let _rnHeaders = _rn ? _rn.headers : cachedContentObj.responseHeaders;
                             for (let h in _rnHeaders ) {
+                                // #B1100 / #B1101 — never replay the filling request's
+                                // per-request headers (its X-Request-Id, its Set-Cookie). The
+                                // store drops them; an entry stored by an older release (an fs
+                                // .meta sidecar) may still carry them. Keep in sync with
+                                // serveRenderCacheHit in core/server.js.
+                                if ( lib.RenderCache.isPerRequestHeader(h) ) { continue; }
                                 response.setHeader(h, _rnHeaders[h]);
                             }
                         }
+                        // #B1100 — this hit answers before onInstance, which gives every other
+                        // request its id: resolve one here (a sanitised inbound X-Request-Id,
+                        // else a fresh UUID) and echo it, as every response does.
+                        if ( !request._ginaReqId ) {
+                            request._ginaReqId = resolveRequestId(request);
+                        }
+                        response.setHeader('X-Request-Id', request._ginaReqId);
                         response.setHeader('Cache-Status', cacheStatus);
 
                         // Cache-Control: hit path — use remaining TTL so downstream caches don't over-serve (#C6)

@@ -69,56 +69,34 @@ open http://localhost:3100
 
 > **npm 12+** blocks install scripts by default, and gina's post-install bootstraps `~/.gina` and the framework dependencies. Install with `npm install -g gina@latest --allow-scripts=gina`, or allow it once for all global installs with `npm config set allow-scripts=gina --location=user`. (Not needed on npm ≤ 11.)
 
-## What's in 0.7.9
+## What's in 0.7.10
 
-> **Restart your bundles *and* rebuild them.** Form validation, form resets,
-> file staging and `merge()` ship in the browser bundle, so `gina.min.js`
-> changed and `gina bundle:restart` alone leaves the old client running:
-> rebuild each consuming bundle, then restart it. If your build copies
-> `gina.min.js` into your own static files, rebuild that copy before the
-> restart.
+> **Restart your bundles *and* rebuild them.** The fix for staged file inputs
+> ships in the browser bundle, so `gina.min.js` changed and
+> `gina bundle:restart` alone leaves the old client running: rebuild each
+> consuming bundle, then restart it. If your build copies `gina.min.js` into
+> your own static files, rebuild that copy before the restart.
 
-> **Read before upgrading — some changes can change an answer.** Swig 2.12.1
-> reads a key from the template data that names `__proto__`, `constructor` or
-> `prototype` as missing, and a native `{% set %}` whose bracket target is
-> given such a key throws when the template runs. An upload part whose `group`
-> names a member of `Object.prototype` is answered HTTP 400. A form reset now
-> runs a form-associated custom element's `formResetCallback`, and drops a
-> submit that was waiting for a staged upload instead of replaying it once the
-> upload ends. A rule on a staged file input runs again, so a required one
-> with no file refuses the submit; a staged input that takes a selection of
-> fewer files posts only those, and one whose staging failed is emptied. A
-> form's error callback payload now carries `transportError: false` and
-> `contentType` whenever the server answered. `merge()` adds a `NaN` only when
-> the result holds none. Over HTTP/2, a request answered before its body has
-> been read now has its stream closed with `RST_STREAM(NO_ERROR)` once the
-> answer has gone out, and `self.sendTrailers()` now delivers its fields. The
+> **Read before upgrading — some changes can change an answer.** A page served
+> from the render cache no longer carries the `Set-Cookie` or the
+> `X-Request-Id` of the request that filled the entry: a hit answers with its
+> own id, and a cookie set on a cached route reaches only the visitor whose
+> request filled the entry (on the Isaac engine a hit is answered before any
+> middleware runs, so it carries no cookie at all). A staged file input that
+> has a rule of its own and is also named by a matching `_case_` condition no
+> longer sends its own value with the form's data. The
 > [migration notes](https://gina.io/docs/migration) list every behaviour change.
 
-**The HTTP/2 and uploads release.** Security fixes: over HTTP/2, a request
-answered before its body has been read, or a multipart upload refused while its
-body is parsed, no longer keeps its stream open, and on Bun 1.2 and 1.3 the
-bundle no longer holds what the client keeps sending; merging an array of
-objects compared on their `id` no longer takes time cubic in its length; an
-upload part whose `group` names a member of `Object.prototype` no longer
-sidesteps the configured allow-list; and gina requires `@rhinostone/swig`
-`^2.12.1`, whose earlier releases let a key from the template data reach the
-prototype chain. The other fixes cover form resets, staged file inputs, live
-checks, form error callbacks, `self.sendTrailers()` over HTTP/2, `merge()`
-with `NaN`, and the error page of an upload that stops. Full detail in
-[CHANGELOG.md](./CHANGELOG.md).
+**A render-cache security patch.** A page served from the render cache no
+longer sends one visitor's cookies to the others, and a hit answers with its
+own `X-Request-Id`. The release also fixes the known issue of 0.7.9 with staged
+file inputs under a `_case_` rule, and adds an opt-in log line written when a
+request arrives. Full detail in [CHANGELOG.md](./CHANGELOG.md).
 
-- **Security — HTTP/2 requests answered before their body is read (#B1071, #B1076, #B1086).** Over HTTP/2, a request answered while its client was still sending the body kept its stream open: the 413 past `server.maxBodySize`, the 431 past `upload.maxFieldsSize`, the 400 of a multipart body that fails to parse, the refusals gina gives while it parses a multipart body (too many files, an upload group that is not configured, an extension the group does not allow, a second file in a single-file group, the text-field limits, and the 500s of an upload directory that cannot be created, a write error or a multipart listener that throws), and, on Bun, the answers given before the body is read (the `/_gina/*` control endpoints, the cross-origin guard, the maintenance gate, the admin endpoints, a static file answered to a request that carries a body). On Bun 1.2 and 1.3 the bundle held everything the client kept sending in memory, without bound; on Node.js and Bun 1.4 the stream stayed open with the client held at its window. The server now closes the stream with `RST_STREAM(NO_ERROR)` once the answer has gone out, removes the parts a refused upload staged, and on Bun discards the unread body. HTTP/1.1 answers are unchanged.
-- **Security — merging id-keyed arrays (#B1078).** Merging an array of objects compared on their `id` (or on the key set with `merge.setKeyComparison()`) took time cubic in its length when the target already held every id: 2,000 objects took about 4 to 5 seconds and blocked the event loop. It now takes a few milliseconds. Results are unchanged, except that an element that refers to itself no longer throws `RangeError` when every id is already present.
-- **Security — upload groups named after `Object.prototype` members (#B1089).** An upload part whose `group` named a member of `Object.prototype` (`__proto__`, `constructor`, `hasOwnProperty`, `toString`, …) passed the configured-group check, and the group's rules were skipped: the file was accepted whatever its extension, a single-file group accepted several, and the file was staged to the default upload directory. Such a part is now answered HTTP 400 as an unconfigured group.
-- **Security — swig `^2.12.1` (#B1088).** Up to 2.12.0, a key from the template data that names `__proto__`, `constructor` or `prototype` reached the prototype chain wherever a template read a value with it: a subscript printed the Object constructor, a call on such a value could run text from the data as JavaScript, and a native `{% set %}` whose bracket target took the key put a property on `Object.prototype` for the whole process (advisory GHSA-8mf3-p375-389g). A template is exposed when it indexes a value with a key that the request controls. Gina compiles a template each time it renders it and stores no compiled output, so a restart picks the fix up; a project copy loaded through `swig.useProject`, or a frontend selected through `swig.package`, keeps its own version: update it there.
-- **Fixed — form resets (#B1041, #B1087, #B1043).** A reset (`form.reset()`, a reset button, or the handle's `.resetFields()`) now restores a form-associated custom element through its own `formResetCallback`, once the form's other controls are restored, as a native reset does; a callback that throws is reported without stopping the reset of the other fields. A reset also drops a submit that was waiting for one of the form's staged uploads and releases the busy state that submit armed, where the submit used to be replayed with the restored values once the upload succeeded.
-- **Fixed — staged file inputs (#B1058, #B1057, #B1059).** A rule on a staged file input, declared under the input's name, runs again: none ran since 0.7.2, so `isRequired` let the form be sent with no file. An input that takes a selection of fewer files no longer posts the files it replaced, and after a failed staging the same file can be chosen again.
-- **Fixed — live checks (#B1069, #B1038).** A live check still on its way when its form is destroyed (a debounced keystroke, a radio or checkbox pick, a `query` answer) no longer throws an uncaught `TypeError`, and changing a live-checked `<select>` no longer writes a page global named `once`.
-- **Fixed — form error callbacks (#B1083).** The error callback's payload now carries `transportError: false` and `contentType` whenever the server answered, so a reverse proxy's HTML page can be told apart from a message the application wrote; an answer sent as an attachment keeps a body that is not JSON in `message`, where it was dropped.
-- **Fixed — HTTP/2 trailers (#B1080).** `self.sendTrailers(fields)` delivers its fields over HTTP/2: in every release from 0.4.0 through 0.7.8, no field arrived. A field the HTTP/2 layer cannot send is dropped when it is recorded, and an answer that `throwError()` gives carries no trailers.
-- **Fixed — `merge()` with `NaN` (#B1091).** When an array inside an object the target lacks held two or more object elements followed by `NaN`, or when an array was merged with itself, `merge()` never returned and the heap ran out. A `NaN` is now present once the result holds one, and it is never topped up.
-- **Fixed — the error page of an upload that stops (#B1075).** An HTML request whose multipart upload stops while a file part is still being written now gets the bundle's custom error page, where the stopped write stream's error could answer the built-in 500 page first.
+- **Security — render-cache cookies (#B1101).** A render-cache entry stored every header of the response that filled it, `Set-Cookie` included, and every hit sent them back: a cookie set before the render, by a middleware (the CSRF plugin's `gina-csrf-token` included) or by the action, reached every visitor of the cached page until the entry expired, and the `fs` strategy also wrote it to the entry's `.meta` file. An entry now stores no `Set-Cookie` on any strategy (memory, `fs`, `redis`), and both engines' hits skip it in an entry stored by an earlier release. The session cookie of `gina.plugins.Session` was not affected.
+- **Fixed — render-cache request ids (#B1100).** A hit answered with the `X-Request-Id` of the request that filled the entry, even when the request sent its own. A hit now answers with its own id: a valid inbound one is kept, else a new one is generated.
+- **Fixed — staged file inputs under a `_case_` rule (#B1099).** A staged file input that had a rule of its own and was also named by a matching `_case_` condition sent its value (the names of its files, or an empty string) with the form's data; when fields of its files came before it in the form, that value replaced the files' list under a top-level name, or ended it under a nested name. Every staged input is now left out of the data, whichever rule judged it.
+- **Added — a log line when a request arrives (`server.logRequestStart`).** With `settings.json > server.logRequestStart: true`, each application request writes one `info` line when it arrives, before its body is read: `METHOD [>] /path [ req <id> ]`, the id being the request's correlation id. gina otherwise logs a request when it completes, so a request that blocked the bundle appeared nowhere in its log. Off by default.
 
 ## Documentation
 

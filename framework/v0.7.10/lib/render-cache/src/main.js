@@ -448,6 +448,14 @@ function RenderCache(options) {
     instance.set = async function(type, key, entry, payload) {
         payload = payload || {};
 
+        // #B1100 / #B1101 — never store the filling request's per-request headers (its
+        // X-Request-Id, its Set-Cookie): every strategy below stores this snapshot (the
+        // memory Map, the fs .meta sidecar, the redis L2 value) and every hit replays it to
+        // the visitors that come after. The filling request's own response keeps them.
+        if ( entry && entry.responseHeaders ) {
+            entry.responseHeaders = RenderCache.omitPerRequestHeaders(entry.responseHeaders);
+        }
+
         if ( /^memory$/i.test(type) ) {
             entry.fromMemory = true;
             // content is mandatory for the memory strategy
@@ -1171,6 +1179,79 @@ RenderCache.swapNonces = function (content, oldNonces, nonce) {
         content = content.split(oldNonces[i]).join(nonce);
     }
     return content;
+};
+
+/**
+ * The response headers that belong to ONE request, so a render-cache entry never stores
+ * them and a hit never replays them (#B1100, #B1101): `x-request-id`, the correlation id
+ * every response echoes as its own, and `set-cookie`, the cookies set for the visitor whose
+ * request filled the entry (a token cookie set by middleware before the render, or any
+ * cookie an action sets). Lowercase, as `res.getHeaders()` returns them.
+ *
+ * `instance.set()` drops them before any strategy stores the entry; the two replay loops
+ * (the isaac pre-routing hit in core/server.isaac.js, `serveRenderCacheHit` in
+ * core/server.js) skip them too, which covers an entry stored by an older release (an fs
+ * `.meta` sidecar on disk, a redis L2 value).
+ *
+ * @memberof RenderCache
+ * @static
+ * @constant {string[]}
+ */
+RenderCache.PER_REQUEST_HEADERS = ['set-cookie', 'x-request-id'];
+
+/**
+ * Tells whether a response header is one of {@link RenderCache.PER_REQUEST_HEADERS},
+ * whatever its case.
+ *
+ * @function isPerRequestHeader
+ * @memberof RenderCache
+ * @static
+ *
+ * @param {string} name - A response header name
+ *
+ * @returns {boolean} `true` for a per-request header; `false` otherwise, a non-string included
+ *
+ * @example
+ * RenderCache.isPerRequestHeader('Set-Cookie');   // true
+ * RenderCache.isPerRequestHeader('content-type'); // false
+ *
+ * // a replay loop
+ * for (var h in hit.responseHeaders) {
+ *     if ( RenderCache.isPerRequestHeader(h) ) { continue; }
+ *     res.setHeader(h, hit.responseHeaders[h]);
+ * }
+ */
+RenderCache.isPerRequestHeader = function (name) {
+    return typeof(name) === 'string' && RenderCache.PER_REQUEST_HEADERS.indexOf(name.toLowerCase()) > -1;
+};
+
+/**
+ * Returns a copy of a stored headers snapshot without its per-request headers
+ * ({@link RenderCache.PER_REQUEST_HEADERS}). The input is never mutated.
+ *
+ * @function omitPerRequestHeaders
+ * @memberof RenderCache
+ * @static
+ *
+ * @param {object|null|undefined} responseHeaders - A `res.getHeaders()` snapshot
+ *
+ * @returns {object|null|undefined} A new object holding every other header; the input
+ *   itself when it is not an object
+ *
+ * @example
+ * RenderCache.omitPerRequestHeaders({ 'content-type': 'text/html', 'set-cookie': ['a=1'], 'x-request-id': 'r-1' });
+ * // → { 'content-type': 'text/html' }
+ */
+RenderCache.omitPerRequestHeaders = function (responseHeaders) {
+    if ( !responseHeaders || typeof(responseHeaders) !== 'object' ) {
+        return responseHeaders;
+    }
+    var headers = {};
+    for (var h in responseHeaders) {
+        if ( RenderCache.isPerRequestHeader(h) ) { continue; }
+        headers[h] = responseHeaders[h];
+    }
+    return headers;
 };
 
 /**

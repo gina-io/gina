@@ -804,6 +804,8 @@ declare namespace gina {
             scheme?: string;
             allowHTTP1?: boolean;
             earlyHintsOverHTTP1?: boolean;
+            /** Write `METHOD [>] /path [ req <id> ]` at info when an application request arrives, before its body is read. Read once at boot; only `true` turns it on. */
+            logRequestStart?: boolean;
             warmup?: number;
         };
         ioServer?: {

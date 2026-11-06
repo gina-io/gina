@@ -668,6 +668,51 @@ var Domain          = lib.Domain;
 var domainLib       = new Domain();
 
 /**
+ * Writes the entry line of an application request, `METHOD [>] /path [ req <id> ]`, at the
+ * info level. Called before the request's body is read, when `settings.json >
+ * server.logRequestStart` is the boolean `true`.
+ *
+ * gina logs a request when it completes (`GET [200] /path`). A request that blocks the
+ * bundle's main thread (a synchronous body parse, middleware, action or render) never writes
+ * that line, so it appeared nowhere in the bundle's own output; its entry line is written
+ * before it blocks.
+ *
+ * The path is the request's own, which holds no query string at this point on either
+ * engine, with its control characters written as visible escapes. The id is the request's
+ * correlation id: a sanitised inbound `X-Request-Id`, else the generated one the answer
+ * echoes. In JSON log mode the call runs inside a request store that holds that id, so the
+ * JSON line also carries `requestId` and `durationMs`; the store covers this one synchronous
+ * call only.
+ *
+ * @inner
+ * @private
+ * @param {object} request - The incoming request (HTTP/1.x, or the HTTP/2 compatibility request)
+ * @returns {void}
+ * @example
+ * // server.logRequestStart: true, text log mode
+ * logRequestEntry(request);
+ * // [2026 Nov 05 11:40:02] [info   ][api@myproject] GET [>] /orders/42 [ req 7f3c2b18-… ]
+ */
+function logRequestEntry(request) {
+    var line = request.method + ' [>] ' + escapeLogControlChars(request.url) + ' [ req ' + ( request._ginaReqId || '-' ) + ' ]';
+    if ( !_reqCtxLogging ) {
+        console.info(line);
+        return;
+    }
+    if ( !process.gina ) { process.gina = {}; }
+    if ( !process.gina._reqALS ) {
+        var { AsyncLocalStorage } = require('async_hooks');
+        process.gina._reqALS = new AsyncLocalStorage();
+    }
+    process.gina._reqALS.run({
+        requestId : request._ginaReqId,
+        startMs   : ( typeof(request._ginaReqStartMs) == 'number' ) ? request._ginaReqStartMs : Date.now()
+    }, function() {
+        console.info(line);
+    });
+}
+
+/**
  * #A11Y3 — BCP-47 language tag for a framework-generated document.
  *
  * The negotiated culture is stored underscore-separated (`en_CM`), and a raw
@@ -4759,6 +4804,11 @@ function Server(options) {
      * RegExp there matches NOTHING and every request hangs without a
      * response — measured, a deterministic container-boot timeout.
      *
+     * With `settings.json > server.logRequestStart: true`, an application request writes its
+     * entry line (logRequestEntry()) as the first step of the non-static branch, before its
+     * body is read; the health route, the other /_gina/* endpoints, static files and
+     * maintenance answers are given before that branch and write none.
+     *
      * @inner
      * @private
      * @returns {void}
@@ -4767,6 +4817,10 @@ function Server(options) {
 
         var apps = self.bundles;
         var webrootLen = self.conf[self.appName][self.env].server.webroot.length;
+        // Stall observability: `settings.json > server.logRequestStart`, read once here, so a
+        // change needs a bundle restart. Only the boolean `true` turns the request-entry line on
+        // (logRequestEntry()), as for `server.earlyHintsOverHTTP1`.
+        var logRequestStart = ( self.conf[self.appName][self.env].server.logRequestStart === true );
 
         // catch all (request urls)
         // #B211 — was: self.instance.all('*', ...) unconditionally. Express 5's
@@ -6379,6 +6433,14 @@ function Server(options) {
                 // early-answer hooks neither discard nor close it (its parse-time stops discard through
                 // closeStreamAfterAnswer)
                 earlyAnswer.keepOpen(request);
+                // Stall observability: the request-entry line (`server.logRequestStart`), written
+                // before the body is read. handle() runs only after the body has been parsed and
+                // merged, so a request that blocks in that step would leave no line there. The
+                // health route, the other /_gina/* endpoints, static files and maintenance answers
+                // were given above and write none.
+                if ( logRequestStart ) {
+                    logRequestEntry(request);
+                }
                 // init content
                 request.body    = ( typeof(request.body) != 'undefined' ) ? request.body : {};
                 request.get     = {};
@@ -8428,7 +8490,15 @@ function Server(options) {
         // The page's own headers first, then the cache metadata.
         if ( hit.responseHeaders ) {
             var _hitHeaders = _rn ? _rn.headers : hit.responseHeaders;
-            for (var h in _hitHeaders) { res.setHeader(h, _hitHeaders[h]); }
+            for (var h in _hitHeaders) {
+                // #B1100 / #B1101 — never replay the filling request's per-request headers:
+                // this response keeps the X-Request-Id onInstance set for it, and any cookie its
+                // own middleware set (on express the bundle's session and CSRF layers run before
+                // this hit). The store drops them; an entry stored by an older release (a redis
+                // L2 value) may still carry them. Keep in sync with the isaac pre-routing read.
+                if ( lib.RenderCache.isPerRequestHeader(h) ) { continue; }
+                res.setHeader(h, _hitHeaders[h]);
+            }
         }
         // #RC5 — ONE header string, set AND logged from the same var (the prior dual
         // construction at setHeader + console.info was a drift hazard).
