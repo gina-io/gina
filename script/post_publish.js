@@ -583,7 +583,7 @@ function PostPublish() {
                 // bump (currentVersion="0.3.15") cannot match the bare
                 // prefix of "v0.3.15-alpha.6" and leave the suffix in
                 // place — that was the #R3 corruption shape that produced
-                // "v0.3.16-alpha.2-alpha.6" in CLAUDE.md after the 0.3.15
+                // "v0.3.16-alpha.2-alpha.6" in a synced local file after the 0.3.15
                 // stable cut. The tightened lookahead (?![\w.-]) also
                 // blocks word chars, dot, and dash from extending the
                 // matched token (defends against any future similar
