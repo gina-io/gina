@@ -1392,6 +1392,24 @@ isBundleMounted(projects, bundlesPath, getContext('bundle'), function onBundleMo
                                     console.warn('[lib.metrics] init skipped: ' + (metricsErr.message || metricsErr));
                                 }
 
+                                // Stall watchdog — `settings.json > server.stallWatchdog`, resolved and
+                                // validated pre-listen by core/server.js init() (a wrong value refused the
+                                // boot there). The thread starts here, once the listener is up, so module
+                                // loading at boot never reads as a stall, and after the metrics init above,
+                                // so lib.metrics.isEnabled() is settled when it registers its two series.
+                                // Non-fatal: an observability aid never breaks a boot.
+                                try {
+                                    if ( server._stallWatchdogConf && server._stallWatchdogConf.enabled === true ) {
+                                        lib.stallWatchdog.init({
+                                            conf    : server._stallWatchdogConf,
+                                            logger  : lib.logger,
+                                            metrics : lib.metrics
+                                        });
+                                    }
+                                } catch (stallWatchdogErr) {
+                                    console.warn('[stallWatchdog] start skipped: ' + (stallWatchdogErr.message || stallWatchdogErr));
+                                }
+
                                 // #S7 — admin /_gina/* allowlist init. Reads `admin.allowFrom`
                                 // from app.json; defaults to loopback (127.0.0.1, ::1). Stored
                                 // on process.gina so server.isaac.js's /_gina/info and

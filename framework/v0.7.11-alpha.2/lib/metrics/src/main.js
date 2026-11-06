@@ -64,7 +64,8 @@ var registry = null;
 
 /**
  * Cached counter / histogram instances keyed by short name
- * (`requests`, `duration`).
+ * (`requests`, `duration`; `stalls`, `stallSeconds` once
+ * {@link registerMainThreadStallMetrics} ran).
  *
  * @inner
  * @type {Object<string, *>}
@@ -120,6 +121,24 @@ var DEFAULT_BUCKETS = [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10];
  * @type {string[]}
  */
 var DEFAULT_ALLOW_LIST = ['127.0.0.1', '::1'];
+
+/**
+ * Histogram buckets in seconds for `<prefix>main_thread_stall_seconds` — a stall
+ * is reported from 1s up, and an orchestrator usually ends one within minutes.
+ *
+ * @memberof module:gina/lib/metrics
+ * @constant
+ * @type {number[]}
+ */
+var STALL_BUCKETS = [1, 2, 5, 10, 30, 60, 120, 300];
+
+/**
+ * The metric-name prefix {@link start} resolved, for the series registered
+ * after it ({@link registerMainThreadStallMetrics}). `null` before start.
+ * @inner
+ * @type {string|null}
+ */
+var metricPrefix = null;
 
 /**
  * Initialise the metrics registry and wire HTTP counters. Idempotent —
@@ -208,8 +227,64 @@ function start(opts) {
 
     allowList = Array.isArray(opts.allowFrom) ? opts.allowFrom.slice() : DEFAULT_ALLOW_LIST.slice();
 
+    metricPrefix = prefix;
     enabled = true;
     return true;
+}
+
+/**
+ * Register the stall watchdog's two series on the framework's registry, so they
+ * are exported (at 0) from the watchdog's start rather than from the first stall:
+ * `<prefix>main_thread_stalls_total` (counter) and
+ * `<prefix>main_thread_stall_seconds` (histogram, {@link STALL_BUCKETS}).
+ * Idempotent; a no-op returning `false` while metrics are off. Called by
+ * `lib/stall-watchdog`'s `init()`.
+ *
+ * @memberof module:gina/lib/metrics
+ * @returns {boolean} `true` when both series exist
+ *
+ * @example
+ *   lib.metrics.registerMainThreadStallMetrics(); // true once metrics are started
+ */
+function registerMainThreadStallMetrics() {
+    if (!enabled || !registry || !promClient) {
+        return false;
+    }
+    if (counters.stalls && counters.stallSeconds) {
+        return true;
+    }
+    counters.stalls = new promClient.Counter({
+        name:      metricPrefix + 'main_thread_stalls_total',
+        help:      'Main-thread stalls the stall watchdog reported (counted when the main thread resumes)',
+        registers: [registry]
+    });
+    counters.stallSeconds = new promClient.Histogram({
+        name:      metricPrefix + 'main_thread_stall_seconds',
+        help:      'Duration of each main-thread stall the stall watchdog reported, in seconds',
+        buckets:   STALL_BUCKETS,
+        registers: [registry]
+    });
+    return true;
+}
+
+/**
+ * Count one main-thread stall and observe its duration. Registers the two series
+ * first when needed; a no-op while metrics are off or for a duration that is not
+ * a finite number >= 0.
+ *
+ * @memberof module:gina/lib/metrics
+ * @param   {number} seconds - The stall's duration, in seconds
+ * @returns {void}
+ *
+ * @example
+ *   lib.metrics.recordMainThreadStall(6.1);
+ */
+function recordMainThreadStall(seconds) {
+    if (!enabled) return;
+    if (typeof seconds !== 'number' || !isFinite(seconds) || seconds < 0) return;
+    if (!registerMainThreadStallMetrics()) return;
+    counters.stalls.inc();
+    counters.stallSeconds.observe(seconds);
 }
 
 /**
@@ -428,11 +503,14 @@ function reset() {
     enabled    = false;
     startError = null;
     allowList  = null;
+    metricPrefix = null;
 }
 
 module.exports = {
     start             : start,
     recordRequest     : recordRequest,
+    registerMainThreadStallMetrics : registerMainThreadStallMetrics,
+    recordMainThreadStall          : recordMainThreadStall,
     getMetrics        : getMetrics,
     isEnabled         : isEnabled,
     getRegistry       : getRegistry,
@@ -441,5 +519,6 @@ module.exports = {
     setAllowList      : setAllowList,
     reset             : reset,
     DEFAULT_BUCKETS   : DEFAULT_BUCKETS,
-    DEFAULT_ALLOW_LIST: DEFAULT_ALLOW_LIST
+    DEFAULT_ALLOW_LIST: DEFAULT_ALLOW_LIST,
+    STALL_BUCKETS     : STALL_BUCKETS
 };

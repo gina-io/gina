@@ -806,6 +806,18 @@ declare namespace gina {
             earlyHintsOverHTTP1?: boolean;
             /** Write `METHOD [>] /path [ req <id> ]` at info when an application request arrives, before its body is read. Read once at boot; only `true` turns it on. */
             logRequestStart?: boolean;
+            /** Stall watchdog: a worker thread writes one `crit` line while the main thread is blocked. Read once at boot; off unless `enabled` is the boolean `true`. */
+            stallWatchdog?: {
+                enabled?: boolean;
+                /** Silence of the main thread before a stall is reported: `"5s"` (default), `"2s"`, `"1500ms"` or milliseconds; at least 1s. */
+                threshold?: string | number;
+                /** Read the blocked thread's call frames through the inspector (Node only). Validated now; takes effect with the frame capture. */
+                captureFrames?: boolean;
+                /** Call frames written, 1 to 32 (default 8). Validated now; takes effect with the frame capture. */
+                frames?: number;
+                /** In-flight requests written, oldest first, 1 to 64 (default 8). */
+                inFlight?: number;
+            };
             warmup?: number;
         };
         ioServer?: {
@@ -1128,6 +1140,24 @@ declare namespace gina {
          * `integrity` attribute rather than a guessed one.
          */
         sri: any;
+        /**
+         * Stall watchdog (`settings.json > server.stallWatchdog`) — a worker thread
+         * that writes one `crit` line while the main thread is blocked, naming the
+         * silence and the requests in flight.
+         */
+        stallWatchdog: {
+            resolveConfig(block?: any): { enabled: boolean; warning: string | null; thresholdMs?: number; captureFrames?: boolean; frames?: number; inFlight?: number };
+            init(opts: { conf: any; logger?: any; metrics?: any; workerPath?: string }): boolean;
+            enter(request: any, response: any, path: string): void;
+            isEnabled(): boolean;
+            stop(): Promise<any>;
+            resolveLogGroup(name?: string, title?: string): string;
+            buildLogContext(logger: any, title?: string): { group: string; format: string; flows: string[]; template: string; maxLevelLen: number; colorCode: string | null; color: { open: string; close: string } | null };
+            resolveMqEndpoint(): { host: string; port: number };
+            HEARTBEAT_MS: number;
+            MIN_THRESHOLD_MS: number;
+            DEFAULTS: { threshold: string; captureFrames: boolean; frames: number; inFlight: number };
+        };
         /** Pluggable object storage — adapter x strategy behind an opaque key (`settings.json > storage`). */
         storage: any;
         swigResolver: any;

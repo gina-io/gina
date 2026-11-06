@@ -1,0 +1,20 @@
+{
+  "name": "gina-lib-stall-watchdog",
+  "version": "1.0.0",
+  "description": "stallWatchdog — a worker thread that reports a blocked main thread while it is still blocked: heartbeat, in-flight request ring, its own stdout and MQ sinks",
+
+  "author": {
+    "name": "Martin Luther ETOUMAN NDAMBWE",
+    "email": "contact@gina.io"
+  },
+  "copyright": "Copyright (c) 2009-2026 Rhinostone <contact@gina.io>",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "main": "src/main",
+  "scripts": {
+    "test": "node --test test"
+  },
+  "license": "MIT",
+  "readmeFilename": "README.md"
+}

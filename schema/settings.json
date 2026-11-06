@@ -358,6 +358,42 @@
           "default": false,
           "description": "Write one info line when an application request arrives, before its body is read: METHOD [>] /path [ req <id> ], the id being the request's correlation id (the X-Request-Id the answer echoes). gina otherwise logs a request when it completes, so a request that blocks the bundle (a slow body parse, action or render) appears in the log only through this line. No line for /_gina/* endpoints (the health route included), static files or maintenance answers. Read once at boot. Must be the boolean true."
         },
+        "stallWatchdog": {
+          "type": "object",
+          "description": "Stall watchdog. A worker thread watches a heartbeat the bundle's main thread bumps every 250 ms; when it has not moved for `threshold`, the worker writes ONE crit line while the main thread is still blocked: `[ STALL ] main thread blocked: no heartbeat for <s> — in flight <n>: METHOD /path [ req <id> ] <s>, …`, the oldest application requests first. It writes the line itself, to the process's stdout and, when the MQ flow is on (the framework daemon), through its own connection to the MQ listener, so it reaches the log before an orchestrator's liveness probe ends the process. When the main thread resumes, a warn line gives the whole silence, and with app.json metrics enabled, gina_main_thread_stalls_total and gina_main_thread_stall_seconds count the stall. Off by default; read once at boot. On an enabled block, an unknown key or a wrong value refuses the boot.",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": false,
+              "description": "Turn the watchdog on. Must be the boolean true; any other value leaves it off (a truthy one with a boot warning)."
+            },
+            "threshold": {
+              "type": ["string", "integer"],
+              "default": "5s",
+              "description": "How long the main thread's heartbeat may stay still before a stall is reported. Accepts \"5s\", \"1500ms\", \"1m\" or a number of milliseconds; at least 1s."
+            },
+            "captureFrames": {
+              "type": "boolean",
+              "default": true,
+              "description": "Read the blocked thread's call frames through the inspector (Node only; Bun has no inspector). Validated now; takes effect with the frame capture."
+            },
+            "frames": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 32,
+              "default": 8,
+              "description": "How many call frames the line names. Validated now; takes effect with the frame capture."
+            },
+            "inFlight": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 64,
+              "default": 8,
+              "description": "How many in-flight requests the line names, the oldest first; the line always gives their total."
+            }
+          }
+        },
         "maintenance": {
           "type": "object",
           "description": "Opt-in maintenance mode (#MAINT1). When active, every request EXCEPT the /_gina/* endpoints is answered 503 + Retry-After with a self-contained maintenance page, before static assets, the render/output cache and routing — coverage a route middleware cannot reach, since middleware only runs once a route has matched. The /_gina/* family stays reachable on purpose: liveness keeps answering 200 so an orchestrator does not restart pods over a declared window, and the operator can always reach the toggle. Flip it at runtime with POST /_gina/maintenance (admin-gated); a runtime override is NOT persisted across a restart and is PER PROCESS — a POST reaches the one process that received it, so with replicas either fan it out and read back `pid`/`hostname` from each reply, or name a shared kv namespace in `store` so every replica follows one POST — and `enabled` here is the durable, deployment-wide form. A malformed block warns at boot per key and never refuses a boot, with one deliberate exception: a `store` naming a namespace that is not declared, or one running failMode \"open\", refuses the boot rather than run without the coherence you configured.",

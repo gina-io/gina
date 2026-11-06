@@ -2745,6 +2745,19 @@ function Server(options) {
                 console.warn('[releaseWatch] init skipped: '+ (rwInitErr.stack || rwInitErr.message || rwInitErr));
             }
 
+            // ── Stall watchdog — `settings.json > server.stallWatchdog` ──
+            // Resolved and validated here, before any listen(): a wrong key or value on an
+            // enabled block throws into this init() try, whose catch emergs and exits before
+            // a port is bound (the requireHttps / #MS5 shape). The thread itself starts in
+            // core/gna.js's `server.on('started')` band, once the listener is up, so module
+            // loading at boot never reads as a stall; onRequest() reads the stamp below to
+            // feed the in-flight ring.
+            var _swConf = lib.stallWatchdog.resolveConfig(self.conf[self.appName][self.env].server.stallWatchdog);
+            if ( _swConf.warning ) {
+                console.warn(_swConf.warning);
+            }
+            self._stallWatchdogConf = _swConf;
+
             // ── #COMPLY9 — production transport posture (ZT2) ──────────────────
             // Outside the `local` scope a bundle resolving a cleartext scheme is
             // served exactly as configured — both engines' scheme switches default
@@ -4821,6 +4834,10 @@ function Server(options) {
         // change needs a bundle restart. Only the boolean `true` turns the request-entry line on
         // (logRequestEntry()), as for `server.earlyHintsOverHTTP1`.
         var logRequestStart = ( self.conf[self.appName][self.env].server.logRequestStart === true );
+        // Stall watchdog: whether application requests join its in-flight ring, read once
+        // here from the conf init() resolved (`server.stallWatchdog`). The thread starts after
+        // listen() (core/gna.js); lib.stallWatchdog.enter() does nothing until it runs.
+        var stallWatchdog = ( self._stallWatchdogConf && self._stallWatchdogConf.enabled === true );
 
         // catch all (request urls)
         // #B211 — was: self.instance.all('*', ...) unconditionally. Express 5's
@@ -6440,6 +6457,12 @@ function Server(options) {
                 // were given above and write none.
                 if ( logRequestStart ) {
                     logRequestEntry(request);
+                }
+                // Stall watchdog (`server.stallWatchdog`): the request joins the in-flight ring the
+                // watchdog names when the main thread blocks, from here — before the body is read,
+                // the same scope as the entry line — until its response's finish or close.
+                if ( stallWatchdog ) {
+                    lib.stallWatchdog.enter(request, response, escapeLogControlChars(request.url));
                 }
                 // init content
                 request.body    = ( typeof(request.body) != 'undefined' ) ? request.body : {};

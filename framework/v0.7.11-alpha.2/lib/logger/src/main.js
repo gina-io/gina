@@ -1004,7 +1004,9 @@ function Logger() {
      *
      * Called by `core/config.js` at config load, right after the bundle's
      * `${secret:KEY}` placeholders are resolved. Throws on an invalid block so
-     * the boot refuses instead of dropping a pattern silently.
+     * the boot refuses instead of dropping a pattern silently. Emits the process
+     * event `logger#redaction` after each change, for writers holding a copy of
+     * the rules ({@link getRedactionState}; the stall watchdog's thread).
      *
      * @param {object} [block] - The `log.redact` object (absent = defaults on)
      * @param {object} [options]
@@ -1036,6 +1038,9 @@ function Logger() {
             values = values.concat(ctx._redact.secrets[g] || []);
         }
         ctx._redact.state = redact.compileState(blocks, values);
+        // The stall watchdog's thread masks its own line with a copy of these rules
+        // (lib/stall-watchdog): this event tells it they changed.
+        process.emit('logger#redaction');
 
         return {
             enabled        : !!ctx._redact.state,
@@ -1044,6 +1049,25 @@ function Logger() {
             skippedSecrets : parts.skipped,
             minSecretLength: redact.MIN_SECRET_LENGTH
         };
+    }
+
+    /**
+     * The compiled redaction state every message is masked with — the union
+     * {@link setRedaction} builds — or `null` when redaction is off. A writer
+     * that does not go through `emit()` masks its own text with it
+     * (`redact.apply(state, text)`): the stall watchdog's thread receives a copy
+     * at start, and again on every `logger#redaction` event, which
+     * {@link setRedaction} emits after each change. The state is plain data
+     * (strings, numbers, RegExps), so it survives `structuredClone`.
+     *
+     * @returns {?object} The state, or `null`
+     *
+     * @example
+     * var state = console.getRedactionState();
+     * // state → { enabled: true, rules: [...], secretRe: /…/g, secretCount: 1 }, or null
+     */
+    self.getRedactionState = function() {
+        return ( ctx._redact && ctx._redact.state ) ? ctx._redact.state : null;
     }
 
     self.pauseReporting = function() {

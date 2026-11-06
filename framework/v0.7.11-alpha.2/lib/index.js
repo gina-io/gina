@@ -224,6 +224,12 @@ function Lib() {
         // probe registry and the gauge at module scope — hot-reloading it would
         // orphan the handles and zero the gauge on every dev-mode request.
         releaseWatch    : require('./release-watch'),
+        // Stall watchdog (`settings.json > server.stallWatchdog`): a worker thread that
+        // reports a blocked main thread while it is blocked. PLAIN require (like job /
+        // instrument / releaseWatch): the module holds the thread, the heartbeat timer
+        // and the in-flight ring's sequence at module scope — a dev-mode hot reload
+        // re-evaluating it would orphan the thread and stop feeding it.
+        stallWatchdog   : require('./stall-watchdog'),
         // replaced: _require('./state') — StateStore is a singleton backed by node:sqlite
         // (DatabaseSync). Hot-reloading it in dev mode would close and re-open the DB
         // connection on every HTTP request, racing with in-flight writes. Use plain
