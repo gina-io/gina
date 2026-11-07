@@ -22398,14 +22398,15 @@ function ValidatorPlugin(rules, data, formId, culture) {
      *  - The client checks: a file whose type the input's `accept` excludes, or whose size is over its
      *    `data-gina-form-upload-max-size`, refuses the whole selection. `accept` is split on commas and
      *    each token trimmed and lowercased; a `.ext` token matches the end of the lowercased name, a
-     *    `type/*` token the start of the lowercased type (a `*` type matches any), any other
-     *    `type/subtype` token the type exactly, so a file with no type matches by its extension only; a
-     *    token of another shape (`jpg`, a token with parameters) is ignored with a dev warning, and an
-     *    `accept` holding no valid token checks no type. The size attribute reads as the server reads
-     *    `upload.maxFieldsSize`: a number with an optional `b`, `kb`/`k`, `mb`/`m` or `gb`/`g`
-     *    (1024-based), a bare number meaning megabytes; `0` sets no limit, and a value that does not
-     *    parse checks no size, with a dev warning. The type is checked first: a file refused for its
-     *    type is not checked for its size. The message names the files of each reason,
+     *    `type/*` token the start of the lowercased type (a `*` type matches any file, one with no type
+     *    included), any other `type/subtype` token the type exactly, so a file with no type matches an
+     *    extension token or a `*` type only; a token of another shape (`jpg`, a token with parameters)
+     *    is ignored with a dev warning, and an `accept` holding no valid token checks no type. The size
+     *    attribute reads as the server reads `upload.maxFieldsSize`: a number with an optional `b`,
+     *    `kb`/`k`, `mb`/`m` or `gb`/`g` (1024-based), a bare number meaning megabytes; `0` and an empty
+     *    value set no limit, and a value that does not parse checks no size, with a dev warning. The
+     *    type is checked first: a file refused for its type is not checked for its size. The message
+     *    names the files of each reason,
      *    `uploadTypeRefused` then `uploadSizeRefused`; the result's `reason` is `'type'` when a file was
      *    refused for its type, else `'size'`, and `files` names every refused file. The server stays the
      *    authority: these checks only spare a request.
@@ -22565,8 +22566,10 @@ function ValidatorPlugin(rules, data, formId, culture) {
                 if ( _tok.charAt(0) == '.' ) {
                     _accepted = ( _name.slice(-_tok.length) == _tok );
                 } else if ( _tok.slice(-2) == '/*' ) {
-                    // a `*` type reads « any type », which a file with no type does not have
-                    _accepted = ( _tok == '*' + '/*' ) ? ( _type != '' ) : ( _type.indexOf(_tok.slice(0, -1)) == 0 );
+                    // a `*` type reads « any file », a file with no type included: an author who writes it
+                    // declares no restriction, and the HTML standard gives that token no meaning of its own
+                    // was: _accepted = ( _tok == '*' + '/*' ) ? ( _type != '' ) : ( _type.indexOf(_tok.slice(0, -1)) == 0 );
+                    _accepted = ( _tok == '*' + '/*' ) || ( _type.indexOf(_tok.slice(0, -1)) == 0 );
                 } else {
                     _accepted = ( _type == _tok );
                 }

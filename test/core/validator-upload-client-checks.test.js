@@ -481,10 +481,10 @@ describe('upload client checks - a staged input\'s accept and max size refuse a 
             assert.equal(refuses(' accept="application/pdf,.pdf"', file('a.pdf', '')), false, 'the extension token matches it by name');
         });
 
-        it('02.12 - the reading flagged for review: `*/*` reads « any type », so it refuses only a file with no type', function () {
+        it('02.12 - `*/*` reads « any file », a file with no type included (ruled 2026-11-07)', function () {
             assert.equal(refuses(' accept="*/*"', file('a.png', 'image/png')), false);
             assert.equal(refuses(' accept="*/*"', file('a.zip', 'application/zip')), false);
-            assert.equal(refuses(' accept="*/*"', file('README', '')), true, 'D4: an empty type matches no MIME token');
+            assert.equal(refuses(' accept="*/*"', file('README', '')), false, 'a file with no type passes too: `*/*` declares no restriction');
             var w = world({ attrs: ' accept="*/*"', files: [file('a.png', 'image/png')] });
             w.refuse(w.$el, w.files);
             assert.equal(w.log.warn.length, 0, 'a valid token');
@@ -604,6 +604,15 @@ describe('upload client checks - a staged input\'s accept and max size refuse a 
             await tick();
             assert.equal(w.held.values.length, 0, 'not emptied');
             assert.equal(w.$el.files[0].name, 'c.pdf');
+        });
+
+        it('02.24 - `*/*` is a valid token that matches every file: beside `.pdf` it passes what `.pdf` alone refuses', function () {
+            assert.equal(refuses(' accept=".pdf"', file('a.png', 'image/png')), true, 'CONTROL: `.pdf` alone refuses a.png');
+            assert.equal(refuses(' accept="*/*, .pdf"', file('a.png', 'image/png')), false, '`*/*` passes it');
+            assert.equal(refuses(' accept="*/*, .pdf"', file('README', '')), false, 'and a file with no type');
+            var w = world({ attrs: ' accept="*/*, .pdf"', files: [file('README', '')] });
+            assert.equal(w.refuse(w.$el, w.files), false);
+            assert.equal(w.log.warn.length, 0, 'no token is ignored');
         });
     });
 
