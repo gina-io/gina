@@ -2096,7 +2096,12 @@ function ValidatorPlugin(rules, data, formId, culture) {
         transportError  : 'Transport failure: the request did not complete',
         // #B726 (gh#83 part 3) — spoken once when a submit waits for one of its form's staged
         // uploads to finish; the submit is sent when the last of them settles.
-        uploadPending   : 'Waiting for the upload to finish…'
+        uploadPending   : 'Waiting for the upload to finish…',
+        // #B1094 — a selection that a staged input refuses before any request (see
+        // refuseStagedSelection): written into the input's error slot and announced. A refusal has
+        // no server message to announce, so unlike a staging error it needs a string of its own.
+        // `%s` is the names of the refused files.
+        uploadNotSent   : '%s was not uploaded'
     };
 
     /**
@@ -8603,6 +8608,103 @@ function ValidatorPlugin(rules, data, formId, culture) {
     }
 
     /**
+     * refuseStagedSelection — #B1094: refuses, at its `change`, a selection that a staged file input
+     * cannot send, before it counts as held (`pendingFiles`, the submit gate) and before any request.
+     * One case refuses: the input has no `data-gina-form-upload-action`, which the bind fills in from
+     * the `upload-to-tmp-xml` route when there is one (checkUploadUrlActions). Without it, the staging
+     * used to go ahead: the virtual form posted the file to `/null`, and the 404 failed the staging as
+     * if the server had refused it, while the selection counted as held until that answer.
+     *
+     * A refusal sends nothing and leaves the files the input already holds as they were: their
+     * previews, their reset and delete links and their hidden fields. The message, `uploadNotSent`
+     * (`%s` = the names, joined with `, `; translatable through `gina.config.a11y`), is written as text
+     * into the input's error slot (`data-gina-form-upload-error`, default `<id>-error`) and announced
+     * through the form's live region; without a slot it is announced, and in dev mode a warning names
+     * the missing element. The input's dropzone, when it has one, goes back to `idle`. The input is
+     * emptied once the current `change` dispatch is over, so the listeners that run after this one
+     * still read the selection, and only while it still holds that selection. In dev mode a console
+     * error names the missing attribute. Last, the input's `data-gina-form-upload-on-error` callback
+     * (by default `onGenericXhrResponse`, the name the virtual form would register) runs as an
+     * `.on('error.hform', …)` handler does, with `(event, result)`: `event` is a non-bubbling
+     * `error.hform` event dispatched on the input, whose `detail` is `result`, `{ refused: true,
+     * reason: 'action', files: [names], error: message, transportError: false }`. Called from a
+     * listener of that event, a callback that throws is reported as any listener's error is, and the
+     * refusal is complete by then. A refusal dispatches no `error.<id>` event: no virtual form
+     * exists, so no handler can have been registered on its record.
+     *
+     * @inner
+     * @private
+     * @param {HTMLInputElement} $el - the staged file input whose `change` is being handled
+     * @param {FileList} files - the selection the `change` carries, not empty
+     * @returns {boolean} true when the selection is refused
+     *
+     * @example
+     * // in the change listener, after its empty-selection return:
+     * // if ( refuseStagedSelection($el, files) ) return false;
+     */
+    var refuseStagedSelection = function($el, files) {
+        if ( $el.getAttribute('data-gina-form-upload-action') ) {
+            return false;
+        }
+        var names       = []
+            , errorId   = $el.getAttribute('data-gina-form-upload-error') || ( ($el.id) ? $el.id + '-error' : null )
+            , $error    = ( errorId ) ? document.getElementById(errorId) : null
+            , cbName    = $el.getAttribute('data-gina-form-upload-on-error') || 'onGenericXhrResponse'
+        ;
+        for (var n = 0, nLen = files.length; n < nLen; ++n) {
+            names.push(files[n].name);
+        }
+        // a function replacer: a file name holding `$&` or `$1` is written as it is
+        var message = a11yLabel('uploadNotSent').replace('%s', function () { return names.join(', '); });
+        var result  = {
+            refused         : true,
+            reason          : 'action',
+            files           : names,
+            error           : message,
+            transportError  : false
+        };
+
+        // as onUpload writes a staging error (#B727): text, never markup
+        if ( $error ) {
+            $error.textContent = '';
+            var _refusalP = document.createElement('p');
+            _refusalP.textContent = message;
+            $error.appendChild(_refusalP);
+            fadeIn($error);
+        } else if (envIsDev) {
+            try { console.warn('[FormValidator] upload `#'+ $el.id +'`: no error element `#'+ errorId +'`; the refusal is announced, not shown'); } catch (warnErr) {}
+        }
+        if ( $el.form ) {
+            announceA11yError($el.form, message);
+        }
+        updateUploadDropzoneState($el.getAttribute('data-gina-form-upload-dropzone') || null, 'idle');
+        if (envIsDev) {
+            try { console.error('[FormValidator] upload `#'+ $el.id +'`: no `data-gina-form-upload-action`, and no `upload-to-tmp-xml` route to fall back on: the selection was not sent'); } catch (errLogErr) {}
+        }
+        // after this `change` dispatch, and only while the input still holds the refused selection
+        setTimeout(function () {
+            if ( $el.files === files ) {
+                $el.value = '';
+            }
+        }, 0);
+
+        if ( /\((.*)\)/.test(cbName) ) {
+            // #M21a — the function-call shape is not supported, as on the virtual form
+            if (envIsDev) {
+                try { console.warn('[gina-form-event] function-call shape not supported on data-gina-form-upload-on-error: use a bare identifier and register the handler on window: '+ cbName); } catch (shapeErr) {}
+            }
+        } else if ( typeof(window[cbName]) == 'function' ) {
+            var deliverRefusal = function(event) {
+                $el.removeEventListener('error.hform', deliverRefusal);
+                window[cbName](event, event.detail);
+            };
+            $el.addEventListener('error.hform', deliverRefusal);
+            $el.dispatchEvent(new CustomEvent('error.hform', { detail: result, bubbles: false, cancelable: true }));
+        }
+        return true;
+    }
+
+    /**
      * reBindForm
      * Allows form rebinding: it is like reseting validation
      *
@@ -9591,6 +9693,12 @@ function ValidatorPlugin(rules, data, formId, culture) {
                     // files' previews and hidden fields stayed in the form.
                     // was: the return stood after the two assignments that #B960 removed from here
                     if (!files.length ) return false;
+                    // #B1094 — a selection the input cannot send (it has no `data-gina-form-upload-action`)
+                    // is refused here, before it counts as held and before any request: its staging used
+                    // to be posted to `/null` (see refuseStagedSelection). A bare `return`: nothing reads
+                    // this listener's value (addEventListener), and two returns of the same value are
+                    // minified into one test, which the #B959 dist pin on the return above reads.
+                    if ( refuseStagedSelection($el, files) ) return;
                     // #B960 — the selection waits on the input until its staging settles: a success takes
                     // the input over (its entries, the replaced entries' delete links and the form's
                     // hidden fields, see onUpload), a failure drops it. They were written here, before
