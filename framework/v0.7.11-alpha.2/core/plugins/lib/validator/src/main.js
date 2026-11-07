@@ -2101,7 +2101,13 @@ function ValidatorPlugin(rules, data, formId, culture) {
         // refuseStagedSelection): written into the input's error slot and announced. A refusal has
         // no server message to announce, so unlike a staging error it needs a string of its own.
         // `%s` is the names of the refused files.
-        uploadNotSent   : '%s was not uploaded'
+        uploadNotSent   : '%s was not uploaded',
+        // The client checks (refuseStagedSelection): files refused before staging because the
+        // input's `accept` excludes their type, or because they are over its
+        // `data-gina-form-upload-max-size`. Written and announced as `uploadNotSent` is, one line
+        // per reason; `%s` is the names of the files refused for that reason.
+        uploadTypeRefused   : '%s was not uploaded: this type of file is not accepted',
+        uploadSizeRefused   : '%s was not uploaded: the file is too large'
     };
 
     /**
@@ -8608,29 +8614,47 @@ function ValidatorPlugin(rules, data, formId, culture) {
     }
 
     /**
-     * refuseStagedSelection — #B1094: refuses, at its `change`, a selection that a staged file input
-     * cannot send, before it counts as held (`pendingFiles`, the submit gate) and before any request.
-     * One case refuses: the input has no `data-gina-form-upload-action`, which the bind fills in from
-     * the `upload-to-tmp-xml` route when there is one (checkUploadUrlActions). Without it, the staging
-     * used to go ahead: the virtual form posted the file to `/null`, and the 404 failed the staging as
-     * if the server had refused it, while the selection counted as held until that answer.
+     * refuseStagedSelection — refuses, at its `change`, a selection that a staged file input cannot
+     * send or does not accept, before it counts as held (`pendingFiles`, the submit gate) and before
+     * any request. Two checks, in this order:
+     *  - #B1094: the input has no `data-gina-form-upload-action`, which the bind fills in from the
+     *    `upload-to-tmp-xml` route when there is one (checkUploadUrlActions). Without it, the staging
+     *    used to go ahead: the virtual form posted the file to `/null`, and the 404 failed the staging
+     *    as if the server had refused it, while the selection counted as held until that answer. Every
+     *    file is refused: `reason: 'action'`, the message `uploadNotSent`.
+     *  - The client checks: a file whose type the input's `accept` excludes, or whose size is over its
+     *    `data-gina-form-upload-max-size`, refuses the whole selection. `accept` is split on commas and
+     *    each token trimmed and lowercased; a `.ext` token matches the end of the lowercased name, a
+     *    `type/*` token the start of the lowercased type (a `*` type matches any), any other
+     *    `type/subtype` token the type exactly, so a file with no type matches by its extension only; a
+     *    token of another shape (`jpg`, a token with parameters) is ignored with a dev warning, and an
+     *    `accept` holding no valid token checks no type. The size attribute reads as the server reads
+     *    `upload.maxFieldsSize`: a number with an optional `b`, `kb`/`k`, `mb`/`m` or `gb`/`g`
+     *    (1024-based), a bare number meaning megabytes; `0` sets no limit, and a value that does not
+     *    parse checks no size, with a dev warning. The type is checked first: a file refused for its
+     *    type is not checked for its size. The message names the files of each reason,
+     *    `uploadTypeRefused` then `uploadSizeRefused`; the result's `reason` is `'type'` when a file was
+     *    refused for its type, else `'size'`, and `files` names every refused file. The server stays the
+     *    authority: these checks only spare a request.
      *
-     * A refusal sends nothing and leaves the files the input already holds as they were: their
-     * previews, their reset and delete links and their hidden fields. The message, `uploadNotSent`
-     * (`%s` = the names, joined with `, `; translatable through `gina.config.a11y`), is written as text
-     * into the input's error slot (`data-gina-form-upload-error`, default `<id>-error`) and announced
-     * through the form's live region; without a slot it is announced, and in dev mode a warning names
-     * the missing element. The input's dropzone, when it has one, goes back to `idle`. The input is
-     * emptied once the current `change` dispatch is over, so the listeners that run after this one
-     * still read the selection, and only while it still holds that selection. In dev mode a console
-     * error names the missing attribute. Last, the input's `data-gina-form-upload-on-error` callback
-     * (by default `onGenericXhrResponse`, the name the virtual form would register) runs as an
+     * A refusal sends nothing, and leaves as they were the files the input already holds (their
+     * previews, their reset and delete links, their hidden fields) and a staging of its earlier
+     * selection still in flight, which takes the input over if it succeeds. The message, one line per
+     * reason (`%s` = the names, joined with `, `; each line translatable through `gina.config.a11y`),
+     * is written as text into the input's error slot (`data-gina-form-upload-error`, default
+     * `<id>-error`), one paragraph a line, and announced through the form's live region, its lines
+     * joined with `. `; without a slot it is announced, and in dev mode a warning names the missing
+     * element. The input's dropzone, when it has one, goes back to `idle`. In dev mode a console error
+     * names the reason. The input is emptied once the current `change` dispatch is over, so the
+     * listeners that run after this one still read the selection, and only while it still holds that
+     * selection. Last, the input's `data-gina-form-upload-on-error` callback (by default
+     * `onGenericXhrResponse`, the name the virtual form would register) runs as an
      * `.on('error.hform', …)` handler does, with `(event, result)`: `event` is a non-bubbling
      * `error.hform` event dispatched on the input, whose `detail` is `result`, `{ refused: true,
-     * reason: 'action', files: [names], error: message, transportError: false }`. Called from a
-     * listener of that event, a callback that throws is reported as any listener's error is, and the
-     * refusal is complete by then. A refusal dispatches no `error.<id>` event: no virtual form
-     * exists, so no handler can have been registered on its record.
+     * reason, files: [names], error: message, transportError: false }`. Called from a listener of that
+     * event, a callback that throws is reported as any listener's error is, and the refusal is
+     * complete by then. A refusal dispatches no `error.<id>` event: no virtual form carries the
+     * selection it refuses.
      *
      * @inner
      * @private
@@ -8640,68 +8664,164 @@ function ValidatorPlugin(rules, data, formId, culture) {
      *
      * @example
      * // in the change listener, after its empty-selection return:
-     * // if ( refuseStagedSelection($el, files) ) return false;
+     * // if ( refuseStagedSelection($el, files) ) return;
      */
     var refuseStagedSelection = function($el, files) {
-        if ( $el.getAttribute('data-gina-form-upload-action') ) {
-            return false;
-        }
-        var names       = []
-            , errorId   = $el.getAttribute('data-gina-form-upload-error') || ( ($el.id) ? $el.id + '-error' : null )
-            , $error    = ( errorId ) ? document.getElementById(errorId) : null
-            , cbName    = $el.getAttribute('data-gina-form-upload-on-error') || 'onGenericXhrResponse'
-        ;
+        var names = [];
         for (var n = 0, nLen = files.length; n < nLen; ++n) {
             names.push(files[n].name);
         }
-        // a function replacer: a file name holding `$&` or `$1` is written as it is
-        var message = a11yLabel('uploadNotSent').replace('%s', function () { return names.join(', '); });
-        var result  = {
-            refused         : true,
-            reason          : 'action',
-            files           : names,
-            error           : message,
-            transportError  : false
+
+        /**
+         * Writes a refusal and delivers it, as refuseStagedSelection describes.
+         *
+         * @inner
+         * @param {object} result - `{ refused, reason, files, error, transportError }`
+         * @param {Array<string>} lines - the message, one line per reason
+         * @param {string} why - the reason, for the dev console error
+         * @returns {boolean} true
+         */
+        var decline = function(result, lines, why) {
+            var errorId     = $el.getAttribute('data-gina-form-upload-error') || ( ($el.id) ? $el.id + '-error' : null )
+                , $error    = ( errorId ) ? document.getElementById(errorId) : null
+                , cbName    = $el.getAttribute('data-gina-form-upload-on-error') || 'onGenericXhrResponse'
+            ;
+            // as onUpload writes a staging error (#B727): text, never markup
+            if ( $error ) {
+                $error.textContent = '';
+                for (var l = 0, lLen = lines.length; l < lLen; ++l) {
+                    var _refusalP = document.createElement('p');
+                    _refusalP.textContent = lines[l];
+                    $error.appendChild(_refusalP);
+                }
+                fadeIn($error);
+            } else if (envIsDev) {
+                try { console.warn('[FormValidator] upload `#'+ $el.id +'`: no error element `#'+ errorId +'`; the refusal is announced, not shown'); } catch (warnErr) {}
+            }
+            if ( $el.form ) {
+                announceA11yError($el.form, result.error);
+            }
+            updateUploadDropzoneState($el.getAttribute('data-gina-form-upload-dropzone') || null, 'idle');
+            if (envIsDev) {
+                try { console.error('[FormValidator] upload `#'+ $el.id +'`: '+ why); } catch (errLogErr) {}
+            }
+            // after this `change` dispatch, and only while the input still holds the refused selection
+            setTimeout(function () {
+                if ( $el.files === files ) {
+                    $el.value = '';
+                }
+            }, 0);
+
+            if ( /\((.*)\)/.test(cbName) ) {
+                // #M21a — the function-call shape is not supported, as on the virtual form
+                if (envIsDev) {
+                    try { console.warn('[gina-form-event] function-call shape not supported on data-gina-form-upload-on-error: use a bare identifier and register the handler on window: '+ cbName); } catch (shapeErr) {}
+                }
+            } else if ( typeof(window[cbName]) == 'function' ) {
+                var deliverRefusal = function(event) {
+                    $el.removeEventListener('error.hform', deliverRefusal);
+                    window[cbName](event, event.detail);
+                };
+                $el.addEventListener('error.hform', deliverRefusal);
+                $el.dispatchEvent(new CustomEvent('error.hform', { detail: result, bubbles: false, cancelable: true }));
+            }
+            return true;
         };
 
-        // as onUpload writes a staging error (#B727): text, never markup
-        if ( $error ) {
-            $error.textContent = '';
-            var _refusalP = document.createElement('p');
-            _refusalP.textContent = message;
-            $error.appendChild(_refusalP);
-            fadeIn($error);
-        } else if (envIsDev) {
-            try { console.warn('[FormValidator] upload `#'+ $el.id +'`: no error element `#'+ errorId +'`; the refusal is announced, not shown'); } catch (warnErr) {}
+        // #B1094 — nothing can be sent: every file is refused
+        if ( !$el.getAttribute('data-gina-form-upload-action') ) {
+            // a function replacer: a file name holding `$&` or `$1` is written as it is
+            var notSent = a11yLabel('uploadNotSent').replace('%s', function () { return names.join(', '); });
+            return decline({
+                refused         : true,
+                reason          : 'action',
+                files           : names,
+                error           : notSent,
+                transportError  : false
+            }, [notSent], 'no `data-gina-form-upload-action`, and no `upload-to-tmp-xml` route to fall back on: the selection was not sent');
         }
-        if ( $el.form ) {
-            announceA11yError($el.form, message);
-        }
-        updateUploadDropzoneState($el.getAttribute('data-gina-form-upload-dropzone') || null, 'idle');
-        if (envIsDev) {
-            try { console.error('[FormValidator] upload `#'+ $el.id +'`: no `data-gina-form-upload-action`, and no `upload-to-tmp-xml` route to fall back on: the selection was not sent'); } catch (errLogErr) {}
-        }
-        // after this `change` dispatch, and only while the input still holds the refused selection
-        setTimeout(function () {
-            if ( $el.files === files ) {
-                $el.value = '';
-            }
-        }, 0);
 
-        if ( /\((.*)\)/.test(cbName) ) {
-            // #M21a — the function-call shape is not supported, as on the virtual form
-            if (envIsDev) {
-                try { console.warn('[gina-form-event] function-call shape not supported on data-gina-form-upload-on-error: use a bare identifier and register the handler on window: '+ cbName); } catch (shapeErr) {}
+        // the client checks: the input's `accept`, then its `data-gina-form-upload-max-size`
+        var tokens = [], badTokens = [], acceptParts = ( $el.getAttribute('accept') || '' ).split(',');
+        for (var a = 0, aLen = acceptParts.length; a < aLen; ++a) {
+            var _token = acceptParts[a].trim().toLowerCase();
+            if ( _token == '' ) {
+                continue;
             }
-        } else if ( typeof(window[cbName]) == 'function' ) {
-            var deliverRefusal = function(event) {
-                $el.removeEventListener('error.hform', deliverRefusal);
-                window[cbName](event, event.detail);
-            };
-            $el.addEventListener('error.hform', deliverRefusal);
-            $el.dispatchEvent(new CustomEvent('error.hform', { detail: result, bubbles: false, cancelable: true }));
+            if ( _token.charAt(0) == '.' || /^[^\/\s;,]+\/[^\/\s;,]+$/.test(_token) ) {
+                tokens.push(_token);
+            } else {
+                badTokens.push(_token);
+            }
         }
-        return true;
+        if ( badTokens.length && envIsDev ) {
+            try { console.warn('[FormValidator] upload `#'+ $el.id +'`: `accept` token(s) ignored, neither `.ext` nor `type/subtype`: '+ badTokens.join(', ')); } catch (tokenErr) {}
+        }
+        var maxBytes = null, maxRaw = $el.getAttribute('data-gina-form-upload-max-size');
+        if ( maxRaw != null && maxRaw.trim() != '' ) {
+            // the server's grammar for `upload.maxFieldsSize` (core/server.js, parseSize)
+            var _max = maxRaw.trim().match(/^([0-9]*\.?[0-9]+)\s*(b|kb|k|mb|m|gb|g)?$/i);
+            if ( _max ) {
+                var _unit = ( _max[2] || 'mb' ).toLowerCase();
+                maxBytes = parseFloat(_max[1]) * (
+                    ( _unit == 'b' ) ? 1
+                    : ( _unit == 'k' || _unit == 'kb' ) ? 1024
+                    : ( _unit == 'g' || _unit == 'gb' ) ? 1024 * 1024 * 1024
+                    : 1024 * 1024
+                );
+                // `0` sets no limit, as on the server
+                if ( !(maxBytes > 0) ) {
+                    maxBytes = null;
+                }
+            } else if (envIsDev) {
+                try { console.warn('[FormValidator] upload `#'+ $el.id +'`: `data-gina-form-upload-max-size` value `'+ maxRaw +'` does not parse: no size is checked'); } catch (sizeErr) {}
+            }
+        }
+        if ( !tokens.length && maxBytes === null ) {
+            return false;
+        }
+
+        var typeRefused = [], sizeRefused = [];
+        for (var f = 0, fLen = files.length; f < fLen; ++f) {
+            var _name       = ( files[f].name || '' ).toLowerCase()
+                , _type     = ( files[f].type || '' ).toLowerCase()
+                , _accepted = ( tokens.length == 0 )
+            ;
+            for (var t = 0, tLen = tokens.length; t < tLen && !_accepted; ++t) {
+                var _tok = tokens[t];
+                if ( _tok.charAt(0) == '.' ) {
+                    _accepted = ( _name.slice(-_tok.length) == _tok );
+                } else if ( _tok.slice(-2) == '/*' ) {
+                    // a `*` type reads « any type », which a file with no type does not have
+                    _accepted = ( _tok == '*' + '/*' ) ? ( _type != '' ) : ( _type.indexOf(_tok.slice(0, -1)) == 0 );
+                } else {
+                    _accepted = ( _type == _tok );
+                }
+            }
+            if ( !_accepted ) {
+                typeRefused.push(files[f].name);
+            } else if ( maxBytes !== null && files[f].size > maxBytes ) {
+                sizeRefused.push(files[f].name);
+            }
+        }
+        if ( !typeRefused.length && !sizeRefused.length ) {
+            return false;
+        }
+
+        var lines = [];
+        if ( typeRefused.length ) {
+            lines.push( a11yLabel('uploadTypeRefused').replace('%s', function () { return typeRefused.join(', '); }) );
+        }
+        if ( sizeRefused.length ) {
+            lines.push( a11yLabel('uploadSizeRefused').replace('%s', function () { return sizeRefused.join(', '); }) );
+        }
+        return decline({
+            refused         : true,
+            reason          : ( typeRefused.length ) ? 'type' : 'size',
+            files           : typeRefused.concat(sizeRefused),
+            error           : lines.join('. '),
+            transportError  : false
+        }, lines, 'refused before staging, by '+ ( ( typeRefused.length ) ? '`accept`' + ( ( sizeRefused.length ) ? ' and ' : '' ) : '' ) + ( ( sizeRefused.length ) ? '`data-gina-form-upload-max-size`' : '' ) +': '+ typeRefused.concat(sizeRefused).join(', '));
     }
 
     /**
