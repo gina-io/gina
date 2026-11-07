@@ -19,9 +19,11 @@
  * `settings.json > server.stallWatchdog`. A worker thread watches a heartbeat the
  * main thread bumps every 250 ms; after `threshold` of silence it writes ONE
  * `crit` line itself — to fd 1 and, when `mq` is a log flow, through its own
- * connection to the framework's MQ listener — naming the silence and the requests
- * in flight. When the main thread resumes, it logs one warn line through the
- * normal logger and, with metrics on, counts the stall.
+ * connection to the framework's MQ listener — naming the silence, the blocked
+ * thread's call frames (`captureFrames`, Node only: read through the inspector,
+ * relative to the framework or the project root) and the requests in flight. When
+ * the main thread resumes, it logs one warn line through the normal logger and,
+ * with metrics on, counts the stall.
  *
  * This file is the main-thread side: the config resolution (called pre-listen by
  * `core/server.js` `init()`), the thread's start (called by `core/gna.js`'s
@@ -33,6 +35,7 @@
  * and the ring's sequence, which a dev-mode hot reload must never re-evaluate.
  */
 
+var fs          = require('fs');
 var path        = require('path');
 var netLocality = require('../../net-locality');
 
@@ -334,6 +337,56 @@ function resolveMqEndpoint() {
 }
 
 /**
+ * The directories a call frame's file is written relative to, by real path,
+ * duplicates dropped, longest first (so a project inside the framework tree, or the
+ * reverse, is named from the nearer one). The runtime names a loaded script by its
+ * real path, so a root reached through a symbolic link (a project under
+ * `/var/folders/…`, which is `/private/var/folders/…` on macOS) is resolved first.
+ *
+ * Without `dirs`: the framework directory (`framework/v<version>/`, from this
+ * file's place) and the project root (`getPath('project')`, when the bundle
+ * registered one).
+ *
+ * @memberof module:gina/lib/stall-watchdog
+ * @param {string[]} [dirs] - The directories to use instead
+ * @returns {string[]}
+ * @example
+ * resolveRoots(); // ['/srv/gina/framework/v1.0.0', '/srv/myproject']
+ */
+function resolveRoots(dirs) {
+    var list = Array.isArray(dirs) ? dirs.slice() : [ path.resolve(__dirname, '..', '..', '..') ];
+    if ( !Array.isArray(dirs) ) {
+        try {
+            if ( typeof(getPath) == 'function' ) {
+                var project = getPath('project');
+                if ( typeof(project) == 'string' ) {
+                    list.push(project);
+                }
+            }
+        } catch (err) {
+            // no project registered
+        }
+    }
+    var roots = [];
+    list.forEach(function(dir) {
+        if ( typeof(dir) != 'string' || dir === '' ) {
+            return;
+        }
+        var real;
+        try {
+            real = fs.realpathSync(dir);
+        } catch (err) {
+            real = path.resolve(dir);
+        }
+        if ( roots.indexOf(real) < 0 ) {
+            roots.push(real);
+        }
+    });
+    roots.sort(function(a, b) { return b.length - a.length; });
+    return roots;
+}
+
+/**
  * The runtime the process runs on, for the JSON line.
  *
  * @inner
@@ -516,6 +569,8 @@ function beat() {
  * @param {Object} [opts.logger] - `lib.logger` (default: required here)
  * @param {Object} [opts.metrics] - `lib.metrics`; the stalls are counted when it is enabled
  * @param {string} [opts.workerPath] - Test-only: another worker script
+ * @param {string[]} [opts.roots] - Test-only: the directories call frames are written relative to, instead of the framework directory and the project root ({@link resolveRoots})
+ * @param {Object} [opts.testData] - Test-only: handed to the thread as `workerData.test`
  * @returns {boolean} `true` when the thread started, `false` when off or already running
  * @throws {Error} When the thread cannot start
  * @example
@@ -552,7 +607,9 @@ function init(opts) {
             runtime       : runtimeName(),
             log           : log,
             mq            : ( log.flows.indexOf('mq') > -1 ) ? resolveMqEndpoint() : null,
-            redaction     : redaction
+            redaction     : redaction,
+            roots         : resolveRoots(opts.roots),
+            test          : opts.testData || null
         },
         execArgv       : [],
         resourceLimits : { maxOldGenerationSizeMb: 64 }
@@ -679,6 +736,7 @@ module.exports = {
     resolveLogGroup   : resolveLogGroup,
     buildLogContext   : buildLogContext,
     resolveMqEndpoint : resolveMqEndpoint,
+    resolveRoots      : resolveRoots,
     HEARTBEAT_MS      : HEARTBEAT_MS,
     MIN_THRESHOLD_MS  : MIN_THRESHOLD_MS,
     DEFAULTS          : DEFAULTS

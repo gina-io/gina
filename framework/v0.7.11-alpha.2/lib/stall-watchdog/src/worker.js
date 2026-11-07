@@ -18,13 +18,23 @@
  * renders). When the heartbeat moves again it posts `{ t: 'resumed', ms }` to the
  * main thread, which writes the warn line through the logger and counts the stall.
  *
- * Plain Node modules only, plus its own `detector.js` (the reading rules, pure) and
- * two modules of the logger that need no framework globals: `redact.js` (the line
- * is masked with a copy of the logger's rules) and `helper.js` (the text line is
- * rendered by the logger's own `format()`). fd 2 is
- * never written: the framework daemon re-logs a bundle's stderr under its own name.
- * Every path is caught; a fault would reach the main thread as an `'error'` event,
- * which turns the watchdog off.
+ * With `captureFrames` (Node only), the line first names the blocked thread's call
+ * frames: this thread connects to the main thread's inspector
+ * (`connectToMainThread()`, no `--inspect` flag), pauses it for about a millisecond,
+ * reads its frames, resumes it and disconnects — every step against a deadline,
+ * since a main thread inside a native call answers nothing until the call returns.
+ * A session that goes away resumes a pause it made, so a failed step disconnects.
+ * When another session already holds the main thread paused (a debugger), the
+ * watchdog neither pauses nor resumes it. Frames read when the main thread had
+ * started running again are withheld: they would be the idle loop's.
+ *
+ * Plain Node modules only, plus its own `detector.js` (the reading rules) and
+ * `frames.js` (the frames' wording), both pure, and two modules of the logger that
+ * need no framework globals: `redact.js` (the line is masked with a copy of the
+ * logger's rules) and `helper.js` (the text line is rendered by the logger's own
+ * `format()`). fd 2 is never written: the framework daemon re-logs a bundle's
+ * stderr under its own name. Every path is caught; a fault would reach the main
+ * thread as an `'error'` event, which turns the watchdog off.
  *
  * @module gina/lib/stall-watchdog/worker
  */
@@ -75,6 +85,42 @@ var FD1_WAIT_MS = 50;
  */
 var MQ_CONNECT_MS = 2000;
 
+/**
+ * The longest function name written, in characters.
+ * @inner
+ * @constant
+ * @type {number}
+ */
+var FN_MAX = 128;
+
+/**
+ * The deadline of each inspector step of a capture, in ms (enable, the pause's
+ * arrival, resume, disable). Measured: an enable over 1,101 loaded scripts took
+ * 20–39 ms, a pause about 1 ms; a main thread inside a native call answers none.
+ * @inner
+ * @constant
+ * @type {number}
+ */
+var STEP_MS = 1000;
+
+/**
+ * The deadline of a whole capture, in ms.
+ * @inner
+ * @constant
+ * @type {number}
+ */
+var CAPTURE_MS = 3000;
+
+/**
+ * How long a capture waits, once over, for a main thread that ran again to bump
+ * the heartbeat, in ms; a heartbeat still silent after it means the frames are the
+ * stall's.
+ * @inner
+ * @constant
+ * @type {number}
+ */
+var SETTLE_MS = 20;
+
 var data   = wt.workerData || {};
 var parent = wt.parentPort;
 var log    = data.log || {};
@@ -84,6 +130,19 @@ var hb          = new Int32Array(data.hb);
 var intervalMs  = data.intervalMs || 250;
 var thresholdMs = data.thresholdMs || 5000;
 var inFlightMax = data.inFlight || 8;
+var framesMax   = data.frames || 8;
+var roots       = Array.isArray(data.roots) ? data.roots : [];
+
+/**
+ * How a stall's frames are read: `node` (through the inspector), `bun` (not read:
+ * Bun's inspector needs `inspector.open()`, a debugging port), or `null` when
+ * `captureFrames` is off (the line names no frames at all).
+ * @inner
+ * @type {?string}
+ */
+var frameMode = ( data.captureFrames === true ) ? ( ( data.runtime === 'bun' ) ? 'bun' : 'node' ) : null;
+
+var framesLib = require('./frames.js');
 
 /** @inner @type {Int32Array} A cell nobody signals: `Atomics.wait` on it is a sleep. */
 var sleeper = new Int32Array(new SharedArrayBuffer(4));
@@ -317,21 +376,32 @@ function sendMq(frame) {
 }
 
 /**
- * Write the stall line: the silence, then the requests in flight, oldest first.
+ * Write the stall line: the silence, the blocked thread's call frames (with
+ * `captureFrames`), then the requests in flight, oldest first.
  *
- * Text: `[ STALL ] main thread blocked: no heartbeat for 5.3s — in flight 2: PUT /orders/42 [ req <id> ] 5.4s, …`,
- * rendered with the logger's `format()` at `crit`. JSON: the default container's
- * shape `{ts, level, bundle, message, group, msg}` plus `stall` —
- * `{ms, runtime, captured, frames, inFlight: [{id, method, path, ms}]}` (`captured`
- * is `false` and `frames` empty: this thread does not read the blocked thread's
- * frames). The MQ frame carries the text in the logger's envelope.
+ * Text: `[ STALL ] main thread blocked: no heartbeat for 5.3s — frames: mergeBody (lib/merge/src/main.js:412:9) <- … — in flight 2: PUT /orders/42 [ req <id> ] 5.4s, …`,
+ * rendered with the logger's `format()` at `crit`; a capture that read no frames
+ * writes `— frames: none (<reason>)` ({@link module:gina/lib/stall-watchdog/frames.REASONS}),
+ * and with `captureFrames` off the line names no frames. JSON: the default
+ * container's shape `{ts, level, bundle, message, group, msg}` plus `stall` —
+ * `{ms, runtime, captured, frames: [{fn, file, line, col}], inFlight: [{id, method, path, ms}]}`
+ * (`captured` is `false` and `frames` empty when no frames were read). The MQ frame
+ * carries the text in the logger's envelope.
+ *
+ * The silence and the requests' ages are read now, when the line is written: a
+ * capture takes some milliseconds (up to its deadline when the main thread is in a
+ * native call). Should the main thread have run again meanwhile, the silence stays
+ * the one measured when the stall was found.
  *
  * @inner
- * @param {number} silenceMs - Time since the heartbeat last moved
- * @param {number} now
+ * @param {{ms: number, at: number, hb: number}} item - The stall as found: its silence, when, and the heartbeat's value then
+ * @param {?{captured: boolean, frames?: Array<Object>, more?: boolean, reason?: string}} cap - What the capture read; `null` with `captureFrames` off
  * @returns {void}
  */
-function report(silenceMs, now) {
+function report(item, cap) {
+    var now       = Date.now();
+    var silenceMs = ( Atomics.load(hb, 0) === item.hb ) ? Math.max(item.ms, now - ( item.at - item.ms )) : item.ms;
+
     var entries = Array.from(ring.values());
     entries.sort(function(a, b) { return a.at - b.at; });
     var total = entries.length;
@@ -344,7 +414,23 @@ function report(silenceMs, now) {
         };
     });
 
+    var captured   = false;
+    var stallFrames = [];
+    var framesText = '';
+    if ( cap ) {
+        if ( cap.captured ) {
+            captured    = true;
+            stallFrames = ( cap.frames || [] ).map(function(f) {
+                return { fn: neutral(f.fn, FN_MAX), file: neutral(f.file, PATH_MAX), line: f.line, col: f.col };
+            });
+            framesText  = ' — frames: ' + framesLib.describeFrames(stallFrames, cap.more);
+        } else {
+            framesText  = ' — frames: none (' + cap.reason + ')';
+        }
+    }
+
     var text = '[ STALL ] main thread blocked: no heartbeat for ' + seconds(silenceMs)
+        + framesText
         + ' — in flight ' + total
         + ( ( total > shown.length ) ? ' (oldest ' + shown.length + ')' : '' )
         + ( ( shown.length > 0 ) ? ': ' + shown.map(function(e) {
@@ -364,8 +450,10 @@ function report(silenceMs, now) {
             stall   : {
                 ms       : silenceMs,
                 runtime  : data.runtime,
-                captured : false,
-                frames   : [],
+                captured : captured,
+                frames   : stallFrames.map(function(f) {
+                    return { fn: mask(f.fn), file: mask(f.file), line: f.line, col: f.col };
+                }),
                 inFlight : shown.map(function(e) {
                     return { id: e.id, method: e.method, path: mask(e.path), ms: e.ms };
                 })
@@ -387,28 +475,285 @@ function report(silenceMs, now) {
     }
 }
 
+/** @inner @type {?(Object|boolean)} The `inspector` module, loaded at the first capture; `false` when it could not be. */
+var inspectorLib = null;
+
+/**
+ * Read the main thread's call frames through its inspector: connect, enable the
+ * debugger (its `scriptParsed` replay names each script's url), pause, read the
+ * frames, resume, disable, disconnect. Each step has {@link STEP_MS}, the whole
+ * capture {@link CAPTURE_MS}. A step that fails or runs out of time ends the
+ * capture with a disconnect, which resumes a pause this session made (measured);
+ * a late answer to a step already given up on is ignored, since a `post()` after
+ * the disconnect throws. Frames read before a later step failed are kept: they
+ * were read while the thread was paused. `done` is called once.
+ *
+ * When another session already holds the main thread paused (a debugger at a
+ * breakpoint: `Debugger.paused` arrives before `Debugger.enable` answers), the
+ * capture neither pauses nor resumes it, and disconnects, which leaves that pause
+ * in place (measured).
+ *
+ * ⚠️ Nothing may throw out of an inspector callback: measured on Node 25.3.0, an
+ * error thrown inside the `Debugger.paused` handler, while the pause is held, kills
+ * this thread and leaves the main thread paused for good (the same error thrown from
+ * a timer resumes it). So every callback body runs under {@link guard}, and `done`
+ * is called on a clean stack (`setImmediate`), outside any inspector callback.
+ *
+ * @inner
+ * @param {function({captured: boolean, frames?: Array<Object>, more?: boolean, reason?: string}): void} done
+ * @returns {void}
+ */
+function capture(done) {
+    var finished   = false;
+    var session    = null;
+    var urls       = new Map();
+    var asked      = false;
+    var held       = false;
+    var got        = null;
+    var stepTimer  = null;
+    var wholeTimer = null;
+
+    // Ends the capture, once: disconnects (which resumes a pause this session holds),
+    // then hands over the frames read so far, or `reason`, on a clean stack.
+    var finish = function(reason) {
+        if ( finished ) {
+            return;
+        }
+        finished = true;
+        clearTimeout(stepTimer);
+        clearTimeout(wholeTimer);
+        if ( session ) {
+            try {
+                session.disconnect();
+            } catch (err) {
+                // already gone
+            }
+        }
+        session = null;
+        urls    = null;
+        var result = ( got ) ? { captured: true, frames: got.frames, more: got.more } : { captured: false, reason: reason };
+        setImmediate(function() { done(result); });
+    };
+
+    // A callback body that can never throw out: an error ends the capture.
+    var guard = function(fn) {
+        return function() {
+            try {
+                fn.apply(null, arguments);
+            } catch (err) {
+                try {
+                    finish(framesLib.errorReason(err));
+                } catch (e) {
+                    // finish() catches its own steps: nothing left to do
+                }
+            }
+        };
+    };
+
+    // The deadline of the step about to start.
+    var arm = function() {
+        clearTimeout(stepTimer);
+        stepTimer = setTimeout(function() { finish(framesLib.REASONS.outsideJs); }, STEP_MS);
+    };
+
+    // One inspector command; its answer, unless the capture is over, goes to `onReply`.
+    var send = function(method, onReply) {
+        if ( finished ) {
+            return;
+        }
+        try {
+            session.post(method, {}, guard(function(err) {
+                if ( finished ) {
+                    return;
+                }
+                if ( err ) {
+                    finish(framesLib.errorReason(err));
+                    return;
+                }
+                if ( onReply ) {
+                    onReply();
+                }
+            }));
+        } catch (err) {
+            finish(framesLib.errorReason(err));
+        }
+    };
+
+    wholeTimer = setTimeout(function() { finish(framesLib.REASONS.outsideJs); }, CAPTURE_MS);
+
+    if ( inspectorLib === null ) {
+        try {
+            inspectorLib = require('inspector');
+        } catch (err) {
+            inspectorLib = false;
+        }
+    }
+    if (
+        !inspectorLib || typeof(inspectorLib.Session) != 'function'
+        || typeof(inspectorLib.Session.prototype.connectToMainThread) != 'function'
+    ) {
+        finish(framesLib.REASONS.unavailable);
+        return;
+    }
+
+    try {
+        session = new inspectorLib.Session();
+        session.on('Debugger.scriptParsed', guard(function(m) {
+            if ( !finished && m && m.params ) {
+                urls.set(m.params.scriptId, m.params.url);
+            }
+        }));
+        session.on('Debugger.paused', guard(function(m) {
+            if ( finished || got ) {
+                return;
+            }
+            if ( !asked ) {
+                // paused before this session asked: another session holds the thread
+                held = true;
+                return;
+            }
+            clearTimeout(stepTimer);
+            got = framesLib.toFrames(m && m.params && m.params.callFrames, urls, roots, framesMax);
+            arm();
+            send('Debugger.resume', function() {
+                arm();
+                send('Debugger.disable', function() {
+                    finish(null);
+                });
+            });
+        }));
+        session.connectToMainThread();
+    } catch (err) {
+        finish(framesLib.errorReason(err));
+        return;
+    }
+
+    arm();
+    send('Debugger.enable', function() {
+        if ( held ) {
+            finish(framesLib.REASONS.debugger);
+            return;
+        }
+        asked = true;
+        // the deadline for the pause to land: it comes as the `Debugger.paused` event
+        arm();
+        send('Debugger.pause', null);
+    });
+}
+
+/**
+ * Whether the heartbeat is still at `value` after {@link SETTLE_MS}: a capture's
+ * frames are the stall's only then. Measured: when the block ends as a capture
+ * starts, the pause lands on the next JavaScript to run, the heartbeat's own timer,
+ * sometimes before the counter moves.
+ *
+ * @inner
+ * @param {number} value - The heartbeat's value when the stall was found
+ * @returns {boolean}
+ */
+function stillSilent(value) {
+    if ( Atomics.load(hb, 0) !== value ) {
+        return false;
+    }
+    Atomics.wait(sleeper, 0, 0, SETTLE_MS);
+    return Atomics.load(hb, 0) === value;
+}
+
+/** @inner @type {boolean} `true` while a capture runs; what the readings find meanwhile waits in {@link pending}. */
+var capturing = false;
+
+/**
+ * The readings' results found during a capture, in order. A `resumed` posted at
+ * once would put the warn line before the crit line it ends (measured: 14 ms early).
+ * @inner
+ * @type {Array<{t: string, ms: number, at: number, hb: number}>}
+ */
+var pending = [];
+
+/**
+ * Report a stall: at once when `captureFrames` is off (no frames) or on Bun
+ * (`frames: none (bun)`), otherwise after a capture of the frames.
+ *
+ * @inner
+ * @param {{t: string, ms: number, at: number, hb: number}} item - The stall as found
+ * @returns {void}
+ */
+function startReport(item) {
+    if ( frameMode !== 'node' ) {
+        report(item, ( frameMode === 'bun' ) ? { captured: false, reason: framesLib.REASONS.bun } : null);
+        return;
+    }
+    capturing = true;
+    capture(function(cap) {
+        try {
+            if ( cap.captured && !stillSilent(item.hb) ) {
+                cap = { captured: false, reason: framesLib.REASONS.ended };
+            }
+            report(item, cap);
+        } catch (err) {
+            complain('report', 'the stall line could not be written (' + ( err.message || err ) + ')');
+        }
+        capturing = false;
+        drain();
+    });
+}
+
+/**
+ * Act on one result of the readings: report a stall, or post its end to the main
+ * thread (which writes the warn line and counts it).
+ *
+ * @inner
+ * @param {{t: string, ms: number, at: number, hb: number}} item
+ * @returns {void}
+ */
+function handle(item) {
+    try {
+        if ( item.t === 'stall' ) {
+            startReport(item);
+        } else if ( item.t === 'resumed' ) {
+            parent.postMessage({ t: 'resumed', ms: item.ms });
+        }
+    } catch (err) {
+        complain('report', 'a stall could not be reported (' + ( err.message || err ) + ')');
+    }
+}
+
+/**
+ * Act on the results that waited for a capture, in order, until one starts another.
+ *
+ * @inner
+ * @returns {void}
+ */
+function drain() {
+    while ( !capturing && pending.length > 0 ) {
+        handle(pending.shift());
+    }
+}
+
 /** @inner @type {Object} The reading rules (detector.js): the start, a stall, its end, a suspension. */
 var detector = require('./detector.js').createDetector(thresholdMs);
 detector.step(Date.now(), Atomics.load(hb, 0));
 
 /**
- * One reading of the heartbeat: a stall is reported here, its end posted to the
- * main thread (which writes the warn line and counts it).
+ * One reading of the heartbeat: a stall is reported, its end posted to the main
+ * thread; while a capture runs, either waits for it.
  *
  * @inner
  * @param {number} now
  * @returns {void}
  */
 function tick(now) {
-    var result = detector.step(now, Atomics.load(hb, 0));
+    var value  = Atomics.load(hb, 0);
+    var result = detector.step(now, value);
     if ( !result ) {
         return;
     }
-    if ( result.t === 'stall' ) {
-        report(result.ms, now);
-    } else if ( result.t === 'resumed' ) {
-        parent.postMessage({ t: 'resumed', ms: result.ms });
+    var item = { t: result.t, ms: result.ms, at: now, hb: value };
+    if ( capturing || pending.length > 0 ) {
+        pending.push(item);
+        return;
     }
+    handle(item);
 }
 
 parent.on('message', function(msg) {

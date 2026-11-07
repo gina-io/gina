@@ -811,9 +811,9 @@ declare namespace gina {
                 enabled?: boolean;
                 /** Silence of the main thread before a stall is reported: `"5s"` (default), `"2s"`, `"1500ms"` or milliseconds; at least 1s. */
                 threshold?: string | number;
-                /** Read the blocked thread's call frames through the inspector (Node only). Validated now; takes effect with the frame capture. */
+                /** Name the blocked thread's call frames in the stall line (default true): read through the inspector during a pause of about a millisecond. Node only: on Bun the line says `frames: none (bun)`. */
                 captureFrames?: boolean;
-                /** Call frames written, 1 to 32 (default 8). Validated now; takes effect with the frame capture. */
+                /** Call frames written, innermost first, 1 to 32 (default 8). */
                 frames?: number;
                 /** In-flight requests written, oldest first, 1 to 64 (default 8). */
                 inFlight?: number;
@@ -1147,13 +1147,14 @@ declare namespace gina {
          */
         stallWatchdog: {
             resolveConfig(block?: any): { enabled: boolean; warning: string | null; thresholdMs?: number; captureFrames?: boolean; frames?: number; inFlight?: number };
-            init(opts: { conf: any; logger?: any; metrics?: any; workerPath?: string }): boolean;
+            init(opts: { conf: any; logger?: any; metrics?: any; workerPath?: string; roots?: string[]; testData?: any }): boolean;
             enter(request: any, response: any, path: string): void;
             isEnabled(): boolean;
             stop(): Promise<any>;
             resolveLogGroup(name?: string, title?: string): string;
             buildLogContext(logger: any, title?: string): { group: string; format: string; flows: string[]; template: string; maxLevelLen: number; colorCode: string | null; color: { open: string; close: string } | null };
             resolveMqEndpoint(): { host: string; port: number };
+            resolveRoots(dirs?: string[]): string[];
             HEARTBEAT_MS: number;
             MIN_THRESHOLD_MS: number;
             DEFAULTS: { threshold: string; captureFrames: boolean; frames: number; inFlight: number };

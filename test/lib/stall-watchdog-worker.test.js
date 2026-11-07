@@ -50,8 +50,9 @@ var THROWER = path.join(__dirname, '..', 'fixtures', 'stall-watchdog', 'throwing
 var SECRET = 'correct-horse-battery-staple';
 
 // A resolveConfig() result: the smallest threshold, so a block of a few seconds
-// leaves a wide margin between the report and the block's end.
-var CONF = { enabled: true, warning: null, thresholdMs: 1000, captureFrames: true, frames: 8, inFlight: 8 };
+// leaves a wide margin between the report and the block's end. Frames off: this file
+// tests the line without them; stall-watchdog-frames.test.js tests the frames.
+var CONF = { enabled: true, warning: null, thresholdMs: 1000, captureFrames: false, frames: 8, inFlight: 8 };
 
 /**
  * Strip ANSI colour codes.

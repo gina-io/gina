@@ -7,14 +7,18 @@
  * silence it writes ONE crit line itself, while the main thread is still blocked, naming the
  * silence and the application requests in flight (oldest first, each with the id its answer
  * echoes in X-Request-Id). When the main thread resumes, a warn line gives the whole silence.
- * The bundle is booted three times (the setting and the log format are read once at boot):
+ * The bundle is booted four times (the setting and the log format are read once at boot):
  *
- *   01  text mode, `{ enabled: true, threshold: "2s" }`: a PUT whose body is still on its way,
- *       then a GET whose action blocks the main thread 6 s. The log, read 4 s into the block,
- *       already holds the crit line naming BOTH requests (the PUT first: it entered first, before
- *       its body was read); the warn line follows the block; the boot announced the watchdog.
+ *   01  text mode, `{ enabled: true, threshold: "2s", captureFrames: false }`: a PUT whose body
+ *       is still on its way, then a GET whose action blocks the main thread 6 s. The log, read 4 s
+ *       into the block, already holds the crit line naming BOTH requests (the PUT first: it
+ *       entered first, before its body was read); the warn line follows the block; the boot
+ *       announced the watchdog.
  *   02  JSON mode: the same, as one JSON object at crit with `stall.inFlight` carrying the ids.
  *   03  setting off (the control): the same block, and no stall line anywhere.
+ *   04  text mode, the frames on (the default): the same line names the blocked thread's call
+ *       frames first, innermost first: the action, relative to the project root, then the
+ *       framework's own frames, relative to the framework directory.
  *
  * Isolation: the container-boot-request-entry-line.test.js shape — a throwaway HOME under
  * os.tmpdir(), its own port window (14700), a self-signed certificate under that HOME,
@@ -197,12 +201,19 @@ function spliceHttp2(file) {
     fs.writeFileSync(file, s.replace(m[0], m[0] + ',\n    "protocol": "http/2.0",\n    "scheme": "https"'));
 }
 
-/** settings.server.json with, or without, the watchdog block after the scheme line. */
+/**
+ * settings.server.json without the watchdog block (`on` false), with it and the frames off
+ * (`on` true: arms 01/02 test the line without them), or with the frames on, the default
+ * (`on` 'frames'), after the scheme line.
+ */
 function writeSetting(on) {
     if (!on) { fs.writeFileSync(ssFile, ssBase); return; }
     var anchor = '"scheme": "https"';
     if (ssBase.split(anchor).length !== 2) { throw new Error('scheme anchor count ' + (ssBase.split(anchor).length - 1)); }
-    fs.writeFileSync(ssFile, ssBase.replace(anchor, anchor + ',\n    "stallWatchdog": { "enabled": true, "threshold": "2s" }'));
+    var block = (on === 'frames')
+        ? '{ "enabled": true, "threshold": "2s" }'
+        : '{ "enabled": true, "threshold": "2s", "captureFrames": false }';
+    fs.writeFileSync(ssFile, ssBase.replace(anchor, anchor + ',\n    "stallWatchdog": ' + block));
 }
 
 /** The self-signed certificate triple isaac reads for https (key, certificate, CA bundle). */
@@ -414,6 +425,40 @@ describe('container-boot-stall-watchdog — the stall watchdog (server.stallWatc
             assert.ok(lines(r.out, true).length > 0, 'the reader parses the log (an instrument that can fire)');
             assert.equal(r.out.indexOf('[ STALL ]'), -1, 'no stall line');
             assert.equal(r.out.indexOf('[stallWatchdog]'), -1, 'no watchdog at all');
+        });
+    });
+
+    describe('04 - text log mode, the frames on (the default)', function () {
+        var r = null, err = null;
+        before(async function () {
+            if (skip || setupError) { return; }
+            err = await boot('frames', 'text');
+            if (!err) { r = await drive(); }
+            await stop();
+        });
+        it('04.1 - the crit line names the action\'s frame, relative to the project, the framework\'s, relative to its directory, then both requests', function (t) {
+            if (skip) { return t.skip(skipReason); }
+            assert.equal(setupError, null, setupError);
+            assert.equal(err, null, err);
+            var putId   = r.put.headers['x-request-id'];
+            var blockId = r.block.headers['x-request-id'];
+            assert.equal(r.block.status, 200);
+            assert.ok(putId && blockId, 'both answers echo an X-Request-Id');
+            assert.ok(r.snapshotAt < r.block.at, 'the log was read before the blocking answer');
+
+            var during = stallLines(r.snapshot, false);
+            assert.equal(during.length, 1, 'ONE crit line, already in the log while the main thread is blocked');
+            var msg = during[0].message;
+            var m = msg.match(/^\[ STALL \] main thread blocked: no heartbeat for \d+\.\ds — frames: (.+) — in flight 2: PUT (\S+) \[ req (\S+) \] \d+\.\ds, GET (\S+) \[ req (\S+) \] \d+\.\ds$/);
+            assert.ok(m, msg);
+            var frames = m[1].split(' <- ');
+            assert.match(frames[0], /swBlock \(src\/web\/controllers\/controller\.content\.js:\d+:\d+\)$/, 'the innermost frame is the action, relative to the project: ' + m[1]);
+            assert.ok(frames.some(function (f) { return /\((core|lib)\/[^)]+\.js:\d+:\d+\)$/.test(f); }), 'a framework frame, relative to the framework directory: ' + m[1]);
+            assert.equal(m[1].indexOf(PROJ_DIR), -1, 'no absolute project path: ' + m[1]);
+            assert.deepEqual([m[2], m[3], m[4], m[5]], [r.paths.put, putId, r.paths.block, blockId]);
+
+            assert.equal(stallLines(r.out, false).length, 1, 'one line per stall');
+            assert.equal(resumeLines(r.out, false).length, 1, 'the warn line follows');
         });
     });
 });

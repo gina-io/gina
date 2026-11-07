@@ -360,7 +360,7 @@
         },
         "stallWatchdog": {
           "type": "object",
-          "description": "Stall watchdog. A worker thread watches a heartbeat the bundle's main thread bumps every 250 ms; when it has not moved for `threshold`, the worker writes ONE crit line while the main thread is still blocked: `[ STALL ] main thread blocked: no heartbeat for <s> — in flight <n>: METHOD /path [ req <id> ] <s>, …`, the oldest application requests first. It writes the line itself, to the process's stdout and, when the MQ flow is on (the framework daemon), through its own connection to the MQ listener, so it reaches the log before an orchestrator's liveness probe ends the process. When the main thread resumes, a warn line gives the whole silence, and with app.json metrics enabled, gina_main_thread_stalls_total and gina_main_thread_stall_seconds count the stall. Off by default; read once at boot. On an enabled block, an unknown key or a wrong value refuses the boot.",
+          "description": "Stall watchdog. A worker thread watches a heartbeat the bundle's main thread bumps every 250 ms; when it has not moved for `threshold`, the worker writes ONE crit line while the main thread is still blocked: `[ STALL ] main thread blocked: no heartbeat for <s> — frames: fn (file:line:col) <- … — in flight <n>: METHOD /path [ req <id> ] <s>, …`, the blocked thread's call frames innermost first (Node), then the oldest application requests first. It writes the line itself, to the process's stdout and, when the MQ flow is on (the framework daemon), through its own connection to the MQ listener, so it reaches the log before an orchestrator's liveness probe ends the process. When the main thread resumes, a warn line gives the whole silence, and with app.json metrics enabled, gina_main_thread_stalls_total and gina_main_thread_stall_seconds count the stall. Off by default; read once at boot. On an enabled block, an unknown key or a wrong value refuses the boot.",
           "additionalProperties": false,
           "properties": {
             "enabled": {
@@ -376,14 +376,14 @@
             "captureFrames": {
               "type": "boolean",
               "default": true,
-              "description": "Read the blocked thread's call frames through the inspector (Node only; Bun has no inspector). Validated now; takes effect with the frame capture."
+              "description": "Name the blocked thread's call frames in the line: the watchdog thread connects to the main thread's inspector (no --inspect flag), pauses it for about a millisecond, reads its frames and resumes it; files are written relative to the project or the framework directory. Node only: on Bun the line says `frames: none (bun)`. When the frames cannot be read, the line says why: `frames: none (native-call-or-outside-js)`, `(debugger)`, `(ended)`, `(unavailable)` or `(error:<code>)`. false: the line names no frames."
             },
             "frames": {
               "type": "integer",
               "minimum": 1,
               "maximum": 32,
               "default": 8,
-              "description": "How many call frames the line names. Validated now; takes effect with the frame capture."
+              "description": "How many call frames the line names, innermost first; a deeper stack ends with `<- …`."
             },
             "inFlight": {
               "type": "integer",
