@@ -28346,7 +28346,16 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/loading-state', 'lib/merge'
      *        returns (no blank-screen gap), replaced by the real content on completion. See showLoadingShell().
      * @param {string} [options.loadingShell] - custom skeleton HTML for `preOpen` (consumer markup wins);
      *        when omitted a generic gina-namespaced default skeleton is used.
+     * @param {number} [options.loadTimeout] - opt-in load limit in milliseconds (#B1108): a content
+     *        request still unanswered after it is aborted and fails as `{ status: 408, error: 'Request Timeout' }`
+     *        through the usual failure path (`error`, then the shell closes unless a listener loaded content).
+     *        Absent => `gina.config.popin.loadTimeout`, then no limit; `0` => no limit for this popin.
+     *        See resolveLoadTimeout().
      * @param {object} [options.validator] - a FormValidator instance to bind forms inside the popin
+     *
+     * @example
+     * // fail a load that has not answered after 15 s, instead of keeping its skeleton
+     * new Popin({ name: 'report', preOpen: true, loadTimeout: 15000 });
      * */
     function Popin(options) {
 
@@ -28372,6 +28381,12 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/loading-state', 'lib/merge'
                 // popin while it loads. When omitted, a generic gina-namespaced default
                 // skeleton is used (styled by `.gina-popin-skeleton*` in popin.css).
                 'loadingShell': null,
+                // #B1108 — opt-in load limit in milliseconds: a content request (and the
+                // hover/focus warm of its URL) still unanswered after it is aborted, and the
+                // load fails as a timeout through the usual failure path. `null` => fall
+                // through to `gina.config.popin.loadTimeout`, then no limit (off by default:
+                // failing a slow load is a behaviour change). See resolveLoadTimeout().
+                'loadTimeout': null,
                 // Per-popin modal opt-in (precedence #2 in resolveModal). `null` => fall
                 // through to the trigger `data-gina-dialog-modal` attribute, then the
                 // `gina.config.popin.modal` project default, then the framework
@@ -28663,6 +28678,102 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/loading-state', 'lib/merge'
             }
             // 5. Framework default.
             return false;
+        }
+
+        /**
+         * resolveLoadTimeout
+         *
+         * #B1108 — the load limit, in milliseconds, for a popin's content request and for
+         * the hover/focus warm of its URL. Precedence (highest wins):
+         *  1. the popin's own `loadTimeout` (`new Popin({ loadTimeout })`)
+         *  2. `gina.config.popin.loadTimeout` project default (read lazily — populated
+         *     post-load via `gina.setOptions({ popin: { loadTimeout } })`)
+         *  3. framework default -> no limit (today's behaviour: off by default)
+         * At either level, a finite number >= 0 decides and anything else falls through: so
+         * a popin's `0` means "no limit" for that popin even when the project sets one. A
+         * value above the browser's timer maximum (2^31 - 1 ms, about 24.8 days) also means
+         * no limit, since `setTimeout` would fire such a delay at once.
+         *
+         * @inner
+         * @param {object|null} [$popin] - the registered popin, when one is known
+         * @returns {number} the limit in milliseconds, or `0` for no limit
+         *
+         * @example
+         * new Popin({ name: 'report', preOpen: true, loadTimeout: 15000 });
+         * gina.setOptions({ popin: { loadTimeout: 10000 } }); // every popin without its own
+         * resolveLoadTimeout(getPopinByName('report')); // 15000
+         */
+        function resolveLoadTimeout($popin) {
+            var isSet = function (value) {
+                return typeof(value) == 'number' && value >= 0 && value < Infinity;
+            };
+            var limit = 0;
+            if ( $popin && $popin.options && isSet($popin.options.loadTimeout) ) {
+                limit = $popin.options.loadTimeout;
+            } else if (
+                typeof(gina) != 'undefined' && gina.config && gina.config.popin
+                && isSet(gina.config.popin.loadTimeout)
+            ) {
+                limit = gina.config.popin.loadTimeout;
+            }
+            return ( limit > 0 && limit <= 2147483647 ) ? limit : 0;
+        }
+
+        /**
+         * armLoadTimer
+         *
+         * #B1108 — arms the load limit on a content request in flight: once `limit`
+         * milliseconds have passed with the request still unanswered, `onFire` runs (popinLoad
+         * sets its timed-out latch there) and the request is aborted. The abort settles the
+         * XHR at readyState 4 with status 0, so the request's own readyState-4 handler runs
+         * its usual failure path: there is no second failure route to keep in step. The timer
+         * rides on the XHR, so that handler can drop it (clearLoadTimer) the moment the
+         * request settles, whatever settled it.
+         *
+         * @inner
+         * @param {XMLHttpRequest} [xhr] - the request just sent (nothing is armed without one)
+         * @param {number} limit - milliseconds, from resolveLoadTimeout(); `0` arms nothing
+         * @param {function} [onFire] - runs just before the abort
+         * @returns {void}
+         *
+         * @example
+         * armLoadTimer(xhr, resolveLoadTimeout($popin), function () { timedOut = true; });
+         */
+        function armLoadTimer(xhr, limit, onFire) {
+            if ( !xhr || !limit ) {
+                return;
+            }
+            xhr._ginaLoadTimer = setTimeout(function () {
+                xhr._ginaLoadTimer = null;
+                // settled (4), or reset after an abort (0): nothing left to stop
+                if ( xhr.readyState === 4 || xhr.readyState === 0 ) {
+                    return;
+                }
+                if ( typeof(onFire) == 'function' ) {
+                    onFire();
+                }
+                try { xhr.abort(); } catch (abortErr) { /* already dead */ }
+            }, limit);
+        }
+
+        /**
+         * clearLoadTimer
+         *
+         * #B1108 — armLoadTimer's mirror: drops the limit of a request that has settled
+         * (answered, failed, or aborted by a close). Called first thing at readyState 4.
+         *
+         * @inner
+         * @param {XMLHttpRequest} [xhr] - the request that settled
+         * @returns {void}
+         *
+         * @example
+         * clearLoadTimer(xhr);
+         */
+        function clearLoadTimer(xhr) {
+            if ( xhr && xhr._ginaLoadTimer ) {
+                clearTimeout(xhr._ginaLoadTimer);
+                xhr._ginaLoadTimer = null;
+            }
         }
 
         /**
@@ -28999,6 +29110,8 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/loading-state', 'lib/merge'
          * @param {function} [onDone] - completion callback, fired on EVERY exit path
          *   (cross-origin bail, cache, or decline) so a serialized caller — the
          *   eager warm queue — always advances. The hover path passes none.
+         * @returns {XMLHttpRequest|undefined} the warm request, so warmTrigger can arm its
+         *   load limit on it (#B1108); `undefined` when a cross-origin URL was left alone
          */
         function preloadFetch(url, onDone) {
             var _preloadDone = function () {
@@ -29018,6 +29131,10 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/loading-state', 'lib/merge'
             xhrPreload.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
             xhrPreload.onreadystatechange = function () {
                 if ( xhrPreload.readyState == 4 ) {
+                    // #B1108 — settled: its load limit (armed by warmTrigger) is spent. A warm
+                    // aborted AT its limit lands here too, as a failure: its waiters get
+                    // `null`, so an adopting click falls back to its own click-time load.
+                    clearLoadTimer(xhrPreload);
                     // #B54 — wake any click that adopted this in-flight preload instead of
                     // firing its own duplicate GET (see consumePreload).
                     var _waiters = preloadWaiters[url] || [];
@@ -29039,6 +29156,7 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/loading-state', 'lib/merge'
                 }
             };
             xhrPreload.send();
+            return xhrPreload;
         }
 
         /**
@@ -29306,7 +29424,12 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/loading-state', 'lib/merge'
                 return; // already cached or in-flight — dedup
             }
             preloadCache[url] = null; // reserve in-flight slot (dedup concurrent intents)
-            preloadFetch(url, onDone);
+            // #B1108 — the warm carries the load limit of the popin its trigger opens, so a
+            // click that adopts a stalled warm does not wait forever: that popin's own
+            // `loadTimeout` when the popin is registered, else the project default. A warm is
+            // per URL, so the trigger that starts it decides for every trigger sharing it.
+            var _popinName = $trigger.getAttribute('data-gina-dialog') || $trigger.getAttribute('data-gina-popin-name');
+            armLoadTimer(preloadFetch(url, onDone), resolveLoadTimeout(( _popinName ) ? getPopinByName(_popinName) : null));
         }
 
         /**
@@ -30911,6 +31034,9 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/loading-state', 'lib/merge'
 
 
             var resultIsObject = false;
+            // #B1108 — set when the load limit (armLoadTimer, after send) aborted this load:
+            // the readyState-4 failure branch then reports a timeout, not a bare status 0
+            var timedOut = false;
             if (xhr) {
                 // setting up headers
                 xhr.withCredentials = ( typeof(options.withCredentials) != 'undefined' ) ? options.withCredentials : false;
@@ -30950,6 +31076,9 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/loading-state', 'lib/merge'
                         armPopinTrigger($popinTrigger);
                     }
                     if (xhr.readyState == 4) {
+                        // #B1108 — settled (answered, failed, or aborted by a close or by the
+                        // limit itself): the load limit is spent
+                        clearLoadTimer(xhr);
                         // Fixed: clear loading state on response complete — data-gina-popin-loading
                         // was set on readyState 1|3 but never removed, leaving the overlay blocked.
                         // Covers every status including 0, since the branch is on readyState alone.
@@ -31148,14 +31277,23 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/loading-state', 'lib/merge'
                         else {
                             //console.log('error event triggered ', event.target, $form);
                             resultIsObject = false;
-                            result = {
-                                'status':  xhr.status,
-                                'error' : xhr.responseText
-                            };
+                            if ( timedOut ) {
+                                // #B1108 — aborted at its load limit: a timeout, the shape the
+                                // former (commented) `ontimeout` handler below meant to send
+                                result = {
+                                    'status': 408,
+                                    'error' : 'Request Timeout'
+                                };
+                            } else {
+                                result = {
+                                    'status':  xhr.status,
+                                    'error' : xhr.responseText
+                                };
 
-                            if ( /application\/json/.test( xhr.getResponseHeader("Content-Type") ) ) {
-                                result.error = JSON.parse(xhr.responseText);
-                                resultIsObject = true
+                                if ( /application\/json/.test( xhr.getResponseHeader("Content-Type") ) ) {
+                                    result.error = JSON.parse(xhr.responseText);
+                                    resultIsObject = true
+                                }
                             }
 
                             instance.eventData.error = result;
@@ -31196,6 +31334,10 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/loading-state', 'lib/merge'
                 // };
 
                 // catching timeout
+                // #B1108 — superseded by armLoadTimer() after send() below: a native
+                // `ontimeout` fires AFTER the readystatechange at DONE (measured), so the
+                // failure branch above would already have reported a bare status 0. Kept
+                // for the record.
                 // xhr.ontimeout = function (event) {
                 //     var result = {
                 //         'status': 408,
@@ -31211,6 +31353,14 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/loading-state', 'lib/merge'
                 // sending
                 //var data = JSON.stringify({ sample: 'data'});
                 xhr.send();
+
+                // #B1108 — the opt-in load limit (resolveLoadTimeout; none by default): still
+                // unanswered after it, the request is aborted and the readyState-4 failure
+                // branch reports `{ status: 408, error: 'Request Timeout' }` — `error` first,
+                // then the shell closes if nothing loaded content. A close aborts the request
+                // itself (the limit is then dropped with it, so a cancel fires no `error`),
+                // and a load superseded by a newer one is dropped by its sequence check.
+                armLoadTimer(xhr, resolveLoadTimeout($popin), function () { timedOut = true; });
 
 
                 return {
