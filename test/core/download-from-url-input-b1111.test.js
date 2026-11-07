@@ -8,9 +8,17 @@
  * catches got a process-level unhandledRejection. The final name now gets the url's test and
  * the same answer: a 500 through throwError.
  *
+ * #B1114 — two more preparation throws ended the same way: a url that is not a string
+ * (`undefined`, `null`, `42`), and a scheme the `/^http/` test let through although it is
+ * neither `http` nor `https` (`httpfoo://` rejected with « Cannot find module 'httpfoo' »
+ * from `require(''+ scheme)`; `http2://` loaded the http2 module and answered « browser.get is
+ * not a function »). A url that is not a string now answers 500 through throwError, and only
+ * `http` and `https` pass the scheme test, with the existing « Scheme not supported » answer;
+ * a scheme the old pattern could not read (` http://…`, a leading space) gets it too.
+ *
  * The method runs for real through `createTestInstance` (the #B1073 bootstrap) against an
- * in-process upstream. §01–§02 replace throwError with a recorder; §04 drives the REAL
- * throwError (the JSON branch, `isXMLRequest: true`) for one shape.
+ * in-process upstream. §01–§03 replace throwError with a recorder; §04 drives the REAL
+ * throwError (the JSON branch, `isXMLRequest: true`) for one shape of each defect.
  * Arms marked CONTROL pin unchanged behaviour and pass on the pre-fix bytes too.
  *
  * Seam: GINA_B1111_CONTROLLER — the controller module to require (a pre-fix copy must sit
@@ -256,6 +264,37 @@ describe('02 - CONTROL: names and inputs that worked before keep their answer', 
 });
 
 
+// ── 03 — #B1114: the url itself ───────────────────────────────────────────────
+
+describe('03 - #B1114: a url that is not a string, or a scheme other than http and https, answers 500', function () {
+
+    [['undefined', undefined, 'undefined'], ['null', null, 'null'], ['a number', 42, 'number']].forEach(function (c) {
+        it('url ' + c[0], async function () {
+            assertRefused(await drive(c[1], {}), '`url` must be a string, got ' + c[2] + '.');
+        });
+    });
+
+    ['httpfoo', 'http2', 'https2'].forEach(function (s) {
+        it('scheme ' + s + ' (it passed /^http/)', async function () {
+            var out = await drive(s + '://127.0.0.1:' + upPort + '/proof.pdf', {});
+            assertRefused(out, '[ ' + s + ' ] Scheme not supported. Ref.: `http` or `https` only');
+        });
+    });
+
+    it('a scheme the old pattern could not read (a leading space)', async function () {
+        var out = await drive(' http://127.0.0.1:' + upPort + '/proof.pdf', {});
+        assertRefused(out, '[  http ] Scheme not supported. Ref.: `http` or `https` only');
+    });
+
+    ['ftp', 'HTTP'].forEach(function (s) {
+        it('CONTROL - scheme ' + s + ' keeps its 500', async function () {
+            var out = await drive(s + '://127.0.0.1:' + upPort + '/proof.pdf', {});
+            assertRefused(out, '[ ' + s + ' ] Scheme not supported. Ref.: `http` or `https` only');
+        });
+    });
+});
+
+
 // ── 04 — the REAL throwError: what the client receives ───────────────────────
 
 describe('04 - through the real throwError (the JSON branch): the client gets a 500 body', function () {
@@ -305,6 +344,13 @@ describe('04 - through the real throwError (the JSON branch): the client gets a 
         assert.ok(out.json, 'a JSON body');
         assert.equal(out.json.status, 500);
         assert.equal(out.json.message, '[ report ] extension not found in `options.file`.');
+    });
+
+    it('#B1114 a url that is not a string', async function () {
+        var out = await driveReal(undefined, {});
+        assert.equal(out.settled, 'resolved', 'pre-fix: ' + out.settled);
+        assert.equal(out.status, 500);
+        assert.equal(out.json && out.json.message, '`url` must be a string, got undefined.');
     });
 
     it('CONTROL - the url check already answered this way', async function () {

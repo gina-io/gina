@@ -4621,12 +4621,12 @@ function SuperController(options) {
      *        This will convert the regular HTTP Request to an XML Request
      *
      * These inputs are answered with a 500 through `throwError()`, and the
-     * method returns without a request: a scheme that does not start with
-     * `http`, a url without a filename, a filename (the url's, or
-     * `options.file`) without an extension of ASCII word characters, and an
-     * extension `mime.types` does not know (#B1111: a bad `options.file` used
-     * to throw inside this async method, so its promise rejected and the
-     * request got no response).
+     * method returns without a request: a url that is not a string, a scheme
+     * other than `http` or `https`, a url without a filename, a filename (the
+     * url's, or `options.file`) without an extension of ASCII word characters,
+     * and an extension `mime.types` does not know (#B1111, #B1114: the first
+     * two and a bad `options.file` used to throw inside this async method, so
+     * its promise rejected and the request got no response).
      *
      * @param {string} url - an `http` or `https` url ending in a filename with
      *  an extension, eg.: https://upload.wikimedia.org/wikipedia/fr/2/2f/Firefox_Old_Logo.png
@@ -4693,11 +4693,25 @@ function SuperController(options) {
         var protocol    = null;
         var scheme      = null;
 
-        if ( /\:\/\//.test(url) ) {
-            scheme = url.match(/^\w+\:/)[0];
-            scheme = scheme.substring(0, scheme.length-1);
+        // #B1114 — a url that is not a string threw at its first `url.match` below,
+        // inside this async method: the promise rejected, the request got no response
+        if ( typeof(url) != 'string' ) {
+            self.throwError(local.res, 500, new Error('`url` must be a string, got '+ ( (url === null) ? 'null' : typeof(url) ) +'.'));
+            return;
+        }
 
-            if ( !/^http/.test(scheme) ) {
+        if ( /\:\/\//.test(url) ) {
+            // was: scheme = url.match(/^\w+\:/)[0];
+            //      scheme = scheme.substring(0, scheme.length-1);
+            // #B1114 — the scheme is what precedes `://`; the pattern could not read one
+            // that is not a leading run of word characters (` http://…`) and threw
+            scheme = url.substring(0, url.indexOf('://'));
+
+            // was: if ( !/^http/.test(scheme) ) {
+            // #B1114 — `/^http/` let `httpfoo` or `http2` through to `require(''+ scheme)`
+            // below, which rejected (« Cannot find module ») or loaded a module named
+            // after the url
+            if ( !/^https?$/.test(scheme) ) {
                 self.throwError(local.res, 500, new Error('[ '+ scheme +' ] Scheme not supported. Ref.: `http` or `https` only'));
                 return;
             }
