@@ -4620,12 +4620,40 @@ function SuperController(options) {
      *      - To avoid this, add to your download link the attribute `data-gina-link`
      *        This will convert the regular HTTP Request to an XML Request
      *
-     * @param {string} url - eg.: https://upload.wikimedia.org/wikipedia/fr/2/2f/Firefox_Old_Logo.png
+     * These inputs are answered with a 500 through `throwError()`, and the
+     * method returns without a request: a scheme that does not start with
+     * `http`, a url without a filename, a filename (the url's, or
+     * `options.file`) without an extension of ASCII word characters, and an
+     * extension `mime.types` does not know (#B1111: a bad `options.file` used
+     * to throw inside this async method, so its promise rejected and the
+     * request got no response).
+     *
+     * @param {string} url - an `http` or `https` url ending in a filename with
+     *  an extension, eg.: https://upload.wikimedia.org/wikipedia/fr/2/2f/Firefox_Old_Logo.png
      * @param {object} [options]
+     * @param {string} [options.file] - the name the client saves the download
+     *  as, in place of the url's; it must end in an extension of ASCII word
+     *  characters (`.pdf`, not `.été`), which gives the content type
+     * @param {string} [options.contentDisposition='attachment'] - `inline` lets
+     *  the browser display the resource
+     * @param {string} [options.contentType] - replaces the type `mime.types`
+     *  gives the extension (the extension must still be known)
+     * @param {number} [options.fileSize] - sent as `content-length`
+     * @param {function} [cb] - called with `false` once the resource is piped
+     *  to the client, or with the request's error (an unreachable upstream, a
+     *  status of 400 or more), in which case nothing is answered for you
+     * @returns {Promise<void>}
      *
      * N.B.: when `options.contentDisposition` is left at its `attachment`
      * default, the emitted header carries the target filename as an RFC 6266
      * quoted-string (see `formatAttachmentDisposition`).
+     *
+     * @example
+     *  // saved by the client as invoice-42.pdf
+     *  self.downloadFromURL('https://example.com/files/2026/proof.pdf', { file: 'invoice-42.pdf' });
+     * @example
+     *  // displayed by the browser instead of saved
+     *  self.downloadFromURL('https://example.com/brand/logo.png', { contentDisposition: 'inline' });
      * */
     this.downloadFromURL = async function(url, options, cb) {
 
@@ -4739,8 +4767,24 @@ function SuperController(options) {
 
 
         // filename renaming
-        if (opt.file)
+        // was: if (opt.file)
+        //          filename = opt.file;
+        // #B1111 — `options.file` replaced the url's name after the extension test above,
+        // so a name with no ASCII-word extension (`report`, `notes.été`, `a.pdf ` with a
+        // trailing space) or a value that is not a string reached the `ext` line below
+        // and threw inside this async method: the promise rejected and the request got
+        // no response. The final name now gets the url's test and the same answer.
+        if (opt.file) {
+            if ( typeof(opt.file) != 'string' ) {
+                self.throwError(local.res, 500, new Error('`options.file` must be a string, got '+ typeof(opt.file) +'.'));
+                return;
+            }
+            if ( !/\.\w+$/.test(opt.file) ) {
+                self.throwError(local.res, 500, new Error('[ '+ opt.file +' ] extension not found in `options.file`.'));
+                return;
+            }
             filename = opt.file;
+        }
 
         if ( opt.contentDisposition == 'attachment') {
             opt.contentDisposition = formatAttachmentDisposition(filename);

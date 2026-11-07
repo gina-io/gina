@@ -1,0 +1,3 @@
+kind: Fixed
+body: '`self.downloadFromURL(url, { file })` now answers a 500 through `throwError()` when `options.file` has no extension of ASCII word characters (`report`, `notes.été`, `a.pdf ` with a trailing space) or is not a string, as it already did for a url without such an extension. `options.file` replaced the url''s name after that check, so such a name made the method throw a TypeError inside its promise: the request got no response, and a call that was neither awaited nor caught raised an unhandled rejection. A valid `options.file` is unchanged. (#B1111)'
+time: 2026-11-07T20:33:45+01:00
