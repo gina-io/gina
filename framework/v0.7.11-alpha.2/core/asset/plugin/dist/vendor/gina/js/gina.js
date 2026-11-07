@@ -31192,13 +31192,24 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/loading-state', 'lib/merge'
          *
          * @param {string} name - the popin's name
          * @param {string} url - the content's URL
-         * @param {object} [options] - XHR options, merged over the plugin's defaults
+         * @param {object} [options] - XHR options, merged over the plugin's defaults. Copied
+         *   (#B1109): the merged object becomes the popin's options (lib/merge mutates and
+         *   returns its target), so the merge runs on a copy of the defaults, and on a copy
+         *   of a caller's object unless it is the popin's own options (merging into those
+         *   objects themselves made two popins loaded this way share one options object).
+         *   The object passed is left as it was, so one object can serve several loads
          * @returns {object|undefined} `{ open }` — `.open()` opens the popin content-first
          *   when its body lands; undefined when the transport could not start
          *
          * @example
          * var handle = gina.popin.getPopinByName('details').load('details', '/details/42');
          * if ( handle ) { handle.open(); }
+         *
+         * @example
+         * // one options object for two popins: each keeps its own options (#B1109)
+         * var xhr = { headers: { 'X-Report': '1' } };
+         * gina.popin.load('summary', '/report/summary', xhr);
+         * gina.popin.load('detail', '/report/detail', xhr);
          * */
         function popinLoad(name, url, options) {
             // if no name defiend, get the current
@@ -31263,10 +31274,14 @@ define('gina/popin', [ 'require', 'lib/domain', 'lib/loading-state', 'lib/merge'
             }
 
             if ( typeof(options) == 'undefined' ) {
-                options = xhrOptions;
+                // #B1109, see @param options. was: options = xhrOptions;
+                options = merge({}, xhrOptions);
             } else {
                 // In order to inherit without overriding default xhrOptions
                 var isWithCredentials = xhrOptions.withCredentials;
+                if ( options !== $popin.options ) { // #B1109
+                    options = merge({}, options);
+                }
                 options = merge(options, xhrOptions);
 
                 options.withCredentials = isWithCredentials;
