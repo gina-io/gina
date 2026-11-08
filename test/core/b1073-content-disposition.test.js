@@ -74,7 +74,7 @@ var NAMES = {
     emoji : 'doc-\uD83D\uDCC4.pdf'
 };
 var EXPECT = {
-    dec   : 'attachment; filename="r\u00E9sum\u00E9.pdf"',
+    dec   : 'attachment; filename="resume.pdf"; filename*=UTF-8\'\'r%C3%A9sum%C3%A9.pdf',
     apos  : 'attachment; filename="l?offre.pdf"; filename*=UTF-8\'\'l%E2%80%99offre.pdf',
     cjk   : 'attachment; filename="??.pdf"; filename*=UTF-8\'\'%E5%A0%B1%E5%91%8A.pdf',
     emoji : 'attachment; filename="doc-??.pdf"; filename*=UTF-8\'\'doc-%F0%9F%93%84.pdf'
@@ -97,15 +97,13 @@ describe('00 - instrument controls', function () {
 });
 
 
-// ── 01 — names Node accepts keep today's exact bytes (CONTROL on pre-fix) ─────
+// ── 01 — an ASCII name keeps today's exact bytes (CONTROL on pre-fix); a Latin-1 name gets filename* (#B1113)
 
-describe('01 - a name Node accepts keeps the exact bytes emitted before #B1073', function () {
+describe('01 - an ASCII name keeps the exact bytes emitted before #B1073; a Latin-1 name gets filename* (#B1113)', function () {
 
     var keep = {
         'proof.pdf'                 : 'attachment; filename="proof.pdf"',
         'monthly report 2026.pdf'   : 'attachment; filename="monthly report 2026.pdf"',
-        'r\u00E9sum\u00E9.pdf'      : 'attachment; filename="r\u00E9sum\u00E9.pdf"',
-        'na\u00EFve \u00A9 \u00F1.pdf' : 'attachment; filename="na\u00EFve \u00A9 \u00F1.pdf"',
         'a "b".pdf'                 : 'attachment; filename="a \\"b\\".pdf"',
         'a\\b.pdf'                  : 'attachment; filename="a\\\\b.pdf"',
         'tab\there.pdf'             : 'attachment; filename="tab\there.pdf"',
@@ -115,6 +113,19 @@ describe('01 - a name Node accepts keeps the exact bytes emitted before #B1073',
     Object.keys(keep).forEach(function (name) {
         it('CONTROL - ' + JSON.stringify(name), function () {
             assert.equal(format(name), keep[name]);
+        });
+    });
+
+    // #B1113 — these two were CONTROLs here: their Latin-1 letters were kept as raw bytes, which
+    // Chromium and WebKit decode as UTF-8 (U+FFFD in the saved name); they now get an all-ASCII
+    // fallback (accents dropped) and filename*
+    var latin1 = {
+        'r\u00E9sum\u00E9.pdf'      : 'attachment; filename="resume.pdf"; filename*=UTF-8\'\'r%C3%A9sum%C3%A9.pdf',
+        'na\u00EFve \u00A9 \u00F1.pdf' : 'attachment; filename="naive ? n.pdf"; filename*=UTF-8\'\'na%C3%AFve%20%C2%A9%20%C3%B1.pdf'
+    };
+    Object.keys(latin1).forEach(function (name) {
+        it(JSON.stringify(name) + ' gets an all-ASCII fallback and filename* (#B1113)', function () {
+            assert.equal(format(name), latin1[name]);
         });
     });
 

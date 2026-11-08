@@ -854,14 +854,25 @@ var _formsWhisperMemo = new WeakMap();
  * or a process exit when the throw ran inside an async callback — and was
  * cut to the low byte of each UTF-16 unit on HTTP/2. The name is now
  * NFC-normalised first, so a decomposed Latin accent becomes its Latin-1
- * letter. A name whose every character Node accepts in a header value keeps
- * exactly the bytes this function emitted before. Any other name follows
- * RFC 6266 §4.3: a `filename` fallback in printable Latin-1 (every other
- * character becomes `?`), then the RFC 8187 `filename*=UTF-8''<percent-
- * encoded>` parameter, which browsers prefer — the shape the
- * `content-disposition` package (Express) emits. The function never throws
- * and never returns a value Node refuses: a lone surrogate becomes U+FFFD
- * before encoding, and controls are percent-encoded in `filename*`.
+ * letter.
+ *
+ * #B1113 — a Latin-1 letter (U+0080–U+00FF, as in `résumé.pdf`) was kept as
+ * a raw byte in `filename="…"`. Node sends that byte, but Chromium and
+ * WebKit decode a header's bytes as UTF-8 and saved the download with
+ * U+FFFD in place of each such letter. Only a name of printable ASCII (and
+ * tab) now keeps exactly the bytes this function emitted before. Any other
+ * name follows RFC 6266 §4.3 and Appendix D: an all-ASCII `filename`
+ * fallback, then the RFC 8187 `filename*=UTF-8''<percent-encoded>`
+ * parameter, which browsers prefer. The fallback drops accents (the name is
+ * NFKD-decomposed and its combining accents, U+0300–U+036F, removed, so `é`
+ * becomes `e` and `ﬁ` becomes `fi`) and writes `?` for any other non-ASCII
+ * character (`ß`, `æ`, `ø`, CJK, emoji, the typographic apostrophe), so a
+ * client that reads only `filename` (`curl -OJ`) saves `resume.pdf`. Above
+ * U+00FF this is the shape the `content-disposition` package (Express)
+ * emits; for a Latin-1 name that package (0.5.2) still sends the raw byte.
+ * The function never throws and never returns a value Node refuses or one
+ * that holds a non-ASCII byte: a lone surrogate becomes U+FFFD before
+ * encoding, and controls are percent-encoded in `filename*`.
  *
  * @function formatAttachmentDisposition
  * @private
@@ -871,6 +882,9 @@ var _formsWhisperMemo = new WeakMap();
  * @example
  *  formatAttachmentDisposition('monthly report.pdf');
  *  // -> 'attachment; filename="monthly report.pdf"'
+ * @example
+ *  formatAttachmentDisposition('résumé.pdf');
+ *  // -> 'attachment; filename="resume.pdf"; filename*=UTF-8\'\'r%C3%A9sum%C3%A9.pdf'
  * @example
  *  formatAttachmentDisposition('l’offre.pdf');
  *  // -> 'attachment; filename="l?offre.pdf"; filename*=UTF-8\'\'l%E2%80%99offre.pdf'
@@ -883,8 +897,11 @@ function formatAttachmentDisposition(filename) {
         name = name.toWellFormed();
     }
     name = name.normalize('NFC');
-    // every character Node accepts in a header value: today's exact bytes
-    if ( /^[\t\x20-\x7e\x80-\xff]*$/.test(name) ) {
+    // was: // every character Node accepts in a header value: today's exact bytes
+    // was: if ( /^[\t\x20-\x7e\x80-\xff]*$/.test(name) ) …
+    // #B1113 — printable ASCII (and tab) only keeps the plain form: a Latin-1 letter sent
+    // as a raw byte is decoded as UTF-8 by Chromium and WebKit, which saved it as U+FFFD
+    if ( /^[\t\x20-\x7e]*$/.test(name) ) {
         return 'attachment; filename="' + name.replace(/[\\"]/g, '\\$&') + '"';
     }
     var encoded = null;
@@ -898,7 +915,12 @@ function formatAttachmentDisposition(filename) {
     encoded = encoded.replace(/['()*]/g, function(c) {
         return '%' + c.charCodeAt(0).toString(16).toUpperCase();
     });
-    var fallback = name.replace(/[^\x20-\x7e\xa0-\xff]/g, '?').replace(/[\\"]/g, '\\$&');
+    // was: var fallback = name.replace(/[^\x20-\x7e\xa0-\xff]/g, '?').replace(/[\\"]/g, '\\$&');
+    // #B1113 — an all-ASCII fallback (RFC 6266 Appendix D): accents dropped (NFKD, then the
+    // combining accents U+0300–U+036F removed: é -> e, ﬁ -> fi), `?` for any other non-ASCII
+    // character; the quote and backslash escape runs last, since NFKD maps a fullwidth `"` or
+    // `\` to ASCII
+    var fallback = name.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^\x20-\x7e]/g, '?').replace(/[\\"]/g, '\\$&');
     return 'attachment; filename="' + fallback + '"; filename*=UTF-8\'\'' + encoded;
 }
 
