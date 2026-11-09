@@ -1,0 +1,3 @@
+kind: Fixed
+body: '`self.downloadFromURL(url)` now reads the host and the port from the url''s authority only: what follows `scheme://` up to the first `/`, `?` or `#`. A `:<digits>/` anywhere in the url, such as a path segment in `/files/a:1/x.pdf` or a query holding another url with a port, used to set the port, so the request went to that port. A `user:password@` stayed in the host and an IPv6 literal lost part of its address (`[::1]` became `[:]`), so neither request could reach its host. An IPv6 literal now reaches Node without its brackets, and a url carrying credentials answers 500 and names `options.auth`, where they go. The path goes out as written. (#B1121)'
+time: 2026-11-09T18:17:50+01:00

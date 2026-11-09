@@ -4645,12 +4645,13 @@ function SuperController(options) {
      * These inputs are answered with a 500 through `throwError()`, and the
      * method returns without a request: an `options` that is neither an object
      * nor `null` (a string, a number, a boolean), a url that is not a string, a
-     * scheme other than `http` or `https`, a url without a filename, a filename
-     * (the url's, or `options.file`) without an extension of ASCII word
-     * characters, and an extension `mime.types` does not know (#B1111, #B1114,
-     * #B1118: such an `options`, the first two and a bad `options.file` used to
-     * throw inside this async method, so its promise rejected and the request
-     * got no response).
+     * scheme other than `http` or `https`, a url carrying credentials
+     * (`user:password@`: they go in `options.auth`, #B1121), a url without a
+     * filename, a filename (the url's, or `options.file`) without an extension
+     * of ASCII word characters, and an extension `mime.types` does not know
+     * (#B1111, #B1114, #B1118: such an `options`, the first two and a bad
+     * `options.file` used to throw inside this async method, so its promise
+     * rejected and the request got no response).
      *
      * When the url's host is that of a bundle named in `app.json`'s `proxy` (a
      * `bundle@project` hostname) and the url's port is not that bundle's port,
@@ -4661,7 +4662,14 @@ function SuperController(options) {
      *  an extension, eg.: https://upload.wikimedia.org/wikipedia/fr/2/2f/Firefox_Old_Logo.png;
      *  with no port in it and no `options.port`, the request goes to the
      *  scheme's port, 443 for `https` and 80 for `http` (#B1119: up to 0.7.10 an
-     *  `https` url without a port went to port 80, and the download answered 500)
+     *  `https` url without a port went to port 80, and the download answered 500).
+     *  The host and the port are read from the url's authority, what follows
+     *  `scheme://` up to the first `/`, `?` or `#`, so a `:<digits>` later in
+     *  the path or the query is not a port; an IPv6 literal is written in
+     *  brackets (`https://[::1]:8443/x.pdf`) and reaches Node without them; the
+     *  path goes out as written (#B1121: up to 0.7.10 a `:<digits>/` anywhere in
+     *  the url set the port, a `user:password@` stayed in the host and an IPv6
+     *  literal lost part of its address)
      * @param {object} [options] - read, never changed: the method works on a
      *  copy of it and of its `headers`, so one object can serve several calls
      *  (#B1112: up to 0.7.10 the defaults, the formatted content-disposition
@@ -4679,6 +4687,8 @@ function SuperController(options) {
      * @param {number} [options.fileSize] - sent as `content-length`
      * @param {number} [options.port] - the port to use when the url names none;
      *  a port in the url wins
+     * @param {string} [options.auth] - `user:password`, sent as Basic credentials
+     *  (Node's own request option); credentials written in the url are refused
      * @param {function} [cb] - called with `false` once the resource is piped
      *  to the client, or with the request's error (an unreachable upstream, a
      *  status of 400 or more), in which case nothing is answered for you
@@ -4701,6 +4711,11 @@ function SuperController(options) {
      *  this.proof = function(req, res, next) {
      *      self.downloadFromURL('https://example.com/proofs/'+ req.params.id +'.pdf', DOWNLOAD_OPTIONS);
      *  };
+     * @example
+     *  // credentials go in options.auth, never in the url (#B1121)
+     *  self.downloadFromURL('https://files.example.com/2026/proof.pdf', {
+     *      auth: 'reports:' + process.env.REPORTS_PASSWORD
+     *  });
      * */
     this.downloadFromURL = async function(url, options, cb) {
 
@@ -4795,10 +4810,41 @@ function SuperController(options) {
 
         //defining port
         // console.debug('[ CONTROLLER ][ HTTP/2.0#downloadFromURL ] defining port from: ', url);
-        var port = url.match(/\:\d+\//) || null;
-        if ( port != null ) {
-            port = port[0].match(/\d+/)[0];
-            requestOptions.port = ~~port;
+        // was: var port = url.match(/\:\d+\//) || null;
+        //      if ( port != null ) {
+        //          port = port[0].match(/\d+/)[0];
+        //          requestOptions.port = ~~port;
+        //      }
+        // #B1121 — the port and the host come from the url's authority only: what follows
+        // `scheme://` up to the first `/`, `?` or `#`. The pattern above read `:<digits>/`
+        // anywhere in the url, so a path such as `/files/a:1/x.pdf`, or a query holding
+        // `:9/`, set the port.
+        var urlRest         = ( url.indexOf('://') > -1 ) ? url.substring(url.indexOf('://') + 3) : url;
+        var urlAuthorityEnd = urlRest.search(/[\/?#]/);
+        var urlAuthority    = ( urlAuthorityEnd > -1 ) ? urlRest.substring(0, urlAuthorityEnd) : urlRest;
+        var urlPath         = ( urlAuthorityEnd > -1 ) ? urlRest.substring(urlAuthorityEnd) : '';
+        // a userinfo (`user:password@`) is not part of the host
+        var urlUserinfo     = ( urlAuthority.lastIndexOf('@') > -1 ) ? urlAuthority.substring(0, urlAuthority.lastIndexOf('@')) : null;
+        var urlHost         = urlAuthority.substring(urlAuthority.lastIndexOf('@') + 1);
+        var urlPort         = null;
+        if ( urlHost.charAt(0) == '[' && urlHost.indexOf(']') > -1 ) {
+            // an IPv6 literal goes without its brackets, as in Node's own request options
+            // for a URL; a port may follow the closing bracket
+            urlPort = urlHost.substring(urlHost.indexOf(']') + 1);
+            urlHost = urlHost.substring(1, urlHost.indexOf(']'));
+            urlPort = ( /^\:\d+$/.test(urlPort) ) ? urlPort.substring(1) : null;
+        } else if ( /\:\d*$/.test(urlHost) ) {
+            urlPort = urlHost.substring(urlHost.lastIndexOf(':') + 1) || null;
+            urlHost = urlHost.substring(0, urlHost.lastIndexOf(':'));
+        }
+        if ( urlPort != null ) {
+            requestOptions.port = ~~urlPort;
+        }
+        // credentials do not go in a url (RFC 3986 deprecates `user:password` there, and the
+        // Fetch standard refuses such a url): `options.auth` carries them
+        if ( urlUserinfo != null ) {
+            self.throwError(local.res, 500, new Error('The url carries credentials (`user:password@`): pass them in `options.auth` instead.'));
+            return;
         }
         // #B1119 — the scheme's port when neither the url nor `options.port` names one
         if ( typeof(requestOptions.port) == 'undefined' || requestOptions.port === null ) {
@@ -4807,9 +4853,13 @@ function SuperController(options) {
 
         // defining hostname & path
         // replaced: new RegExp(scheme + '://') — use string replace (#P1)
-        var parts = url.replace(scheme + '://', '').split('/');
-        requestOptions.host = parts[0].replace(/\:\d+/, '');
-        requestOptions.path = '/' + parts.splice(1).join('/');
+        // was: var parts = url.replace(scheme + '://', '').split('/');
+        //      requestOptions.host = parts[0].replace(/\:\d+/, '');
+        //      requestOptions.path = '/' + parts.splice(1).join('/');
+        // #B1121 — that host kept a userinfo (`u:p@host`) and cut an IPv6 literal
+        // (`[::1]` became `[:]`); the path is the rest of the url, sent as written
+        requestOptions.host = urlHost;
+        requestOptions.path = ( urlPath.charAt(0) == '/' ) ? urlPath : '/' + urlPath;
 
         // check for protocol upgrade
         // Compare with current proxy list if available
