@@ -9,11 +9,18 @@
  * before the merge; every other value it holds (an http.Agent, TLS buffers, a lookup function,
  * an AbortSignal) is passed on as it is.
  *
+ * #B1118 — an `options` that is neither an object nor `null` (a string, a number, a boolean)
+ * came back from lib/merge as it was, so `requestOptions.headers` stayed undefined and the
+ * header write threw inside the async method: the promise rejected and the request got no
+ * response. It now answers 500 through throwError. `null` downloads with the defaults, as
+ * before, and a function in the options position (`self.downloadFromURL(url, cb)`) is copied
+ * like an object: nothing is written onto it, and the download goes ahead.
+ *
  * The method runs for real through `createTestInstance` against an in-process upstream that
  * records what each request carried; `http.get` is wrapped for this file to read the request
- * options that reach it; §01–§04 replace throwError with a recorder. Arms marked CONTROL pin
- * unchanged behaviour and pass on the pre-fix bytes too. §06 pins the source with its comment
- * lines stripped.
+ * options that reach it. §01–§05 replace throwError with a recorder, and one §05 arm drives the
+ * REAL throwError (the JSON branch). Arms marked CONTROL pin unchanged behaviour and pass on the
+ * pre-fix bytes too. §06 pins the source with its comment lines stripped.
  *
  * Seam: GINA_B1112_CONTROLLER — the controller module to require (a pre-fix copy must sit
  * beside the real file so its relative requires resolve).
@@ -159,6 +166,19 @@ function assertDownloaded(out) {
     assert.equal(out.settled, 'resolved', 'the method settles (got: ' + out.settled + ')');
     assert.equal(out.thrown, null, 'no throwError');
     assert.equal(out.body, 'UPBYTES', 'the upstream bytes reached the client');
+}
+
+/**
+ * The answer every refused input must get: a settled call, one 500 through throwError with
+ * the given message, no upstream request, and an ended response.
+ *
+ * @inner
+ */
+function assertRefused(out, message) {
+    assert.equal(out.settled, 'resolved', 'the method must settle, not reject (pre-fix: ' + out.settled + ')');
+    assert.deepEqual(out.thrown, { code: 500, message: message });
+    assert.equal(out.upstream.length, 0, 'no upstream request');
+    assert.equal(out.finished, true, 'the response ended');
 }
 
 function cd(name) { return 'attachment; filename="' + name + '"'; }
@@ -327,6 +347,60 @@ describe('04 - CONTROL: inputs that worked before keep their answer', function (
 });
 
 
+// ── 05 — #B1118: an options that is neither an object nor null ───────────────
+
+describe('05 - #B1118: an options that is neither an object nor null answers 500 through throwError', function () {
+
+    [['a string', 'foo', 'string'], ['a number', 42, 'number'], ['true', true, 'boolean']].forEach(function (c) {
+        it(c[0], async function () {
+            assertRefused(await drive(upUrl('proof.pdf'), c[1], 'REQ-20'), '`options` must be an object, got ' + c[2] + '.');
+        });
+    });
+
+    it('a function in the options position is copied like an object: the download goes ahead, nothing is written onto it', async function () {
+        var fn = function () {};
+        var out = await drive(upUrl('proof.pdf'), fn, 'REQ-21');
+        assertDownloaded(out);
+        assert.equal(out.headers['content-disposition'], cd('proof.pdf'));
+        assert.deepEqual(Object.keys(fn), [], 'nothing written onto the function');
+    });
+
+    it('through the real throwError (the JSON branch): the client gets a 500 body', async function () {
+        var status = null, body = null;
+        var res = {
+            statusCode: 200, headersSent: false,
+            setHeader: function () {}, getHeader: function () {},
+            getHeaders: function () { return {}; }, removeHeader: function () {},
+            writeHead: function (code) { status = code; },
+            end: function (chunk) { body = (chunk == null) ? '' : String(chunk); }
+        };
+        var inst = SuperController.createTestInstance({
+            req: { url: '/x', method: 'GET', routing: { rule: 'r@b', param: { control: 'action' } },
+                params: {}, get: {}, post: {}, headers: { 'user-agent': 'node-test', 'accept-language': 'en' } },
+            res: res, next: function () {},
+            options: { rule: 'r', control: 'action', encoding: 'utf8', isXMLRequest: true, isUsingTemplate: true, conf: CONF }
+        });
+        inst.getConfig = function () { return {}; };
+        var origError = console.error;
+        console.error = function () {}; // the #ERRREF pairing line
+        var settled = 'pending';
+        try {
+            await Promise.resolve(inst.downloadFromURL(upUrl('proof.pdf'), 'foo')).then(
+                function () { settled = 'resolved'; },
+                function (e) { settled = 'rejected: ' + (e && e.message); }
+            );
+        } finally {
+            console.error = origError;
+        }
+        var json = null;
+        try { json = JSON.parse(body); } catch (e) { json = null; }
+        assert.equal(settled, 'resolved', 'pre-fix: ' + settled);
+        assert.equal(status, 500);
+        assert.equal(json && json.message, '`options` must be an object, got string.');
+    });
+});
+
+
 // ── 06 — source pins (comment lines stripped) ────────────────────────────────
 
 /**
@@ -358,5 +432,14 @@ describe('06 - #B1112 source: the options are copied before the merge', function
         assert.equal(countOf(b.code, 'opt = Object.assign({}, options);'), 1);
         assert.equal(countOf(b.code, 'opt.headers = Object.assign({}, opt.headers);'), 1);
         assert.equal(countOf(b.code, 'opt = merge(opt, defaultOptions);'), 1);
+    });
+});
+
+describe('06b - #B1118 source: no code line merges into the caller\'s options', function () {
+
+    it('the old merge survives in comments only', function () {
+        var b = downloadBody();
+        assert.ok(countOf(b.raw, 'merge(options, defaultOptions)') >= 1, 'the `was:` comment holds it (the strip is checked)');
+        assert.equal(countOf(b.code, 'merge(options, defaultOptions)'), 0);
     });
 });

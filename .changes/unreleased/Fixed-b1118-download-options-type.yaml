@@ -1,0 +1,3 @@
+kind: Fixed
+body: '`self.downloadFromURL(url, options)` now answers a 500 through `throwError()` when `options` is a string, a number, a boolean or another primitive. Such a value made the method throw inside its promise, so the request got no response. `null` downloads with the defaults, as before, and a function in that position, as in `self.downloadFromURL(url, cb)`, is copied like an object: nothing is written onto it, and the download goes ahead as before. (#B1118)'
+time: 2026-11-09T09:25:49+01:00

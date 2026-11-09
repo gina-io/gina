@@ -4643,12 +4643,14 @@ function SuperController(options) {
      *        This will convert the regular HTTP Request to an XML Request
      *
      * These inputs are answered with a 500 through `throwError()`, and the
-     * method returns without a request: a url that is not a string, a scheme
-     * other than `http` or `https`, a url without a filename, a filename (the
-     * url's, or `options.file`) without an extension of ASCII word characters,
-     * and an extension `mime.types` does not know (#B1111, #B1114: the first
-     * two and a bad `options.file` used to throw inside this async method, so
-     * its promise rejected and the request got no response).
+     * method returns without a request: an `options` that is neither an object
+     * nor `null` (a string, a number, a boolean), a url that is not a string, a
+     * scheme other than `http` or `https`, a url without a filename, a filename
+     * (the url's, or `options.file`) without an extension of ASCII word
+     * characters, and an extension `mime.types` does not know (#B1111, #B1114,
+     * #B1118: such an `options`, the first two and a bad `options.file` used to
+     * throw inside this async method, so its promise rejected and the request
+     * got no response).
      *
      * @param {string} url - an `http` or `https` url ending in a filename with
      *  an extension, eg.: https://upload.wikimedia.org/wikipedia/fr/2/2f/Firefox_Old_Logo.png
@@ -4656,7 +4658,9 @@ function SuperController(options) {
      *  copy of it and of its `headers`, so one object can serve several calls
      *  (#B1112: up to 0.7.10 the defaults, the formatted content-disposition
      *  and the forwarded headers were written into it, so a second call given
-     *  the same object went out under the first one's name and request id)
+     *  the same object went out under the first one's name and request id);
+     *  `null` takes the defaults, and a function in its place, as in
+     *  `downloadFromURL(url, cb)`, is copied the same way and not called (#B1118)
      * @param {string} [options.file] - the name the client saves the download
      *  as, in place of the url's; it must end in an extension of ASCII word
      *  characters (`.pdf`, not `.été`), which gives the content type
@@ -4719,14 +4723,20 @@ function SuperController(options) {
         // `headers`, the one nested object written below; every other value it holds (an
         // http.Agent, TLS buffers, a lookup function) is passed on as it is.
         var opt = defaultOptions;
-        if ( options !== null && typeof(options) == 'object' ) {
+        // #B1118 — a function in the options position (`downloadFromURL(url, cb)`) is
+        // copied like an object, so nothing is written onto it; `null` takes the defaults
+        if ( options !== null && ( typeof(options) == 'object' || typeof(options) == 'function' ) ) {
             opt = Object.assign({}, options);
             if ( opt.headers && typeof(opt.headers) == 'object' ) {
                 opt.headers = Object.assign({}, opt.headers);
             }
             opt = merge(opt, defaultOptions);
-        } else if ( typeof(options) != 'undefined' ) {
-            opt = merge(options, defaultOptions);
+        } else if ( typeof(options) != 'undefined' && options !== null ) {
+            // #B1118 — a string, a number or a boolean came back from lib/merge as it was, so
+            // `requestOptions.headers` stayed undefined and the header write below threw inside
+            // this async method: the promise rejected and the request got no response
+            self.throwError(local.res, 500, new Error('`options` must be an object, got '+ typeof(options) +'.'));
+            return;
         }
 
         // replaced: for...in + regex test — use Object.keys() + string checks (#P22)
