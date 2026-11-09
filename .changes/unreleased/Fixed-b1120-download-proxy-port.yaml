@@ -1,0 +1,3 @@
+kind: Fixed
+body: '`self.downloadFromURL(url)` no longer answers a 500 when the url''s host is that of a bundle named in `app.json`''s `proxy` (a `bundle@project` hostname) and the url''s port differs from that bundle''s. The override meant to send such a request to the bundle''s port replaced the host with the port number instead, so the request was never made. The request now goes to the bundle''s port. (#B1120)'
+time: 2026-11-09T12:32:13+01:00

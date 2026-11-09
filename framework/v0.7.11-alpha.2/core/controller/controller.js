@@ -4652,6 +4652,11 @@ function SuperController(options) {
      * throw inside this async method, so its promise rejected and the request
      * got no response).
      *
+     * When the url's host is that of a bundle named in `app.json`'s `proxy` (a
+     * `bundle@project` hostname) and the url's port is not that bundle's port,
+     * the request goes to the bundle's port (#B1120: up to 0.7.10 this override
+     * replaced the host with the port number, and the method answered 500).
+     *
      * @param {string} url - an `http` or `https` url ending in a filename with
      *  an extension, eg.: https://upload.wikimedia.org/wikipedia/fr/2/2f/Firefox_Old_Logo.png;
      *  with no port in it and no `options.port`, the request goes to the
@@ -4828,7 +4833,10 @@ function SuperController(options) {
                     ) {
                         // Override
                         console.info("Overriding port to fit protocol upgrade: "+ requestOptions.port +" -> "+ bundleObj.port);
-                        requestOptions.host = bundleObj.port
+                        // was: requestOptions.host = bundleObj.port
+                        // #B1120 — the host became the port number, so the request was never made and the
+                        // method answered 500 (« The "options.host" property must be of type string »)
+                        requestOptions.port = bundleObj.port;
                         break;
                     }
                 }

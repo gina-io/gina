@@ -7,6 +7,11 @@
  * download answered 500. The port now follows the scheme when neither the url nor
  * `options.port` gives one: 443 for `https`, 80 for `http`.
  *
+ * #B1120 — the « protocol upgrade » override, meant to send a url aimed at the host of an
+ * `app.json` `proxy` entry (`bundle@project`) on another port to that bundle's port, set the
+ * host to the port number instead: the request was never made and the method answered 500.
+ * It now sets the port.
+ *
  * The method runs for real through `createTestInstance` against two in-process servers on
  * 127.0.0.1 ephemeral ports: a TLS server (a throwaway self-signed certificate made with
  * openssl, trusted through `options.ca`, so certificate verification stays on) and a plain HTTP
@@ -15,8 +20,8 @@
  * and records it, and `http.get` / `https.get` are wrapped for this file to read the options
  * that reach them, to answer a `.invalid` host themselves, and to refuse a request to 127.0.0.1
  * on no port, 80 or 443 that carries no mapping agent. throwError is replaced by a recorder.
- * Arms marked CONTROL pin unchanged behaviour and pass on the pre-fix bytes too. §04 pins the
- * source with its comment lines stripped.
+ * Arms marked CONTROL pin unchanged behaviour and pass on the pre-fix bytes too. §04 and §04b
+ * pin the source with its comment lines stripped.
  *
  * Seam: GINA_B1119_CONTROLLER — the controller module to require (a pre-fix copy must sit
  * beside the real file so its relative requires resolve).
@@ -30,6 +35,7 @@ var http     = require('node:http');
 var https    = require('node:https');
 var nodePath = require('node:path');
 var EventEmitter = require('node:events');
+var net      = require('node:net');
 var { Writable } = require('node:stream');
 var { execFileSync } = require('node:child_process');
 
@@ -99,7 +105,7 @@ function selfSigned() {
     }
 }
 
-var TLS = null, tlsSrv = null, httpSrv = null, P = 0, Q = 0;
+var TLS = null, tlsSrv = null, httpSrv = null, P = 0, Q = 0, CLOSED = 0;
 var tlsSeen = [], httpSeen = [], httpConns = 0, gets = [];
 var origGet = null, origHttpsGet = null;
 
@@ -179,7 +185,12 @@ before(function (t, ready) {
     httpSrv.on('connection', function () { httpConns++; });
     tlsSrv.listen(0, '127.0.0.1', function () {
         P = tlsSrv.address().port;
-        httpSrv.listen(0, '127.0.0.1', function () { Q = httpSrv.address().port; ready(); });
+        httpSrv.listen(0, '127.0.0.1', function () {
+            Q = httpSrv.address().port;
+            // a port nothing listens on: bound, read, closed
+            var tmp = net.createServer();
+            tmp.listen(0, '127.0.0.1', function () { CLOSED = tmp.address().port; tmp.close(ready); });
+        });
     });
 });
 after(function () {
@@ -426,6 +437,37 @@ describe('03 - CONTROL: an app.proxy entry the url does not ask to override keep
 });
 
 
+// ── 03b — #B1120 ─────────────────────────────────────────────────────────────
+
+describe('03b - #B1120: a url aimed at a proxied bundle\'s host on another port goes to that bundle\'s port', function () {
+
+    it('the url names :443, the bundle listens on another port: the request goes to the bundle\'s port', async function () {
+        var out = await drive('https://127.0.0.1:443/proof.pdf', { agent: tlsAgent(), ca: TLS.cert },
+            { app: APP, envConf: envConf('127.0.0.1', P) });
+        assert.equal(out.thrown, null, 'no throwError (pre-fix: the host became the port number; got: ' + JSON.stringify(out.thrown) + ')');
+        assert.deepEqual(out.asked, [P]);
+        assertDownloaded(out, 'TLSBYTES');
+    });
+
+    it('the url names no port: the request goes to the bundle\'s port', async function () {
+        var out = await drive('https://127.0.0.1/proof.pdf', { agent: tlsAgent(), ca: TLS.cert },
+            { app: APP, envConf: envConf('127.0.0.1', P) });
+        assert.deepEqual(out.asked, [P]);
+        assertDownloaded(out, 'TLSBYTES');
+    });
+
+    it('the bundle\'s port is closed: the request fails at once with ECONNREFUSED', async function () {
+        var out = await drive('https://127.0.0.1:443/proof.pdf', { agent: tlsAgent(), ca: TLS.cert },
+            { app: APP, envConf: envConf('127.0.0.1', CLOSED) });
+        assert.deepEqual(out.asked, [CLOSED], 'the request went to the bundle\'s port');
+        assert.equal(out.settled, 'resolved');
+        assert.ok(out.thrown && out.thrown.code === 500, 'a 500 through throwError');
+        assert.match(out.thrown.message, /ECONNREFUSED/);
+        assert.ok(out.ms < 2000, 'settled in ' + out.ms + ' ms');
+    });
+});
+
+
 // ── 04 — source ──────────────────────────────────────────────────────────────
 
 /**
@@ -460,5 +502,15 @@ describe('04 - #B1119 source', function () {
     it('the port follows the scheme when neither the url nor the options give one', function () {
         var b = downloadBody();
         assert.equal(countOf(b.code, "requestOptions.port = ( scheme == 'https' ) ? 443 : 80;"), 1);
+    });
+});
+
+describe('04b - #B1120 source', function () {
+
+    it('the protocol-upgrade block sets the port, not the host', function () {
+        var b = downloadBody();
+        assert.ok(countOf(b.raw, 'requestOptions.host = bundleObj.port') >= 1, 'the `was:` comment holds it (the strip is checked)');
+        assert.equal(countOf(b.code, 'requestOptions.host = bundleObj.port'), 0);
+        assert.equal(countOf(b.code, 'requestOptions.port = bundleObj.port'), 1);
     });
 });
