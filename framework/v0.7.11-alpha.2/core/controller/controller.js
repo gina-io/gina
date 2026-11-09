@@ -45,6 +45,61 @@ function ownCount(container) {
 }
 
 /**
+ * #B1122 — the status `redirect()` answers with, read from `param.code` of the route object the
+ * redirect form leaves on the request: the redirect route itself; for `self.redirect(url)` and
+ * `self.redirect('<route>@<bundle>')`, the route that dispatched the action; for a relative path,
+ * the route its matcher resolves, when the matcher runs.
+ *
+ * A route that binds a URL segment under the name `code` (`"code": ":code"`, the binding shape the
+ * routing guide teaches for any key) keeps the placeholder text there, because `req.routing.param`
+ * is the raw routing config. Over HTTP/1.1 `writeHead(':code')` threw inside the async method, so
+ * every redirect from that route answered 500; over HTTP/2 the status became 200, a page showing
+ * the redirect's JSON body instead of a redirect.
+ *
+ * Only the five statuses whose Location the client follows (RFC 9110 §15.4: 301, 302, 303, 307,
+ * 308) are honoured, read with the coercion `writeHead` applies (`value | 0`), so every value that
+ * redirected before still does (`302`, `"302"`). Anything else answers the documented default,
+ * 301; a non-empty one is logged once per route and value, so a mistyped redirect route shows in
+ * the log. An absent, empty or zero `code` is the default, silently.
+ *
+ * @inner
+ * @param {*} value - `req.routing.param.code`
+ * @param {string} [rule] - the route's name, for the log line
+ * @returns {number} 301, 302, 303, 307 or 308
+ *
+ * @example
+ * redirectStatus(302, 'old@public');      // 302
+ * redirectStatus('307', 'old@public');    // 307
+ * redirectStatus(':code', 'item@public'); // 301, logged once for this route and value
+ * redirectStatus(undefined);              // 301
+ */
+var REDIRECT_STATUSES = [301, 302, 303, 307, 308];
+var redirectStatusLogged = {};
+function redirectStatus(value, rule) {
+    var status = 0;
+    try {
+        status = value | 0;
+    } catch (coerceErr) {
+        // a value with no primitive form (only code can set one) is not a status either
+        status = 0;
+    }
+    if ( REDIRECT_STATUSES.indexOf(status) > -1 ) {
+        return status;
+    }
+    if ( value ) {
+        var shown = null;
+        try { shown = JSON.stringify(value); } catch (showErr) { shown = typeof(value); }
+        var key = String(rule) +'|'+ shown;
+        if ( !redirectStatusLogged[key] ) {
+            redirectStatusLogged[key] = true;
+            console.warn('[ Controller ] redirect(): route `'+ rule +'` declares `param.code` '+ shown +', which is not a redirect status (301, 302, 303, 307 or 308): answering 301.'
+                + ( ( typeof(value) == 'string' && value.charAt(0) == ':' ) ? ' A URL segment bound under the name `code` keeps its placeholder text there: bind it under another name.' : '' ));
+        }
+    }
+    return 301;
+}
+
+/**
  * #B830 (2026-10-09) — render the control characters of a value as visible escapes before
  * it is written into a log or error message, so a client-supplied value cannot forge a
  * physical log line (CWE-117). The escaped set: C0 (U+0000-U+001F), DEL and C1
@@ -3841,7 +3896,12 @@ function SuperController(options) {
      * OR
      * { "control": "redirect", "url": "http://home@public/production", "ignoreWebRoot": true }
      *
-     * if you are free to use the redirection [ code ] of your choice, we've set it to 301 by default
+     * Set the status with [ code ]: 301, 302, 303, 307 or 308 (default 301). Any other value answers
+     * 301 and is logged once per route and value (#B1122: up to 0.7.10 the value was sent as it was,
+     * so the placeholder text a URL segment bound under the name `code` leaves there made writeHead
+     * throw, a 500 over HTTP/1.1, and went out as a 200 page over HTTP/2). The method form (2) reads
+     * [ code ] from the route that dispatched the action for a URL or a route name, and from the
+     * route a relative path resolves to when its matcher runs.
      *
      * Add [ keep-params ] to carry the incoming request's query string onto the
      * redirect target (#B352). Default is `false`: the target is used verbatim and the
@@ -4081,7 +4141,11 @@ function SuperController(options) {
 
         var path        = originalUrl || req.routing.param.path || '';
         var url         = req.routing.param.url;
-        var code        = req.routing.param.code || 301;
+        // #B1122 — a URL segment bound under the name `code` (`"code": ":code"`) left its placeholder text in
+        // `param.code`, and that text reached writeHead as the status: a 500 over HTTP/1.1, a 200 page over
+        // HTTP/2. Only a redirect status is honoured now (redirectStatus(), at the top of this file).
+        // was: var code        = req.routing.param.code || 301;
+        var code        = redirectStatus(req.routing.param.code, req.routing.rule || req.routing.name);
 
         var keepParams  = req.routing.param['keep-params'] || false;
 

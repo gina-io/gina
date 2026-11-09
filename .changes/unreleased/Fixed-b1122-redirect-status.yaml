@@ -1,0 +1,3 @@
+kind: Fixed
+body: '`self.redirect()` no longer fails on a route whose `param` block binds a URL segment under the name `code` (`"code": ":code"`). The redirect status is read from `param.code`, which keeps a binding''s placeholder text, so every redirect reading that route sent the status `:code`: over HTTP/1.1 the request answered 500, over HTTP/2 it answered 200 with the redirect''s JSON as the page. `param.code` now sets the status only when it is 301, 302, 303, 307 or 308 (`302` and `"302"` alike); any other value, which was sent as it was, answers 301, the documented default, and is logged once per route and value. (#B1122)'
+time: 2026-11-10T00:39:47+01:00
