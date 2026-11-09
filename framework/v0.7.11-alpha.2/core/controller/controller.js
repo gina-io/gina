@@ -4652,7 +4652,11 @@ function SuperController(options) {
      *
      * @param {string} url - an `http` or `https` url ending in a filename with
      *  an extension, eg.: https://upload.wikimedia.org/wikipedia/fr/2/2f/Firefox_Old_Logo.png
-     * @param {object} [options]
+     * @param {object} [options] - read, never changed: the method works on a
+     *  copy of it and of its `headers`, so one object can serve several calls
+     *  (#B1112: up to 0.7.10 the defaults, the formatted content-disposition
+     *  and the forwarded headers were written into it, so a second call given
+     *  the same object went out under the first one's name and request id)
      * @param {string} [options.file] - the name the client saves the download
      *  as, in place of the url's; it must end in an extension of ASCII word
      *  characters (`.pdf`, not `.été`), which gives the content type
@@ -4676,6 +4680,13 @@ function SuperController(options) {
      * @example
      *  // displayed by the browser instead of saved
      *  self.downloadFromURL('https://example.com/brand/logo.png', { contentDisposition: 'inline' });
+     * @example
+     *  // one options object kept at module level serves every request: each
+     *  // download keeps its own name and request id (#B1112)
+     *  var DOWNLOAD_OPTIONS = { contentType: 'application/pdf' };
+     *  this.proof = function(req, res, next) {
+     *      self.downloadFromURL('https://example.com/proofs/'+ req.params.id +'.pdf', DOWNLOAD_OPTIONS);
+     *  };
      * */
     this.downloadFromURL = async function(url, options, cb) {
 
@@ -4700,7 +4711,23 @@ function SuperController(options) {
             headers: {}
         };
 
-        var opt = ( typeof(options) != 'undefined' ) ? merge(options, defaultOptions) : defaultOptions;
+        // was: var opt = ( typeof(options) != 'undefined' ) ? merge(options, defaultOptions) : defaultOptions;
+        // #B1112 — lib/merge fills and returns its target, so the caller's own object became
+        // `opt`: the formatted content-disposition and the forwarded headers (x-request-id…)
+        // were written into it, and a second call given the same object went out under the
+        // first one's filename and request id. An object is copied first, with its own copy of
+        // `headers`, the one nested object written below; every other value it holds (an
+        // http.Agent, TLS buffers, a lookup function) is passed on as it is.
+        var opt = defaultOptions;
+        if ( options !== null && typeof(options) == 'object' ) {
+            opt = Object.assign({}, options);
+            if ( opt.headers && typeof(opt.headers) == 'object' ) {
+                opt.headers = Object.assign({}, opt.headers);
+            }
+            opt = merge(opt, defaultOptions);
+        } else if ( typeof(options) != 'undefined' ) {
+            opt = merge(options, defaultOptions);
+        }
 
         // replaced: for...in + regex test — use Object.keys() + string checks (#P22)
         var requestOptions = {};

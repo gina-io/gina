@@ -1,0 +1,3 @@
+kind: Fixed
+body: '`self.downloadFromURL(url, options)` no longer writes into the `options` object it is given. It merged its defaults into that object, then wrote the formatted `Content-Disposition` and the forwarded headers (`content-type`, `x-request-id`) into it, so one object passed to two calls, such as an options object kept at module level, sent the second download under the first one''s filename and forwarded the first request''s `x-request-id` upstream. The method now works on a copy of the object and of its `headers`; every other value it holds (an `http.Agent`, TLS buffers, a `lookup` function, an `AbortSignal`) is passed on as it is. (#B1112)'
+time: 2026-11-09T09:25:49+01:00
