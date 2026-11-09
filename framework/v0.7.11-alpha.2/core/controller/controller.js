@@ -4653,7 +4653,10 @@ function SuperController(options) {
      * got no response).
      *
      * @param {string} url - an `http` or `https` url ending in a filename with
-     *  an extension, eg.: https://upload.wikimedia.org/wikipedia/fr/2/2f/Firefox_Old_Logo.png
+     *  an extension, eg.: https://upload.wikimedia.org/wikipedia/fr/2/2f/Firefox_Old_Logo.png;
+     *  with no port in it and no `options.port`, the request goes to the
+     *  scheme's port, 443 for `https` and 80 for `http` (#B1119: up to 0.7.10 an
+     *  `https` url without a port went to port 80, and the download answered 500)
      * @param {object} [options] - read, never changed: the method works on a
      *  copy of it and of its `headers`, so one object can serve several calls
      *  (#B1112: up to 0.7.10 the defaults, the formatted content-disposition
@@ -4669,6 +4672,8 @@ function SuperController(options) {
      * @param {string} [options.contentType] - replaces the type `mime.types`
      *  gives the extension (the extension must still be known)
      * @param {number} [options.fileSize] - sent as `content-length`
+     * @param {number} [options.port] - the port to use when the url names none;
+     *  a port in the url wins
      * @param {function} [cb] - called with `false` once the resource is piped
      *  to the client, or with the request's error (an unreachable upstream, a
      *  status of 400 or more), in which case nothing is answered for you
@@ -4709,7 +4714,9 @@ function SuperController(options) {
             // set to false to ignore certificate verification
             rejectUnauthorized: true,
             //responseType: 'blob',
-            port: 80,
+            // was: port: 80,
+            // #B1119 — with `port: 80` here an `https` url that names no port went to port 80
+            // (Node's own 443 applies only when no port is given); see « defining port » below
             method: 'GET',
             keepAlive: true,
             headers: {}
@@ -4787,6 +4794,10 @@ function SuperController(options) {
         if ( port != null ) {
             port = port[0].match(/\d+/)[0];
             requestOptions.port = ~~port;
+        }
+        // #B1119 — the scheme's port when neither the url nor `options.port` names one
+        if ( typeof(requestOptions.port) == 'undefined' || requestOptions.port === null ) {
+            requestOptions.port = ( scheme == 'https' ) ? 443 : 80;
         }
 
         // defining hostname & path
