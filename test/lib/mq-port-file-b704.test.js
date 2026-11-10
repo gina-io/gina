@@ -29,6 +29,10 @@
  * port in between: the child then logs « `127.0.0.1` is already running on port [ N ] » and its MQ listener
  * never starts (measured once on CI, 2026-11-08, Node 24, port 33303). § 02 retries such a run on a fresh port,
  * up to MQ_ATTEMPTS; any other outcome is judged as before.
+ *
+ * #B1127 — bin/cli writes the port file with fs.writeFileSync, which creates it empty before it writes the port,
+ * so a poll that lands in between reads '' (measured once in a loaded full suite, 2026-10-24: « holding the MQ
+ * port », '' !== '<port>'). The poll records the file only once it holds a value.
  */
 
 var assert   = require('node:assert');
@@ -100,7 +104,10 @@ function runChild(mqPort, runDir) {
             if ( files.length ) {
                 var p = path.join(runDir, files[0]);
                 try {
-                    seen = { name: files[0], mode: (fs.statSync(p).mode & 0o777).toString(8), content: fs.readFileSync(p, 'utf8') };
+                    var content = fs.readFileSync(p, 'utf8');
+                    if ( content !== '' ) { // #B1127 — created empty, then written: a read in between returns ''
+                        seen = { name: files[0], mode: (fs.statSync(p).mode & 0o777).toString(8), content: content };
+                    }
                 } catch (e) { /* the child may be mid-write or exiting; keep polling */ }
             }
         }
