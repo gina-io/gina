@@ -2630,6 +2630,15 @@ function ServerEngineClass(options) {
                 if ( _xfp.length > 255 || !/^[A-Za-z0-9._~\/%-]*$/.test(_xfp) ) {
                     _xfp = '';
                 }
+                // #B1129 — a mount path is a PATH. A value opening with two slashes passes
+                // the charset above but is a protocol-relative URL: once it is the public
+                // webroot (`window.__ginaWebroot`, `gina.config.webroot`), the browser
+                // resolves the routing-table fetch and the gina stylesheet link against the
+                // host it names (`//evil.example` → https://evil.example/…). Refused like a
+                // malformed value: the request falls back to the bundle's internal webroot.
+                if ( _xfp.charAt(0) === '/' && _xfp.charAt(1) === '/' ) {
+                    _xfp = '';
+                }
                 // #B679 — the length+charset gate above runs BEFORE this trim: `/\/+$/` backtracks
                 // quadratically on a long run of slashes (measured on a booted bundle: a 15 KB
                 // header ~100–170 ms of CPU per request; the regex alone ~8 s at the 64 KB the
