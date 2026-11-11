@@ -24,6 +24,8 @@ var preloadHints  = require('./preload-hints');
 var renderData    = require('./render-data');
 // #B989 — the request's session block (`page.data.session`), shared by the five HTML delegates.
 var renderSession = require('./render-session');
+// #B1129 — the layout a render assembles reaches swig from memory, never through a shared file.
+var layoutSource  = require('./layout-source');
 // Precompiled regex — avoids per-request RegExp allocation (#P3)
 var blacklistRe       = /[<>]/g;
 
@@ -455,6 +457,14 @@ module.exports = async function render(userData, displayInspector, errOptions, d
         // of an extends template (derived in the extends block, composed into
         // the fragments/ cache parent at the priming + post-asset writes).
         , fragmentBlockRoster = null
+        // #B1129 — whether the render cache is on (read once per render); the raw layout this
+        // render read on the extends path (assembled in memory at the layout read); the
+        // per-render extends target spliced into the template; and the assembled parent swig
+        // compiles from, served by the engine loader's hook at the compile.
+        , _layoutCacheOn      = ( String(self.serverInstance._cacheIsEnabled).toLowerCase() === 'true' )
+        , _layoutSourceRaw    = null
+        , _layoutSourceTarget = null
+        , _layoutSourceText   = null
         , stream            = null
     ;
 
@@ -688,35 +698,41 @@ module.exports = async function render(userData, displayInspector, errOptions, d
                 var newLayoutPath = 'swig' + subFolder + ( (isWithoutLayout) ? '/fragments/' : '/' ) + layoutPath;
                 newLayoutFilename = _(cachePath +'/'+ localOptions.bundle +'/'+ newLayoutPath, true);
 
-                // In dev/cacheless mode we always refresh the cached layout;
-                // in cached mode we only write when it is missing. Previously
-                // the dev branch did rmSync()+writeFile(), opening a gap window
-                // where a concurrent request could observe the file as absent
-                // between two parallel renders and ENOENT at the readFile call
-                // ~340 lines below. The atomic temp+rename pattern below closes
-                // that window: the target is always either the previous
-                // content or the new content, never absent.
-                var shouldWriteLayoutCache = (
-                    String(self.serverInstance._cacheIsEnabled).toLowerCase() !== 'true'
-                    || !fs.existsSync( newLayoutFilename )
-                );
+                // #B1129 — with the render cache off, this render writes nothing here: it reads
+                // the raw layout, assembles it in memory (the layout read further down) and swig
+                // compiles the template against that assembled layout through the engine
+                // loader's hook (`layoutSource`, at the compile). Up to 0.7.10 every cache-off
+                // render wrote the raw layout to the shared cache file, read it back, wrote the
+                // assembled layout over it and swig read that file, so concurrent renders of
+                // pages sharing a layout read one another's file: another request's whispered
+                // values (hostname, webroot, culture …) or no client loader, and on a bind mount
+                // the file found absent mid-rename (the temp+rename of 0.3.12 is atomic on a
+                // local disk only). In cached mode the file is still primed when missing and the
+                // assembled layout persisted after assembly, as before: a later process reads it.
+                // was: var shouldWriteLayoutCache = (
+                // was:     String(self.serverInstance._cacheIsEnabled).toLowerCase() !== 'true'
+                // was:     || !fs.existsSync( newLayoutFilename )
+                // was: );
+                var shouldWriteLayoutCache = ( _layoutCacheOn && !fs.existsSync( newLayoutFilename ) );
 
-                if ( shouldWriteLayoutCache ) {
-                    var newLayoutDir = newLayoutFilename.split(/\//g).slice(0, -1).join('/');
-                    var newLayoutDirObj = new _(newLayoutDir);
-                    if ( !newLayoutDirObj.existsSync() ) {
-                        newLayoutDirObj.mkdirSync()
-                    }
-                    newLayoutDirObj = null;
-                    // #TPL2 — keep the in-root layout cache out of a bundle's git:
-                    // drop a self-ignoring .gitignore ('*') at the cache root so the
-                    // .gina-layout-cache tree never surfaces as untracked in a
-                    // consumer repo (the old out-of-root cache lived under the
-                    // project `cache/` dir consumers already ignore). Written once,
-                    // existsSync-guarded; best-effort.
-                    var _cacheIgnore = cachePath + '/.gitignore';
-                    if ( !fs.existsSync(_cacheIgnore) ) {
-                        try { fs.writeFileSync(_cacheIgnore, '*\n'); } catch (_giErr) { /* best effort */ }
+                if ( shouldWriteLayoutCache || !_layoutCacheOn ) {
+                    if ( shouldWriteLayoutCache ) {
+                        var newLayoutDir = newLayoutFilename.split(/\//g).slice(0, -1).join('/');
+                        var newLayoutDirObj = new _(newLayoutDir);
+                        if ( !newLayoutDirObj.existsSync() ) {
+                            newLayoutDirObj.mkdirSync()
+                        }
+                        newLayoutDirObj = null;
+                        // #TPL2 — keep the in-root layout cache out of a bundle's git:
+                        // drop a self-ignoring .gitignore ('*') at the cache root so the
+                        // .gina-layout-cache tree never surfaces as untracked in a
+                        // consumer repo (the old out-of-root cache lived under the
+                        // project `cache/` dir consumers already ignore). Written once,
+                        // existsSync-guarded; best-effort.
+                        var _cacheIgnore = cachePath + '/.gitignore';
+                        if ( !fs.existsSync(_cacheIgnore) ) {
+                            try { fs.writeFileSync(_cacheIgnore, '*\n'); } catch (_giErr) { /* best effort */ }
+                        }
                     }
                     // [CVE-2023-25345] The layoutPath is extracted from the raw {% extends "..." %}
                     // directive in the template file. Without a boundary check, a template containing
@@ -744,15 +760,19 @@ module.exports = async function render(userData, displayInspector, errOptions, d
                     }
                     else {
                         buffer = await fs.promises.readFile(localOptions.template.html + '/'+ layoutPath);
+                        // #B1129 — this render's raw layout, assembled in memory at the layout read below
+                        _layoutSourceRaw = buffer.toString();
                     }
-                    // Atomic write: temp file + rename. rename(2) on POSIX is
-                    // atomic on the same filesystem, so concurrent readers at
-                    // the post-priming readFile below never see the target
-                    // absent.
-                    var _layoutTmp = newLayoutFilename + '.tmp.' + process.pid + '.' + Date.now() + '.' + Math.random().toString(36).slice(2);
-                    await fs.promises.writeFile(_layoutTmp, buffer);
-                    await fs.promises.rename(_layoutTmp, newLayoutFilename);
-                    _layoutTmp = null;
+                    if ( shouldWriteLayoutCache ) {
+                        // Atomic write: temp file + rename. rename(2) on POSIX is
+                        // atomic on the same filesystem, so concurrent readers at
+                        // the post-priming readFile below never see the target
+                        // absent (on a local disk; a bind mount may show it absent).
+                        var _layoutTmp = newLayoutFilename + '.tmp.' + process.pid + '.' + Date.now() + '.' + Math.random().toString(36).slice(2);
+                        await fs.promises.writeFile(_layoutTmp, buffer);
+                        await fs.promises.rename(_layoutTmp, newLayoutFilename);
+                        _layoutTmp = null;
+                    }
                     buffer = null;
                 }
 
@@ -760,7 +780,13 @@ module.exports = async function render(userData, displayInspector, errOptions, d
                 // search over the whole template let the first hit anywhere win, so a
                 // child naming its layout in a leading comment had the COMMENT rewritten
                 // while the directive kept pointing at the raw, un-assembled layout.
-                _templateContent = spliceExtendsTarget(_templateContent, extendFound, layoutPath, _(cachePath +'/'+ localOptions.bundle +'/'+ newLayoutPath, true) );
+                // #B1129 — the directive names this render's own parent: the cache path plus a
+                // per-render token that names no file, served from memory by the engine loader's
+                // hook at the compile below (it was the bare cache path, read from disk).
+                var _layoutTarget = _(cachePath +'/'+ localOptions.bundle +'/'+ newLayoutPath, true) + layoutSource.token();
+                _templateContent = spliceExtendsTarget(_templateContent, extendFound, layoutPath, _layoutTarget );
+                _layoutSourceTarget = _layoutTarget;
+                _layoutTarget = null;
 
                 // override layout path
                 layoutPath = newLayoutPath;
@@ -780,6 +806,9 @@ module.exports = async function render(userData, displayInspector, errOptions, d
                 // writeCache so the warning repeats on every request until fixed.
                 newLayoutFilename = null;
                 layoutCacheFailed = true;
+                // #B1129 — nothing of this render's layout source survives a failed setup
+                _layoutSourceRaw    = null;
+                _layoutSourceTarget = null;
                 console.warn('[render] Layout cache setup failed: ' + (extendErr.stack||extendErr.message||extendErr));
             }
         }
@@ -1211,7 +1240,10 @@ module.exports = async function render(userData, displayInspector, errOptions, d
                 : undefined;
         };
         // replaced: fs.readFileSync — async read (#P29)
-        layout = await fs.promises.readFile(layoutPath, 'utf8');
+        // #B1129 — an extends render assembles the raw layout it read above, in memory: the cache
+        // file read back here held whatever the last concurrent render had written to it
+        // was: layout = await fs.promises.readFile(layoutPath, 'utf8');
+        layout = ( _layoutSourceRaw !== null ) ? _layoutSourceRaw : await fs.promises.readFile(layoutPath, 'utf8');
         // #B130 upgrade path — in cached mode the layout-cache file persists the
         // INJECTED layout (it is the {% extends %} target swig compiles from) and
         // is only re-primed when missing, so a file written by a pre-#B130 build
@@ -1983,10 +2015,16 @@ module.exports = async function render(userData, displayInspector, errOptions, d
                 var _persistedLayout = ( isWithoutLayout && fragmentBlockRoster !== null )
                     ? fragmentBlockRoster + '\n' + layout
                     : layout;
-                var _layoutTmpAssets = newLayoutFilename + '.tmp.' + process.pid + '.' + Date.now() + '.' + Math.random().toString(36).slice(2);
-                await fs.promises.writeFile(_layoutTmpAssets, _persistedLayout);
-                await fs.promises.rename(_layoutTmpAssets, newLayoutFilename);
-                _layoutTmpAssets = null;
+                // #B1129 — the parent this render compiles from, served from memory at the compile
+                _layoutSourceText = _persistedLayout;
+                // #B1129 — persisted in cached mode only, where a later process reads it back; with
+                // the render cache off nothing is written (it was written on every render)
+                if ( _layoutCacheOn ) {
+                    var _layoutTmpAssets = newLayoutFilename + '.tmp.' + process.pid + '.' + Date.now() + '.' + Math.random().toString(36).slice(2);
+                    await fs.promises.writeFile(_layoutTmpAssets, _persistedLayout);
+                    await fs.promises.rename(_layoutTmpAssets, newLayoutFilename);
+                    _layoutTmpAssets = null;
+                }
                 _persistedLayout = null;
             }
 
@@ -2003,7 +2041,29 @@ module.exports = async function render(userData, displayInspector, errOptions, d
             }
             // #FI — template compilation timing
             var _compileStart = (local._timeline) ? Date.now() : 0;
-            compiledTemplate = swig.compile(_templateContent, mapping);
+            // #B1129 — swig reads the parent through the engine's loader: this render's assembled
+            // layout is registered under its tokened extends target, the template compiles, and
+            // the registration is released. swig.compile is synchronous, so no other render runs
+            // in between. An engine whose loader cannot be hooked registers nothing, and the
+            // token then makes its compile fail instead of reading a file.
+            var _layoutLoader   = ( _layoutSourceTarget !== null && _layoutSourceText !== null && swig && swig.options )
+                ? swig.options.loader
+                : null;
+            var _layoutSourceId = null;
+            if ( _layoutLoader && layoutSource.install(_layoutLoader) ) {
+                _layoutSourceId = _layoutLoader.resolve(_layoutSourceTarget);
+                layoutSource.register(_layoutLoader, _layoutSourceId, _layoutSourceText);
+            }
+            try {
+                compiledTemplate = swig.compile(_templateContent, mapping);
+            } finally {
+                if ( _layoutSourceId !== null ) {
+                    layoutSource.release(_layoutLoader, _layoutSourceId);
+                }
+                _layoutLoader     = null;
+                _layoutSourceId   = null;
+                _layoutSourceText = null;
+            }
             if (_compileStart && local._timeline) {
                 local._timeline.entries.push({
                     label: 'swig-compile', cat: 'template',
