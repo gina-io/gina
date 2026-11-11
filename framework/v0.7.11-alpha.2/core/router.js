@@ -225,6 +225,7 @@ function Router(env, scope) {
      * dedupes on cache hits), so without pruning this long-lived router module
      * accumulates one dead controller `Module` per request, each pinning its
      * whole evaluated exports graph — the dev-mode per-request memory leak.
+     * `requireController()` calls it too, in dev, after its own re-require (#B1126).
      *
      * Local copy of the sweep in `core/server.isaac.js` — the engine-agnostic
      * router cannot depend on an engine module, and the `lib` registry is
@@ -972,10 +973,21 @@ function Router(env, scope) {
              * requireController
              * Allowing another controller (public methods) to be required inside the current controller
              *
+             * Outside development the required controller and the super controller load once per
+             * process, as a routed controller does: later calls reuse the cached modules, so the
+             * required controller's module-level code runs once (#B1126). In development
+             * (`isCacheless`) both modules are evicted and required again on every call, so an edit
+             * shows on the next call, and `pruneDeadModuleChildren()` then drops the evicted copies
+             * from every cached module's `children` (#B32), so they do not accumulate.
+             *
              * @param {string} namespace - Controller namespace
              * @param {object} [options] - Controller options
              *
              * @returns {object} controllerInstance
+             *
+             * @example
+             * // inside an action: build the `billing` namespace controller for this request
+             * var billing = self.requireController('billing', self._options);
              * */
             var requireController = function (namespace, options) {
 
@@ -1001,11 +1013,18 @@ function Router(env, scope) {
 
                 try {
 
-                    //if (isCacheless) {
+                    // #B1126 — outside dev this guard was commented out (b6a1dd6ed, 2022), so every call
+                    // evicted and required both modules again, and each copy stayed alive on this
+                    // module's `children`: about the controller's source size per call. It was commented
+                    // out because the super controller was then read from the require.cache slot, which
+                    // held its exports only after a re-require; #B18 reads require()'s return value below.
+                    // Restored, outside dev both modules load once per process, as a routed controller
+                    // does. The block read: `//if (isCacheless) {` … `//}` around the two deletes.
+                    if (isCacheless) {
                         // Super controller
                         delete require.cache[require.resolve(_(corePath +'/controller/index.js', true))];
                         delete require.cache[require.resolve(filename)];
-                    //}
+                    }
 
                     // #B18 — Same fix as the sibling at L116-127. require() returns
                     // a freshly built Module instance; assigning the exports object
@@ -1014,6 +1033,12 @@ function Router(env, scope) {
 
 
                     var RequiredController  = require(filename);
+
+                    // #B1126 — in dev both modules were just required again: drop the evicted copies
+                    // from every cached module's `children` (#B32), or each call would keep one more.
+                    if (isCacheless) {
+                        pruneDeadModuleChildren();
+                    }
 
                     RequiredController      = inherits(RequiredController, SuperController);
 
