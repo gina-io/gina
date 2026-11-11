@@ -160,21 +160,74 @@ function mapReadError(name, key, err) {
 }
 
 /**
- * Minimal RFC 6266 attachment value for the presigned
- * `response-content-disposition` override. Control characters are stripped
- * (setHeader-injection class — the serving facade strips too; this is the
- * direct-caller defense) and quote/backslash escaped.
+ * The `attachment` value for the presigned `response-content-disposition`
+ * override. Control characters are stripped first (setHeader-injection
+ * class — the serving facade strips too; this is the direct-caller defense),
+ * then the value is built as the in-process download paths build theirs: a
+ * name of printable ASCII keeps the RFC 6266 quoted-string, with `"` and `\`
+ * escaped; any other name, NFC-normalised, gets an all-ASCII `filename`
+ * fallback (accents dropped: NFKD, then U+0300–U+036F removed; `?` for any
+ * other non-ASCII character), then the RFC 8187
+ * `filename*=UTF-8''<percent-encoded>` parameter, which browsers prefer.
+ *
+ * #B1115 — up to 0.7.10 the name went into `filename="…"` raw, and the
+ * provider copies the signed override into its response header. MinIO sent
+ * the UTF-8 bytes unchanged; AWS S3 re-encoded a Latin-1 name as ISO-8859-1
+ * (Chromium and WebKit then save U+FFFD in place of each such letter,
+ * #B1113) and refused any name above U+00FF with `400 InvalidArgument`
+ * (« Header value cannot be represented using ISO-8859-1 »), so the
+ * download failed after the 307. The value is now printable ASCII only.
+ *
+ * A lib-local twin of `formatAttachmentDisposition` in
+ * core/controller/controller.js: lib/storage may not import gina core
+ * (test/lib/storage-import-boundary.test.js), and
+ * test/lib/storage-s3-disposition-b1115.test.js pins this function's output
+ * to that one's on the same name with controls stripped, so a change to one
+ * must be made to the other. Only the control strip differs: it runs first
+ * here, so a tab never reaches the plain form.
  *
  * @inner
  * @param {string} filename - Display filename.
- * @returns {string} The `Content-Disposition` header value.
+ * @returns {string} The `Content-Disposition` header value, printable ASCII only.
+ *
+ * @example
+ * formatDisposition('monthly report.pdf');
+ * // -> 'attachment; filename="monthly report.pdf"'
+ * @example
+ * formatDisposition('résumé.pdf');
+ * // -> 'attachment; filename="resume.pdf"; filename*=UTF-8\'\'r%C3%A9sum%C3%A9.pdf'
  */
 function formatDisposition(filename) {
-    var safe = String(filename)
-        .replace(/[\x00-\x1f\x7f]/g, '')
-        .replace(/\\/g, '\\\\')
-        .replace(/"/g, '\\"');
-    return 'attachment; filename="' + safe + '"';
+    // was: var safe = String(filename)
+    // was:     .replace(/[\x00-\x1f\x7f]/g, '')
+    // was:     .replace(/\\/g, '\\\\')
+    // was:     .replace(/"/g, '\\"');
+    // was: return 'attachment; filename="' + safe + '"';
+    // (#B1115: a non-ASCII name went into the header raw; AWS S3 re-encoded a Latin-1 name
+    // as ISO-8859-1 and answered a 400 for a name above U+00FF)
+    var name = String(filename).replace(/[\x00-\x1f\x7f]/g, '');
+    if ( typeof(name.toWellFormed) == 'function' ) {
+        name = name.toWellFormed();
+    }
+    name = name.normalize('NFC');
+    if ( /^[\t\x20-\x7e]*$/.test(name) ) {
+        return 'attachment; filename="' + name.replace(/[\\"]/g, '\\$&') + '"';
+    }
+    var encoded = null;
+    try {
+        encoded = encodeURIComponent(name);
+    } catch (encodeErr) {
+        // an engine without toWellFormed left a lone surrogate in place
+        encoded = encodeURIComponent(name.replace(/[\uD800-\uDFFF]/g, '�'));
+    }
+    // RFC 8187 attr-char excludes ' ( ) * which encodeURIComponent leaves as they are
+    encoded = encoded.replace(/['()*]/g, function(c) {
+        return '%' + c.charCodeAt(0).toString(16).toUpperCase();
+    });
+    // an all-ASCII fallback (RFC 6266 Appendix D); the quote and backslash escape runs
+    // last, since NFKD maps a fullwidth `"` or `\` to ASCII
+    var fallback = name.normalize('NFKD').replace(/[̀-ͯ]/g, '').replace(/[^\x20-\x7e]/g, '?').replace(/[\\"]/g, '\\$&');
+    return 'attachment; filename="' + fallback + '"; filename*=UTF-8\'\'' + encoded;
 }
 
 /**
@@ -624,6 +677,8 @@ module.exports = function createS3Driver(name, conf, store, deps) {
          *     its fail-closed DOWNGRADED type here, which is what keeps the
          *     stored-XSS guard intact on the offload path)
          *   - `opts.download`/`opts.filename` → `response-content-disposition`
+         *     (built by `formatDisposition`: printable ASCII only, with an
+         *     RFC 8187 `filename*` for a name that is not, #B1115)
          *   - `opts.cacheControl` → `response-cache-control` (the facade's
          *     immutable-per-key default — the redirect itself stays no-store,
          *     the PAYLOAD response carries the caching policy)
