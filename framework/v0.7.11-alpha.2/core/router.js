@@ -969,6 +969,10 @@ function Router(env, scope) {
                 });
             }
 
+            // #B1031 — the options of the request being served, which `requireController()` uses
+            // when a call passes none: a middleware and `setup.js` have no `_options` to pass.
+            var requestOptions = options;
+
             /**
              * requireController
              * Allowing another controller (public methods) to be required inside the current controller
@@ -980,16 +984,34 @@ function Router(env, scope) {
              * shows on the next call, and `pruneDeadModuleChildren()` then drops the evicted copies
              * from every cached module's `children` (#B32), so they do not accumulate.
              *
+             * Without `options` (or with `null`), the controller is built with the options of the
+             * request being served, the object an action passes as `self._options` (#B1031): a
+             * middleware and `setup.js` have no `_options`, so they call it without.
+             *
              * @param {string} namespace - Controller namespace
-             * @param {object} [options] - Controller options
+             * @param {object} [options] - Controller options; defaults to the options of the request
+             *   being served
              *
              * @returns {object} controllerInstance
              *
              * @example
              * // inside an action: build the `billing` namespace controller for this request
              * var billing = self.requireController('billing', self._options);
+             *
+             * @example
+             * // inside a middleware or setup.js: the request's options are used
+             * var billing = self.requireController('billing');
              * */
             var requireController = function (namespace, options) {
+
+                // #B1031 — `options` is optional: without it, the controller is built with the
+                // request's options, as every call that passes them does. The bookkeeping below read
+                // `options.controlRequired` unguarded, so a call without `options` threw a TypeError
+                // there, before the try, since 2017; the no-options branch inside the try (an unwired
+                // `new RequiredController()`) has been unreachable since then and stays so.
+                if ( typeof(options) == 'undefined' || options === null ) {
+                    options = requestOptions;
+                }
 
                 // replaced: per-request process.env lookup — use cached boolean (#P18)
                 var isCacheless = _isDev;
