@@ -11502,8 +11502,9 @@ define('gina', [ 'require', 'lib/merge', 'lib/uuid', 'lib/routing', 'lib/money',
          * level deep, and keys absent from `options` are never removed.
          *
          * N.B.: the framework boot passes the exposed config itself through this
-         * function; that call is a no-op by design. In a child frame inheriting a
-         * parent frame's instance, the inherited handler configures the parent.
+         * function; that call is a no-op by design. Every document has its own
+         * instance (#B1130), so in a frame this configures the frame, never its
+         * parent.
          *
          * @param {object} options - e.g. `{ loadingAttribute: 'data-loading' }`
          *
@@ -11552,20 +11553,28 @@ define('gina', [ 'require', 'lib/merge', 'lib/uuid', 'lib/routing', 'lib/money',
             'money'             : money
         };
 
-        // iframe case — inherit the parent frame's instance when there is one.
-        // #B486 — under a CROSS-ORIGIN parent the named-property read on its
-        // WindowProxy throws SecurityError; construct() is async, so that throw
-        // became an unobserved rejection (core.js discards the promise) and
-        // `ginaloaded` was never dispatched — a silently half-booted client.
-        // Inheritance is optional: skip it, never let it stop the boot.
-        try {
-            if ( typeof(parent.window['gina']) != 'undefined' ) {
-                // inheriting from parent frame instance
-                window['gina'] = merge((window['gina'] || {}), parent.window['gina']);
-            }
-        } catch (crossOriginErr) {
-            // cross-origin parent: no inheritance
-        }
+        // #B1130 — every document boots its OWN instance. A same-origin frame used to
+        // merge its parent frame's instance into its own (the 2019 « iframe case »).
+        // lib/merge keeps the target's values, so the frame kept every per-document
+        // value of the parent: `isFrameworkLoaded` (the frame's own onGinaLoaded then
+        // returned at once and never applied its config, forms, session or stylesheet),
+        // `hasPopinHandler` / `popinContainer` (the popin, validator and nav boots were
+        // skipped, and `new Popin()` looked up the parent's container in the frame's
+        // document and threw), and the parent's popin, validator and setOptions
+        // closures, which act on the parent's document. A gina page carries its own
+        // loader, so nothing needs inheriting; and with no read of `parent.window`, a
+        // cross-origin parent cannot throw here either (#B486: under a CROSS-ORIGIN
+        // parent that read threw SecurityError, an unobserved rejection in this async
+        // construct() that left the client half-booted).
+        // was:
+        // try {
+        //     if ( typeof(parent.window['gina']) != 'undefined' ) {
+        //         // inheriting from parent frame instance
+        //         window['gina'] = merge((window['gina'] || {}), parent.window['gina']);
+        //     }
+        // } catch (crossOriginErr) {
+        //     // cross-origin parent: no inheritance
+        // }
         $instance = merge( (window['gina'] || {}), $instance);
 
         registerEvents(this.plugin, events);
