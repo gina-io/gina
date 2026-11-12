@@ -70,6 +70,37 @@ var STYLESHEETS_PLACED_RE   = /\{\{\s+(page\.view\.stylesheets)(\s*\|\s*safe)?\s
 var SCRIPTS_PLACED_RE       = /\{\{ page\.view\.scripts(\s*\|\s*safe)? \}\}/;
 
 /**
+ * #B1131 — the whispered keys whose value is computed for each request (`controller.js`): the
+ * route's section, the public hostname and webroot (built from `X-Forwarded-Host` and
+ * `X-Forwarded-Prefix`), the proxy host, the negotiated culture and its validation labels.
+ * They are left out of the dictionary the layout is whispered with, so their
+ * `{{ page.… }}` placeholders reach swig, which renders them from each request's `data.page`.
+ * The layout is compiled once per view and, with the render cache on, persisted under
+ * `.gina-layout-cache` and read back by every later compile: up to 0.7.10 a value whispered
+ * into it reached every later render, and every later process, of every view sharing the
+ * layout. Every other key is per bundle or per process and is still whispered. The http/2
+ * asset scan (`getAssets()`) still reads a copy whispered with every key, so a layout URL
+ * written with `{{ page.environment.webroot }}` keeps its preload hint.
+ *
+ * @constant
+ * @type {Object<string, boolean>}
+ * @private
+ * @example
+ * WHISPER_PER_REQUEST_KEYS['page.environment.hostname']; // true: rendered by swig per request
+ * WHISPER_PER_REQUEST_KEYS['page.environment.bundle'];   // undefined: whispered, as before
+ */
+var WHISPER_PER_REQUEST_KEYS = Object.freeze({
+    'page.section'                     : true,
+    'page.environment.isProxyHost'     : true,
+    'page.environment.proxyHost'       : true,
+    'page.environment.proxyHostname'   : true,
+    'page.environment.hostname'        : true,
+    'page.environment.webroot'         : true,
+    'page.environment.culture'         : true,
+    'page.environment.validatorLabels' : true
+});
+
+/**
  * #B830 (2026-10-09) — render the control characters of a value (C0 U+0000-U+001F, DEL and
  * C1 U+007F-U+009F, the line separators U+2028 / U+2029) as visible escapes (`\n`/`\r`/`\t`,
  * else `\uXXXX`) before it is concatenated into a log message. A template file name can come
@@ -714,6 +745,29 @@ module.exports = async function render(userData, displayInspector, errOptions, d
                 // was:     || !fs.existsSync( newLayoutFilename )
                 // was: );
                 var shouldWriteLayoutCache = ( _layoutCacheOn && !fs.existsSync( newLayoutFilename ) );
+                // #B1131 — up to 0.7.10 the persisted layout held the first render's per-request
+                // values resolved (its hostname, webroot, culture …), and cached mode reads an
+                // existing file back at every compile without re-priming it. Such a file carries
+                // gina's client loader without the loader's `{{ page.environment.hostname }}`
+                // placeholder: it is re-primed from the raw layout like a missing one, once, since
+                // the layout persisted below keeps that placeholder. A layout without the loader is
+                // never re-primed, and an unreadable file is left to the read below, as before.
+                if ( _layoutCacheOn && !shouldWriteLayoutCache ) {
+                    var _persistedLayoutText = null;
+                    try {
+                        _persistedLayoutText = await fs.promises.readFile( newLayoutFilename, 'utf8' );
+                    } catch (_persistedReadErr) {
+                        _persistedLayoutText = null;
+                    }
+                    if (
+                        typeof(_persistedLayoutText) == 'string'
+                        && /window\.onGinaLoaded/.test(_persistedLayoutText)
+                        && _persistedLayoutText.indexOf('{{ page.environment.hostname }}') < 0
+                    ) {
+                        shouldWriteLayoutCache = true;
+                    }
+                    _persistedLayoutText = null;
+                }
 
                 if ( shouldWriteLayoutCache || !_layoutCacheOn ) {
                     if ( shouldWriteLayoutCache ) {
@@ -998,14 +1052,31 @@ module.exports = async function render(userData, displayInspector, errOptions, d
         // data.page.view.path = path;
 
         var dic = {}, msg = '';
+        // #B1131 — every value, the per-request ones included, as whispered up to 0.7.10: the
+        // http/2 asset scan below reads the layout whispered with these, so a layout URL written
+        // with `{{ page.environment.webroot }}` still resolves to its file and keeps its hint
+        var _assetsDic = {};
         for (let d in data.page) {
+            _assetsDic['page.'+d] = data.page[d];
+            // #B1131 — a per-request value is left to swig, which renders it for each request
+            if ( WHISPER_PER_REQUEST_KEYS['page.'+d] === true ) {
+                continue;
+            }
             dic['page.'+d] = data.page[d]
         }
         // Flatten page.environment so whisper() can resolve {{ page.environment.key }}
-        // placeholders in ginaLoader (gina.onload.min.js), which is inserted after Swig
-        // compilation and therefore cannot rely on Swig to substitute these tokens.
+        // placeholders in ginaLoader (gina.onload.min.js) before the layout is compiled.
+        // #B1131 — the loader is spliced into the layout swig compiles (its nonce rides a swig
+        // `{% if page.cspNonce %}`), so a placeholder whisper() leaves is rendered by swig from
+        // this request's data: the per-request keys (WHISPER_PER_REQUEST_KEYS) are left to it.
+        // This comment used to say the loader is inserted after swig compilation and so cannot
+        // rely on swig; it is inserted before.
         if (typeof data.page.environment === 'object' && data.page.environment !== null) {
             for (let k in data.page.environment) {
+                _assetsDic['page.environment.' + k] = data.page.environment[k];
+                if ( WHISPER_PER_REQUEST_KEYS['page.environment.' + k] === true ) {
+                    continue;
+                }
                 dic['page.environment.' + k] = data.page.environment[k];
             }
         }
@@ -1900,6 +1971,9 @@ module.exports = async function render(userData, displayInspector, errOptions, d
         }
 
 
+        // #B1131 — the layout before the whisper, for the http/2 asset scan below (whispered there
+        // with every value, `_assetsDic`); the layout swig compiles keeps the per-request placeholders
+        var _layoutForAssets = layout;
         layout = whisper(dic, layout, /\{{ ([a-zA-Z.]+) \}}/g );
         dic['page.content'] = layout;
 
@@ -1971,7 +2045,11 @@ module.exports = async function render(userData, displayInspector, errOptions, d
                     if ( /**  self.isCacheless() ||*/ typeof(localOptions.template.assets) == 'undefined' || typeof(localOptions.template.assets[req.url]) == 'undefined' ) {
                         // assets string -> object
                         //assets = self.serverInstance.getAssets(localOptions.conf, layout.toString(), swig, data);
-                        assets = self.serverInstance.getAssets(localOptions.conf, layout, null, data);
+                        // #B1131 — the layout with every value whispered, the text this scan read up to
+                        // 0.7.10: the layout swig compiles leaves the per-request placeholders to swig,
+                        // and a URL written with `{{ page.environment.webroot }}` must resolve here
+                        // was: assets = self.serverInstance.getAssets(localOptions.conf, layout, null, data);
+                        assets = self.serverInstance.getAssets(localOptions.conf, whisper(_assetsDic, _layoutForAssets, /\{{ ([a-zA-Z.]+) \}}/g ), null, data);
                         localOptions.template.assets = JSON.parse(assets);
                     }
 
@@ -1996,6 +2074,9 @@ module.exports = async function render(userData, displayInspector, errOptions, d
                     return;
                 }
             }
+            // #B1131 — the asset scan's inputs are not read past this point
+            _layoutForAssets = null;
+            _assetsDic       = null;
 
             if (newLayoutFilename) {
                 // replaced: openSync/writeSync/closeSync — async write (#P31)
