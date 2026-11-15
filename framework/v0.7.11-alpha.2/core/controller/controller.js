@@ -3887,6 +3887,11 @@ function SuperController(options) {
      *
      * For this to work you have to set in your routing.json a new route using  "param":
      * { "control": "redirect", "route": "one-valid-route" }
+     * The [ route ] name resolves as the method form's does (2, below), as lib.routing.getRoute() resolves a name:
+     * lowercased; without `@bundle` a route of the current bundle; `one-valid-route@other-bundle[/env]` names that
+     * bundle's route, reached on that bundle's hostname. #B1134: up to 0.7.10 the name was looked up as written, so a
+     * bare or mixed-case name, or one with an env suffix, answered 404, and another bundle's route got a relative
+     * Location on this host.
      * OR
      * { "control": "redirect", "url": "http://www.somedomain.com/page.html" }
      *
@@ -4144,7 +4149,26 @@ function SuperController(options) {
             }
 
         } else {
+            // #B1134 — a routing.json redirect route names its target in `param.route`. It resolves as the string form
+            // above does since #B1125, as lib.routing.getRoute() resolves a name: lowercased; without `@bundle` a route of
+            // the current bundle; with `@bundle[/env]` that bundle and env, so the `bundle != conf.bundle` step below
+            // prefixes the target bundle's hostname. The name used to be looked up as written while config.js keys every
+            // route `<rule lowercased>@<bundle>`: a bare or mixed-case name, or one with an env suffix, answered 404, and
+            // another bundle's route got a relative Location on this host.
             route = req.routing.param.route;
+            if ( typeof(route) == 'string' && route !== '' ) {
+                var _jsonRoute = route.split(/\//);
+                if ( /\@/.test(_jsonRoute[0]) ) {
+                    if ( typeof(_jsonRoute[1]) != 'undefined' && _jsonRoute[1] !== '' ) {
+                        env = _jsonRoute[1];
+                    }
+                    _jsonRoute = _jsonRoute[0].split(/\@/);
+                    bundle = _jsonRoute[1];
+                    route = _jsonRoute[0].toLowerCase() +'@'+ bundle;
+                } else {
+                    route = route.toLowerCase() +'@'+ bundle;
+                }
+            }
         }
 
         if ( !originalMethod ) {

@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'A `routing.json` redirect route that names its target in `param.route`, `{ "control": "redirect", "route": "<route>" }`, now resolves that name as `self.redirect(''<route>'')` does: a name without `@bundle` names a route of the current bundle, the name is lowercased, and `<route>@<bundle>/<env>` is accepted. The name was looked up as written, so only `"<route in lowercase>@<bundle>"` worked: a bare name, a name with capitals or one with an env suffix answered 404. A target in another bundle (`"<route>@<other bundle>"`) now redirects to that bundle''s hostname, as the string form does; it got a relative `Location` on the current host. Pick it up with a bundle restart. (#B1134)'
+time: 2026-11-15T17:14:35+01:00
