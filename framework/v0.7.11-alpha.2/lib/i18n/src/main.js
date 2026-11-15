@@ -1069,9 +1069,11 @@ function readCookie(header, name) {
  * #I18N1 slice 3 — resolve the culture for a request. Negotiation order
  * (highest priority first):
  *
- *   1. URL prefix — `req.routing.param.culture` when the matched route's
- *      `culturePrefix` flag is set AND the captured value matches an
- *      `availableCultures` entry.
+ *   1. URL prefix — when the matched route's `culturePrefix` flag is set:
+ *      the URL value bound to `param.culture` (a whole placeholder such as
+ *      `"culture": ":culture"` reads `req.params.culture`, the value the
+ *      matcher captured, #B1123), or a literal `param.culture`, when it
+ *      matches an `availableCultures` entry.
  *   2. Cookie — value of the cookie named `opts.cookieName`, if it matches
  *      an `availableCultures` entry.
  *   3. `Accept-Language` — parsed and best-matched against `availableCultures`
@@ -1084,7 +1086,8 @@ function readCookie(header, name) {
  * is empty (catalogs not loaded yet), only steps 4–6 are consulted.
  *
  * @memberof module:gina/lib/i18n
- * @param   {Object}   req
+ * @param   {Object}   req                      - The request: `routing` (the matched route), `params`
+ *                                               (its URL values), `headers`.
  * @param   {Object}   [opts]
  * @param   {string[]} [opts.availableCultures] - Cultures the bundle has catalogs for.
  * @param   {string}   [opts.cookieName]        - From `settings.i18n.cookieName`.
@@ -1097,6 +1100,12 @@ function readCookie(header, name) {
  *       cookieName: 'gina_culture',
  *       defaultCulture: 'en_US'
  *   });
+ *
+ * @example
+ *   // route `/:culture/dash/:id`, `culturePrefix: true`,
+ *   // param `{ control: 'show', culture: ':culture', id: ':id' }`;
+ *   // GET /fr/dash/42 sets req.params.culture to 'fr'
+ *   negotiateCulture(req, { availableCultures: ['en', 'fr'] });  // → 'fr'
  */
 function negotiateCulture(req, opts) {
     opts = opts || {};
@@ -1105,6 +1114,15 @@ function negotiateCulture(req, opts) {
     // 1. URL prefix
     if ( req && req.routing && req.routing.culturePrefix && req.routing.param ) {
         var pfx = req.routing.param.culture;
+        // #B1123 — req.routing.param is the route's raw routing config: a binding such as
+        // `"culture": ":culture"` keeps its placeholder text there. Read the URL value the
+        // matcher captured in req.params under the placeholder's name; a literal is used as is.
+        if ( typeof pfx === 'string' && /^:\w+$/.test(pfx) ) {
+            var pfxName = pfx.substring(1);
+            pfx = ( req.params && typeof req.params === 'object' && Object.prototype.hasOwnProperty.call(req.params, pfxName) )
+                ? req.params[pfxName]
+                : null;
+        }
         if ( typeof pfx === 'string' && pfx.length > 0 ) {
             var pfxNorm = pfx.replace(/-/g, '_');
             var pfxMatch = matchAvailable([pfxNorm], available);
