@@ -3928,6 +3928,11 @@ function SuperController(options) {
      *      => home (will use same bundle, same protocol scheme & same environment)
      *      => home@public (will use same protocol scheme & same environment)
      *      => http://home@public/dev (port style for more precision)
+     *      A route name is resolved as lib.routing.getRoute() resolves it: lowercased, and without
+     *      `@bundle` it names a route of the current bundle (#B1125: up to 0.7.10 a name without
+     *      `@bundle` was looked up as `<webroot characters>-<name>`, a name config.js never creates,
+     *      so it threw under the default webroot `/`, a 500, and answered 404 under any other webroot;
+     *      a mixed-case `Name@bundle` answered 404).
      *
      *  - an URI
      *      => /home
@@ -4117,10 +4122,17 @@ function SuperController(options) {
                     rteArr = rteArr[0].split(/\@/);
 
                     bundle = rteArr[1];
+                    // #B1125 — the name lowercased, as lib.routing.getRoute() resolves it and config.js keys every route.
+                    rte = route = rteArr[0].toLowerCase() +'@'+ bundle;
 
                 } else {
                     // replaced: new RegExp('^/'+bundle+'-$') — use === instead (#P1)
-                    rte = route = ( req === '/'+conf.bundle+'-' ) ? req : wroot.match(/[^/]/g).join('') +'-'+ req;
+                    // #B1125 — a route name without `@bundle` names a route of the current bundle, resolved as
+                    // lib.routing.getRoute() resolves it: lowercased, as config.js keys every route `<rule>@<bundle>`.
+                    // The old lookup joined the webroot's characters to the name (`/dashboard/` → `dashboard-<name>`),
+                    // a key config.js never creates: a TypeError under the default webroot `/` (a 500), a 404 elsewhere.
+                    // was: rte = route = ( req === '/'+conf.bundle+'-' ) ? req : wroot.match(/[^/]/g).join('') +'-'+ req;
+                    rte = route = req.toLowerCase() +'@'+ bundle;
                 }
 
 

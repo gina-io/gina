@@ -1,0 +1,3 @@
+kind: Fixed
+body: '`self.redirect(''<route>'')`, a route name without `@bundle`, now redirects to that route of the current bundle, as the method''s documentation and the controller guide describe. It looked the route up as `<webroot characters>-<route>`, a name gina never creates: under the default webroot `/` the method threw and the request answered 500, under any other webroot it answered 404. Route names are now lowercased in both forms, as `lib.routing.getRoute()` resolves them, so `self.redirect(''Home@frontend'')` no longer answers 404 either. (#B1125)'
+time: 2026-11-15T10:31:01+01:00
