@@ -1384,7 +1384,8 @@ function Routing() {
      * receives a value when its value is not `undefined`.
      *
      * Query parameters, on a GET rule: a value whose key `param` declares, when the url composed
-     * does not carry it (#B220): its placeholder, or a fixed value as written, is not in that url;
+     * does not carry it (#B220): its placeholder, or a fixed value as written, is not in that url
+     * (#B1135: up to 0.7.10 a fixed value was read as a regular expression, so a value such as `C++` threw);
      * `requirements` does not keep such a value out. Then every other value that is neither
      * reserved, nor declared in the rule's `requirements`, nor already written into the path
      * (#B943). No value is appended twice (#B944).
@@ -1629,12 +1630,19 @@ function Routing() {
                 // #B220 — a placeholder is in the url only where the fill writes it: `:name` followed
                 // by `/` or the end (checkRouteParams), so `:key` no longer matches inside `:keyXyz`.
                 // was: if ( self.reservedParams.indexOf(r) > -1 || new RegExp(route.param[r]).test(maskedUrl) )
+                // #B1135 — a fixed value is looked for as written, and a placeholder's regex is built from its text with
+                // the regex metacharacters escaped. Read as a pattern, a value such as `C++`, `(beta` or `:-)` threw a
+                // SyntaxError on every call for the rule, and `a.c` matched `/abc/`.
+                // was:     ? new RegExp('('+ route.param[r] +'/|'+ route.param[r] +'$)').test(maskedUrl)
+                // was:     : new RegExp(route.param[r]).test(maskedUrl)
+                let _paramText = String(route.param[r]);
+                let _paramEsc  = _paramText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
                 if (
                     self.reservedParams.indexOf(r) > -1
                     || (
                         ( /^:/.test(route.param[r]) )
-                            ? new RegExp('('+ route.param[r] +'/|'+ route.param[r] +'$)').test(maskedUrl)
-                            : new RegExp(route.param[r]).test(maskedUrl)
+                            ? new RegExp('('+ _paramEsc +'/|'+ _paramEsc +'$)').test(maskedUrl)
+                            : maskedUrl.indexOf(_paramText) > -1
                     )
                 )
                     continue;
@@ -1658,11 +1666,13 @@ function Routing() {
                     || extracted.indexOf(p) > -1
                     // #B943 — a key bound to a placeholder of the url composed (`"id": ":id"`) is in
                     // the path already; an unbound one keeps travelling as a query parameter
+                    // #B1135 — the placeholder's regex is built from its text with the regex metacharacters escaped
+                    // was: && new RegExp('('+ route.param[p] +'/|'+ route.param[p] +'$)').test(maskedUrl)
                     || (
                         route.param
                         && typeof(route.param[p]) == 'string'
                         && /^:/.test(route.param[p])
-                        && new RegExp('('+ route.param[p] +'/|'+ route.param[p] +'$)').test(maskedUrl)
+                        && new RegExp('('+ route.param[p].replace(/[.*+?^${}()|[\]\\]/g, '\\$&') +'/|'+ route.param[p].replace(/[.*+?^${}()|[\]\\]/g, '\\$&') +'$)').test(maskedUrl)
                     )
                 ) {
                     continue;
