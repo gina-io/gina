@@ -2443,6 +2443,25 @@ function Config(opt, contextResetNeeded) {
             localHasWebRoot = (localWroot.length >1) ? true : false;
 
 
+            // #B1133 — a route with no `param` block (or `"param": null`) reached the default-hostname test below, which
+            // reads `param.control`, and stopped the boot with an uncaughtException « TypeError: Cannot read properties of
+            // undefined (reading 'control') » naming neither the route nor the block. `param.control` is required (the
+            // routing guide's Route fields): name the route and stop, as a bad requirement does above. Only that shape is
+            // refused: a route with a `hostname` never reached the read and still boots, and so does a `param` without
+            // `control`, which the router answers per request.
+            if (
+                ( typeof(routing[rule].param) == 'undefined' || routing[rule].param === null )
+                && !routing[rule].hostname
+            ) {
+                let paramRuleName = ( !/\@/.test(rule) ) ? rule +'@'+ bundle : rule;
+                let paramErr = new Error('['+ paramRuleName +'] Bad routing syntax: the route has no `param` block; `param.control` is required');
+                var _paramMsg = (paramErr.stack||paramErr.message);
+                console.emerg(_paramMsg);
+                // Guarantee the reason survives process.exit() on an async pipe (e.g. bin/gina-container).
+                try { fs.writeSync(2, _paramMsg + '\n'); } catch (_e) { /* best-effort */ }
+                process.exit(1);
+            }
+
             // default hostname
             if (
                 typeof(routing[rule].hostname) == 'undefined'

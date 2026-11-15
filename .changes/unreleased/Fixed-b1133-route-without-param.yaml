@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'A route in `routing.json` with no `param` block, or with `"param": null`, now stops the bundle''s boot with an error that names it, « [<rule>@<bundle>] Bad routing syntax: the route has no `param` block; `param.control` is required », written to stderr before the process exits with code 1. The boot used to stop on an uncaught « TypeError: Cannot read properties of undefined (reading ''control'') » that named neither the route nor the block. `param.control` is required (the routing guide''s Route fields): add the block to the route. A route that has no `param` block but a non-empty `hostname`, and a `param` block without `control`, boot as before. (#B1133)'
+time: 2026-11-15T17:14:35+01:00
