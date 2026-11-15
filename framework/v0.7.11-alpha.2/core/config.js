@@ -18,6 +18,8 @@ var locales         = require('./locales');
 var lib             = require('./../lib');
 // #B360 — the unanchored-`requirements` boot warning (server-side only; reads routing, never rewrites it)
 var requirementsAnchor = require('./config.requirements-anchor');
+// #B1124 — the boot warning for a route `param` binding under a key gina reads as configuration (reads routing only)
+var paramBindings   = require('./config.param-bindings');
 var Domain          = lib.Domain;
 var domainLib       = new Domain();
 var merge           = lib.merge;
@@ -2587,6 +2589,18 @@ function Config(opt, contextResetNeeded) {
             }
         }
         self.setReverseRouting(bundle, env, scope, reverseRouting);
+
+        // #B1124 — a URL binding under a `param` key gina reads as configuration (`"section": ":section"`)
+        // hands gina the placeholder text, not the URL value: `req.routing.param` keeps it for every key
+        // the matcher does not fill. One warning per bundle lists such bindings, on the bundles the #B360
+        // warning above judges; it runs after setRouting so that the #B360 block keeps its single warning.
+        // The routing table is read, never rewritten.
+        if ( _requirementsApply ) {
+            var _configKeyBindings = paramBindings.findConfigKeyBindings(routing);
+            if ( _configKeyBindings.length > 0 ) {
+                console.warn( paramBindings.formatConfigKeyBindingWarning(bundle, _configKeyBindings) );
+            }
+        }
 
         if (!conf[bundle][env].executionPath) {
             conf[bundle][env].executionPath = self.executionPath
