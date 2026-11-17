@@ -3901,6 +3901,12 @@ function SuperController(options) {
      * OR
      * { "control": "redirect", "url": "http://home@public/production", "ignoreWebRoot": true }
      *
+     * A [ path ] is a path of this bundle: the webroot is prepended (`/general` under the webroot
+     * `/web/` answers `/web/general`), unless the route sets `ignoreWebRoot`, the webroot is `/` or
+     * the path is an absolute URL. The same holds when a custom action hands its request to
+     * `self.redirect(req, res, next)` on a route that declares `param.path`. #B1137: up to 0.7.10
+     * the path only lost its first character under a non-root webroot, a relative Location.
+     *
      * Set the status with [ code ]: 301, 302, 303, 307 or 308 (default 301). Any other value answers
      * 301 and is logged once per route and value (#B1122: up to 0.7.10 the value was sent as it was,
      * so the placeholder text a URL segment bound under the name `code` leaves there made writeHead
@@ -4176,6 +4182,24 @@ function SuperController(options) {
         }
 
         var path        = originalUrl || req.routing.param.path || '';
+        // #B1137 — a redirect that uses `param.path` (a routing.json redirect route, or a custom action calling
+        // self.redirect(req, res, next) on a route that declares `param.path`) gets the bundle's webroot, as the string
+        // form `self.redirect('/x')` does: under `/web/`, `/general` and `general` answer `/web/general`, and `/`
+        // answers `/web/`. Left as written: the string form (it adds the webroot itself), a `route` target (its url
+        // carries its own webroot), `ignoreWebRoot`, the webroot `/`, and an absolute URL (`scheme://…` or `//…`).
+        // Up to 0.7.10 config.js meant to add it at boot and only cut the path's first character, so the Location
+        // was relative: `general`, `eneral`, or empty.
+        if (
+            !originalUrl
+            && !route
+            && path
+            && !req.routing.param.ignoreWebRoot
+            && wroot
+            && wroot.length > 1
+            && !/^([a-z][a-z0-9+.\-]*:)?\/\//i.test(path)
+        ) {
+            path = wroot + ( ( path.charAt(0) === '/' ) ? path.substring(1) : path );
+        }
         var url         = req.routing.param.url;
         // #B1122 — a URL segment bound under the name `code` (`"code": ":code"`) left its placeholder text in
         // `param.code`, and that text reached writeHead as the status: a 500 over HTTP/1.1, a 200 page over

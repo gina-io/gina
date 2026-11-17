@@ -2550,17 +2550,24 @@ function Config(opt, contextResetNeeded) {
             }
 
             // by default, method is inherited from the request.method
-            if (
-                localHasWebRoot
-                    && typeof(routing[rule].param.path) != 'undefined'
-                    && typeof(routing[rule].param.ignoreWebRoot) == 'undefined'
-                ||
-                localHasWebRoot
-                    && typeof(routing[rule].param.path) != 'undefined'
-                    && !routing[rule].param.ignoreWebRoot
-            ) {
-                routing[rule].param.path = localWroot + ( /^\//.test(routing[rule].param.path) ) ? routing[rule].param.path.substring(1) : routing[rule].param.path
-            }
+            // #B1137 — `param.path` is left as written here. This block meant to prefix it with the webroot, but its
+            // conditional bound to the whole sum (`localWroot + (test) ? a : b` reads `(localWroot + test) ? a : b`,
+            // always truthy), so under a non-root webroot the path only lost its first character: a redirect route's
+            // `/general` sent the relative Location `general`, `general` sent `eneral` and `/` an empty one. It also ran
+            // for every route, so a page route's template path and a raw-host `forward` route's upstream path lost
+            // their first character too. redirect() now adds the webroot when a redirect uses `param.path`
+            // (controller.js, #B1137); every other reader gets the path as written, as under the webroot `/`.
+            // was: if (
+            // was:     localHasWebRoot
+            // was:         && typeof(routing[rule].param.path) != 'undefined'
+            // was:         && typeof(routing[rule].param.ignoreWebRoot) == 'undefined'
+            // was:     ||
+            // was:     localHasWebRoot
+            // was:         && typeof(routing[rule].param.path) != 'undefined'
+            // was:         && !routing[rule].param.ignoreWebRoot
+            // was: ) {
+            // was:     routing[rule].param.path = localWroot + ( /^\//.test(routing[rule].param.path) ) ? routing[rule].param.path.substring(1) : routing[rule].param.path
+            // was: }
 
 
 
