@@ -1,3 +1,0 @@
-kind: Fixed
-body: '`lib.routing.getRoute()` now looks for a fixed `param` value as written when it decides which values go into the query string of a GET route, as the routing guide describes. A fixed value was read as a regular expression: a value holding a regex metacharacter, such as `"label": "C++"`, `"(beta"` or `":-)"`, made `getRoute()` throw a `SyntaxError` for that route whenever it was called with params, and `"a.c"` matched the URL `/abc/` by accident, which could leave a value passed to `getRoute()` out of the query string. The keys gina reserves (`title`, `file`, `namespace`, `path`) were never read this way. `lib/routing` is in the browser bundle: pick it up with a bundle restart and a re-bake. (#B1135)'
-time: 2026-11-15T17:14:35+01:00
