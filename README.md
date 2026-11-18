@@ -69,35 +69,67 @@ open http://localhost:3100
 
 > **npm 12+** blocks install scripts by default, and gina's post-install bootstraps `~/.gina` and the framework dependencies. Install with `npm install -g gina@latest --allow-scripts=gina`, or allow it once for all global installs with `npm config set allow-scripts=gina --location=user`. (Not needed on npm ≤ 11.)
 
-## What's in 0.7.10
+## What's in 0.7.11
 
-> **Restart your bundles *and* rebuild them.** The fix for staged file inputs
-> ships in the browser bundle, so `gina.min.js` changed and
-> `gina bundle:restart` alone leaves the old client running: rebuild each
-> consuming bundle, then restart it. If your build copies `gina.min.js` into
-> your own static files, rebuild that copy before the restart.
+> **Restart your bundles *and* rebuild them.** Popins, staged file inputs, the
+> client's start-up in a frame and `lib.routing.getRoute()` ship in the browser
+> bundle, so `gina.min.js` changed and `gina bundle:restart` alone leaves the
+> old client running: rebuild each consuming bundle, then restart it. If your
+> build copies `gina.min.js` into your own static files, rebuild that copy
+> before the restart.
 
-> **Read before upgrading — some changes can change an answer.** A page served
-> from the render cache no longer carries the `Set-Cookie` or the
-> `X-Request-Id` of the request that filled the entry: a hit answers with its
-> own id, and a cookie set on a cached route reaches only the visitor whose
-> request filled the entry (on the Isaac engine a hit is answered before any
-> middleware runs, so it carries no cookie at all). A staged file input that
-> has a rule of its own and is also named by a matching `_case_` condition no
-> longer sends its own value with the form's data. The
+> **Read before upgrading — some changes can change an answer.** gina locks
+> swig 2.12.4: a template's read of `count` or `functionCount` reads only an
+> object's own key, `{{ _ext.name }}` renders an empty string, and a context
+> key named like a JavaScript global that holds null or undefined hides that
+> global. A staged file input refuses, before any request, a file its `accept`
+> excludes or one larger than its new `data-gina-form-upload-max-size`, so an
+> input whose `accept` names fewer types than its upload group allows now
+> refuses the others; an input with no staging action refuses every file. A
+> gina page in a same-origin frame starts its own client: code there that read
+> the parent's values through its own `gina` now reads its own. A redirect's
+> `param.code` sets the status only when it is 301, 302, 303, 307 or 308 (else
+> 301); a redirect route's `param.route` resolves as `self.redirect()` does;
+> under a non-root webroot a redirect route's `param.path` gets the webroot,
+> and every other reader gets `param.path` as written. On a `culturePrefix`
+> route, `req.culture` takes the URL value. Outside development a required
+> controller's module-level code runs once per process. Pages that a route's
+> `fs` or `redis` output cache stored before the upgrade are not served after
+> it, unless `GINA_CACHE_NAMESPACE` keeps its value across the upgrade: then
+> run `gina cache:clear`. The
 > [migration notes](https://gina.io/docs/migration) list every behaviour change.
 
-**A render-cache security patch.** A page served from the render cache no
-longer sends one visitor's cookies to the others, and a hit answers with its
-own `X-Request-Id`. The release also fixes the known issue of 0.7.9 with staged
-file inputs under a `_case_` rule, and adds an opt-in log line written when a
-request arrives. Full detail in [CHANGELOG.md](./CHANGELOG.md).
+**A security release.** Outside development, `self.requireController()` no
+longer keeps a copy of the required controller on every call, which let
+repeated requests exhaust the process's memory. Concurrent renders of swig
+pages that share a layout no longer serve one another's request values, and
+with the render cache on, the first render no longer fixes the hostname,
+webroot and culture of every later visitor. On the isaac engine, an
+`X-Forwarded-Prefix` that opens with two slashes is refused. The release also
+adds an opt-in stall watchdog, an opt-in load limit for popins and a boot
+warning for a route that binds a URL placeholder under a key gina reads as
+configuration. The other fixes cover staged file inputs, a gina page in a
+same-origin frame, popin options, redirects, `downloadFromURL()`, download
+names with accented letters, `req.culture`, `lib.routing.getRoute()`, a route
+with no `param` block and `requireController()` without `options`. Full detail
+in [CHANGELOG.md](./CHANGELOG.md).
 
-- **Security — render-cache cookies (#B1101).** A render-cache entry stored every header of the response that filled it, `Set-Cookie` included, and every hit sent them back: a cookie set before the render, by a middleware (the CSRF plugin's `gina-csrf-token` included) or by the action, reached every visitor of the cached page until the entry expired, and the `fs` strategy also wrote it to the entry's `.meta` file. An entry now stores no `Set-Cookie` on any strategy (memory, `fs`, `redis`), and both engines' hits skip it in an entry stored by an earlier release. The session cookie of `gina.plugins.Session` was not affected.
-- **Fixed — render-cache request ids (#B1100).** A hit answered with the `X-Request-Id` of the request that filled the entry, even when the request sent its own. A hit now answers with its own id: a valid inbound one is kept, else a new one is generated.
-- **Fixed — staged file inputs under a `_case_` rule (#B1099).** A staged file input that had a rule of its own and was also named by a matching `_case_` condition sent its value (the names of its files, or an empty string) with the form's data; when fields of its files came before it in the form, that value replaced the files' list under a top-level name, or ended it under a nested name. Every staged input is now left out of the data, whichever rule judged it.
-- **Added — a log line when a request arrives (`server.logRequestStart`).** With `settings.json > server.logRequestStart: true`, each application request writes one `info` line when it arrives, before its body is read: `METHOD [>] /path [ req <id> ]`, the id being the request's correlation id. gina otherwise logs a request when it completes, so a request that blocked the bundle appeared nowhere in its log. Off by default.
-
+- **Security — `requireController()` outside development (#B1126).** Each call evicted the super controller and the required controller from the require cache and required them again, and every copy stayed referenced for the life of the process: memory grew by about the required controller's source size per call, so a route reachable without authentication let a client exhaust the process's memory by repeating requests. Outside development both modules now load once per process; in development they are still required again on every call, and the old copies are released.
+- **Security — layouts and per-request values (#B1129, #B1131, gh#104).** With the render cache off, the default, concurrent renders of swig pages sharing a layout wrote each request's values (the public hostname and webroot, the culture, the validation labels, the proxy host) into one shared layout file, so a page could carry another request's values or arrive without gina's client loader, and on a bind-mounted templates directory the file could be found absent (a 500). Each render now assembles its layout in memory. With the render cache on, the first render after the layout file was created fixed its hostname, webroot and culture for every later render of every view sharing the layout, until the file was removed; swig now renders these values from each request's data. They come from request headers (`X-Forwarded-Host`, `X-Forwarded-Prefix`, `Accept-Language`, the culture cookie), so one client's headers could reach other clients' pages.
+- **Security — an `X-Forwarded-Prefix` that opens with two slashes (#B1129).** On the isaac engine such a value passed the path-character check, but the public webroot composed from it was a protocol-relative URL: the browser fetched the client routing table, and the gina stylesheet when it was not already linked, from the host it names. It is now refused like a malformed value, and the page keeps the bundle's own webroot.
+- **Added — a stall watchdog (`server.stallWatchdog`).** With `{ "enabled": true }`, a worker thread watches the bundle's main thread and, when its heartbeat has not moved for `threshold` (default `"5s"`), writes one crit line itself while the main thread is still blocked: the blocked thread's call frames (on Node) and the application requests in flight, by the `X-Request-Id` their answers echo, to stdout and to the log relay `gina tail` reads. When the main thread resumes, a warn line gives the whole silence, and with metrics enabled `gina_main_thread_stalls_total` and `gina_main_thread_stall_seconds` count it. Off by default; works on Node and Bun.
+- **Added — a load limit for popins (#B1108).** `loadTimeout`, in milliseconds, per popin (`new Popin({ name, loadTimeout: 15000 })`) or for every popin without its own value (`gina.setOptions({ popin: { loadTimeout: 15000 } })`): a load still unanswered at the limit is aborted and fails like any failed load (`error` fires with `{ status: 408, error: 'Request Timeout' }`), then the loading shell closes unless a listener loaded content, and the trigger is released. There is no limit unless one is set.
+- **Added — a boot warning for configuration keys bound to URL placeholders (#B1124).** A bundle warns once at boot about each route whose `param` block binds a URL placeholder under a key gina reads as configuration, such as `"section": ":section"` or `"code": ":code"`: gina reads the placeholder text as that key's value. Bind the segment under another name (`"url": "/item/:itemCode"` with `"itemCode": ":itemCode"`); nothing is rewritten.
+- **Changed — staged file inputs check `accept` and size before any request.** A chosen or dropped file of a type the input's `accept` excludes, or larger than its new `data-gina-form-upload-max-size` attribute, is refused before any request is sent, with the rest of its selection; the input's error element and the form's live region say why, and its `data-gina-form-upload-on-error` callback runs with `{ refused: true, reason, files, error, transportError: false }`. The server stays the authority. An input whose `accept` names fewer types than its upload group allows now refuses the files of the other types: list them in `accept`, or remove it.
+- **Changed — swig 2.12.4 (#B1138).** Both lockfiles lock `@rhinostone/swig` 2.12.4; the manifests keep `^2.12.1`, so a fresh install already resolves 2.12.4 or later. In a gina process a template's read of `count` or `functionCount` now reads only an object's own key, so `{{ r.count() }}` renders an empty string and `{% if r.count %}` is false for an object without its own `count` key (a query row's `count` column reads as before); `{{ _ext.name }}` renders an empty string; a context key named like a JavaScript global (`JSON`, `Math`, `encodeURIComponent`) that holds null or undefined hides that global. Server-side only: a bundle restart picks it up.
+- **Fixed — staged file inputs (#B1094, #B1095).** An input with no `data-gina-form-upload-action`, on a page without an `upload-to-tmp-xml` route, refuses a file before any request, where the file was posted to `/null`. A rule that a `_case_` condition gives a staged input now judges the files the input holds: with one `_case_` key a required staged input refused nothing, and with two or more an edit form showing a saved file was refused.
+- **Fixed — a gina page in a same-origin frame (#B1130, gh#103).** It now starts its own client. The parent's instance was merged into the frame's at start-up and its values won, so the frame's configuration, session and forms were never applied, its popin, validator and navigation never started, and `new Popin()` in the frame threw. The client no longer reads its parent frame at all; read `parent.gina` where the two pages share an origin.
+- **Fixed — popin options (#B1109).** Popins loaded with `gina.popin.load(name, url)` and no options, or with one options object passed to several loads, no longer share one options object: the second took the first one's `preOpen`, `loadingShell` and class, and the object passed gained the popin's options.
+- **Fixed — redirects (#B1122, #B1125, #B1134, #B1137).** A route that binds a URL segment as `code` no longer breaks every redirect that reads it. `self.redirect('<route>')` without `@bundle` redirects to that route of the current bundle, where it answered 500 or 404, and route names are lowercased. A redirect route's `param.route` resolves as `self.redirect()` does, a target in another bundle included. Under a non-root webroot, a redirect route's `param.path` gets the webroot, where the path lost its first character.
+- **Fixed — `downloadFromURL()` (#B1111, #B1112, #B1114, #B1118, #B1119, #B1120, #B1121).** A bad `options`, `options.file` or url now answers a 500 through `throwError()`, where the request got no response, and only the `http` and `https` schemes are accepted. The method no longer writes into the options object it is given. An `https` url that names no port goes to port 443; a url aimed at a proxied bundle's host on another port goes to that bundle's port; the host and the port are read from the url's authority only.
+- **Fixed — download names with accented letters (#B1113, #B1115).** `self.downloadFromLocal()`, `self.downloadFromURL()` and `self.serveFromStorage()`, its `s3` offload path included, send a name such as `résumé.pdf` with an RFC 8187 `filename*=UTF-8''…` parameter after an all-ASCII `filename` fallback, so Chromium and WebKit save it as written; AWS S3 no longer refuses a name with a character above U+00FF.
+- **Fixed — routing (#B1123, #B1133, #B1135).** On a `culturePrefix` route, `req.culture` takes the URL value of the segment bound to `param.culture`. A route with no `param` block stops the boot with an error that names it. `lib.routing.getRoute()` looks for a fixed `param` value as written, where it read it as a regular expression (a value such as `"C++"` threw a `SyntaxError`).
+- **Fixed — `requireController()` without `options` (#B1031).** It now builds the controller with the options of the request being served, where it threw a `TypeError`, and it works in a route middleware and in a bundle's `controllers/setup.js`.
 ## Documentation
 
 Full installation guide, tutorials, configuration reference, and API docs at **[gina.io/docs](https://gina.io/docs/)**.
