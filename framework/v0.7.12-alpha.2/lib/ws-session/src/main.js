@@ -16,9 +16,11 @@
  *  - `accept(request)`: answer the extended CONNECT with `:status 200` on the
  *    raw Http2Stream and wrap the stream + a `lib/ws-framing` parser into a
  *    {@link WsSession} with a send / ping / close API.
- *  - Protocol housekeeping: auto-pong (§5.5.2), close-handshake echo and a
- *    timed initiated close (§5.5.1 / §7), protocol violations answered with
- *    the prescribed status code then torn down.
+ *  - Protocol housekeeping: auto-pong (§5.5.2), bounded by
+ *    `maxPendingAutoPongs` (#B1139), close-handshake echo and a timed
+ *    initiated close (§5.5.1 / §7) that resets the stream when the peer
+ *    stays silent, protocol violations answered with the prescribed status
+ *    code then torn down.
  *  - Lifecycle: teardown on stream `close` / `error` / `aborted` (the HTTP/2
  *    analogs of TCP close/RST per RFC 8441 §5), and registration into the
  *    framework's graceful-shutdown drain registry
@@ -43,9 +45,38 @@
  */
 
 var wsf = require('../../ws-framing/src/main');
+var h2constants = require('http2').constants;
 
 /** @private no-op default handler */
 function noop() {}
+
+/**
+ * Default cap on the automatic Pongs a session lets wait to be written
+ * (#B1139): the default `ws` 8.23.0 chose for its own `maxPendingAutoPongs`.
+ *
+ * @constant {number}
+ * @private
+ */
+var DEFAULT_MAX_PENDING_AUTO_PONGS = 60;
+
+/**
+ * RST_STREAM code (RFC 9113 § 7) when the peer lets too many automatic
+ * Pongs pile up: ENHANCE_YOUR_CALM, the code for a peer generating
+ * excessive load.
+ *
+ * @constant {number}
+ * @private
+ */
+var RST_ENHANCE_YOUR_CALM = (h2constants && h2constants.NGHTTP2_ENHANCE_YOUR_CALM) || 0x0b;
+
+/**
+ * RST_STREAM code (RFC 9113 § 7) when the peer leaves our Close frame
+ * unanswered: CANCEL, the stream is no longer needed.
+ *
+ * @constant {number}
+ * @private
+ */
+var RST_CANCEL = (h2constants && h2constants.NGHTTP2_CANCEL) || 0x08;
 
 /**
  * Session options.
@@ -53,8 +84,9 @@ function noop() {}
  * @typedef {object} WsSessionOptions
  * @property {number}  [maxPayload] - forwarded to the ws-framing parser (§10.4 cap)
  * @property {number}  [maxFragments] - forwarded to the ws-framing parser (§10.4 cap)
- * @property {number}  [closeTimeout=5000] - ms to wait for the peer's Close frame after an initiated close before force-ending the stream
+ * @property {number}  [closeTimeout=5000] - ms to wait for the peer's Close frame after an initiated close before resetting the stream (RST_STREAM CANCEL; frames still queued on it are dropped)
  * @property {boolean} [autoPong=true] - answer inbound PINGs automatically (§5.5.2)
+ * @property {number}  [maxPendingAutoPongs=60] - automatic Pongs that may wait to be written; one more Ping closes the session with 1006 and resets the stream (RST_STREAM ENHANCE_YOUR_CALM). `0` disables the cap; any value that is not a non-negative integer means 60 (#B1139)
  * @property {string}  [protocol] - subprotocol to echo in the `sec-websocket-protocol` response header
  */
 
@@ -84,6 +116,12 @@ function WsSession(stream, options) {
         : 5000;
     /** @private @type {boolean} */
     this._autoPong = options.autoPong !== false;
+    /** @private @type {number} automatic Pongs allowed to wait to be written; 0 = no cap (#B1139) */
+    this._maxPendingAutoPongs = (Number.isInteger(options.maxPendingAutoPongs) && options.maxPendingAutoPongs >= 0)
+        ? options.maxPendingAutoPongs
+        : DEFAULT_MAX_PENDING_AUTO_PONGS;
+    /** @private @type {number} automatic Pongs handed to the stream whose write has not completed */
+    this._pendingAutoPongs = 0;
     /** @private consumer callbacks (chainable setters below) */
     this._handlers = { message: noop, ping: noop, pong: noop, close: noop, error: noop, drain: noop };
     /** @private @type {boolean} a Close frame has been written to the wire */
@@ -103,18 +141,34 @@ function WsSession(stream, options) {
         maxFragments : options.maxFragments,
         isServer     : true,
         onMessage : function(data, isBinary) {
+            if (self._finished) { return; }
             self._invoke('message', data, isBinary);
         },
         onPing : function(payload) {
-            if (self._autoPong) {
-                self._write(wsf.encodePong(payload));
+            if (self._finished) { return; }
+            // §5.5.2 — answer automatically, but never after our own Close
+            // frame (§5.5.1), and never with more than maxPendingAutoPongs
+            // Pongs still waiting to be written: a peer that sends Pings
+            // without reading the Pongs would otherwise make the session
+            // queue every one of them (#B1139). Past the cap no Close frame
+            // could reach such a peer, so the session closes with 1006 and
+            // the stream is reset.
+            if (self._autoPong && !self._closeSent) {
+                if (self._maxPendingAutoPongs > 0 && self._pendingAutoPongs >= self._maxPendingAutoPongs) {
+                    self._finish(1006, 'too many pending automatic pongs');
+                    self._resetStream(RST_ENHANCE_YOUR_CALM);
+                    return;
+                }
+                self._writeAutoPong(payload);
             }
             self._invoke('ping', payload);
         },
         onPong : function(payload) {
+            if (self._finished) { return; }
             self._invoke('pong', payload);
         },
         onClose : function(code, reason) {
+            if (self._finished) { return; }
             // §5.5.1 — echo the peer's status code (empty body back when the
             // peer sent none: 1005 is reserved and never goes on the wire).
             if (!self._closeSent) {
@@ -129,6 +183,7 @@ function WsSession(stream, options) {
             self._finish(code, reason);
         },
         onError : function(err) {
+            if (self._finished) { return; }
             // Protocol violation: best-effort Close frame with the prescribed
             // code ("Fail the WebSocket Connection", §7.1.7), then teardown.
             if (!self._closeSent) {
@@ -142,6 +197,8 @@ function WsSession(stream, options) {
     });
 
     stream.on('data', function(chunk) {
+        // Nothing is parsed once the session has delivered its terminal onClose.
+        if (self._finished) { return; }
         self._parser.feed(chunk);
     });
     // Transport teardown (HTTP/2 END_STREAM / RST_STREAM / session GOAWAY all
@@ -188,7 +245,10 @@ WsSession.prototype.onMessage = function(fn) { this._handlers.message = (typeof 
 
 /**
  * Registers the ping handler — `(payload Buffer)`. The pong is already sent
- * automatically unless the session was created with `autoPong: false`.
+ * automatically unless the session was created with `autoPong: false` or has
+ * sent its Close frame. A Ping that finds `maxPendingAutoPongs` Pongs still
+ * waiting to be written closes the session instead (1006), and this handler
+ * is not called for it.
  *
  * @param {function} fn
  * @returns {WsSession} this (chainable)
@@ -265,8 +325,9 @@ WsSession.prototype.ping = function(payload) {
 
 /**
  * Initiates the close handshake (§7): sends a Close frame, then waits up to
- * `closeTimeout` ms for the peer's echo before force-ending the stream.
- * Idempotent.
+ * `closeTimeout` ms for the peer's echo. A peer that stays silent has the
+ * session closed with this code and its stream reset (RST_STREAM CANCEL),
+ * which drops any frame still queued on it. Idempotent.
  *
  * @param {number} [code] - §7.4 status code; omit for an empty Close body
  * @param {string} [reason]
@@ -290,8 +351,12 @@ WsSession.prototype.close = function(code, reason) {
     }
     var self = this;
     this._closeTimer = setTimeout(function() {
-        self._endStream();
+        // The peer left our Close unanswered: deliver the close first (so the
+        // consumer sees its own code whatever a runtime emits on reset), then
+        // reset the stream rather than half-close it, so a peer that does not
+        // read cannot keep the frames queued for it (#B1139).
         self._finish((typeof code === 'undefined') ? 1000 : code, reason || '');
+        self._resetStream(RST_CANCEL);
     }, this._closeTimeout);
     if (typeof this._closeTimer.unref === 'function') {
         this._closeTimer.unref();
@@ -347,6 +412,60 @@ WsSession.prototype._write = function(buf) {
     } catch (err) {
         return false;
     }
+};
+
+/**
+ * Writes one automatic Pong and counts it as pending until the stream
+ * completes the write: its callback, which also runs when the write fails
+ * (#B1139).
+ *
+ * @private
+ * @param {Buffer} payload - the inbound Ping's payload, echoed (§5.5.2)
+ * @returns {boolean} false when the stream is gone or the write threw
+ */
+WsSession.prototype._writeAutoPong = function(payload) {
+    var stream = this._stream;
+    if (!stream || stream.destroyed || stream.closed || stream.writableEnded) {
+        return false;
+    }
+    var self = this;
+    var settled = false;
+    var written = function() {
+        if (!settled) {
+            settled = true;
+            self._pendingAutoPongs--;
+        }
+    };
+    this._pendingAutoPongs++;
+    try {
+        stream.write(wsf.encodePong(payload), written);
+        return true;
+    } catch (err) {
+        written();
+        return false;
+    }
+};
+
+/**
+ * Resets the transport: RST_STREAM with `code`, then destroy, which drops
+ * every frame still queued on the stream (#B1139).
+ *
+ * @private
+ * @param {number} code - an HTTP/2 error code (RFC 9113 § 7)
+ * @returns {void}
+ */
+WsSession.prototype._resetStream = function(code) {
+    var stream = this._stream;
+    try {
+        if (stream && !stream.destroyed) {
+            if (typeof stream.close === 'function' && !stream.closed) {
+                stream.close(code);
+            }
+            if (typeof stream.destroy === 'function' && !stream.destroyed) {
+                stream.destroy();
+            }
+        }
+    } catch (err) { /* already gone */ }
 };
 
 /**

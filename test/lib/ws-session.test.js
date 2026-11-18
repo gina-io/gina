@@ -34,6 +34,10 @@ function mockStream() {
     stream.respond = function(headers) { stream.respondedWith = headers; };
     stream.write = function(buf) { stream.written.push(buf); return stream.writeReturn; };
     stream.end = function() { stream.writableEnded = true; };
+    // #B1139: a reset is RST_STREAM (close(code)) then destroy()
+    stream.rstCode = undefined;
+    stream.close = function(code) { stream.closed = true; stream.rstCode = code; };
+    stream.destroy = function() { stream.destroyed = true; };
     return stream;
 }
 
@@ -221,7 +225,10 @@ describe('04 - close handshake (§5.5.1 / §7)', function() {
         s.session.close(1001, 'going away');
         await new Promise(function(resolve) { setTimeout(resolve, 60); });
         assert.deepEqual(s.events.closes, [{ code: 1001, reason: 'going away' }]);
-        assert.equal(s.stream.writableEnded, true);
+        // #B1139: the stream is reset (RST_STREAM CANCEL), not half-closed
+        assert.equal(s.stream.rstCode, http2.constants.NGHTTP2_CANCEL);
+        assert.equal(s.stream.destroyed, true);
+        assert.equal(s.stream.writableEnded, false);
     });
 
     it('send() and ping() refuse after a close was sent', function() {
