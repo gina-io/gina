@@ -18,7 +18,8 @@ var locales         = require('./locales');
 var lib             = require('./../lib');
 // #B360 — the unanchored-`requirements` boot warning (server-side only; reads routing, never rewrites it)
 var requirementsAnchor = require('./config.requirements-anchor');
-// #B1124 — the boot warning for a route `param` binding under a key gina reads as configuration (reads routing only)
+// #B1124 — the boot warning for a route `param` binding under a key gina reads as configuration, and
+// #B1143's for a URL placeholder followed by a character other than a letter, a digit or an underscore (both read routing only)
 var paramBindings   = require('./config.param-bindings');
 var Domain          = lib.Domain;
 var domainLib       = new Domain();
@@ -2625,6 +2626,17 @@ function Config(opt, contextResetNeeded) {
             var _configKeyBindings = paramBindings.findConfigKeyBindings(routing);
             if ( _configKeyBindings.length > 0 ) {
                 console.warn( paramBindings.formatConfigKeyBindingWarning(bundle, _configKeyBindings) );
+            }
+        }
+
+        // #B1143 — a placeholder's name is its letters, digits and underscores: except on a DELETE
+        // route with requirements, the router reads `/:lang-code/home` as the placeholder `:lang`. One warning per bundle
+        // lists each URL segment that holds a placeholder followed by another character, on the
+        // bundles the #B360 warning judges. The routing table is read, never rewritten.
+        if ( _requirementsApply ) {
+            var _truncatedPlaceholders = paramBindings.findTruncatedPlaceholders(routing);
+            if ( _truncatedPlaceholders.length > 0 ) {
+                console.warn( paramBindings.formatTruncatedPlaceholderWarning(bundle, _truncatedPlaceholders) );
             }
         }
 

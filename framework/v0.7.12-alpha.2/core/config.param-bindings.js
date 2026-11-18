@@ -1,5 +1,8 @@
 'use strict';
 /**
+ * Two boot checks of a bundle's routing table, which core/config.js runs once per bundle. Both only
+ * READ the table and never rewrite a value.
+ *
  * #B1124 — route `param` bindings that use a key gina reads as configuration.
  *
  * A route declares a URL binding in its `param` block as `"<key>": ":<key>"`: the key's presence
@@ -26,6 +29,17 @@
  * otherwise; `error`, `displayInspector` and `isLocalOptionResetNeeded`, which gina writes itself on
  * its injected custom-error route before reading them; `action`, which nothing reads. Any other key
  * is a plain binding gina never reads as configuration.
+ *
+ * #B1143 — a URL placeholder followed by a character other than a letter, a digit or an underscore.
+ *
+ * A placeholder's name is its letters, digits and underscores (`\w`): the router reads the names in
+ * a rule's URL segment with `/:\w+/g` (lib/routing `fitsWithRequirements`; a DELETE route with
+ * `requirements` is matched by another branch, which reads the whole segment), and a `culturePrefix`
+ * route reads its culture binding with `/^:\w+$/` (#B1123). A name written with another character is
+ * read up to it, on every route but a DELETE route with `requirements`: `/:lang-code/home` is read as
+ * the placeholder `:lang`, so a binding under `lang-code` is never filled and the route matches only
+ * when its `param` also binds `lang`. The config loader uses this module to warn once per bundle, listing each URL segment that
+ * holds such a placeholder.
  *
  * Server-side only: the browser bundle never loads this file.
  *
@@ -150,10 +164,92 @@ function formatConfigKeyBindingWarning(bundle, list) {
         + ' with "itemCode": ":itemCode"). See https://gina.io/docs/guides/routing#parameterized-url';
 }
 
+/**
+ * #B1143 — a placeholder followed, in its URL segment, by a character other than a letter, a digit
+ * or an underscore: a `\W` after a `\w` run, in the grammar the router reads names with.
+ *
+ * @inner
+ * @private
+ * @constant
+ * @type {RegExp}
+ */
+var TRUNCATED_PLACEHOLDER = /:\w+\W/;
+
+/**
+ * #B1143 — the placeholder names the router reads in a URL segment (lib/routing's own pattern).
+ *
+ * @inner
+ * @private
+ * @constant
+ * @type {RegExp}
+ */
+var PLACEHOLDER_NAMES = /:\w+/g;
+
+/**
+ * #B1143 — list a routing table's URL segments that hold a placeholder followed by a character
+ * other than a letter, a digit or an underscore, in table order. Each rule's `url` is split on `,`,
+ * each URL trimmed (core/config.js removes a multi-URL rule's whitespace before the router reads
+ * it), then split on `/`. Reads only; the table is left untouched.
+ *
+ * @param {object} routing - A bundle's routing table (rule name → rule)
+ * @returns {Array<{rule: string, url: string, segment: string, names: Array<string>}>} One entry per
+ *   such segment: the rule, the URL that holds the segment, the segment as written, and the
+ *   placeholder names the router reads in it
+ *
+ * @example
+ *   findTruncatedPlaceholders({ 'home@site': { url: '/:lang-code/home', param: { control: 'home', 'lang-code': ':lang-code' } } });
+ *   // [ { rule: 'home@site', url: '/:lang-code/home', segment: ':lang-code', names: [ ':lang' ] } ]
+ *   findTruncatedPlaceholders({ 'list@site': { url: '/articles/page:number' } });   // [] (the name ends its segment)
+ */
+function findTruncatedPlaceholders(routing) {
+    var found = [];
+    if (!routing || typeof(routing) !== 'object') { return found; }
+    var rules = Object.keys(routing);
+    for (var r = 0; r < rules.length; r++) {
+        var rule = routing[rules[r]];
+        if (!rule || typeof(rule) !== 'object' || typeof(rule.url) !== 'string') { continue; }
+        var urls = rule.url.split(',');
+        for (var u = 0; u < urls.length; u++) {
+            var url = urls[u].trim();
+            var segments = url.split('/');
+            for (var s = 0; s < segments.length; s++) {
+                if (TRUNCATED_PLACEHOLDER.test(segments[s])) {
+                    found.push({ rule: rules[r], url: url, segment: segments[s], names: segments[s].match(PLACEHOLDER_NAMES) });
+                }
+            }
+        }
+    }
+    return found;
+}
+
+/**
+ * #B1143 — the single warning line for a bundle's URL segments that hold a placeholder followed by
+ * a character other than a letter, a digit or an underscore.
+ *
+ * @param {string} bundle - The bundle name
+ * @param {Array<{rule: string, url: string, segment: string, names: Array<string>}>} list - From findTruncatedPlaceholders
+ * @returns {string} The warning text
+ *
+ * @example
+ *   formatTruncatedPlaceholderWarning('site', [ { rule: 'home@site', url: '/:lang-code/home', segment: ':lang-code', names: [ ':lang' ] } ]);
+ *   // '[CONFIG][loadBundleConfig] [ site ] 1 route URL segment holds a placeholder followed by a character other than a letter, a digit or an underscore: home@site ":lang-code". ...'
+ */
+function formatTruncatedPlaceholderWarning(bundle, list) {
+    var n = list.length;
+    var items = list.map(function (p) { return p.rule + ' ' + JSON.stringify(p.segment); }).join(', ');
+    return '[CONFIG][loadBundleConfig] [ ' + bundle + ' ] ' + n + ' route URL segment' + (n === 1 ? ' holds' : 's hold')
+        + ' a placeholder followed by a character other than a letter, a digit or an underscore: ' + items
+        + '. Except on a DELETE route with requirements, gina reads a placeholder\'s name up to that character: ":lang-code" is read as ":lang".'
+        + ' Name each placeholder with letters, digits and underscores (":lang_code").'
+        + ' See https://gina.io/docs/guides/routing#parameterized-url';
+}
+
 module.exports = {
-    CONFIG_KEYS                   : CONFIG_KEYS,
-    EXEMPT_KEYS                   : EXEMPT_KEYS,
-    isConfigKeyBinding            : isConfigKeyBinding,
-    findConfigKeyBindings         : findConfigKeyBindings,
-    formatConfigKeyBindingWarning : formatConfigKeyBindingWarning
+    CONFIG_KEYS                       : CONFIG_KEYS,
+    EXEMPT_KEYS                       : EXEMPT_KEYS,
+    isConfigKeyBinding                : isConfigKeyBinding,
+    findConfigKeyBindings             : findConfigKeyBindings,
+    formatConfigKeyBindingWarning     : formatConfigKeyBindingWarning,
+    findTruncatedPlaceholders         : findTruncatedPlaceholders,
+    formatTruncatedPlaceholderWarning : formatTruncatedPlaceholderWarning
 };
