@@ -3582,12 +3582,30 @@ function ServerEngineClass(options) {
             });
         });
 
+        // #B1140 — `Eio.attach()` above installs engine.io's own upgrade
+        // listener for its path while the websocket transport is enabled, and
+        // that listener serves its path itself; this one serves every other
+        // path (a bundle's push path, for instance). The path is computed as
+        // engine.io computes it.
+        var _eioOwnPath = (typeof ioServer._computePath == 'function')
+            ? ioServer._computePath(options.ioServer)
+            : (options.ioServer.path || '/engine.io').replace(/\/$/, '') + ((options.ioServer.addTrailingSlash !== false) ? '/' : '');
+        var _eioOwnListener = !!(ioServer.opts && Array.isArray(ioServer.opts.transports) && ioServer.opts.transports.indexOf('websocket') > -1);
         server.on('upgrade', function(req, socket, head){
             // #INS8 — defer /_gina/agent upgrades to the WebSocket agent handler
             // attached in server.js; engine.io owns only its own upgrade path.
             if (/\/_gina\/agent(?:\?|$)/.test(req.url ? req.url.split('?')[0] : '')) { return; }
+            // #B1140 — engine.io's own listener serves its path: never hand it the same socket twice.
+            if (_eioOwnListener && typeof(req.url) == 'string' && req.url.slice(0, _eioOwnPath.length) === _eioOwnPath) { return; }
+            // #B1140 — without the websocket transport, engine.io has no WebSocket server to serve an upgrade.
+            if (!ioServer.ws) { return; }
             console.debug('[IO SERVER ] upgrading socket #'+ this.id);
-            ioServer.handleUpgrade(req, socket, head);
+            try {
+                ioServer.handleUpgrade(req, socket, head);
+            } catch (upgradeErr) {
+                // #B1140 — a throw here must not stop the bundle: drop this socket only.
+                try { socket.destroy(); } catch (destroyErr) { /* already gone */ }
+            }
         });
         // httpServer.on('request', function(req, res){
         //     ioServer.handleRequest(req, res);
