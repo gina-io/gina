@@ -127,7 +127,10 @@ describe('03 - the shipped functions bridge registrations to the module', functi
         engine.setTag('b535tag', function () { return true; }, function () { return '_output += "TAGOUT";'; }, false, false);
         engine.setExtension('b535ext', { v: 41 });
         assert.equal(compiles(mod, '{% b535tag %}'), 'TAGOUT');
-        assert.equal(compiles(mod, '{{ _ext.b535ext.v }}'), '41');
+        // #B1138: swig 2.12.4 renders a template's read of `_ext` (a name its compiled code uses) as "", so the
+        // extension is read where swig hands extensions out, in a tag's compiled code; unbridged, that read throws.
+        engine.setTag('b535extread', function () { return true; }, function () { return '_output += _ext.b535ext.v;'; }, false, false);
+        assert.equal(compiles(mod, '{% b535extread %}'), '41');
     });
 
     it('an invalid registration throws from the instance and leaves the module untouched', function () {
