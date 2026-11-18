@@ -458,7 +458,7 @@ const slice = Array.prototype.slice;
  * @param {string} options.preferedCompressionEncodingOrder - Ordered list of accepted encodings
  * @param {number} [options.keepAliveTimeout] - Server keep-alive timeout in ms
  * @param {number} [options.headersTimeout] - Server headers timeout in ms
- * @param {object} [options.ioServer] - engine.io server options; omit to disable WebSocket support
+ * @param {object} [options.ioServer] - engine.io server options; omit to disable WebSocket support. Unless it names a `wsEngine`, engine.io's WebSocket transport runs on gina's own `ws` (#S25)
  * @returns {{ instance: object, middleware: function }} Configured Node server and middleware factory
  */
 function ServerEngineClass(options) {
@@ -3368,6 +3368,17 @@ function ServerEngineClass(options) {
         // #B10 fix: lazy-require engine.io — only loaded when ioServer is configured
         if (Eio === null) {
             Eio = require('engine.io');
+        }
+        // #S25 — engine.io's WebSocket transport runs on `ws`, and every
+        // engine.io 6.6.x release pins its own `ws` range below 8.23.0
+        // (`~8.21.0` in 6.6.9 to 6.6.11). An install from the registry then
+        // places an older `ws` under engine.io, which gina's own `ws` range
+        // does not reach, and that copy has no bound on pending automatic
+        // Pongs (ws's GHSA-37g9-w4hg-h9qr). Hand engine.io gina's own `ws`
+        // server class unless the bundle named a `wsEngine` itself.
+        if (typeof(options.ioServer.wsEngine) == 'undefined') {
+            var _ginaWs = require('ws');
+            options.ioServer.wsEngine = _ginaWs.WebSocketServer || _ginaWs.Server;
         }
         // test done in case we would like to switch to socket.io-server
         ioServer = ( typeof(Eio.attach) != 'undefined' ) ? new Eio.attach(server, options.ioServer) : new Eio(server, options.ioServer);
