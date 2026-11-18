@@ -3590,7 +3590,10 @@ function ServerEngineClass(options) {
         var _eioOwnPath = (typeof ioServer._computePath == 'function')
             ? ioServer._computePath(options.ioServer)
             : (options.ioServer.path || '/engine.io').replace(/\/$/, '') + ((options.ioServer.addTrailingSlash !== false) ? '/' : '');
-        var _eioOwnListener = !!(ioServer.opts && Array.isArray(ioServer.opts.transports) && ioServer.opts.transports.indexOf('websocket') > -1);
+        // engine.io's own test for installing that listener (`~transports.indexOf("websocket")`),
+        // mirrored as it is written there.
+        // was: var _eioOwnListener = !!(ioServer.opts && Array.isArray(ioServer.opts.transports) && ioServer.opts.transports.indexOf('websocket') > -1);
+        var _eioOwnListener = !!(ioServer.opts && ioServer.opts.transports && typeof(ioServer.opts.transports.indexOf) == 'function' && ~ioServer.opts.transports.indexOf('websocket'));
         server.on('upgrade', function(req, socket, head){
             // #INS8 — defer /_gina/agent upgrades to the WebSocket agent handler
             // attached in server.js; engine.io owns only its own upgrade path.

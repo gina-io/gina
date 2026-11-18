@@ -20,9 +20,13 @@
  * dispatch is wrapped, so a listener's synchronous throw is recorded instead of
  * ending the run.
  *
- * Seam: GINA_ISAAC_SRC=<absolute file> reads the statements from that text
- * (red-first against the previous bytes); modules always resolve from this
- * tree's core/server.isaac.js, as they do in production.
+ * The Inspector agent's upgrade listener (`/_gina/agent`) is installed from
+ * core/server.js's real bytes (the whole `attachInspectorAgentWs` function) for
+ * the arms that need it, after Isaac's, as server.js attaches it at listen().
+ *
+ * Seams: GINA_ISAAC_SRC=<absolute file> and GINA_SERVER_SRC=<absolute file>
+ * read the statements from that text (red-first against the previous bytes);
+ * modules always resolve from this tree's core/, as they do in production.
  */
 var { describe, it, after } = require('node:test');
 var assert = require('node:assert/strict');
@@ -38,6 +42,10 @@ var SRC = fs.readFileSync(SOURCE, 'utf8');
 var isaacRequire = Module.createRequire(path.join(FW, 'core/server.isaac.js'));
 var Eio = isaacRequire('engine.io');
 var WS = require('ws');
+var SERVER_SOURCE = process.env.GINA_SERVER_SRC || path.join(FW, 'core/server.js');
+var SERVER_SRC = fs.readFileSync(SERVER_SOURCE, 'utf8');
+var serverRequire = Module.createRequire(path.join(FW, 'core/server.js'));
+var AGENT_FN = 'function attachInspectorAgentWs(rawServer, ctx) {';
 
 var ATTACH_START = 'delete options.ioServer.integrationMode;';
 var ATTACH_END = 'server.eio = ioServer;';
@@ -87,6 +95,22 @@ function activeListenerCode() {
     assert.equal(regions.length, 1, 'one active upgrade listener');
     var region = regions[0];
     return region.slice(region.indexOf(UPGRADE)).split('\n').filter(function(line) { return !/^\s*(\/\/|\*|\/\*)/.test(line); }).join('\n');
+}
+
+/**
+ * The Inspector agent's attach function, compiled from core/server.js's real
+ * bytes with every identifier it reads handed in (a `new Function` captures no
+ * closure).
+ *
+ * @returns {function} attachInspectorAgentWs(rawServer, ctx)
+ */
+function agentAttach() {
+    var a = SERVER_SRC.indexOf(AGENT_FN);
+    assert.ok(a > -1 && SERVER_SRC.indexOf(AGENT_FN, a + 1) < 0, 'the agent attach function is found once');
+    var b = SERVER_SRC.indexOf('\n}\n', a);
+    assert.ok(b > a, 'the agent attach function closes');
+    return new Function('require', 'lib', '_agentKeyValid', 'console', SERVER_SRC.slice(a, b + 2) + '\nreturn attachInspectorAgentWs;')(
+        serverRequire, {}, function() { return false; }, quiet);
 }
 
 var servers = [];
@@ -226,6 +250,14 @@ describe('#B1140 - Isaac\'s listener and engine.io\'s own listener never take th
         assert.deepEqual(srv.thrown, []);
     });
 
+    it('transports given as a string: engine.io\'s own listener keeps its path, and the session opens', async function() {
+        var srv = await boot({ transports: 'websocket' });
+        var r = await socket(srv.port, '/engine.io/?EIO=4&transport=websocket');
+        assert.equal(r.opened, true, 'ended: ' + r.ended);
+        assert.equal(r.messages.length > 0 ? r.messages[0].charAt(0) : 'none', '0', 'the open packet');
+        assert.deepEqual(srv.thrown, []);
+    });
+
     it('ioServer.path is honoured: engine.io\'s own listener has that path, and nothing throws', async function() {
         var srv = await boot({ transports: ['websocket', 'polling'], path: '/mybundle/push' });
         var r = await socket(srv.port, '/mybundle/push/?EIO=4&transport=websocket');
@@ -250,6 +282,42 @@ describe('#B1140 - nothing thrown inside Isaac\'s listener escapes', function() 
         assert.deepEqual(srv.thrown, []);
         assert.equal(r.firstLine, '', 'no response on a dropped socket');
         assert.notEqual(r.ended, 'timeout', 'the socket was closed, not left open (ended: ' + r.ended + ')');
+    });
+});
+
+describe('#B1140 - the Inspector agent\'s listener and engine.io\'s own listener', function() {
+
+    var devBefore;
+    // NODE_ENV_IS_DEV=true: the agent then takes an upgrade without a key, as in dev mode.
+    function devOn() {
+        devBefore = process.env.NODE_ENV_IS_DEV;
+        process.env.NODE_ENV_IS_DEV = 'true';
+        if (!process.gina) { process.gina = {}; }
+    }
+    function devOff() {
+        if (typeof devBefore === 'undefined') { delete process.env.NODE_ENV_IS_DEV; } else { process.env.NODE_ENV_IS_DEV = devBefore; }
+    }
+
+    it('CONTROL: the agent\'s listener, from its real bytes, answers /_gina/agent', async function() {
+        devOn();
+        try {
+            var srv = await boot({ transports: ['polling', 'websocket'] });
+            agentAttach()(srv.server, { instance: {}, appName: 'demo', env: 'dev' });
+            var r = await socket(srv.port, '/_gina/agent');
+            assert.equal(r.opened, true, 'ended: ' + r.ended);
+            assert.equal(JSON.parse(r.messages[0]).event, 'data', 'the agent\'s first frame');
+            assert.deepEqual(srv.thrown, []);
+        } finally { devOff(); }
+    });
+
+    it('a URL under engine.io\'s path that ends with the agent path throws nothing', async function() {
+        devOn();
+        try {
+            var srv = await boot({ transports: ['polling', 'websocket'] });
+            agentAttach()(srv.server, { instance: {}, appName: 'demo', env: 'dev' });
+            await socket(srv.port, '/engine.io/_gina/agent?EIO=4&transport=websocket');
+            assert.deepEqual(srv.thrown, []);
+        } finally { devOff(); }
     });
 });
 

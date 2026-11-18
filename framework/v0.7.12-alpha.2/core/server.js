@@ -948,7 +948,10 @@ function watchBindOutcome(rawServer, port) {
  * endpoint's `access-control-allow-origin: *`; cross-origin is the norm here,
  * Inspector on :4101 → target on another port). Denials are written as a raw
  * HTTP status line on the upgrade socket (no `ServerResponse` exists yet), then
- * the socket is destroyed.
+ * the socket is destroyed. A socket that another upgrade listener has already
+ * upgraded makes `ws` throw on the second handshake: that socket is destroyed
+ * too, so the throw never reaches the process (#B1140; the `handleUpgrade` call
+ * used to run outside a try).
  *
  * Snapshot replay + capture egress mirror the SSE handler: the last snapshot is
  * only sent in dev OR during an active instrumentation window (#INS10), never a
@@ -1018,7 +1021,7 @@ function attachInspectorAgentWs(rawServer, ctx) {
             }
         }
 
-        _wss.handleUpgrade(req, socket, head, function(ws) {
+        try { _wss.handleUpgrade(req, socket, head, function(ws) {
             if (!process.gina._inspectorActive) { process.gina._inspectorActive = true; }
 
             // Initial snapshot — dev OR an active instrumentation window only,
@@ -1093,7 +1096,11 @@ function attachInspectorAgentWs(rawServer, ctx) {
             });
 
             try { console.info((req.method || 'GET') + ' [101] ' + req.url + ' (WS agent)'); } catch (e) {}
-        });
+        }); } catch (agErr) {
+            // #B1140 — a socket another upgrade listener has already upgraded makes `ws`
+            // throw on this second handshake: drop that socket, never the bundle.
+            try { socket.destroy(); } catch (e) {}
+        }
     });
 }
 
