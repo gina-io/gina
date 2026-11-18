@@ -24,7 +24,7 @@
  * path only).
  *
  * Design substrate + executable rehearsal (19 arms on the real engine
- * bytes): .claude ledger entry #B241 and its arc probes. Related filings
+ * bytes): internal ledger entry #B241 and its arc probes. Related filings
  * out of the same pass: #B245 (isRequired+trim order/leading-whitespace
  * spurious rejection — a FLAT-path defect the newly-joined keys now
  * inherit by parity, asserted here in 02.6) and #B244 (unrelated surface).

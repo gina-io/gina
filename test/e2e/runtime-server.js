@@ -110,6 +110,8 @@
  *                                         spec builds its pages through /x76-page, same staging routes)
  *   GET /js/gina.onload.b1099.js       -> built onload with the staged-input case-rules whisper (#B1099;
  *                                         the spec builds its pages through /x76-page)
+ *   GET /js/gina.onload.b1095.js       -> built onload with the staged-input case-only rules whisper
+ *                                         (#B1095; the spec builds its pages through /x76-page)
  *   GET /link-gate                     -> fixtures/link-disabled-gate.html (#B310
  *                                         link disabled-gate harness; same sink)
  *   GET /link-shared                   -> fixtures/link-same-url.html (#B287
@@ -517,6 +519,20 @@ const B1099_FORMS_JSON = JSON.stringify({ rules: {
     b1099reonly:  { title: { isRequired: true }, kind: { isRequired: true }, '/^doc$/': { isRequired: true } },
     b459declared: { title: { isRequired: true } }
 } });
+// #B1095 — the forms whisper of the staged-input case-only rules spec
+// (test/e2e/validator-staged-case-rule-b1095.spec.js): the staged file input `doc` has NO rule of its
+// own; a `_case_kind` condition whose case is `pro` gives it one, required (`b1095req`) or optional
+// (`b1095opt`). `b1095two` names it from the first of two `_case_` keys, so its driver is not the last
+// one (the shape whose direct-case block judged the input's own value before #B1095).
+const B1095_CASE_REQ = { _case_kind: { conditions: [ { case: 'pro', rules: { doc: { isRequired: true } } } ] } };
+const B1095_CASE_OPT = { _case_kind: { conditions: [ { case: 'pro', rules: { doc: { isRequired: false } } } ] } };
+const B1095_CASE_OTHER = { _case_other: { conditions: [ { case: 'x', rules: { title: { isRequired: true } } } ] } };
+const B1095_FORMS_JSON = JSON.stringify({ rules: {
+    b1095req:     Object.assign({ title: { isRequired: true }, kind: { isRequired: true } }, B1095_CASE_REQ),
+    b1095opt:     Object.assign({ title: { isRequired: true }, kind: { isRequired: true } }, B1095_CASE_OPT),
+    b1095two:     Object.assign({ kind: { isRequired: true } }, B1095_CASE_REQ, B1095_CASE_OTHER),
+    b459declared: { title: { isRequired: true } }
+} });
 // The staging answer the client consumes (guide: `files[]` entries; the NESTED
 // `preview` object is the app-provided variant the client renders from `preview.tmpUri`).
 const B459_STAGE_JSON = JSON.stringify({ files: [{
@@ -784,6 +800,9 @@ const server = http.createServer(function (req, res) {
         }
         if (url === '/js/gina.onload.b1099.js') {
             return send(res, 200, 'application/javascript; charset=utf-8', renderOnload(B1099_FORMS_JSON));
+        }
+        if (url === '/js/gina.onload.b1095.js') {
+            return send(res, 200, 'application/javascript; charset=utf-8', renderOnload(B1095_FORMS_JSON));
         }
         // #B459 — the staged-upload preview-fields fixture and its three endpoints.
         if (url === '/js/gina.onload.b459.js') {

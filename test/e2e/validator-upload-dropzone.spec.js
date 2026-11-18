@@ -103,9 +103,10 @@ test.describe('#R8 staged-upload dropzone (real bundle, real DataTransfer)', () 
 
     test('04 - a dropped file is assigned to the owning input', async ({ page }) => {
         // #B1059 — read the input at its `change`, the moment the drop assigns the file: this fixture's
-        // staging always fails (no upload action, the default route is not served: POST /null, 404), and
-        // a failed staging now empties the input, so a read after it saw nothing (approved by Martin
-        // Luther ETOUMAN NDAMBWE, 2026-11-04, by 18:46:27 WAT).
+        // input has no upload action and the default route is not served, so its selection is refused
+        // before any request (#B1094; its staging used to fail, POST /null, 404), and a refused or
+        // failed selection empties the input, so a read after it saw nothing (approved by Martin Luther
+        // ETOUMAN NDAMBWE, 2026-11-04, by 18:46:27 WAT; the #B1094 wording, 2026-11-05, by 13:24:13 WAT).
         // was: the poll below read `el.files` after the drop, whatever the staging had done meanwhile
         await page.evaluate(() => {
             window.__droppedAtChange = [];

@@ -150,7 +150,9 @@ describe('01 - #B495 source pins: the entry carries the memo, the hit path emits
     });
 
     it('premise (green on both revisions): the getAssets call, its parse, and its error path are untouched', function () {
-        assert.strictEqual(count(stripped, 'assets = self.serverInstance.getAssets(localOptions.conf, layout, null, data);'), 1, 'one getAssets call');
+        // #B1131 — the call's argument is the layout whispered with every value (pinned in
+        // render-swig-whisper-per-request-b1131.test.js); here, the one call
+        assert.strictEqual(count(stripped, 'assets = self.serverInstance.getAssets(localOptions.conf, '), 1, 'one getAssets call');
         assert.strictEqual(count(stripped, 'localOptions.template.assets = JSON.parse(assets);'), 1, 'one parse');
         assert.strictEqual(count(stripped, 'calling getAssets'), 1, 'the 500 path still names getAssets');
         assert.strictEqual(count(stripped, 'cache.get(cacheKey).template'), 1, 'the compiled-template read is unchanged');

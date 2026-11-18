@@ -19,3 +19,10 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    # The steps of github/codeql-action must run one
+    # version (CodeQL refuses a mixed init/analyze),
+    # so their bumps arrive in one PR.
+    groups:
+      codeql-action:
+        patterns:
+          - "github/codeql-action*"
