@@ -7,10 +7,15 @@
  * bundle's server at listen(), and once an `upgrade` listener exists Node.js
  * accepts every upgrade request. An upgrade on any other path that no listener
  * takes is now served as a plain request where the server has
- * `shouldUpgradeCallback` (Node.js 24.9 and later) and gina's listeners are the
- * server's only upgrade listeners, and is closed after 1 s when nothing has
- * been written on it otherwise: the rule and delay engine.io applies to an
- * upgrade it does not own. Before, it was left open.
+ * `shouldUpgradeCallback` (Node.js 22.21 and later, 24.9 and later) and gina's
+ * listeners are the server's only upgrade listeners. Otherwise it is closed
+ * after 1 s: always when gina's listeners are the only ones, and with another
+ * listener attached when nothing has been written on it, the rule and delay
+ * engine.io applies to an upgrade it does not own. On Bun a socket reads
+ * `bytesWritten` 0 after another listener has answered on it, so there, with
+ * another listener attached, the socket is left to that listener: the arms
+ * that attach one expect the close on Node.js and the socket kept on Bun.
+ * Before, it was left open.
  *
  * `attachInspectorAgentWs` is compiled from core/server.js's real bytes with
  * every identifier it reads handed in (a `new Function` captures no closure),
@@ -46,6 +51,8 @@ var WS = serverRequire('ws');
 var AGENT_FN = 'function attachInspectorAgentWs(rawServer, ctx) {';
 var quiet = { debug: function() {}, info: function() {}, warn: function() {}, log: function() {}, error: function() {} };
 var UPGRADE_101 = 'HTTP/1.1 101 Switching Protocols\r\nUpgrade: x\r\nConnection: Upgrade\r\n\r\n';
+// The runtime the arms that attach another upgrade listener branch on (the same key as utils/runtime).
+var IS_BUN = !!(process.versions && process.versions.bun);
 
 var TLS_OPTS = null;
 var servers = [];
@@ -286,14 +293,18 @@ describe('#B1141 - with only gina\'s listeners, an upgrade on another path is a 
     });
 });
 
-describe('#B1141 - another upgrade listener is attached and takes nothing: the upgrade is closed after 1 s', function() {
+describe('#B1141 - another upgrade listener is attached and takes nothing: the upgrade is closed after 1 s on Node.js, left to that listener on Bun', function() {
 
     ['http', 'h2s'].forEach(function(kind) {
-        it('an upgrade on /foo is closed after about 1 s, with no byte (' + kind + ')', async function(t) {
+        it('an upgrade on /foo is closed after about 1 s with no byte on Node.js, and kept open on Bun (' + kind + ')', async function(t) {
             if (skipWithoutTls(t, kind)) { return; }
             var srv = await boot(kind, { setup: appWebSocket });
             var r = await upgrade(kind, srv.port, '/foo', 2500);
             assert.equal(r.bytes, 0);
+            if (IS_BUN) {
+                assert.equal(r.closedAt, null, 'left to the other listener: still open at 2.5 s');
+                return;
+            }
             assert.notEqual(r.closedAt, null, 'closed within 2.5 s');
             assert.ok(r.closedAt >= 900, 'closed after the 1 s delay, not at once (closedAt ' + r.closedAt + ')');
         });
@@ -306,7 +317,7 @@ describe('#B1141 - another upgrade listener is attached and takes nothing: the u
         assert.equal(r.closedAt, null, 'still open');
     });
 
-    it('a listener that writes nothing for 1 s loses the socket (the stated limit)', async function() {
+    it('a listener that writes nothing for 1 s loses the socket on Node.js (the stated limit); on Bun the socket is left to it and its late answer arrives', async function() {
         var srv = await boot('http', { setup: function(s) {
             s.on('upgrade', function(req, socket) {
                 if (req.url !== '/slow') { return; }
@@ -315,6 +326,11 @@ describe('#B1141 - another upgrade listener is attached and takes nothing: the u
             });
         } });
         var r = await upgrade('http', srv.port, '/slow', 2500);
+        if (IS_BUN) {
+            assert.equal(r.firstLine, 'HTTP/1.1 101 Switching Protocols', 'the late answer reached the client');
+            assert.equal(r.closedAt, null, 'still open at 2.5 s');
+            return;
+        }
         assert.equal(r.bytes, 0, 'the late answer never reached the client');
         assert.notEqual(r.closedAt, null, 'closed');
         assert.ok(r.closedAt >= 900, 'closed after the 1 s delay, not at once (closedAt ' + r.closedAt + ')');

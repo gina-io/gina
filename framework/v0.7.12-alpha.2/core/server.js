@@ -956,12 +956,16 @@ function watchBindOutcome(rawServer, port) {
  * Upgrades on other paths (#B1141): once an `upgrade` listener exists, Node.js
  * accepts every upgrade request, and the agent's listener takes only
  * `/_gina/agent`. A second listener, registered after it, closes an upgrade on
- * any other path after 1 s when nothing has been written on its socket (the
- * rule and delay engine.io applies to an upgrade it does not own). Where the
- * server has `shouldUpgradeCallback` (Node.js 24.9 and later), such an upgrade
- * is served as a plain request when these two are the server's only upgrade
- * listeners; otherwise the previous callback decides. Both read nothing but
- * `rawServer` and their own locals.
+ * any other path after 1 s: always when these two are the server's only
+ * upgrade listeners, and otherwise when nothing has been written on its socket
+ * (the rule and delay engine.io applies to an upgrade it does not own). On Bun
+ * a socket reads `bytesWritten` 0 after another listener has answered on it,
+ * so there an upgrade on a server with another upgrade listener is left to
+ * that listener. Where the server has `shouldUpgradeCallback` (Node.js 22.21
+ * and later, 24.9 and later), such an upgrade is served as a plain request when
+ * these two are the server's only upgrade listeners; otherwise the previous
+ * callback decides. Both read nothing but `rawServer`, `process.versions` and
+ * their own locals.
  *
  * Snapshot replay + capture egress mirror the SSE handler: the last snapshot is
  * only sent in dev OR during an active instrumentation window (#INS10), never a
@@ -1117,22 +1121,37 @@ function attachInspectorAgentWs(rawServer, ctx) {
     // Node.js accepts every upgrade request and hands its socket to the
     // listeners; the listener above takes only /_gina/agent, so an upgrade on
     // any other path that no listener took was left open. Now:
-    //   - a second listener closes it after 1 s when nothing has been written on
-    //     its socket: engine.io's rule and delay for an upgrade it does not own
-    //     (`destroyUpgradeTimeout`), which bundles in ioServer attach mode
-    //     already live under;
-    //   - where the server has `shouldUpgradeCallback` (Node.js 24.9 and later),
-    //     such an upgrade is served as a plain request when these two are the
-    //     server's only upgrade listeners; otherwise the previous callback decides.
-    // Both are registered after the agent's listener, whose bytes stay as they are.
+    //   - a second listener closes it after 1 s: always when gina's two
+    //     listeners are the server's only upgrade listeners (nobody else can
+    //     take it); with another listener attached, only when nothing has been
+    //     written on its socket, engine.io's rule and delay for an upgrade it
+    //     does not own (`destroyUpgradeTimeout`), which bundles in ioServer
+    //     attach mode already live under. On Bun a socket reads `bytesWritten`
+    //     0 after another listener has answered on it, so there, with another
+    //     listener attached, the socket is left to that listener;
+    //   - where the server has `shouldUpgradeCallback` (Node.js 22.21 and later,
+    //     24.9 and later), such an upgrade is served as a plain request when
+    //     gina's two listeners are the server's only upgrade listeners;
+    //     otherwise the previous callback decides.
+    // Both are registered after the agent's listener, whose bytes stay as they
+    // are. The agent path's pattern is held once here (`_agentPathRe`), so the
+    // agent listener's own test of the url stays the only one in this file.
     var _agentUpgradeListener = rawServer.listeners('upgrade').slice(-1)[0];
+    var _agentPathRe = /\/_gina\/agent(?:\?|$)/;
+    var _isBun = !!(process.versions && process.versions.bun);
     var _isAgentUpgrade = function(req) {
-        return /\/_gina\/agent(?:\?|$)/.test(req.url ? req.url.split('?')[0] : '');
+        return _agentPathRe.test(req.url ? req.url.split('?')[0] : '');
+    };
+    var _otherUpgradeListeners = function() {
+        return rawServer.listeners('upgrade').filter(function(listener) {
+            return listener !== _agentUpgradeListener && listener !== _unclaimedUpgradeListener;
+        });
     };
     var _unclaimedUpgradeListener = function(req, socket) {
         if (_isAgentUpgrade(req)) { return; }
+        var _alone = _otherUpgradeListeners().length === 0;
         var _unclaimedTimer = setTimeout(function() {
-            if (socket.writable && socket.bytesWritten <= 0) {
+            if (socket.writable && (_alone || (!_isBun && socket.bytesWritten <= 0))) {
                 socket.on('error', function() {});
                 socket.destroy();
             }
@@ -1144,12 +1163,7 @@ function attachInspectorAgentWs(rawServer, ctx) {
     if (typeof rawServer.shouldUpgradeCallback === 'function') {
         var _prevShouldUpgrade = rawServer.shouldUpgradeCallback;
         rawServer.shouldUpgradeCallback = function(req) {
-            if (!_isAgentUpgrade(req)) {
-                var _others = rawServer.listeners('upgrade').filter(function(listener) {
-                    return listener !== _agentUpgradeListener && listener !== _unclaimedUpgradeListener;
-                });
-                if (_others.length === 0) { return false; }
-            }
+            if (!_isAgentUpgrade(req) && _otherUpgradeListeners().length === 0) { return false; }
             return _prevShouldUpgrade.call(rawServer, req);
         };
     }
