@@ -447,27 +447,37 @@ describe('#B1141 - while an upgrade waits, its socket carries gina\'s error list
         assert.equal(count, baseline + 1, 'one error listener added by gina\'s listener (baseline ' + baseline + ')');
     });
 
-    it('a client that resets its connection while the socket waits: the socket closes and no exception is left uncaught (http, another listener attached)', async function() {
+    it('a client that resets its connection while the socket waits: the server\'s socket closes on Node.js (http, another listener attached)', async function() {
         var uncaught = [];
         var onUncaught = function(err) { uncaught.push((err && err.code) || String(err)); };
         process.on('uncaughtException', onUncaught);
+        var bound = null;
         try {
             var closed = null;
+            var onClose = null;
+            var serverClosed = new Promise(function(resolve) { onClose = resolve; });
             var srv = await boot('http', { setup: function(s) {
                 // Another upgrade listener, which takes nothing and reads only the socket's close.
                 s.on('upgrade', function(req, socket) {
                     if (req.url !== '/foo') { return; }
-                    socket.once('close', function(hadError) { closed = { hadError: hadError }; });
+                    socket.once('close', function(hadError) { closed = { hadError: hadError }; onClose(); });
                 });
             } });
             await upgradeThenReset(srv.port, '/foo', 150);
-            await new Promise(function(resolve) { setTimeout(resolve, 300); });
-            assert.deepEqual(uncaught, [], 'no uncaught exception');
+            if (IS_BUN) {
+                // Whether Bun's socket emits close here is not measured: a fixed 300 ms, as before.
+                await new Promise(function(resolve) { setTimeout(resolve, 300); });
+            } else {
+                // Until the server's socket closes, at most 5 s.
+                await Promise.race([serverClosed, new Promise(function(resolve) { bound = setTimeout(resolve, 5000); })]);
+            }
+            assert.deepEqual(uncaught, [], 'nothing reached the process');
             if (!IS_BUN) {
                 assert.ok(closed, 'the server closed its socket');
                 assert.equal(closed.hadError, true, 'the reset reached the server\'s socket as an error');
             }
         } finally {
+            clearTimeout(bound);
             process.removeListener('uncaughtException', onUncaught);
         }
     });
