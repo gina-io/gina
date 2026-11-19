@@ -958,9 +958,10 @@ function watchBindOutcome(rawServer, port) {
  * `/_gina/agent`. A second listener, registered after it, closes an upgrade on
  * any other path after 1 s: always when these two are the server's only
  * upgrade listeners, and otherwise when nothing has been written on its socket
- * (the rule and delay engine.io applies to an upgrade it does not own). On Bun
- * a socket reads `bytesWritten` 0 after another listener has answered on it,
- * so there an upgrade on a server with another upgrade listener is left to
+ * (the rule and delay engine.io applies to an upgrade it does not own), and it
+ * gives that socket a no-op `error` listener as soon as the upgrade arrives. On
+ * Bun a socket reads `bytesWritten` 0 after another listener has answered on
+ * it, so there an upgrade on a server with another upgrade listener is left to
  * that listener. Where the server has `shouldUpgradeCallback` (Node.js 22.21
  * and later, 24.9 and later), such an upgrade is served as a plain request when
  * these two are the server's only upgrade listeners; otherwise the previous
@@ -1128,7 +1129,10 @@ function attachInspectorAgentWs(rawServer, ctx) {
     //     does not own (`destroyUpgradeTimeout`), which bundles in ioServer
     //     attach mode already live under. On Bun a socket reads `bytesWritten`
     //     0 after another listener has answered on it, so there, with another
-    //     listener attached, the socket is left to that listener;
+    //     listener attached, the socket is left to that listener. It also gives
+    //     the socket a no-op `error` listener as soon as the upgrade arrives
+    //     (Node.js's HTTP layer removes its listeners from the socket before
+    //     the `upgrade` event), as engine.io does before it destroys one;
     //   - where the server has `shouldUpgradeCallback` (Node.js 22.21 and later,
     //     24.9 and later), such an upgrade is served as a plain request when
     //     gina's two listeners are the server's only upgrade listeners;
@@ -1139,6 +1143,7 @@ function attachInspectorAgentWs(rawServer, ctx) {
     var _agentUpgradeListener = rawServer.listeners('upgrade').slice(-1)[0];
     var _agentPathRe = /\/_gina\/agent(?:\?|$)/;
     var _isBun = !!(process.versions && process.versions.bun);
+    var _ignoreUpgradeSocketError = function() {};
     var _isAgentUpgrade = function(req) {
         return _agentPathRe.test(req.url ? req.url.split('?')[0] : '');
     };
@@ -1149,10 +1154,10 @@ function attachInspectorAgentWs(rawServer, ctx) {
     };
     var _unclaimedUpgradeListener = function(req, socket) {
         if (_isAgentUpgrade(req)) { return; }
+        socket.on('error', _ignoreUpgradeSocketError);
         var _alone = _otherUpgradeListeners().length === 0;
         var _unclaimedTimer = setTimeout(function() {
             if (socket.writable && (_alone || (!_isBun && socket.bytesWritten <= 0))) {
-                socket.on('error', function() {});
                 socket.destroy();
             }
         }, 1000);

@@ -3594,7 +3594,14 @@ function ServerEngineClass(options) {
         // mirrored as it is written there.
         // was: var _eioOwnListener = !!(ioServer.opts && Array.isArray(ioServer.opts.transports) && ioServer.opts.transports.indexOf('websocket') > -1);
         var _eioOwnListener = !!(ioServer.opts && ioServer.opts.transports && typeof(ioServer.opts.transports.indexOf) == 'function' && ~ioServer.opts.transports.indexOf('websocket'));
-        server.on('upgrade', function(req, socket, head){
+        // #B1141 — registered only when engine.io has a WebSocket server
+        // (`ioServer.ws`, which its constructor builds when `transports` holds
+        // "websocket"). Without one this listener takes nothing, yet gina's
+        // upgrade listeners in server.js (attachInspectorAgentWs) would count it
+        // as another upgrade listener: an upgrade on another path would not be
+        // served as a plain request, and on Bun it would be left to this
+        // listener. It used to be registered for every attach-mode bundle.
+        if (ioServer.ws) server.on('upgrade', function(req, socket, head){
             // #INS8 — defer /_gina/agent upgrades to the WebSocket agent handler
             // attached in server.js; engine.io owns only its own upgrade path.
             if (/\/_gina\/agent(?:\?|$)/.test(req.url ? req.url.split('?')[0] : '')) { return; }

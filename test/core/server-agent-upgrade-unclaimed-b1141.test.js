@@ -17,6 +17,17 @@
  * that attach one expect the close on Node.js and the socket kept on Bun.
  * Before, it was left open.
  *
+ * While such an upgrade waits, its socket carries a no-op `error` listener of
+ * gina's from the moment the upgrade arrives: one arm reads the count from a
+ * listener registered after gina's, against a server without gina's listeners,
+ * and one resets the client's connection while the socket waits. Where the
+ * application replaces `shouldUpgradeCallback` after gina's attach, the 1 s
+ * close still applies. A bundle in `ioServer` attach mode without the
+ * websocket transport registers no engine.io upgrade listener, so gina's
+ * listeners are alone there: Isaac's attach statements and its upgrade
+ * statement are sliced from core/server.isaac.js's real bytes and run with the
+ * real engine.io, before listen(), as Isaac runs them.
+ *
  * `attachInspectorAgentWs` is compiled from core/server.js's real bytes with
  * every identifier it reads handed in (a `new Function` captures no closure),
  * and attached to real `http`, `https` and `http2` secure (`allowHTTP1`)
@@ -26,7 +37,8 @@
  * has the property on this runtime and expects the plain answer where it has
  * it, the close after 1 s where it has not; no arm is skipped for it.
  *
- * Seam: GINA_SERVER_SRC=<absolute file> reads the function from that text
+ * Seams: GINA_SERVER_SRC=<absolute file> reads the function from that text,
+ * and GINA_ISAAC_SRC=<absolute file> reads Isaac's statements from that text
  * (red-first against the previous bytes); modules always resolve from this
  * tree's core/, as they do in production.
  */
@@ -47,6 +59,9 @@ var FW = require('../fw');
 var SERVER_SOURCE = process.env.GINA_SERVER_SRC || path.join(FW, 'core/server.js');
 var SERVER_SRC = fs.readFileSync(SERVER_SOURCE, 'utf8');
 var serverRequire = Module.createRequire(path.join(FW, 'core/server.js'));
+var ISAAC_SOURCE = process.env.GINA_ISAAC_SRC || path.join(FW, 'core/server.isaac.js');
+var ISAAC_SRC = fs.readFileSync(ISAAC_SOURCE, 'utf8');
+var isaacRequire = Module.createRequire(path.join(FW, 'core/server.isaac.js'));
 var WS = serverRequire('ws');
 var AGENT_FN = 'function attachInspectorAgentWs(rawServer, ctx) {';
 var quiet = { debug: function() {}, info: function() {}, warn: function() {}, log: function() {}, error: function() {} };
@@ -225,6 +240,76 @@ function skipWithoutTls(t, kind) {
     return false;
 }
 
+/**
+ * Sets a server up as Isaac sets up a bundle in `ioServer` attach mode: the
+ * attach statements (from `delete options.ioServer.integrationMode;` to
+ * `server.eio = ioServer;`), then Isaac's upgrade statement with the
+ * declarations it reads (from `var _eioOwnPath` to the statement's end), sliced
+ * from core/server.isaac.js's real bytes and run with the real engine.io.
+ * Called before listen(), as Isaac runs them.
+ *
+ * @param {object} server
+ * @param {object} ioServerOpts - the bundle's `ioServer` block, without `integrationMode`
+ * @returns {object} the engine.io server
+ */
+function isaacAttach(server, ioServerOpts) {
+    var a = ISAAC_SRC.indexOf('delete options.ioServer.integrationMode;');
+    var b = ISAAC_SRC.indexOf('server.eio = ioServer;', a);
+    var d = ISAAC_SRC.indexOf('var _eioOwnPath', b);
+    var u = ISAAC_SRC.indexOf("server.on('upgrade'", d);
+    var e = ISAAC_SRC.indexOf('\n        });', u);
+    assert.ok(a > -1 && b > a && d > b && u > d && e > u, 'Isaac\'s attach statements and upgrade statement are found, in order');
+    var options = { ioServer: JSON.parse(JSON.stringify(Object.assign({ integrationMode: 'attach' }, ioServerOpts))) };
+    var ioServer = new Function('options', 'server', 'Eio', 'parseTimeout', 'require', 'console',
+        'var ioServer = null;\n' + ISAAC_SRC.slice(a, b + 'server.eio = ioServer;'.length) + '\nreturn ioServer;')(
+        options, server, isaacRequire('engine.io'), function(v) { return v; }, isaacRequire, quiet);
+    new Function('options', 'server', 'ioServer', 'console', ISAAC_SRC.slice(d, e) + '\n        });')(options, server, ioServer, quiet);
+    return ioServer;
+}
+
+/**
+ * Sends an upgrade on `p` and reads, from a listener registered after every
+ * other one, how many `error` listeners its socket carries; that listener
+ * then closes the socket.
+ *
+ * @param {{server: object, port: number}} srv
+ * @param {string} p - the request path
+ * @returns {Promise<(number|null)>} the count, or null when no upgrade reached the listener
+ */
+function errorListenersOnUpgrade(srv, p) {
+    var count = null;
+    srv.server.on('upgrade', function(req, socket) {
+        if (req.url !== p || count !== null) { return; }
+        count = socket.listenerCount('error');
+        socket.destroy();
+    });
+    return upgrade('http', srv.port, p, 1500).then(function() { return count; });
+}
+
+/**
+ * Sends an upgrade on `p` over plain TCP and resets the connection `ms` later:
+ * a TCP reset where the runtime has `resetAndDestroy`, a close otherwise.
+ *
+ * @param {number} port
+ * @param {string} p - the request path
+ * @param {number} ms - the delay before the reset
+ * @returns {Promise<void>} once the client's socket is gone
+ */
+function upgradeThenReset(port, p, ms) {
+    return new Promise(function(resolve) {
+        var s = net.connect(port, '127.0.0.1');
+        s.on('error', function() { /* the reset */ });
+        s.on('close', function() { resolve(); });
+        s.on('connect', function() {
+            s.write('GET ' + p + ' HTTP/1.1\r\nHost: 127.0.0.1\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n' +
+                'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n');
+            setTimeout(function() {
+                if (typeof s.resetAndDestroy === 'function') { s.resetAndDestroy(); } else { s.destroy(); }
+            }, ms);
+        });
+    });
+}
+
 describe('#B1141 - the harness', function() {
 
     it('CONTROL: without any upgrade listener, an upgrade request is served as a plain request', async function() {
@@ -348,5 +433,68 @@ describe('#B1141 - another upgrade listener is attached and takes nothing: the u
         assertAnsweredOrClosed(plain, withCallback);
         var chat = await upgrade('http', srv.port, '/chat', 1500);
         assert.equal(chat.firstLine, 'HTTP/1.1 101 Switching Protocols', 'the application\'s endpoint upgraded');
+    });
+});
+
+describe('#B1141 - while an upgrade waits, its socket carries gina\'s error listener from the moment it arrives', function() {
+
+    it('the socket carries one error listener more than on a server without gina\'s listeners, read when the upgrade arrives (http)', async function() {
+        var bare = await boot('http', { agent: false });
+        var baseline = await errorListenersOnUpgrade(bare, '/foo');
+        assert.equal(typeof baseline, 'number', 'the upgrade reached the reading listener on the server without gina\'s listeners');
+        var srv = await boot('http');
+        var count = await errorListenersOnUpgrade(srv, '/foo');
+        assert.equal(count, baseline + 1, 'one error listener added by gina\'s listener (baseline ' + baseline + ')');
+    });
+
+    it('a client that resets its connection while the socket waits: the socket closes and no exception is left uncaught (http, another listener attached)', async function() {
+        var uncaught = [];
+        var onUncaught = function(err) { uncaught.push((err && err.code) || String(err)); };
+        process.on('uncaughtException', onUncaught);
+        try {
+            var closed = null;
+            var srv = await boot('http', { setup: function(s) {
+                // Another upgrade listener, which takes nothing and reads only the socket's close.
+                s.on('upgrade', function(req, socket) {
+                    if (req.url !== '/foo') { return; }
+                    socket.once('close', function(hadError) { closed = { hadError: hadError }; });
+                });
+            } });
+            await upgradeThenReset(srv.port, '/foo', 150);
+            await new Promise(function(resolve) { setTimeout(resolve, 300); });
+            assert.deepEqual(uncaught, [], 'no uncaught exception');
+            if (!IS_BUN) {
+                assert.ok(closed, 'the server closed its socket');
+                assert.equal(closed.hadError, true, 'the reset reached the server\'s socket as an error');
+            }
+        } finally {
+            process.removeListener('uncaughtException', onUncaught);
+        }
+    });
+});
+
+describe('#B1141 - the application replaces shouldUpgradeCallback after gina\'s attach: the 1 s close still applies', function() {
+
+    it('with gina\'s listeners alone, an upgrade on /foo is closed after about 1 s with no byte (http)', async function() {
+        var srv = await boot('http');
+        srv.server.shouldUpgradeCallback = function() { return true; };
+        var r = await upgrade('http', srv.port, '/foo', 2500);
+        assertAnsweredOrClosed(r, false);
+    });
+});
+
+describe('#B1141 - a bundle in ioServer attach mode without the websocket transport: gina\'s listeners are alone', function() {
+
+    it('CONTROL: with the websocket transport, Isaac\'s listener hands an upgrade on /foo to engine.io, which answers 400 (http)', async function() {
+        var srv = await boot('http', { setup: function(s) { isaacAttach(s, { transports: ['websocket', 'polling'] }); } });
+        var r = await upgrade('http', srv.port, '/foo', 1500);
+        assert.equal(r.firstLine, 'HTTP/1.1 400 Bad Request');
+    });
+
+    it('without the websocket transport, an upgrade on /foo is answered 200 by the request handler where the server has shouldUpgradeCallback, closed after about 1 s where it has not (http)', async function() {
+        var withCallback = hasUpgradeCallback('http');
+        var srv = await boot('http', { setup: function(s) { isaacAttach(s, { transports: ['polling'] }); } });
+        var r = await upgrade('http', srv.port, '/foo', 2500);
+        assertAnsweredOrClosed(r, withCallback);
     });
 });
