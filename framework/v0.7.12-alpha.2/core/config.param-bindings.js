@@ -1,7 +1,7 @@
 'use strict';
 /**
- * Two boot checks of a bundle's routing table, which core/config.js runs once per bundle. Both only
- * READ the table and never rewrite a value.
+ * Three boot checks of a bundle's routing table, which core/config.js runs once per bundle. All three
+ * only READ the table and never rewrite a value.
  *
  * #B1124 — route `param` bindings that use a key gina reads as configuration.
  *
@@ -40,6 +40,16 @@
  * the placeholder `:lang`, so a binding under `lang-code` is never filled and the route matches only
  * when its `param` also binds `lang`. The config loader uses this module to warn once per bundle, listing each URL segment that
  * holds such a placeholder.
+ *
+ * #B646 — text before a placeholder in its URL segment.
+ *
+ * The router neither compares nor removes text written before a placeholder in the same segment
+ * (`/articles/page:number`): the placeholder takes the whole segment (lib/routing
+ * `fitsWithRequirements` tests and binds the whole request segment), so the rule also matches
+ * `/articles/42`, reads `page3` from `/articles/page3`, and a requirement tests the whole segment. A
+ * DELETE route with `requirements` is matched by another branch, which compares such a segment as
+ * written. The config loader uses this module to warn once per bundle, listing each URL segment that
+ * holds text before a placeholder its rule binds in `param`.
  *
  * Server-side only: the browser bundle never loads this file.
  *
@@ -244,6 +254,90 @@ function formatTruncatedPlaceholderWarning(bundle, list) {
         + ' See https://gina.io/docs/guides/routing#parameterized-url';
 }
 
+/**
+ * #B646 — text before the first placeholder of a URL segment (`page:number`, `item-:sku`): one or
+ * more characters other than `:`, then a `:` that a name character follows.
+ *
+ * @inner
+ * @private
+ * @constant
+ * @type {RegExp}
+ */
+var PREFIXED_PLACEHOLDER = /^[^:]+:\w/;
+
+/**
+ * #B646 — list a routing table's URL segments that hold text before a placeholder the rule binds in
+ * its own `param`, in table order. The router neither compares nor removes that text: the
+ * placeholder takes the whole segment (lib/routing `fitsWithRequirements` tests and binds the whole
+ * request segment), except on a DELETE route with `requirements`, whose branch compares the segment
+ * as written. Not listed: a segment whose names the rule does not bind, which the router matches
+ * only as written (`/time/12:30`), and a `ws` route (`/^ws$/i` on its method, as core/server.js
+ * reads it), whose matcher compares such a segment as written. Each rule's `url` is split on `,`,
+ * each URL trimmed, then split on `/`, as findTruncatedPlaceholders does. Reads only; the table is
+ * left untouched.
+ *
+ * @param {object} routing - A bundle's routing table (rule name → rule)
+ * @returns {Array<{rule: string, url: string, segment: string, names: Array<string>}>} One entry per
+ *   such segment: the rule, the URL that holds the segment, the segment as written, and the
+ *   placeholder names the router reads in it
+ *
+ * @example
+ *   findPrefixedPlaceholders({ 'list@site': { url: '/articles/page:number', param: { control: 'list', number: ':number' } } });
+ *   // [ { rule: 'list@site', url: '/articles/page:number', segment: 'page:number', names: [ ':number' ] } ]
+ *   findPrefixedPlaceholders({ 'time@site': { url: '/time/12:30', param: { control: 'time' } } });   // [] (nothing bound)
+ */
+function findPrefixedPlaceholders(routing) {
+    var found = [];
+    if (!routing || typeof(routing) !== 'object') { return found; }
+    var rules = Object.keys(routing);
+    for (var r = 0; r < rules.length; r++) {
+        var rule = routing[rules[r]];
+        if (!rule || typeof(rule) !== 'object' || typeof(rule.url) !== 'string') { continue; }
+        if (!rule.param || typeof(rule.param) !== 'object') { continue; }
+        if (/^ws$/i.test(rule.method || '')) { continue; }
+        var urls = rule.url.split(',');
+        for (var u = 0; u < urls.length; u++) {
+            var url = urls[u].trim();
+            var segments = url.split('/');
+            for (var s = 0; s < segments.length; s++) {
+                if (!PREFIXED_PLACEHOLDER.test(segments[s])) { continue; }
+                var names = segments[s].match(PLACEHOLDER_NAMES);
+                var bound = false;
+                for (var n = 0; n < names.length && !bound; n++) {
+                    bound = Object.prototype.hasOwnProperty.call(rule.param, names[n].substring(1));
+                }
+                if (bound) {
+                    found.push({ rule: rules[r], url: url, segment: segments[s], names: names });
+                }
+            }
+        }
+    }
+    return found;
+}
+
+/**
+ * #B646 — the single warning line for a bundle's URL segments that hold text before a placeholder
+ * their rule binds.
+ *
+ * @param {string} bundle - The bundle name
+ * @param {Array<{rule: string, url: string, segment: string, names: Array<string>}>} list - From findPrefixedPlaceholders
+ * @returns {string} The warning text
+ *
+ * @example
+ *   formatPrefixedPlaceholderWarning('site', [ { rule: 'list@site', url: '/articles/page:number', segment: 'page:number', names: [ ':number' ] } ]);
+ *   // '[CONFIG][loadBundleConfig] [ site ] 1 route URL segment holds text before a placeholder its route binds: list@site "page:number". ...'
+ */
+function formatPrefixedPlaceholderWarning(bundle, list) {
+    var n = list.length;
+    var items = list.map(function (p) { return p.rule + ' ' + JSON.stringify(p.segment); }).join(', ');
+    return '[CONFIG][loadBundleConfig] [ ' + bundle + ' ] ' + n + ' route URL segment' + (n === 1 ? ' holds' : 's hold')
+        + ' text before a placeholder ' + (n === 1 ? 'its route binds' : 'their routes bind') + ': ' + items
+        + '. gina neither compares nor removes that text, except on a DELETE route with requirements, which compares the segment as written:'
+        + ' the placeholder takes the whole segment, so "/articles/page:number" also matches "/articles/42", reads "page3" from "/articles/page3",'
+        + ' and a requirement tests the whole segment. Put the fixed text in a segment of its own ("/articles/page/:number").'
+        + ' See https://gina.io/docs/guides/routing#inline-parameters';
+}
+
 module.exports = {
     CONFIG_KEYS                       : CONFIG_KEYS,
     EXEMPT_KEYS                       : EXEMPT_KEYS,
@@ -251,5 +345,7 @@ module.exports = {
     findConfigKeyBindings             : findConfigKeyBindings,
     formatConfigKeyBindingWarning     : formatConfigKeyBindingWarning,
     findTruncatedPlaceholders         : findTruncatedPlaceholders,
-    formatTruncatedPlaceholderWarning : formatTruncatedPlaceholderWarning
+    formatTruncatedPlaceholderWarning : formatTruncatedPlaceholderWarning,
+    findPrefixedPlaceholders          : findPrefixedPlaceholders,
+    formatPrefixedPlaceholderWarning  : formatPrefixedPlaceholderWarning
 };

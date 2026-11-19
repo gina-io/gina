@@ -2640,6 +2640,17 @@ function Config(opt, contextResetNeeded) {
             }
         }
 
+        // #B646 — the router neither compares nor removes text written before a placeholder in its
+        // URL segment (`/articles/page:number`): the placeholder takes the whole segment. One warning
+        // per bundle lists each URL segment that holds text before a placeholder its rule binds, on the
+        // bundles the #B360 warning judges. The routing table is read, never rewritten.
+        if ( _requirementsApply ) {
+            var _prefixedPlaceholders = paramBindings.findPrefixedPlaceholders(routing);
+            if ( _prefixedPlaceholders.length > 0 ) {
+                console.warn( paramBindings.formatPrefixedPlaceholderWarning(bundle, _prefixedPlaceholders) );
+            }
+        }
+
         if (!conf[bundle][env].executionPath) {
             conf[bundle][env].executionPath = self.executionPath
         }
