@@ -1,0 +1,3 @@
+kind: Added
+body: 'A bundle now warns once at boot, in one `[CONFIG][loadBundleConfig]` line, about each route URL segment that holds text before a placeholder its route binds, such as `"url": "/articles/page:number"`. gina neither compares nor removes that text: the placeholder takes the whole segment, so such a route also matches `/articles/42`, reads `page3` from `/articles/page3`, and a requirement tests the whole segment (a DELETE route with `requirements` compares the segment as written). Put the fixed text in a segment of its own (`/articles/page/:number`); nothing is rewritten. The routing guide said such a route reads `3` from `/articles/page3`, which never held: the guide is corrected. Pick it up with a bundle restart. (#B646)'
+time: 2026-11-19T00:03:51+01:00
