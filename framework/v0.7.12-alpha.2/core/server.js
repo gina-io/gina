@@ -953,6 +953,16 @@ function watchBindOutcome(rawServer, port) {
  * too, so the throw never reaches the process (#B1140; the `handleUpgrade` call
  * used to run outside a try).
  *
+ * Upgrades on other paths (#B1141): once an `upgrade` listener exists, Node.js
+ * accepts every upgrade request, and the agent's listener takes only
+ * `/_gina/agent`. A second listener, registered after it, closes an upgrade on
+ * any other path after 1 s when nothing has been written on its socket (the
+ * rule and delay engine.io applies to an upgrade it does not own). Where the
+ * server has `shouldUpgradeCallback` (Node.js 24.9 and later), such an upgrade
+ * is served as a plain request when these two are the server's only upgrade
+ * listeners; otherwise the previous callback decides. Both read nothing but
+ * `rawServer` and their own locals.
+ *
  * Snapshot replay + capture egress mirror the SSE handler: the last snapshot is
  * only sent in dev OR during an active instrumentation window (#INS10), never a
  * post-window snapshot to a late authenticated client.
@@ -1102,6 +1112,47 @@ function attachInspectorAgentWs(rawServer, ctx) {
             try { socket.destroy(); } catch (e) {}
         }
     });
+
+    // #B1141 — upgrades on other paths. Once an `upgrade` listener exists,
+    // Node.js accepts every upgrade request and hands its socket to the
+    // listeners; the listener above takes only /_gina/agent, so an upgrade on
+    // any other path that no listener took was left open. Now:
+    //   - a second listener closes it after 1 s when nothing has been written on
+    //     its socket: engine.io's rule and delay for an upgrade it does not own
+    //     (`destroyUpgradeTimeout`), which bundles in ioServer attach mode
+    //     already live under;
+    //   - where the server has `shouldUpgradeCallback` (Node.js 24.9 and later),
+    //     such an upgrade is served as a plain request when these two are the
+    //     server's only upgrade listeners; otherwise the previous callback decides.
+    // Both are registered after the agent's listener, whose bytes stay as they are.
+    var _agentUpgradeListener = rawServer.listeners('upgrade').slice(-1)[0];
+    var _isAgentUpgrade = function(req) {
+        return /\/_gina\/agent(?:\?|$)/.test(req.url ? req.url.split('?')[0] : '');
+    };
+    var _unclaimedUpgradeListener = function(req, socket) {
+        if (_isAgentUpgrade(req)) { return; }
+        var _unclaimedTimer = setTimeout(function() {
+            if (socket.writable && socket.bytesWritten <= 0) {
+                socket.on('error', function() {});
+                socket.destroy();
+            }
+        }, 1000);
+        socket.once('close', function() { clearTimeout(_unclaimedTimer); });
+    };
+    rawServer.on('upgrade', _unclaimedUpgradeListener);
+
+    if (typeof rawServer.shouldUpgradeCallback === 'function') {
+        var _prevShouldUpgrade = rawServer.shouldUpgradeCallback;
+        rawServer.shouldUpgradeCallback = function(req) {
+            if (!_isAgentUpgrade(req)) {
+                var _others = rawServer.listeners('upgrade').filter(function(listener) {
+                    return listener !== _agentUpgradeListener && listener !== _unclaimedUpgradeListener;
+                });
+                if (_others.length === 0) { return false; }
+            }
+            return _prevShouldUpgrade.call(rawServer, req);
+        };
+    }
 }
 
 /**

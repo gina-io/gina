@@ -1,0 +1,3 @@
+kind: Security
+body: 'Every bundle: the Inspector agent''s upgrade listener (`/_gina/agent`) is attached to every bundle''s server, so Node.js accepted every HTTP upgrade request, and an upgrade on any other path that no listener took was left open. Such a request is now answered as a plain request (Node.js 24.9 and later, when no other upgrade listener is attached) or closed after one second, as engine.io closes an upgrade nobody answered. Restart the bundle. (#B1141)'
+time: 2026-11-19T11:22:35+01:00
