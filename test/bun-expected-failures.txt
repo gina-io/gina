@@ -57,6 +57,7 @@ test/core/render-swig.test.js :: 19 - released-response guard (#B45) :: subtract
 test/core/render-swig.test.js :: 20 - writeCache module-scope safety (prod cache-path 500 regression) :: module-level guard reading a function-scoped binding throws ReferenceError (the pre-fix 500); the param-threaded guard does not
 test/core/render-swig.test.js :: layoutless userData merge — top-level + page.data, JSON-serializable (real merge) :: SUBTRACT: stashing AFTER the top-level merge creates a circular ref (proves the ordering is load-bearing)
 test/core/server-completeheaders-guard.test.js :: 02 - #B121 completeHeaders: extract-and-execute the SHIPPED guard bytes :: SUBTRACT (typeof-only guard restored): the same bytes THROW the exact #B121 TypeError on false
+test/core/server-isaac-eio-ws-engine-s25.test.js :: #S25 - the ioServer attach block hands engine.io gina's own ws :: that class bounds pending automatic Pongs (maxPendingAutoPongs 60)
 test/core/upload-size-accuracy.test.js :: 03 - #B142 behavioral choreography (extracted live bytes) :: SUBTRACT — the pre-fix shape (no _flush patch) ships the short provisional value
 test/core/upload-size-accuracy.test.js :: 03 - #B142 behavioral choreography (extracted live bytes) :: settled sink: final size exact under whichever end/_flush interleaving occurs
 test/core/upload-size-accuracy.test.js :: 03 - #B142 behavioral choreography (extracted live bytes) :: stalled sink: provisional read is SHORT, _flush-patched size is exact, bytes intact

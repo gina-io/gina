@@ -1,6 +1,6 @@
 {
   "name": "gina",
-  "version": "0.7.11",
+  "version": "0.7.12",
   "description": "MVC framework for Node.js and Bun with built-in HTTP/2, multi-bundle architecture, and scope-based data isolation — no Express dependency",
   "keywords": [
     "nodejs",
@@ -76,12 +76,12 @@
     "gina-container": "bin/gina-container",
     "gina-init": "bin/gina-init"
   },
-  "main": "./framework/v0.7.11/core/gna",
+  "main": "./framework/v0.7.12/core/gna",
   "exports": {
     ".": {
       "types": "./types/index.d.ts",
       "import": "./index.mjs",
-      "require": "./framework/v0.7.11/core/gna.js"
+      "require": "./framework/v0.7.12/core/gna.js"
     },
     "./gna": {
       "types": "./types/gna.d.ts",
@@ -119,7 +119,7 @@
     "@rhinostone/swig": "^2.12.1",
     "engine.io": "^6.6.10",
     "psl": "^1.15.0",
-    "ws": "^8.22.0"
+    "ws": "^8.23.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.48.0",

@@ -711,7 +711,7 @@ declare namespace gina {
         /** `method: "ws"` routes: the channel handler at `<bundle>/channels/<name>.js`. */
         wsHandler?: string;
         /** `method: "ws"` routes: per-route WebSocket options. */
-        wsOptions?: { maxPayload?: number; protocol?: string; closeTimeout?: number };
+        wsOptions?: { maxPayload?: number; protocol?: string; closeTimeout?: number; maxPendingAutoPongs?: number };
         /** URL-param bindings (`"id": ":id"`) and any static route metadata. */
         [key: string]: any;
     }

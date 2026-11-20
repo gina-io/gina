@@ -458,7 +458,7 @@ const slice = Array.prototype.slice;
  * @param {string} options.preferedCompressionEncodingOrder - Ordered list of accepted encodings
  * @param {number} [options.keepAliveTimeout] - Server keep-alive timeout in ms
  * @param {number} [options.headersTimeout] - Server headers timeout in ms
- * @param {object} [options.ioServer] - engine.io server options; omit to disable WebSocket support
+ * @param {object} [options.ioServer] - engine.io server options; omit to disable WebSocket support. Unless it names a `wsEngine`, engine.io's WebSocket transport runs on gina's own `ws` (#S25)
  * @returns {{ instance: object, middleware: function }} Configured Node server and middleware factory
  */
 function ServerEngineClass(options) {
@@ -3369,6 +3369,17 @@ function ServerEngineClass(options) {
         if (Eio === null) {
             Eio = require('engine.io');
         }
+        // #S25 — engine.io's WebSocket transport runs on `ws`, and every
+        // engine.io 6.6.x release pins its own `ws` range below 8.23.0
+        // (`~8.21.0` in 6.6.9 to 6.6.11). An install from the registry then
+        // places an older `ws` under engine.io, which gina's own `ws` range
+        // does not reach, and that copy has no bound on pending automatic
+        // Pongs (ws's GHSA-37g9-w4hg-h9qr). Hand engine.io gina's own `ws`
+        // server class unless the bundle named a `wsEngine` itself.
+        if (typeof(options.ioServer.wsEngine) == 'undefined') {
+            var _ginaWs = require('ws');
+            options.ioServer.wsEngine = _ginaWs.WebSocketServer || _ginaWs.Server;
+        }
         // test done in case we would like to switch to socket.io-server
         ioServer = ( typeof(Eio.attach) != 'undefined' ) ? new Eio.attach(server, options.ioServer) : new Eio(server, options.ioServer);
 
@@ -3571,12 +3582,40 @@ function ServerEngineClass(options) {
             });
         });
 
-        server.on('upgrade', function(req, socket, head){
+        // #B1140 — `Eio.attach()` above installs engine.io's own upgrade
+        // listener for its path while the websocket transport is enabled, and
+        // that listener serves its path itself; this one serves every other
+        // path (a bundle's push path, for instance). The path is computed as
+        // engine.io computes it.
+        var _eioOwnPath = (typeof ioServer._computePath == 'function')
+            ? ioServer._computePath(options.ioServer)
+            : (options.ioServer.path || '/engine.io').replace(/\/$/, '') + ((options.ioServer.addTrailingSlash !== false) ? '/' : '');
+        // engine.io's own test for installing that listener (`~transports.indexOf("websocket")`),
+        // mirrored as it is written there.
+        // was: var _eioOwnListener = !!(ioServer.opts && Array.isArray(ioServer.opts.transports) && ioServer.opts.transports.indexOf('websocket') > -1);
+        var _eioOwnListener = !!(ioServer.opts && ioServer.opts.transports && typeof(ioServer.opts.transports.indexOf) == 'function' && ~ioServer.opts.transports.indexOf('websocket'));
+        // #B1141 — registered only when engine.io has a WebSocket server
+        // (`ioServer.ws`, which its constructor builds when `transports` holds
+        // "websocket"). Without one this listener takes nothing, yet gina's
+        // upgrade listeners in server.js (attachInspectorAgentWs) would count it
+        // as another upgrade listener: an upgrade on another path would not be
+        // served as a plain request, and on Bun it would be left to this
+        // listener. It used to be registered for every attach-mode bundle.
+        if (ioServer.ws) server.on('upgrade', function(req, socket, head){
             // #INS8 — defer /_gina/agent upgrades to the WebSocket agent handler
             // attached in server.js; engine.io owns only its own upgrade path.
             if (/\/_gina\/agent(?:\?|$)/.test(req.url ? req.url.split('?')[0] : '')) { return; }
+            // #B1140 — engine.io's own listener serves its path: never hand it the same socket twice.
+            if (_eioOwnListener && typeof(req.url) == 'string' && req.url.slice(0, _eioOwnPath.length) === _eioOwnPath) { return; }
+            // #B1140 — without the websocket transport, engine.io has no WebSocket server to serve an upgrade.
+            if (!ioServer.ws) { return; }
             console.debug('[IO SERVER ] upgrading socket #'+ this.id);
-            ioServer.handleUpgrade(req, socket, head);
+            try {
+                ioServer.handleUpgrade(req, socket, head);
+            } catch (upgradeErr) {
+                // #B1140 — a throw here must not stop the bundle: drop this socket only.
+                try { socket.destroy(); } catch (destroyErr) { /* already gone */ }
+            }
         });
         // httpServer.on('request', function(req, res){
         //     ioServer.handleRequest(req, res);
