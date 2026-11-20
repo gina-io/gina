@@ -128,6 +128,13 @@ mkdir -p node_modules && ln -sfn "$PWD" node_modules/gina
 
 Without it, a handful of suite members fail with `Cannot find module 'gina'`.
 
+`test/fw.js`, which most suite files load, refuses a tree whose
+`node_modules/gina` is another directory: in a worktree whose `node_modules`
+is linked whole to another clone's, the tests that `require('gina')` would run
+that clone's code beside the worktree's. Give such a worktree a real
+`node_modules` directory (link packages one by one if you share them) and its
+own self-symlink.
+
 ---
 
 ## Development environment
