@@ -93,8 +93,6 @@ describe('#B646 — text before a URL placeholder in its segment', function () {
             ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'GET, POST'].forEach(function (m) {
                 assert.deepEqual(segmentsOf('/x/page:n', { n: ':n' }, m), ['page:n'], m);
             });
-            assert.deepEqual(bindings.findPrefixedPlaceholders({ 'r@b': { url: '/x/a:b:c', param: { c: ':c' } } })[0].names, [':b', ':c'],
-                'a segment is listed when its rule binds any of its names');
         });
         it('every such segment of a URL is listed, and each URL of a multi-URL rule', function () {
             assert.deepEqual(segmentsOf('/p:a/c/q:b', { a: ':a', b: ':b' }), ['p:a', 'q:b']);

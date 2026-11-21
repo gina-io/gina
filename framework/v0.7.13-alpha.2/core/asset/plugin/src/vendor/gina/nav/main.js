@@ -186,7 +186,14 @@ define('gina/nav', [ 'require', 'lib/merge', 'lib/uuid', 'utils/events', 'utils/
                     out.push({ 'lit': seg });
                     continue;
                 }
-                if ( !/^\:[-_a-zA-Z0-9]+$/.test(seg) ) {
+                // #B1150 — a whole-segment placeholder in the server's grammar (letters, digits and
+                // underscores). The server reads `:lang-code` as `:lang` holding the whole segment,
+                // so such a variant is left uncompiled and the module does not intercept a link
+                // through it, as for a segment with text around its placeholder. The class held a
+                // hyphen: the nav matched such a URL under the name `lang-code`, the server under
+                // `lang`.
+                // was: if ( !/^\:[-_a-zA-Z0-9]+$/.test(seg) ) { return null; }
+                if ( !/^\:\w+$/.test(seg) ) {
                     return null;
                 }
                 var key = seg.substring(1);

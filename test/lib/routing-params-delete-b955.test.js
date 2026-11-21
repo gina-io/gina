@@ -25,7 +25,8 @@
  *  05 — dist pin: the unminified browser bundle carries the write (lib/routing is bundled)
  *
  * Red-first: run with `B955_FW` pointing at the tree before this fix — suites 02, 03.1, 04.2 and 05
- * red, the others green.
+ * red, the others green. Since #B1149 suites 04 and 05 read the write keyed by `_key`, so on a tree
+ * before #B1149 they are red as well, 04.1 included.
  */
 var { describe, it } = require('node:test');
 var assert = require('node:assert/strict');
@@ -112,7 +113,10 @@ function count(s, needle) {
 }
 
 // The DELETE branch's write of the matched value, and the req.params write this fix adds after it.
-var BRANCH_WRITE = 'request[method][uRo[p].substring(1)] = uRe[p];';
+// Since #B1149 the write is keyed by the placeholder's name (`_key`), the key the #B956 block also
+// writes under: the needle carries the regex branch's own `++score;` line, so it stays unique.
+var BRANCH_WRITE = '++score;\n'
+                 + '                        request[method][_key] = uRe[p];';
 var PARAMS_WRITE = 'if ( hasOwn(params.param, _key) && typeof(request.params) != \'undefined\' ) {\n'
                  + '                            request.params[_key] = uRe[p];';
 

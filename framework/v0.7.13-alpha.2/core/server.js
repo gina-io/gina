@@ -8873,6 +8873,9 @@ function Server(options) {
         var isMethodAllowed = null, hostname = null, _methodMismatch405msg = null;
         // #B659 — the method lists of the URL-matched rules that refused the request (the 405's Allow)
         var _methodMismatchAllow = [];
+        // #B1154 — set when a rule's matcher threw: its 500 has answered the request, so neither the
+        // 405 nor the 404 below may answer it again.
+        var _routeMatchFailed = false;
 
         // #B84 — per-request culture negotiation, shared by the cold (loop-match)
         // and warm (cached-route fast-path) paths. The cached fast-path breaks the
@@ -9187,6 +9190,7 @@ function Server(options) {
                     // var e = new ApiError({ message: msg, stack: err.stack});
                     // throwError(res, e)
                     throwError(res, 500, 'Internal server error.\nRule [ '+name+' ] needs your attention.\n'+ err.stack);
+                    _routeMatchFailed = true; // #B1154
                     break;
                 }
 
@@ -9407,8 +9411,17 @@ function Server(options) {
                 label: 'route-match', cat: 'routing',
                 startMs: _routeMatchStart, endMs: Date.now(),
                 durationMs: Date.now() - _routeMatchStart,
-                detail: matched ? ('rule: ' + (req.routing && req.routing.rule || '?')) : '404'
+                // #B1154 — after a matcher throw the request was answered 500, not 404.
+                // was: detail: matched ? ('rule: ' + (req.routing && req.routing.rule || '?')) : '404'
+                detail: matched ? ('rule: ' + (req.routing && req.routing.rule || '?')) : (_routeMatchFailed ? '500' : '404')
             });
+        }
+
+        // #B1154 — a rule's matcher threw and its 500 has answered: no second answer. The loop's
+        // `break` left `matched` false, so the 404 below ran as well and logged a second error line,
+        // with a ref of its own, for the same request.
+        if ( _routeMatchFailed ) {
+            return;
         }
 
         if (!matched && _methodMismatch405msg) {

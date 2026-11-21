@@ -1,0 +1,3 @@
+kind: Changed
+body: 'On a `DELETE` route with `requirements`, a URL segment that starts with a placeholder and holds two or more (`/range/:from-:to`) matches a request only when the request carries its text as written, as on every other route. From 0.7.6 to 0.7.12 that route matched any non-empty segment there and wrote it under the rest of the segment''s text (`req.delete[''from-:to'']`); the router now tries the next route. Give each placeholder a segment of its own (`/range/:from/:to`) (#B692).'
+time: 2026-11-21T15:41:05+01:00

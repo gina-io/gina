@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'A `validator::` requirement that the route does not bind in `param` reads the URL''s placeholder names in any letter case: `:userId` was read as `:user`, so a `query.data` entry referencing `":userId"` was dropped before the validator ran, and, when the validator declared a `query.data` entry, a URL whose every placeholder name starts with a capital (`/u/:ID`) answered 500. The same block read `:lang-code` whole and set `req.params[''id.json'']` for `:id.json`; it now reads `:lang` and sets `req.params.id` (#B1153).'
+time: 2026-11-21T15:41:05+01:00

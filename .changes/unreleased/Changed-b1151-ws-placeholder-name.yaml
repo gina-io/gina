@@ -1,0 +1,3 @@
+kind: Changed
+body: 'A WebSocket route reads a placeholder''s name as an HTTP route does, its letters, digits and underscores: `/live/:lang-code` exposes `request.params.lang`, holding the whole segment, instead of `request.params[''lang-code'']`. A segment with no name after its `:`, or with two or more placeholders, is compared as written (#B1151).'
+time: 2026-11-21T15:41:05+01:00

@@ -1103,10 +1103,12 @@ function ServerEngineClass(options) {
             // Splits on '/' (keeping the leading '' from the leading slash, so
             // pattern/request segments index-align, mirroring lib/routing). A
             // strict segment-count gate, then per-segment: a literal must equal
-            // exactly; a `:name` segment captures any NON-EMPTY segment as
-            // `params[name]` (colon-stripped key + decodeURIComponent — the same
-            // shape an HTTP controller reads off req.params). Returns
-            // { handler, params } for the first matching pattern, else null.
+            // exactly; a segment that starts with `:` and a name (letters, digits
+            // and underscores, the HTTP router's grammar, #B1151) captures any
+            // NON-EMPTY segment, decoded, as `params[name]` (the same shape an
+            // HTTP controller reads off req.params); a segment with no name after
+            // its `:`, or with two or more placeholders, is compared as written.
+            // Returns { handler, params } for the first matching pattern, else null.
             server._wsMatchParam = function(pathname) {
                 var reqSegs = String(pathname || '').split('/');
                 for (var i = 0; i < server._wsParamHandlers.length; i++) {
@@ -1117,8 +1119,18 @@ function ServerEngineClass(options) {
                     for (var s = 0; s < entry.segments.length; s++) {
                         var pat = entry.segments[s];
                         if (pat.charAt(0) === ':') {
+                            // #B1151 — a placeholder's name is its letters, digits and underscores,
+                            // as on an HTTP route: `:lang-code` names `lang`, and the capture is the
+                            // whole segment. A segment with no name after its `:`, or with two or
+                            // more placeholders (#B692), captures nothing: it is compared as written.
+                            // The key was the whole rest of the segment (`lang-code`).
+                            var _wsName = /^:(\w+)/.exec(pat);
+                            if ( !_wsName || pat.match(/:\w+/g).length > 1 ) {
+                                if (pat !== reqSegs[s]) { ok = false; break; }
+                                continue;
+                            }
                             if (reqSegs[s] === '') { ok = false; break; } // reject empty captured segment
-                            params[pat.substring(1)] = decodeURIComponent(reqSegs[s]);
+                            params[_wsName[1]] = decodeURIComponent(reqSegs[s]);
                         } else if (pat !== reqSegs[s]) {
                             ok = false; break;
                         }

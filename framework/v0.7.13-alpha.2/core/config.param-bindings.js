@@ -1,6 +1,6 @@
 'use strict';
 /**
- * Three boot checks of a bundle's routing table, which core/config.js runs once per bundle. All three
+ * Four boot checks of a bundle's routing table, which core/config.js runs once per bundle. All four
  * only READ the table and never rewrite a value.
  *
  * #B1124 — route `param` bindings that use a key gina reads as configuration.
@@ -33,12 +33,12 @@
  * #B1143 — a URL placeholder followed by a character other than a letter, a digit or an underscore.
  *
  * A placeholder's name is its letters, digits and underscores (`\w`): the router reads the names in
- * a rule's URL segment with `/:\w+/g` (lib/routing `fitsWithRequirements`; a DELETE route with
- * `requirements` is matched by another branch, which reads the whole segment), and a `culturePrefix`
- * route reads its culture binding with `/^:\w+$/` (#B1123). A name written with another character is
- * read up to it, on every route but a DELETE route with `requirements`: `/:lang-code/home` is read as
- * the placeholder `:lang`, so a binding under `lang-code` is never filled and the route matches only
- * when its `param` also binds `lang`. The config loader uses this module to warn once per bundle, listing each URL segment that
+ * a rule's URL segment with `/:\w+/g` (lib/routing `fitsWithRequirements`, and the DELETE branch of
+ * `parseRouting` since #B1149), the WebSocket matcher reads them the same way (#B1151), and a
+ * `culturePrefix` route reads its culture binding with `/^:\w+$/` (#B1123). A name written with
+ * another character is read up to it: `/:lang-code/home` is read as the placeholder `:lang`, so a
+ * binding under `lang-code` is never filled and the route matches only when its `param` also binds
+ * `lang`. The config loader uses this module to warn once per bundle, listing each URL segment that
  * holds such a placeholder.
  *
  * #B646 — text before a placeholder in its URL segment.
@@ -50,6 +50,12 @@
  * DELETE route with `requirements` is matched by another branch, which compares such a segment as
  * written. The config loader uses this module to warn once per bundle, listing each URL segment that
  * holds text before a placeholder its rule binds in `param`.
+ *
+ * #B692 — two or more placeholders in one URL segment.
+ *
+ * The router never matches such a segment (`/shop/item-:sku-:lang`, `/range/:from-:to`) against a
+ * value: a request matches it only by carrying its text as written. The config loader uses this
+ * module to warn once per bundle, listing each such segment; the #B1143 and #B646 lists leave it out.
  *
  * Server-side only: the browser bundle never loads this file.
  *
@@ -223,6 +229,9 @@ function findTruncatedPlaceholders(routing) {
             var url = urls[u].trim();
             var segments = url.split('/');
             for (var s = 0; s < segments.length; s++) {
+                // #B692 — a segment with two or more placeholders is listed by
+                // findMultiPlaceholderSegments, whose sentence describes it.
+                if (isMultiPlaceholderSegment(segments[s])) { continue; }
                 if (TRUNCATED_PLACEHOLDER.test(segments[s])) {
                     found.push({ rule: rules[r], url: url, segment: segments[s], names: segments[s].match(PLACEHOLDER_NAMES) });
                 }
@@ -249,7 +258,9 @@ function formatTruncatedPlaceholderWarning(bundle, list) {
     var items = list.map(function (p) { return p.rule + ' ' + JSON.stringify(p.segment); }).join(', ');
     return '[CONFIG][loadBundleConfig] [ ' + bundle + ' ] ' + n + ' route URL segment' + (n === 1 ? ' holds' : 's hold')
         + ' a placeholder followed by a character other than a letter, a digit or an underscore: ' + items
-        + '. Except on a DELETE route with requirements, gina reads a placeholder\'s name up to that character: ":lang-code" is read as ":lang".'
+        // #B1149 — the DELETE branch reads names like every other route; was:
+        // + '. Except on a DELETE route with requirements, gina reads a placeholder\'s name up to that character: ":lang-code" is read as ":lang".'
+        + '. gina reads a placeholder\'s name up to that character: ":lang-code" is read as ":lang".'
         + ' Name each placeholder with letters, digits and underscores (":lang_code").'
         + ' See https://gina.io/docs/guides/routing#parameterized-url';
 }
@@ -301,6 +312,8 @@ function findPrefixedPlaceholders(routing) {
             var segments = url.split('/');
             for (var s = 0; s < segments.length; s++) {
                 if (!PREFIXED_PLACEHOLDER.test(segments[s])) { continue; }
+                // #B692 — listed by findMultiPlaceholderSegments instead.
+                if (isMultiPlaceholderSegment(segments[s])) { continue; }
                 var names = segments[s].match(PLACEHOLDER_NAMES);
                 var bound = false;
                 for (var n = 0; n < names.length && !bound; n++) {
@@ -338,6 +351,84 @@ function formatPrefixedPlaceholderWarning(bundle, list) {
         + ' See https://gina.io/docs/guides/routing#inline-parameters';
 }
 
+/**
+ * #B692 — whether a URL segment holds two or more placeholders, in the grammar the router reads
+ * names with (`/:\w+/g`).
+ *
+ * @inner
+ * @private
+ * @param {string} segment - A URL segment
+ * @returns {boolean}
+ *
+ * @example
+ *   isMultiPlaceholderSegment(':from-:to');   // true
+ *   isMultiPlaceholderSegment('page:number'); // false
+ */
+function isMultiPlaceholderSegment(segment) {
+    var names = String(segment).match(PLACEHOLDER_NAMES);
+    return !!names && names.length > 1;
+}
+
+/**
+ * #B692 — list a routing table's URL segments that hold two or more placeholders, in table order,
+ * whatever the rule's method. The router never matches such a segment against a value (lib/routing
+ * `fitsWithRequirements` and the DELETE branch of `parseRouting`, and the WebSocket matcher in
+ * core/server.isaac.js): a request matches it only by carrying its text as written. Each rule's
+ * `url` is split on `,`, each URL trimmed, then split on `/`, as findTruncatedPlaceholders does.
+ * Reads only; the table is left untouched.
+ *
+ * @param {object} routing - A bundle's routing table (rule name → rule)
+ * @returns {Array<{rule: string, url: string, segment: string, names: Array<string>}>} One entry per
+ *   such segment: the rule, the URL that holds the segment, the segment as written, and the
+ *   placeholder names the router reads in it
+ *
+ * @example
+ *   findMultiPlaceholderSegments({ 'range@site': { url: '/range/:from-:to', param: { control: 'range' } } });
+ *   // [ { rule: 'range@site', url: '/range/:from-:to', segment: ':from-:to', names: [ ':from', ':to' ] } ]
+ *   findMultiPlaceholderSegments({ 'item@site': { url: '/item/:id' } });   // []
+ */
+function findMultiPlaceholderSegments(routing) {
+    var found = [];
+    if (!routing || typeof(routing) !== 'object') { return found; }
+    var rules = Object.keys(routing);
+    for (var r = 0; r < rules.length; r++) {
+        var rule = routing[rules[r]];
+        if (!rule || typeof(rule) !== 'object' || typeof(rule.url) !== 'string') { continue; }
+        var urls = rule.url.split(',');
+        for (var u = 0; u < urls.length; u++) {
+            var url = urls[u].trim();
+            var segments = url.split('/');
+            for (var s = 0; s < segments.length; s++) {
+                if (isMultiPlaceholderSegment(segments[s])) {
+                    found.push({ rule: rules[r], url: url, segment: segments[s], names: segments[s].match(PLACEHOLDER_NAMES) });
+                }
+            }
+        }
+    }
+    return found;
+}
+
+/**
+ * #B692 — the single warning line for a bundle's URL segments that hold two or more placeholders.
+ *
+ * @param {string} bundle - The bundle name
+ * @param {Array<{rule: string, url: string, segment: string, names: Array<string>}>} list - From findMultiPlaceholderSegments
+ * @returns {string} The warning text
+ *
+ * @example
+ *   formatMultiPlaceholderWarning('site', [ { rule: 'range@site', url: '/range/:from-:to', segment: ':from-:to', names: [ ':from', ':to' ] } ]);
+ *   // '[CONFIG][loadBundleConfig] [ site ] 1 route URL segment holds two or more placeholders: range@site ":from-:to". ...'
+ */
+function formatMultiPlaceholderWarning(bundle, list) {
+    var n = list.length;
+    var items = list.map(function (p) { return p.rule + ' ' + JSON.stringify(p.segment); }).join(', ');
+    return '[CONFIG][loadBundleConfig] [ ' + bundle + ' ] ' + n + ' route URL segment' + (n === 1 ? ' holds' : 's hold')
+        + ' two or more placeholders: ' + items
+        + '. gina never matches such a segment against a value: a request matches it only by carrying its text as written.'
+        + ' Give each placeholder a segment of its own ("/range/:from/:to").'
+        + ' See https://gina.io/docs/guides/routing#parameterized-url';
+}
+
 module.exports = {
     CONFIG_KEYS                       : CONFIG_KEYS,
     EXEMPT_KEYS                       : EXEMPT_KEYS,
@@ -347,5 +438,7 @@ module.exports = {
     findTruncatedPlaceholders         : findTruncatedPlaceholders,
     formatTruncatedPlaceholderWarning : formatTruncatedPlaceholderWarning,
     findPrefixedPlaceholders          : findPrefixedPlaceholders,
-    formatPrefixedPlaceholderWarning  : formatPrefixedPlaceholderWarning
+    formatPrefixedPlaceholderWarning  : formatPrefixedPlaceholderWarning,
+    findMultiPlaceholderSegments      : findMultiPlaceholderSegments,
+    formatMultiPlaceholderWarning     : formatMultiPlaceholderWarning
 };

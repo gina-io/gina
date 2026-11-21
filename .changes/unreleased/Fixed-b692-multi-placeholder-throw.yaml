@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'A route whose URL segment holds two or more placeholders and that declares `requirements` no longer answers 500 « Rule [ … ] needs your attention » to a request carrying a decodable escape (`/shop/item-1%202-fr`), which also kept every later rule from being tried: the segment does not match, and the next rule is tried (#B692).'
+time: 2026-11-21T15:41:05+01:00

@@ -1,0 +1,3 @@
+kind: Changed
+body: 'On a `DELETE` route with `requirements`, a placeholder with no requirement matches only when the route binds it in `param`, as on `GET`. From 0.7.6 to 0.7.12 such a route answered where its `GET` twin answers 404, and the unbound placeholder reached `req.delete`. Bind the placeholder (`"grp": ":grp"`) to keep the route matching (#B1144).'
+time: 2026-11-21T15:41:05+01:00

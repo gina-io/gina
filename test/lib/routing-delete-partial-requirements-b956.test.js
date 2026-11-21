@@ -21,12 +21,15 @@
  * Suites:
  *  01 — the instrument and the controls (hold before and after the fix)
  *  02 — the fix: the partly covered DELETE rule matches, with the bags set (fix-sensitive)
- *  03 — the unbound placeholder: in `req.delete`, out of `req.params` (fix-sensitive)
+ *  03 — the unbound placeholder without a requirement: since #B1144 the rule does not match, as on
+ *       GET, and the placeholder is not written to `req.delete` (fix-sensitive)
  *  04 — source pin (comment-stripped, fix-sensitive)
  *  05 — dist pin: the unminified browser bundle carries the block (lib/routing is bundled)
  *
- * Red-first: run with `B956_FW` pointing at the tree before this fix — suites 02, 03, 04.2 and 05
- * red, the others green.
+ * Red-first: run with `B956_FW` pointing at the tree before this fix — suites 02, 04.2 and 05 red,
+ * the others green. Suite 03 pins #B1144: red on a tree before #B1144, green on one before #B956 (no
+ * partly covered DELETE rule matched there). Since #B1144 the block opens with the binding guard, so
+ * 04.2 and 05 are red on a tree before #B1144 as well.
  */
 var { describe, it } = require('node:test');
 var assert = require('node:assert/strict');
@@ -50,7 +53,7 @@ var TABLE = {
     // the defect's shape: DELETE, a requirement on `id` only, both placeholders bound in param
     'delmixed@b':   { method: 'DELETE', url: '/m/:grp/:id', bundle: 'b', requirements: ID_ONLY,
                       param: { control: 'rm', grp: ':grp', id: ':id' } },
-    // the same shape with `grp` not bound in param: it still matches, `grp` stays out of req.params
+    // the same shape with `grp` not bound in param: since #B1144 it does not match, as on GET
     'delunbound@b': { method: 'DELETE', url: '/n/:grp/:id', bundle: 'b', requirements: ID_ONLY,
                       param: { control: 'rm', id: ':id' } },
     // the same shape on GET (the known positive, matched by fitsWithRequirements)
@@ -117,8 +120,14 @@ function count(s, needle) {
 }
 
 // The branch's own-requirement gate (#B650), the block this fix adds inside it, and its `continue`.
+// Since #B1144 the block opens with the binding guard (a placeholder the rule does not bind in
+// `param` is not scored); the guard's own `continue;` sits inside the block, so 04.2 looks for the
+// gate's `continue;` from the block's end.
 var GATE  = 'if ( !hasOwn(params.requirements, _key) || typeof(params.requirements[_key]) == \'undefined\' ) {';
 var BLOCK = 'if ( /^:/.test(uRo[p]) && uRe[p] ) {\n'
+          + '                            if ( !hasOwn(params.param, _key) || typeof(params.param[_key]) == \'undefined\' ) {\n'
+          + '                                continue;\n'
+          + '                            }\n'
           + '                            ++score;\n'
           + '                            request[method][_key] = uRe[p];';
 
@@ -179,24 +188,23 @@ describe('02 - #B956: a DELETE rule whose requirements cover only some of its pl
 
 // ─── 03 — the unbound placeholder ─────────────────────────────────────────────
 
-describe('03 - #B956: a placeholder the rule does not bind in param stays out of req.params', function () {
+describe('03 - #B956/#B1144: a placeholder without a requirement that the rule does not bind in param', function () {
 
-    it('03.1  the rule matches; the bound placeholder reaches req.params, the unbound one does not', async function () {
+    it('03.1  the rule does not match, as on GET (#B1144)', async function () {
         var r = await match('delunbound@b', '/n/g1/42');
-        assert.equal(r.past, true);
-        assert.deepEqual(r.params, { id: '42' });
+        assert.equal(r.past, false);
     });
 
-    it('03.2  req.delete carries both', async function () {
+    it('03.2  the unbound placeholder is not written to req.delete (#B1144)', async function () {
         var r = await match('delunbound@b', '/n/g1/42');
-        assert.deepEqual(r.bag, { grp: 'g1', id: '42' });
+        assert.equal(Object.prototype.hasOwnProperty.call(r.bag, 'grp'), false, JSON.stringify(r.bag));
     });
 });
 
 
 // ─── 04 — source pin ───────────────────────────────────────────────────────────
 
-describe('04 - #B956: source — the branch scores a placeholder without a requirement before its continue', function () {
+describe('04 - #B956/#B1144: source — the branch scores a placeholder without a requirement, when the rule binds it, before its continue', function () {
 
     var raw  = fs.readFileSync(ROUTING_SRC, 'utf8');
     var live = stripComments(raw);
@@ -209,10 +217,11 @@ describe('04 - #B956: source — the branch scores a placeholder without a requi
 
     it('04.2  the block sits inside the gate, once, before its continue', function () {
         assert.equal(count(live, BLOCK), 1);
-        var gate = live.indexOf(GATE), block = live.indexOf(BLOCK);
+        var gate = live.indexOf(GATE), block = live.indexOf(BLOCK), end = block + BLOCK.length;
         assert.ok(block > gate && block - gate < 200, 'the block must open right after the gate (' + (block - gate) + ' chars)');
-        var cont = live.indexOf('continue;', block);
-        assert.ok(cont > block && cont - block < 500, 'the gate must still end in continue, after the block');
+        // from the block's end: the binding guard's own `continue;` sits inside the block (#B1144)
+        var cont = live.indexOf('continue;', end);
+        assert.ok(cont > end && cont - end < 500, 'the gate must still end in continue, after the block (' + (cont - end) + ' chars)');
     });
 });
 

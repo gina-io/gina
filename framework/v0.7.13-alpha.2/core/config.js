@@ -2629,8 +2629,8 @@ function Config(opt, contextResetNeeded) {
             }
         }
 
-        // #B1143 — a placeholder's name is its letters, digits and underscores: except on a DELETE
-        // route with requirements, the router reads `/:lang-code/home` as the placeholder `:lang`. One warning per bundle
+        // #B1143 — a placeholder's name is its letters, digits and underscores: the router reads
+        // `/:lang-code/home` as the placeholder `:lang` (on DELETE too since #B1149). One warning per bundle
         // lists each URL segment that holds a placeholder followed by another character, on the
         // bundles the #B360 warning judges. The routing table is read, never rewritten.
         if ( _requirementsApply ) {
@@ -2648,6 +2648,17 @@ function Config(opt, contextResetNeeded) {
             var _prefixedPlaceholders = paramBindings.findPrefixedPlaceholders(routing);
             if ( _prefixedPlaceholders.length > 0 ) {
                 console.warn( paramBindings.formatPrefixedPlaceholderWarning(bundle, _prefixedPlaceholders) );
+            }
+        }
+
+        // #B692 — a URL segment holding two or more placeholders (`/range/:from-:to`) never matches
+        // a value: a request matches it only by carrying its text as written. One warning per bundle
+        // lists such segments, on the bundles the #B360 warning judges. The routing table is read,
+        // never rewritten.
+        if ( _requirementsApply ) {
+            var _multiPlaceholders = paramBindings.findMultiPlaceholderSegments(routing);
+            if ( _multiPlaceholders.length > 0 ) {
+                console.warn( paramBindings.formatMultiPlaceholderWarning(bundle, _multiPlaceholders) );
             }
         }
 

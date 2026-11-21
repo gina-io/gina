@@ -402,10 +402,13 @@ function Routing() {
      * Parse routing for mathcing url
      *
      * A DELETE rule that declares `requirements` is matched here, by the DELETE branch, rather
-     * than by `fitsWithRequirements`: each placeholder's regex is tested against its URL segment
-     * — a placeholder without a requirement accepts any non-empty segment (#B956) — and a matched
-     * value is written to `request[method]` and, for a placeholder the rule binds in `param`, to
-     * `request.params` (#B955).
+     * than by `fitsWithRequirements`. A placeholder's name is its letters, digits and underscores
+     * and its value the whole segment (#B1149); each placeholder's regex is tested against its URL
+     * segment — a placeholder without a requirement accepts any non-empty segment when the rule
+     * binds it in `param` (#B956, #B1144) — and a matched value is written to `request[method]`
+     * and, for a placeholder the rule binds in `param`, to `request.params` (#B955). A segment
+     * holding two or more placeholders, or text before its placeholder, matches only as written
+     * (#B692).
      *
      * @param {object} params - `params` is the same `request.routing` that can be retried in controller with: req.routing
      * @param {string} url
@@ -478,7 +481,22 @@ function Routing() {
                         ++score;
                         continue;
                     }
-                    let _key = uRo[p].substring(1);
+                    // #B692 — a segment holding two or more placeholders (`:from-:to`) never matches a
+                    // value, here as in fitsWithRequirements: it scores only when it equals the URL's
+                    // segment (above). Read below, it would be keyed by its first name and match any
+                    // value that name's requirement accepts; up to 0.7.12, keyed `from-:to`, it matched
+                    // any non-empty segment.
+                    if ( (uRo[p].match(/\:\w+/g) || []).length > 1 ) {
+                        continue;
+                    }
+                    // #B1149 — a placeholder's name is its letters, digits and underscores, as
+                    // fitsWithRequirements reads it on GET (`/\:\w+/`): `:id.json` names `id`, and its
+                    // value is the whole segment. The key was the whole rest of the segment
+                    // (`uRo[p].substring(1)`), so a requirement on `id` was never applied to
+                    // `/feed/:id.json`, which then matched any segment and bound `id.json`. A segment
+                    // that does not start with a name keeps that key: it scores only when it equals the
+                    // URL's segment (above).
+                    let _key = /^:\w/.test(uRo[p]) ? uRo[p].match(/^:(\w+)/)[1] : uRo[p].substring(1);
                     // #B650 — a requirement counts only when the rule declares it itself.
                     // was: if ( typeof(params.requirements[_key]) == 'undefined' ) {
                     if ( !hasOwn(params.requirements, _key) || typeof(params.requirements[_key]) == 'undefined' ) {
@@ -489,6 +507,12 @@ function Routing() {
                         // every request. A static segment that differs from the URL's is still
                         // skipped unscored (the `/^:/` test), so such a rule still does not match.
                         if ( /^:/.test(uRo[p]) && uRe[p] ) {
+                            // #B1144 — and only when the rule binds the placeholder in its own
+                            // `param`, as fitsWithRequirements requires on GET: an unbound one scored
+                            // here, so a DELETE route answered where its GET twin matches nothing.
+                            if ( !hasOwn(params.param, _key) || typeof(params.param[_key]) == 'undefined' ) {
+                                continue;
+                            }
                             ++score;
                             request[method][_key] = uRe[p];
                             if ( hasOwn(params.param, _key) && typeof(request.params) != 'undefined' ) {
@@ -522,8 +546,11 @@ function Routing() {
                         && typeof(condition) != 'undefined'
                         && new RegExp(condition, conditionFlags).test(uRe[p])
                     ) {
+                        // #B1149 — the write is keyed by the placeholder's name (`_key`), as the
+                        // requirement above is.
+                        // was: request[method][uRo[p].substring(1)] = uRe[p];
                         ++score;
-                        request[method][uRo[p].substring(1)] = uRe[p];
+                        request[method][_key] = uRe[p];
                         // #B955 — the matched URL value reaches `request.params` too, as the GET
                         // path's `fitsWithRequirements` writes it, for a placeholder the rule binds
                         // in `param` (the same gate as there). This branch wrote `request[method]`
@@ -594,7 +621,12 @@ function Routing() {
             var requiremements = Object.getOwnPropertyNames(params.requirements);
             var r = 0;
             // In order to filter variables
-            var uRoVars = uRo.join(',').match(/\:[-_a-z0-9]+/g);
+            // #B1153 — the placeholder names in the router's own grammar: letters, digits and
+            // underscores, in any case. The class held no capital, so `:userId` was read as `:user`
+            // (a validator's `query.data` lost the `:userId` it referenced) and a URL whose names all
+            // hold capitals (`/u/:ID`) gave null, whose `indexOf` threw.
+            // was: var uRoVars = uRo.join(',').match(/\:[-_a-z0-9]+/g);
+            var uRoVars = uRo.join(',').match(/\:\w+/g) || [];
             // var uRoVarCount = (uRoVars) ? uRoVars.length : 0;
             while ( r < requiremements.length ) {
                 // requirement name as `key`
@@ -610,7 +642,9 @@ function Routing() {
                         break;
                     }
                     // updating uRoVars
-                    uRoVars = uRo.join(',').match(/\:[-_a-z0-9]+/g);
+                    // #B1153 — the same grammar as above.
+                    // was: uRoVars = uRo.join(',').match(/\:[-_a-z0-9]+/g);
+                    uRoVars = uRo.join(',').match(/\:\w+/g) || [];
                     /**
                      * "requirements" : {
                      *      "email": "validator::{ isEmail: true, isString: [7] }"
@@ -644,7 +678,9 @@ function Routing() {
                             // :variable only
                             if (!/^\:/.test(uRo[p])) continue;
 
-                            let pName = uRo[p].replace(/^\:/, '');
+                            // #B1153 — the name, in the same grammar as `uRoVars`.
+                            // was: let pName = uRo[p].replace(/^\:/, '');
+                            let pName = ( uRo[p].match(/^\:(\w+)/) || [] )[1] || '';
                             if ( pName != '' && typeof(uRe[p]) != 'undefined' ) {
                                 _data[ pName ] = uRe[p];
                                 // Updating params
@@ -762,7 +798,13 @@ function Routing() {
         //var isValid = new Validator('routing', { email: "contact@gina.io"}, null, {email: {isEmail: true}} ).isEmail().valid;
         var matched     = -1
             , _param    = urlVar.match(/\:\w+/g)
-            , regex     = new RegExp(urlVar, 'g')
+            // #B1148 — the segment as written, its regular-expression characters escaped: the
+            // rewrites below replace that text literally. Compiled as written, a segment that is not
+            // a valid regular expression (`:id)`, `[:id`) threw « Invalid regular expression » on
+            // every request that reached the rule: a 500 naming the rule, and the route loop tried
+            // no later rule.
+            // was: , regex     = new RegExp(urlVar, 'g')
+            , regex     = new RegExp(urlVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')
             , re        = null
             , flags     = null
             , key       = null
@@ -778,7 +820,12 @@ function Routing() {
             , requestMethod        = request.method.toLowerCase()
         ;
 
-        if (!_param.length) return false;
+        // #B1146 — a segment holding a `:` with no name after it (`/t/12:`) holds no placeholder,
+        // so the rule matches that segment only as written. `match()` returns null there, and
+        // reading its `length` threw on every request that reached the rule: a 500, and the route
+        // loop tried no later rule.
+        // was: if (!_param.length) return false;
+        if (!_param || !_param.length) return false;
 
         // #B688 — the path, namespace and title rewrites take the URL value through a FUNCTION
         // replacer. A string replacement expanded `$`-patterns found in the value (`` $` `` the
@@ -893,7 +940,12 @@ function Routing() {
                  */
                 _data = {}; _ruleObj = {}; _rule = {}; str = '';
                 urlVar.replace( new RegExp('[^'+ key +']','g'), function(){ str += arguments[0] });
-                _data[key]  = urlVal.replace( new RegExp(str, 'g'), '');
+                // #B1148 — the segment's other characters are escaped, as `urlVar` is for the rewrites
+                // above: compiled as written, a segment that is not a valid regular expression (`:id)`,
+                // `[:id`) threw here, a 500 naming the rule, when its placeholder had a `validator::`
+                // requirement.
+                // was: _data[key]  = urlVal.replace( new RegExp(str, 'g'), '');
+                _data[key]  = urlVal.replace( new RegExp(str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), '');
                 try {
                     //_ruleObj    = JSON.parse(regex.split(/::/).splice(1)[0].replace(/([^\W+ true false])+(\w+)/g, '"$&"'));
                     _ruleObj    = JSON.parse(
@@ -966,132 +1018,142 @@ function Routing() {
 
         } else { // slow one
 
-            // No requirements defined — multi-param routes without requirements are not matchable
-            if ( typeof(params.requirements) == 'undefined' ) return false;
+            // #B692 — a URL segment that holds two or more placeholders (`/shop/item-:sku-:lang`)
+            // never matches. The block below took `params.url`, the request path, as its template and
+            // compared the request with itself, so it matched only the segment's own literal text;
+            // with requirements, a decodable %-escape (`/shop/item-1%202-fr`) made it read `key[0]` on
+            // a null `key` and throw: a 500, and the route loop tried no later rule. A boot warning
+            // lists such segments (core/config.param-bindings.js, findMultiPlaceholderSegments).
+            return false;
 
-            // In order to support rules defined like :
-            //      { params.url }  => `/section/:name/page:number`
-            //      { request.url } => `/section/plante/page4`
+            // was (the block, commented out line by line):
             //
-            //      with keys = [ ":name", ":number" ]
-
-            var keys        = _param
-                , tplUrl    = params.url
-                , url       = request.url
-                , values    = {}
-                , strVal    = ''
-                , started   = false
-                , i         = 0
-            ;
-
-            for (var c = 0, posLen = url.length; c < posLen; ++c) {
-                if (url.charAt(c) == tplUrl.charAt(i) && !started) {
-                    ++i
-                    continue
-                } else if (strVal == '') { // start
-
-                    started = true;
-                    strVal += url.charAt(c);
-                } else if (c > (tplUrl.indexOf(keys[0]) + keys[0].length)) {
-
-                    regex = params.requirements[keys[0]];
-                    urlVal = strVal.substring(0, strVal.length);
-
-                    if (/^\//.test(regex)) {
-                        re      = regex.match(/\/(.*)\//).pop();
-                        flags   = regex.replace('/' + re + '/', '');
-
-                        tested = new RegExp(re, flags).test(urlVal)
-
-                    } else if ( /^validator\:\:/.test(regex) ) {
-                        /**
-                         * "requirements" : {
-                         *      "id" : "/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i",
-                         *      "email": "validator::{ isEmail: true, isString: [7] }"
-                         *  }
-                         *
-                         * e.g.: tested = new Validator('routing', _data, null, {email: {isEmail: true}} ).isEmail().valid;
-                         */
-                        _data = {}; _ruleObj = {}; _rule = {}; str = '';
-                        urlVar.replace( new RegExp('[^'+ key[0] +']','g'), function(){ str += arguments[0]  });
-                        _data[key[0]]  = urlVal.replace( new RegExp(str, 'g'), '');
-                        _ruleObj    = JSON.parse(regex.split(/::/).splice(1)[0].replace(/([^\W+ true false])+(\w+)/g, '"$&"'));
-                        _rule[key[0]]  = _ruleObj;
-                        _validator  = new Validator('routing', _data, null, _rule );
-
-                        for (let rule in _ruleObj) {
-                            if (Array.isArray(_ruleObj[rule])) { // has args
-                                _validator[key[0]][rule].apply(_validator[key[0]], _ruleObj[rule])
-                            } else {
-                                _validator[key[0]][rule](_ruleObj[rule])
-                            }
-                        }
-                        tested = _validator.isValid();
-                    } else {
-                        tested = new RegExp(params.requirements[key[0]]).test(urlVal)
-                    }
-
-                    if (tested) {
-                        values[keys[0].substring(1)] = urlVal
-                    } else {
-                        return false
-                    }
-
-                    strVal = '';
-                    started = false;
-                    i = (tplUrl.indexOf(keys[0]) + keys[0].length);
-                    c -= 1;
-
-                    keys.splice(0, 1)
-                } else {
-                    strVal += url.charAt(c);
-                    ++i
-                }
-
-                if (c == posLen - 1) {
-
-                    regex = params.requirements[keys[0]];
-                    urlVal = strVal.substring(0, strVal.length);
-
-                    if (/^\//.test(regex)) {
-                        re = regex.match(/\/(.*)\//).pop();
-                        flags = regex.replace('/' + re + '/', '');
-
-                        tested = new RegExp(re, flags).test(urlVal)
-
-                    } else {
-                        tested = new RegExp(params.requirements[key]).test(urlVal)
-                    }
-
-                    if (tested) {
-                        values[keys[0].substring(1)] = urlVal
-                    } else {
-                        return false
-                    }
-                }
-            }
-
-            if (values.count() == keys.length) {
-                key = null;
-                for (key in values) {
-                    switch (values[key]) {
-                        case 'null':
-                            values[key] = null;
-                            break;
-                        case 'false':
-                            values[key] = false;
-                            break;
-                        case 'true':
-                        //case 'on':
-                            values[key] = true;
-                            break
-                        default:
-                            break;
-                    }
-                    request.params[key] = values[key];
-                }
-                return true
-            }
+            // // No requirements defined — multi-param routes without requirements are not matchable
+            // if ( typeof(params.requirements) == 'undefined' ) return false;
+            //
+            // // In order to support rules defined like :
+            // //      { params.url }  => `/section/:name/page:number`
+            // //      { request.url } => `/section/plante/page4`
+            // //
+            // //      with keys = [ ":name", ":number" ]
+            //
+            // var keys        = _param
+            //     , tplUrl    = params.url
+            //     , url       = request.url
+            //     , values    = {}
+            //     , strVal    = ''
+            //     , started   = false
+            //     , i         = 0
+            // ;
+            //
+            // for (var c = 0, posLen = url.length; c < posLen; ++c) {
+            //     if (url.charAt(c) == tplUrl.charAt(i) && !started) {
+            //         ++i
+            //         continue
+            //     } else if (strVal == '') { // start
+            //
+            //         started = true;
+            //         strVal += url.charAt(c);
+            //     } else if (c > (tplUrl.indexOf(keys[0]) + keys[0].length)) {
+            //
+            //         regex = params.requirements[keys[0]];
+            //         urlVal = strVal.substring(0, strVal.length);
+            //
+            //         if (/^\//.test(regex)) {
+            //             re      = regex.match(/\/(.*)\//).pop();
+            //             flags   = regex.replace('/' + re + '/', '');
+            //
+            //             tested = new RegExp(re, flags).test(urlVal)
+            //
+            //         } else if ( /^validator\:\:/.test(regex) ) {
+            //             /**
+            //              * "requirements" : {
+            //              *      "id" : "/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i",
+            //              *      "email": "validator::{ isEmail: true, isString: [7] }"
+            //              *  }
+            //              *
+            //              * e.g.: tested = new Validator('routing', _data, null, {email: {isEmail: true}} ).isEmail().valid;
+            //              */
+            //             _data = {}; _ruleObj = {}; _rule = {}; str = '';
+            //             urlVar.replace( new RegExp('[^'+ key[0] +']','g'), function(){ str += arguments[0]  });
+            //             _data[key[0]]  = urlVal.replace( new RegExp(str, 'g'), '');
+            //             _ruleObj    = JSON.parse(regex.split(/::/).splice(1)[0].replace(/([^\W+ true false])+(\w+)/g, '"$&"'));
+            //             _rule[key[0]]  = _ruleObj;
+            //             _validator  = new Validator('routing', _data, null, _rule );
+            //
+            //             for (let rule in _ruleObj) {
+            //                 if (Array.isArray(_ruleObj[rule])) { // has args
+            //                     _validator[key[0]][rule].apply(_validator[key[0]], _ruleObj[rule])
+            //                 } else {
+            //                     _validator[key[0]][rule](_ruleObj[rule])
+            //                 }
+            //             }
+            //             tested = _validator.isValid();
+            //         } else {
+            //             tested = new RegExp(params.requirements[key[0]]).test(urlVal)
+            //         }
+            //
+            //         if (tested) {
+            //             values[keys[0].substring(1)] = urlVal
+            //         } else {
+            //             return false
+            //         }
+            //
+            //         strVal = '';
+            //         started = false;
+            //         i = (tplUrl.indexOf(keys[0]) + keys[0].length);
+            //         c -= 1;
+            //
+            //         keys.splice(0, 1)
+            //     } else {
+            //         strVal += url.charAt(c);
+            //         ++i
+            //     }
+            //
+            //     if (c == posLen - 1) {
+            //
+            //         regex = params.requirements[keys[0]];
+            //         urlVal = strVal.substring(0, strVal.length);
+            //
+            //         if (/^\//.test(regex)) {
+            //             re = regex.match(/\/(.*)\//).pop();
+            //             flags = regex.replace('/' + re + '/', '');
+            //
+            //             tested = new RegExp(re, flags).test(urlVal)
+            //
+            //         } else {
+            //             tested = new RegExp(params.requirements[key]).test(urlVal)
+            //         }
+            //
+            //         if (tested) {
+            //             values[keys[0].substring(1)] = urlVal
+            //         } else {
+            //             return false
+            //         }
+            //     }
+            // }
+            //
+            // if (values.count() == keys.length) {
+            //     key = null;
+            //     for (key in values) {
+            //         switch (values[key]) {
+            //             case 'null':
+            //                 values[key] = null;
+            //                 break;
+            //             case 'false':
+            //                 values[key] = false;
+            //                 break;
+            //             case 'true':
+            //             //case 'on':
+            //                 values[key] = true;
+            //                 break
+            //             default:
+            //                 break;
+            //         }
+            //         request.params[key] = values[key];
+            //     }
+            //     return true
+            // }
         }
 
         return false
@@ -1875,7 +1937,11 @@ function Routing() {
         if (
             /\:/.test(route.url)
             // Avoiding : `/bundle/path?redirect=https://bundle-dev-scope-v1.docmain.com:3132/bundle/referrer-path`
-            && !/\:d+\//.test(route.url)
+            // #B1152 — a port (`host:3132/`) is `\d`: the pattern read a literal `d`, so a value
+            // holding `host:port/` was reported as a missing placeholder and an unfilled `/x/:d/y`
+            // was not.
+            // was: && !/\:d+\//.test(route.url)
+            && !/\:\d+\//.test(route.url)
             && !/\:\/\//.test(route.url)
         ) {
             var paramList = route.url

@@ -8,7 +8,7 @@
  * Suites:
  *  01 — lib/routing/src/main.js source: fitsWithRequirements no-requirements guard
  *  02 — inline logic: fitsWithRequirements param binding and req.params population
- *  03 — lib/routing/src/main.js source: multi-param no-requirements guard (slow path)
+ *  03 — lib/routing/src/main.js source: the slow path's old no-requirements guard is no longer live (#B692)
  */
 var { describe, it } = require('node:test');
 var assert = require('node:assert/strict');
@@ -19,6 +19,21 @@ var FW          = require('../fw');
 var ROUTING_SRC = path.join(FW, 'lib/routing/src/main.js');
 
 var src = require('fs').readFileSync(ROUTING_SRC, 'utf8');
+
+/**
+ * The source with its comments removed: full-line `//` comments and `/* … *\/` blocks.
+ *
+ * @inner
+ * @param {string} s
+ * @returns {string}
+ */
+function stripComments(s) {
+    return s.replace(/\/\*[\s\S]*?\*\//g, '').split('\n').filter(function (l) { return !/^\s*\/\//.test(l); }).join('\n');
+}
+
+// Since #B692 the slow path's old body survives as a block of `//` comments, which a pin on `src`
+// would still match: the slow-path pins read `live`.
+var live = stripComments(src);
 
 
 // ─── 01 — source structure: fitsWithRequirements no-requirements guard ─────────
@@ -57,11 +72,13 @@ describe('01 - fitsWithRequirements: source structure (no-requirements guard)', 
         );
     });
 
-    it('slow path: guard for undefined requirements returns false immediately', function() {
-        // Multi-param slow path: if no requirements defined, return false
+    it('slow path: a segment holding two or more placeholders returns false, as its first live statement (#B692)', function() {
+        // Multi-param slow path: since #B692 it returns false before anything else; its old
+        // requirements guard and body remain only as comments (routing-multi-placeholder-b692.test.js
+        // drives the behaviour)
         assert.ok(
-            /if \( typeof\(params\.requirements\)\s*==\s*['"]undefined['"]\s*\) return false/.test(src),
-            'slow path must return false immediately when params.requirements is undefined'
+            /\} else \{ \/\/ slow one\s*return false;/.test(live),
+            'the slow path must return false as its first live statement'
         );
     });
 });
@@ -181,16 +198,20 @@ describe('02 - fitsWithRequirements: inline logic (param binding and req.params)
 });
 
 
-// ─── 03 — source structure: slow path no-requirements guard ────────────────────
+// ─── 03 — source structure: the slow path's old no-requirements guard (#B692) ────
 
-describe('03 - fitsWithRequirements: slow path (multi-param no-requirements guard)', function() {
+describe('03 - fitsWithRequirements: slow path (the old no-requirements guard is no longer live, #B692)', function() {
 
-    it('slow path guard appears after the fast path block (correct position)', function() {
-        var fastPathEnd = src.indexOf('} else { // slow one');
-        var slowGuard   = src.indexOf("if ( typeof(params.requirements) == 'undefined' ) return false");
-        assert.ok(fastPathEnd >= 0, 'slow path branch not found');
-        assert.ok(slowGuard >= 0,   'slow path guard not found');
-        assert.ok(slowGuard > fastPathEnd, 'slow path guard must be inside the else { // slow one } block');
+    it('control: the strip removes a full-line comment and keeps live code (the instrument)', function() {
+        var probe = stripComments('    // if ( a ) return false;\n    b();\n');
+        assert.equal(probe.indexOf('if ( a )'), -1, 'the strip must remove a full-line comment');
+        assert.ok(probe.indexOf('b();') > -1, 'the strip must keep live code');
+        assert.ok(live.indexOf('} else { // slow one') > -1, 'the strip must keep the slow path\'s head');
+    });
+
+    it('the old guard is not live code', function() {
+        assert.equal(live.indexOf("if ( typeof(params.requirements) == 'undefined' ) return false"), -1,
+            'the slow path\'s old no-requirements guard must not be live (#B692 returns false first)');
     });
 });
 

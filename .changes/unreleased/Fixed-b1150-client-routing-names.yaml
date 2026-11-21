@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'The navigation module (`gina/nav`) reads placeholder names as the server does. For `/:lang-code/x/:id` on a route binding `lang-code`, it compiled the segment under the name `lang-code`, where the server reads `:lang` holding the whole segment and refuses the request, so the module intercepted links the server refuses. It now leaves such a variant uncompiled, as it already did for `/page:number`, and no longer intercepts links through that route. The routing map served to the browser is unchanged. Re-bake the bundles to pick it up (#B1150).'
+time: 2026-11-21T15:41:05+01:00
