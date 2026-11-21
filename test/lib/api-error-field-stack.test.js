@@ -25,6 +25,7 @@ var test   = require('node:test');
 var assert = require('node:assert');
 var fs     = require('node:fs');
 var path   = require('node:path');
+var commentStrip = require('../strip-comments');
 
 var FW  = path.resolve(__dirname, '../../framework');
 // resolve the single tracked framework version dir
@@ -34,7 +35,7 @@ var GINA_ROOT      = path.resolve(__dirname, '../..');
 
 // --- minimal framework globals api-error.js reads (self-contained; no ~/.gina, no bundle) ---
 global.requireJSON = function (p) {
-    var s = fs.readFileSync(p, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+    var s = commentStrip.lines(fs.readFileSync(p, 'utf8'));
     return JSON.parse(s);
 };
 global.getContext = function () { return { bundle: 'testbundle' }; };

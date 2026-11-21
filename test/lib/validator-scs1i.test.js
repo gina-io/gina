@@ -5,6 +5,7 @@ var { describe, it } = require('node:test');
 var assert = require('node:assert/strict');
 
 var FW           = require('../fw');
+var commentStrip = require('../strip-comments');
 var FORM_VAL_SRC = fs.readFileSync(path.join(FW, 'core/plugins/lib/validator/src/form-validator.js'), 'utf8');
 var MAIN_SRC     = fs.readFileSync(path.join(FW, 'core/plugins/lib/validator/src/main.js'), 'utf8');
 
@@ -25,9 +26,7 @@ var MAIN_SRC     = fs.readFileSync(path.join(FW, 'core/plugins/lib/validator/src
 // object) will see a failing test instead of a silent regression.
 
 var stripComments = function (src) {
-    return src
-        .replace(/\/\*[\s\S]*?\*\//g, '')
-        .replace(/^\s*\/\/.*$/gm, '');
+    return commentStrip.lines(src);
 };
 
 // Slice a window around the compile site to scope the request-token assertions.

@@ -40,6 +40,7 @@ var fs     = require('fs');
 var { JSDOM } = require('jsdom');
 
 var FW = require('../fw');
+var commentStrip = require('../strip-comments');
 
 process.env.NODE_ENV_IS_DEV = process.env.NODE_ENV_IS_DEV || 'false';
 process.setMaxListeners(0); // engine construction adds logger listeners per instance
@@ -52,9 +53,7 @@ var ENGINE_PATH = process.env.GINA_FORM_VALIDATOR_SRC ||
 var ENGINE_SRC  = fs.readFileSync(ENGINE_PATH, 'utf8');
 
 function stripComments(src) {
-    return src
-        .replace(/\/\*[\s\S]*?\*\//g, '')
-        .replace(/(^|[^:\\])\/\/[^\n]*/g, '$1');
+    return commentStrip.all(src);
 }
 var LIVE = stripComments(ENGINE_SRC);
 

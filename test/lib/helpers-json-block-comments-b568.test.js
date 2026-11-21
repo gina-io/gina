@@ -26,6 +26,7 @@ var os     = require('os');
 var cp     = require('child_process');
 
 var FW     = require('../fw');
+var commentStrip = require('../strip-comments');
 var HELPER = path.join(FW, 'helpers/json/src/main.js');
 require(HELPER)(); // installs the implicit global `requireJSON`
 
@@ -181,7 +182,7 @@ describe('04 - source pins', function() {
         // The scanner's JSDoc quotes the regex it replaced, so a raw absence pin
         // would fail on the fix itself. Strip comments first — and prove the strip
         // removed something, so a broken strip cannot pass this vacuously.
-        var code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+        var code = commentStrip.lines(src);
         assert.ok(src.indexOf(needle) > -1, 'control: the raw file must still name the old regex in its JSDoc');
         assert.equal(code.indexOf(needle), -1, 'the old block-comment regex is still present in executable code');
         assert.ok(code.indexOf('function stripBlockComments') > -1, 'the scanner must be present in code');

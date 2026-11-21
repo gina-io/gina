@@ -5,6 +5,7 @@ var { describe, it } = require('node:test');
 var assert = require('node:assert/strict');
 
 var FW         = require('../fw');
+var commentStrip = require('../strip-comments');
 var EVENTS_SRC = fs.readFileSync(path.join(FW, 'core/asset/plugin/src/vendor/gina/utils/events.js'), 'utf8');
 var MAIN_SRC   = fs.readFileSync(path.join(FW, 'core/plugins/lib/validator/src/main.js'), 'utf8');
 
@@ -78,10 +79,7 @@ var captureWarn = function (fn) {
 };
 
 var stripComments = function (src) {
-    return src
-        .replace(/\/\*[\s\S]*?\*\//g, '')
-        .replace(/^\s*\/\/.*$/gm, '')
-        .replace(/([^:])\/\/.*$/gm, '$1');
+    return commentStrip.all(src);
 };
 
 

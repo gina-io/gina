@@ -32,6 +32,7 @@ var { describe, it } = require('node:test');
 var assert = require('node:assert/strict');
 
 var FW             = require('../fw');
+var commentStrip = require('../strip-comments');
 var NF_SRC         = fs.readFileSync(path.join(FW, 'lib/nunjucks-filters/src/main.js'), 'utf8');
 var NF_PKG         = JSON.parse(fs.readFileSync(path.join(FW, 'lib/nunjucks-filters/package.json'), 'utf8'));
 var LIB_INDEX_SRC  = fs.readFileSync(path.join(FW, 'lib/index.js'), 'utf8');
@@ -42,13 +43,11 @@ var SF_SRC         = fs.readFileSync(path.join(FW, 'lib/swig-filters/src/main.js
  * Strip block and line comments from a JS source string. Used by the
  * negative-invariant assertions below so JSDoc examples mentioning
  * `env.addFilter` or `swig.setFilter` don't trip a "does not call X"
- * check. Intentionally simple — good enough for source-inspection,
- * not a full tokeniser.
+ * check. The shared lexer in test/strip-comments.js removes only real
+ * comments (#B1157).
  */
 function stripComments(src) {
-    return src
-        .replace(/\/\*[\s\S]*?\*\//g, '')   // /* ... */ (JSDoc + block)
-        .replace(/(^|[^:])\/\/[^\n]*/g, '$1'); // // ... (skip protocol:// in strings)
+    return commentStrip.all(src);
 }
 var NF_CODE       = stripComments(NF_SRC);
 var RENDER_NJ_CODE = stripComments(RENDER_NJ_SRC);

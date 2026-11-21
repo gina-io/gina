@@ -56,6 +56,7 @@ function restoreEnv() {
 
 var LOGGER   = require(path.join(FW, 'lib/logger'));
 var CONFVIEW = require(path.join(FW, 'lib/conf-view'));
+var commentStrip = require('../strip-comments');
 
 
 // ─── the module under test ────────────────────────────────────────────────────
@@ -1077,9 +1078,7 @@ describe('#P49 lib/lane §07 — wiring pins', function () {
 
     /** Drop comments so a pin cannot be satisfied by prose. */
     function live(src) {
-        return src.replace(/\/\*[\s\S]*?\*\//g, '').split('\n').map(function (l) {
-            return ( l.trim().indexOf('//') === 0 ) ? '' : l.replace(/\s\/\/\s.*$/, '');
-        }).join('\n');
+        return commentStrip.all(src);
     }
 
     it('lib/index.js registers the lane with a plain require (core/server.js binds it at load)', function () {

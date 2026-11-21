@@ -29,6 +29,7 @@ var fs     = require('fs');
 var path   = require('path');
 var { describe, it } = require('node:test');
 var assert = require('node:assert/strict');
+var commentStrip = require('../strip-comments');
 
 var SOURCE_PATH = path.join(require('../fw'), 'lib/cmd/framework/reset.js');
 var src = fs.readFileSync(SOURCE_PATH, 'utf8');
@@ -37,7 +38,7 @@ var src = fs.readFileSync(SOURCE_PATH, 'utf8');
  *  file's own JSDoc (the jsdoc.md "negative pin trips on the file's own comment"
  *  trap — the module header explains WHY it avoids the in-process rebuild). */
 function stripComments(s) {
-    return s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+    return commentStrip.all(s);
 }
 
 /** Slice the guarded-reset init() body, end-anchored on the end() declaration so

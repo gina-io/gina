@@ -28,6 +28,7 @@ var fs     = require('fs');
 
 var FW       = require('../fw');
 var priority = require(path.join(FW, 'lib/priority/src/main.js'));
+var commentStrip = require('../strip-comments');
 var SRC      = fs.readFileSync(path.join(FW, 'lib/priority/src/main.js'), 'utf8');
 
 var DEFAULTS_ABSENT  = { urgency: 3, incremental: false, present: false };
@@ -313,7 +314,7 @@ describe('09 - source structure', function() {
         // The module docblock's @example legitimately shows `require('lib/priority')`,
         // so strip comments before asserting absence — and assert the RAW text still
         // contains the token, or a broken strip would pass this pin vacuously.
-        var code = SRC.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/mg, '');
+        var code = commentStrip.lines(SRC);
         assert.ok(SRC.indexOf('require(') > -1, 'control: the docblock example must still mention require(');
         assert.equal(code.indexOf('require('), -1, 'the module must stay dependency-free');
     });

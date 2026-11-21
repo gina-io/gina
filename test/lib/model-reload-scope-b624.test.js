@@ -30,6 +30,7 @@ var os     = require('os');
 var path   = require('path');
 var { describe, it, before, after } = require('node:test');
 var assert = require('node:assert/strict');
+var commentStrip = require('../strip-comments');
 
 var FW        = path.resolve(require('../fw'));
 var MODEL_SRC = path.join(FW, 'lib/model.js');
@@ -45,9 +46,7 @@ var DATABASE_ARG = "database: conf.content['connectors'][name].database";
  * @returns {string} the source without comments
  */
 function stripComments(src) {
-    return src
-        .replace(/\/\*[\s\S]*?\*\//g, '')
-        .replace(/(^|[^:'"\\])\/\/.*$/gm, '$1');
+    return commentStrip.all(src);
 }
 
 /**

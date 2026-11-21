@@ -51,6 +51,7 @@ var { describe, it, before, after } = require('node:test');
 var assert = require('node:assert/strict');
 
 var FW          = require('../fw');
+var commentStrip = require('../strip-comments');
 var REPO        = path.resolve(__dirname, '..', '..');
 var CMD_SOURCE  = path.join(REPO, 'bin', 'cmd');
 var GINA_SOURCE = path.join(REPO, 'bin', 'gina');
@@ -371,7 +372,7 @@ describe('03 - bin/cmd: the listen-error handler decides, writes synchronously a
      */
     function handler() {
         var raw = fs.readFileSync(CMD_SOURCE, 'utf8');
-        var code = raw.replace(/\/\*[\s\S]*?\*\//g, '').split('\n').filter(function (l) { return !/^\s*\/\//.test(l); }).join('\n');
+        var code = commentStrip.lines(raw);
         var start = code.indexOf("framework.on('error'");
         assert.ok(start > -1, 'the handler must be present (extraction control)');
         var depth = 0, i = code.indexOf('{', start), end = -1;

@@ -31,6 +31,7 @@ var fs   = require('fs');
 var path = require('path');
 var { describe, it } = require('node:test');
 var assert = require('node:assert/strict');
+var commentStrip = require('../strip-comments');
 
 var LIST_SOURCE = path.join(require('../fw'), 'lib/cmd/framework/list.js');
 var ARGS_FILE   = path.join(require('../fw'), 'lib/cmd/framework/arguments.json');
@@ -45,9 +46,7 @@ var manPage = fs.readFileSync(MAN_PAGE, 'utf8');
 // Comment-stripped source for negative-invariant pins, so a forbidden token
 // mentioned in JSDoc/comments cannot trip a code-absence assertion.
 // (jsdoc.md: "A negative source pin trips on the file's own JSDoc".)
-var srcNoComments = src
-    .replace(/\/\*[\s\S]*?\*\//g, '')    // block comments
-    .replace(/(^|[^:])\/\/.*$/gm, '$1');  // line comments (keep `://` in URLs)
+var srcNoComments = commentStrip.all(src);
 
 
 // ---------------------------------------------------------------------------

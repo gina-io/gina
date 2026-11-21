@@ -36,6 +36,7 @@ var { describe, it } = require('node:test');
 var assert = require('node:assert/strict');
 
 var FW        = require('../fw');
+var commentStrip = require('../strip-comments');
 var HELP_JS   = path.join(FW, 'lib/cmd/framework/help.js');
 var HELP_TXT  = path.join(FW, 'lib/cmd/framework/help.txt');
 var HELPER_JS = path.join(FW, 'lib/cmd/helper.js');
@@ -51,9 +52,7 @@ var GROUPS = ['bundle', 'project', 'service', 'connector', 'env', 'secrets'];
 // Comment-stripped source for the negative code-absence pins — the JSDoc
 // legitimately names `./open` / `gina open` in prose, which would trip a raw
 // code-absence check (jsdoc.md "negative pin trips on the file's own JSDoc" trap).
-var srcNoComments = src
-    .replace(/\/\*[\s\S]*?\*\//g, '')
-    .replace(/(^|[^:])\/\/.*$/gm, '$1');
+var srcNoComments = commentStrip.all(src);
 
 
 // ---------------------------------------------------------------------------

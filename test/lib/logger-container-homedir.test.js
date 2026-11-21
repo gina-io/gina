@@ -34,6 +34,7 @@ var { describe, it } = require('node:test');
 var assert = require('node:assert/strict');
 
 var FW = require('../fw');
+var commentStrip = require('../strip-comments');
 
 /** The two containers that resolve the settings file this way. */
 // The file container was the second entry here until it became an in-process
@@ -49,7 +50,7 @@ var CONTAINERS = [
  *  comment" trap — this file's fix is DESCRIBED in a comment naming the old
  *  shape, so an unstripped negative pin would always fail). */
 function stripComments(s) {
-    return s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+    return commentStrip.all(s);
 }
 
 function sourceOf(container) {
