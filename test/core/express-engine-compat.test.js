@@ -41,6 +41,7 @@ var path = require('path');
 
 var ginaRoot = path.resolve(__dirname, '../..');
 var version = require(ginaRoot + '/package.json').version;
+var commentStrip = require('../strip-comments');
 var FW = path.join(ginaRoot, 'framework', 'v' + version);
 
 var SERVER = fs.readFileSync(path.join(FW, 'core', 'server.js'), 'utf8');
@@ -48,11 +49,7 @@ var ADAPTER = fs.readFileSync(path.join(FW, 'core', 'server.express.js'), 'utf8'
 var ISAAC = fs.readFileSync(path.join(FW, 'core', 'server.isaac.js'), 'utf8');
 
 function stripComments(src) {
-    return src
-        .replace(/\/\*[\s\S]*?\*\//g, '')
-        .split('\n')
-        .filter(function (l) { return !/^\s*\/\//.test(l); })
-        .join('\n');
+    return commentStrip.lines(src);
 }
 var SERVER_ST = stripComments(SERVER);
 var ADAPTER_ST = stripComments(ADAPTER);

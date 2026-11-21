@@ -51,6 +51,7 @@ var url = require('url');
 var querystring = require('querystring');
 
 var FW = require('../fw');
+var commentStrip = require('../strip-comments');
 var ginaRoot = path.resolve(__dirname, '../..');
 // the bags must serve gina's own count() helper — install it exactly as a bundle does
 require(path.join(ginaRoot, 'utils', 'prototypes'));
@@ -61,11 +62,7 @@ var SERVER  = fs.readFileSync(path.join(FW, 'core', 'server.js'), 'utf8');
 var ISAAC   = fs.readFileSync(path.join(FW, 'core', 'server.isaac.js'), 'utf8');
 
 function stripComments(src) {
-    return src
-        .replace(/\/\*[\s\S]*?\*\//g, '')
-        .split('\n')
-        .filter(function (l) { return !/^\s*\/\//.test(l); })
-        .join('\n');
+    return commentStrip.lines(src);
 }
 var ADAPTER_ST = stripComments(ADAPTER);
 

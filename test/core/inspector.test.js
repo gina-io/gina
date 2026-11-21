@@ -4,6 +4,7 @@ var fs = require('fs');
 var path = require('path');
 
 var FW = require('../fw');
+var commentStrip = require('../strip-comments');
 var SERVER_SOURCE = path.join(FW, 'core/server.js');
 var ISAAC_SOURCE  = path.join(FW, 'core/server.isaac.js');
 var BM_DIR        = path.join(FW, 'core/asset/plugin/dist/vendor/gina/inspector');
@@ -6402,9 +6403,7 @@ describe('53 - unredacted snapshot is only stored when scope === local', functio
         var src = getRJsonSrc53();
         // Strip comments before checking — comments may reference the slot
         // to explain why it isn't written. Only real code assignments matter.
-        var stripped = src
-            .replace(/\/\*[\s\S]*?\*\//g, '')
-            .replace(/\/\/[^\n]*/g, '');
+        var stripped = commentStrip.all(src);
         assert.ok(
             !/_lastGinaDataUnredacted\s*=/.test(stripped),
             'render-json.js must not write the unredacted slot — JSON polls would clobber the HTML render snapshot'
@@ -8158,9 +8157,7 @@ describe('73 - #INS10 follow-up: server-rendered HTML page egress', function() {
     });
 
     it('the helper is leak-safe + minimal (no unredacted slot, no user.data; builds env+queries+flow, redacts, emits)', function() {
-        var stripped = fs.readFileSync(HELPER, 'utf8')
-            .replace(/\/\*[\s\S]*?\*\//g, '')
-            .replace(/\/\/[^\n]*/g, '');
+        var stripped = commentStrip.all(fs.readFileSync(HELPER, 'utf8'));
         assert.ok(!/_lastGinaDataUnredacted\s*=/.test(stripped),
             'the window emit must not write the unredacted slot (a prod window is never local scope)');
         assert.ok(!/\buser\.data\b/.test(stripped) && !/\bdata\s*:\s*jsonObj\b/.test(stripped),

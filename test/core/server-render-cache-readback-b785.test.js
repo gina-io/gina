@@ -41,10 +41,11 @@ var SERVER_SRC  = fs.readFileSync(process.env.GINA_SERVER_SRC      || path.join(
 var ISAAC_SRC   = fs.readFileSync(process.env.GINA_ISAAC_SRC       || path.join(FW, 'core/server.isaac.js'), 'utf8');
 var CLEAR_SRC   = fs.readFileSync(process.env.GINA_CACHE_CLEAR_SRC || path.join(FW, 'lib/cmd/cache/clear.js'), 'utf8');
 var RenderCache = require(process.env.GINA_RENDER_CACHE_MAIN || path.join(FW, 'lib/render-cache/src/main'));
+var commentStrip = require('../strip-comments');
 
 /** Comment-stripped copy for the negative pins (the replace-code convention keeps old lines in comments). */
 function stripComments(src) {
-    return src.replace(/\/\*[\s\S]*?\*\//g, '').split('\n').filter(function(l) { return !/^\s*\/\//.test(l); }).join('\n');
+    return commentStrip.lines(src);
 }
 
 describe('01 - core/server.js stamps server.cache.path on the instance behind the right guard', function() {

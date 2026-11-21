@@ -16,6 +16,7 @@ var GNA_SRC     = process.env.GINA_GNA_SRC    || path.join(FW, 'core/gna.js');
 // crypto-only, so a copy anywhere is faithful (measurement-traps § scratchpad copy of HEAD).
 var MT_MAIN     = process.env.GINA_MAINTENANCE_SRC || path.join(FW, 'lib/maintenance/src/main.js');
 var mt          = require(MT_MAIN);
+var commentStrip = require('../strip-comments');
 
 // ─────────────────────────────────────────────────────────────────────────
 // #MAINT1 — maintenance mode
@@ -523,14 +524,10 @@ describe('09 - engine wiring: both engines, and the gate is placed correctly', f
         assert.ok(isaac.indexOf('/_gina/maintenance') > -1);
     });
 
-    // line comments FIRST, then block comments (the b668 idiom): a `/*` inside a `// …` line
-    // (a `/_gina/*` mention) would otherwise open a phantom block comment
+    // Block comments and comment-only `//` lines out, by the exact strip (test/strip-comments.js,
+    // #B1157): it lexes the source, so a `/*` inside a `//` comment or a string opens no block.
     function stripComments(src) {
-        return src
-            .split('\n')
-            .filter(function (l) { return !/^\s*\/\//.test(l); })
-            .join('\n')
-            .replace(/\/\*[\s\S]*?\*\//g, '');
+        return commentStrip.lines(src);
     }
 
     it('server.js: the gate sits AFTER the /_gina handlers and BEFORE statics', function () {

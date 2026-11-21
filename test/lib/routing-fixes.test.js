@@ -19,6 +19,7 @@ var FW          = require('../fw');
 var ROUTING_SRC = path.join(FW, 'lib/routing/src/main.js');
 
 var src = require('fs').readFileSync(ROUTING_SRC, 'utf8');
+var commentStrip = require('../strip-comments');
 
 /**
  * The source with its comments removed: full-line `//` comments and `/* … *\/` blocks.
@@ -28,7 +29,7 @@ var src = require('fs').readFileSync(ROUTING_SRC, 'utf8');
  * @returns {string}
  */
 function stripComments(s) {
-    return s.replace(/\/\*[\s\S]*?\*\//g, '').split('\n').filter(function (l) { return !/^\s*\/\//.test(l); }).join('\n');
+    return commentStrip.lines(s);
 }
 
 // Since #B692 the slow path's old body survives as a block of `//` comments, which a pin on `src`

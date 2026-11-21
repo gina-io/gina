@@ -41,6 +41,7 @@ setContext('isProxyHost', false);
 setContext('gina', { config: { env: 'dev', bundle: 'b', getRouting: function () { return TABLE; }, envConf: {} } });
 var routing = require(path.join(FW, 'lib/routing'));
 var RC      = require(path.join(FW, 'core/server.route-candidates'));
+var commentStrip = require('../strip-comments');
 
 var B     = 'b';
 var SCOPE = 'local';
@@ -569,7 +570,7 @@ describe('02 - #P46 S6 A: the filtered scan answers exactly as the full scan', f
  * @returns {string}
  */
 function stripComments(s) {
-    return s.replace(/\/\*[\s\S]*?\*\//g, '').split('\n').filter(function (l) { return !/^\s*\/\//.test(l); }).join('\n');
+    return commentStrip.lines(s);
 }
 
 describe('03 - #P46 S6 A: server.js wires the index', function () {

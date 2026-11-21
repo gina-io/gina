@@ -32,6 +32,7 @@ var fs     = require('fs');
 var path   = require('path');
 
 var FW         = require('../fw');
+var commentStrip = require('../strip-comments');
 
 // Bare-module resolution + JSON.clone + the framework globals lib/routing expects.
 process.env.NODE_PATH = FW + (process.env.NODE_PATH ? path.delimiter + process.env.NODE_PATH : '');
@@ -74,7 +75,7 @@ function extractFn(src, decl) {
  * @returns {string}
  */
 function stripComments(s) {
-    return s.replace(/\/\*[\s\S]*?\*\//g, '').split('\n').filter(function (l) { return !/^\s*\/\//.test(l); }).join('\n');
+    return commentStrip.lines(s);
 }
 
 /**

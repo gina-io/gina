@@ -28,6 +28,7 @@ var fs     = require('fs');
 var path   = require('path');
 
 var FW         = require('../fw');
+var commentStrip = require('../strip-comments');
 var SERVER_SRC = fs.readFileSync(process.env.GINA_SERVER_SRC || path.join(FW, 'core/server.js'), 'utf8');
 
 /**
@@ -38,7 +39,7 @@ var SERVER_SRC = fs.readFileSync(process.env.GINA_SERVER_SRC || path.join(FW, 'c
  * @returns {string}
  */
 function stripComments(s) {
-    return s.replace(/\/\*[\s\S]*?\*\//g, '').split('\n').filter(function (l) { return !/^\s*\/\//.test(l); }).join('\n');
+    return commentStrip.lines(s);
 }
 
 /**

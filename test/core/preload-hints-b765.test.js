@@ -50,12 +50,13 @@ var SETTINGS_SCHEMA = process.env.GINA_SETTINGS_SCHEMA || path.join(ROOT, 'schem
 
 var preloadHints = require(process.env.GINA_PRELOAD_HINTS || path.join(FW, 'core/controller/preload-hints'));
 var merge        = require(path.join(FW, 'lib/merge'));
+var commentStrip = require('../strip-comments');
 
 function count(haystack, needle) { return haystack.split(needle).length - 1; }
 
 /** Remove block comments and whole-line `//` comments. @inner */
 function stripComments(s) {
-    return s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/[^\n]*/mg, '');
+    return commentStrip.lines(s);
 }
 
 /**

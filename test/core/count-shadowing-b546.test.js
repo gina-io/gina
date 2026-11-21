@@ -34,6 +34,7 @@ var assert = require('node:assert/strict');
 var fs     = require('fs');
 var path   = require('path');
 var FW     = require('../fw');
+var commentStrip = require('../strip-comments');
 
 require(path.resolve(FW, '..', '..', 'utils', 'prototypes')); // Object.prototype.count()
 
@@ -49,8 +50,7 @@ Object.keys(SRC).forEach(function (k) { TEXT[k] = fs.readFileSync(SRC[k], 'utf8'
 
 /** Strip block and line comments so a NEGATIVE pin cannot trip on the fix's own prose. */
 function codeOnly(s) {
-    return s.replace(/\/\*[\s\S]*?\*\//g, '')
-            .split('\n').map(function (l) { return l.replace(/\/\/.*$/, ''); }).join('\n');
+    return commentStrip.all(s);
 }
 
 /**

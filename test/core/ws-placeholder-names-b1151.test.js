@@ -27,6 +27,7 @@ var fs     = require('fs');
 var path   = require('path');
 
 var FW        = require('../fw');
+var commentStrip = require('../strip-comments');
 var ISAAC_SRC = fs.readFileSync(process.env.GINA_ISAAC_SRC || path.join(FW, 'core/server.isaac.js'), 'utf8');
 
 /**
@@ -59,7 +60,7 @@ function extractFn(src, decl) {
  * @returns {string}
  */
 function stripComments(s) {
-    return s.replace(/\/\*[\s\S]*?\*\//g, '').split('\n').filter(function (l) { return !/^\s*\/\//.test(l); }).join('\n');
+    return commentStrip.lines(s);
 }
 
 /**
