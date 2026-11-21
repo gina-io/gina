@@ -10,6 +10,8 @@
  *     comment; every mode keeps every newline.
  * §03 corpus: every `.js` file of the framework directory that compiles as a function body still
  *     compiles after `all()`, keeps its line count, and re-lexes with no comment left.
+ * §04 `lines(src, { drop: true })`: each comment-only line goes with its newline (a line filter's
+ *     shape, done exactly); each case records the old strip's answer; the option is opt-in.
  */
 var { describe, it } = require('node:test');
 var assert = require('node:assert/strict');
@@ -96,5 +98,55 @@ describe('#B1157 §03 — corpus: the framework directory', function () {
             checked++;
         });
         assert.ok(checked > 200, 'anti-vacuity: ' + checked + ' files checked, ' + skipped + ' skipped');
+    });
+});
+
+// The old strip in full (the block regex, then the line filter), kept only to record its answer
+// beside each §04 case: the same answer wherever the old strip was right.
+function oldChain(src) {
+    return src.replace(OLD, '').split('\n').filter(function (l) { return !/^\s*\/\//.test(l); }).join('\n');
+}
+
+// DROP:BEGIN
+var DROP_CASES = [
+    { id: '04.1', name: 'a comment-only line goes with its newline; a blank line stays',
+      src: 'a();\n   \n  // note\nb();\n',
+      expect: 'a();\n   \nb();\n', old: 'a();\n   \nb();\n' },
+    { id: '04.2', name: 'a line holding a block comment, then a `//` comment, goes too; a trailing `//` comment stays',
+      src: 'x(); // why\n/* a */ // b\ny();\n',
+      expect: 'x(); // why\ny();\n', old: 'x(); // why\ny();\n' },
+    { id: '04.3', name: 'a line holding only a block comment stays, as an empty line',
+      src: 'a();\n/* x */\nb();\n',
+      expect: 'a();\n\nb();\n', old: 'a();\n\nb();\n' },
+    { id: '04.4', name: 'the lines of a multi-line block comment stay, as empty lines (the old regex also removed the newline inside it)',
+      src: 'a();\n/* x\n   y */\nb();\n',
+      expect: 'a();\n\n\nb();\n', old: 'a();\n\nb();\n' },
+    { id: '04.5', name: 'a template line that starts with `//` stays (the old filter dropped it)',
+      src: 'var t = `\n// not a comment\n`;\n  // real\nk();\n',
+      expect: 'var t = `\n// not a comment\n`;\nk();\n', old: 'var t = `\n`;\nk();\n' },
+    { id: '04.6', name: 'a `/*` inside a `//` comment opens no block (the old regex deleted b(); and c();)',
+      src: 'a();\n// handles /x/* routes\nb();\n/* real */ c();\n',
+      expect: 'a();\nb();\n c();\n', old: 'a();\n' },
+    { id: '04.7', name: 'a comment-only first or last line goes, and no newline is left behind',
+      src: '// head\na();\n// tail',
+      expect: 'a();', old: 'a();' }
+];
+// DROP:END
+
+describe('#B1157 §04 — lines(src, { drop: true })', function () {
+
+    DROP_CASES.forEach(function (c) {
+        it(c.id + ' ' + c.name, function () {
+            assert.equal(strip.lines(c.src, { drop: true }), c.expect);
+            assert.equal(oldChain(c.src), c.old, 'the old strip\'s answer, as recorded');
+        });
+    });
+
+    it('04.8 the option is opt-in: no opts, {}, null, drop false or a truthy value other than true keep the blanking', function () {
+        var c = CASES.filter(function (x) { return x.id === '02.2'; })[0];
+        [undefined, {}, null, { drop: false }, { drop: 1 }, { drop: 'true' }].forEach(function (o) {
+            assert.equal(strip.lines(c.src, o), c.expect, String(JSON.stringify(o)));
+        });
+        assert.notEqual(strip.lines(c.src, { drop: true }), c.expect, 'control: drop changes this source');
     });
 });

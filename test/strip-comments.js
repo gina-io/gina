@@ -6,12 +6,14 @@
  * outside a real comment — inside a `//` comment (« /_gina/* handlers »), a string, a regex or a
  * template — and deletes live code up to the next real comment end. This module lexes the source
  * instead (code, string / regex / template text, line comment, block comment) and removes only
- * real comments. Every mode keeps every newline, so line numbers and line-based pins survive.
+ * real comments. Every mode keeps every newline, so line numbers and line-based pins survive (the
+ * opt-in `lines(src, { drop: true })` is the one exception).
  *
  * Modes (pick the one that keeps the strip's intent):
  *   - `blocks(src)` — block comments out; `//` comments kept.
  *   - `lines(src)`  — block comments out, and every line whose first non-space character starts a
- *                     `//` comment blanked; trailing `//` comments kept.
+ *                     `//` comment blanked; trailing `//` comments kept. `lines(src, { drop: true })`
+ *                     removes each such line with its newline instead.
  *   - `all(src)`    — every comment out.
  *
  * @module test/strip-comments
@@ -243,26 +245,35 @@ function blocks(src) {
  * Removes every block comment, then blanks each line whose first non-space character starts a
  * `//` comment; trailing `//` comments and every newline are kept.
  *
+ * With `opts.drop === true` each such line is removed together with its newline instead: the shape of
+ * a line filter run after a block strip, done exactly. It is the one option that does not keep every
+ * newline; the lines of a block comment still stay, as empty lines.
+ *
  * @param {string} src - The source text.
+ * @param {Object} [opts]
+ * @param {boolean} [opts.drop=false] - Remove each comment-only line with its newline rather than
+ *   blank it.
  * @returns {string}
  * @example
  * lines("  // note\nx(); // why\n"); // "\nx(); // why\n"
+ * lines("  // note\nx(); // why\n", { drop: true }); // "x(); // why\n"
  */
-function lines(src) {
+function lines(src, opts) {
+    var drop = !!(opts && opts.drop === true);
     var cls = lex(src);
     var out = [], cur = [], first = -1;
     for (var i = 0, n = src.length; i < n; i++) {
         var ch = src[i];
         if ( cls[i] === BLOCK_COMMENT && ch !== '\n' ) { continue; }
         if ( ch === '\n' ) {
-            out.push(first === LINE_COMMENT ? '' : cur.join(''));
+            if ( !(drop && first === LINE_COMMENT) ) { out.push(first === LINE_COMMENT ? '' : cur.join('')); }
             cur = []; first = -1;
             continue;
         }
         cur.push(ch);
         if ( first < 0 && !/\s/.test(ch) ) { first = cls[i]; }
     }
-    out.push(first === LINE_COMMENT ? '' : cur.join(''));
+    if ( !(drop && first === LINE_COMMENT) ) { out.push(first === LINE_COMMENT ? '' : cur.join('')); }
     return out.join('\n');
 }
 

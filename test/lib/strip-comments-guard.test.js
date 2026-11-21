@@ -96,7 +96,6 @@ var ALLOW = [
     'test/lib/project-add-gitignore.test.js',
     'test/lib/project-add-link.test.js',
     'test/lib/project-lifecycle.test.js',
-    'test/lib/routing-delete-partial-requirements-b956.test.js',
     'test/lib/sqlite-driver.test.js',
     'test/lib/storage-import-boundary.test.js',
     'test/lib/swig-filters-nl2br-autoescape.test.js',
