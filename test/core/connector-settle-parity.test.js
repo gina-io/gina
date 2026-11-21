@@ -67,6 +67,7 @@ var ginaMain  = require.resolve(REPO);
 var _inherits = require(FW + '/lib/inherits/src/main.js');
 var _merge    = require(FW + '/lib/merge/src/main.js');
 var ModelUtil = require(FW + '/lib/model');
+var commentStrip = require('../strip-comments');
 if (!require.cache[ginaMain] || !require.cache[ginaMain].exports.lib) {
     require.cache[ginaMain] = {
         id: ginaMain, filename: ginaMain, loaded: true,
@@ -342,8 +343,7 @@ describe('04 - the guard is wired at each fixed site (source pins)', function ()
      * @returns {string} source with block and line comments removed
      */
     function live(t) {
-        return t.replace(/\/\*[\s\S]*?\*\//g, '')
-                .split('\n').filter(function (l) { return !/^\s*\/\//.test(l); }).join('\n');
+        return commentStrip.lines(t);
     }
 
     var FILES = ['sqlite', 'mongodb', 'scylladb'].map(function (n) {
@@ -723,8 +723,7 @@ describe('07 - connector onReady and the sqlite inspector#indexes listener settl
 
     /** @inner strip both comment forms so a pin cannot be satisfied by the fix's own prose */
     function liveOf(t) {
-        return t.replace(/\/\*[\s\S]*?\*\//g, '')
-                .split('\n').filter(function (l) { return !/^\s*\/\//.test(l); }).join('\n');
+        return commentStrip.lines(t);
     }
 
     // ── the two connector open paths ─────────────────────────────────────────
@@ -891,7 +890,7 @@ describe('08 - couchbase storage-store reports a throwing callback instead of lo
         return Function.apply(null, names.concat(['return (' + body + ');'])).apply(null, names.map(function (n) { return scope[n]; }));
     }
     function recorder() { var seen = []; return { seen: seen, error: function (m) { seen.push(String(m)); }, warn: function () {}, debug: function () {}, info: function () {} }; }
-    function liveOf(t) { return t.replace(/\/\*[\s\S]*?\*\//g, '').split('\n').filter(function (l) { return !/^\s*\/\//.test(l); }).join('\n'); }
+    function liveOf(t) { return commentStrip.lines(t); }
 
     /**
      * Build one verb over a resolving driver stub. `withCollection` and

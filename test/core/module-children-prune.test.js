@@ -38,6 +38,7 @@ var test = require('node:test');
 var fs = require('fs');
 var os = require('os');
 var path = require('path');
+var commentStrip = require('../strip-comments');
 
 var BASE = path.join(__dirname, '..', '..');
 var FRAMEWORK_DIR = fs.readdirSync(path.join(BASE, 'framework'))
@@ -263,9 +264,7 @@ test('§06 lib/inherits: zero require() in code — the gen-0-captured + per-req
     var SRC = fs.readFileSync(INHERITS_PATH, 'utf8');
     // Strip comments first: the module's JSDoc @example contains a literal
     // require(...) string, which a raw scan would match (false positive).
-    var code = SRC
-        .replace(/\/\*[\s\S]*?\*\//g, '')   // block comments (incl. JSDoc)
-        .replace(/\/\/[^\n]*/g, '');         // line comments
+    var code = commentStrip.all(SRC);
     assert.strictEqual(
         code.indexOf('require('), -1,
         'lib/inherits/src/main.js must contain ZERO require() calls in code (comments stripped) — ' +

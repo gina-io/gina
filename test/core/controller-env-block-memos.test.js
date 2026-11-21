@@ -44,6 +44,7 @@ var path   = require('path');
 var Module = require('module');
 
 var FW     = require('../fw');
+var commentStrip = require('../strip-comments');
 var REAL   = path.join(FW, 'core/controller/controller.js');
 var SOURCE = process.env.GINA_CONTROLLER_SRC || REAL;
 
@@ -54,9 +55,7 @@ Module._initPaths();
 require(path.join(FW, 'helpers'));
 
 var src = fs.readFileSync(SOURCE, 'utf8');
-var active = src.replace(/\/\*[\s\S]*?\*\//g, '').split('\n').filter(function (l) {
-    return !/^\s*\/\//.test(l);
-}).join('\n');
+var active = commentStrip.lines(src);
 
 function count(hay, needle) { return hay.split(needle).length - 1; }
 

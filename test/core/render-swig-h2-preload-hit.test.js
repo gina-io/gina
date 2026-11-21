@@ -32,6 +32,7 @@ var fs   = require('fs');
 var path = require('path');
 
 var FW     = require('../fw');
+var commentStrip = require('../strip-comments');
 // Module-path seam (the freeze test's): point the whole file at a pre-change copy.
 var SOURCE = process.env.GINA_RENDER_SWIG_SRC || path.join(FW, 'core/controller/controller.render-swig.js');
 var SRC    = fs.readFileSync(SOURCE, 'utf8');
@@ -40,7 +41,7 @@ var BANNER = '// ---- #B464 - module-scope helpers for the post-execute Inspecto
 var EO     = "} // EO String(self.serverInstance._cacheIsEnabled).toLowerCase() === 'true'";
 
 function stripComments(s) {
-    return s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/[^\n]*/mg, '');
+    return commentStrip.lines(s);
 }
 function count(haystack, needle) { return haystack.split(needle).length - 1; }
 

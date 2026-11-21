@@ -27,6 +27,7 @@ var fs   = require('fs');
 var path = require('path');
 
 var FW = require('../fw');
+var commentStrip = require('../strip-comments');
 var CONNECTOR_INDEX = path.join(FW, 'core/connectors/duckdb/index.js');
 var CONNECTOR_LIB   = path.join(FW, 'core/connectors/duckdb/lib/connector.js');
 var CONNECTOR_ERROR = path.join(FW, 'lib/connector-error/src/main.js');
@@ -36,9 +37,7 @@ var CONNECTOR_ERROR = path.join(FW, 'lib/connector-error/src/main.js');
  * explanatory comments (same shape as session-store-touch-guard.test.js).
  */
 function stripComments(src) {
-    return src
-        .replace(/\/\*[\s\S]*?\*\//g, '')
-        .replace(/\/\/[^\n]*/g, '');
+    return commentStrip.all(src);
 }
 
 // ─── 01 — lib/connector.js source pins ───────────────────────────────────────

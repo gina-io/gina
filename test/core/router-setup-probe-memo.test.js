@@ -28,15 +28,14 @@ var fs     = require('fs');
 var path   = require('path');
 
 var FW     = require('../fw');
+var commentStrip = require('../strip-comments');
 var SOURCE = process.env.GINA_ROUTER_SRC || path.join(FW, 'core/router.js');
 var DECL   = 'var resolveSetupFile = function(bundle, bundlesPath, isCacheless) {';
 
 var src, active;
 before(function () {
     src = fs.readFileSync(SOURCE, 'utf8');
-    active = src.replace(/\/\*[\s\S]*?\*\//g, '').split('\n').filter(function (l) {
-        return !/^\s*\/\//.test(l);
-    }).join('\n');
+    active = commentStrip.lines(src);
 });
 
 function count(hay, needle) { return hay.split(needle).length - 1; }

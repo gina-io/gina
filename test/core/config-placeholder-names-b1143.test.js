@@ -38,12 +38,13 @@ var assert = require('node:assert/strict');
 
 var FW = require('../fw');
 var bindings    = require(process.env.GINA_PARAM_BINDINGS_SRC || path.join(FW, 'core/config.param-bindings.js'));
+var commentStrip = require('../strip-comments');
 var CONFIG_SRC  = fs.readFileSync(process.env.GINA_CONFIG_SRC || path.join(FW, 'core/config.js'), 'utf8');
 var ROUTING_SRC = fs.readFileSync(path.join(FW, 'lib/routing/src/main.js'), 'utf8');
 var I18N_SRC    = fs.readFileSync(path.join(FW, 'lib/i18n/src/main.js'), 'utf8');
 
 /** Removes block comments and whole-line `//` comments (the #B360 test's strip). */
-function strip(s) { return s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/[^\n]*/mg, ''); }
+function strip(s) { return commentStrip.lines(s); }
 
 /** The routing table of §01: four rules with such a segment, and controls. */
 function table() {

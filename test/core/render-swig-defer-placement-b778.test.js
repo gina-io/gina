@@ -25,13 +25,14 @@ var fs     = require('fs');
 var path   = require('path');
 
 var FW = require('../fw');
+var commentStrip = require('../strip-comments');
 
 var RENDER_SWIG_SRC = process.env.GINA_RENDER_SWIG_SRC || path.join(FW, 'core/controller/controller.render-swig.js');
 var CONTROLLER_SRC  = process.env.GINA_CONTROLLER_SRC  || path.join(FW, 'core/controller/controller.js');
 
 /** Remove block comments and whole-line `//` comments. @inner */
 function stripComments(s) {
-    return s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/[^\n]*/mg, '');
+    return commentStrip.lines(s);
 }
 
 /**

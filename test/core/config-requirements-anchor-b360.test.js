@@ -34,6 +34,7 @@ var assert = require('node:assert/strict');
 
 var FW = require('../fw');
 var anchor = require(path.join(FW, 'core/config.requirements-anchor.js'));
+var commentStrip = require('../strip-comments');
 var CONFIG_SRC = fs.readFileSync(process.env.GINA_CONFIG_SRC || path.join(FW, 'core/config.js'), 'utf8');
 
 describe('#B360 — which regex requirements are anchored at both ends', function () {
@@ -132,7 +133,7 @@ describe('#B360 — which regex requirements are anchored at both ends', functio
     });
 
     describe('04 - core/config.js wiring', function () {
-        function strip(s) { return s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/[^\n]*/mg, ''); }
+        function strip(s) { return commentStrip.lines(s); }
         var CODE = strip(CONFIG_SRC);
         var at = CODE.indexOf('var _requirementsApply = ');
         var block = CODE.slice(at, CODE.indexOf('self.setRouting(bundle, env, scope, routing);', at));

@@ -40,6 +40,7 @@ var path   = require('path');
 var Module = require('module');
 
 var FW     = require('../fw');
+var commentStrip = require('../strip-comments');
 var REAL   = path.join(FW, 'helpers/path.js');
 var SOURCE = process.env.GINA_PATH_HELPER_SRC || REAL;
 
@@ -53,9 +54,7 @@ before(function () {
     src = fs.readFileSync(SOURCE, 'utf8');
     // block comments out, then every full-line `//` comment (the file keeps commented-out
     // debug lines, and the #B703 note names the retired registry)
-    active = src.replace(/\/\*[\s\S]*?\*\//g, '').split('\n').filter(function (l) {
-        return !/^\s*\/\//.test(l);
-    }).join('\n');
+    active = commentStrip.lines(src);
     // lib/merge and the real helpers first (the globals and modules the helper family
     // expects), then the text under test compiled as the same file and called the way
     // helpers/index.js calls it — without `new` — so every arm below runs ITS `_`

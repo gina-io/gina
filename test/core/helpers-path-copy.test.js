@@ -36,6 +36,7 @@ var path = require('path');
 
 var ginaRoot = path.resolve(__dirname, '../..');
 var version = require(ginaRoot + '/package.json').version;
+var commentStrip = require('../strip-comments');
 var FW = path.join(ginaRoot, 'framework', 'v' + version);
 var SOURCE = path.join(FW, 'helpers', 'path.js');
 
@@ -45,11 +46,7 @@ var RAW = fs.readFileSync(SOURCE, 'utf8');
 // Sufficient here — every pre-fix shape is preserved as full-line `// was:`
 // comments, and no pinned needle contains `//` inside a string literal.
 function stripComments(src) {
-    return src
-        .replace(/\/\*[\s\S]*?\*\//g, '')
-        .split('\n')
-        .filter(function (l) { return !/^\s*\/\//.test(l); })
-        .join('\n');
+    return commentStrip.lines(src);
 }
 var ST = stripComments(RAW);
 

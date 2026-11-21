@@ -40,13 +40,12 @@ var os     = require('os');
 var { spawnSync } = require('child_process');
 
 var FW        = require('../fw');
+var commentStrip = require('../strip-comments');
 var GINA_ROOT = path.resolve(FW, '..', '..');
 var REAL      = path.join(FW, 'core/config.js');
 var SOURCE    = process.env.GINA_CONFIG_SRC || REAL;
 var SRC       = fs.readFileSync(SOURCE, 'utf8');
-var ACTIVE    = SRC.replace(/\/\*[\s\S]*?\*\//g, '').split('\n').filter(function (l) {
-    return !/^\s*\/\//.test(l);
-}).join('\n');
+var ACTIVE    = commentStrip.lines(SRC);
 var IS_BUN    = typeof(globalThis.Bun) != 'undefined';
 
 function count(hay, needle) { return hay.split(needle).length - 1; }

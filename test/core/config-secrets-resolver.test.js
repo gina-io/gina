@@ -29,6 +29,7 @@ var assert                                 = require('node:assert/strict');
 var FW           = require('../fw');
 var SECRETS_PATH = path.join(FW, 'lib/secrets');
 var secrets      = require(SECRETS_PATH);
+var commentStrip = require('../strip-comments');
 
 
 // ---------------------------------------------------------------------------
@@ -743,9 +744,7 @@ describe('14 - env backend framework-environment tier (#B156)', function () {
         // ("never joined with `||`"), so an un-stripped assertion would fail on the
         // comment rather than on the code — a pin that reports the bug is still
         // present the moment someone documents its absence.
-        var code = envSrc
-            .replace(/\/\*[\s\S]*?\*\//g, '')
-            .replace(/^\s*\/\/.*$/gm, '');
+        var code = commentStrip.lines(envSrc);
         // Strip control: a strip that removed everything would make the assertion
         // below pass vacuously, so prove the code under test survived it.
         assert.match(code, /getEnvVar\(key\)/,

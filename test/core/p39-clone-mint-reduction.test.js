@@ -56,12 +56,11 @@ var CLONE_SRC = fs.readFileSync(path.join(GINA_ROOT, 'utils/prototypes.json_clon
 
 var JSONClone = require(path.join(GINA_ROOT, 'utils/prototypes.json_clone.js'));
 var uuid      = require(path.join(FW, 'lib/uuid/src/main.js'));
+var commentStrip = require('../strip-comments');
 
 /** strip block + line comments so negative pins can't trip on prose */
 function stripComments(src) {
-    return src
-        .replace(/\/\*[\s\S]*?\*\//g, '')
-        .replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+    return commentStrip.all(src);
 }
 
 /**
