@@ -43,6 +43,7 @@ var fs     = require('fs');
 var { JSDOM } = require('jsdom');
 
 var FW = require('../fw');
+var commentStrip = require('../strip-comments');
 
 var MAIN     = process.env.B858_VALIDATOR_SRC || path.join(FW, 'core/plugins/lib/validator/src/main.js');
 var DIST     = process.env.B858_PLUGIN_DIST   || path.join(FW, 'core/asset/plugin/dist/vendor/gina');
@@ -116,9 +117,7 @@ function extractFn(source, name) {
  * @returns {string}
  */
 function stripComments(text) {
-    return text.replace(/\/\*[\s\S]*?\*\//g, '').split('\n').map(function (l) {
-        return /^\s*(\/\/|\*)/.test(l) ? '' : l.replace(/\s\/\/.*$/, '');
-    }).join('\n');
+    return commentStrip.all(text);
 }
 
 /**

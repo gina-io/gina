@@ -53,6 +53,7 @@ var TABLE = {};
 setContext('isProxyHost', false);
 setContext('gina', { config: { env: 'dev', bundle: 'b', getRouting: function () { return TABLE; }, envConf: {} } });
 var routing = require(path.join(FW, 'lib/routing'));
+var commentStrip = require('../strip-comments');
 
 var RULES = {
     api:    { url: '/app/api/foo',         method: 'GET',    param: { control: 'act' },               requirements: { id: '/^[0-9]+$/' } },
@@ -123,7 +124,7 @@ async function match(name, method, url, bag) {
  * @returns {string}
  */
 function stripComments(s) {
-    return s.replace(/\/\*[\s\S]*?\*\//g, '').split('\n').filter(function (l) { return !/^\s*\/\//.test(l); }).join('\n');
+    return commentStrip.lines(s);
 }
 
 

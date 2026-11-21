@@ -76,6 +76,7 @@ var TABLE = {
 setContext('isProxyHost', false);
 setContext('gina', { config: { env: 'dev', bundle: 'b', getRouting: function () { return TABLE; }, envConf: {} } });
 var routing = require(path.join(FW, 'lib/routing'));
+var commentStrip = require('../strip-comments');
 
 /**
  * Match `url` against a rule the way the engine does (server.js builds this route description), with
@@ -107,7 +108,7 @@ async function match(name, url, get) {
  * @returns {string}
  */
 function stripComments(s) {
-    return s.replace(/\/\*[\s\S]*?\*\//g, '').split('\n').filter(function (l) { return !/^\s*\/\//.test(l); }).join('\n');
+    return commentStrip.lines(s);
 }
 
 /**

@@ -38,6 +38,7 @@ var DIST_JS    = path.join(FW, 'core/asset/plugin/dist/vendor/gina/js/gina.js');
 
 require(path.join(FW, '../../utils/prototypes'));    // JSON.clone, count()
 var Collection = require(path.join(FW, 'lib/collection'));
+var commentStrip = require('../strip-comments');
 
 var ROWS = [
     { name: 'A', tags: [{ label: 'News', score: 5 }, { label: 'Sport', score: 1 }], reviews: [{ ratings: { score: 4 } }] },
@@ -108,7 +109,7 @@ function outcome(fn) {
  * @returns {string}
  */
 function stripComments(s) {
-    return s.replace(/\/\*[\s\S]*?\*\//g, '').split('\n').filter(function (l) { return !/^\s*\/\//.test(l); }).join('\n');
+    return commentStrip.lines(s);
 }
 
 // The pre-fix call: the whole element handed to search().

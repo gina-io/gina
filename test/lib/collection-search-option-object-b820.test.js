@@ -36,6 +36,7 @@ var DIST_JS    = path.join(FW, 'core/asset/plugin/dist/vendor/gina/js/gina.js');
 
 require(path.join(FW, '../../utils/prototypes'));    // JSON.clone, count()
 var Collection = require(path.join(FW, 'lib/collection'));
+var commentStrip = require('../strip-comments');
 
 var PEOPLE = [
     { name: 'Alice', city: 'Paris', n: 1 },
@@ -75,7 +76,7 @@ function names(rows) {
  * @returns {string}
  */
 function stripComments(s) {
-    return s.replace(/\/\*[\s\S]*?\*\//g, '').split('\n').filter(function (l) { return !/^\s*\/\//.test(l); }).join('\n');
+    return commentStrip.lines(s);
 }
 
 // The pre-fix check: a top-level key refused when it is not a rule name, with a message read from the second argument.

@@ -37,6 +37,7 @@ var path   = require('path');
 var { JSDOM } = require('jsdom');
 
 var FW       = require('../fw');
+var commentStrip = require('../strip-comments');
 var MAIN     = path.join(FW, 'core/plugins/lib/validator/src/main.js');
 var DIST     = path.join(FW, 'core/asset/plugin/dist/vendor/gina/js/gina.js');
 var DIST_MIN = path.join(FW, 'core/asset/plugin/dist/vendor/gina/js/gina.min.js');
@@ -57,9 +58,7 @@ before(function () {
  * @returns {string}
  */
 function stripComments(src) {
-    return src
-        .replace(/\/\*[\s\S]*?\*\//g, '')
-        .replace(/^\s*\/\/.*$/mg, '');
+    return commentStrip.lines(src);
 }
 
 /**

@@ -43,6 +43,7 @@ var DIST_JS    = path.join(FW, 'core/asset/plugin/dist/vendor/gina/js/gina.js');
 
 require(path.join(FW, '../../utils/prototypes'));    // JSON.clone, count()
 var Collection = require(path.join(FW, 'lib/collection'));
+var commentStrip = require('../strip-comments');
 
 // Rows with no `id`: `a` and `b` share `g: 'x'`.
 var NO_ID     = [{ g: 'x', name: 'a', v: 0 }, { g: 'x', name: 'b', v: 0 }, { g: 'y', name: 'c', v: 0 }];
@@ -99,7 +100,7 @@ function methods(rows) {
  * @returns {string}
  */
 function stripComments(s) {
-    return s.replace(/\/\*[\s\S]*?\*\//g, '').split('\n').filter(function (l) { return !/^\s*\/\//.test(l); }).join('\n');
+    return commentStrip.lines(s);
 }
 
 /**

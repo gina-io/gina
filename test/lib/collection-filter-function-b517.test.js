@@ -37,6 +37,7 @@ var DIST_JS    = path.join(FW, 'core/asset/plugin/dist/vendor/gina/js/gina.js');
 
 require(path.join(FW, '../../utils/prototypes'));    // JSON.clone, count()
 var Collection = require(path.join(FW, 'lib/collection'));
+var commentStrip = require('../strip-comments');
 
 var ROWS = [
     { id: 1, name: 'a', active: true },
@@ -80,7 +81,7 @@ var FIND_METHODS = ['notIn', 'find', 'update', 'replace', 'or', 'findOne', 'limi
  * @returns {string}
  */
 function stripComments(s) {
-    return s.replace(/\/\*[\s\S]*?\*\//g, '').split('\n').filter(function (l) { return !/^\s*\/\//.test(l); }).join('\n');
+    return commentStrip.lines(s);
 }
 
 // The fixed dispatch, as live code carries it.

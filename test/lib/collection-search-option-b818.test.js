@@ -43,6 +43,7 @@ var DIST_JS    = path.join(FW, 'core/asset/plugin/dist/vendor/gina/js/gina.js');
 
 require(path.join(FW, '../../utils/prototypes'));    // JSON.clone, count()
 var Collection = require(path.join(FW, 'lib/collection'));
+var commentStrip = require('../strip-comments');
 
 // Every character a RegExp reads as syntax outside a character class.
 var PATTERN_CHARS = ['\\', '^', '$', '.', '*', '+', '?', '(', ')', '[', ']', '{', '}', '|'];
@@ -98,7 +99,7 @@ function optioned(rows, isCaseSensitive) {
  * @returns {string}
  */
 function stripComments(s) {
-    return s.replace(/\/\*[\s\S]*?\*\//g, '').split('\n').filter(function (l) { return !/^\s*\/\//.test(l); }).join('\n');
+    return commentStrip.lines(s);
 }
 
 // The write-back of the spliced pattern onto a rule entry (the pre-fix statement).
