@@ -1,0 +1,216 @@
+'use strict';
+/**
+ * #B1157 guard — a source-pin test strips comments with `test/strip-comments.js`, never with a
+ * block regex run before anything else.
+ *
+ * Such a regex opens a phantom block at any `/*` outside a real comment (inside a `//` comment, a
+ * string, a regex or a template) and deletes live code up to the next real comment end, so a
+ * negative pin can pass whatever the code holds. The files in ALLOW predate the shared helper and
+ * migrate in batches; a migrated file leaves the list. A new test file with such a strip fails
+ * here, and so does a listed file that no longer has one.
+ */
+var { describe, it } = require('node:test');
+var assert = require('node:assert/strict');
+var fs = require('fs');
+var path = require('path');
+
+var FW = require('../fw');
+var ROOT = path.join(__dirname, '..', '..');
+
+// `.replace(`, optional spaces, then the block-comment regex literal itself (no flags on DETECT, so
+// `.test()` keeps no state between files).
+var DETECT = /\.replace\(\s*\/\\\/\\\*\[\\s\\S\]\*\?\\\*\\\/\/g/;
+
+// The test files that had such a strip on 2026-11-21 (develop c6ae36900); remove each one as it
+// migrates to the shared helper.
+var ALLOW = [
+    'test/bin/cli-home-files-b938.test.js',
+    'test/bin/gina-restart-pid-b689.test.js',
+    'test/bin/gina-start-held-port-b761.test.js',
+    'test/core/asset-versioning.test.js',
+    'test/core/bundle-no-dynamic-code.test.js',
+    'test/core/client-routing-names-b1150.test.js',
+    'test/core/config-env-load-error-propagation.test.js',
+    'test/core/config-envconf-fast-shape.test.js',
+    'test/core/config-placeholder-multi-b692.test.js',
+    'test/core/config-placeholder-names-b1143.test.js',
+    'test/core/config-placeholder-prefix-b646.test.js',
+    'test/core/config-requirements-anchor-b360.test.js',
+    'test/core/config-secrets-resolver.test.js',
+    'test/core/config-singleton-fast-path.test.js',
+    'test/core/connector-settle-parity.test.js',
+    'test/core/console-binding.test.js',
+    'test/core/controller-env-block-memos.test.js',
+    'test/core/controller-push-recipient.test.js',
+    'test/core/controller-redirect-inheritedData.test.js',
+    'test/core/controller-set-dot-split.test.js',
+    'test/core/controller-set-path.test.js',
+    'test/core/couchbase-b608.test.js',
+    'test/core/couchbase-boot-deadline.test.js',
+    'test/core/couchbase-concurrency.test.js',
+    'test/core/couchbase-connector.test.js',
+    'test/core/couchbase-rest-retired-b634.test.js',
+    'test/core/count-hasownproperty-b837.test.js',
+    'test/core/count-shadowing-b546.test.js',
+    'test/core/duckdb-connector.test.js',
+    'test/core/event-inspection.test.js',
+    'test/core/express-engine-compat.test.js',
+    'test/core/express-query-b666.test.js',
+    'test/core/express-url-query-strip-b668.test.js',
+    'test/core/h2-statics-listener-b566.test.js',
+    'test/core/head-req-get-b675.test.js',
+    'test/core/helpers-path-copy.test.js',
+    'test/core/helpers-path-registry-b703.test.js',
+    'test/core/inspector.test.js',
+    'test/core/manifest-bundle-scopes.test.js',
+    'test/core/module-children-prune.test.js',
+    'test/core/mount-symlink-atomicity.test.js',
+    'test/core/p39-clone-mint-reduction.test.js',
+    'test/core/precompressed-encoding-vary-b742.test.js',
+    'test/core/preload-hints-b765.test.js',
+    'test/core/query-ca-cache.test.js',
+    'test/core/query-h1-agent-reuse.test.js',
+    'test/core/region-binding.test.js',
+    'test/core/render-json.test.js',
+    'test/core/render-nunjucks.test.js',
+    'test/core/render-stream.test.js',
+    'test/core/render-swig-defer-placement-b778.test.js',
+    'test/core/render-swig-h2-preload-hit.test.js',
+    'test/core/render-swig-inspector-assets.test.js',
+    'test/core/render-swig-inspector-data-freeze.test.js',
+    'test/core/render-swig.test.js',
+    'test/core/request-param-precedence-b954.test.js',
+    'test/core/route-method-resolution-b662.test.js',
+    'test/core/router-setup-probe-memo.test.js',
+    'test/core/server-isaac-cache-read-gate.test.js',
+    'test/core/server-render-cache-readback-b785.test.js',
+    'test/core/server-route-candidates.test.js',
+    'test/core/server-route-throw-once-b1154.test.js',
+    'test/core/server-statics.test.js',
+    'test/core/statics-html-no-templates-b567.test.js',
+    'test/core/swig-autoescape-prep-b359.test.js',
+    'test/core/validator-autofill-livecheck.test.js',
+    'test/core/validator-client-cluster-b884.test.js',
+    'test/core/validator-form-target.test.js',
+    'test/core/validator-rebind-rule-b879.test.js',
+    'test/core/validator-unbind-ledger-b585.test.js',
+    'test/core/validator-upload-a11y.test.js',
+    'test/core/validator-upload-dropzone.test.js',
+    'test/core/validator-upload-popin-containment.test.js',
+    'test/core/validator-upload-progress.test.js',
+    'test/core/validator-upload-reset-reselect-b858.test.js',
+    'test/core/validator-upload-submit-wait-b726.test.js',
+    'test/core/ws-placeholder-names-b1151.test.js',
+    'test/lib/api-error-field-stack.test.js',
+    'test/lib/cmd-help.test.js',
+    'test/lib/cmd-man.test.js',
+    'test/lib/collection-dotted-key-b821.test.js',
+    'test/lib/collection-filter-function-b517.test.js',
+    'test/lib/collection-find-or-b827.test.js',
+    'test/lib/collection-notin-empty-source-b1029.test.js',
+    'test/lib/collection-notin-identity-b826.test.js',
+    'test/lib/collection-search-option-b818.test.js',
+    'test/lib/collection-search-option-object-b820.test.js',
+    'test/lib/collection-search-option-skipeval-b824.test.js',
+    'test/lib/collection-update-b822.test.js',
+    'test/lib/collection-within-array-b823.test.js',
+    'test/lib/context-merge-binding.test.js',
+    'test/lib/filter-context-request-scope-b519.test.js',
+    'test/lib/framework-add.test.js',
+    'test/lib/framework-init-pids.test.js',
+    'test/lib/framework-list.test.js',
+    'test/lib/framework-remove.test.js',
+    'test/lib/framework-reset.test.js',
+    'test/lib/framework-update.test.js',
+    'test/lib/helpers-json-block-comments-b568.test.js',
+    'test/lib/helpers-json-excerpt-b917.test.js',
+    'test/lib/inherits-no-instance-copies.test.js',
+    'test/lib/job-render-store-b811.test.js',
+    'test/lib/job-request-context.test.js',
+    'test/lib/job-urgency.test.js',
+    'test/lib/kv-import-boundary.test.js',
+    'test/lib/kv-parity.test.js',
+    'test/lib/kv-store-redis.test.js',
+    'test/lib/lane.test.js',
+    'test/lib/logger-container-homedir.test.js',
+    'test/lib/logger-file-rotation.test.js',
+    'test/lib/maintenance.test.js',
+    'test/lib/merge-m22.test.js',
+    'test/lib/model-reload-scope-b624.test.js',
+    'test/lib/money.test.js',
+    'test/lib/nunjucks-filters.test.js',
+    'test/lib/post-install-allow-scripts-env.test.js',
+    'test/lib/priority.test.js',
+    'test/lib/project-add-gitignore.test.js',
+    'test/lib/project-add-link.test.js',
+    'test/lib/project-lifecycle.test.js',
+    'test/lib/render-engine-dispatch.test.js',
+    'test/lib/routing-cache-map.test.js',
+    'test/lib/routing-delete-names-b1149-b1144.test.js',
+    'test/lib/routing-delete-partial-requirements-b956.test.js',
+    'test/lib/routing-fixes.test.js',
+    'test/lib/routing-getroute-port-b1152.test.js',
+    'test/lib/routing-inherited-keys-b650.test.js',
+    'test/lib/routing-multi-placeholder-b692.test.js',
+    'test/lib/routing-param-file-matched-b877.test.js',
+    'test/lib/routing-params-delete-b955.test.js',
+    'test/lib/routing-path-namespace-unsafe-b883.test.js',
+    'test/lib/routing-replacers-b688.test.js',
+    'test/lib/routing-segment-throws-b1146-b1148.test.js',
+    'test/lib/routing-validator-names-b1153.test.js',
+    'test/lib/sqlite-driver.test.js',
+    'test/lib/storage-import-boundary.test.js',
+    'test/lib/swig-filters-nl2br-autoescape.test.js',
+    'test/lib/swig-filters.test.js',
+    'test/lib/validator-isinteger-number-bounds.test.js',
+    'test/lib/validator-m21d.test.js',
+    'test/lib/validator-scs1f.test.js',
+    'test/lib/validator-scs1g.test.js',
+    'test/lib/validator-scs1h.test.js',
+    'test/lib/validator-scs1i.test.js'
+];
+
+/**
+ * Lists the `*.test.js` files under `test/` and the framework's own `test/`, as paths relative to
+ * the repository root with `/` separators; symlinks, `node_modules` and dot directories skipped.
+ *
+ * @inner
+ * @returns {string[]}
+ */
+function testFiles() {
+    var out = [];
+    var walk = function (dir) {
+        if ( !fs.existsSync(dir) ) { return; }
+        fs.readdirSync(dir).forEach(function (name) {
+            var p = path.join(dir, name);
+            var st = fs.lstatSync(p);
+            if ( st.isSymbolicLink() || name === 'node_modules' || name.charAt(0) === '.' ) { return; }
+            if ( st.isDirectory() ) { walk(p); return; }
+            if ( /\.test\.js$/.test(name) ) { out.push(path.relative(ROOT, p).split(path.sep).join('/')); }
+        });
+    };
+    walk(path.join(ROOT, 'test'));
+    walk(path.join(FW, 'test'));
+    return out;
+}
+
+describe('#B1157 guard — no new block-regex comment strip in a test file', function () {
+
+    var files = testFiles();
+    var hits = files.filter(function (f) { return DETECT.test(fs.readFileSync(path.join(ROOT, f), 'utf8')); });
+
+    it('01 control: the scan sees the test tree and the detector fires on the listed files', function () {
+        assert.ok(files.length > 500, 'test files scanned: ' + files.length);
+        assert.ok(hits.length > 0, 'the detector fires');
+    });
+
+    it('02 every test file with such a strip is listed (a new test uses test/strip-comments.js)', function () {
+        var extra = hits.filter(function (f) { return ALLOW.indexOf(f) < 0; });
+        assert.deepEqual(extra, [], "use require('../strip-comments') instead: " + extra.join(', '));
+    });
+
+    it('03 every listed file still has one (drop a migrated file from ALLOW)', function () {
+        var gone = ALLOW.filter(function (f) { return hits.indexOf(f) < 0; });
+        assert.deepEqual(gone, [], 'migrated or removed, drop from ALLOW: ' + gone.join(', '));
+    });
+});
