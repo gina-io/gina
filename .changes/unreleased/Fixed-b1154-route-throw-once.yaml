@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'When a route''s matcher throws, the request is answered once: its 500 « Rule [ … ] needs your attention » is no longer followed by a second error line for the same request, with an error reference of its own: « Page not found », or the 405''s when an earlier rule had refused the request''s method (#B1154).'
-time: 2026-11-21T15:41:05+01:00

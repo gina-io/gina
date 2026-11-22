@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'On Node.js 22.21.0, an HTTP/1.1 request carrying `Upgrade` headers to an `https` HTTP/2 bundle no longer stops the bundle. That release''s HTTP layer calls the server''s `shouldUpgradeCallback`, which its `http2` server with `allowHTTP1` (the default) never defines, so the request threw inside Node''s parser (nodejs/node#60336, fixed in Node.js 22.21.1). gina now gives such a server Node.js 22.21.1''s own callback at listen(); other Node.js releases and Bun are unchanged (#B1147).'
-time: 2026-11-22T14:37:24+01:00

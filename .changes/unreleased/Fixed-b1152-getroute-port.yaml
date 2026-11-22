@@ -1,3 +1,0 @@
-kind: Fixed
-body: '`getRoute()` no longer warns « placeholder not defined » for a value holding `host:port/`, such as a redirect target, and now warns for an unfilled placeholder named `d`: its port check read a literal `d` where a digit was meant (#B1152).'
-time: 2026-11-21T15:41:05+01:00

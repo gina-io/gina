@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'A route URL segment holding a `:` with no name after it (`/t/12:`), or one that is not a valid regular expression (`/r/:id)`, `/r/[:id`), no longer answers 500 « Rule [ … ] needs your attention » on every request that reaches it, which also kept every later rule from being tried. A nameless `:` matches only a request carrying the segment as written; the other segment is read like any segment holding one placeholder, and the `path`, `namespace` and `title` rewrites replace the segment''s own text literally (#B1146, #B1148).'
-time: 2026-11-21T15:41:05+01:00

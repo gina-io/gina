@@ -1,3 +1,0 @@
-kind: Changed
-body: 'On a `DELETE` route with `requirements`, a placeholder''s name is its letters, digits and underscores, as on every other route, and its value is the whole segment: `/feed/:id.json` binds `id` and its requirement on `id` tests `42.json`. From 0.7.6 to 0.7.12 that route bound `id.json`, skipped the requirement and matched any segment. An action that read `req.params[''id.json'']` or `req.delete[''id.json'']` binds `"id": ":id"` and reads `id` now. The 0.7.12 boot warning for such a placeholder no longer names a `DELETE` exception (#B1149).'
-time: 2026-11-21T15:41:05+01:00

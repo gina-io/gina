@@ -1,3 +1,0 @@
-kind: Added
-body: 'A bundle warns once at boot, in one `[CONFIG][loadBundleConfig]` line, about each route URL segment that holds two or more placeholders (`/range/:from-:to`, `/shop/item-:sku-:lang`), whatever the route''s method: gina never matches such a segment against a value, and a request matches it only by carrying its text as written. Give each placeholder a segment of its own (`/range/:from/:to`). The two boot warnings added in 0.7.12 no longer list such a segment. Nothing is rewritten (#B692).'
-time: 2026-11-21T15:41:05+01:00

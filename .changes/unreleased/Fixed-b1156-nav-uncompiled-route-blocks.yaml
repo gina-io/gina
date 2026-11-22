@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'Client navigation: a route whose URL the navigation module cannot match exactly (text next to a placeholder in a segment, like `/page:number`, or a placeholder name holding a character other than a letter, a digit or an underscore, like `:lang-code`) now stops the scan when the server could answer the link from it. Before, the module skipped such a route, so a later `negotiate: true` route took the link: one wasted fragment request, an `error` event, then a full page load. Such links now navigate normally, as the client navigation guide says, and `gina.nav.matchUrl()` answers `null` for them (#B1156).'
-time: 2026-11-22T17:21:23+01:00
