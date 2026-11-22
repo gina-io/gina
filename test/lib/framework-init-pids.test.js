@@ -34,6 +34,7 @@ var fs     = require('fs');
 var path   = require('path');
 var { describe, it } = require('node:test');
 var assert = require('node:assert/strict');
+var commentStrip = require('../strip-comments');
 
 var SOURCE_PATH = path.join(require('../fw'), 'lib/cmd/framework/init.js');
 var src = fs.readFileSync(SOURCE_PATH, 'utf8');
@@ -42,7 +43,7 @@ var src = fs.readFileSync(SOURCE_PATH, 'utf8');
  *  file's own comments (the jsdoc.md "negative pin trips on the file's own
  *  comment" trap). */
 function stripComments(s) {
-    return s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+    return commentStrip.all(s);
 }
 
 /** Slice the checkRunningPids body, start-anchored on its declaration and

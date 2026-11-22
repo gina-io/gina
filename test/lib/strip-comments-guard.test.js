@@ -24,31 +24,7 @@ var DETECT = /\.replace\(\s*\/\\\/\\\*\[\\s\\S\]\*\?\\\*\\\/\/g/;
 // The test files that had such a strip on 2026-11-21 (develop c6ae36900); remove each one as it
 // migrates to the shared helper.
 var ALLOW = [
-    'test/bin/cli-home-files-b938.test.js',
-    'test/core/config-env-load-error-propagation.test.js',
-    'test/core/controller-push-recipient.test.js',
-    'test/core/controller-redirect-inheritedData.test.js',
-    'test/core/controller-set-dot-split.test.js',
-    'test/core/controller-set-path.test.js',
-    'test/core/couchbase-connector.test.js',
-    'test/core/manifest-bundle-scopes.test.js',
-    'test/core/render-json.test.js',
-    'test/core/render-stream.test.js',
-    'test/core/render-swig-inspector-data-freeze.test.js',
-    'test/core/render-swig.test.js',
-    'test/core/server-isaac-cache-read-gate.test.js',
-    'test/core/validator-autofill-livecheck.test.js',
-    'test/core/validator-upload-popin-containment.test.js',
-    'test/lib/framework-init-pids.test.js',
-    'test/lib/helpers-json-excerpt-b917.test.js',
-    'test/lib/job-render-store-b811.test.js',
-    'test/lib/job-request-context.test.js',
-    'test/lib/job-urgency.test.js',
-    'test/lib/money.test.js',
-    'test/lib/project-add-gitignore.test.js',
-    'test/lib/project-add-link.test.js',
-    'test/lib/project-lifecycle.test.js',
-    'test/lib/validator-isinteger-number-bounds.test.js'
+    'test/core/validator-autofill-livecheck.test.js'
 ];
 
 /**

@@ -51,6 +51,7 @@ var fs = require('fs');
 var path = require('path');
 
 var FW = require('../fw');
+var commentStrip = require('../strip-comments');
 var ADD_PATH = path.join(FW, 'lib/cmd/project/add.js');
 var SRC = fs.readFileSync(ADD_PATH, 'utf8');
 
@@ -61,11 +62,7 @@ var LG = (lgIdx > -1) ? SRC.slice(lgIdx, SRC.indexOf('init()', lgIdx)) : '';
 // Strips /* */ blocks and full-or-trailing // line comments so negative pins
 // don't trip on the `// was:` historical lines kept next to the new code.
 function stripComments(src) {
-    return src
-        .replace(/\/\*[\s\S]*?\*\//g, '')
-        .split('\n')
-        .map(function(line) { return line.replace(/^\s*\/\/.*$/, ''); })
-        .join('\n');
+    return commentStrip.lines(src);
 }
 
 

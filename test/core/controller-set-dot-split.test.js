@@ -29,6 +29,7 @@ var path   = require('path');
 var FW     = require('../fw');
 var SOURCE = process.env.GINA_CONTROLLER_SRC || path.join(FW, 'core/controller/controller.js');
 var merge  = require(path.join(FW, 'lib/merge'));
+var commentStrip = require('../strip-comments');
 var src    = fs.readFileSync(SOURCE, 'utf8');
 
 var START = "    var set = function(name, value, override) {";
@@ -38,7 +39,7 @@ function setBlock(source) {
     assert.ok(s0 > -1 && s1 > s0, 'the set() block is located');
     return source.slice(s0, s1);
 }
-function stripComments(s) { return s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, ''); }
+function stripComments(s) { return commentStrip.all(s); }
 function count(hay, needle) { return hay.split(needle).length - 1; }
 function makeSet() {
     var local = { userData: {} };

@@ -37,6 +37,7 @@ var os     = require('os');
 var cp     = require('child_process');
 
 var FW     = require('../fw');
+var commentStrip = require('../strip-comments');
 var HELPER = process.env.GINA_B917_JSON_HELPER || path.join(FW, 'helpers/json/src/main.js');
 var LOGGER = path.join(FW, 'lib/logger');
 var SRC    = fs.readFileSync(HELPER, 'utf8');
@@ -129,8 +130,7 @@ function region() {
 
 /** `text` without its block comments and whole-line `//` comments. */
 function code(text) {
-    return text.replace(/\/\*[\s\S]*?\*\//g, '')
-        .split('\n').filter(function(l) { return !/^\s*\/\//.test(l); }).join('\n');
+    return commentStrip.lines(text);
 }
 
 // ─── 01 — the excerpt's bounds in the source ─────────────────────────────────

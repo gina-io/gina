@@ -46,6 +46,7 @@ var path   = require('path');
 var fs     = require('fs');
 
 var FW  = require('../fw');
+var commentStrip = require('../strip-comments');
 var SRC = fs.readFileSync(path.join(FW, 'core/config.js'), 'utf8');
 
 // Env.load region: declaration → the FIRST envConf dereference. End-anchored on the
@@ -102,9 +103,7 @@ describe('#B372 §01 — the env-load failure is propagated and sunk, not derefe
     });
 
     it('the message no longer reports targetAppPathObj (it names the wrong file)', function () {
-        var stripped = R
-            .replace(/\/\*[\s\S]*?\*\//g, '')
-            .replace(/(^|[^:])\/\/.*$/gm, '$1');
+        var stripped = commentStrip.all(R);
         assert.equal(/targetAppPathObj\.toString\(\)/.test(stripped), false,
             'when releases[scope][env] is what threw, that object still holds the LINK path');
         // control: the comment explaining WHY does mention it, so a broken strip is visible

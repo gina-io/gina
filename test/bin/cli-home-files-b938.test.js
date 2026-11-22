@@ -61,6 +61,7 @@ var path   = require('path');
 var { spawn, spawnSync } = require('child_process');
 var { describe, it, before, after } = require('node:test');
 var assert = require('node:assert/strict');
+var commentStrip = require('../strip-comments');
 
 var TREE      = process.env.B938_GINA_ROOT || path.resolve(__dirname, '..', '..');
 var VERSION   = JSON.parse(fs.readFileSync(path.join(TREE, 'package.json'), 'utf8')).version;
@@ -299,7 +300,7 @@ async function stopFramework() {
  * @returns {string}
  */
 function stripComments(src) {
-    return src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+    return commentStrip.lines(src);
 }
 
 /**

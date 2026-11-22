@@ -4,6 +4,7 @@ var fs = require('fs');
 var path = require('path');
 
 var FW = require('../fw');
+var commentStrip = require('../strip-comments');
 var CMD_DIR = path.join(FW, 'lib/cmd/project');
 
 
@@ -367,9 +368,7 @@ describe('09 - project:add handles existing package.json', function() {
         var fnEnd = src.indexOf('end(true)', fnStart);
         assert.ok(fnEnd > fnStart, 'createPackageFile must reach end(true)');
         // Code only: comments may name what the function no longer does.
-        var code = src.slice(fnStart, fnEnd)
-            .replace(/\/\*[\s\S]*?\*\//g, '')
-            .replace(/\/\/[^\n]*/g, '');
+        var code = commentStrip.all(src.slice(fnStart, fnEnd));
         assert.ok(
             /!\s*\/\^true\$\/i\.test\(\s*isCreatedFromExistingPackage\s*\)/.test(code),
             'the template write must be guarded by the existing-package flag'

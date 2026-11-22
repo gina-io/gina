@@ -42,11 +42,12 @@ var FW       = require('../fw');
 var JOB_MAIN = process.env.GINA_JOB_MAIN || path.join(FW, 'lib/job/src/main');
 var JOB_FILE = require.resolve(JOB_MAIN);
 var job      = require(JOB_MAIN);
+var commentStrip = require('../strip-comments');
 var SRC      = fs.readFileSync(JOB_FILE, 'utf8');
 
 /** Strip block and line comments so a NEGATIVE pin cannot trip on prose (jsdoc.md § own-comment trap). */
 function codeOnly(s) {
-    return s.replace(/\/\*[\s\S]*?\*\//g, '').split('\n').map(function(l) { return l.replace(/\/\/.*$/, ''); }).join('\n');
+    return commentStrip.all(s);
 }
 /** The text of a top-level function from its declaration to its closing `\n}` (every function pinned here closes at column 0). */
 function fnBlock(src, decl) {

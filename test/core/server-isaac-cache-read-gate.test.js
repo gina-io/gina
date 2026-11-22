@@ -28,19 +28,21 @@ var fs     = require('fs');
 var path   = require('path');
 
 var FW     = require('../fw');
+var commentStrip = require('../strip-comments');
 var SOURCE = process.env.GINA_ISAAC_SRC || path.join(FW, 'core/server.isaac.js');
 var BANNER = '// Importing cache handler (render/output cache goes through the strategy dispatcher)';
 var GATE   = "if ( String(server._cacheIsEnabled).toLowerCase() === 'true' ) {";
 var GET    = "if ( request.method.toUpperCase() === 'GET' ) {";
 
-var src, block, active;
+var src, active;
 before(function () {
     src = fs.readFileSync(SOURCE, 'utf8');
     var at = src.indexOf(BANNER);
-    block = at > -1 ? src.slice(Math.max(0, at - 1400), at) : '';
-    active = block.replace(/\/\*[\s\S]*?\*\//g, '').split('\n').filter(function (l) {
-        return !/^\s*\/\//.test(l);
-    }).join('\n');
+    // the 1,400 characters before the banner, read as whole lines of the file stripped once: the cut
+    // can fall inside a comment or a string, where a strip run on the cut text alone would misread it
+    var first = src.slice(0, Math.max(0, at - 1400)).split('\n').length - 1;
+    var last  = src.slice(0, at).split('\n').length - 1;
+    active = at > -1 ? commentStrip.lines(src).split('\n').slice(first, last).join('\n') : '';
 });
 
 describe('§01 source pins — the gate is the enable flag alone', function () {

@@ -45,6 +45,7 @@ var path   = require('path');
 var fs     = require('fs');
 
 var FW       = require('../fw');
+var commentStrip = require('../strip-comments');
 var CONFIG   = fs.readFileSync(path.join(FW, 'core/config.js'), 'utf8');
 var GNA      = fs.readFileSync(path.join(FW, 'core/gna.js'), 'utf8');
 var B_BUILD  = fs.readFileSync(path.join(FW, 'lib/cmd/bundle/build.js'), 'utf8');
@@ -156,8 +157,7 @@ describe('#B373 §03 — the two predicates are genuine twins', function () {
         assert.ok(a && a.length > 60, 'config.js predicate not extracted');
         assert.ok(b && b.length > 60, 'gna.js predicate not extracted');
         var norm = function (s) {
-            return s.replace(/\/\*[\s\S]*?\*\//g, '')
-                    .replace(/(^|[^:])\/\/.*$/gm, '$1')
+            return commentStrip.all(s)
                     .replace(/\s+/g, ' ')
                     .trim();
         };

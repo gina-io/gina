@@ -37,12 +37,13 @@ var fs     = require('fs');
 var path   = require('path');
 
 var FW = require('../fw');
+var commentStrip = require('../strip-comments');
 var VAL_SRC = process.env.GINA_VALIDATOR_SRC || path.join(FW, 'core/plugins/lib/validator/src/main.js');
 var valSrc = fs.readFileSync(VAL_SRC, 'utf8');
 
 /** Comment-stripped view — a negative pin must never trip on the file's own JSDoc/comments. */
 function active(src) {
-    return src.replace(/\/\*[\s\S]*?\*\//g, '').split('\n').filter(function (l) { return !/^\s*\/\//.test(l); }).join('\n');
+    return commentStrip.lines(src);
 }
 
 /** Started-flag brace walk from a line-start declaration; exactly-once + balance controls. */
