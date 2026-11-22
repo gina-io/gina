@@ -169,7 +169,9 @@ define('gina/nav', [ 'require', 'lib/merge', 'lib/uuid', 'utils/events', 'utils/
          * key (fitsWithRequirements returns false otherwise). A mixed
          * literal+param segment (`page:number`) is matchable server-side but
          * deliberately UNMATCHABLE here in Tier 1 — no interception, normal
-         * navigation (false-negative-safe).
+         * navigation (false-negative-safe). getCompiled compiles such a
+         * variant a second time as a BLOCKING candidate, so a later route can
+         * never take a link the server could answer from it (#B1156).
          *
          * @inner
          * @private
@@ -222,11 +224,18 @@ define('gina/nav', [ 'require', 'lib/merge', 'lib/uuid', 'utils/events', 'utils/
          * single-method routes survive only as GET or DELETE (the server's
          * GET→DELETE override keeps such a route as a BLOCKING candidate so
          * the client can never intercept across it), while multi-method routes
-         * always reach URL comparison.
+         * always reach URL comparison. A variant compileVariant leaves
+         * uncompiled is compiled again by the server's reading (a placeholder
+         * over its whole segment: `page:number` is `:number`, `:lang-code` is
+         * `:lang`; that name counted as bound, the requirements kept) into the
+         * candidate's `blockers`, at the same index (#B1156). A segment holding
+         * two or more placeholders, or a nameless `:`, is compared as written
+         * by the server: such a variant gets no blocker.
          *
          * @inner
          * @private
-         * @returns {array|null} compiled candidates, or null when the routing
+         * @returns {array|null} compiled candidates ({ rule, route, isGet,
+         *          variants, blockers, rawUrl }), or null when the routing
          *          table has not been fetched yet
          */
         var getCompiled = function() {
@@ -254,14 +263,45 @@ define('gina/nav', [ 'require', 'lib/merge', 'lib/uuid', 'utils/events', 'utils/
                     : /^get$/i.test(singleClean);
                 var urls     = String(route.url).split(/\,/g);
                 var variants = [];
+                var blockers = [];
                 for (var u = 0, uLen = urls.length; u < uLen; ++u) {
-                    variants.push( compileVariant(urls[u], route) );
+                    var variant = compileVariant(urls[u], route);
+                    variants.push(variant);
+                    // #B1156 — a variant left uncompiled can still be the server's first match: the server
+                    // reads a placeholder over its whole segment and ignores the text around it, so
+                    // `page:number` is `:number` and `:lang-code` is `:lang`. Such a variant is compiled a
+                    // second time, each such segment rewritten to the placeholder the server reads, that
+                    // name counted as bound and the route's requirements kept: a BLOCKING candidate. A
+                    // pathname it matches stops the scan, and the link is not intercepted.
+                    var blocker = null;
+                    if ( !variant ) {
+                        var bSegs  = String(urls[u]).split(/\//);
+                        var bParam = {};
+                        for (var bKey in (route.param || {})) {
+                            bParam[bKey] = route.param[bKey];
+                        }
+                        for (var b = 0, bLen = bSegs.length; b < bLen; ++b) {
+                            if ( bSegs[b].indexOf(':') < 0 || /^\:\w+$/.test(bSegs[b]) ) continue;
+                            // the server compares a segment holding two or more placeholders, or
+                            // a nameless `:`, as written: such a variant gets no blocker
+                            var bMatch = /^[^:]*\:(\w+)[^:]*$/.exec(bSegs[b]);
+                            if ( !bMatch ) {
+                                bSegs = null;
+                                break;
+                            }
+                            bSegs[b] = ':' + bMatch[1];
+                            bParam[bMatch[1]] = ':' + bMatch[1];
+                        }
+                        blocker = bSegs ? compileVariant(bSegs.join('/'), { 'requirements': route.requirements, 'param': bParam }) : null;
+                    }
+                    blockers.push(blocker);
                 }
                 compiled.push({
                     'rule'      : rule,
                     'route'     : route,
                     'isGet'     : isGet,
                     'variants'  : variants,
+                    'blockers'  : blockers,
                     'rawUrl'    : String(route.url)
                 });
             }
@@ -281,7 +321,10 @@ define('gina/nav', [ 'require', 'lib/merge', 'lib/uuid', 'utils/events', 'utils/
          *
          * A null return, or a match without `negotiate: true`, means the click
          * is left to the browser — the matcher is an interception FILTER, and
-         * every uncertainty degrades to a normal navigation.
+         * every uncertainty degrades to a normal navigation. A variant the
+         * module cannot match exactly is tried as its blocker: when the blocker
+         * matches, the server may answer the pathname from that route, so the
+         * scan stops and returns null (#B1156).
          *
          * @param {string} pathname - location pathname (no query string)
          * @returns {object|null} { rule, route, isGet } or null
@@ -300,6 +343,12 @@ define('gina/nav', [ 'require', 'lib/merge', 'lib/uuid', 'utils/events', 'utils/
                 }
                 for (var v = 0, vLen = c.variants.length; v < vLen; ++v) {
                     var m = c.variants[v];
+                    // #B1156 — a variant the module cannot match exactly is tried as its blocker
+                    var blocking = false;
+                    if ( !m && c.blockers && c.blockers[v] ) {
+                        m = c.blockers[v];
+                        blocking = true;
+                    }
                     if ( !m || m.length !== segs.length ) continue;
                     var ok = true;
                     for (var s = 0, sLen = m.length; s < sLen; ++s) {
@@ -311,6 +360,11 @@ define('gina/nav', [ 'require', 'lib/merge', 'lib/uuid', 'utils/events', 'utils/
                         if ( m[s].re && !m[s].re.test(segs[s]) ) { ok = false; break; }
                     }
                     if (ok) {
+                        // #B1156 — the server may answer this pathname from a route the module cannot
+                        // match exactly: no interception, the browser navigates normally
+                        if ( blocking ) {
+                            return null;
+                        }
                         return { 'rule': c.rule, 'route': c.route, 'isGet': c.isGet };
                     }
                 }
