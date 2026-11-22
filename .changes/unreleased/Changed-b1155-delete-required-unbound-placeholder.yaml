@@ -1,0 +1,3 @@
+kind: Changed
+body: 'On a `DELETE` route with `requirements`, a placeholder with a regular-expression requirement matches only when the route binds it in `param`, as on `GET`. Up to 0.7.12 the requirement alone let such a route answer where its `GET` twin answers 404, and the value reached `req.delete` only, never `req.params`. Bind the placeholder (`"id": ":id"`) to keep the route matching (#B1155).'
+time: 2026-11-22T02:03:05+01:00

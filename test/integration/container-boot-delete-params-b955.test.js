@@ -16,7 +16,8 @@
  *       req.params; a value a requirement rejects answers 404; req.delete carries the URL values
  *   02  #B955: the DELETE route with requirements sets req.params, with or without a same-name
  *       query key
- *   03  GET parity: the unbound placeholder stays out of req.params, and still reaches req.delete
+ *   03  GET parity (#B1155): a regex requirement on the unbound placeholder does not make the route
+ *       match: 404, and the action is not reached
  *
  * Every request carries a client timeout, so a pre-fix run FAILS instead of hanging the suite.
  *
@@ -286,15 +287,10 @@ describe('container-boot-delete-params — req.params on a DELETE route with reg
 
     // ── 03 GET parity for an unbound placeholder ─────────────────────────────
 
-    it('03.1  a placeholder the route does not bind in param stays out of req.params, the bound one is set', async function (t) {
+    it('03.1  #B1155 — a regex requirement on a placeholder the route does not bind in param: 404, as on GET, and the action is not reached', async function (t) {
         if (!ready(t)) return;
-        var e = echoOf(await drive('DELETE', 'del-unbound/g1/42'), 'del-unbound');
-        assert.deepEqual(e.params, { grp: 'g1' });
-    });
-
-    it('03.2  CONTROL — req.delete still carries both values on that route (unchanged)', async function (t) {
-        if (!ready(t)) return;
-        var e = echoOf(await drive('DELETE', 'del-unbound/g1/42'), 'del-unbound');
-        assert.deepEqual(e.bag, { grp: 'g1', id: '42' });
+        var d = await drive('DELETE', 'del-unbound/g1/42');
+        assert.equal(d.status, 404, 'expected 404 (got ' + d.status + ')');
+        assert.equal(!!(d.json && d.json.params), false, 'the echo action must not have answered');
     });
 });

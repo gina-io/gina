@@ -7074,10 +7074,10 @@ function Routing() {
      *
      * A DELETE rule that declares `requirements` is matched here, by the DELETE branch, rather
      * than by `fitsWithRequirements`. A placeholder's name is its letters, digits and underscores
-     * and its value the whole segment (#B1149); each placeholder's regex is tested against its URL
-     * segment — a placeholder without a requirement accepts any non-empty segment when the rule
-     * binds it in `param` (#B956, #B1144) — and a matched value is written to `request[method]`
-     * and, for a placeholder the rule binds in `param`, to `request.params` (#B955). A segment
+     * and its value the whole segment (#B1149); a placeholder scores only when the rule binds it in
+     * `param`, as on GET: one without a requirement then accepts any non-empty segment (#B956,
+     * #B1144), and one with a regex requirement is tested against its URL segment (#B1155). A
+     * matched value is written to `request[method]` and to `request.params` (#B955). A segment
      * holding two or more placeholders, or text before its placeholder, matches only as written
      * (#B692).
      *
@@ -7215,6 +7215,13 @@ function Routing() {
                     if (
                         /^:/.test(uRo[p])
                         && typeof(condition) != 'undefined'
+                        // #B1155 — and only when the rule binds the placeholder in its own `param`, as
+                        // fitsWithRequirements requires on GET and as an unrequired placeholder needs
+                        // above (#B1144). The requirement alone scored it, so a DELETE route answered
+                        // where its GET twin matches nothing, and the value reached `request[method]`
+                        // only, never `request.params`. Checked before the expression is compiled.
+                        && hasOwn(params.param, _key)
+                        && typeof(params.param[_key]) != 'undefined'
                         && new RegExp(condition, conditionFlags).test(uRe[p])
                     ) {
                         // #B1149 — the write is keyed by the placeholder's name (`_key`), as the
