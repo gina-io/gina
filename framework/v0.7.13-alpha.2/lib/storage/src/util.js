@@ -323,6 +323,8 @@ function sanitiseExtension(originalName) {
  * convention): `STORAGE_NO_OBJECT` (unknown / released / vanished key),
  * `STORAGE_RANGE_UNSATISFIABLE` (start at or beyond the object size — the
  * caller's 416), `STORAGE_INVALID_RANGE` (malformed bounds — a caller bug).
+ * The write verbs (`put`/`writeSegment`) add `STORAGE_STREAM_SPENT`: a source
+ * that has already ended or been destroyed (#B1060, see `spentStreamError`).
  *
  * @param {string} code    - UPPER_SNAKE machine code, stamped on `err.code`.
  * @param {string} message - Human-readable diagnostic, unchanged wording.
@@ -337,6 +339,44 @@ function codedError(code, message) {
     return err;
 }
 
+/**
+ * #B1060 — the precondition every storage write verb runs on its source
+ * before it opens anything (a file, a temp file, an upload): a stream that
+ * has already ENDED or been DESTROYED has no bytes left to deliver.
+ *
+ * Measured before this guard (2026-11-22): handed such a source, `put()`
+ * stored an EMPTY object and reported success (sharded with tiering off,
+ * `stream`, `cas`) or never called back (sharded with tiering on), and
+ * `writeSegment()` answered `{length: 0}` with no error (an ended source) or
+ * never called back and kept the data file open (a destroyed one). The usual
+ * way to hold such a source is a request whose body gina read before the
+ * action ran.
+ *
+ * The test is the stream's own state, never its content: `readableEnded`
+ * (its `'end'` has fired), `destroyed`, or `readable === false` (which Node
+ * also sets after an error). A LIVE source that turns out empty is not
+ * refused: an empty file is a legitimate 0-byte object. The source is left
+ * untouched: it has nothing left to release, and a request belongs to its
+ * response.
+ *
+ * @param {object} stream - The caller's source, already known to have `pipe()`.
+ * @param {string} name   - The driver name, for the message prefix.
+ * @param {string} verb   - `'put'` or `'writeSegment'`, for the message.
+ * @returns {Error|null} An error coded `STORAGE_STREAM_SPENT`, or `null` for a live source.
+ *
+ * @example
+ * var spentErr = util.spentStreamError(stream, name, 'put');
+ * if ( spentErr ) { return fn(spentErr); }
+ */
+function spentStreamError(stream, name, verb) {
+    if ( stream.readableEnded !== true && stream.destroyed !== true && stream.readable !== false ) {
+        return null;
+    }
+    return codedError('STORAGE_STREAM_SPENT', '[storage:' + name + '] ' + verb + '() was given a stream that has already ended or been destroyed, '
+        + 'so it has no bytes left to read — a request whose body gina has already read is such a stream: '
+        + 'pass a stream of the uploaded file instead (fs.createReadStream(req.files[0].path))');
+}
+
 module.exports = {
     ulid              : ulid,
     confineToBase     : confineToBase,
@@ -344,5 +384,6 @@ module.exports = {
     parseDuration     : parseDuration,
     makeResolvePath   : makeResolvePath,
     sanitiseExtension : sanitiseExtension,
-    codedError        : codedError
+    codedError        : codedError,
+    spentStreamError  : spentStreamError
 };

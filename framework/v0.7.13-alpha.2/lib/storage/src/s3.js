@@ -423,7 +423,9 @@ module.exports = function createS3Driver(name, conf, store, deps) {
          * acknowledged storing; transport checksums guard the transfer, so a
          * confirm-HEAD would buy nothing.
          *
-         * @param {object}   stream               - Any readable stream.
+         * @param {object}   stream               - A readable stream that has not ended; one that has
+         *                                          already ended or been destroyed is refused
+         *                                          (`err.code` `STORAGE_STREAM_SPENT`, #B1060).
          * @param {object}   [meta]               - Client-supplied, untrusted.
          * @param {string}   [meta.originalName]  - Filename; URI-encoded into user metadata
          *                                          (truncated past ~1KB), and the only source
@@ -433,7 +435,9 @@ module.exports = function createS3Driver(name, conf, store, deps) {
          * @returns {void}
          *
          * @example
-         * driver.put(req, { originalName: 'report.pdf', contentType: 'application/pdf' }, function (err, res) {
+         * // gina has already read the request body when the action runs: pass a
+         * // stream of the uploaded file, never `req` itself (#B1060)
+         * driver.put(fs.createReadStream(req.files[0].path), { originalName: 'report.pdf', contentType: 'application/pdf' }, function (err, res) {
          *     if (err) { return next(err); }
          *     record.storageKey = res.key;   // opaque — store it, never parse it
          * });
@@ -447,6 +451,10 @@ module.exports = function createS3Driver(name, conf, store, deps) {
             if ( !source || typeof source.pipe !== 'function' ) {
                 return fn(new Error('[storage:' + name + '] put() requires a readable stream'));
             }
+            // #B1060 — a source that has already ended or been destroyed has no
+            // bytes left: refuse it before any upload starts.
+            var spentErr = util.spentStreamError(source, name, 'put');
+            if ( spentErr ) { return fn(spentErr); }
 
             var now = new Date();
             var id  = util.ulid(now.getTime());

@@ -597,7 +597,9 @@ module.exports = function createLocalStreamDriver(name, conf, metaStore) {
          * size is measured from the published file on disk, never from the
          * client and never from an in-flight counter (#B142).
          *
-         * @param {object}   stream              - Any readable stream.
+         * @param {object}   stream              - A readable stream that has not ended; one that has
+         *                                         already ended or been destroyed is refused
+         *                                         (`err.code` `STORAGE_STREAM_SPENT`, #B1060).
          * @param {object}   [meta]              - Client-supplied, untrusted.
          * @param {string}   [meta.originalName] - Filename; stored verbatim in metadata, and
          *                                         the only source of the path extension.
@@ -606,7 +608,9 @@ module.exports = function createLocalStreamDriver(name, conf, metaStore) {
          * @returns {void}
          *
          * @example
-         * driver.put(req, { originalName: 'talk.mp4' }, function (err, res) {
+         * // gina has already read the request body when the action runs: pass a
+         * // stream of the uploaded file, never `req` itself (#B1060)
+         * driver.put(fs.createReadStream(req.files[0].path), { originalName: 'talk.mp4' }, function (err, res) {
          *     if (err) { return next(err); }
          *     record.assetKey = res.key;   // opaque — store it, never parse it
          * });
@@ -620,6 +624,11 @@ module.exports = function createLocalStreamDriver(name, conf, metaStore) {
             if ( !stream || typeof stream.pipe !== 'function' ) {
                 return fn(new Error('[storage:' + name + '] put() requires a readable stream'));
             }
+            // #B1060 — a source that has already ended or been destroyed has no
+            // bytes left: refuse it before anything opens (it used to store an
+            // empty object).
+            var spentErr = util.spentStreamError(stream, name, 'put');
+            if ( spentErr ) { return fn(spentErr); }
 
             var now   = new Date();
             var id    = util.ulid(now.getTime());
@@ -841,6 +850,11 @@ module.exports = function createLocalStreamDriver(name, conf, metaStore) {
          * `expectedSize` IS an error — that is where a lying `expectedSize` is
          * actually stopped, since the declared value is only advisory.
          *
+         * A source that has ALREADY ended or been destroyed when the call is
+         * made is refused (`err.code` `STORAGE_STREAM_SPENT`) before the data
+         * file opens (#B1060): it used to answer `{length: 0}` with no error
+         * (ended) or never call back and keep the file open (destroyed).
+         *
          * Durability order is load-bearing: the data is fsynced BEFORE the
          * marker is created, so a surviving marker implies durable bytes. The
          * marker's own durability is deliberately not guaranteed — a lost
@@ -849,14 +863,18 @@ module.exports = function createLocalStreamDriver(name, conf, metaStore) {
          *
          * @param {string}   uploadId - The session id from `createUpload`.
          * @param {number}   offset   - Byte offset this segment starts at; integer >= 0.
-         * @param {object}   stream   - Any readable stream carrying the segment's bytes.
+         * @param {object}   stream   - A readable stream carrying the segment's bytes, not yet
+         *                              ended; one that has already ended or been destroyed is refused
+         *                              (`err.code` `STORAGE_STREAM_SPENT`, #B1060).
          * @param {function} fn       - `fn(err, {offset, length, received})` — `length` is what
          *                              THIS call made durable, `received` the session's total
          *                              covered bytes afterwards.
          * @returns {void}
          *
          * @example
-         * driver.writeSegment(uploadId, 8388608, req, function (err, r) {
+         * // the segment arrives as a multipart file part; gina has already read the
+         * // request itself, so pass a stream of the part's temporary file (#B1060)
+         * driver.writeSegment(uploadId, 8388608, fs.createReadStream(req.files[0].path), function (err, r) {
          *     if (err) { return next(err); }
          *     res.setHeader('x-received', r.received);
          * });
@@ -868,6 +886,11 @@ module.exports = function createLocalStreamDriver(name, conf, metaStore) {
             if ( !stream || typeof stream.pipe !== 'function' ) {
                 return fn(new Error('[storage:' + name + '] writeSegment() requires a readable stream'));
             }
+            // #B1060 — an ended source answered {length: 0} with no error, and a
+            // destroyed one never called back and kept the data file open:
+            // refuse either before the file opens.
+            var spentErr = util.spentStreamError(stream, name, 'writeSegment');
+            if ( spentErr ) { return fn(spentErr); }
             var s = resolveSession(uploadId);
             if ( s.error ) { return fn(s.error); }
             if ( !Number.isInteger(offset) || offset < 0 ) {

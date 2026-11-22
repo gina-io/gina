@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'Storage: put() and writeSegment() refuse a source stream that has already ended or been destroyed, with an error whose code is STORAGE_STREAM_SPENT, before anything opens. Handed such a source (most often an action''s req, whose body gina has already read), put() stored an empty object and reported success under the sharded, stream and cas strategies, or never called back (sharded with size tiering on), and writeSegment() answered length 0 with no error, or never called back and kept the session data file open (a destroyed source). The s3 adapter''s put() runs the same check. The code comments whose examples passed req now pass a stream of the uploaded file (#B1060).'
+time: 2026-11-22T18:35:20+01:00

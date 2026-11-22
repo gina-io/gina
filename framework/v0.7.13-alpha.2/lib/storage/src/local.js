@@ -39,7 +39,7 @@
  * var driver = createLocalDriver('assets',
  *     { root: '/var/data/assets', strategy: 'sharded', maxObjectSize: 52428800 },
  *     metaStore);
- * driver.put(req, { originalName: 'a.pdf' }, function (err, res) { });
+ * driver.put(fs.createReadStream(req.files[0].path), { originalName: 'a.pdf' }, function (err, res) { });
  */
 
 var fs       = require('fs');
@@ -226,7 +226,9 @@ module.exports = function createLocalDriver(name, conf, metaStore) {
          * object's size is its buffer length — the same bytes the store
          * persists in the same transaction.
          *
-         * @param {object}   stream               - Any readable stream.
+         * @param {object}   stream               - A readable stream that has not ended; one that has
+         *                                          already ended or been destroyed is refused
+         *                                          (`err.code` `STORAGE_STREAM_SPENT`, #B1060).
          * @param {object}   [meta]               - Client-supplied, untrusted.
          * @param {string}   [meta.originalName]  - Filename; stored verbatim in metadata,
          *                                          and the only source of the path extension.
@@ -235,7 +237,9 @@ module.exports = function createLocalDriver(name, conf, metaStore) {
          * @returns {void}
          *
          * @example
-         * driver.put(req, { originalName: 'invoice.pdf' }, function (err, res) {
+         * // gina has already read the request body when the action runs: pass a
+         * // stream of the uploaded file, never `req` itself (#B1060)
+         * driver.put(fs.createReadStream(req.files[0].path), { originalName: 'invoice.pdf' }, function (err, res) {
          *     if (err) { return next(err); }
          *     record.storageKey = res.key;   // opaque — store it, never parse it
          * });
@@ -249,6 +253,11 @@ module.exports = function createLocalDriver(name, conf, metaStore) {
             if ( !stream || typeof stream.pipe !== 'function' ) {
                 return fn(new Error('[storage:' + name + '] put() requires a readable stream'));
             }
+            // #B1060 — a source that has already ended or been destroyed has no
+            // bytes left: refuse it before anything opens (it used to store an
+            // empty object, or never call back with size tiering on).
+            var spentErr = util.spentStreamError(stream, name, 'put');
+            if ( spentErr ) { return fn(spentErr); }
 
             var now  = new Date();
             var id   = util.ulid(now.getTime());
