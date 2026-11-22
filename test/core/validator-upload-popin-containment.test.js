@@ -9,6 +9,7 @@
  *
  *  §01 extraction controls — the upload `change` handler and the notice helper each exist
  *      exactly once (a pin that cannot find its block is not a pin)
+ *      and the outside view really excludes the block (#B1158)
  *  §02 NO `isPopinContext()` call inside the upload block. Scoped to the BLOCK on purpose: the
  *      file legitimately keeps the definition (`var isPopinContext = function`) and the
  *      unrelated INSTANCE flag (`this.isPopinContext`, the popin-constructed validator) — both
@@ -67,7 +68,11 @@ function count(hay, needle) { return hay.split(needle).length - 1; }
 var srcBlock  = extract(valSrc, "^[ \\t]*addListener\\(gina, \\$inputs\\[f\\], 'change', function\\(event\\) \\{", 'upload change handler');
 var actBlock  = active(srcBlock);
 var actFile   = active(valSrc);
-var actOutside = actFile.replace(actBlock, '');
+// #B1158 — extract() appends ';' so new Function can compile the block;
+// the file has ');' there, so the block is removed without that ';'.
+// With it, nothing matched and actOutside was the whole stripped file.
+var actBlockInFile = actBlock.slice(0, -1);
+var actOutside = actFile.replace(actBlockInFile, '');
 
 describe('#B572 §01 extraction controls', function () {
     it('01.1 the upload change handler is the block that builds the virtual form (not some other change listener)', function () {
@@ -77,6 +82,11 @@ describe('#B572 §01 extraction controls', function () {
     it('01.2 the notice helper exists exactly once (RED pre-fix)', function () {
         var h = extract(valSrc, '^[ \\t]*var warnIfOldRulePlacedUpload = function\\(', 'warnIfOldRulePlacedUpload');
         assert.ok(h.length > 200, 'a real body, not a stub');
+    });
+    it('01.3 CONTROL — the outside view excludes the block: found once in the stripped file (#B1158)', function () {
+        assert.equal(actBlock.slice(-1), ';', 'extract() appended its ;');
+        assert.equal(count(actFile, actBlockInFile), 1, 'the stripped block is found once in the stripped file');
+        assert.equal(actOutside.length, actFile.length - actBlockInFile.length, 'the outside view is the file without the block');
     });
 });
 
