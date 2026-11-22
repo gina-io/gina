@@ -42,6 +42,7 @@ var path   = require('path');
 var { spawnSync } = require('child_process');
 
 var FW   = require('../fw');
+var commentStrip = require('../strip-comments');
 var ROOT = path.resolve(FW, '..', '..');
 
 var SRC = {
@@ -61,8 +62,7 @@ var SHORT_FORM = /this\.hasOwnProperty\(\s*([A-Za-z_$][\w$]*)\s*\)/g;
 
 /** Strips block and line comments, so a comment naming either form cannot count as code. */
 function codeOnly(s) {
-    return s.replace(/\/\*[\s\S]*?\*\//g, '')
-            .split('\n').map(function (l) { return l.replace(/\/\/.*$/, ''); }).join('\n');
+    return commentStrip.all(s);
 }
 
 /**

@@ -48,13 +48,14 @@ var path   = require('path');
 var { JSDOM } = require('jsdom');
 
 var FW = require('../fw');
+var commentStrip = require('../strip-comments');
 var VAL_SRC = process.env.GINA_VALIDATOR_SRC    || path.join(FW, 'core/plugins/lib/validator/src/main.js');
 var EVT_SRC = process.env.GINA_UTILS_EVENTS_SRC || path.join(FW, 'core/asset/plugin/src/vendor/gina/utils/events.js');
 var valSrc = fs.readFileSync(VAL_SRC, 'utf8');
 var evtSrc = fs.readFileSync(EVT_SRC, 'utf8');
 
 function active(src) {
-    return src.replace(/\/\*[\s\S]*?\*\//g, '').split('\n').filter(function (l) { return !/^\s*\/\//.test(l); }).join('\n');
+    return commentStrip.lines(src, { drop: true });
 }
 
 /** Started-flag brace walk from a line-start declaration; exactly-once + balance controls. */

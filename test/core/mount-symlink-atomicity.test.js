@@ -30,6 +30,7 @@ var spawn = require('child_process').spawn;
 
 var ginaRoot = path.resolve(__dirname, '../..');
 var version = require(ginaRoot + '/package.json').version;
+var commentStrip = require('../strip-comments');
 var FW = path.join(ginaRoot, 'framework', 'v' + version);
 
 var GNA_RAW = fs.readFileSync(path.join(FW, 'core', 'gna.js'), 'utf8');
@@ -40,11 +41,7 @@ var GEN_RAW = fs.readFileSync(path.join(FW, 'lib', 'generator', 'index.js'), 'ut
 // `// was:` blocks keep the pre-fix shapes as comments, so negatives MUST
 // strip first, and each stripped-away negative gets a raw-presence control.
 function stripComments(src) {
-    return src
-        .replace(/\/\*[\s\S]*?\*\//g, '')
-        .split('\n')
-        .filter(function (l) { return !/^\s*\/\//.test(l); })
-        .join('\n');
+    return commentStrip.lines(src);
 }
 var GNA = stripComments(GNA_RAW);
 var CONF = stripComments(CONF_RAW);

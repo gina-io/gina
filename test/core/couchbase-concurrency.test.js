@@ -72,6 +72,7 @@ var ginaMain  = require.resolve(REPO);
 var _inherits = require(FW + '/lib/inherits/src/main.js');
 var _merge    = require(FW + '/lib/merge/src/main.js');
 var ModelUtil = require(FW + '/lib/model');
+var commentStrip = require('../strip-comments');
 if (!require.cache[ginaMain] || !require.cache[ginaMain].exports.lib) {
     require.cache[ginaMain] = {
         id: ginaMain, filename: ginaMain, loaded: true,
@@ -515,9 +516,7 @@ describe('07 - the shared-emitter mechanisms are removed, not merely bypassed (s
      * @returns {string} source with block and line comments removed
      */
     function live(t) {
-        return t
-            .replace(/\/\*[\s\S]*?\*\//g, '')
-            .split('\n').filter(function (l) { return !/^\s*\/\//.test(l); }).join('\n');
+        return commentStrip.lines(t);
     }
     var liveSrc = live(src);
 

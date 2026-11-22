@@ -2,6 +2,7 @@ var { describe, it } = require('node:test');
 var assert = require('node:assert/strict');
 var fs = require('fs');
 var path = require('path');
+var commentStrip = require('../strip-comments');
 
 var SOURCE = path.join(require('../fw'), 'core/controller/controller.render-nunjucks.js');
 
@@ -161,7 +162,7 @@ describe('01 - function-scoped captures of per-request refs (#M1 race fix)', fun
         // Strip single-line and block comments so commented-out documentation
         // (e.g. the bug explanation in the captures' comment block) does not
         // count as an "active read".
-        var stripped = src.replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '');
+        var stripped = commentStrip.all(src);
         var allReads = stripped.match(/local\.req\b(?!\s*=)/g) || [];
         // Allowed: only the capture `var req   = local.req;` (1 occurrence)
         assert.strictEqual(
@@ -172,7 +173,7 @@ describe('01 - function-scoped captures of per-request refs (#M1 race fix)', fun
 
     it('no `local.res` reads remain in active code outside the captures', function() {
         var src = getSrc();
-        var stripped = src.replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '');
+        var stripped = commentStrip.all(src);
         var allReads = stripped.match(/local\.res\b(?!\s*=)/g) || [];
         assert.strictEqual(
             allReads.length, 1,
@@ -182,7 +183,7 @@ describe('01 - function-scoped captures of per-request refs (#M1 race fix)', fun
 
     it('no `local.next` reads remain in active code outside the captures', function() {
         var src = getSrc();
-        var stripped = src.replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '');
+        var stripped = commentStrip.all(src);
         var allReads = stripped.match(/local\.next\b(?!\s*=)/g) || [];
         assert.strictEqual(
             allReads.length, 1,
@@ -283,7 +284,7 @@ describe('02 - terminal-exit closure nulling (#M1 retrofit follow-up)', function
     it('exactly 2 closure-nulling sites (no over-nulling on throwError paths)', function() {
         var src = getSrc();
         // Strip comments so commented-out documentation doesn't count.
-        var stripped = src.replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '');
+        var stripped = commentStrip.all(src);
         var writes = stripped.match(/local\.req\s*=\s*null/g) || [];
         // Two sites: no-view short-circuit + final terminal exit. throwError
         // paths handle cleanup via their own controller render chain, matching

@@ -37,6 +37,7 @@ var path   = require('path');
 var { JSDOM } = require('jsdom');
 
 var FW = require('../fw');
+var commentStrip = require('../strip-comments');
 // Module-path seams: point at a scratch copy to run every pin AND the extracted arms
 // against pre-change bytes (jsdoc.md § "A module-path SEAM in the test file").
 var DOM_SRC = process.env.GINA_UTILS_DOM_SRC || path.join(FW, 'core/asset/plugin/src/vendor/gina/utils/dom.js');
@@ -50,9 +51,7 @@ var navSrc = fs.readFileSync(NAV_SRC, 'utf8');
 // Strip comments before any NEGATIVE pin (the own-JSDoc trap): the docblocks above the
 // functions name the retired shapes in prose.
 function active(src) {
-    return src.replace(/\/\*[\s\S]*?\*\//g, '').split('\n').filter(function (l) {
-        return !/^\s*\/\//.test(l);
-    }).join('\n');
+    return commentStrip.lines(src);
 }
 
 // Extract `function bindRegion(...) { ... }` from utils/dom.js by a started-flag brace

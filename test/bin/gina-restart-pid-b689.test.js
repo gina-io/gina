@@ -25,6 +25,7 @@ var path   = require('path');
 var { spawnSync } = require('child_process');
 var { describe, it, before, after } = require('node:test');
 var assert = require('node:assert/strict');
+var commentStrip = require('../strip-comments');
 
 var REPO        = path.resolve(__dirname, '..', '..');
 var GINA_SOURCE = path.join(REPO, 'bin', 'gina');
@@ -147,11 +148,7 @@ describe('01 - bin/gina: a --restart-pid flag no longer eats the command (driven
  * @returns {string}
  */
 function code(src) {
-    return src
-        .replace(/\/\*[\s\S]*?\*\//g, '')
-        .split('\n')
-        .map(function (l) { return l.replace(/\/\/.*$/, ''); })
-        .join('\n');
+    return commentStrip.all(src);
 }
 
 describe('02 - bin/gina: the --restart-pid filter and the `[ quit ]` write are gone (source)', function () {

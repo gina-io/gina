@@ -36,6 +36,7 @@ var fs   = require('fs');
 var path = require('path');
 var { describe, it } = require('node:test');
 var assert = require('node:assert/strict');
+var commentStrip = require('../strip-comments');
 
 var UPDATE_SOURCE  = path.join(require('../fw'), 'lib/cmd/framework/update.js');
 var ARGS_FILE      = path.join(require('../fw'), 'lib/cmd/framework/arguments.json');
@@ -52,9 +53,7 @@ var manPage  = fs.readFileSync(MAN_PAGE, 'utf8');
 // mentioned in JSDoc/comments (e.g. "npm self-update", a map name in prose)
 // cannot trip a code-absence assertion. (jsdoc.md: "A negative source pin trips
 // on the file's own JSDoc".)
-var srcNoComments = src
-    .replace(/\/\*[\s\S]*?\*\//g, '')   // block comments
-    .replace(/(^|[^:])\/\/.*$/gm, '$1'); // line comments (keep `://` in URLs)
+var srcNoComments = commentStrip.all(src);
 
 
 // ---------------------------------------------------------------------------

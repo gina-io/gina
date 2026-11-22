@@ -62,6 +62,7 @@ setPath('bundle',  path.join(TMP, 'bundle'));
 var _inherits = require(FW + '/lib/inherits/src/main.js');
 var _merge    = require(FW + '/lib/merge/src/main.js');
 var ModelUtil = require(FW + '/lib/model');
+var commentStrip = require('../strip-comments');
 var warnings  = [];
 var capturingConsole = {
     log: function() {}, info: function() {}, debug: function() {},
@@ -103,7 +104,7 @@ var INDEX = path.join(FW, 'core/connectors/couchbase/index.js');
 
 /** Strip `//` and block comments so a negative pin cannot match a commented twin. */
 function stripComments(src) {
-    return src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '');
+    return commentStrip.lines(src);
 }
 
 /** A dbString shaped like a real connectors.json couchbase entry. */

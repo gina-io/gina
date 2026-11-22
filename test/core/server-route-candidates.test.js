@@ -16,8 +16,9 @@
  * Suites:
  *  01 — the index on its own: prototype-named paths, inline segments, classification,
  *       the paths it does not model, the raw-url lookup, the per-table cache
- *  02 — the differential proof: same winner, same status, same follow-up status,
- *       every arm; a sabotaged index must diverge (the harness can fail)
+ *  02 — the differential proof: same winner, same status, every arm (since #B1154 a
+ *       matcher throw answers once, so the copy has no follow-up status to compare); a
+ *       sabotaged index must diverge (the harness can fail)
  *  03 — source pins: server.js wires the index where the dead trie lookup was
  */
 var { describe, it } = require('node:test');
@@ -40,6 +41,7 @@ setContext('isProxyHost', false);
 setContext('gina', { config: { env: 'dev', bundle: 'b', getRouting: function () { return TABLE; }, envConf: {} } });
 var routing = require(path.join(FW, 'lib/routing'));
 var RC      = require(path.join(FW, 'core/server.route-candidates'));
+var commentStrip = require('../strip-comments');
 
 var B     = 'b';
 var SCOPE = 'local';
@@ -168,7 +170,7 @@ function mkReq(spec) {
  * @param {string} bundle
  * @param {{method: string, url: string, bag: (object|null)}} spec
  * @param {function|null} candidatesOf - `(table, bundle, raw, decoded) → Set|null`, or null for the full scan
- * @returns {Promise<{status: number, rule: (string|null), second: (number|null), evaluated: number, candidates: (number|null), params: object}>}
+ * @returns {Promise<{status: number, rule: (string|null), evaluated: number, candidates: (number|null), params: object}>}
  */
 async function dispatch(table, bundle, spec, candidatesOf) {
     var req      = mkReq(spec);
@@ -245,11 +247,10 @@ async function dispatch(table, bundle, spec, candidatesOf) {
         }
     }
 
+    // #B1154 — after a compareUrls throw the engine answers 500 once and returns before the
+    // post-loop 405/404 (it used to answer that status again, logged, the response already sent)
     var status = e500 ? 500 : (matched ? 200 : (mismatch405 ? 405 : 404));
-    // after a compareUrls throw the engine answers 500, breaks, and throwError runs again for
-    // the post-loop status (logged; the response is already sent)
-    var second = e500 ? ((!matched && mismatch405) ? 405 : 404) : null;
-    return { status: status, rule: winner || e500, second: second, evaluated: evaluated,
+    return { status: status, rule: winner || e500, evaluated: evaluated,
              candidates: (candidates === null) ? null : candidates.size, params: req.params };
 }
 
@@ -357,8 +358,8 @@ async function differential(table, arms, candidatesOf) {
         res.evalFull     += full.evaluated;
         res.evalFiltered += filt.evaluated;
         if (filt.candidates !== null) { ++res.indexed; if (filt.candidates === 0) ++res.empty; }
-        if (full.status !== filt.status || full.rule !== filt.rule || full.second !== filt.second) {
-            res.divergences.push({ arm: arms[i], full: [full.status, full.rule, full.second], filtered: [filt.status, filt.rule, filt.second] });
+        if (full.status !== filt.status || full.rule !== filt.rule) {
+            res.divergences.push({ arm: arms[i], full: [full.status, full.rule], filtered: [filt.status, filt.rule] });
         }
         if (JSON.stringify(full.params) !== JSON.stringify(filt.params)) ++res.bagDiffs;
     }
@@ -501,7 +502,7 @@ describe('01 - #P46 S6 A: the candidate index', function () {
 
 describe('02 - #P46 S6 A: the filtered scan answers exactly as the full scan', function () {
 
-    it('02.1  the catalogue table: every arm, same winner / status / follow-up status', async function () {
+    it('02.1  the catalogue table: every arm, same winner / status', async function () {
         var arms = armsFor(CATALOG);
         var r = await differential(CATALOG, arms, RC.candidatesFor);
         assert.equal(r.divergences.length, 0, r.divergences.length + ' divergence(s) of ' + r.arms + ', first: ' + JSON.stringify(r.divergences.slice(0, 3)));
@@ -521,7 +522,7 @@ describe('02 - #P46 S6 A: the filtered scan answers exactly as the full scan', f
         if (process.env.GINA_S6A_STATS) console.log('[02.5 stats]', JSON.stringify({ arms: r.arms, indexed: r.indexed, empty: r.empty, evalFull: r.evalFull, evalFiltered: r.evalFiltered, bagDiffs: r.bagDiffs }));
     });
 
-    it('02.2  seeded generated tables: every arm, same winner / status / follow-up status', async function () {
+    it('02.2  seeded generated tables: every arm, same winner / status', async function () {
         var seeds = [11, 23, 37, 41, 59, 73];
         for (var i = 0; i < seeds.length; i++) {
             var table = generatedTable(seeds[i], 24);
@@ -569,7 +570,7 @@ describe('02 - #P46 S6 A: the filtered scan answers exactly as the full scan', f
  * @returns {string}
  */
 function stripComments(s) {
-    return s.replace(/\/\*[\s\S]*?\*\//g, '').split('\n').filter(function (l) { return !/^\s*\/\//.test(l); }).join('\n');
+    return commentStrip.lines(s);
 }
 
 describe('03 - #P46 S6 A: server.js wires the index', function () {

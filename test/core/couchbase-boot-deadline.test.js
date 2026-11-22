@@ -101,6 +101,7 @@ setPath('bundle',  path.join(TMP, 'bundle'));
 var _inherits = require(FW + '/lib/inherits/src/main.js');
 var _merge    = require(FW + '/lib/merge/src/main.js');
 var ModelUtil = require(FW + '/lib/model');
+var commentStrip = require('../strip-comments');
 var quietConsole = {
     log: function() {}, info: function() {}, debug: function() {},
     warn: function() {}, error: function() {}, emerg: function() {}
@@ -144,7 +145,7 @@ var FILES = {
 
 /** Strip `//` and block comments so a negative pin cannot match a commented twin. */
 function stripComments(src) {
-    return src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '');
+    return commentStrip.lines(src);
 }
 
 /** A dbString shaped like a real connectors.json couchbase entry. */

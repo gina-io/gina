@@ -58,11 +58,12 @@ require(path.join(FW, 'helpers'));
 require(path.join(FW, '..', '..', 'utils', 'prototypes'));
 setPath('gina', { core: path.join(FW, 'core') });
 var SuperController = require(SOURCE);
+var commentStrip = require('../strip-comments');
 
 var SRC = fs.readFileSync(SOURCE, 'utf8');
 
 function stripComments(s) {
-    return s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:"'])\/\/.*$/gm, '$1');
+    return commentStrip.all(s);
 }
 function region(src, startNeedle, endNeedle) {
     var a = src.indexOf(startNeedle); assert.ok(a > -1, 'anchor missing: ' + startNeedle);

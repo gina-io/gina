@@ -3,20 +3,21 @@
  * digit or an underscore.
  *
  * A placeholder's name is its letters, digits and underscores: the router reads the names in a URL
- * segment with `/:\w+/g`, so except on a DELETE route with requirements `/:lang-code/home` is read as
- * the placeholder `:lang`. core/config.param-bindings.js lists each URL segment that holds a placeholder followed by
+ * segment with `/:\w+/g`, so `/:lang-code/home` is read as the placeholder `:lang` (on a DELETE route with
+ * requirements too since #B1149). core/config.param-bindings.js lists each URL segment that holds a placeholder followed by
  * another character; core/config.js warns ONCE per bundle, on the bundles the #B360 warning judges,
  * and never rewrites a value.
  *
  *   01  findTruncatedPlaceholders: each segment with a placeholder followed by any character outside
- *       `[A-Za-z0-9_]` (a hyphen, a dot, a second placeholder, a non-ASCII letter...), with the rule,
+ *       `[A-Za-z0-9_]` (a hyphen, a dot, a non-ASCII letter...; a segment with two or more placeholders
+ *       is listed by the #B692 warning instead, config-placeholder-multi-b692.test.js), with the rule,
  *       the URL, the segment and the names the router reads in it; and nothing else (a name that ends
  *       its segment, static text, a multi-URL rule's spaces, a rule with no string url).
  *   02  formatTruncatedPlaceholderWarning: one line naming the bundle and every segment.
  *   03  config.js wiring: called after setRouting and after the #B1124 bindings, in an
  *       `if ( _requirementsApply )` block of its own; one warning; nothing assigned to the table.
  *   04  premises the warning states (unchanged by #B1143): the router's name pattern `/:\w+/g`, the
- *       culture read's `/^:\w+$/`, and the DELETE branch that keys the whole segment.
+ *       culture read's `/^:\w+$/`, and the DELETE branch, which keys a placeholder by its name since #B1149.
  *
  * Seams, for a red-first run against other bytes without touching a tree:
  *   GINA_PARAM_BINDINGS_SRC=<a copy of core/config.param-bindings.js>
@@ -37,12 +38,13 @@ var assert = require('node:assert/strict');
 
 var FW = require('../fw');
 var bindings    = require(process.env.GINA_PARAM_BINDINGS_SRC || path.join(FW, 'core/config.param-bindings.js'));
+var commentStrip = require('../strip-comments');
 var CONFIG_SRC  = fs.readFileSync(process.env.GINA_CONFIG_SRC || path.join(FW, 'core/config.js'), 'utf8');
 var ROUTING_SRC = fs.readFileSync(path.join(FW, 'lib/routing/src/main.js'), 'utf8');
 var I18N_SRC    = fs.readFileSync(path.join(FW, 'lib/i18n/src/main.js'), 'utf8');
 
 /** Removes block comments and whole-line `//` comments (the #B360 test's strip). */
-function strip(s) { return s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/[^\n]*/mg, ''); }
+function strip(s) { return commentStrip.lines(s); }
 
 /** The routing table of §01: four rules with such a segment, and controls. */
 function table() {
@@ -75,16 +77,14 @@ describe('#B1143 — a URL placeholder followed by a character other than a lett
             assert.deepEqual(bindings.findTruncatedPlaceholders(table()), [
                 { rule: 'home@site', url: '/:lang-code/home', segment: ':lang-code', names: [':lang'] },
                 { rule: 'feed@site', url: '/feed/:id.json', segment: ':id.json', names: [':id'] },
-                { rule: 'range@site', url: '/range/:from-:to', segment: ':from-:to', names: [':from', ':to'] },
                 { rule: 'help@site', url: '/aide/:lang-code', segment: ':lang-code', names: [':lang'] }
             ]);
         });
-        it('any character outside [A-Za-z0-9_] right after a name counts, a second placeholder and a non-ASCII letter included', function () {
-            ['-', '.', '~', '+', '@', ':', '!', '$', '%', '*', '(', '\'', '"', ' ', 'é', 'ß'].forEach(function (ch) {
+        it('any character outside [A-Za-z0-9_] right after a name counts, a non-ASCII letter included', function () {
+            ['-', '.', '~', '+', '@', '!', '$', '%', '*', '(', '\'', '"', ' ', 'é', 'ß'].forEach(function (ch) {
                 assert.deepEqual(segmentsOf('/x/:a' + ch + 'b'), [':a' + ch + 'b'], JSON.stringify(ch));
             });
             assert.deepEqual(bindings.findTruncatedPlaceholders({ 'r@b': { url: '/x/:café' } })[0].names, [':caf']);
-            assert.deepEqual(bindings.findTruncatedPlaceholders({ 'r@b': { url: '/x/:a:b' } })[0].names, [':a', ':b']);
             assert.deepEqual(segmentsOf('/x/page:a-b'), ['page:a-b'], 'a placeholder inside a segment');
         });
         it('every such segment of a URL is listed, and each URL of a multi-URL rule', function () {
@@ -123,7 +123,7 @@ describe('#B1143 — a URL placeholder followed by a character other than a lett
                 { rule: 'home@site', url: '/:lang-code/home', segment: ':lang-code', names: [':lang'] }
             ]);
             assert.ok(s.indexOf('[CONFIG][loadBundleConfig] [ site ] 1 route URL segment holds a placeholder followed by a character other than a letter, a digit or an underscore: home@site ":lang-code".') === 0, s);
-            assert.ok(s.indexOf('Except on a DELETE route with requirements, gina reads a placeholder\'s name up to that character: ":lang-code" is read as ":lang".') > -1, s);
+            assert.ok(s.indexOf('. gina reads a placeholder\'s name up to that character: ":lang-code" is read as ":lang".') > -1, s);
             assert.ok(s.indexOf('Name each placeholder with letters, digits and underscores (":lang_code").') > -1, s);
             assert.ok(s.indexOf('https://gina.io/docs/guides/routing#parameterized-url') > -1, s);
             assert.equal(s.indexOf('\n'), -1);
@@ -172,8 +172,8 @@ describe('#B1143 — a URL placeholder followed by a character other than a lett
         it('a culturePrefix route reads its culture binding with /^:\\w+$/ (#B1123)', function () {
             assert.ok(I18N_SRC.indexOf('/^:\\w+$/.test(pfx)') > -1);
         });
-        it('the DELETE branch for a route with requirements keys a placeholder by its whole segment', function () {
-            assert.ok(ROUTING_SRC.indexOf('let _key = uRo[p].substring(1);') > -1);
+        it('the DELETE branch for a route with requirements keys a placeholder by its name (#B1149)', function () {
+            assert.ok(ROUTING_SRC.indexOf('let _key = /^:\\w/.test(uRo[p]) ? uRo[p].match(/^:(\\w+)/)[1] : uRo[p].substring(1);') > -1);
         });
     });
 });

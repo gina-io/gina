@@ -55,6 +55,7 @@ if (typeof getContext('gina') === 'undefined') { setContext('gina', {}); }
 var ENGINE_PATH = path.join(FW, 'core/plugins/lib/validator/src/form-validator.js');
 var ENGINE_SRC  = fs.readFileSync(ENGINE_PATH, 'utf8');
 var FormValidator = require(ENGINE_PATH);
+var commentStrip = require('../strip-comments');
 
 /**
  * Build a one-field validator and return that field object (carrying the chainable
@@ -130,9 +131,7 @@ describe('01 - source: isInteger measures the string form, isString is untouched
         // the JSDoc explains the defect, so a naive text scan matches prose and can
         // never go green. The claim under test is about code, so the instrument must
         // measure code — this pin was rewritten after it fired on its own comment.
-        var body = bodyOf('isInteger')
-            .replace(/\/\*[\s\S]*?\*\//g, '')   // block comments
-            .replace(/\/\/[^\n]*/g, '')          // line comments
+        var body = commentStrip.all(bodyOf('isInteger'))
             .replace(/val\.toString\(\)\.length/g, ''); // not a bare hit
         assert.ok(
             body.indexOf('val.length') < 0,

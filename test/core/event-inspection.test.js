@@ -20,6 +20,7 @@ var { AsyncLocalStorage } = require('async_hooks');
 
 var read = function(rel) { return fs.readFileSync(path.join(FW, rel), 'utf8'); };
 var inspectorEvents = require(path.join(FW, 'lib/inspector-events/src/main.js'));
+var commentStrip = require('../strip-comments');
 
 
 // ─── 01 — emit(): real behaviour (gate, ALS push, live frame, captureArgs) ───
@@ -195,7 +196,7 @@ describe('05 - settings template: inspector.events.captureArgs default', functio
         var raw = read('core/template/conf/settings.json');
         // The template carries // and /* */ comments (requireJSON strips them at
         // load); mirror that here before JSON.parse.
-        raw  = raw.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|\s)\/\/.*$/gm, '');
+        raw  = commentStrip.all(raw);
         conf = JSON.parse(raw);
     });
 
@@ -493,7 +494,7 @@ describe('14 - gna seed + settings: events.topics allow-list', function() {
 
     it('settings template declares inspector.events.topics = [] (default: bridge nothing)', function() {
         var raw = read('core/template/conf/settings.json');
-        raw  = raw.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|\s)\/\/.*$/gm, '');
+        raw  = commentStrip.all(raw);
         var conf = JSON.parse(raw);
         assert.ok(conf.inspector && conf.inspector.events, 'inspector.events block exists');
         assert.ok(Array.isArray(conf.inspector.events.topics), 'topics is an array');

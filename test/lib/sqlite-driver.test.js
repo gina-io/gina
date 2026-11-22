@@ -30,6 +30,7 @@ var FW = require('../fw');
 var DRIVER_PATH = path.join(FW, 'lib/sqlite-driver.js');
 var driver = require(DRIVER_PATH);
 var classify = require(path.join(FW, 'lib/connector-error/src/main.js')).classify;
+var commentStrip = require('../strip-comments');
 
 describe('01 - sqlite-driver: source pins', function () {
 
@@ -326,7 +327,7 @@ describe('06 - sqlite-driver: the class is taken under its current name (#B829)'
 
     /** The source without its block comments and full-line comments. */
     function stripComments(text) {
-        return text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+        return commentStrip.lines(text);
     }
 
     /** The shipped `getDatabaseSync` text, compiled with `fakeRequire` and an empty memo. */

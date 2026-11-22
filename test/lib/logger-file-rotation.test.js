@@ -27,12 +27,13 @@ const os     = require('os');
 const path   = require('path');
 
 const FW_DIR = require('../fw');
+var commentStrip = require('../strip-comments');
 const REL    = 'lib/logger/src/containers/file/index.js';
 const FILE   = path.join(FW_DIR, REL);
 
 /** Strip comments so a pin can never be satisfied by prose describing the fix. */
 function stripComments(src) {
-    return src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+    return commentStrip.lines(src);
 }
 
 const ESC = String.fromCharCode(27);

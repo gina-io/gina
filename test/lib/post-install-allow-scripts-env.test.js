@@ -41,6 +41,7 @@ var fs     = require('fs');
 var path   = require('path');
 var { describe, it, before } = require('node:test');
 var assert = require('node:assert/strict');
+var commentStrip = require('../strip-comments');
 
 // post_install.js lives at the repo root under script/ (NOT in the framework
 // dir), so resolve it directly rather than via test/fw.js.
@@ -56,9 +57,7 @@ describe('01 - post_install nested install sanitizes the allow-scripts export (#
     before(function() {
         // Strip block comments (JSDoc) then line comments so prose mentions of
         // the config name cannot anchor any pin — only real code remains.
-        code = fs.readFileSync(POST_INSTALL, 'utf8')
-            .replace(/\/\*[\s\S]*?\*\//g, '')
-            .replace(/\/\/[^\n]*/g, '');
+        code = commentStrip.all(fs.readFileSync(POST_INSTALL, 'utf8'));
     });
 
     it('saves the inherited value before the child runs', function() {

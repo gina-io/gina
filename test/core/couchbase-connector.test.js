@@ -28,6 +28,7 @@ var ce        = require(path.join(FW, 'lib/connector-error/src/main.js'));
 // #B509 — the result-row redaction the FIXED replica (§08) now routes through,
 // realigned with the shipped site.
 var paramRedact = require(path.join(FW, 'core/connectors/param-redact.js'));
+var commentStrip = require('../strip-comments');
 
 
 // ─── 01 — shared resolveCluster() helper present, dual-shape, named throw ────
@@ -277,7 +278,7 @@ describe('06 - field-path $N substitution: every occurrence (source pins)', func
         // strip comments before negative pins: the explanatory comment in the block
         // intentionally names the old greedy `(.*)` shape it replaced, which would
         // otherwise trip the "(.*) is gone" pin (jsdoc.md negative-pin-vs-comment trap).
-        code = blk.replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '');
+        code = commentStrip.all(blk);
     });
 
     it('escapes the placeholder once into a reusable paramKeyEsc', function() {
@@ -1238,7 +1239,7 @@ describe('14 - #B460: bulkInsert settles its outer catch (shipped bytes)', funct
         var body = bulkInsertBody();
         // Comments are stripped so the fix's own explanatory text (which names the
         // defect) cannot satisfy a pin about the CODE.
-        var code = body.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+        var code = commentStrip.lines(body);
         assert.ok(/\}\s*catch\s*\(\s*err\s*\)\s*\{[\s\S]{0,400}?_settle\s*\(\s*err\s*\)/.test(code),
             'the outer catch must call _settle(err)');
         assert.ok(/\}\s*catch\s*\(\s*err\s*\)\s*\{[\s\S]{0,400}?return\s+_promise/.test(code),
@@ -1349,8 +1350,7 @@ describe('15 - #B461: entity registration failures are named (shipped bytes)', f
     it('§15b — the catch names the entity and the source file', function() {
         // Comments stripped so the fix's own explanatory text cannot satisfy a pin
         // about the CODE.
-        var code = outerCatchBody()
-            .replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+        var code = commentStrip.lines(outerCatchBody());
         assert.ok(code.indexOf('entityName') > -1, 'must name the entity in the diagnostic');
         assert.ok(code.indexOf('source')     > -1, 'must name the .sql source in the diagnostic');
         assert.ok(code.indexOf('console.error') > -1,
@@ -1358,8 +1358,7 @@ describe('15 - #B461: entity registration failures are named (shipped bytes)', f
     });
 
     it('§15c — the original err.stack line is PRESERVED (observability not reduced)', function() {
-        var code = outerCatchBody()
-            .replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+        var code = commentStrip.lines(outerCatchBody());
         assert.ok(/console\.error\(\s*err\.stack\s*\)/.test(code),
             'the pre-existing err.stack log must still be emitted, not replaced');
     });
@@ -1461,7 +1460,7 @@ describe('16 - #B204: reconnect classifier is guarded (shipped bytes, both files
 
     it('§16b — SOURCE PIN: all four live sites carry the class-existence guard', function() {
         for (var k in srcs) {
-            var code = srcs[k].replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+            var code = commentStrip.lines(srcs[k]);
             var m = code.match(/typeof\s*\(\s*couchbase\.Error\s*\)\s*==+\s*'function'\s*&&\s*err instanceof couchbase\.Error/g) || [];
             assert.equal(m.length, 2, k + ': both live instanceof sites must be guarded, found ' + m.length);
             // anti-vacuity for the strip

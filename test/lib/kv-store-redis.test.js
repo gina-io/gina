@@ -47,6 +47,7 @@ var fs     = require('fs');
 var FW           = require('../fw');
 var createStore  = require(path.join(FW, 'core/connectors/redis/lib/kv-store'));
 var kv           = require(path.join(FW, 'lib/kv/src/main'));
+var commentStrip = require('../strip-comments');
 
 var STORE_SOURCE = path.join(FW, 'core/connectors/redis/lib/kv-store.js');
 var SRC          = fs.readFileSync(STORE_SOURCE, 'utf8');
@@ -607,7 +608,7 @@ describe('08 - source pins', function () {
     it('consume never composes a GET+DEL pair in the fallback', function () {
         // The Lua script is the fallback; a JS-level get-then-del would be the
         // race this op exists to prevent.
-        var code = SRC.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+        var code = commentStrip.lines(SRC);
         var consumeIdx = code.indexOf('consume: function');
         var incrIdx    = code.indexOf('incrby: function');
         assert.ok(consumeIdx > -1 && incrIdx > consumeIdx);

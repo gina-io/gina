@@ -37,6 +37,7 @@ var path   = require('path');
 var fs     = require('fs');
 
 var FW       = require('../fw');
+var commentStrip = require('../strip-comments');
 var MAIN     = process.env.GINA_B585_MAIN || path.join(FW, 'core/plugins/lib/validator/src/main.js');
 var EVENTS   = process.env.GINA_B585_EVENTS || path.join(FW, 'core/asset/plugin/src/vendor/gina/utils/events.js');
 var DIST     = path.join(FW, 'core/asset/plugin/dist/vendor/gina/js/gina.js');
@@ -56,9 +57,7 @@ before(function () {
  * @returns {string}
  */
 function stripComments(src) {
-    return src
-        .replace(/\/\*[\s\S]*?\*\//g, '')
-        .replace(/^\s*\/\/.*$/mg, '');
+    return commentStrip.lines(src);
 }
 
 /**

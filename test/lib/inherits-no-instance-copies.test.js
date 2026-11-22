@@ -39,15 +39,14 @@ var path   = require('path');
 var EventEmitter = require('events');
 
 var FW       = require('../fw');
+var commentStrip = require('../strip-comments');
 var SOURCE   = process.env.GINA_INHERITS_SRC || path.join(FW, 'lib/inherits/src/main.js');
 var DIST     = path.join(FW, 'core/asset/plugin/dist/vendor/gina/js');
 var DIST_JS  = process.env.GINA_DIST_JS || path.join(DIST, 'gina.js');
 var DIST_MIN = process.env.GINA_DIST_MIN_JS || path.join(DIST, 'gina.min.js');
 
 var src = fs.readFileSync(SOURCE, 'utf8');
-var active = src.replace(/\/\*[\s\S]*?\*\//g, '').split('\n').filter(function (l) {
-    return !/^\s*\/\//.test(l);
-}).join('\n');
+var active = commentStrip.lines(src);
 function count(hay, needle) { return hay.split(needle).length - 1; }
 function own(o, k) { return Object.prototype.hasOwnProperty.call(o, k); }
 

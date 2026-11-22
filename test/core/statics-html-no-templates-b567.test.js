@@ -25,10 +25,11 @@ var fs     = require('fs');
 var path   = require('path');
 
 var FW     = require('../fw');
+var commentStrip = require('../strip-comments');
 var SERVER = fs.readFileSync(path.join(FW, 'core/server.js'), 'utf8');
 
 function code(src) {
-    return src.replace(/\/\*[\s\S]*?\*\//g, '').split('\n').filter(function(l) { return !/^\s*\/\//.test(l); }).join('\n');
+    return commentStrip.lines(src);
 }
 function count(hay, needle) {
     var n = 0, i = 0;

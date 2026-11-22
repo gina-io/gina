@@ -5,6 +5,7 @@ var { describe, it } = require('node:test');
 var assert = require('node:assert/strict');
 
 var FW           = require('../fw');
+var commentStrip = require('../strip-comments');
 var MERGE_SRC    = fs.readFileSync(path.join(FW, 'lib/merge/src/main.js'), 'utf8');
 var LOGGER_SRC   = fs.readFileSync(path.join(FW, 'lib/logger/src/main.js'), 'utf8');
 var FILE_SRC     = fs.readFileSync(path.join(FW, 'lib/logger/src/containers/file/index.js'), 'utf8');
@@ -34,9 +35,7 @@ var MQ_SRC       = fs.readFileSync(path.join(FW, 'lib/logger/src/containers/mq/i
 // the eval fallback) surfaces as a failing test.
 
 var stripComments = function (src) {
-    return src
-        .replace(/\/\*[\s\S]*?\*\//g, '')
-        .replace(/^\s*\/\/.*$/gm, '');
+    return commentStrip.lines(src);
 };
 
 

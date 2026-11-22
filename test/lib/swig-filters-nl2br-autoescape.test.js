@@ -45,6 +45,7 @@ var RSA_PATH = process.env.GINA_RENDER_SWIG_ASYNC_SRC || path.join(FW, 'core/con
 
 var swigLib    = require('@rhinostone/swig');
 var swigEscape = require('@rhinostone/swig/lib/filters').escape;
+var commentStrip = require('../strip-comments');
 
 var priorGlobals = {};
 
@@ -212,7 +213,7 @@ describe('#B359 prep — nl2br under settings.swig.autoescape (real lib/swig-fil
 describe('#B690 — the asset placeholders the default swig delegate injects', function () {
     var SRC = fs.readFileSync(RS_PATH, 'utf8');
     function stripComments(s) {
-        return s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/[^\n]*/mg, '');
+        return commentStrip.lines(s);
     }
     var CODE = stripComments(SRC);
     function count(h, n) { return h.split(n).length - 1; }

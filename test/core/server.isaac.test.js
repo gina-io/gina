@@ -2202,6 +2202,13 @@ describe('12d - #H13 slice 2 :param matcher source structure', function() {
         assert.ok(getSrc().indexOf("console.warn('[ SERVER ] onWebSocket: pattern") > -1,
             'expected the duplicate-pattern overwrite warn (distinct from the exact-path warn)');
     });
+
+    it('#B1151 — the matcher keys a capture by the name run after the colon, and compares a nameless or multi-placeholder segment as written', function() {
+        var s = getSrc();
+        assert.ok(s.indexOf('var _wsName = /^:(\\w+)/.exec(pat);') > -1, 'expected the name derived as the \\w run after the colon');
+        assert.ok(s.indexOf('if ( !_wsName || pat.match(/:\\w+/g).length > 1 ) {') > -1, 'expected a nameless or multi-placeholder segment compared as written');
+        assert.ok(s.indexOf('params[_wsName[1]] = decodeURIComponent(reqSegs[s]);') > -1, 'expected the capture keyed by the derived name');
+    });
 });
 
 
@@ -2221,8 +2228,15 @@ describe('12e - #H13 slice 2 :param matcher + exact-first dispatch logic', funct
             for (var s = 0; s < entry.segments.length; s++) {
                 var pat = entry.segments[s];
                 if (pat.charAt(0) === ':') {
+                    // #B1151 — the name is the segment's \w run, as the matcher derives it; a segment
+                    // with no name, or with two or more placeholders, is compared as written.
+                    var name = /^:(\w+)/.exec(pat);
+                    if (!name || pat.match(/:\w+/g).length > 1) {
+                        if (pat !== reqSegs[s]) { ok = false; break; }
+                        continue;
+                    }
                     if (reqSegs[s] === '') { ok = false; break; }
-                    params[pat.substring(1)] = decodeURIComponent(reqSegs[s]);
+                    params[name[1]] = decodeURIComponent(reqSegs[s]);
                 } else if (pat !== reqSegs[s]) { ok = false; break; }
             }
             if (ok) { return { handler: entry.handler, params: params }; }

@@ -33,6 +33,7 @@ var { describe, it } = require('node:test');
 var assert = require('node:assert/strict');
 var fs   = require('fs');
 var path = require('path');
+var commentStrip = require('../strip-comments');
 
 var SOURCE = path.join(require('../fw'), 'core/controller/controller.js');
 var src    = fs.readFileSync(SOURCE, 'utf8');
@@ -52,10 +53,8 @@ var BODY = (at > -1 && end > -1) ? src.slice(open + 1, end) : null;
 // comments name the defects they replaced ("was `options`…", "used to be
 // `req[method].sessionID`"), so grepping the raw slice matches the PROSE and
 // reports the bug as still present. Strip comments first: the pins must read
-// executable code only. (The `[^:]` guard keeps `http://` intact.)
-var CODE = BODY == null ? null : BODY
-    .replace(/\/\*[\s\S]*?\*\//g, '')
-    .replace(/(^|[^:])\/\/.*$/gm, '$1');
+// executable code only. (The shared lexer leaves a `//` inside a string, such as `http://`, alone.)
+var CODE = BODY == null ? null : commentStrip.all(BODY);
 
 /**
  * Runs the real push() body against fake engine.io clients.

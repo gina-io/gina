@@ -34,6 +34,7 @@ var path   = require('path');
 var Module = require('module');
 
 var FW     = require('../fw');
+var commentStrip = require('../strip-comments');
 var REAL   = path.join(FW, 'helpers/context.js');
 var SOURCE = process.env.GINA_CONTEXT_SRC || REAL;
 var NEEDLE = "require('./../lib/merge')";
@@ -43,9 +44,7 @@ before(function () {
     src = fs.readFileSync(SOURCE, 'utf8');
     // block comments out, then every full-line `//` comment (the file keeps a commented-out
     // logger require next to the binding)
-    active = src.replace(/\/\*[\s\S]*?\*\//g, '').split('\n').filter(function (l) {
-        return !/^\s*\/\//.test(l);
-    }).join('\n');
+    active = commentStrip.lines(src);
 });
 
 function count(hay, needle) { return hay.split(needle).length - 1; }

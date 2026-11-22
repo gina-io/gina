@@ -46,11 +46,12 @@ var assert = require('node:assert/strict');
 var { AsyncLocalStorage, AsyncResource } = require('async_hooks');
 
 var FW = require('../fw');
+var commentStrip = require('../strip-comments');
 
 function clone(o) { return JSON.parse(JSON.stringify(o)); }
 function read(rel) { return fs.readFileSync(path.join(FW, rel), 'utf8'); }
 function stripComments(src) {
-    return src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"`\\])\/\/[^\n]*/g, '$1');
+    return commentStrip.all(src);
 }
 
 function confFor(bundle, port) {

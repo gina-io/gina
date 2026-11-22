@@ -33,15 +33,14 @@ var os     = require('os');
 var { spawnSync } = require('child_process');
 
 var FW       = require('../fw');
+var commentStrip = require('../strip-comments');
 var DIST_JS  = path.join(FW, 'core/asset/plugin/dist/vendor/gina/js/gina.js');
 var DIST_MIN = path.join(FW, 'core/asset/plugin/dist/vendor/gina/js/gina.min.js');
 var HELPER   = path.join(FW, 'core/asset/plugin/lib/js/no-dynamic-code.js');
 var BUILD    = path.join(FW, 'core/asset/plugin/build');
 
 function stripComments(src) {
-    return src
-        .replace(/\/\*[\s\S]*?\*\//g, '')
-        .replace(/(^|[^:\\])\/\/[^\n]*/g, '$1');
+    return commentStrip.all(src);
 }
 var LIVE_CALL = /(^|[^\w.$])(eval|Function)\s*\(/;
 

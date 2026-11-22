@@ -46,6 +46,7 @@ var inspectorRedact = require(path.join(FW, 'lib/inspector-redact'));
 // The real RFC 5987 encoder: helpers/data assigns it as a global when the
 // DataHelper constructor runs (the bare-global shape render-swig.js reads).
 var DataHelper = require(path.join(FW, 'helpers/data/src/main.js'));
+var commentStrip = require('../strip-comments');
 new DataHelper();
 var encodeRFC5987ValueChars = global.encodeRFC5987ValueChars;
 
@@ -53,7 +54,7 @@ var BANNER = '// ---- #B464 - module-scope helpers for the post-execute Inspecto
 
 /** Strip block comments and full-line `//` comments (negative pins only; every use pairs with an anti-vacuity control). */
 function stripComments(s) {
-    return s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/[^\n]*/mg, '');
+    return commentStrip.lines(s);
 }
 
 /** Count non-overlapping occurrences of a literal. */

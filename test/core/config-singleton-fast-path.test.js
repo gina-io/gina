@@ -34,6 +34,7 @@ var fs     = require('fs');
 var path   = require('path');
 
 var FW         = require('../fw');
+var commentStrip = require('../strip-comments');
 var ROUTER_SRC = process.env.GINA_ROUTER_SRC || path.join(FW, 'core/router.js');
 var SERVER_SRC = process.env.GINA_SERVER_SRC || path.join(FW, 'core/server.js');
 
@@ -42,9 +43,7 @@ var HV_DECL  = 'var hasViews = function(bundle) {';
 var LBC_DECL = 'var loadBundleConfiguration = function(req, res, next, callback) {';
 
 function strip(src) {
-    return src.replace(/\/\*[\s\S]*?\*\//g, '').split('\n').filter(function (l) {
-        return !/^\s*\/\//.test(l);
-    }).join('\n');
+    return commentStrip.lines(src);
 }
 function count(hay, needle) { return hay.split(needle).length - 1; }
 

@@ -20,12 +20,14 @@
  * Suites:
  *  01 — the instrument and the controls (hold before and after the fix)
  *  02 — the fix: req.params on a DELETE route with regex requirements (fix-sensitive)
- *  03 — GET parity: an unbound placeholder stays out of req.params (fix-sensitive on the bound one)
+ *  03 — GET parity: a regex requirement on an unbound placeholder does not make the route match (#B1155)
  *  04 — source pin (comment-stripped, fix-sensitive)
  *  05 — dist pin: the unminified browser bundle carries the write (lib/routing is bundled)
  *
  * Red-first: run with `B955_FW` pointing at the tree before this fix — suites 02, 03.1, 04.2 and 05
- * red, the others green.
+ * red, the others green. Since #B1149 suites 04 and 05 read the write keyed by `_key`, so on a tree
+ * before #B1149 they are red as well, 04.1 included. Since #B1155 suite 03 pins that the route does
+ * not match, so on a tree before #B1155 03.1 and 03.2 are red as well.
  */
 var { describe, it } = require('node:test');
 var assert = require('node:assert/strict');
@@ -61,6 +63,7 @@ var TABLE = {
 setContext('isProxyHost', false);
 setContext('gina', { config: { env: 'dev', bundle: 'b', getRouting: function () { return TABLE; }, envConf: {} } });
 var routing = require(path.join(FW, 'lib/routing'));
+var commentStrip = require('../strip-comments');
 
 /**
  * Match `url` against a rule the way the engine does (server.js builds this route description), with
@@ -96,7 +99,7 @@ async function match(name, url, data) {
  * @returns {string}
  */
 function stripComments(s) {
-    return s.replace(/\/\*[\s\S]*?\*\//g, '').split('\n').filter(function (l) { return !/^\s*\/\//.test(l); }).join('\n');
+    return commentStrip.lines(s);
 }
 
 /**
@@ -112,7 +115,10 @@ function count(s, needle) {
 }
 
 // The DELETE branch's write of the matched value, and the req.params write this fix adds after it.
-var BRANCH_WRITE = 'request[method][uRo[p].substring(1)] = uRe[p];';
+// Since #B1149 the write is keyed by the placeholder's name (`_key`), the key the #B956 block also
+// writes under: the needle carries the regex branch's own `++score;` line, so it stays unique.
+var BRANCH_WRITE = '++score;\n'
+                 + '                        request[method][_key] = uRe[p];';
 var PARAMS_WRITE = 'if ( hasOwn(params.param, _key) && typeof(request.params) != \'undefined\' ) {\n'
                  + '                            request.params[_key] = uRe[p];';
 
@@ -174,15 +180,14 @@ describe('02 - #B955: req.params on a DELETE route whose regex requirements cove
 
 describe('03 - #B955: a placeholder the rule does not bind in param stays out of req.params', function () {
 
-    it('03.1  the bound placeholder reaches req.params, the unbound one does not', async function () {
+    it('03.1  #B1155: a regex requirement on the unbound placeholder does not make the route match, as on GET', async function () {
         var r = await match('delunbound@b', '/u/g1/42');
-        assert.equal(r.past, true, 'the route must still match: the requirement scores the unbound placeholder');
-        assert.deepEqual(r.params, { grp: 'g1' });
+        assert.equal(r.past, false, 'the route must not match: the rule does not bind `id` in param (#B1155)');
     });
 
-    it('03.2  control: req.delete still carries both (unchanged)', async function () {
+    it('03.2  #B1155: the unbound placeholder\'s value is not written to req.delete', async function () {
         var r = await match('delunbound@b', '/u/g1/42');
-        assert.deepEqual(r.bag, { grp: 'g1', id: '42' });
+        assert.equal(r.bag.id, undefined, 'the regex arm must not write a placeholder the rule does not bind');
     });
 });
 

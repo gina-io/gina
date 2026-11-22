@@ -25,6 +25,7 @@ var path   = require('path');
 var FW    = require('../fw');
 var money = require(path.join(FW, 'lib/money/src/main.js'));
 var SRC   = require('fs').readFileSync(path.join(FW, 'lib/money/src/main.js'), 'utf8');
+var commentStrip = require('../strip-comments');
 
 
 // ─── 01 — exponent() ──────────────────────────────────────────────────────────
@@ -239,17 +240,13 @@ describe('07 - source structure: dual-publish shell, constructor-form BigInt', f
         // constructor form is a plain call every parser passes through.
         // Strip line/block comments so a doc mention can never satisfy or
         // trip the pin, then require zero digit+n literals in code.
-        var active = SRC.replace(/\/\*[\s\S]*?\*\//g, '').split('\n').filter(function(l) {
-            return !/^\s*\/\//.test(l);
-        }).join('\n');
+        var active = commentStrip.lines(SRC);
         assert.equal((active.match(/\b\d+n\b/g) || []).length, 0, 'no BigInt literals in code');
         assert.ok(/BigInt\(/.test(active), 'constructor form present (the control that the sweep sees real code)');
     });
 
     it('declares zero requires — the dependency-free property the alias relies on', function() {
-        var active = SRC.replace(/\/\*[\s\S]*?\*\//g, '').split('\n').filter(function(l) {
-            return !/^\s*\/\//.test(l) && !/^\s*\*/.test(l);
-        }).join('\n');
+        var active = commentStrip.lines(SRC);
         assert.equal((active.match(/require\(/g) || []).length, 0, 'lib/money must stay dependency-free');
     });
 });

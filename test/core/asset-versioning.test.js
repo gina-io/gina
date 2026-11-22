@@ -48,6 +48,7 @@ var assert = require('node:assert/strict');
 var fs     = require('fs');
 var path   = require('path');
 var { JSDOM } = require('jsdom');
+var commentStrip = require('../strip-comments');
 
 // Module-path seam: every source is read under FW, so one variable points the whole
 // file (pins and extracted arms) at pre-change copies.
@@ -75,9 +76,7 @@ function norm(s) {
 
 /** Block comments and whole-line `//` comments removed (the region-binding helper). */
 function active(src) {
-    return src.replace(/\/\*[\s\S]*?\*\//g, '').split('\n').filter(function (l) {
-        return !/^\s*\/\//.test(l);
-    }).join('\n');
+    return commentStrip.lines(src);
 }
 
 /** The normalised active code between two anchors, each asserted present once. */

@@ -24,6 +24,7 @@ var { describe, it } = require('node:test');
 var assert = require('node:assert/strict');
 var fs     = require('fs');
 var path   = require('path');
+var commentStrip = require('../strip-comments');
 
 var FRAMEWORK = path.resolve(require('../fw'));
 
@@ -52,8 +53,7 @@ var BINDING = /^[ \t]*(?:var|const|let)[ \t]+console[ \t]*=[ \t]*(?:lib|libRef)\
 
 function read(rel) { return fs.readFileSync(path.join(FRAMEWORK, rel), 'utf8'); }
 function stripComments(s) {
-    return s.split('\n').map(function (l) { return l.replace(/\/\/.*$/, ''); }).join('\n')
-            .replace(/\/\*[\s\S]*?\*\//g, '');
+    return commentStrip.all(s);
 }
 
 

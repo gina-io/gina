@@ -32,12 +32,13 @@ var { describe, it } = require('node:test');
 var assert = require('node:assert/strict');
 
 var FW   = require('../fw');
+var commentStrip = require('../strip-comments');
 var ROOT = path.resolve(__dirname, '../..');
 
 var SERVER_SRC = fs.readFileSync(process.env.GINA_SERVER_SRC || path.join(FW, 'core/server.js'), 'utf8');
 
 function stripComments(s) {
-    return s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/[^\n]*/mg, '');
+    return commentStrip.lines(s);
 }
 /**
  * JSONC → object: drops `//` and `/* *\/` comments outside strings, then trailing commas.

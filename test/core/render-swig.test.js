@@ -2,6 +2,7 @@ var { describe, it } = require('node:test');
 var assert = require('node:assert/strict');
 var fs = require('fs');
 var path = require('path');
+var commentStrip = require('../strip-comments');
 
 var SOURCE = path.join(require('../fw'), 'core/controller/controller.render-swig.js');
 
@@ -472,7 +473,7 @@ describe('07 - normal render exit paths: response.end() sites and guards', funct
     it('zero res.write() calls — all writes use .end(body)', function() {
         var src = getSrc();
         // Strip comments
-        var stripped = src.replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '');
+        var stripped = commentStrip.all(src);
         assert.ok(
             !/\bres\.write\(/.test(stripped),
             'expected no res.write() — all responses should use .end(body) for HTTP/2 compatibility'
@@ -703,7 +704,7 @@ describe('10 - HTTP/2 direct stream implementation (#H8)', function() {
         }
         return _jsonSrc;
     }
-    function stripComments(s) { return s.replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, ''); }
+    function stripComments(s) { return commentStrip.all(s); }
 
     // ── Commented HTTP/2 blocks exist ──────────────────────────���─────────
 
@@ -855,7 +856,7 @@ describe('11 - layout cache atomic temp+rename (race fix, 2026-05-11)', function
         var src = fs.readFileSync(SOURCE, 'utf8');
         // Strip both line and block comments before checking — the leading
         // comment of the new block describes the old rmSync pattern.
-        var stripped = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+        var stripped = commentStrip.all(src);
         assert.ok(
             !/fs\.rmSync\(\s*newLayoutFilename/.test(stripped),
             'fs.rmSync(newLayoutFilename) was reintroduced — the race fix was reverted'
@@ -1144,7 +1145,7 @@ describe('12 - function-scoped captures of per-request refs (#M1 race fix)', fun
     it('no `local.req` reads remain outside the capture line and the terminal-exit nulling', function() {
         var src = getSrc();
         // Strip comments so commented-out historical code does not match.
-        var stripped = src.replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '');
+        var stripped = commentStrip.all(src);
         var allReads = stripped.match(/local\.req\b/g) || [];
         // Allowed: `var req = local.req;` (1×) + `local.req = null;` (3×) = 4
         assert.strictEqual(
@@ -1155,7 +1156,7 @@ describe('12 - function-scoped captures of per-request refs (#M1 race fix)', fun
 
     it('no `local.res` reads remain outside the capture line and the terminal-exit nulling', function() {
         var src = getSrc();
-        var stripped = src.replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '');
+        var stripped = commentStrip.all(src);
         var allReads = stripped.match(/local\.res\b/g) || [];
         assert.strictEqual(
             allReads.length, 5,
@@ -1165,7 +1166,7 @@ describe('12 - function-scoped captures of per-request refs (#M1 race fix)', fun
 
     it('no `local.next` reads remain outside the capture line and the terminal-exit nulling', function() {
         var src = getSrc();
-        var stripped = src.replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '');
+        var stripped = commentStrip.all(src);
         var allReads = stripped.match(/local\.next\b/g) || [];
         assert.strictEqual(
             allReads.length, 4,
@@ -1258,7 +1259,7 @@ describe('13 - HTTP/2 response trailers (#H10)', function() {
     it('does not add extra stream.respond() calls — single-conditional-arg form keeps the 5-path count (section 10)', function() {
         // The trailer wiring uses stream.respond(headers, _trailers ? {...} : undefined),
         // so each path still has exactly one respond() call; section 10 pins the total at 5.
-        var stripped = src().replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '');
+        var stripped = commentStrip.all(src());
         var matches = stripped.match(/stream\.respond\(/g) || [];
         assert.strictEqual(matches.length, 5, 'expected 5 stream.respond() calls — trailers must not add respond calls');
     });
@@ -1490,7 +1491,7 @@ describe('17 - browser-session cookie: null _expires skipped, not .format()-ed (
 
     // Comment-strip so the explanatory comments above each guard (which mention
     // the historical `!= 'undefined'` wording) cannot satisfy the source pins.
-    function strip(s) { return s.replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, ''); }
+    function strip(s) { return commentStrip.all(s); }
     function swigCode()    { return strip(fs.readFileSync(SOURCE, 'utf8')); }
     function v1Code()      { return strip(fs.readFileSync(SOURCE_V1, 'utf8')); }
     function sessionCode() { return strip(fs.readFileSync(SOURCE_SESSION, 'utf8')); }
@@ -2008,9 +2009,7 @@ describe('20 - writeCache module-scope safety (prod cache-path 500 regression)',
         var start = src.indexOf('async function writeCache');
         var end = src.indexOf('module.exports');
         assert.ok(start > 0 && end > start, 'expected `async function writeCache` followed by `module.exports`');
-        return src.substring(start, end)
-            .replace(/\/\/[^\n]*/g, '')
-            .replace(/\/\*[\s\S]*?\*\//g, '');
+        return commentStrip.all(src.substring(start, end));
     }
 
     it('writeCache body never references `self` (module scope has no render()-scoped bindings)', function() {
@@ -2073,7 +2072,7 @@ describe('20 - writeCache module-scope safety (prod cache-path 500 regression)',
 describe('21 - per-request deps are function-scoped in render() (#B61 module-scope race)', function() {
     var _src = null;
     function getSrc() { return _src || (_src = fs.readFileSync(SOURCE, 'utf8')); }
-    function stripComments(s) { return s.replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, ''); }
+    function stripComments(s) { return commentStrip.all(s); }
 
     /**
      * Comment-stripped module prefix: file start → the writeCache declaration

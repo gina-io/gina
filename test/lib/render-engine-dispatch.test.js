@@ -30,6 +30,7 @@ var { describe, it } = require('node:test');
 var assert = require('node:assert/strict');
 
 var FW              = require('../fw');
+var commentStrip = require('../strip-comments');
 var CONTROLLER_SRC  = fs.readFileSync(path.join(FW, 'core/controller/controller.js'), 'utf8');
 var RENDER_NJ_SRC   = fs.readFileSync(path.join(FW, 'core/controller/controller.render-nunjucks.js'), 'utf8');
 var RENDER_SWIG_ASYNC_SRC = fs.readFileSync(path.join(FW, 'core/controller/controller.render-swig-async.js'), 'utf8');
@@ -50,9 +51,7 @@ var RENDER_V1_SRC    = fs.readFileSync(path.join(FW, 'core/controller/controller
  * @returns {string}
  */
 function stripComments(src) {
-    return src
-        .replace(/\/\*[\s\S]*?\*\//g, '')
-        .replace(/^\s*\/\/.*$/mg, '');
+    return commentStrip.lines(src);
 }
 var SCHEMA_SETTINGS = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'schema/settings.json'), 'utf8'));
 

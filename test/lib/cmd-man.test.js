@@ -27,6 +27,7 @@ var { describe, it } = require('node:test');
 var assert = require('node:assert/strict');
 
 var FW            = require('../fw');
+var commentStrip = require('../strip-comments');
 var MAN_RENDER    = path.join(FW, 'lib/cmd/man-render.js');
 var HELP_TXT      = path.join(FW, 'lib/cmd/framework/help.txt');
 var GROUPS        = ['framework', 'project', 'bundle', 'service'];
@@ -37,9 +38,7 @@ var helpTxt = fs.readFileSync(HELP_TXT, 'utf8');
 // Comment-stripped source for the "no global at module top" negative pins — the
 // JSDoc legitimately NAMES getPath / GINA_VERSION / lib.logger in prose, which
 // would trip a raw code-absence check (jsdoc.md trap).
-var srcNoComments = src
-    .replace(/\/\*[\s\S]*?\*\//g, '')
-    .replace(/(^|[^:])\/\/.*$/gm, '$1');
+var srcNoComments = commentStrip.all(src);
 
 // Require-by-path: safe because man-render.js touches no globals at module load.
 var man = require(MAN_RENDER);

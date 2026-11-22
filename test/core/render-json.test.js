@@ -2,6 +2,7 @@ var { describe, it } = require('node:test');
 var assert = require('node:assert/strict');
 var fs = require('fs');
 var path = require('path');
+var commentStrip = require('../strip-comments');
 
 var SOURCE = path.join(require('../fw'), 'core/controller/controller.render-json.js');
 
@@ -99,7 +100,7 @@ describe('01 - function-scoped captures of per-request refs (#M1 race fix)', fun
         assert.ok(fnEnd > -1, 'writeCache closing brace not found');
         var postAwaitBlock = src.substring(awaitIdx, fnEnd);
         // Strip comments
-        var stripped = postAwaitBlock.replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '');
+        var stripped = commentStrip.all(postAwaitBlock);
         assert.ok(
             !/local\.res\b/.test(stripped),
             'no `local.res` reads allowed after writeCache\'s first await — must go through the captured `res` parameter'
@@ -208,7 +209,7 @@ describe('04 - per-request deps are function-scoped; writeCache reads only its p
 
     var _src = null;
     function getSrc() { return _src || (_src = fs.readFileSync(SOURCE, 'utf8')); }
-    function stripComments(s) { return s.replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, ''); }
+    function stripComments(s) { return commentStrip.all(s); }
 
     it('module scope declares no per-request state', function() {
         var src = getSrc();

@@ -26,6 +26,7 @@ var CONTROLLER_SRC  = path.join(FW, 'core/controller/controller.js');
 var RENDER_STREAM   = path.join(FW, 'core/controller/controller.render-stream.js');
 
 var renderStream = require(RENDER_STREAM);
+var commentStrip = require('../strip-comments');
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -596,7 +597,7 @@ describe('11 - renderStream: released-response guard (#B38)', function() {
 
 describe('12 - renderStream: per-request deps are function-scoped (#B62 module-scope race)', function() {
 
-    function stripComments(s) { return s.replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, ''); }
+    function stripComments(s) { return commentStrip.all(s); }
 
     it('module scope declares no per-request state; deps are captured with `var`', function() {
         var src = fs.readFileSync(RENDER_STREAM, 'utf8');

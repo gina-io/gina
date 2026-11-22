@@ -35,6 +35,7 @@ var fs     = require('fs');
 var FW     = require('../fw');
 var SOURCE = path.join(FW, 'core/controller/controller.js');
 var merge  = require(path.join(FW, 'lib/merge'));
+var commentStrip = require('../strip-comments');
 
 var src;
 before(function () { src = fs.readFileSync(SOURCE, 'utf8'); });
@@ -120,7 +121,7 @@ function makeLive(root) {
     var set = new Function('local', 'merge', liveSetText(src) + '\n return set;')(local, merge);
     return { local: local, set: set };
 }
-function stripComments(s) { return s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, ''); }
+function stripComments(s) { return commentStrip.all(s); }
 function getPath(root, p) { var n = root; p.split('.').forEach(function (k) { n = (n == null) ? undefined : n[k]; }); return n; }
 // structuredClone keeps Date leaves and undefined-valued keys — a JSON round-trip would turn a Date into a string and poison later comparisons
 function clone(v) { return v === undefined ? undefined : structuredClone(v); }

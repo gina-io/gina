@@ -52,6 +52,7 @@ var kv           = require(path.join(FW, 'lib/kv/src/main'));
 var makeRedisKv  = require(path.join(FW, 'core/connectors/redis/lib/kv-store'));
 var makeSqliteKv = require(path.join(FW, 'core/connectors/sqlite/lib/kv-store'));
 var { makeFakeIoredis } = require('./fake-ioredis');
+var commentStrip = require('../strip-comments');
 
 var _tmpDir = null;
 var _seq    = 0;
@@ -365,7 +366,7 @@ describe('10 - sqlite backend specifics', function () {
 
     it('read-modify-write verbs run inside an IMMEDIATE transaction (multi-process atomicity)', function () {
         var src = fs.readFileSync(path.join(FW, 'core/connectors/sqlite/lib/kv-store.js'), 'utf8');
-        var code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+        var code = commentStrip.lines(src);
         assert.ok(code.indexOf("BEGIN IMMEDIATE") > -1, 'IMMEDIATE takes the write lock up front');
         ['del', 'pexpire', 'setnx', 'consume', 'incrby', 'compareDel'].forEach(function (verb) {
             var i = code.indexOf(verb + ': function');

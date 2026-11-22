@@ -30,18 +30,14 @@ var fs = require('fs');
 var path = require('path');
 
 var FW = require('../fw');
+var commentStrip = require('../strip-comments');
 var SOURCE = process.env.GINA_SERVER_SRC || path.join(FW, 'core', 'server.js');
 var SERVER = fs.readFileSync(SOURCE, 'utf8');
 
-// line comments FIRST, then block comments: a `/*` inside a `// …` line (a
-// `/_gina/*` mention) would otherwise open a phantom block comment that swallows
-// everything up to the next `*/` — measured on this very block's first draft.
+// Block comments and comment-only `//` lines out, by the exact strip (test/strip-comments.js,
+// #B1157): it lexes the source, so a `/*` inside a `//` comment or a string opens no block.
 function stripComments(src) {
-    return src
-        .split('\n')
-        .filter(function (l) { return !/^\s*\/\//.test(l); })
-        .join('\n')
-        .replace(/\/\*[\s\S]*?\*\//g, '');
+    return commentStrip.lines(src);
 }
 var SERVER_ST = stripComments(SERVER);
 

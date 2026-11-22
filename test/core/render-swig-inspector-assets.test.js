@@ -36,13 +36,14 @@ var SRC    = fs.readFileSync(SOURCE, 'utf8');
 var inlineScript    = require(path.join(FW, 'core/controller/inline-script.js'));
 var inspectorRedact = require(path.join(FW, 'lib/inspector-redact'));
 var DataHelper      = require(path.join(FW, 'helpers/data/src/main.js'));
+var commentStrip = require('../strip-comments');
 new DataHelper();
 var encodeRFC5987ValueChars = global.encodeRFC5987ValueChars;
 
 var BANNER = '// ---- #B464 - module-scope helpers for the post-execute Inspector data splice ----';
 
 function stripComments(s) {
-    return s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/[^\n]*/mg, '');
+    return commentStrip.lines(s);
 }
 function count(haystack, needle) { return haystack.split(needle).length - 1; }
 

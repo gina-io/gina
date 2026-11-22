@@ -69,39 +69,45 @@ open http://localhost:3100
 
 > **npm 12+** blocks install scripts by default, and gina's post-install bootstraps `~/.gina` and the framework dependencies. Install with `npm install -g gina@latest --allow-scripts=gina`, or allow it once for all global installs with `npm config set allow-scripts=gina --location=user`. (Not needed on npm ≤ 11.)
 
-## What's in 0.7.12
+## What's in 0.7.13
 
-> **Restart your bundles.** The browser bundle did not change (`gina.min.js`
-> is the 0.7.11 file), so `gina bundle:restart` picks the release up; no
-> rebuild is needed.
+> **Restart your bundles *and* rebuild them.** The navigation module
+> (`gina/nav`) and the route matching of `lib.routing` ship in the browser
+> bundle, so `gina.min.js` changed and `gina bundle:restart` alone leaves the
+> old client running: rebuild each consuming bundle, then restart it. If your
+> build copies `gina.min.js` into your own static files, rebuild that copy
+> before the restart.
 
-> **Read before upgrading — some changes can change an answer.** A WebSocket
-> session over HTTP/2 now resets its stream (the session closes with 1006)
-> once more than `maxPendingAutoPongs` automatic Pongs (60 by default) would
-> wait to be written, no longer answers a Ping after it has sent its Close
-> frame, and resets the stream when the peer leaves its close unanswered for
-> 5 s, so data still queued at that moment is dropped; `maxPendingAutoPongs: 0`
-> in `param.wsOptions` restores the unbounded behaviour. `ws` 8.23.0 closes a
-> connection once 60 automatic Pongs are waiting to be written. An upgrade
-> request on a path that no listener takes is answered as a plain request or
-> closed after one second. A project whose own `package.json` overrides `ws`
-> decides the version gina loads: raise that override to `^8.23.0`. The
+> **Read before upgrading — some changes can change an answer.** On a `DELETE`
+> route with `requirements`, a placeholder now matches as it does on `GET`: a
+> placeholder the route does not bind in `param` no longer matches, with or
+> without a requirement (bind it: `"id": ":id"`); a placeholder's name is its
+> letters, digits and underscores, so `/feed/:id.json` binds `id` and its
+> requirement tests the whole segment; and a segment that starts with a
+> placeholder and holds two or more matches only a request carrying its text
+> as written. A
+> WebSocket route reads `/live/:lang-code` as `request.params.lang`. Storage
+> `put()` and `writeSegment()` refuse a source stream that has already ended,
+> with an error whose code is `STORAGE_STREAM_SPENT`. The
 > [migration notes](https://gina.io/docs/migration) list every behaviour change.
 
-**A security release.** WebSocket over HTTP/2 bounds the automatic Pongs a
-session queues. In attach mode (`ioServer.integrationMode: "attach"`), a
-WebSocket request no longer stops the bundle through Isaac's upgrade listener
-or the Inspector agent's, and engine.io's WebSocket transport runs on gina's
-own `ws`. Every bundle now answers or closes an upgrade request that no
-listener takes, and gina requires `ws` 8.23.0 or later. The release also adds
-two boot warnings for route URL placeholders. Full detail in
+**A routing release.** `DELETE` routes with `requirements` and WebSocket routes
+now read placeholders as `GET` routes do; route segments that made the matcher
+answer 500, and kept later rules from being tried, are read normally; the
+navigation module matches routes as the server
+does. On Node.js 22.21.0, an HTTP/1.1 request carrying `Upgrade` headers no
+longer stops an `https` HTTP/2 bundle, and storage refuses a spent source
+stream instead of storing an empty object. Full detail in
 [CHANGELOG.md](./CHANGELOG.md).
 
-- **Security — WebSocket over HTTP/2: automatic Pongs (#B1139).** For `app.onWebSocket()` and `method: "ws"` routes, a session now answers at most `maxPendingAutoPongs` Pings automatically (60 by default) while earlier Pongs are still waiting to be written, and resets the stream past that: the session closes with 1006. Before, a client that sent Ping frames and did not read the Pongs made the session queue every Pong, so memory grew until the process ran out of it. A session also no longer answers a Ping after it has sent its Close frame, and a close the peer leaves unanswered for the close timeout (5 s) now resets the stream instead of half-closing it. `param.wsOptions` (and `onWebSocket()`'s third argument) accepts `maxPendingAutoPongs`; `0` restores the unbounded behaviour. Only bundles serving WebSocket routes on Isaac with `http2Options.enableConnectProtocol: true` were affected.
-- **Security — upgrades in attach mode (#B1140).** In a bundle whose `settings.json` sets `ioServer.integrationMode` to `"attach"`, Isaac's own upgrade listener no longer hands engine.io an upgrade on engine.io's own path, nor any upgrade when the websocket transport is disabled, and it drops the socket if engine.io throws; the Inspector agent's upgrade listener likewise drops a socket that another listener has already upgraded. Before, a WebSocket request could throw inside one of these listeners and stop the bundle. Upgrades on other paths reach engine.io as before. Only bundles in attach mode were affected.
-- **Security — an upgrade request that no listener takes (#B1141).** The Inspector agent's upgrade listener (`/_gina/agent`) is attached to every bundle's server, so Node.js accepted every HTTP upgrade request, and an upgrade on any other path that no listener took was left open. Such a request is now answered as a plain request (Node.js 22.21 and later, 24.9 and later, when no other upgrade listener is attached) or closed after one second, as engine.io closes an upgrade nobody answered; on Bun, when another upgrade listener is attached, it is left to that listener.
-- **Security — `ws` 8.23.0 (#S24, #S25).** Gina requires `ws` `^8.23.0` in both manifests: up to 8.22.0, a peer that sent Ping frames and stopped reading made `ws` queue an automatic Pong for each one until the process ran out of memory (ws's advisory GHSA-37g9-w4hg-h9qr). A bundle in attach mode now runs engine.io's WebSocket transport on gina's own `ws`, unless its `ioServer` block names a `wsEngine`: engine.io pins a `ws` range below 8.23.0 in every 6.6.x release. A project whose own `package.json` overrides `ws` decides the version gina loads as well: raise that override to `^8.23.0`.
-- **Added — boot warnings for route URL placeholders (#B1143, #B646).** A bundle warns once at boot about each route URL segment that holds a placeholder followed by a character other than a letter, a digit or an underscore (`"/:lang-code/home"`: gina reads the placeholder `:lang`), and about each segment that holds text before a placeholder its route binds (`"/articles/page:number"`: the placeholder takes the whole segment, so the route also matches `/articles/42`). Name each placeholder with letters, digits and underscores (`:lang_code`) and put fixed text in a segment of its own (`/articles/page/:number`); nothing is rewritten. The routing guide said such a route reads `3` from `/articles/page3`, which never held: it is corrected.
+- **Changed — `DELETE` routes with `requirements` (#B1144, #B1149, #B1155, #B692).** Up to 0.7.12 such a route could answer where its `GET` twin answers 404: a placeholder the route did not bind reached `req.delete` (with or without a regular-expression requirement), `/feed/:id.json` bound `id.json` and skipped its requirement, and `/range/:from-:to` matched any non-empty segment. It now matches as on `GET`: bind each placeholder in `param` (`"id": ":id"`), read `req.params.id`, and give each placeholder a segment of its own (`/range/:from/:to`).
+- **Changed — WebSocket placeholder names (#B1151).** A WebSocket route reads a placeholder's name as an HTTP route does: `/live/:lang-code` exposes `request.params.lang`, holding the whole segment, instead of `request.params['lang-code']`.
+- **Fixed — route segments that answered 500 (#B1146, #B1148, #B692, #B1154).** A segment holding a `:` with no name after it (`/t/12:`), a segment that is not a valid regular expression (`/r/:id)`), and a two-placeholder segment of a route with `requirements` reached by a request carrying a `%`-escape no longer answer 500 « Rule [ … ] needs your attention », and no longer keep later rules from being tried. A matcher that throws answers the request once.
+- **Fixed — client navigation (#B1150, #B1156).** The navigation module reads placeholder names as the server does, and a route it cannot match exactly (`/page:number`, `/:lang-code`) now stops its scan when the server could answer the link from it: such links navigate normally, and `gina.nav.matchUrl()` answers `null` for them.
+- **Fixed — `validator::` requirements and `getRoute()` (#B1153, #B1152).** A `validator::` requirement that the route does not bind reads placeholder names in any letter case (`:userId`), and `getRoute()` no longer takes a `host:port/` value for an unfilled placeholder.
+- **Fixed — Node.js 22.21.0 (#B1147).** On that release, an HTTP/1.1 request carrying `Upgrade` headers to an `https` HTTP/2 bundle threw inside Node.js's parser and stopped the bundle (nodejs/node#60336, fixed in Node.js 22.21.1). gina now gives such a server Node.js 22.21.1's own callback at `listen()`; other Node.js releases and Bun are unchanged.
+- **Fixed — storage and spent streams (#B1060).** `put()` and `writeSegment()` refuse a source stream that has already ended or been destroyed, before anything opens. Handed such a stream (most often an action's `req`, whose body gina has already read), `put()` stored an empty object and reported success.
+- **Added — a boot warning for a segment holding two or more placeholders (#B692).** A bundle warns once at boot about each route URL segment that holds two or more placeholders (`/range/:from-:to`), whatever the route's method: gina never matches such a segment against a value. Nothing is rewritten.
 
 ## Documentation
 

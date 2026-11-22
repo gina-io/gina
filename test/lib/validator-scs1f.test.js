@@ -5,6 +5,7 @@ var { describe, it } = require('node:test');
 var assert = require('node:assert/strict');
 
 var FW       = require('../fw');
+var commentStrip = require('../strip-comments');
 var MAIN_SRC = fs.readFileSync(path.join(FW, 'core/plugins/lib/validator/src/main.js'), 'utf8');
 
 // --- Test-local replicas of the two primitives shipped at #M20. ---
@@ -239,9 +240,7 @@ describe('03 — makeObjectFromArgs end-to-end parity (#M20)', function () {
 describe('04 — #M20 / #SCS1f source-inspection guards', function () {
 
     var stripComments = function (src) {
-        return src
-            .replace(/\/\*[\s\S]*?\*\//g, '')   // block comments
-            .replace(/^\s*\/\/.*$/gm, '');      // line comments
+        return commentStrip.lines(src);
     };
 
     it('main.js: zero `eval(root +` calls remain in live code', function () {

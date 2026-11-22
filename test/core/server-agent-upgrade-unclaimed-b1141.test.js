@@ -31,13 +31,18 @@
  * `attachInspectorAgentWs` is compiled from core/server.js's real bytes with
  * every identifier it reads handed in (a `new Function` captures no closure),
  * and attached to real `http`, `https` and `http2` secure (`allowHTTP1`)
- * servers on loopback. The TLS servers use a throwaway certificate made with
- * `openssl`; without `openssl` their arms are skipped. An arm whose outcome
- * depends on `shouldUpgradeCallback` reads whether a fresh server of that kind
- * has the property on this runtime and expects the plain answer where it has
- * it, the close after 1 s where it has not; no arm is skipped for it.
+ * servers on loopback, after `ensureUpgradeCallback` (#B1147), compiled the
+ * same way, as listen() runs them. The TLS servers use a throwaway certificate
+ * made with `openssl`; without `openssl` their arms are skipped. An arm whose
+ * outcome depends on `shouldUpgradeCallback` reads whether a fresh server of
+ * that kind has the property on this runtime, or, for an http2 secure server
+ * on Node.js 22.21.0 (which lacks it while its HTTP/1.1 fallback calls it),
+ * gets #B1147's default, and expects the plain answer where it has it, the
+ * close after 1 s where it has not; no arm is skipped for it.
  *
- * Seams: GINA_SERVER_SRC=<absolute file> reads the function from that text,
+ * Seams: GINA_SERVER_SRC=<absolute file> reads the functions from that text
+ * (on bytes before #B1147, which have no `ensureUpgradeCallback`, the default
+ * is not run),
  * and GINA_ISAAC_SRC=<absolute file> reads Isaac's statements from that text
  * (red-first against the previous bytes); modules always resolve from this
  * tree's core/, as they do in production.
@@ -64,6 +69,7 @@ var ISAAC_SRC = fs.readFileSync(ISAAC_SOURCE, 'utf8');
 var isaacRequire = Module.createRequire(path.join(FW, 'core/server.isaac.js'));
 var WS = serverRequire('ws');
 var AGENT_FN = 'function attachInspectorAgentWs(rawServer, ctx) {';
+var HELPER_FN = 'function ensureUpgradeCallback(rawServer) {';
 var quiet = { debug: function() {}, info: function() {}, warn: function() {}, log: function() {}, error: function() {} };
 var UPGRADE_101 = 'HTTP/1.1 101 Switching Protocols\r\nUpgrade: x\r\nConnection: Upgrade\r\n\r\n';
 // The runtime the arms that attach another upgrade listener branch on (the same key as utils/runtime).
@@ -107,6 +113,23 @@ function agentAttach() {
 }
 
 /**
+ * #B1147 — the default that listen() assigns where a server lacks
+ * `shouldUpgradeCallback` (`ensureUpgradeCallback`), compiled from
+ * core/server.js's real bytes (it reads only `process`); null when the text
+ * under test has no such function (the GINA_SERVER_SRC seam on older bytes).
+ *
+ * @returns {function|null} ensureUpgradeCallback(rawServer)
+ */
+function upgradeDefault() {
+    var a = SERVER_SRC.indexOf(HELPER_FN);
+    if (a < 0) { return null; }
+    assert.ok(SERVER_SRC.indexOf(HELPER_FN, a + 1) < 0, 'the helper is found once');
+    var b = SERVER_SRC.indexOf('\n}\n', a);
+    assert.ok(b > a, 'the helper closes');
+    return new Function('process', SERVER_SRC.slice(a, b + 2) + '\nreturn ensureUpgradeCallback;')(process);
+}
+
+/**
  * The bundle's request handler: a plain answer that closes its connection.
  *
  * @param {object} req
@@ -132,24 +155,34 @@ function createServer(kind) {
 }
 
 /**
- * Whether a server of this kind has `shouldUpgradeCallback` on this runtime,
- * read on a fresh server before anything assigns it.
+ * Whether a server of this kind consults a `shouldUpgradeCallback` once
+ * boot() has run listen()'s steps: true where a fresh server of that kind has
+ * the property on this runtime, and for an http2 secure server on Node.js
+ * 22.21.0, which lacks the property its HTTP/1.1 fallback calls: there the
+ * #B1147 default that boot() assigns is what the fallback consults (read as a
+ * fresh http server having the callback, with the helper in the text under
+ * test).
  *
  * @param {string} kind
  * @returns {boolean}
  */
 function hasUpgradeCallback(kind) {
     var s = createServer(kind);
-    return !!s && typeof s.shouldUpgradeCallback === 'function';
+    if (!s) { return false; }
+    if (typeof s.shouldUpgradeCallback === 'function') { return true; }
+    // #B1147 — Node.js 22.21.0's http2 secure server lacks the property its
+    // HTTP/1.1 fallback calls; boot() runs listen()'s ensureUpgradeCallback.
+    return kind === 'h2s' && !IS_BUN && upgradeDefault() !== null && hasUpgradeCallback('http');
 }
 
 /**
- * Starts a server on loopback with the agent's listener attached, as server.js
- * attaches it at listen().
+ * Starts a server on loopback with gina's listen() steps, as server.js runs
+ * them: the #B1147 default (`ensureUpgradeCallback`, when the text under test
+ * has it), then the agent's listener.
  *
  * @param {string} kind - 'http', 'https' or 'h2s'
  * @param {object} [opts]
- * @param {boolean} [opts.agent=true] - attach the agent's listener
+ * @param {boolean} [opts.agent=true] - run gina's listen() steps (the #B1147 default, then the agent's listener)
  * @param {function} [opts.setup] - called with the server before the agent's listener is attached
  * @returns {Promise<{server: object, port: number, conns: Set}>}
  */
@@ -164,7 +197,12 @@ function boot(kind, opts) {
     return new Promise(function(resolve) {
         server.listen(0, '127.0.0.1', function() {
             rec.port = server.address().port;
-            if (opts.agent !== false) { agentAttach()(server, { instance: {}, appName: 'demo', env: 'prod' }); }
+            if (opts.agent !== false) {
+                // As listen() runs them: the #B1147 default first, then the agent's attach.
+                var ensure = upgradeDefault();
+                if (ensure) { ensure(server); }
+                agentAttach()(server, { instance: {}, appName: 'demo', env: 'prod' });
+            }
             resolve(rec);
         });
     });

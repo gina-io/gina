@@ -31,6 +31,7 @@ var os   = require('os');
 var path = require('path');
 
 var FW        = require('../fw');
+var commentStrip = require('../strip-comments');
 var ADD_PATH  = path.join(FW, 'lib/cmd/project/add.js');
 var SRC       = fs.readFileSync(ADD_PATH, 'utf8');
 var TEMPLATE  = path.join(FW, 'core/template/_gitignore');
@@ -40,11 +41,7 @@ var cgIdx = SRC.indexOf('var createGitignoreFile = function');
 var CG    = (cgIdx > -1) ? SRC.slice(cgIdx, SRC.indexOf('\n    }', cgIdx) + 6) : '';
 
 function stripComments(src) {
-    return src
-        .replace(/\/\*[\s\S]*?\*\//g, '')
-        .split('\n')
-        .map(function (line) { return line.replace(/^\s*\/\/.*$/, ''); })
-        .join('\n');
+    return commentStrip.lines(src);
 }
 
 /**

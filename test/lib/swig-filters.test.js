@@ -22,14 +22,13 @@ var { describe, it } = require('node:test');
 var assert = require('node:assert/strict');
 
 var FW     = require('../fw');
+var commentStrip = require('../strip-comments');
 var SF_SRC = fs.readFileSync(path.join(FW, 'lib/swig-filters/src/main.js'), 'utf8');
 
 // Strip line comments so the patch-comment mention of `typeof(input.count)`
 // doesn't trip the negative-invariant search inside self.length.
 function stripComments(src) {
-    return src
-        .replace(/\/\*[\s\S]*?\*\//g, '')
-        .replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+    return commentStrip.all(src);
 }
 var SF_CODE = stripComments(SF_SRC);
 

@@ -9,6 +9,7 @@ var { describe, it, before } = require('node:test');
 var assert = require('node:assert/strict');
 var path   = require('path');
 var fs     = require('fs');
+var commentStrip = require('../strip-comments');
 
 var SOURCE = path.join(require('../fw'), 'core/server.js');
 
@@ -355,11 +356,7 @@ describe('09 - dir→index normalizer: unconditional 301, dev-gated no-cache set
     // Strips /* */ blocks and // line comments so negative pins don't trip on
     // the explanatory comments kept next to the code.
     function stripComments(s) {
-        return s
-            .replace(/\/\*[\s\S]*?\*\//g, '')
-            .split('\n')
-            .map(function(line) { return line.replace(/\/\/.*$/, ''); })
-            .join('\n');
+        return commentStrip.all(s);
     }
 
     before(function() {

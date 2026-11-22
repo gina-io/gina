@@ -59,6 +59,7 @@ var PRISTINE = JSON.stringify(TABLE);
 setContext('isProxyHost', false);
 setContext('gina', { config: { env: 'dev', bundle: 'b', getRouting: function () { return TABLE; }, envConf: {} } });
 var routing = require(path.join(FW, 'lib/routing'));
+var commentStrip = require('../strip-comments');
 
 // Every replacement pattern String.prototype.replace knows, plus a numbered group reference.
 var DOLLAR_VALUES = ['$`', '$&', "$'", 'a$1b', '$$', '$<n>'];
@@ -92,7 +93,7 @@ async function match(name, value) {
  * @returns {string}
  */
 function stripComments(s) {
-    return s.replace(/\/\*[\s\S]*?\*\//g, '').split('\n').filter(function (l) { return !/^\s*\/\//.test(l); }).join('\n');
+    return commentStrip.lines(s);
 }
 
 /**

@@ -5,6 +5,7 @@ var { describe, it } = require('node:test');
 var assert = require('node:assert/strict');
 
 var FW       = require('../fw');
+var commentStrip = require('../strip-comments');
 var FORM_VAL_SRC = fs.readFileSync(path.join(FW, 'core/plugins/lib/validator/src/form-validator.js'), 'utf8');
 
 // --- Test-local replica of the post-#M21b code shape (the else branch in the
@@ -30,9 +31,7 @@ var evaluateConditionElseBranch = function (condition, value) {
 };
 
 var stripComments = function (src) {
-    return src
-        .replace(/\/\*[\s\S]*?\*\//g, '')
-        .replace(/^\s*\/\/.*$/gm, '');
+    return commentStrip.lines(src);
 };
 
 

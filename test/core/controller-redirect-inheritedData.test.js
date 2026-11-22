@@ -2,6 +2,7 @@ var { describe, it } = require('node:test');
 var assert = require('node:assert/strict');
 var fs = require('fs');
 var path = require('path');
+var commentStrip = require('../strip-comments');
 
 var SOURCE = path.join(require('../fw'), 'core/controller/controller.js');
 var SRC = fs.readFileSync(SOURCE, 'utf8');
@@ -15,11 +16,7 @@ require(path.join(__dirname, '../../utils/prototypes'));
 // URL literal — is left alone), so a negative can never be satisfied vacuously
 // by a comment mention nor tripped by one.
 function stripComments(src) {
-    return src
-        .replace(/\/\*[\s\S]*?\*\//g, '')
-        .split('\n')
-        .filter(function (l) { return !/^\s*\/\//.test(l); })
-        .join('\n');
+    return commentStrip.lines(src);
 }
 var CODE = stripComments(SRC);
 

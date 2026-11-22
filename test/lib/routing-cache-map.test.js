@@ -29,6 +29,7 @@ var Module       = require('module');
 var childProcess = require('child_process');
 
 var FW = require('../fw');
+var commentStrip = require('../strip-comments');
 
 var ROUTING_SRC = path.join(FW, 'lib/routing/src/main.js');
 var SERVER_SRC  = path.join(FW, 'core/server.js');
@@ -73,7 +74,7 @@ function mkReq(pathname) {
 }
 
 function stripComments(s) {
-    return s.replace(/\/\*[\s\S]*?\*\//g, '').split('\n').filter(function (l) { return !/^\s*\/\//.test(l); }).join('\n');
+    return commentStrip.lines(s);
 }
 
 // ─── 01 — the contract ───────────────────────────────────────────────────────

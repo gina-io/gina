@@ -37,6 +37,7 @@ var nodePath = require('node:path');
 
 var ROOT    = nodePath.join(__dirname, '..', '..');
 var VERSION = require(nodePath.join(ROOT, 'package.json')).version;
+var commentStrip = require('../strip-comments');
 var KV_DIR  = nodePath.join(ROOT, 'framework', 'v' + VERSION, 'lib', 'kv');
 
 /**
@@ -128,7 +129,7 @@ describe('02 - lib/kv imports no gina core, registry, or injected global', funct
             // Strip block and line comments: the module docs legitimately NAME
             // the forbidden constructs to explain why they are avoided, and a
             // pin that trips on its own documentation is the own-JSDoc trap.
-            var code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+            var code = commentStrip.lines(src);
             var lines = code.split('\n');
             for (var l = 0; l < lines.length; l++) {
                 for (var r = 0; r < FORBIDDEN.length; r++) {
@@ -156,7 +157,7 @@ describe('02 - lib/kv imports no gina core, registry, or injected global', funct
         var frameworkImport = /require\s*\(\s*['"](?:\.\.\/)+(?!\.\.)[^'"]*['"]\s*\)/;
         var importers = files.filter(function (f) {
             var src  = fs.readFileSync(f, 'utf8');
-            var code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+            var code = commentStrip.lines(src);
             return frameworkImport.test(code);
         }).map(function (f) { return nodePath.basename(f); });
         assert.deepEqual(importers, [],

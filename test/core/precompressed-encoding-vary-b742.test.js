@@ -46,6 +46,7 @@ var { describe, it } = require('node:test');
 var assert = require('node:assert/strict');
 var fs     = require('fs');
 var path   = require('path');
+var commentStrip = require('../strip-comments');
 
 // Module-path seam: every source is read under FW, so one variable points the whole file at
 // pre-change copies.
@@ -67,9 +68,7 @@ function norm(s) {
 
 /** Block comments and whole-line `//` comments removed. */
 function active(src) {
-    return src.replace(/\/\*[\s\S]*?\*\//g, '').split('\n').filter(function (l) {
-        return !/^\s*\/\//.test(l);
-    }).join('\n');
+    return commentStrip.lines(src);
 }
 
 /** The normalised active code between two anchors, the start asserted present once. */
