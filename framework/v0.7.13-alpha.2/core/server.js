@@ -924,6 +924,46 @@ function watchBindOutcome(rawServer, port) {
 }
 
 /**
+ * #B1147 — Gives a raw server the `shouldUpgradeCallback` that Node.js 22.21.0's
+ * `http2` secure server lacks. That release's HTTP layer calls
+ * `server.shouldUpgradeCallback(req)` for every HTTP/1.1 request carrying upgrade
+ * headers, but its `http2` secure server with `allowHTTP1` (the HTTP/1.1 fallback
+ * of an `https` HTTP/2 bundle, on Isaac and on Express) never defines it, so such
+ * a request threw `TypeError: server.shouldUpgradeCallback is not a function`
+ * inside Node's parser, an error lib/proc.js's `uncaughtException` handler
+ * answers by stopping the bundle (nodejs/node#60336, fixed in Node.js 22.21.1).
+ * Where the property is missing, this assigns Node.js 22.21.1's own default: the
+ * request becomes an upgrade only when an `upgrade` listener exists.
+ * `attachInspectorAgentWs`, called right after it, then wraps it as on every
+ * other release.
+ *
+ * A callback already there (the runtime's own from Node.js 22.21.1 and 24.9, or
+ * one the application set) is left as it is. Where Node.js never reads the
+ * property (releases before the callback existed, `http2` servers without the
+ * HTTP/1.1 fallback) the assignment changes nothing. On Bun it assigns nothing:
+ * Bun's `http2` fallback consults an assigned property, and Bun keeps its own
+ * behaviour.
+ *
+ * @inner
+ * @private
+ * @param {http.Server|https.Server|http2.Http2Server} rawServer - the raw server returned by listen()
+ * @returns {boolean} true when the default was assigned
+ * @example
+ * // At listen(), before the agent's attach:
+ * ensureUpgradeCallback(process.server);
+ * attachInspectorAgentWs(process.server, self);
+ */
+function ensureUpgradeCallback(rawServer) {
+    if (!rawServer || typeof rawServer.listenerCount !== 'function') { return false; }
+    if (process.versions && process.versions.bun) { return false; }
+    if (typeof rawServer.shouldUpgradeCallback === 'function') { return false; }
+    rawServer.shouldUpgradeCallback = function() {
+        return this.listenerCount('upgrade') > 0;
+    };
+    return true;
+}
+
+/**
  * #INS8 — Attach the authenticated WebSocket transport for `/_gina/agent` to
  * the raw HTTP server. The standalone Inspector (services/src/inspector on
  * :4101) can connect over a WebSocket as an alternative to the SSE channel —
@@ -7579,6 +7619,11 @@ function Server(options) {
         // #B851 — until the server listens, a bind error ends the boot with exit 1 (it used to be
         // logged, or uncaught on express, and the boot went on as if it listened).
         watchBindOutcome(process.server, self.conf[self.appName][self.env].server.port);
+
+        // #B1147 — first, the `shouldUpgradeCallback` that Node.js 22.21.0's http2
+        // secure server lacks while its HTTP/1.1 fallback calls it; a server that
+        // has one keeps it.
+        ensureUpgradeCallback(process.server);
 
         // #INS8 — attach the authenticated WebSocket transport for /_gina/agent
         // to the raw server. Covers both the isaac and express engines (server.js
