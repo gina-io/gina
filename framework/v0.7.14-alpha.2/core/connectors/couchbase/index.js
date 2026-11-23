@@ -45,6 +45,8 @@ function Couchbase(conn, infos) {
      * Walk a Couchbase N1QL query plan tree and extract index names.
      * Accepts either a `meta.profile` object (with `executionTimings`) or
      * a bare EXPLAIN plan object (the first row of an EXPLAIN result).
+     * The EXPLAIN fallback reaches it through `extractExplainIndexes`, which
+     * also walks the subquery plans listed beside the plan (#B1161).
      *
      * Detects three operator types:
      * - `IndexScan3` — secondary index access (green badge)
@@ -114,6 +116,93 @@ function Couchbase(conn, infos) {
         };
         walk(root);
         return results;
+    };
+
+    /**
+     * Index usage of a whole EXPLAIN row (#B1161). Couchbase plans some
+     * subqueries apart (a `LET` or `WITH` subquery, a correlated subquery, a
+     * nested one) and lists each plan under `~subqueries`, a sibling of
+     * `plan` in the row. Measured on Couchbase 8.0.2, every entry reads
+     * `{ correlated, plan, subquery }` and nested subqueries are listed flat;
+     * a FROM-clause subquery is inlined in `plan` instead. `extractIndexes`
+     * walks one plan tree, so a statement whose reads all sat in such
+     * subqueries came back `[]`, which the Inspector renders as a full
+     * bucket scan. This merges every subquery plan's indexes into the
+     * statement plan's, each name once.
+     *
+     * A plan that reads no keyspace at all, such as `SELECT 1` (DummyScan) or
+     * an `INSERT … VALUES` (ValueScan + SendInsert), reports the pseudo-entry
+     * `no keyspace read` instead of `[]`, the way `USE KEYS` reports
+     * `KV lookup (USE KEYS)`. The test is conservative: every operator in the
+     * row must belong to the no-read set measured on 8.0.2, with a DummyScan
+     * or ValueScan present. Any other operator (a scan, a fetch, a join, an
+     * operator another server version uses) keeps the plain `[]`.
+     *
+     * The `meta.profile` path keeps calling `extractIndexes` directly: a
+     * Community Edition 8.0.2 server returns no `profile` member for a
+     * `profile=timings` request, so a profile's subquery shape is unmeasured.
+     *
+     * @inner
+     * @param {object} row - The first row of an EXPLAIN result: `{ plan, text, ~subqueries }`
+     * @returns {Array<{name: string, primary: boolean}>|null} The merged index descriptors
+     *          (`[]` when the plan reads a keyspace without an index), or null when the row
+     *          is unusable (the N/A badge)
+     * @example
+     *   extractExplainIndexes({
+     *       plan          : { '#operator': 'Sequence', '~children': [ { '#operator': 'DummyScan' } ] },
+     *       '~subqueries' : [ { correlated: false, plan: { '#operator': 'IndexScan3', index: 'idx_a' } } ]
+     *   });
+     *   // [ { name: 'idx_a', primary: false } ]
+     *
+     *   extractExplainIndexes({ plan: { '#operator': 'Sequence', '~children': [ { '#operator': 'DummyScan' } ] } });
+     *   // [ { name: 'no keyspace read', primary: false } ]
+     */
+    var extractExplainIndexes = function(row) {
+        if (!row || typeof(row) !== 'object') return null;
+        var indexes = extractIndexes(row.plan || row);
+        if (!indexes) return indexes;
+
+        // #B1161: merge each subquery plan's indexes, each name once
+        var seen = Object.create(null);
+        var i = 0, j = 0;
+        for (i = 0; i < indexes.length; i++) seen[indexes[i].name] = true;
+        var subqueries = Array.isArray(row['~subqueries']) ? row['~subqueries'] : [];
+        for (i = 0; i < subqueries.length; i++) {
+            var entry      = subqueries[i];
+            var subIndexes = (entry && typeof(entry) === 'object') ? extractIndexes(entry.plan) : null;
+            if (!subIndexes) continue;
+            for (j = 0; j < subIndexes.length; j++) {
+                if (!seen[subIndexes[j].name]) {
+                    seen[subIndexes[j].name] = true;
+                    indexes.push(subIndexes[j]);
+                }
+            }
+        }
+        if (indexes.length > 0) return indexes;
+
+        // #B1161: a plan made only of the no-read operators measured on 8.0.2
+        var noRead = [
+            'Sequence', 'Parallel', 'DummyScan', 'ValueScan', 'InitialProject',
+            'Let', 'With', 'Alias', 'Filter', 'Limit', 'SendInsert'
+        ];
+        var hasOwn = Object.prototype.hasOwnProperty;
+        var source = false;
+        var onlyNoRead = function(node) {
+            if (!node || typeof(node) !== 'object') return true;
+            var op = node['#operator'];
+            if (typeof(op) === 'string') {
+                if (noRead.indexOf(op) < 0) return false;
+                if (op === 'DummyScan' || op === 'ValueScan') source = true;
+            }
+            for (var key in node) {
+                if (hasOwn.call(node, key) && !onlyNoRead(node[key])) return false;
+            }
+            return true;
+        };
+        if (onlyNoRead(row) && source) {
+            indexes.push({ name: 'no keyspace read', primary: false });
+        }
+        return indexes;
     };
 
     /**
@@ -356,6 +445,8 @@ function Couchbase(conn, infos) {
      * Runs EXPLAIN on a N1QL statement asynchronously and caches the
      * extracted indexes. Patches `queryEntry.indexes` in-place once
      * the EXPLAIN result is available.
+     * The whole first row goes to `extractExplainIndexes`, so the indexes of
+     * the subquery plans listed beside the plan count too (#B1161).
      *
      * @param {object} conn - The Couchbase connection object. May have `_cluster`
      *   directly (entity query path) or nested at `_scope._bucket._cluster` (bulk insert path).
@@ -387,8 +478,8 @@ function Couchbase(conn, infos) {
         try {
             cluster.query('EXPLAIN ' + statement, explainOpts)
                 .then(function(data) {
-                    var plan = (data && data.rows && data.rows[0]) ? data.rows[0].plan || data.rows[0] : null;
-                    var indexes = extractIndexes(plan);
+                    // #B1161: the whole row, since subquery plans sit beside `plan`
+                    var indexes = extractExplainIndexes((data && data.rows && data.rows[0]) ? data.rows[0] : null);
                     _explainCache.set(statement, indexes);
                     // Patch the current query entry in-place (it's already in _devLog)
                     queryEntry.indexes = indexes;

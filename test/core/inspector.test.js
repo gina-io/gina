@@ -10696,3 +10696,199 @@ describe('91 - Forms tab bundle-catalog demotion (#B343)', function() {
     });
 
 });
+
+
+// ── 92 — extractExplainIndexes: ~subqueries plans + no-keyspace-read plans (#B1161) ──
+
+describe('92 - extractExplainIndexes: subquery plans listed beside the plan merge in; a no-read plan reports "no keyspace read" (#B1161)', function() {
+
+    // Same extraction pattern as §30/§82: pull the REAL functions out of the
+    // connector source by brace-counting and eval them, so no replica can drift.
+    // extractExplainIndexes calls extractIndexes, so both are evaluated here.
+    var extractIndexes, extractExplainIndexes;
+    var helperSrc = '', explainFnSrc = '';
+    function sliceFn(src, head) {
+        var start = src.indexOf(head);
+        if (start < 0) return '';
+        var depth = 0;
+        for (var i = src.indexOf('{', start); i < src.length; i++) {
+            if (src[i] === '{') depth++;
+            if (src[i] === '}') { depth--; if (depth === 0) return src.substring(start, i + 1); }
+        }
+        return '';
+    }
+    try {
+        var src = fs.readFileSync(path.join(FW, 'core/connectors/couchbase/index.js'), 'utf8');
+        eval(sliceFn(src, 'var extractIndexes = function(profile)'));   // defines extractIndexes in this scope
+        helperSrc = sliceFn(src, 'var extractExplainIndexes = function(row)');
+        if (helperSrc) eval(helperSrc);                                    // defines extractExplainIndexes
+        explainFnSrc = sliceFn(src, 'var explainForIndexes = function');
+    } catch (e) {
+        // extraction failure surfaces via the first assertions below
+    }
+
+    // -- fixtures: EXPLAIN shapes measured on Couchbase 8.0.2, names neutralized --
+    function idxScan(name) {
+        return { '#operator': 'IndexScan3', index: name, keyspace: 'sample', namespace: 'default', using: 'gsi' };
+    }
+    // a subquery plan with a LIMIT: Sequence[ Sequence[ scan, Parallel[Filter, InitialProject] ], Limit ]
+    function limited(scanNode) {
+        return { '#operator': 'Sequence', '~children': [
+            { '#operator': 'Sequence', '~children': [
+                scanNode,
+                { '#operator': 'Parallel', '~child': { '#operator': 'Sequence', '~children': [
+                    { '#operator': 'Filter' }, { '#operator': 'InitialProject', result_terms: [ { expr: 'x' } ] }
+                ] } }
+            ] },
+            { '#operator': 'Limit', expr: '1' }
+        ] };
+    }
+    // USE KEYS: KeyScan + Fetch
+    function keyLookup() {
+        return { '#operator': 'Sequence', '~children': [
+            { '#operator': 'KeyScan', keys: '(meta(`t`).`id`)' },
+            { '#operator': 'Fetch', keyspace: 'sample', namespace: 'default', as: 'u' },
+            { '#operator': 'Parallel', '~child': { '#operator': 'Sequence', '~children': [ { '#operator': 'InitialProject' } ] } }
+        ] };
+    }
+    // a statement that reads nothing itself: DummyScan + Parallel[ (Let), InitialProject ]
+    function dummyMain(withLet) {
+        var inner = [];
+        if (withLet) inner.push({ '#operator': 'Let', bindings: [ { expr: '(select raw ...)', 'var': 'a' } ] });
+        inner.push({ '#operator': 'InitialProject', discard_original: true, preserve_order: true, result_terms: [ { as: 'x', expr: '(`a`[0])' } ] });
+        return { '#operator': 'Sequence', '~children': [
+            { '#operator': 'DummyScan' },
+            { '#operator': 'Parallel', maxParallelism: 1, '~child': { '#operator': 'Sequence', '~children': inner } }
+        ] };
+    }
+    function sub(plan, correlated) {
+        return { correlated: !!correlated, plan: plan, subquery: 'select raw ...' };
+    }
+    function names(result) {
+        return (result || []).map(function(ix) { return ix.name; });
+    }
+
+    it('extractExplainIndexes was extracted from the connector, with extractIndexes', function() {
+        assert.ok(typeof extractIndexes === 'function', 'extractIndexes should be extractable');
+        assert.ok(helperSrc.length > 0, 'expected var extractExplainIndexes = function(row) in the couchbase connector');
+        assert.ok(typeof extractExplainIndexes === 'function', 'extractExplainIndexes should be a callable function');
+    });
+
+    // -- controls --
+    it('control: the statement plan alone of a LET-subquery row walks to [] (the reported reading)', function() {
+        var row = { plan: dummyMain(true), '~subqueries': [ sub(limited(idxScan('idx_a'))) ] };
+        assert.deepStrictEqual(extractIndexes(row.plan || row), []);
+    });
+
+    it('control: a row with no ~subqueries reports what extractIndexes reports (a FROM-clause subquery is inlined)', function() {
+        var plan = { '#operator': 'Sequence', '~children': [
+            limited(idxScan('idx_d')),
+            { '#operator': 'Alias', as: 's' },
+            { '#operator': 'Parallel', '~child': { '#operator': 'Sequence', '~children': [ { '#operator': 'InitialProject' } ] } }
+        ] };
+        assert.deepStrictEqual(extractExplainIndexes({ plan: plan, text: 'select ...' }), extractIndexes(plan));
+        assert.deepStrictEqual(names(extractExplainIndexes({ plan: plan })), ['idx_d']);
+    });
+
+    it('returns null for a missing or non-object row (the N/A badge)', function() {
+        assert.strictEqual(extractExplainIndexes(null), null);
+        assert.strictEqual(extractExplainIndexes(undefined), null);
+        assert.strictEqual(extractExplainIndexes('row'), null);
+    });
+
+    // -- discriminators: the measured subquery shapes (each read [] before the fix) --
+    it('LET subquery: the index of the plan listed under ~subqueries is reported', function() {
+        var row = { plan: dummyMain(true), text: 'SELECT ...', '~subqueries': [ sub(limited(idxScan('idx_a'))) ] };
+        assert.deepStrictEqual(extractExplainIndexes(row), [ { name: 'idx_a', primary: false } ]);
+    });
+
+    it('WITH (CTE): the CTE plan listed under ~subqueries is reported', function() {
+        var row = {
+            plan: { '#operator': 'With', '~child': dummyMain(false) },
+            '~subqueries': [ sub(limited(idxScan('idx_c'))) ]
+        };
+        assert.deepStrictEqual(names(extractExplainIndexes(row)), ['idx_c']);
+    });
+
+    it('correlated subquery: the statement index comes first, then the subquery key lookup', function() {
+        var row = { plan: limited(idxScan('idx_b')), '~subqueries': [ sub(keyLookup(), true) ] };
+        assert.deepStrictEqual(names(extractExplainIndexes(row)), ['idx_b', 'KV lookup (USE KEYS)']);
+    });
+
+    it('nested subqueries are listed flat: every entry is walked, in order', function() {
+        var row = { plan: dummyMain(true), '~subqueries': [ sub(limited(idxScan('idx_a'))), sub(keyLookup()) ] };
+        assert.deepStrictEqual(names(extractExplainIndexes(row)), ['idx_a', 'KV lookup (USE KEYS)']);
+    });
+
+    it('dedupe: an index in the statement plan and in a subquery is reported once', function() {
+        var row = { plan: limited(idxScan('idx_a')), '~subqueries': [ sub(limited(idxScan('idx_a'))), sub(limited(idxScan('idx_e'))) ] };
+        assert.deepStrictEqual(names(extractExplainIndexes(row)), ['idx_a', 'idx_e']);
+    });
+
+    it('the primary flag survives the merge', function() {
+        var row = { plan: dummyMain(true), '~subqueries': [ sub({ '#operator': 'PrimaryScan3', index: '#primary', keyspace: 'sample' }) ] };
+        assert.deepStrictEqual(extractExplainIndexes(row), [ { name: '#primary', primary: true } ]);
+    });
+
+    it('an entry without a plan, or a non-object entry, is skipped', function() {
+        var row = { plan: dummyMain(true), '~subqueries': [ null, 'text', { correlated: false }, sub(limited(idxScan('idx_a'))) ] };
+        assert.deepStrictEqual(names(extractExplainIndexes(row)), ['idx_a']);
+    });
+
+    // -- a plan that reads no keyspace (measured: SELECT 1, INSERT … VALUES) --
+    it('SELECT 1 (DummyScan only) reports the "no keyspace read" pseudo-entry', function() {
+        assert.deepStrictEqual(extractExplainIndexes({ plan: dummyMain(false), text: 'SELECT 1 AS x' }),
+            [ { name: 'no keyspace read', primary: false } ]);
+    });
+
+    it('INSERT … VALUES (ValueScan + SendInsert) reports "no keyspace read"', function() {
+        var plan = { '#operator': 'Sequence', '~children': [
+            { '#operator': 'ValueScan', values: '[["k1", {"x": 1}]]' },
+            { '#operator': 'Parallel', maxParallelism: 1, '~child': { '#operator': 'Sequence', '~children': [
+                { '#operator': 'SendInsert', alias: 'sample', fast_discard: true, keyspace: 'sample', namespace: 'default' }
+            ] } }
+        ] };
+        assert.deepStrictEqual(names(extractExplainIndexes({ plan: plan })), ['no keyspace read']);
+    });
+
+    it('a statement and its subqueries that all read nothing report "no keyspace read" once', function() {
+        var row = { plan: dummyMain(true), '~subqueries': [ sub(dummyMain(false)), sub(dummyMain(false)) ] };
+        assert.deepStrictEqual(names(extractExplainIndexes(row)), ['no keyspace read']);
+    });
+
+    it('conservative: an operator outside the measured no-read set keeps the plain [] (the red badge)', function() {
+        var plan = dummyMain(false);
+        plan['~children'][1]['~child']['~children'].push({ '#operator': 'FinalProject' });
+        assert.deepStrictEqual(extractExplainIndexes({ plan: plan }), []);
+        assert.deepStrictEqual(extractExplainIndexes({ plan: { '#operator': 'Sequence', '~children': [
+            { '#operator': 'DummyScan' }, { '#operator': 'SomeFutureScan', keyspace: 'sample' }
+        ] } }), []);
+    });
+
+    it('conservative: without a DummyScan or a ValueScan the plain [] stays', function() {
+        assert.deepStrictEqual(extractExplainIndexes({ plan: { '#operator': 'Sequence', '~children': [
+            { '#operator': 'Filter' }, { '#operator': 'InitialProject' }
+        ] } }), []);
+    });
+
+    it('a subquery that reads a keyspace with no index is never hidden as "no keyspace read"', function() {
+        var row = { plan: dummyMain(true), '~subqueries': [ sub({ '#operator': 'Sequence', '~children': [
+            { '#operator': 'SomeFutureScan', keyspace: 'sample' }, { '#operator': 'Fetch', keyspace: 'sample' }
+        ] }) ] };
+        assert.deepStrictEqual(extractExplainIndexes(row), []);
+    });
+
+    // -- source pins: the fix cannot be silently reverted --
+    it('source pin: explainForIndexes hands the whole first EXPLAIN row to extractExplainIndexes', function() {
+        assert.ok(explainFnSrc.length > 0, 'expected explainForIndexes in the connector');
+        assert.ok(
+            explainFnSrc.indexOf('extractExplainIndexes((data && data.rows && data.rows[0]) ? data.rows[0] : null)') > -1,
+            'expected explainForIndexes to pass data.rows[0] to extractExplainIndexes'
+        );
+    });
+
+    it('source pin: the #B1161 marker names the change at both sites', function() {
+        assert.ok(helperSrc.indexOf('#B1161') > -1, 'expected the #B1161 marker in extractExplainIndexes');
+        assert.ok(explainFnSrc.indexOf('#B1161') > -1, 'expected the #B1161 marker at the explainForIndexes call');
+    });
+});
