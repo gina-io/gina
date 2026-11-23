@@ -32,7 +32,7 @@ for entry in "${JARS[@]}"; do
         echo "[skip] ${filename} already present"
     else
         echo "[download] ${filename} ..."
-        curl -L --fail --progress-bar \
+        curl -L --fail --retry 5 --retry-max-time 120 --progress-bar \
             -o "${dest}" \
             "${MAVEN_BASE}/${version}/${filename}"
         echo "[ok] ${filename}"
