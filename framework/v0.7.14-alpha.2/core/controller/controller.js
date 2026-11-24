@@ -1545,6 +1545,12 @@ function SuperController(options) {
 
             if (isSpecialCase) {
                 hostname = _config.hostname;
+                // #B1132 — this page's hostname comes from another bundle's config, which the
+                // output cache's request variant does not carry: the render writers refuse to
+                // store it (lib/render-cache storableVariant).
+                if ( local.req ) {
+                    local.req._ginaHostSpecialCase = true;
+                }
             }
 
             // if (

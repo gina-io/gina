@@ -2284,14 +2284,14 @@ describe('05e - #NJ3 static HTML cache (writeCache port)', function () {
         );
     });
 
-    it('builds the cache key via renderCache.buildKey("static", bundle, req.originalUrl) (#C3)', function () {
+    it('builds the cache key via renderCache.buildKey("static", bundle, req.originalUrl, cacheVariant) (#C3, #B1132)', function () {
         // Centralized in renderCache.buildKey — the single key-format source
         // shared by the 3 render delegates + the server read path. It prepends
         // the release namespace (GINA_CACHE_NAMESPACE || GINA_VERSION) and the
         // #C3 bundle namespace, so the writer/reader key can never drift.
         assert.match(
             RENDER_NJ_SRC,
-            /var\s+cacheKey\s*=\s*renderCache\.buildKey\(\s*['"]static['"]\s*,\s*bundle\s*,\s*\breq\.originalUrl\s*\)/
+            /var\s+cacheKey\s*=\s*renderCache\.buildKey\(\s*['"]static['"]\s*,\s*bundle\s*,\s*\breq\.originalUrl\s*,\s*cacheVariant\s*\)/
         );
     });
 
@@ -2306,7 +2306,8 @@ describe('05e - #NJ3 static HTML cache (writeCache port)', function () {
 
     it('gates the write on renderCache.has(cacheKey) being false', function () {
         var idx  = RENDER_NJ_SRC.indexOf('async function writeCache');
-        var body = RENDER_NJ_SRC.slice(idx, idx + 1500);
+        // Window widened for the #B1132 variant refusal above the key (the match ends at 1660).
+        var body = RENDER_NJ_SRC.slice(idx, idx + 2000);
         assert.match(body, /if\s*\(\s*!renderCache\.has\(\s*cacheKey\s*\)\s*\)/);
     });
 
@@ -2522,7 +2523,13 @@ describe('05e - #NJ3 static HTML cache (writeCache port)', function () {
         // route is gated before storing anything. The evaluated body therefore needs
         // the lib registry in scope; `false` = "not gated", which is the premise every
         // test below already relies on (they assert the write DOES happen).
-        var LIBREF_STUB = { authzGate: { isRouteGated: function () { return false; } } };
+        // #B1132 — writeCache asks libRef.RenderCache.storableVariant(req) before it stores; these
+        // arms model a request whose page values match its variant, so the stub answers one. The
+        // refusal itself is covered by test/core/render-cache-variant-b1132.test.js.
+        var LIBREF_STUB = {
+            authzGate   : { isRouteGated: function () { return false; } },
+            RenderCache : { storableVariant: function () { return { segment: 'v' + '0'.repeat(32), readable: '|stub|' }; } }
+        };
         var stubCalls;
         function makeFn() {
             stubCalls = { cacheHas: 0, cacheSet: 0, writeFile: 0 };

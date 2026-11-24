@@ -2878,6 +2878,21 @@ function ServerEngineClass(options) {
                 request._ginaMaintenanceAdmitted = true;
             }
 
+            // #B1132 — the output cache keys a page on its request variant (lib/render-cache
+            // buildVariant): this request's forwarded scheme + host and prefix (the proxy slots
+            // set above) and the culture its headers select. Computed ONCE, here, before the
+            // pre-routing read below; the shared read in core/server.js and the render writers
+            // read this stamp and never recompute it. `_renderCacheVariant` is stamped on the
+            // engine by core/server.js start(). A failure leaves `null`: nothing is read or
+            // stored for this request.
+            if ( String(server._cacheIsEnabled).toLowerCase() === 'true' && typeof(server._renderCacheVariant) == 'function' ) {
+                try {
+                    request._ginaCacheVariant = server._renderCacheVariant(request, options.bundle);
+                } catch (_cacheVariantErr) {
+                    request._ginaCacheVariant = null;
+                }
+            }
+
             // The output cache is looked up only while `server.cache.enable` is on. Every
             // writer refuses to store while it is off (render-swig / render-json writeCache),
             // the engine-agnostic read in server.js gates on the same flag, and the former
@@ -2919,8 +2934,11 @@ function ServerEngineClass(options) {
                         // on writer/reader key drift (#C3).
                         , cacheKinds     = ['data', 'static']
                     ;
-                    for (let p=0, pLen=cacheKinds.length; p<pLen; p++ ) {
-                        cacheKey = renderCache.buildKey(cacheKinds[p], options.bundle, request.url);
+                    // #B1132 — the entry stored for THIS request's variant (stamped above, after the
+                    // proxy slots); a request without one looks nothing up.
+                    var cacheVariant    = request._ginaCacheVariant || null;
+                    for (let p=0, pLen=( cacheVariant ? cacheKinds.length : 0 ); p<pLen; p++ ) {
+                        cacheKey = renderCache.buildKey(cacheKinds[p], options.bundle, request.url, cacheVariant);
                         if ( renderCache.has(cacheKey) ) {
                             hasCachedKey = true;
                             break;

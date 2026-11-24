@@ -412,7 +412,8 @@ function Cache(options) {
      *   createdAt: Date|null,
      *   lastAccessedAt: Date|null,
      *   ttlRemaining: number|null,
-     *   maxAgeRemaining: number|null
+     *   maxAgeRemaining: number|null,
+     *   variant?: string
      * }> }}
      */
     instance['stats'] = function() {
@@ -455,7 +456,7 @@ function Cache(options) {
                 maxAgeRemaining = Math.round(maxAgeRemaining * 10) / 10;
             }
 
-            entries.push({
+            var row = {
                 key            : key,
                 type           : type,
                 sliding        : value.sliding === true,
@@ -463,7 +464,13 @@ function Cache(options) {
                 lastAccessedAt : value.lastAccessedAt || null,
                 ttlRemaining   : ttlRemaining,
                 maxAgeRemaining: maxAgeRemaining
-            });
+            };
+            // #B1132 — an output-cache entry's request variant, readable (host|prefix|culture),
+            // listed only when its writer stored one.
+            if ( typeof(value.variant) === 'string' ) {
+                row.variant = value.variant;
+            }
+            entries.push(row);
         }
 
         return {

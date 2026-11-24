@@ -196,6 +196,12 @@ function getRenderALS() {
  * Write the rendered HTML to the cache store (memory or file system).
  * No-op when caching is disabled or the route has no `cache` setting.
  *
+ * #B1132 — the entry is keyed on the request variant the engine stamped before routing
+ * (`req._ginaCacheVariant`: the forwarded host and prefix, the culture the request's
+ * headers select), and a page whose own values are not that variant is not stored
+ * (`RenderCache.storableVariant`): a URL-prefix or middleware culture, a merged-mode
+ * direct host, a request without a stamp.
+ *
  * @inner
  * @param {string} bundle      - Bundle name (used as cache-key namespace)
  * @param {object} opt         - Server cache configuration (`opt.path`, `opt.ttl`, `opt.sliding`, `opt.maxAge`)
@@ -235,10 +241,15 @@ async function writeCache(bundle, opt, htmlContent, req, res, cacheIsEnabled, th
     ) {
         return;
     }
+    // #B1132 — stored only under the request variant the page was rendered for (see the JSDoc)
+    var cacheVariant = lib.RenderCache.storableVariant(req);
+    if ( !cacheVariant ) {
+        return;
+    }
     // Fully-namespaced key via the single builder (#C3 bundle namespace +
     // the release namespace both live in renderCache.buildKey — writer/reader
     // share ONE format so they can't drift).
-    var cacheKey = renderCache.buildKey('static', bundle, req.originalUrl);
+    var cacheKey = renderCache.buildKey('static', bundle, req.originalUrl, cacheVariant);
     var responseHeaders = res.getHeaders() || {};
     if ( !renderCache.has(cacheKey) ) {
         // Caching kinds are: `memory` & `fs`
@@ -264,6 +275,8 @@ async function writeCache(bundle, opt, htmlContent, req, res, cacheIsEnabled, th
         var cacheObject = {
             responseHeaders : responseHeaders
         };
+        // #B1132 — the readable variant, kept by the .meta sidecar, the L2 value and stats()
+        cacheObject.variant = cacheVariant.readable;
         // Store visibility for Cache-Control header on the hit path.
         // Default is 'private' — opt in to 'public' explicitly for truly static pages.
         cacheObject.visibility = ( cachingOption.visibility === 'public' ) ? 'public' : 'private';

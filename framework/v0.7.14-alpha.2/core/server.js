@@ -3212,6 +3212,100 @@ function Server(options) {
     };
 
     /**
+     * #B1132 — the culture-negotiation options of a bundle: the cultures its loaded catalogs
+     * offer (constrained by `settings.i18n.cultures`, #B102), its culture-cookie name
+     * (`settings.i18n.cookieName`, #B99) and its default culture (`settings.region.culture`).
+     * ONE derivation, two readers: `_negotiateReqCulture` (the request's own culture, after
+     * routing) and the output cache's request variant (`instance._renderCacheVariant`, before
+     * routing), so a cached page is keyed on the culture it was rendered with whenever the
+     * request's headers decided it. Moved verbatim from `_negotiateReqCulture` (#B84). May
+     * throw on a malformed config: both readers catch it.
+     *
+     * @inner
+     * @private
+     * @param {string} bundle - The bundle whose catalogs and settings decide.
+     * @returns {{ availableCultures: string[], cookieName: (string|null), defaultCulture: (string|null) }}
+     * @example
+     * var options = resolveCultureNegotiation('demo');
+     * // → { availableCultures: ['en', 'fr'], cookieName: 'gina_culture', defaultCulture: 'en_US' }
+     */
+    var resolveCultureNegotiation = function(bundle) {
+        var _i18nBundle = bundle || null;
+        var _i18nAvail  = ( _i18nBundle
+            && process.gina._i18nCatalogs
+            && process.gina._i18nCatalogs[_i18nBundle] )
+            ? Object.keys(process.gina._i18nCatalogs[_i18nBundle])
+            : [];
+        // #B102 — `settings.i18n.cultures`, honoured since 0.5.22: a
+        // non-empty array constrains which cultures the USER-SIGNAL
+        // steps (URL prefix / cookie / Accept-Language) may match —
+        // e.g. a staged rollout keeps a shipped-but-unlaunched catalog
+        // out of negotiation. The bundle-default step
+        // (settings.region.culture) is deliberately NOT constrained —
+        // the operator's fallback needs no catalog match. `null`, `[]`
+        // or a non-array keep the historical derive-from-loaded-
+        // catalogs behavior.
+        if ( _i18nAvail.length > 0
+            && _i18nBundle
+            && self.conf[_i18nBundle]
+            && self.conf[_i18nBundle][self.env]
+            && self.conf[_i18nBundle][self.env].content
+            && self.conf[_i18nBundle][self.env].content.settings
+            && self.conf[_i18nBundle][self.env].content.settings.i18n
+        ) {
+            var _i18nCulturesConf = self.conf[_i18nBundle][self.env].content.settings.i18n.cultures;
+            if ( Array.isArray(_i18nCulturesConf) && _i18nCulturesConf.length > 0 ) {
+                _i18nAvail = _i18nAvail.filter(function(c) {
+                    return _i18nCulturesConf.indexOf(c) > -1;
+                });
+            }
+        }
+        // #I18N — bundle-level default culture: settings.region.culture
+        // (full underscore culture, e.g. `xx_XX`, resolved at bundle:add).
+        // Ranks below URL/cookie/Accept-Language (which need loaded catalogs
+        // to match) and above the GINA_CULTURE env fallback (negotiateCulture
+        // step 5). Format-guarded so an unresolved `${culture}` placeholder
+        // never leaks through as the culture.
+        var _i18nDefault = null;
+        if ( _i18nBundle
+            && self.conf[_i18nBundle]
+            && self.conf[_i18nBundle][self.env]
+            && self.conf[_i18nBundle][self.env].content
+            && self.conf[_i18nBundle][self.env].content.settings
+            && self.conf[_i18nBundle][self.env].content.settings.region
+            && typeof(self.conf[_i18nBundle][self.env].content.settings.region.culture) == 'string'
+            && /^[a-z]{2,3}([_-][A-Za-z]{2,4})?$/.test(self.conf[_i18nBundle][self.env].content.settings.region.culture)
+        ) {
+            _i18nDefault = self.conf[_i18nBundle][self.env].content.settings.region.culture;
+        }
+        // #B99 — `settings.i18n.cookieName`, honoured since 0.5.16: a
+        // bundle may rename the locale-persistence cookie; an explicit
+        // `null` disables cookie-based negotiation (negotiateCulture
+        // skips its cookie step on a falsy name). Absent, empty or
+        // non-string values keep the historical `gina_culture` default.
+        var _i18nCookieName = 'gina_culture';
+        if ( _i18nBundle
+            && self.conf[_i18nBundle]
+            && self.conf[_i18nBundle][self.env]
+            && self.conf[_i18nBundle][self.env].content
+            && self.conf[_i18nBundle][self.env].content.settings
+            && self.conf[_i18nBundle][self.env].content.settings.i18n
+        ) {
+            var _i18nCookieConf = self.conf[_i18nBundle][self.env].content.settings.i18n.cookieName;
+            if ( _i18nCookieConf === null ) {
+                _i18nCookieName = null;
+            } else if ( typeof(_i18nCookieConf) == 'string' && _i18nCookieConf.length > 0 ) {
+                _i18nCookieName = _i18nCookieConf;
+            }
+        }
+        return {
+            availableCultures : _i18nAvail,
+            cookieName        : _i18nCookieName,
+            defaultCulture    : _i18nDefault
+        };
+    };
+
+    /**
      * Attaches the server engine instance, injects helper references
      * (`throwError`, `getAssets`, `completeHeaders`) onto it, and returns
      * `onRequest()` to begin serving HTTP traffic.
@@ -3259,6 +3353,19 @@ function Server(options) {
             // `_cacheIsEnabled`).
             if ( typeof(instance._cacheName) == 'undefined' ) {
                 instance._cacheName = lib.RenderCache.resolveCacheName(self.conf[self.appName][self.env].server.cache);
+            }
+            // #B1132 — the output cache's request variant (lib/render-cache variantFor), ONE
+            // function both engines call: isaac before its pre-routing read (core/server.isaac.js),
+            // a slot-less engine (Express) in handle() before the shared read. The culture
+            // options are resolveCultureNegotiation's and the negotiator is the request
+            // negotiation's own; the bundle's scheme is the slot-less host's last fallback.
+            if ( typeof(instance._renderCacheVariant) == 'undefined' ) {
+                instance._renderCacheVariant = function(req, bundle) {
+                    var _vBundle = bundle || self.appName, _vOptions = null, _vScheme = null;
+                    try { _vOptions = resolveCultureNegotiation(_vBundle); } catch (_vErr) { _vOptions = null; }
+                    try { _vScheme = self.conf[_vBundle][self.env].server.scheme; } catch (_vErr) { _vScheme = null; }
+                    return lib.RenderCache.variantFor(req, { negotiate: lib.i18n.negotiateCulture, i18n: _vOptions, scheme: _vScheme });
+                };
             }
 
             // #P48 — the routing table's per-variant tokens (built with the maps in
@@ -8695,6 +8802,18 @@ function Server(options) {
     // repopulates L1 so the next request hits L1. Returns true when it SERVED (or abandoned
     // a dead response) → the caller returns; false → fall through to the normal render.
     var tryServeRenderCacheHit = async function(req, res, bundle) {
+        // #B1132 — first, before any gate: the request variant the output cache keys on.
+        // isaac stamped it before its pre-routing read; a slot-less engine (Express) computes
+        // it here, once per matched request, for this read AND for the render writers that
+        // follow, which read the stamp and never recompute it. A failure leaves `null`:
+        // nothing is read or stored for this request.
+        if ( typeof(req._ginaCacheVariant) == 'undefined' && String(self.instance._cacheIsEnabled).toLowerCase() === 'true' ) {
+            try {
+                req._ginaCacheVariant = self.instance._renderCacheVariant(req, bundle);
+            } catch (_cacheVariantErr) {
+                req._ginaCacheVariant = null;
+            }
+        }
         var _method = ( /http\/2/.test(self.conf[self.appName][self.env].server.protocol) ) ? req.headers[':method'] : req.method;
         if ( !/^get$/i.test(_method || req.method || '') ) { return false; }
         if ( !req.routing || !req.routing.cache ) { return false; }
@@ -8727,6 +8846,9 @@ function Server(options) {
             _rcType = _serverCache && _serverCache.type;
         }
         if ( !/^redis$/i.test(_rcType || '') ) { return false; }
+        // #B1132 — the entry stored for THIS request's variant, stamped by the engine before this read.
+        var _variant = req._ginaCacheVariant || null;
+        if ( !_variant ) { return false; }
 
         // F1 — warm() MUST re-register the route's invalidateOnEvents (a warmed entry
         // skipped the delegate's setEvents; without them an event can neither evict L1 nor
@@ -8740,7 +8862,7 @@ function Server(options) {
         var _hit   = null, _hitSource = null, i, _k;
         // L1 first (sync, no redis): a warmed entry from a prior request, or the express L1.
         for (i = 0; i < _kinds.length; i++) {
-            _k = renderCache.buildKey(_kinds[i], bundle, _url);
+            _k = renderCache.buildKey(_kinds[i], bundle, _url, _variant);
             if ( renderCache.has(_k) ) {
                 _hit = renderCache.get(_k);
                 if ( _hit ) { _hitSource = 'memory'; break; }
@@ -8750,7 +8872,7 @@ function Server(options) {
         // L2 warm on an L1 miss (reads redis, repopulates L1; fail-open → undefined).
         if ( !_hit ) {
             for (i = 0; i < _kinds.length; i++) {
-                _k = renderCache.buildKey(_kinds[i], bundle, _url);
+                _k = renderCache.buildKey(_kinds[i], bundle, _url, _variant);
                 _hit = await renderCache.warm(_k, _events);
                 if ( _hit ) { _hitSource = 'redis'; break; }
                 _hit = null;
@@ -8932,79 +9054,9 @@ function Server(options) {
         // shared route entry would cross-request-bleed).
         var _negotiateReqCulture = function(req, routeBundle) {
             try {
-                var _i18nBundle = routeBundle || null;
-                var _i18nAvail  = ( _i18nBundle
-                    && process.gina._i18nCatalogs
-                    && process.gina._i18nCatalogs[_i18nBundle] )
-                    ? Object.keys(process.gina._i18nCatalogs[_i18nBundle])
-                    : [];
-                // #B102 — `settings.i18n.cultures`, honoured since 0.5.22: a
-                // non-empty array constrains which cultures the USER-SIGNAL
-                // steps (URL prefix / cookie / Accept-Language) may match —
-                // e.g. a staged rollout keeps a shipped-but-unlaunched catalog
-                // out of negotiation. The bundle-default step
-                // (settings.region.culture) is deliberately NOT constrained —
-                // the operator's fallback needs no catalog match. `null`, `[]`
-                // or a non-array keep the historical derive-from-loaded-
-                // catalogs behavior.
-                if ( _i18nAvail.length > 0
-                    && _i18nBundle
-                    && self.conf[_i18nBundle]
-                    && self.conf[_i18nBundle][self.env]
-                    && self.conf[_i18nBundle][self.env].content
-                    && self.conf[_i18nBundle][self.env].content.settings
-                    && self.conf[_i18nBundle][self.env].content.settings.i18n
-                ) {
-                    var _i18nCulturesConf = self.conf[_i18nBundle][self.env].content.settings.i18n.cultures;
-                    if ( Array.isArray(_i18nCulturesConf) && _i18nCulturesConf.length > 0 ) {
-                        _i18nAvail = _i18nAvail.filter(function(c) {
-                            return _i18nCulturesConf.indexOf(c) > -1;
-                        });
-                    }
-                }
-                // #I18N — bundle-level default culture: settings.region.culture
-                // (full underscore culture, e.g. `xx_XX`, resolved at bundle:add).
-                // Ranks below URL/cookie/Accept-Language (which need loaded catalogs
-                // to match) and above the GINA_CULTURE env fallback (negotiateCulture
-                // step 5). Format-guarded so an unresolved `${culture}` placeholder
-                // never leaks through as the culture.
-                var _i18nDefault = null;
-                if ( _i18nBundle
-                    && self.conf[_i18nBundle]
-                    && self.conf[_i18nBundle][self.env]
-                    && self.conf[_i18nBundle][self.env].content
-                    && self.conf[_i18nBundle][self.env].content.settings
-                    && self.conf[_i18nBundle][self.env].content.settings.region
-                    && typeof(self.conf[_i18nBundle][self.env].content.settings.region.culture) == 'string'
-                    && /^[a-z]{2,3}([_-][A-Za-z]{2,4})?$/.test(self.conf[_i18nBundle][self.env].content.settings.region.culture)
-                ) {
-                    _i18nDefault = self.conf[_i18nBundle][self.env].content.settings.region.culture;
-                }
-                // #B99 — `settings.i18n.cookieName`, honoured since 0.5.16: a
-                // bundle may rename the locale-persistence cookie; an explicit
-                // `null` disables cookie-based negotiation (negotiateCulture
-                // skips its cookie step on a falsy name). Absent, empty or
-                // non-string values keep the historical `gina_culture` default.
-                var _i18nCookieName = 'gina_culture';
-                if ( _i18nBundle
-                    && self.conf[_i18nBundle]
-                    && self.conf[_i18nBundle][self.env]
-                    && self.conf[_i18nBundle][self.env].content
-                    && self.conf[_i18nBundle][self.env].content.settings
-                    && self.conf[_i18nBundle][self.env].content.settings.i18n
-                ) {
-                    var _i18nCookieConf = self.conf[_i18nBundle][self.env].content.settings.i18n.cookieName;
-                    if ( _i18nCookieConf === null ) {
-                        _i18nCookieName = null;
-                    } else if ( typeof(_i18nCookieConf) == 'string' && _i18nCookieConf.length > 0 ) {
-                        _i18nCookieName = _i18nCookieConf;
-                    }
-                }
-                req.culture = lib.i18n.negotiateCulture(req, {
-                    availableCultures : _i18nAvail,
-                    cookieName        : _i18nCookieName,
-                    defaultCulture    : _i18nDefault
-                });
+                // #B1132 — the options come from resolveCultureNegotiation, which the output
+                // cache's request variant reads too (instance._renderCacheVariant).
+                req.culture = lib.i18n.negotiateCulture(req, resolveCultureNegotiation(routeBundle));
             } catch (_i18nErr) {
                 req.culture = (getEnvVar('GINA_CULTURE') || 'en').replace(/-/g, '_');
             }

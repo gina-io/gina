@@ -173,8 +173,11 @@ describe('03 - settings.i18n.cookieName wiring source pins (#B99)', function() {
 
     // End-anchor slice of the helper (definition → the stable following
     // comment), no fixed byte window.
-    var hStart      = SERVER_SRC.indexOf('var _negotiateReqCulture');
-    var hEnd        = SERVER_SRC.indexOf('// Checking cached route', hStart);
+    // #B1132 — the option derivation moved, verbatim, into the server-scope
+    // resolveCultureNegotiation(bundle), which _negotiateReqCulture and the output
+    // cache's request variant both call: the slice reads that function.
+    var hStart      = SERVER_SRC.indexOf('var resolveCultureNegotiation');
+    var hEnd        = SERVER_SRC.indexOf('this.start = function', hStart);
     var helperBlock = SERVER_SRC.slice(hStart, hEnd);
 
     it('slices the helper block', function() {
@@ -275,8 +278,11 @@ describe('04 - cookie-name resolution + negotiation behaviour (#B99)', function(
 describe('05 - settings.i18n.cultures allowlist source pins (#B102)', function() {
 
     // Same end-anchor slice as §03 — definition → the stable following comment.
-    var hStart      = SERVER_SRC.indexOf('var _negotiateReqCulture');
-    var hEnd        = SERVER_SRC.indexOf('// Checking cached route', hStart);
+    // #B1132 — the option derivation moved, verbatim, into the server-scope
+    // resolveCultureNegotiation(bundle), which _negotiateReqCulture and the output
+    // cache's request variant both call: the slice reads that function.
+    var hStart      = SERVER_SRC.indexOf('var resolveCultureNegotiation');
+    var hEnd        = SERVER_SRC.indexOf('this.start = function', hStart);
     var helperBlock = SERVER_SRC.slice(hStart, hEnd);
 
     it('slices the helper block', function() {
@@ -300,9 +306,12 @@ describe('05 - settings.i18n.cultures allowlist source pins (#B102)', function()
     });
 
     it('the intersect runs BEFORE the negotiate call, so every user-signal step sees it', function() {
+        // #B1132 — the moved block returns the options; _negotiateReqCulture hands them to
+        // negotiateCulture. The filter precedes the returned list, and the call takes them.
         var filterIdx    = helperBlock.indexOf('_i18nAvail.filter(');
-        var negotiateIdx = helperBlock.indexOf('negotiateCulture(');
-        assert.ok(filterIdx > -1 && negotiateIdx > filterIdx);
+        var returnIdx    = helperBlock.indexOf('availableCultures : _i18nAvail');
+        assert.ok(filterIdx > -1 && returnIdx > filterIdx);
+        assert.match(SERVER_SRC, /lib\.i18n\.negotiateCulture\(\s*req\s*,\s*resolveCultureNegotiation\(\s*routeBundle\s*\)\s*\)/);
     });
 
 });

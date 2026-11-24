@@ -57,11 +57,22 @@ var crypto = require('crypto');
 var Cache  = require('../../cache/src/main');
 
 /**
+ * #B1132 — the shape of a request-variant segment: `v` + 32 lowercase hex (the first 128
+ * bits of the SHA-256 of the variant's readable form, see {@link RenderCache.buildVariant}).
+ * Unambiguous as a key segment (a URL starts with `/` or a scheme, never with this) and safe
+ * as a path segment.
+ *
+ * @inner
+ * @constant {RegExp}
+ */
+var VARIANT_SEGMENT_RE = /^v[0-9a-f]{32}$/;
+
+/**
  * Build the on-disk paths for an `fs`-strategy entry. Single source of truth
  * shared by `set('fs')` (write) and the read-back (`has`/`get`), so the write
  * filename and the read-back filename can never drift.
  *
- * Layout: `<root>/<bundle>[/<token>]/<html|data><url>.<ext>`, trailing-slash
+ * Layout: `<root>/<bundle>[/<token>][/<variant>]/<html|data><url>.<ext>`, trailing-slash
  * url → `.../index.<ext>`, resolved through the `_` PathObject global exactly
  * as the pre-strategy code did. The release-namespace `token` (empty by
  * default) is a path segment under the bundle so a namespace change lands NEW
@@ -74,26 +85,33 @@ var Cache  = require('../../cache/src/main');
  * @param {string} bundle - Bundle name.
  * @param {string} kind   - 'data' (JSON, `/data`+`.json`) | anything else (HTML, `/html`+`.html`).
  * @param {string} url    - Request URL (`req.originalUrl`).
+ * @param {string} [variant] - #B1132 — the request variant's segment (`v` + 32 hex, see
+ *                             {@link RenderCache.buildVariant}), or '' for none.
  * @returns {{ body: string, meta: string }} Absolute body path + its `.meta` sidecar path.
  */
-function fsPaths(root, token, bundle, kind, url) {
+function fsPaths(root, token, bundle, kind, url, variant) {
     var sub = ( kind === 'data' ) ? '/data' : '/html';
     var ext = ( kind === 'data' ) ? '.json' : '.html';
     if ( url.endsWith('/') ) {
         url += 'index';
     }
     var ns   = token ? ('/' + token) : '';
-    var body = _(root + '/' + bundle + ns + sub + url + ext, true);
+    // #B1132 — each variant of a URL has its own file: the segment is a directory under the
+    // release namespace (a path segment by construction, see VARIANT_SEGMENT_RE).
+    var vs   = ( variant && VARIANT_SEGMENT_RE.test(variant) ) ? ('/' + variant) : '';
+    var body = _(root + '/' + bundle + ns + vs + sub + url + ext, true);
     return { body: body, meta: body + '.meta' };
 }
 
 /**
  * Parse an `fs`-eligible cache key into the pieces needed to reconstruct its
- * on-disk path. Key shape: `[<token>:]<static|data>:<bundle>:<url>` (the
- * optional leading segment is the release namespace `buildKey` prepends). The
+ * on-disk path. Key shape: `[<token>:]<static|data>:<bundle>:[<variant>:]<url>`
+ * (the optional leading segment is the release namespace `buildKey` prepends; the
+ * optional segment after the bundle is the #B1132 request variant, `v` + 32 hex). The
  * url may itself contain colons (querystrings), so it is the rejoined
  * remainder; `buildKey` sanitizes the token to `[A-Za-z0-9._-]` (no colon), so
- * the leading segments split unambiguously.
+ * the leading segments split unambiguously, and a URL starts with `/` (or a
+ * scheme), never with a variant-shaped segment.
  *
  * `static:` → HTML kind, `data:` → JSON kind (mirrors the delegate write:
  * swig/nunjucks write `static:`+kind `html`, json writes `data:`+kind `data`).
@@ -102,7 +120,7 @@ function fsPaths(root, token, bundle, kind, url) {
  *
  * @inner
  * @param {string} key
- * @returns {{ token: string, kind: string, bundle: string, url: string }|null}
+ * @returns {{ token: string, kind: string, bundle: string, variant: string, url: string }|null}
  */
 function parseFsKey(key) {
     if ( typeof(key) != 'string' ) {
@@ -120,12 +138,18 @@ function parseFsKey(key) {
     if ( prefix !== 'static' && prefix !== 'data' ) {
         return null;
     }
-    var bundle = parts[idx + 1];
-    var url    = parts.slice(idx + 2).join(':');
+    var bundle  = parts[idx + 1];
+    var urlAt   = idx + 2;
+    var variant = '';
+    if ( VARIANT_SEGMENT_RE.test(parts[urlAt] || '') ) {
+        variant = parts[urlAt];
+        urlAt++;
+    }
+    var url     = parts.slice(urlAt).join(':');
     if ( !bundle || !url ) {
         return null;
     }
-    return { token: token, kind: ( prefix === 'data' ) ? 'data' : 'html', bundle: bundle, url: url };
+    return { token: token, kind: ( prefix === 'data' ) ? 'data' : 'html', bundle: bundle, variant: variant, url: url };
 }
 
 /**
@@ -278,7 +302,7 @@ function RenderCache(options) {
         if ( !p ) {
             return null;
         }
-        return fsPaths(_cachePath, p.token, p.bundle, p.kind, p.url).body;
+        return fsPaths(_cachePath, p.token, p.bundle, p.kind, p.url, p.variant).body;
     }
 
     /**
@@ -325,6 +349,10 @@ function RenderCache(options) {
             responseHeaders : meta.responseHeaders,
             visibility      : meta.visibility
         };
+        // #B1132 — the readable request variant the writer stored (listed by stats()).
+        if ( typeof(meta.variant) === 'string' ) {
+            entry.variant = meta.variant;
+        }
         var hasTtl = ( typeof(meta.ttl) != 'undefined' && meta.ttl > 0 );
 
         if ( meta.sliding === true ) {
@@ -410,11 +438,24 @@ function RenderCache(options) {
      * @param {string} kind   - 'static' (HTML) | 'data' (JSON).
      * @param {string} bundle - Bundle name.
      * @param {string} url    - Request URL (`req.originalUrl` on write, `request.url` on read).
+     * @param {object} [variant] - #B1132 — the request variant ({@link RenderCache.buildVariant},
+     *                             stamped once per request as `req._ginaCacheVariant`): its
+     *                             segment sits between the bundle and the URL, so each variant
+     *                             of a URL is its own entry. The engines and the writers always
+     *                             pass one; without a valid one the key keeps the pre-#B1132
+     *                             format.
      * @returns {string} The namespaced cache key.
+     *
+     * @example
+     * var v = RenderCache.buildVariant({ host: 'https://a.example', prefix: '', culture: 'fr' });
+     * renderCache.buildKey('static', 'demo', '/page', v);   // 'static:demo:v<32 hex>:/page'
      */
-    instance.buildKey = function(kind, bundle, url) {
+    instance.buildKey = function(kind, bundle, url, variant) {
         var token = resolveReleaseToken();
-        return ( token ? token + ':' : '' ) + kind + ':' + bundle + ':' + url;
+        var seg   = ( variant && typeof(variant.segment) === 'string' && VARIANT_SEGMENT_RE.test(variant.segment) )
+            ? variant.segment + ':'
+            : '';
+        return ( token ? token + ':' : '' ) + kind + ':' + bundle + ':' + seg + url;
     };
 
     /**
@@ -423,7 +464,7 @@ function RenderCache(options) {
      * Behaviour-identical extraction of the memory/fs branch previously inlined
      * in each render delegate's `writeCache()`:
      * - `memory` — stamps `fromMemory: true` + the inline `content`, `set()`s it.
-     * - `fs`     — writes the body to `<path>/<bundle>/<html|data><url>.<html|json>`
+     * - `fs`     — writes the body to `<path>/<bundle>[/<token>][/<variant>]/<html|data><url>.<html|json>`
      *              (creating the dir), stamps `filename`, `set()`s the entry with
      *              a cleanup fn that removes the file (+ its `.meta`) on eviction,
      *              and writes a `<file>.meta` JSON sidecar carrying everything the
@@ -471,7 +512,9 @@ function RenderCache(options) {
             // read-back filename (fsBodyFor, also key-derived) cannot drift.
             var _pk      = parseFsKey(key);
             var _token   = _pk ? _pk.token : '';
-            var p        = fsPaths(payload.path, _token, payload.bundle, payload.kind, payload.url);
+            // #B1132 — the variant segment too comes from the key, as the read-back derives it.
+            var _variant = _pk ? _pk.variant : '';
+            var p        = fsPaths(payload.path, _token, payload.bundle, payload.kind, payload.url, _variant);
             var filename = p.body;
             var dir      = filename.split(/\//g).slice(0, -1).join('/');
             var dirObj   = new _(dir);
@@ -498,7 +541,9 @@ function RenderCache(options) {
                 sliding         : entry.sliding === true,
                 maxAge          : entry.maxAge,
                 visibility      : entry.visibility,
-                responseHeaders : entry.responseHeaders
+                responseHeaders : entry.responseHeaders,
+                // #B1132 — the readable request variant (omitted when the writer gave none)
+                variant         : entry.variant
             };
             await fs.promises.writeFile(p.meta, JSON.stringify(meta));
             return;
@@ -538,7 +583,9 @@ function RenderCache(options) {
                     _l2Value = JSON.stringify({
                         content         : payload.content,
                         responseHeaders : entry.responseHeaders,
-                        visibility      : entry.visibility
+                        visibility      : entry.visibility,
+                        // #B1132 — the readable request variant (omitted when the writer gave none)
+                        variant         : entry.variant
                     });
                 } catch (e) {
                     return; // unserializable payload → L1-only (fail-open)
@@ -615,6 +662,10 @@ function RenderCache(options) {
             responseHeaders : parsed.responseHeaders,
             visibility      : parsed.visibility
         };
+        // #B1132 — the readable request variant the writer stored (listed by stats()).
+        if ( typeof(parsed.variant) === 'string' ) {
+            entry.variant = parsed.variant;
+        }
         // Remaining life from PTTL (ms → s). null (no expiry) → non-expiring L1
         // entry, matching a non-ttl memory entry.
         if ( raw.ttlMs && raw.ttlMs > 0 ) {
@@ -1349,6 +1400,197 @@ RenderCache.resolveCacheRoot = function(sources, tokens) {
         || pathOf(envBlock && envBlock.server && envBlock.server.cache)
         || '${cachePath}';
     return substitute(picked);
+};
+
+/**
+ * #B1132 — the culture a request falls back to when no negotiation could run: the value
+ * core/server.js `_negotiateReqCulture` falls back to (`GINA_CULTURE`, else `en`, in
+ * underscore form). Read through the getEnvVar accessor, typeof-guarded so an isolated
+ * unit-require (no boot) never throws.
+ *
+ * @inner
+ * @returns {string}
+ */
+function fallbackCulture() {
+    var env = ( typeof(getEnvVar) === 'function' ) ? getEnvVar('GINA_CULTURE') : null;
+    return String(env || 'en').replace(/-/g, '_');
+}
+
+/**
+ * #B1132 — the proxied public origin of a request its engine has not classified yet (a
+ * slot-less engine, Express, before routing): `<scheme>://<host>` when the request is
+ * proxied, '' for a direct `host:port` access. It is the derivation of core/router.js's
+ * fill-when-absent block, which fills the request's slots later on that engine: keep the
+ * two in sync (the core/server.isaac.js #B65 block is the third twin). Every header is
+ * sanitised as there (#B367): an unsafe value is ignored.
+ *
+ * @inner
+ * @param {object} headers  - The request headers.
+ * @param {string} [scheme] - The bundle's `server.scheme`, the last scheme fallback.
+ * @returns {string}
+ */
+function proxiedHostnameFromHeaders(headers, scheme) {
+    var isSafeHostToken = function(v) {
+        return ( typeof(v) == 'string' && v.length > 0 && v.length <= 255
+                 && /^[A-Za-z0-9._:\[\]-]+$/.test(v) );
+    };
+    var rawHost   = headers.host || headers[':authority'];
+    var host      = isSafeHostToken(rawHost) ? rawHost : null;
+    var xfh       = isSafeHostToken(headers['x-forwarded-host']) ? headers['x-forwarded-host'] : null;
+    var xfProto   = headers['x-forwarded-proto'];
+    var safeProto = ( xfProto === 'http' || xfProto === 'https' ) ? xfProto : null;
+    var requireForwarded = !!( process.gina && process.gina._proxyRequireForwarded === true );
+    var proxied   = ( ( host && !/\:[0-9]+$/.test(host) && !requireForwarded ) || xfh ) ? true : false;
+    if ( !proxied ) {
+        return '';
+    }
+    var scheme_ = safeProto || ( process.gina && process.gina.PROXY_SCHEME ) || scheme;
+    return scheme_ + '://' + ( xfh || host );
+}
+
+/**
+ * #B1132 — the request variant of the output cache: the per-request inputs a cached page's
+ * values depend on, so two requests share an entry only when their pages are the same.
+ *   - `host`    — the proxied public origin (`<scheme>://<host>`, X-Forwarded-Proto's scheme):
+ *                 the page's `hostname`, `proxyHost`, `proxyHostname` and every absolute URL it
+ *                 builds; '' for a direct access (the page then carries the config hostname).
+ *   - `prefix`  — the X-Forwarded-Prefix mount path: the page's `webroot`.
+ *   - `culture` — the negotiated culture string, exact (`fr` and `fr_FR` are two variants): the
+ *                 page's `culture`, `validatorLabels` and every translated string.
+ * Returns the parts, their readable form (`host|prefix|culture`; `|` never occurs in a
+ * sanitised host or prefix, so the form is unambiguous) and the key and path segment
+ * (`v` + the first 32 hex of the readable form's SHA-256). Pure.
+ *
+ * @memberof RenderCache
+ * @static
+ * @param {object} [parts]
+ * @param {string} [parts.host]    - `<scheme>://<host>` of a proxied request, or ''.
+ * @param {string} [parts.prefix]  - The forwarded prefix, or ''.
+ * @param {string} [parts.culture] - The negotiated culture.
+ * @returns {{ host: string, prefix: string, culture: string, readable: string, segment: string }}
+ *
+ * @example
+ * RenderCache.buildVariant({ host: 'https://a.example', prefix: '', culture: 'fr' });
+ * // → { host: 'https://a.example', prefix: '', culture: 'fr',
+ * //     readable: 'https://a.example||fr', segment: 'v' + 32 hex }
+ */
+RenderCache.buildVariant = function(parts) {
+    parts = parts || {};
+    var host     = ( typeof(parts.host) === 'string' ) ? parts.host : '';
+    var prefix   = ( typeof(parts.prefix) === 'string' ) ? parts.prefix : '';
+    var culture  = ( typeof(parts.culture) === 'string' ) ? parts.culture : '';
+    var readable = host + '|' + prefix + '|' + culture;
+    var segment  = 'v' + crypto.createHash('sha256').update(readable).digest('hex').slice(0, 32);
+    return { host: host, prefix: prefix, culture: culture, readable: readable, segment: segment };
+};
+
+/**
+ * #B1132 — compute a request's variant ({@link RenderCache.buildVariant}) from what its
+ * engine knows BEFORE routing, so the pre-routing read (core/server.isaac.js) and the
+ * writers key alike:
+ *   - the host: the engine's proxy slots (`_ginaIsProxyHost`, `_ginaProxyHostname`); a
+ *     slot-less engine (Express, before routing) derives it from the headers as core/router.js
+ *     will;
+ *   - the prefix: the `_ginaProxyPrefix` slot only, the one input of the page's webroot;
+ *   - the culture: the negotiation steps a request's HEADERS decide (the culture cookie,
+ *     Accept-Language, then the bundle default, `GINA_CULTURE`, `en`), run by the caller's
+ *     negotiator over the bundle's options. The URL-prefix step needs the matched route and
+ *     is never consulted: a writer refuses a page whose culture came from it
+ *     ({@link RenderCache.storableVariant}).
+ * The engine computes it ONCE per request and stamps it as `req._ginaCacheVariant`.
+ *
+ * @memberof RenderCache
+ * @static
+ * @param {object}   req              - The incoming request (its headers and the engine's proxy slots).
+ * @param {object}   [opts]
+ * @param {function} [opts.negotiate] - The culture negotiator, the function the request's own
+ *                                      negotiation runs (`lib.i18n.negotiateCulture`).
+ * @param {object}   [opts.i18n]      - The bundle's negotiation options (core/server.js
+ *                                      `resolveCultureNegotiation`).
+ * @param {string}   [opts.scheme]    - The bundle's `server.scheme` (the slot-less host's last fallback).
+ * @returns {{ host: string, prefix: string, culture: string, readable: string, segment: string }}
+ *
+ * @example
+ * request._ginaCacheVariant = RenderCache.variantFor(request, {
+ *     negotiate : negotiateCulture,
+ *     i18n      : { availableCultures: ['en', 'fr'], cookieName: 'gina_culture', defaultCulture: 'en_US' },
+ *     scheme    : 'https'
+ * });
+ */
+RenderCache.variantFor = function(req, opts) {
+    req  = req  || {};
+    opts = opts || {};
+    var headers = ( req.headers && typeof(req.headers) === 'object' ) ? req.headers : {};
+    var host    = '';
+    if ( typeof(req._ginaIsProxyHost) != 'undefined' ) {
+        if ( req._ginaIsProxyHost === true && typeof(req._ginaProxyHostname) === 'string' ) {
+            host = req._ginaProxyHostname;
+        }
+    } else {
+        host = proxiedHostnameFromHeaders(headers, opts.scheme);
+    }
+    var prefix  = ( typeof(req._ginaProxyPrefix) === 'string' ) ? req._ginaProxyPrefix : '';
+    var culture = null;
+    if ( typeof(opts.negotiate) === 'function' ) {
+        try {
+            // The headers alone: no `routing`, so the URL-prefix step cannot run.
+            culture = opts.negotiate({ headers: headers }, opts.i18n || {});
+        } catch (e) {
+            culture = null;
+        }
+    }
+    if ( typeof(culture) !== 'string' || culture.length === 0 ) {
+        culture = fallbackCulture();
+    }
+    return RenderCache.buildVariant({ host: host, prefix: prefix, culture: culture });
+};
+
+/**
+ * #B1132 — the write-side refusal: the variant a page may be stored under, or `null`. The
+ * variant is recomputed from the values the page was rendered with and compared with the
+ * one the engine stamped before routing, so a page whose values that stamp did not predict
+ * is never stored, and no reader can be served another request's values:
+ *   - no stamp (the read looked nothing up for this request);
+ *   - a culture other than the stamp's (a URL-prefix culture, a middleware that set
+ *     `req.culture`, a merged-mode bundle's catalogs), or none;
+ *   - a request its engine never classified (`_ginaIsProxyHost` unset: its page reads the
+ *     worker-global proxy values), or a proxied one without its hostname slot;
+ *   - another host or prefix than the stamp's;
+ *   - the merged-mode direct-host render core/controller/controller.js marks
+ *     (`_ginaHostSpecialCase`: its hostname comes from another bundle's config).
+ * The #B158 / #SPA1 idiom: the key carries what the page depends on, or the page is not
+ * stored. The three render writers call it before they build the key.
+ *
+ * @memberof RenderCache
+ * @static
+ * @param {object} req - The request a writer is about to store a page for.
+ * @returns {object|null} The variant ({@link RenderCache.buildVariant} shape) to key on, or `null`.
+ *
+ * @example
+ * var cacheVariant = lib.RenderCache.storableVariant(req);
+ * if ( !cacheVariant ) { return; }
+ * var cacheKey = renderCache.buildKey('static', bundle, req.originalUrl, cacheVariant);
+ */
+RenderCache.storableVariant = function(req) {
+    if ( !req || !req._ginaCacheVariant || typeof(req._ginaCacheVariant.segment) !== 'string' ) {
+        return null;
+    }
+    if ( req._ginaHostSpecialCase === true || typeof(req._ginaIsProxyHost) == 'undefined' ) {
+        return null;
+    }
+    var host = '';
+    if ( req._ginaIsProxyHost === true ) {
+        if ( typeof(req._ginaProxyHostname) !== 'string' ) {
+            return null;
+        }
+        host = req._ginaProxyHostname;
+    }
+    var page = RenderCache.buildVariant({
+        host    : host,
+        prefix  : ( typeof(req._ginaProxyPrefix) === 'string' ) ? req._ginaProxyPrefix : '',
+        culture : req.culture
+    });
+    return ( page.segment === req._ginaCacheVariant.segment ) ? page : null;
 };
 
 module.exports = RenderCache;

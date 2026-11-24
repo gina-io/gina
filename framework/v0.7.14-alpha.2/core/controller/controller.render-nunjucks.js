@@ -1012,6 +1012,12 @@ function injectAssets(html, data, localOptions, cspNonce) {
  * from this function are served back on subsequent hits without reaching
  * the controller at all.
  *
+ * #B1132 — the entry is keyed on the request variant the engine stamped before routing
+ * (`req._ginaCacheVariant`: the forwarded host and prefix, the culture the request's
+ * headers select), and a page whose own values are not that variant is not stored
+ * (`RenderCache.storableVariant`): a URL-prefix or middleware culture, a merged-mode
+ * direct host, a request without a stamp.
+ *
  * @inner
  * @param {object} local       - Per-request closure (`req`, `res`) — captured explicitly because writeCache is declared at module scope
  * @param {object} self        - SuperController instance (for `self.serverInstance._cacheIsEnabled` / `self.throwError`)
@@ -1042,10 +1048,15 @@ async function writeCache(local, self, bundle, opt, htmlContent, req, res) {
     ) {
         return;
     }
+    // #B1132 — stored only under the request variant the page was rendered for (see the JSDoc)
+    var cacheVariant = libRef.RenderCache.storableVariant(req);
+    if ( !cacheVariant ) {
+        return;
+    }
     // Fully-namespaced key via the single builder (#C3 bundle namespace +
     // the release namespace both live in renderCache.buildKey — writer/reader
     // share ONE format so they can't drift).
-    var cacheKey = renderCache.buildKey('static', bundle, req.originalUrl);
+    var cacheKey = renderCache.buildKey('static', bundle, req.originalUrl, cacheVariant);
     var responseHeaders = res.getHeaders() || {};
     if ( !renderCache.has(cacheKey) ) {
         // Caching kinds are: `memory` & `fs`
@@ -1071,6 +1082,8 @@ async function writeCache(local, self, bundle, opt, htmlContent, req, res) {
         var cacheObject = {
             responseHeaders : responseHeaders
         };
+        // #B1132 — the readable variant, kept by the .meta sidecar, the L2 value and stats()
+        cacheObject.variant = cacheVariant.readable;
         // Store visibility for Cache-Control header on the hit path.
         // Default is 'private' — opt in to 'public' explicitly for truly static pages.
         cacheObject.visibility = ( cachingOption.visibility === 'public' ) ? 'public' : 'private';
