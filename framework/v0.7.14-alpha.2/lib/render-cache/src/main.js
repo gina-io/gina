@@ -495,10 +495,11 @@ function RenderCache(options) {
     instance.set = async function(type, key, entry, payload) {
         payload = payload || {};
 
-        // #B1100 / #B1101 — never store the filling request's per-request headers (its
-        // X-Request-Id, its Set-Cookie): every strategy below stores this snapshot (the
-        // memory Map, the fs .meta sidecar, the redis L2 value) and every hit replays it to
-        // the visitors that come after. The filling request's own response keeps them.
+        // #B1100 / #B1101 / #B1105 — never store the filling request's per-request headers
+        // (its X-Request-Id, its Set-Cookie, its RateLimit and RateLimit-Policy): every
+        // strategy below stores this snapshot (the memory Map, the fs .meta sidecar, the
+        // redis L2 value) and every hit replays it to the visitors that come after. The
+        // filling request's own response keeps them.
         if ( entry && entry.responseHeaders ) {
             entry.responseHeaders = RenderCache.omitPerRequestHeaders(entry.responseHeaders);
         }
@@ -1250,10 +1251,13 @@ RenderCache.swapNonces = function (content, oldNonces, nonce) {
 
 /**
  * The response headers that belong to ONE request, so a render-cache entry never stores
- * them and a hit never replays them (#B1100, #B1101): `x-request-id`, the correlation id
+ * them and a hit never replays them (#B1100, #B1101, #B1105): `x-request-id`, the correlation id
  * every response echoes as its own, and `set-cookie`, the cookies set for the visitor whose
  * request filled the entry (a token cookie set by middleware before the render, or any
- * cookie an action sets). Lowercase, as `res.getHeaders()` returns them.
+ * cookie an action sets); and `ratelimit` with `ratelimit-policy` (#B1105), the standing
+ * the router's rate-limit gate reports to the caller whose request it counted: a hit answers
+ * before that gate, so it is not counted and carries neither, as an unidentified caller's
+ * answer does. Lowercase, as `res.getHeaders()` returns them.
  *
  * `instance.set()` drops them before any strategy stores the entry; the two replay loops
  * (the isaac pre-routing hit in core/server.isaac.js, `serveRenderCacheHit` in
@@ -1264,7 +1268,7 @@ RenderCache.swapNonces = function (content, oldNonces, nonce) {
  * @static
  * @constant {string[]}
  */
-RenderCache.PER_REQUEST_HEADERS = ['set-cookie', 'x-request-id'];
+RenderCache.PER_REQUEST_HEADERS = ['set-cookie', 'x-request-id', 'ratelimit', 'ratelimit-policy'];
 
 /**
  * Tells whether a response header is one of {@link RenderCache.PER_REQUEST_HEADERS},

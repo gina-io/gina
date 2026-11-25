@@ -53,8 +53,8 @@ after(function () { try { fs.rmSync(tmpRoot, { recursive: true, force: true }); 
 
 describe('01 - the per-request header list and its predicates', function () {
 
-    it('names exactly set-cookie and x-request-id, lowercase', function () {
-        assert.deepEqual(RenderCache.PER_REQUEST_HEADERS, ['set-cookie', 'x-request-id']);
+    it('names exactly set-cookie, x-request-id, ratelimit and ratelimit-policy, lowercase', function () {
+        assert.deepEqual(RenderCache.PER_REQUEST_HEADERS, ['set-cookie', 'x-request-id', 'ratelimit', 'ratelimit-policy']);
     });
 
     it('isPerRequestHeader matches those names in any case, and nothing else', function () {

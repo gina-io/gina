@@ -13,7 +13,7 @@
  * `RenderCache.RECOMPUTED_HEADERS` names it; `instance.set()` never stores it, and the replay
  * loops skip it (pinned in test/core/render-cache-vary-acao-b1164.test.js).
  *
- * The #B1100 list (`PER_REQUEST_HEADERS`) is unchanged: those headers are dropped, these are
+ * The per-request list (`PER_REQUEST_HEADERS`, #B1100 and #B1105) is a separate one: those headers are dropped, these are
  * recomputed or appended, so they live in their own lists.
  *
  * Run standalone:
@@ -149,8 +149,8 @@ describe('02 - #B1104 the headers a hit recomputes', function () {
         assert.equal(RenderCache.omitRecomputedHeaders(null), null);
     });
 
-    it('CONTROL: the #B1100 per-request list is unchanged', function () {
-        assert.deepEqual(RenderCache.PER_REQUEST_HEADERS, ['set-cookie', 'x-request-id']);
+    it('CONTROL: the per-request list is #B1100\'s and #B1105\'s, not this one', function () {
+        assert.deepEqual(RenderCache.PER_REQUEST_HEADERS, ['set-cookie', 'x-request-id', 'ratelimit', 'ratelimit-policy']);
         assert.equal(RenderCache.isPerRequestHeader('access-control-allow-origin'), false);
     });
 });
