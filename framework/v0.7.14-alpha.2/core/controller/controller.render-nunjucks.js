@@ -1607,6 +1607,11 @@ module.exports = async function renderNunjucks(userData, displayInspector, errOp
             res.setHeader('Cache-Control', ( _ccCfg.visibility === 'public' ? 'public' : 'private' ) + ', max-age=' + ~~(_ccTtl));
         }
     }
+    // #B1164 — a page sent with a max-age varies with its request variant: Vary lists those
+    // request headers. `_ccTtl` is above 0 only when the block above sent one.
+    if ( _ccTtl > 0 ) {
+        libRef.RenderCache.appendVariantVary(res);
+    }
 
     // #FI — response write + total timing for the Inspector Flow tab. Pushed
     // after the __ginaData snapshot was serialised, so they are late entries

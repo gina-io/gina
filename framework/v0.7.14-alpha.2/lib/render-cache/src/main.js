@@ -474,10 +474,16 @@ function RenderCache(options) {
      *              behaviour: neither `/^memory$/` nor `/^fs$/` matched, so
      *              nothing was stored).
      *
+     * Before any strategy stores it, `entry.responseHeaders` loses the filling
+     * request's per-request headers ({@link RenderCache.PER_REQUEST_HEADERS}) and the
+     * headers a hit recomputes ({@link RenderCache.RECOMPUTED_HEADERS}); an entry that
+     * carries a `variant` (#B1132) has {@link RenderCache.VARY_HEADERS} appended to its
+     * `Vary` ({@link RenderCache.withVariantVary}). The caller's snapshot is never mutated.
+     *
      * @memberof RenderCache
      * @param {string} type   - 'memory' | 'fs' (case-insensitive).
      * @param {string} key    - Fully-namespaced cache key.
-     * @param {object} entry  - The cache entry (responseHeaders / visibility / ttl / sliding / maxAge).
+     * @param {object} entry  - The cache entry (responseHeaders / visibility / ttl / sliding / maxAge / variant).
      * @param {object} [payload]
      * @param {string} [payload.content] - Rendered body (memory: stored inline; fs: written to disk).
      * @param {string} [payload.path]    - Cache root (`server.cache.path`) — fs only.
@@ -495,6 +501,16 @@ function RenderCache(options) {
         // the visitors that come after. The filling request's own response keeps them.
         if ( entry && entry.responseHeaders ) {
             entry.responseHeaders = RenderCache.omitPerRequestHeaders(entry.responseHeaders);
+        }
+        // #B1104 — nor the headers each hit computes for its own request (its
+        // Access-Control-Allow-Origin). #B1164 — an entry keyed on a request variant (#B1132:
+        // every render delegate's) lists the variant's request headers in Vary, so a hit served
+        // by a release that does not append them (a peer replica on a shared L2) still sends them.
+        if ( entry && entry.responseHeaders ) {
+            entry.responseHeaders = RenderCache.omitRecomputedHeaders(entry.responseHeaders);
+            if ( typeof(entry.variant) === 'string' ) {
+                entry.responseHeaders = RenderCache.withVariantVary(entry.responseHeaders);
+            }
         }
 
         if ( /^memory$/i.test(type) ) {
@@ -1301,6 +1317,206 @@ RenderCache.omitPerRequestHeaders = function (responseHeaders) {
     for (var h in responseHeaders) {
         if ( RenderCache.isPerRequestHeader(h) ) { continue; }
         headers[h] = responseHeaders[h];
+    }
+    return headers;
+};
+
+/**
+ * The response headers a render-cache hit computes for its own request instead of replaying
+ * the stored value (#B1104): `access-control-allow-origin`, which core/server.js picks per
+ * request (`allowOriginFor`: the request's origin when the configured list holds it or when it
+ * is the bundle's own, the request's origin when the configured value is empty). Lowercase,
+ * as `res.getHeaders()` returns them.
+ *
+ * `instance.set()` never stores them; the two replay loops skip them too (an entry stored by
+ * an older release may carry one). Then the isaac pre-routing hit, which runs no
+ * `completeHeaders`, sets the request's own value through `instance._renderCacheAllowOrigin`,
+ * and `serveRenderCacheHit` keeps the value `completeHeaders` set before it.
+ *
+ * @memberof RenderCache
+ * @static
+ * @constant {string[]}
+ */
+RenderCache.RECOMPUTED_HEADERS = ['access-control-allow-origin'];
+
+/**
+ * Tells whether a response header is one of {@link RenderCache.RECOMPUTED_HEADERS},
+ * whatever its case.
+ *
+ * @function isRecomputedHeader
+ * @memberof RenderCache
+ * @static
+ *
+ * @param {string} name - A response header name
+ *
+ * @returns {boolean} `true` for a header a hit recomputes; `false` otherwise, a non-string included
+ *
+ * @example
+ * RenderCache.isRecomputedHeader('Access-Control-Allow-Origin'); // true
+ * RenderCache.isRecomputedHeader('vary');                        // false
+ */
+RenderCache.isRecomputedHeader = function (name) {
+    return typeof(name) === 'string' && RenderCache.RECOMPUTED_HEADERS.indexOf(name.toLowerCase()) > -1;
+};
+
+/**
+ * Returns a copy of a stored headers snapshot without the headers a hit recomputes
+ * ({@link RenderCache.RECOMPUTED_HEADERS}). The input is never mutated.
+ *
+ * @function omitRecomputedHeaders
+ * @memberof RenderCache
+ * @static
+ *
+ * @param {object|null|undefined} responseHeaders - A `res.getHeaders()` snapshot
+ *
+ * @returns {object|null|undefined} A new object holding every other header; the input
+ *   itself when it is not an object
+ *
+ * @example
+ * RenderCache.omitRecomputedHeaders({ 'content-type': 'text/html', 'access-control-allow-origin': 'https://a.example' });
+ * // → { 'content-type': 'text/html' }
+ */
+RenderCache.omitRecomputedHeaders = function (responseHeaders) {
+    if ( !responseHeaders || typeof(responseHeaders) !== 'object' ) {
+        return responseHeaders;
+    }
+    var headers = {};
+    for (var h in responseHeaders) {
+        if ( RenderCache.isRecomputedHeader(h) ) { continue; }
+        headers[h] = responseHeaders[h];
+    }
+    return headers;
+};
+
+/**
+ * The request headers a cached page's variant is read from ({@link RenderCache.variantFor},
+ * #B1132): `Accept-Language` and the culture cookie (`Cookie`) select its culture,
+ * `X-Forwarded-Host` and `X-Forwarded-Proto` its public origin, `X-Forwarded-Prefix` its
+ * webroot. A response a cache may keep (`Cache-Control: <visibility>, max-age=`, on a miss
+ * and on a hit) lists them in `Vary` (#B1164), so a browser or a shared cache reuses it only
+ * for a request carrying the same values; without them a browser kept showing a page in the
+ * language it first received for the page's whole `max-age`.
+ *
+ * @memberof RenderCache
+ * @static
+ * @constant {string[]}
+ */
+RenderCache.VARY_HEADERS = ['Accept-Language', 'Cookie', 'X-Forwarded-Host', 'X-Forwarded-Proto', 'X-Forwarded-Prefix'];
+
+/**
+ * Returns a `Vary` value (RFC 9110 § 12.5.5) with `names` appended to `current`, by the rule
+ * of core/server.js `appendVary` (#B743): a name already listed, in any case, is not added
+ * again, nothing is added after a `*`, and the names already listed keep their order and
+ * case. Pure.
+ *
+ * @function mergeVary
+ * @memberof RenderCache
+ * @static
+ *
+ * @param {string|string[]|null|undefined} current - The value set so far: a comma-separated list, or an array of them
+ * @param {string|string[]|null|undefined} names   - The name(s) to add: a comma-separated list, or an array of them
+ *
+ * @returns {string} The merged value; `''` when both are empty
+ *
+ * @example
+ * RenderCache.mergeVary('Origin', ['Accept-Language', 'origin']); // → 'Origin, Accept-Language'
+ * RenderCache.mergeVary(undefined, 'Cookie');                      // → 'Cookie'
+ * RenderCache.mergeVary('*', 'Cookie');                            // → '*'
+ */
+RenderCache.mergeVary = function (current, names) {
+    var asList = function (v) {
+        if ( Array.isArray(v) ) {
+            v = v.join(', ');
+        }
+        return ( typeof(v) == 'undefined' || v === null ) ? '' : String(v).trim();
+    };
+    var cur     = asList(current);
+    var present = ( cur === '' ) ? [] : cur.toLowerCase().split(',').map(function (n) { return n.trim(); });
+    var added   = [];
+    asList(names).split(',').forEach(function (n) {
+        n = n.trim();
+        if ( n === '' || present.indexOf('*') > -1 || present.indexOf(n.toLowerCase()) > -1 ) {
+            return;
+        }
+        present.push(n.toLowerCase());
+        added.push(n);
+    });
+    if ( added.length === 0 ) {
+        return cur;
+    }
+    return ( cur === '' ) ? added.join(', ') : cur + ', ' + added.join(', ');
+};
+
+/**
+ * Appends {@link RenderCache.VARY_HEADERS} to a response's `Vary` header
+ * ({@link RenderCache.mergeVary}). The render delegates call it where they send a cached
+ * route's `Cache-Control: <visibility>, max-age=`, and both hit paths after theirs (#B1164).
+ * Does nothing once the headers are sent, or for an object that is not a response.
+ *
+ * @function appendVariantVary
+ * @memberof RenderCache
+ * @static
+ *
+ * @param {object} response - A server response (HTTP/1.x, or the HTTP/2 compatibility API)
+ *
+ * @returns {void}
+ *
+ * @example
+ * // Vary: Origin  →  Vary: Origin, Accept-Language, Cookie, X-Forwarded-Host, X-Forwarded-Proto, X-Forwarded-Prefix
+ * res.setHeader('Cache-Control', 'private, max-age=3600');
+ * RenderCache.appendVariantVary(res);
+ */
+RenderCache.appendVariantVary = function (response) {
+    if (
+        !response
+        || typeof(response.getHeader) != 'function'
+        || typeof(response.setHeader) != 'function'
+        || response.headersSent
+    ) {
+        return;
+    }
+    var current = response.getHeader('vary');
+    var merged  = RenderCache.mergeVary(current, RenderCache.VARY_HEADERS);
+    if ( merged !== '' && merged !== current ) {
+        response.setHeader('vary', merged);
+    }
+};
+
+/**
+ * Returns a copy of a stored headers snapshot whose `Vary` lists
+ * {@link RenderCache.VARY_HEADERS} after the names it already holds
+ * ({@link RenderCache.mergeVary}); a snapshot without `Vary` gains a lowercase `vary`
+ * (#B1164). `instance.set()` applies it to an entry keyed on a request variant, so a hit
+ * served by a release that does not append them itself still sends them. The input is
+ * never mutated.
+ *
+ * @function withVariantVary
+ * @memberof RenderCache
+ * @static
+ *
+ * @param {object|null|undefined} responseHeaders - A `res.getHeaders()` snapshot
+ *
+ * @returns {object|null|undefined} A new object; the input itself when it is not an object
+ *
+ * @example
+ * RenderCache.withVariantVary({ 'content-type': 'text/html', 'vary': 'Origin' });
+ * // → { 'content-type': 'text/html',
+ * //     'vary': 'Origin, Accept-Language, Cookie, X-Forwarded-Host, X-Forwarded-Proto, X-Forwarded-Prefix' }
+ */
+RenderCache.withVariantVary = function (responseHeaders) {
+    if ( !responseHeaders || typeof(responseHeaders) !== 'object' ) {
+        return responseHeaders;
+    }
+    var headers = {}, key = 'vary';
+    for (var h in responseHeaders) {
+        headers[h] = responseHeaders[h];
+        if ( h.toLowerCase() === 'vary' ) {
+            key = h;
+        }
+    }
+    var merged = RenderCache.mergeVary(headers[key], RenderCache.VARY_HEADERS);
+    if ( merged !== '' ) {
+        headers[key] = merged;
     }
     return headers;
 };

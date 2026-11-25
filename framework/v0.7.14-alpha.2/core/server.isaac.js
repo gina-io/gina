@@ -3015,6 +3015,10 @@ function ServerEngineClass(options) {
                                 // .meta sidecar) may still carry them. Keep in sync with
                                 // serveRenderCacheHit in core/server.js.
                                 if ( lib.RenderCache.isPerRequestHeader(h) ) { continue; }
+                                // #B1104 — nor the filling request's Access-Control-Allow-Origin:
+                                // this request's own is set below. Keep in sync with
+                                // serveRenderCacheHit in core/server.js.
+                                if ( lib.RenderCache.isRecomputedHeader(h) ) { continue; }
                                 response.setHeader(h, _rnHeaders[h]);
                             }
                         }
@@ -3045,8 +3049,20 @@ function ServerEngineClass(options) {
                         if ( _ccHitMaxAge !== null ) {
                             var _ccHitVis = ( cachedContentObj.visibility === 'public' ) ? 'public' : 'private';
                             response.setHeader('Cache-Control', _ccHitVis + ', max-age=' + _ccHitMaxAge);
+                            // #B1164 — the page varies with its request variant: Vary lists those
+                            // request headers (an entry stored by an older release lacks them).
+                            // Keep in sync with serveRenderCacheHit in core/server.js.
+                            lib.RenderCache.appendVariantVary(response);
                         }
                         _ccHitMaxAge = null; _ccHitNow = null;
+
+                        // #B1104 — this request's own Access-Control-Allow-Origin, by the rule
+                        // completeHeaders() applies (core/server.js allowOriginFor): no
+                        // completeHeaders() runs before this hit, and the loop above skipped the
+                        // stored value.
+                        if ( typeof(server._renderCacheAllowOrigin) == 'function' ) {
+                            server._renderCacheAllowOrigin(request, response);
+                        }
 
                         if (
                             typeof(cachedContentObj.fromMemory) != 'undefined'

@@ -1504,6 +1504,11 @@ module.exports = async function render(userData, displayInspector, errOptions, d
                         res.setHeader('Cache-Control', ( _ccCfg.visibility === 'public' ? 'public' : 'private' ) + ', max-age=' + ~~(_ccTtl));
                     }
                 }
+                // #B1164 — a page sent with a max-age varies with its request variant: Vary lists
+                // those request headers. `_ccTtl` is above 0 only when the block above sent one.
+                if ( _ccTtl > 0 ) {
+                    lib.RenderCache.appendVariantVary(res);
+                }
 
                 // #FI — response write + total timing (cache hit)
                 if (local._timeline) {
@@ -2262,6 +2267,11 @@ module.exports = async function render(userData, displayInspector, errOptions, d
                     if ( _ccTtl > 0 ) {
                         res.setHeader('Cache-Control', ( _ccCfg.visibility === 'public' ? 'public' : 'private' ) + ', max-age=' + ~~(_ccTtl));
                     }
+                }
+                // #B1164 — a page sent with a max-age varies with its request variant: Vary lists
+                // those request headers. `_ccTtl` is above 0 only when the block above sent one.
+                if ( _ccTtl > 0 ) {
+                    lib.RenderCache.appendVariantVary(res);
                 }
 
                 // #FI — response write + total timing

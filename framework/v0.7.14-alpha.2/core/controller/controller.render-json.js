@@ -598,6 +598,11 @@ module.exports = function renderJSON(jsonObj, deps) {
                 _cc = ( _ccCfg.visibility === 'public' ? 'public' : 'private' ) + ', max-age=' + ~~(_ccTtl);
             }
         }
+        // #B1164 — a page sent with a max-age varies with its request variant: Vary lists those
+        // request headers. Set on the response, so both sends below carry it.
+        if ( _cc ) {
+            lib.RenderCache.appendVariantVary(response);
+        }
 
         if (  stream ) {
             // Guard: client may have disconnected (nginx timeout, browser navigation)

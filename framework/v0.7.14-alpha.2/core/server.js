@@ -3367,6 +3367,33 @@ function Server(options) {
                     return lib.RenderCache.variantFor(req, { negotiate: lib.i18n.negotiateCulture, i18n: _vOptions, scheme: _vScheme });
                 };
             }
+            // #B1104 — THIS request's Access-Control-Allow-Origin for isaac's pre-routing
+            // render-cache hit, which runs no completeHeaders(): the same rule (allowOriginFor),
+            // set under each configured `access-control-allow-origin` name, as completeHeaders()
+            // sets it. The hit never replays a stored value (lib/render-cache RECOMPUTED_HEADERS).
+            // A rule that throws (a malformed origin or host) sets none.
+            if ( typeof(instance._renderCacheAllowOrigin) == 'undefined' ) {
+                instance._renderCacheAllowOrigin = function(req, res) {
+                    var _aoHeaders = self.conf[self.appName][self.env].server.response.header;
+                    if ( !_aoHeaders || typeof(_aoHeaders) != 'object' || Object.keys(_aoHeaders).length == 0 || res.headersSent ) {
+                        return;
+                    }
+                    var _ao = null;
+                    try { _ao = allowOriginFor(req); } catch (_aoErr) { _ao = null; }
+                    if ( !_ao ) {
+                        return;
+                    }
+                    for (var _aoName in _aoHeaders) {
+                        if ( /access\-control\-allow\-origin/i.test(_aoName) ) {
+                            try {
+                                res.setHeader(_aoName, _ao);
+                            } catch (headerError) {
+                                console.error(headerError)
+                            }
+                        }
+                    }
+                };
+            }
 
             // #P48 — the routing table's per-variant tokens (built with the maps in
             // init, before the engine), stamped where the controller reads them to
@@ -4242,9 +4269,144 @@ function Server(options) {
     // }
 
     /**
+     * The `Access-Control-Allow-Origin` value THIS request gets from the bundle's
+     * `server.response.header` (#B1104): the request's own origin when it is the bundle's
+     * own hostname; else, with a comma-separated list configured, the request's origin when
+     * the list holds it and none when it does not; else the configured value (a
+     * `{bundle@project}` token resolved to that bundle's hostname), or the request's origin
+     * when the configured value is empty. The request's origin is its `Origin` header, else
+     * its scheme and authority.
+     *
+     * The one rule, with two callers: completeHeaders(), and isaac's pre-routing
+     * render-cache hit (`instance._renderCacheAllowOrigin`), which runs no completeHeaders —
+     * so a cached page never answers with the value of the request that filled it. Lifted
+     * verbatim from completeHeaders(), which calls it where that code picked the value: for a
+     * configured `access-control-allow-origin` name, before the headers are sent. It throws
+     * where that code threw (a `RegExp` built from the request's origin or host, #B1166); the
+     * stamp guards the call.
+     *
+     * @inner
+     * @private
+     * @param {object} request - Incoming request object
+     * @returns {string|null} The value to send, or null to send none
+     *
+     * @example
+     * // server.response.header['access-control-allow-origin'] = 'https://a.example, https://b.example'
+     * allowOriginFor({ headers: { origin: 'https://b.example' } }); // → 'https://b.example'
+     * allowOriginFor({ headers: { origin: 'https://c.example' } }); // → null
+     */
+    var allowOriginFor = function(request) {
+
+        var referer         = null
+            , authority     = null
+            , scheme        = null
+            , re            = null
+            , allowedOrigin = null
+            , sameOrigin    = false
+            , found         = null
+            , origin        = null
+            , origins       = null
+            , conf          = self.conf[self.appName][self.env]
+        ;
+
+        if ( typeof(request.headers.origin) != 'undefined' ) {
+            authority = request.headers.origin;
+        } else if (request.headers.referer) {
+            referer = request.headers.referer.match(/^[https://|http://][a-z0-9-_.:/]+\//);
+            if (Array.isArray(referer) && referer.length > 0) {
+                referer = referer[0].substring(0, referer.length-1);
+            }
+        }
+
+        // authority by default if no Access Control Allow Origin set
+        if (!authority) {
+            if (!referer) {
+                if ( /http\/2/.test(conf.server.protocol) ) {
+                    authority   = request.headers[':authority'] || request.headers.host;
+                    scheme      = request.headers[':scheme'] || request.headers['x-forwarded-proto'] || conf.server.scheme;
+                } else {
+                    authority   = request.headers.host;
+                    scheme      = ( new RegExp(authority).test(referer) ) ? referer.match(/^http(.*)\:\/\//)[0].replace(/\:\/\//, '') : conf.server.scheme;
+                }
+                authority = scheme +'://'+ authority;
+            } else {
+                authority   = referer;
+                sameOrigin  = authority;
+            }
+        }
+
+        if (!sameOrigin && conf.hostname == authority || !sameOrigin && conf.hostname.replace(/\:\d+$/, '') == authority.replace(/\:\d+$/, '') ) {
+            sameOrigin = authority
+        }
+
+        re = new RegExp(authority);
+        allowedOrigin = ( typeof(conf.server.response.header['access-control-allow-origin']) != 'undefined' && conf.server.response.header['access-control-allow-origin'] != '' ) ? conf.server.response.header['access-control-allow-origin'] : authority;
+        // console.debug('[ server ][access-control-allow-origin] ', allowedOrigin);
+
+        var originHostReplacement = function(name) {
+            var matched = name.match(/{([-_A-z]+?@[-_A-z]+?)}/g);
+            if (!matched || !Array.isArray(matched) || Array.isArray(matched) && matched.length == 0 ) {
+                return name
+            }
+
+            var env     = self.conf.env || self.env
+                , scope = self.conf.scope || self.scope
+            ;
+
+            for (let i=0, len=matched.length; i<len; ++i) {
+                let oldHost = matched[i];
+                let newHost = matched[i].replace(/\{|\}|\s+/g, '');
+                newHost = newHost.split(/\@/);
+                let bundle      = newHost[0]
+                    , project   = newHost[1]
+                    , arr       = null
+                    , hostname  = null
+                    , scheme    = null
+                ;
+                if ( /\//.test(newHost[1]) ) {
+                    arr     = newHost[1].split(/\//);
+                    project = arr[0];
+                    env     = (arr[1]) ? arr[1] : env;
+                }
+                if ( typeof(self.conf[bundle]) == 'undefined' ) {
+                    continue;
+                }
+                scheme  = self.conf[bundle][env].server.scheme;
+                hostname  = ( !self.conf[bundle][env].hostname ) ? self.conf[bundle][env].server.scheme + '://' + self.conf[bundle][env].host + ':' + self.conf[bundle][env].server.port : self.conf[bundle][env].hostname;
+                name    = name.replace(oldHost, hostname);
+            }
+            matched = null;
+            env = null;
+
+            return name;
+        }
+
+        // handles multiple origins
+        re = new RegExp('\{\s*(.*)\s*\}', 'g');
+        if (sameOrigin) {
+            origin = sameOrigin
+        } else {
+            if ( /\,/.test(allowedOrigin) ) {
+                origins = allowedOrigin.replace(/\s+/g, '').replace(re, originHostReplacement).split(/\,/g);
+
+                found = ( origins.indexOf(authority) > -1 ) ? origins[origins.indexOf(authority)] : false;
+                if ( found != false ) {
+                    origin = found
+                }
+            } else {
+                origin = allowedOrigin.replace(/\s+/g, '').replace(re, originHostReplacement);
+            }
+        }
+
+        return origin || sameOrigin || null;
+    }
+
+    /**
      * Merges configured response headers (CORS, cache-control, etc.) into the
      * response. Resolves `Access-Control-Allow-Origin` against the bundle's
-     * allowed origins list and normalises HTTP/1.1 vs HTTP/2 header names.
+     * allowed origins list (allowOriginFor, the rule isaac's pre-routing
+     * render-cache hit applies too, #B1104) and normalises HTTP/1.1 vs HTTP/2
+     * header names.
      * When `server.http3Advertisement` is enabled, also emits the opt-in
      * `Alt-Svc: h3=":443"; ma=86400` HTTP/3-advertisement header (#H11).
      *
@@ -4258,13 +4420,8 @@ function Server(options) {
     var completeHeaders = function(responseHeaders, request, response) {
 
         var resHeaders      = null
-            , referer       = null
-            , authority     = null
             , method        = null
-            , scheme        = null
-            , re            = null
-            , allowedOrigin = null
-            , sameOrigin    = false
+            , allowOrigin   = null
             , conf          = self.conf[self.appName][self.env]
         ;
 
@@ -4312,116 +4469,30 @@ function Server(options) {
         // Should not override main server.response.header.methods
         resHeaders['access-control-allow-methods'] = request.routing.method.replace(/(\,\s+|\,)/g, ', ').toUpperCase();
 
-        if ( typeof(request.headers.origin) != 'undefined' ) {
-            authority = request.headers.origin;
-        } else if (request.headers.referer) {
-            referer = request.headers.referer.match(/^[https://|http://][a-z0-9-_.:/]+\//);
-            if (Array.isArray(referer) && referer.length > 0) {
-                referer = referer[0].substring(0, referer.length-1);
-            }
-        }
-
         // access-control-allow-origin settings
         if ( resHeaders.count() > 0 ) {
 
-            // authority by default if no Access Control Allow Origin set
-            if (!authority) {
-                if (!referer) {
-                    if ( /http\/2/.test(conf.server.protocol) ) {
-                        authority   = request.headers[':authority'] || request.headers.host;
-                        scheme      = request.headers[':scheme'] || request.headers['x-forwarded-proto'] || conf.server.scheme;
-                    } else {
-                        authority   = request.headers.host;
-                        scheme      = ( new RegExp(authority).test(referer) ) ? referer.match(/^http(.*)\:\/\//)[0].replace(/\:\/\//, '') : conf.server.scheme;
-                    }
-                    authority = scheme +'://'+ authority;
-                } else {
-                    authority   = referer;
-                    sameOrigin  = authority;
-                }
-            }
-
-            if (!sameOrigin && conf.hostname == authority || !sameOrigin && conf.hostname.replace(/\:\d+$/, '') == authority.replace(/\:\d+$/, '') ) {
-                sameOrigin = authority
-            }
-
-            re = new RegExp(authority);
-            allowedOrigin = ( typeof(conf.server.response.header['access-control-allow-origin']) != 'undefined' && conf.server.response.header['access-control-allow-origin'] != '' ) ? conf.server.response.header['access-control-allow-origin'] : authority;
-            // console.debug('[ server ][access-control-allow-origin] ', allowedOrigin);
-            var found = null, origin = null, origins = null; // to handles multiple origins
-
-            var originHostReplacement = function(name) {
-                var matched = name.match(/{([-_A-z]+?@[-_A-z]+?)}/g);
-                if (!matched || !Array.isArray(matched) || Array.isArray(matched) && matched.length == 0 ) {
-                    return name
-                }
-
-                var env     = self.conf.env || self.env
-                    , scope = self.conf.scope || self.scope
-                ;
-
-                for (let i=0, len=matched.length; i<len; ++i) {
-                    let oldHost = matched[i];
-                    let newHost = matched[i].replace(/\{|\}|\s+/g, '');
-                    newHost = newHost.split(/\@/);
-                    let bundle      = newHost[0]
-                        , project   = newHost[1]
-                        , arr       = null
-                        , hostname  = null
-                        , scheme    = null
-                    ;
-                    if ( /\//.test(newHost[1]) ) {
-                        arr     = newHost[1].split(/\//);
-                        project = arr[0];
-                        env     = (arr[1]) ? arr[1] : env;
-                    }
-                    if ( typeof(self.conf[bundle]) == 'undefined' ) {
-                        continue;
-                    }
-                    scheme  = self.conf[bundle][env].server.scheme;
-                    hostname  = ( !self.conf[bundle][env].hostname ) ? self.conf[bundle][env].server.scheme + '://' + self.conf[bundle][env].host + ':' + self.conf[bundle][env].server.port : self.conf[bundle][env].hostname;
-                    name    = name.replace(oldHost, hostname);
-                }
-                matched = null;
-                env = null;
-
-                return name;
-            }
-
-            var headerValue = null, re = new RegExp('\{\s*(.*)\s*\}', 'g');
+            var headerValue = null;
             for (let h in resHeaders) {
                 if (
                     !response.headersSent
                 ) {
                     // handles multiple origins
                     if ( /access\-control\-allow\-origin/i.test(h) ) { // re.test(resHeaders[h]
-                        if (sameOrigin) {
-                            origin = sameOrigin
-                        } else {
-                            if ( /\,/.test(allowedOrigin) ) {
-                                origins = allowedOrigin.replace(/\s+/g, '').replace(re, originHostReplacement).split(/\,/g);
-
-                                found = ( origins.indexOf(authority) > -1 ) ? origins[origins.indexOf(authority)] : false;
-                                if ( found != false ) {
-                                    origin = found
-                                }
-                            } else {
-                                origin = allowedOrigin.replace(/\s+/g, '').replace(re, originHostReplacement);
-                            }
-                        }
-
-                        if (origin || sameOrigin) {
-                            if (!origin && sameOrigin) {
-                                origin = sameOrigin;
-                            }
-
+                        // #B1104 — THIS request's value, by the one rule allowOriginFor() holds
+                        // (isaac's pre-routing render-cache hit, which runs no completeHeaders(),
+                        // applies it too: instance._renderCacheAllowOrigin). Picked here, for a
+                        // configured access-control-allow-origin name and before the headers are
+                        // sent, where the lifted code picked it: a bundle that configures no such
+                        // name never runs the rule.
+                        allowOrigin = allowOriginFor(request);
+                        if (allowOrigin) {
                             try {
-                                response.setHeader(h, origin);
+                                response.setHeader(h, allowOrigin);
                             } catch (headerError) {
                                 console.error(headerError)
                             }
                         }
-                        sameOrigin = false;
                     } else {
                         // #B13 — preserve preflight echo of access-control-allow-headers.
                         // checkPreflightRequest() echoes back the browser's
@@ -8749,6 +8820,9 @@ function Server(options) {
                 // this hit). The store drops them; an entry stored by an older release (a redis
                 // L2 value) may still carry them. Keep in sync with the isaac pre-routing read.
                 if ( lib.RenderCache.isPerRequestHeader(h) ) { continue; }
+                // #B1104 — nor the filling request's Access-Control-Allow-Origin: this response
+                // keeps the value completeHeaders() set for THIS request in handle(), before this hit.
+                if ( lib.RenderCache.isRecomputedHeader(h) ) { continue; }
                 res.setHeader(h, _hitHeaders[h]);
             }
         }
@@ -8762,13 +8836,18 @@ function Server(options) {
         res.setHeader('Cache-Status', _cs);
         if ( _remaining !== null ) {
             res.setHeader('Cache-Control', _vis + ', max-age=' + _remaining);
+            // #B1164 — the page varies with its request variant: Vary lists those request
+            // headers (an entry stored by an older release lacks them). Keep in sync with the
+            // isaac pre-routing read.
+            lib.RenderCache.appendVariantVary(res);
         }
         if ( _isH2 ) {
             // Fold res.getHeaders() (the cache metadata + page headers set just above)
             // into the stream.respond() headers — they don't travel on a raw Http2Stream.
-            // NOTE completeHeaders() runs during dispatch, which this hit short-circuits,
-            // so the ORIGINAL render's completeHeaders output is already baked into
-            // hit.responseHeaders (captured at write time) — it is not re-derived here.
+            // NOTE completeHeaders() already ran for THIS request in handle(), before this
+            // hit: the stored headers (the original render's completeHeaders output among
+            // them, captured at write time) replay over it, except this request's own
+            // Access-Control-Allow-Origin, which the loop above keeps (#B1104).
             if ( !res.stream.headersSent && !res.stream.destroyed ) {
                 var _sh = { ':status': 200 };
                 var _pending = res.getHeaders ? res.getHeaders() : {};
