@@ -1367,6 +1367,69 @@ isBundleMounted(projects, bundlesPath, getContext('bundle'), function onBundleMo
 
                         //On user conf complete.
                         e.on('complete', function(instance){
+                            // #B1165 — the #KV1 band runs HERE, at the top of the 'complete' handler,
+                            // before the engine starts: Server.start resolves `server.rateLimit` (#MS6)
+                            // and `server.idempotency` (#FIN6) through lib.kv.get(), so the namespaces
+                            // must already exist. It used to run in the started band, after listen(), and
+                            // every bundle enabling either feature refused to boot with "[kv] not
+                            // configured" (measured 2026-11-24 and 2026-11-25). A fatal kv error now
+                            // also exits before the port is bound.
+                            // #KV1 — general-purpose KV primitive. Validate the starting
+                            // bundle's `kv` block, build any connector-backed namespace stores,
+                            // then install the namespaces before the first request. FATAL on an
+                            // unbuildable config (the #STO1 shape below): a namespace whose
+                            // declared store cannot build would leave gina.kv() handing out a
+                            // backend the operator did not ask for. Dormant — zero cost — when
+                            // the block is absent.
+                            try {
+                                var _kvAll      = config.getInstance();
+                                var _kvSettings = null;
+                                try {
+                                    _kvSettings = _kvAll[gna.core.startingApp][env].content.settings.kv;
+                                } catch (kvConfErr) { _kvSettings = null; }
+                                if ( _kvSettings ) {
+                                    var _kvCheck = lib.kv.validateConfig(_kvSettings);
+                                    for (var _kvW = 0; _kvW < _kvCheck.warnings.length; _kvW++) {
+                                        console.warn('[kv] ' + _kvCheck.warnings[_kvW]);
+                                    }
+                                    if (_kvCheck.fatal) {
+                                        var _kvFatalMsg = '[kv] invalid kv configuration — aborting boot: ' + _kvCheck.fatal;
+                                        console.emerg(_kvFatalMsg);
+                                        // boot-exit-flush: process.exit() truncates async stdio on a pipe.
+                                        try { fs.writeSync(2, _kvFatalMsg + '\n'); } catch (_e) {}
+                                        process.exit(1);
+                                    }
+                                    if (_kvCheck.namespaceCount > 0) {
+                                        var _kvNamespaces = _kvSettings.namespaces;
+                                        var _kvStores     = {};
+                                        for (var _kvN in _kvNamespaces) {
+                                            if ( typeof(_kvNamespaces[_kvN].store) == 'string' && _kvNamespaces[_kvN].store.length > 0 ) {
+                                                try {
+                                                    // the namespace name is passed so an implementation
+                                                    // prefixes its keys — two namespaces may share one
+                                                    // connectors.json entry without colliding
+                                                    _kvStores[_kvN] = lib.KvStore(_kvNamespaces[_kvN].store, _kvN);
+                                                } catch (kvStoreErr) {
+                                                    var _kvStoreMsg = '[kv] namespace `' + _kvN + '` names store `' + _kvNamespaces[_kvN].store + '`, which could not be built — aborting boot: ' + (kvStoreErr.message || kvStoreErr);
+                                                    console.emerg(_kvStoreMsg + '\n' + (kvStoreErr.stack || ''));
+                                                    try { fs.writeSync(2, _kvStoreMsg + '\n'); } catch (_e) {}
+                                                    process.exit(1);
+                                                }
+                                            }
+                                        }
+                                        if ( lib.kv.start(_kvSettings, { stores: _kvStores, warn: function(kvWarnMsg) { console.warn('[kv] ' + kvWarnMsg); } }) ) {
+                                            // console.info, NOT debug — an operator needs to see
+                                            // which namespaces went live (the #STO1 precedent).
+                                            console.info('[kv] ' + _kvCheck.namespaceCount + ' namespace(s) ready' + ( _kvSettings.default ? ' (default: ' + _kvSettings.default + ')' : '' ));
+                                        } else {
+                                            console.warn('[kv] namespaces were already installed — this boot wiring was ignored');
+                                        }
+                                    }
+                                }
+                            } catch (kvErr) {
+                                console.warn('[kv] setup skipped: ' + (kvErr.message || kvErr));
+                            }
+
 
                             server.on('started', async function (conf) {
 
@@ -1879,66 +1942,13 @@ isBundleMounted(projects, bundlesPath, getContext('bundle'), function onBundleMo
                                     console.warn('[storage] config validation skipped: ' + (stoErr.message || stoErr));
                                 }
 
-                                // #KV1 — general-purpose KV primitive. Validate the starting
-                                // bundle's `kv` block, build any connector-backed namespace stores,
-                                // then install the namespaces before the first request. FATAL on an
-                                // unbuildable config (the #STO1 shape above): a namespace whose
-                                // declared store cannot build would leave gina.kv() handing out a
-                                // backend the operator did not ask for. Dormant — zero cost — when
-                                // the block is absent.
-                                try {
-                                    var _kvAll      = config.getInstance();
-                                    var _kvSettings = null;
-                                    try {
-                                        _kvSettings = _kvAll[gna.core.startingApp][env].content.settings.kv;
-                                    } catch (kvConfErr) { _kvSettings = null; }
-                                    if ( _kvSettings ) {
-                                        var _kvCheck = lib.kv.validateConfig(_kvSettings);
-                                        for (var _kvW = 0; _kvW < _kvCheck.warnings.length; _kvW++) {
-                                            console.warn('[kv] ' + _kvCheck.warnings[_kvW]);
-                                        }
-                                        if (_kvCheck.fatal) {
-                                            var _kvFatalMsg = '[kv] invalid kv configuration — aborting boot: ' + _kvCheck.fatal;
-                                            console.emerg(_kvFatalMsg);
-                                            // boot-exit-flush: process.exit() truncates async stdio on a pipe.
-                                            try { fs.writeSync(2, _kvFatalMsg + '\n'); } catch (_e) {}
-                                            process.exit(1);
-                                        }
-                                        if (_kvCheck.namespaceCount > 0) {
-                                            var _kvNamespaces = _kvSettings.namespaces;
-                                            var _kvStores     = {};
-                                            for (var _kvN in _kvNamespaces) {
-                                                if ( typeof(_kvNamespaces[_kvN].store) == 'string' && _kvNamespaces[_kvN].store.length > 0 ) {
-                                                    try {
-                                                        // the namespace name is passed so an implementation
-                                                        // prefixes its keys — two namespaces may share one
-                                                        // connectors.json entry without colliding
-                                                        _kvStores[_kvN] = lib.KvStore(_kvNamespaces[_kvN].store, _kvN);
-                                                    } catch (kvStoreErr) {
-                                                        var _kvStoreMsg = '[kv] namespace `' + _kvN + '` names store `' + _kvNamespaces[_kvN].store + '`, which could not be built — aborting boot: ' + (kvStoreErr.message || kvStoreErr);
-                                                        console.emerg(_kvStoreMsg + '\n' + (kvStoreErr.stack || ''));
-                                                        try { fs.writeSync(2, _kvStoreMsg + '\n'); } catch (_e) {}
-                                                        process.exit(1);
-                                                    }
-                                                }
-                                            }
-                                            if ( lib.kv.start(_kvSettings, { stores: _kvStores, warn: function(kvWarnMsg) { console.warn('[kv] ' + kvWarnMsg); } }) ) {
-                                                // console.info, NOT debug — an operator needs to see
-                                                // which namespaces went live (the #STO1 precedent).
-                                                console.info('[kv] ' + _kvCheck.namespaceCount + ' namespace(s) ready' + ( _kvSettings.default ? ' (default: ' + _kvSettings.default + ')' : '' ));
-                                            } else {
-                                                console.warn('[kv] namespaces were already installed — this boot wiring was ignored');
-                                            }
-                                        }
-                                    }
-                                } catch (kvErr) {
-                                    console.warn('[kv] setup skipped: ' + (kvErr.message || kvErr));
-                                }
+                                // #KV1 — the kv band moved to the top of the 'complete' handler (#B1165):
+                                // the namespaces must exist before Server.start resolves #MS6 / #FIN6.
 
                                 // #MAINT1 slice (c) — replica sync (`server.maintenance.store`).
                                 // Deliberately HERE, in the started band, and not in the engine's
-                                // boot-resolve (core/server.js init): lib.kv.start() runs in this
-                                // band (#KV1 directly above), so init is too early to hand out a namespace —
+                                // boot-resolve (core/server.js init): lib.kv.start() runs at the top of the
+                                // 'complete' handler (#B1165), still after init, so init is too early to hand out a namespace —
                                 // measured 2026-09-20 (a resolve at init refused a bundle whose
                                 // settings.json declared the block, with "[kv] not configured").
                                 // Reads the state the boot-resolve published on the engine instance

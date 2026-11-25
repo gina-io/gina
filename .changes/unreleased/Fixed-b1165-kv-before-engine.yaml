@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'A bundle that enables `server.rateLimit` or `server.idempotency` no longer refuses to boot with "[kv] not configured": the engine resolves both policies when it starts, and the kv namespaces were installed only after the server started listening, so no bundle could enable either feature. The namespaces are now installed before the engine starts, and a kv configuration error now refuses the boot before the port is bound. A bundle restart picks it up (#B1165)'
+time: 2026-11-25T03:58:45+01:00

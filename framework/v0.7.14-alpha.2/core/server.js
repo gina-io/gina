@@ -3429,7 +3429,10 @@ function Server(options) {
             // dev-mode hot reloads, dies on restart). The resolver is fail-closed
             // on an enabled block (a bad value refuses the boot) and verifies the
             // named kv namespace is DECLARED — the kv boot band installed the
-            // namespaces before the first request, upstream of this engine start.
+            // namespaces before the first request, upstream of this engine start
+            // (gna.js, at the top of the 'complete' handler: #B1165 moved it there
+            // from the started band, where it ran too late and this resolve refused
+            // every boot).
             if ( typeof(instance._rateLimit) == 'undefined' ) {
                 var _rlContent = self.conf[self.appName][self.env].content;
                 instance._rateLimit = lib.rateLimit.resolveConf(self.conf[self.appName][self.env].server, {
