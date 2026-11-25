@@ -4281,9 +4281,11 @@ function Server(options) {
      * render-cache hit (`instance._renderCacheAllowOrigin`), which runs no completeHeaders —
      * so a cached page never answers with the value of the request that filled it. Lifted
      * verbatim from completeHeaders(), which calls it where that code picked the value: for a
-     * configured `access-control-allow-origin` name, before the headers are sent. It throws
-     * where that code threw (a `RegExp` built from the request's origin or host, #B1166); the
-     * stamp guards the call.
+     * configured `access-control-allow-origin` name, before the headers are sent. It builds no
+     * regular expression from the request's origin or host (#B1166: one did, and a malformed
+     * `Origin` or `Host` threw), and it resolves `{bundle@project}` tokens in a configured value
+     * only, never in the request's own origin (#B1167). A configured value that is not a string
+     * still throws; both callers guard the call and send none.
      *
      * @inner
      * @private
@@ -4326,7 +4328,15 @@ function Server(options) {
                     scheme      = request.headers[':scheme'] || request.headers['x-forwarded-proto'] || conf.server.scheme;
                 } else {
                     authority   = request.headers.host;
-                    scheme      = ( new RegExp(authority).test(referer) ) ? referer.match(/^http(.*)\:\/\//)[0].replace(/\:\/\//, '') : conf.server.scheme;
+                    // #B1166 — the scheme came from a regular expression built from the request's
+                    // Host and tested against `referer`, which is always '' or null here (a matched
+                    // Referer is cut to '' above, and this branch runs only without one). So it
+                    // either fell back to the bundle's scheme or threw: a SyntaxError for a Host
+                    // that is not a valid pattern (`a(`), a TypeError when the Host's pattern
+                    // matched (`n`, or no Host at all: an HTTP/1.0 request). The fallback was the
+                    // only value it ever returned.
+                    // was: scheme = ( <a pattern built from the Host> ).test(referer) ? <the referer's scheme> : conf.server.scheme;
+                    scheme      = conf.server.scheme;
                 }
                 authority = scheme +'://'+ authority;
             } else {
@@ -4339,11 +4349,23 @@ function Server(options) {
             sameOrigin = authority
         }
 
-        re = new RegExp(authority);
-        allowedOrigin = ( typeof(conf.server.response.header['access-control-allow-origin']) != 'undefined' && conf.server.response.header['access-control-allow-origin'] != '' ) ? conf.server.response.header['access-control-allow-origin'] : authority;
+        // #B1166 — a dead store (`re` is reassigned below, before any use) built a regular
+        // expression from the request's origin or host, so an origin that is not a valid
+        // pattern (`Origin: http://a(`) threw; on a static file the throw stopped the bundle.
+        // was: re = <a pattern built from authority>;
+        // #B1167 — whether a value is configured: only a configured value names other bundles.
+        var isConfigured = ( typeof(conf.server.response.header['access-control-allow-origin']) != 'undefined' && conf.server.response.header['access-control-allow-origin'] != '' );
+        allowedOrigin = ( isConfigured ) ? conf.server.response.header['access-control-allow-origin'] : authority;
+        // was: allowedOrigin = ( <the same test, inline> ) ? conf.server.response.header['access-control-allow-origin'] : authority;
         // console.debug('[ server ][access-control-allow-origin] ', allowedOrigin);
 
         var originHostReplacement = function(name) {
+            // #B1167 — with no configured value, `allowedOrigin` is the request's own origin:
+            // keep it as received. Resolving its tokens answered `Origin: {api@proj}` with that
+            // bundle's configured hostname.
+            if ( !isConfigured ) {
+                return name
+            }
             var matched = name.match(/{([-_A-z]+?@[-_A-z]+?)}/g);
             if (!matched || !Array.isArray(matched) || Array.isArray(matched) && matched.length == 0 ) {
                 return name
@@ -4368,7 +4390,18 @@ function Server(options) {
                     project = arr[0];
                     env     = (arr[1]) ? arr[1] : env;
                 }
-                if ( typeof(self.conf[bundle]) == 'undefined' ) {
+                // #B1166 — a name with no bundle configuration behind it is left as written,
+                // as an unknown name was: an `Object.prototype` member (`{constructor@y}`,
+                // `{__proto__@y}`) or another own key of `self.conf` passed the old undefined
+                // test and threw a TypeError on its `.server`.
+                // was: if ( typeof(self.conf[bundle]) == 'undefined' ) {
+                if (
+                    !self.conf[bundle]
+                    || typeof(self.conf[bundle]) != 'object'
+                    || !self.conf[bundle][env]
+                    || typeof(self.conf[bundle][env]) != 'object'
+                    || !self.conf[bundle][env].server
+                ) {
                     continue;
                 }
                 scheme  = self.conf[bundle][env].server.scheme;
@@ -4405,8 +4438,8 @@ function Server(options) {
      * Merges configured response headers (CORS, cache-control, etc.) into the
      * response. Resolves `Access-Control-Allow-Origin` against the bundle's
      * allowed origins list (allowOriginFor, the rule isaac's pre-routing
-     * render-cache hit applies too, #B1104) and normalises HTTP/1.1 vs HTTP/2
-     * header names.
+     * render-cache hit applies too, #B1104; a rule that throws sends none, #B1166)
+     * and normalises HTTP/1.1 vs HTTP/2 header names.
      * When `server.http3Advertisement` is enabled, also emits the opt-in
      * `Alt-Svc: h3=":443"; ma=86400` HTTP/3-advertisement header (#H11).
      *
@@ -4485,7 +4518,16 @@ function Server(options) {
                         // configured access-control-allow-origin name and before the headers are
                         // sent, where the lifted code picked it: a bundle that configures no such
                         // name never runs the rule.
-                        allowOrigin = allowOriginFor(request);
+                        // #B1166 — a rule that throws (a configured value that is not a string)
+                        // sends no Access-Control-Allow-Origin, as isaac's render-cache stamp does:
+                        // thrown here, on a static file, it reached uncaughtException and stopped
+                        // the bundle.
+                        try {
+                            allowOrigin = allowOriginFor(request);
+                        } catch (allowOriginErr) {
+                            console.error(allowOriginErr);
+                            allowOrigin = null;
+                        }
                         if (allowOrigin) {
                             try {
                                 response.setHeader(h, allowOrigin);
