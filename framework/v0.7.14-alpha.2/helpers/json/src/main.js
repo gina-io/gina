@@ -124,34 +124,66 @@ function stripBlockComments(s) {
 }
 
 /**
- * Strip `// ...` line comments from a JSON-with-comments source, per line, on
- * the leftmost `//` only. When that `//` is preceded by `:` (URL protocol),
- * `"` (inside a string value), or `\` (escape), the entire line is treated as
- * data and left alone — mirrors the original greedy-from-first-match heuristic
- * so values like "http://host//:rest" round-trip unchanged. Shared by
+ * Strip `// ...` line comments from a JSON-with-comments source, per line: a
+ * line is cut at its first `//` outside a `"…"` string. A `//` inside a string
+ * value is data — a URL (`"http://x/y"`), a UNC path (`"//server/share"`), a
+ * path joined from a directory ending in `/` (`"/var/T//gina"`) — and a comment
+ * after such a value on the same line is still removed. Inside a string a
+ * backslash escapes the next character, so `\"` does not end it; JSON strings
+ * cannot span lines, so each line is scanned on its own. Shared by
  * `requireJSON()` and `parseJSONWithComments()` (#B891).
+ *
+ * #B1170 — the rule it replaces cut each line at its leftmost `//` unless the
+ * character before it was `:`, `"` or `\`, and then kept the whole line: a `//`
+ * inside a value after any other character was cut (`"/var/T//gina"` became
+ * `"/var/T`, so the file did not parse), and a comment after a URL value was
+ * kept (that line did not parse either). Where the old rule's output parsed,
+ * this scan returns the same text.
  *
  * @private
  * @param {string} jsonStr - the source, block comments already stripped
  * @returns {string} the source with line comments removed
  *
  * @example
- * stripLineComments('{\n  // a note\n  "url": "http://x/y"\n}')
- * // → '{\n  \n  "url": "http://x/y"\n}'
+ * stripLineComments('{\n  // a note\n  "url": "http://x/y" // the API\n}')
+ * // → '{\n  \n  "url": "http://x/y" \n}'
+ *
+ * @example
+ * stripLineComments('{ "dir": "/var/T//gina" }')
+ * // → '{ "dir": "/var/T//gina" }'
  */
 function stripLineComments(jsonStr) {
     return jsonStr.split('\n').map(function(line) {
-        var idx = line.indexOf('//');
-        if (idx === -1) {
-            return line;
-        }
-        if (idx > 0) {
-            var prev = line.charAt(idx - 1);
-            if (prev === ':' || prev === '"' || prev === '\\') {
-                return line;
+        // #B1170 — a string-aware scan; the leftmost-`//` rule (the `was:` lines) cut inside a value.
+        // was: var idx = line.indexOf('//');
+        // was: if (idx === -1) {
+        // was:     return line;
+        // was: }
+        // was: if (idx > 0) {
+        // was:     var prev = line.charAt(idx - 1);
+        // was:     if (prev === ':' || prev === '"' || prev === '\\') {
+        // was:         return line;
+        // was:     }
+        // was: }
+        // was: return line.substring(0, idx);
+        var inString = false;
+        for (var i = 0; i < line.length; i++) {
+            var c = line.charAt(i);
+            if (inString) {
+                if (c === '\\') {
+                    i++; // the escaped character never ends the string
+                } else if (c === '"') {
+                    inString = false;
+                }
+                continue;
+            }
+            if (c === '"') {
+                inString = true;
+            } else if (c === '/' && line.charAt(i + 1) === '/') {
+                return line.substring(0, i);
             }
         }
-        return line.substring(0, idx);
+        return line;
     }).join('\n');
 }
 

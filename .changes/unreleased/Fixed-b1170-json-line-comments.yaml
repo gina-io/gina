@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'A `//` inside a quoted value no longer breaks a JSON file read with comments: `requireJSON()` and `parseJSONWithComments()` cut each line at its first `//` unless the character before it was `:`, `"` or `\`, whether or not it sat in a quoted value, so a value holding a `//` that is not a URL (a path joined from a directory ending in `/`, such as `"/var/folders/…/T//gina"`) was cut and its file failed to parse, and a `//` comment after a URL value on the same line was kept. A `//` now starts a comment only outside a quoted value; a file that parsed before parses to the same value. A bundle restart picks it up (#B1170)'
+time: 2026-11-26T23:29:19+01:00

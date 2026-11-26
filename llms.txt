@@ -85,7 +85,7 @@ The helpers directory (`framework/v*/helpers/`) is loaded by `helpers/index.js` 
 
 ```javascript
 _(path, isAbsolute)          // PathObject — resolves paths, normalises separators
-requireJSON(path)            // JSON-with-comments loader (// always; /* */ when the file has a /** docblock; linear, string-aware since #B568). No caching: every call re-reads the file. A parse error quotes the file from 200 characters before the error to 300 after it, marked `--(ERROR !)--`, when the engine reports a position (#B917)
+requireJSON(path)            // JSON-with-comments loader (// always, cut only outside a quoted value since #B1170; /* */ when the file has a /** docblock; linear, string-aware since #B568). No caching: every call re-reads the file. A parse error quotes the file from 200 characters before the error to 300 after it, marked `--(ERROR !)--`, when the engine reports a position (#B917)
 getPath(name)                // Get named path ('gina', 'bundle', 'project', ...)
 setPath(name, pathObj)       // Register named path
 getContext(key)              // Global key-value store (survives require.cache eviction)
