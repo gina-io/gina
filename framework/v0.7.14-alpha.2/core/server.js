@@ -412,6 +412,62 @@ var buildAllowHeader = function(ruleMethods) {
 };
 
 /**
+ * #B1168 — the request methods Node's HTTP parser accepts, upper case: `http.METHODS`, or, on a
+ * runtime whose `http` module does not list them, the HTTP/1 methods llhttp defines (the
+ * parser Node builds `http.METHODS` from).
+ *
+ * @constant
+ * @inner
+ * @type {string[]}
+ */
+var KNOWN_HTTP_METHODS = (function() {
+    var listed = require('http').METHODS;
+    if ( Array.isArray(listed) && listed.length > 0 ) {
+        return listed.slice();
+    }
+    return [
+        'ACL', 'BIND', 'CHECKOUT', 'CONNECT', 'COPY', 'DELETE', 'GET', 'HEAD', 'LINK', 'LOCK',
+        'M-SEARCH', 'MERGE', 'MKACTIVITY', 'MKCALENDAR', 'MKCOL', 'MOVE', 'NOTIFY', 'OPTIONS',
+        'PATCH', 'POST', 'PROPFIND', 'PROPPATCH', 'PURGE', 'PUT', 'QUERY', 'REBIND', 'REPORT',
+        'SEARCH', 'SOURCE', 'SUBSCRIBE', 'TRACE', 'UNBIND', 'UNLINK', 'UNLOCK', 'UNSUBSCRIBE'
+    ];
+})();
+
+/**
+ * #B1168 — whether a request's method is one Node's HTTP parser accepts. The comparison is
+ * upper case, as the routing loop matches methods without regard to case. Over HTTP/1.1 Node
+ * refuses any other method with 400 before the request reaches gina; over HTTP/2 a client can
+ * send any token as `:method`.
+ *
+ * @inner
+ * @param {*} method - The request's method.
+ * @returns {boolean} `true` for a string that `KNOWN_HTTP_METHODS` names.
+ * @example
+ * isKnownHttpMethod('GET');  // true
+ * isKnownHttpMethod('get');  // true
+ * isKnownHttpMethod('P.ST'); // false
+ * isKnownHttpMethod('*');    // false
+ */
+var isKnownHttpMethod = function(method) {
+    return typeof(method) == 'string' && KNOWN_HTTP_METHODS.indexOf(method.toUpperCase()) > -1;
+};
+
+/**
+ * #B1168 — a text as a regular-expression source that matches its characters literally (the
+ * escape lib/routing applies to URL values).
+ *
+ * @inner
+ * @param {*} str - The text; converted to a string.
+ * @returns {string} The escaped source.
+ * @example
+ * escapeRegExpSource('P.ST'); // 'P\\.ST'
+ * escapeRegExpSource('GET');  // 'GET'
+ */
+var escapeRegExpSource = function(str) {
+    return String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
+/**
  * #B1071 — closes the HTTP/2 stream of a request whose body is no longer read, once its answer has gone
  * out.
  *
@@ -9131,6 +9187,17 @@ function Server(options) {
         // headers object, so headers written here reach the client on every JSON response.
         completeHeaders(null, req, res);
 
+        // #B1168 — a method Node's HTTP parser does not accept is answered 501 Not Implemented
+        // (RFC 9110 §15.6.2) before anything below reads it. Over HTTP/1.1 Node refuses such a
+        // method with 400 before the request reaches gina, but an HTTP/2 client can send any token
+        // as `:method`. The method used to reach the regexp below unescaped: `*` or `+` threw there,
+        // so the request was never answered; `.` matched every rule's method, so an action ran
+        // under a method its rule does not list, without its body; and a long run of `.*` made the
+        // match backtrack. The routing loop also keys the request's bags by the method's name.
+        if ( !isKnownHttpMethod(req.method || req.headers[':method']) ) {
+            return throwError(res, 501, 'Not Implemented.\n The request method is not supported.', next);
+        }
+
         // #B645 — the method is the REQUEST's own. It was read from the `:method` pseudo-header
         // whenever the BUNDLE was configured for http/2.0, but an HTTP/1.1 request served through
         // the allowHTTP1 fallback carries none: `method` was `undefined`, the regexp below matched
@@ -9141,7 +9208,10 @@ function Server(options) {
             , _routing  = {}
             // was: , method = ( /http\/2/.test(self.conf[self.appName][self.env].server.protocol) ) ? req.headers[':method'] : req.method
             , method    = req.method || req.headers[':method']
-            , reMethod  = new RegExp(method, 'i')
+            // #B1168 — escaped, so the method is matched as text. The guard above admits only the
+            // methods Node lists (letters and `-`), whose matching does not change.
+            // was: , reMethod  = new RegExp(method, 'i')
+            , reMethod  = new RegExp(escapeRegExpSource(method), 'i')
         ;
         try {
 
