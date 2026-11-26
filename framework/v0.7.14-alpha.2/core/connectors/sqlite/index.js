@@ -16,6 +16,53 @@ var inherits  = lib.inherits;
 var console   = lib.logger;
 
 /**
+ * Tells whether a prepared statement returns rows, so that the connector reads
+ * it with `all()` / `get()` or runs it with `run()` (#B1169). Asked once per
+ * `.sql` file, right after `conn.prepare()`. The first keyword of the text is
+ * not enough: `WITH … SELECT`, `VALUES` and a `PRAGMA` that reads a value return
+ * rows, a `WITH` clause feeding an `INSERT` returns none, and `INSERT …
+ * RETURNING` returns rows.
+ *
+ * In order: the statement's `columns()` (node:sqlite from Node 22.16.0 and
+ * 23.11.0: its result columns, none for a statement that returns no rows); then
+ * its `reader` flag (bun:sqlite, passed through by the adapter in
+ * `lib/sqlite-driver`); then, when the statement offers neither or could not be
+ * prepared, the leading keyword: SELECT, WITH, VALUES, PRAGMA or EXPLAIN. That
+ * last rule still sends a `WITH` clause feeding a write to `all()` and `INSERT …
+ * RETURNING` to `run()`.
+ *
+ * @inner
+ * @param {object|null} stmt - the prepared statement, or `null` when `prepare()` threw
+ * @param {string} queryString - the statement text, comments stripped
+ * @returns {boolean} `true` when the statement returns rows
+ * @example
+ * var sql = 'WITH t AS (SELECT 1 AS a) SELECT a FROM t';
+ * statementReturnsRows(conn.prepare(sql), sql); // true
+ * @example
+ * var sql = 'WITH s AS (SELECT ? AS a) INSERT INTO t (a) SELECT a FROM s';
+ * statementReturnsRows(conn.prepare(sql), sql); // false where the statement has columns()
+ * @example
+ * statementReturnsRows(null, 'VALUES (1)'); // true, from the keyword
+ */
+function statementReturnsRows(stmt, queryString) {
+    if ( stmt && typeof(stmt.columns) == 'function' ) {
+        var columns = null;
+        try {
+            columns = stmt.columns();
+        } catch (e) {
+            columns = null; // the statement cannot answer: the rules below decide
+        }
+        if ( Array.isArray(columns) ) {
+            return columns.length > 0;
+        }
+    }
+    if ( stmt && typeof(stmt.reader) == 'boolean' ) {
+        return stmt.reader;
+    }
+    return /^\s*(SELECT|WITH|VALUES|PRAGMA|EXPLAIN)\b/i.test(queryString);
+}
+
+/**
  * SQLite ORM connector — v2.
  *
  * Wires entity classes with SQL methods read from the bundle's `sql/` directory.
@@ -46,12 +93,19 @@ var console   = lib.logger;
  * SELECT * FROM users WHERE id = ?
  * ```
  *
+ * A statement that returns rows (SELECT, WITH … SELECT, VALUES, a PRAGMA that
+ * reads a value, EXPLAIN, INSERT / UPDATE / DELETE … RETURNING) is read with
+ * `stmt.all()` or `stmt.get()`; a statement that returns none (INSERT, UPDATE,
+ * DELETE, a WITH clause feeding a write, DDL) runs with `stmt.run()`. The
+ * prepared statement is asked once, when the file is loaded (#B1169, see
+ * `statementReturnsRows`).
+ *
  * `@return` annotation controls how results are presented:
  *   {object}  → `stmt.get()` — first row or null
- *   {Array}   → `stmt.all()` — all rows (default for SELECT)
- *   {boolean} → `stmt.run().changes > 0` for write ops; `rows.length > 0` for SELECT
+ *   {Array}   → `stmt.all()` — all rows (the default for a statement that returns rows)
+ *   {boolean} → `rows.length > 0` for a statement that returns rows; `stmt.run().changes > 0` otherwise
  *   {number}  → first key of first row (COUNT(*) queries)
- *   (none)    → `stmt.all()` for SELECT, `stmt.run()` for write ops
+ *   (none)    → `stmt.all()` for a statement that returns rows, `stmt.run()` otherwise
  *
  * Methods return a native Promise with `.onComplete(cb)` attached for backward
  * compatibility (same Option-B pattern as the Couchbase N1QL connector).
@@ -292,7 +346,10 @@ function Sqlite(conn, infos) {
 
         if (!queryString) return; // empty file — skip
 
-        var isSELECT = /^\s*SELECT\b/i.test(queryString);
+        // #B1169 — whether the statement returns rows is asked of the prepared
+        // statement below (statementReturnsRows), no longer read from a leading
+        // SELECT, which sent WITH … SELECT, VALUES and PRAGMA reads to run().
+        // was: var isSELECT = /^\s*SELECT\b/i.test(queryString);
         var trigger  = 'SQL:' + entityName.toLowerCase() + '#' + name;
 
         // Pre-compile the statement once at load time.
@@ -308,12 +365,17 @@ function Sqlite(conn, infos) {
             console.error(stmtError.message);
         }
 
+        // #B1169 — decided once, at load time: all() / get() for a statement that
+        // returns rows, run() for a statement that returns none.
+        var returnsRows = statementReturnsRows(stmt, queryString);
+
         // ── Helper: execute the prepared statement ────────────────────────────
         var execute = function(args) {
             if (stmtError) throw stmtError;
 
             var raw;
-            if (isSELECT) {
+            // was: if (isSELECT)
+            if (returnsRows) {
                 if (returnType === 'object') {
                     raw = stmt.get.apply(stmt, args);
                     raw = (raw != null && raw !== undefined) ? raw : null;
@@ -344,7 +406,8 @@ function Sqlite(conn, infos) {
                     var keys = Object.keys(raw);
                     raw = raw[keys[0]];
                 }
-            } else if (!returnType && !isSELECT) {
+            } else if (!returnType && !returnsRows) {
+                // #B1169 — was: !isSELECT (a leading SELECT only).
                 // Write ops with no annotation — return the run result object
                 // { changes: <n>, lastInsertRowid: <id> }
                 // Keeps raw as-is.
