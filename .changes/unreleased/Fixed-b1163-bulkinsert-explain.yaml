@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'The dev Inspector shows `no keyspace read` for a Couchbase `bulkInsert` and sends no `EXPLAIN`: with no query profile from the SDK, it ran an `EXPLAIN` of the statement as it logs it, by default the line `INSERT INTO <keyspace> (KEY, VALUE) -- N record(s) [values redacted]`, which the server rejects, so the badge read `N/A`; with `inspector.queries.captureValues` on, the `EXPLAIN` carried the record values and its cache entry kept them. A `bulkInsert` runs an `INSERT … VALUES … RETURNING`, which reads no keyspace. A bundle restart picks it up (#B1163)'
-time: 2026-11-27T01:14:23+01:00

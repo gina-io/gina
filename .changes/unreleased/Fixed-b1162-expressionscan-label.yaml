@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'The dev Inspector no longer reports a Couchbase statement that reads from an expression, such as `SELECT RAW d.x FROM [ … ] AS d`, as a key lookup: Couchbase plans it as an `ExpressionScan`, which reads no keyspace, and the index badge showed the green `KV lookup (USE KEYS)` chip for it. `USE KEYS` (a `KeyScan`) keeps that chip; a statement whose only source is an expression shows `no keyspace read`, as `SELECT 1` does, and beside an index read it adds nothing. A `FROM` over an expression that feeds a `JOIN` or `NEST … ON KEYS` shows the red badge although it reads by key: the badge does not label a key-based join. A bundle restart picks it up (#B1162)'
-time: 2026-11-27T10:12:55+01:00

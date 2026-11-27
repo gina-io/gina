@@ -1,3 +1,0 @@
-kind: Security
-body: 'With `access-control-allow-origin` configured empty (each request gets its own origin back), the `{bundle@project}` token substitution meant for a configured value also ran on the request''s own `Origin`, so `Origin: {api@myproject}` was answered with that bundle''s configured hostname, or its scheme, host and port when it has none. A token is now resolved in a configured value only, and the request''s origin is answered as it was received. A bundle restart picks it up (#B1167)'
-time: 2026-11-25T02:26:55+01:00
