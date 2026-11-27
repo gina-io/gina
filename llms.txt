@@ -250,7 +250,7 @@ SELECT * FROM users WHERE id = $1 AND t._scope = $scope
 
 - `@return {object}` → single row (first result or `null`)
 - `@return {Array}` → all rows (default for SELECT; SQLite asks the prepared statement instead of reading its first keyword, so a `WITH … SELECT`, a `VALUES`, a `PRAGMA` read and an `INSERT … RETURNING` read rows too, #B1169)
-- `@return {boolean}` → `changes > 0` / `affectedRows > 0` / `rowCount > 0` (write) or `rows.length > 0` (SELECT)
+- `@return {boolean}` → `changes > 0` / `affectedRows > 0` / `rowCount > 0` (write) or `rows.length > 0` (SELECT); Couchbase reads returned rows only: `true` when the statement returned a row (a write returns rows only with `RETURNING`), `false` otherwise, and a failed query rejects with its error (before 0.7.15 a row-less or failed Couchbase boolean statement never answered); a Couchbase write without `@return` resolves `null`, its driver metadata in the callback's third argument
 - `@return {number}` → first key of first row (COUNT queries)
 - `$scope` — Couchbase only: substituted as a string literal, not a positional parameter; since 0.6.33 the scope must match `^[A-Za-z0-9_./-]+$` or the bundle refuses to boot (`GINA_COUCHBASE_INVALID_SCOPE`), and a longer placeholder such as `$scopeId` is not substituted
 - Placeholders: SQLite `?`, MySQL `?`, ScyllaDB `?`, PostgreSQL `$1 $2 …`, Couchbase `$1 $2 …`

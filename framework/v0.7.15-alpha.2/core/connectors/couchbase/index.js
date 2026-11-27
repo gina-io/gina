@@ -1310,6 +1310,27 @@ function Couchbase(conn, infos) {
                         }
                     };
 
+                    /**
+                     * Finalise THIS call's result: instrumentation, error shaping, the declared
+                     * `@return` coercion, then exactly one settlement through `_deliver()` and one
+                     * observability emit.
+                     *
+                     * Every path must reach `_deliver()`: a throw before it would leave the caller
+                     * unsettled, so both result handlers in `register()` settle such a call with the
+                     * error as a last resort (#B1177). A failed query arrives with `data` undefined and
+                     * still runs the `@return` coercion, which must therefore accept `null`.
+                     *
+                     * @inner
+                     * @param {Error|boolean} err - the query error, or `false` on success.
+                     * @param {Array|undefined} [data] - the driver's rows; `undefined` on a failed query.
+                     * @param {object} [meta] - the driver's result metadata.
+                     * @returns {void}
+                     *
+                     * @example
+                     * // register()'s two handlers are its only callers:
+                     * //   onResult: onQueryCallback(false, rows, meta);
+                     * //   onError : onQueryCallback(error);
+                     */
                     var onQueryCallback = function(err, data, meta) {
                         // #QI — finalize query entry timing and index extraction
                         if (_queryEntry) {
@@ -1369,6 +1390,9 @@ function Couchbase(conn, infos) {
                                 /count\(|count\s+\(/i.test(queryString)
                                 && Array.isArray(data)
                                 && /object/i.test(typeof(data[0]))
+                                // #B1177 — `typeof null === 'object'`: a `[null]` row passed the test above
+                                // and threw in `Object.keys(null)` below, inside this callback.
+                                && data[0] !== null
                                 && Object.keys(data[0]).length == 1
                                 && /number/i.test( typeof(data[0][Object.keys(data[0])]) )
                             ) {
@@ -1377,7 +1401,14 @@ function Couchbase(conn, infos) {
                             // CASE #2
                             // regular query, just counting result
                             else {
-                                data = ( typeof(data.length) != 'undefined' && data.length > 0 ) ? true : false
+                                // #B1177 — an empty result is nulled above, and a failed query reaches this
+                                // branch with `data` null too, so the former unguarded read threw INSIDE this
+                                // callback, before `_deliver()`: the caller never settled (no response, no 5xx —
+                                // the #B412 shape, on the boolean branch). It read:
+                                //
+                                //     data = ( typeof(data.length) != 'undefined' && data.length > 0 ) ? true : false
+                                //
+                                data = ( Array.isArray(data) && data.length > 0 ) ? true : false
                             }
                         } else if ( returnType && returnType == 'object' ) {
 
@@ -1499,6 +1530,14 @@ function Couchbase(conn, infos) {
                                     } catch (_err) {
                                         _err.stack = '[ ' + trigger + '] onQueryCallbackError: \n\t- Did you leave any bad comments ?\n\t- Did you try to run your query ?\r\n'+ query +'\r\n'+ _err.stack;
                                         console.error(_err.stack);
+                                        // #B1177 — a throw inside onQueryCallback BEFORE `_deliver()` used to
+                                        // end here, logged only, so the caller waited forever (#B412, #B1177).
+                                        // Settle THIS call with the error instead; `_deliver()` is a no-op
+                                        // when the call already settled.
+                                        if ( _err && typeof(_err) == 'object' && typeof(_err.status) == 'undefined' ) {
+                                            _err.status = 500;
+                                        }
+                                        _deliver(lib.connectorError.stamp(_err));
                                     }
                                 },
                                 function onError(err) {
@@ -1539,6 +1578,14 @@ function Couchbase(conn, infos) {
                                         onQueryCallback(error);
                                     } catch (_err) {
                                         console.error(_err.stack);
+                                        // #B1177 — onQueryCallback threw before settling (the boolean branch
+                                        // read `null.length` on every failed query): settle THIS call with the
+                                        // query's own error rather than leave it waiting. A no-op when the call
+                                        // already settled.
+                                        if ( error && typeof(error) == 'object' && typeof(error.status) == 'undefined' ) {
+                                            error.status = 500;
+                                        }
+                                        _deliver(lib.connectorError.stamp(error));
                                     }
                                 }
                             );

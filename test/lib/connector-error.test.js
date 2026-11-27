@@ -236,7 +236,7 @@ describe('#CE1 §05 — wiring: every connector stamps, and lib registers the mo
         'duckdb'     : { needle: 'lib.connectorError.stamp(err)',   count: 2 },
         'scylladb'   : { needle: 'lib.connectorError.stamp(err)',   count: 2 },
         'sqlite'     : { needle: 'lib.connectorError.stamp(e)',     count: 2 },
-        'couchbase'  : { needle: 'lib.connectorError.stamp',        count: 2 }
+        'couchbase'  : { needle: 'lib.connectorError.stamp',        count: 4 }
     };
 
     Object.keys(expected).forEach(function (name) {
