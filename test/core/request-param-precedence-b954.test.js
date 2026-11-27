@@ -98,7 +98,7 @@ describe('request-param-precedence-b954 §01 — the block in _handleDispatch', 
         var block = SERVER_ST.indexOf(OPEN), dispatch = SERVER_ST.indexOf(MATCHED);
         assert.ok(capture < lookup, 'the capture runs before the warm lookup fills or replaces the bag');
         assert.ok(loopEnd < restore && restore < block, 'the block follows the loop and the restore');
-        assert.ok(block < dispatch, 'the block precedes the dispatch branch (whose first statement stays the #B675 alias)');
+        assert.ok(block < dispatch, 'the block precedes the dispatch branch (which opens with the #B1171 method normalisation and the #B675 alias)');
     });
 
     it('01.3  the four copy blocks inside the loop are still there', function () {

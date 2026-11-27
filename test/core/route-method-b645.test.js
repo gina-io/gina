@@ -93,7 +93,9 @@ describe('01 - #B645 routing site: the method comes from the request', function 
     });
 
     it('01.3  the regexp every method check tests with is still built from that method', function () {
-        assert.ok(/,\s*reMethod\s*=\s*new RegExp\(\s*method\s*,\s*'i'\s*\)/.test(code), 'reMethod must be built from method');
+        // #B1168 (ruling 129) — the method is escaped where the regexp is built; it is still the request's own.
+        // was: assert.ok(/,\s*reMethod\s*=\s*new RegExp\(\s*method\s*,\s*'i'\s*\)/.test(code), 'reMethod must be built from method');
+        assert.ok(/,\s*reMethod\s*=\s*new RegExp\(\s*escapeRegExpSource\(\s*method\s*\)\s*,\s*'i'\s*\)/.test(code), 'reMethod must be built from method, escaped (#B1168)');
     });
 });
 

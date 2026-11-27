@@ -69,45 +69,48 @@ open http://localhost:3100
 
 > **npm 12+** blocks install scripts by default, and gina's post-install bootstraps `~/.gina` and the framework dependencies. Install with `npm install -g gina@latest --allow-scripts=gina`, or allow it once for all global installs with `npm config set allow-scripts=gina --location=user`. (Not needed on npm ≤ 11.)
 
-## What's in 0.7.13
+## What's in 0.7.14
 
-> **Restart your bundles *and* rebuild them.** The navigation module
-> (`gina/nav`) and the route matching of `lib.routing` ship in the browser
-> bundle, so `gina.min.js` changed and `gina bundle:restart` alone leaves the
-> old client running: rebuild each consuming bundle, then restart it. If your
-> build copies `gina.min.js` into your own static files, rebuild that copy
-> before the restart.
+> **Restart your bundles.** Every fix in this release is server-side:
+> `gina.min.js` is unchanged since 0.7.13, so a bundle restart picks the release
+> up and no bundle needs rebuilding.
 
-> **Read before upgrading — some changes can change an answer.** On a `DELETE`
-> route with `requirements`, a placeholder now matches as it does on `GET`: a
-> placeholder the route does not bind in `param` no longer matches, with or
-> without a requirement (bind it: `"id": ":id"`); a placeholder's name is its
-> letters, digits and underscores, so `/feed/:id.json` binds `id` and its
-> requirement tests the whole segment; and a segment that starts with a
-> placeholder and holds two or more matches only a request carrying its text
-> as written. A
-> WebSocket route reads `/live/:lang-code` as `request.params.lang`. Storage
-> `put()` and `writeSegment()` refuse a source stream that has already ended,
-> with an error whose code is `STORAGE_STREAM_SPENT`. The
-> [migration notes](https://gina.io/docs/migration) list every behaviour change.
+> **Read before upgrading — some changes can change an answer.** A route's
+> output cache now stores a page per forwarded scheme, host, prefix and
+> language: a script that pre-fills cached routes fills only the entries for the
+> values it sends, and entries stored before the upgrade are not read after it.
+> A cached route's response now names `Accept-Language`, `Cookie` and the
+> forwarded headers in `Vary`, so a browser fetches the page again after a
+> cookie changes; check how a shared cache in front of a `public` route treats
+> `Vary: Cookie`. A SQLite method whose statement is `INSERT`, `UPDATE` or
+> `DELETE … RETURNING` now returns its rows. `req.routing.method` is upper case
+> on every request. Outside dev mode a changed swig template reaches a running
+> bundle at its restart. The [migration notes](https://gina.io/docs/migration)
+> list every behaviour change.
 
-**A routing release.** `DELETE` routes with `requirements` and WebSocket routes
-now read placeholders as `GET` routes do; route segments that made the matcher
-answer 500, and kept later rules from being tried, are read normally; the
-navigation module matches routes as the server
-does. On Node.js 22.21.0, an HTTP/1.1 request carrying `Upgrade` headers no
-longer stops an `https` HTTP/2 bundle, and storage refuses a spent source
-stream instead of storing an empty object. Full detail in
-[CHANGELOG.md](./CHANGELOG.md).
+**A security and output-cache release.** Four security fixes: a route's output
+cache no longer serves the host and language of the request that filled an
+entry to every later visitor; a malformed `Origin` or `Host` no longer stops a
+bundle; an empty `access-control-allow-origin` answers each request with its
+origin as received; and a request method Node does not accept gets a 501
+instead of being compiled as a regular expression. A cache hit now sends the
+right `Vary`, `Access-Control-Allow-Origin` and rate-limit headers; a bundle that
+enables `server.rateLimit` or `server.idempotency` boots; SQLite methods return
+the rows their statements return; and the dev Inspector reads Couchbase plans
+more exactly, and outside dev mode swig compiles each include once per
+process. Full detail in [CHANGELOG.md](./CHANGELOG.md).
 
-- **Changed — `DELETE` routes with `requirements` (#B1144, #B1149, #B1155, #B692).** Up to 0.7.12 such a route could answer where its `GET` twin answers 404: a placeholder the route did not bind reached `req.delete` (with or without a regular-expression requirement), `/feed/:id.json` bound `id.json` and skipped its requirement, and `/range/:from-:to` matched any non-empty segment. It now matches as on `GET`: bind each placeholder in `param` (`"id": ":id"`), read `req.params.id`, and give each placeholder a segment of its own (`/range/:from/:to`).
-- **Changed — WebSocket placeholder names (#B1151).** A WebSocket route reads a placeholder's name as an HTTP route does: `/live/:lang-code` exposes `request.params.lang`, holding the whole segment, instead of `request.params['lang-code']`.
-- **Fixed — route segments that answered 500 (#B1146, #B1148, #B692, #B1154).** A segment holding a `:` with no name after it (`/t/12:`), a segment that is not a valid regular expression (`/r/:id)`), and a two-placeholder segment of a route with `requirements` reached by a request carrying a `%`-escape no longer answer 500 « Rule [ … ] needs your attention », and no longer keep later rules from being tried. A matcher that throws answers the request once.
-- **Fixed — client navigation (#B1150, #B1156).** The navigation module reads placeholder names as the server does, and a route it cannot match exactly (`/page:number`, `/:lang-code`) now stops its scan when the server could answer the link from it: such links navigate normally, and `gina.nav.matchUrl()` answers `null` for them.
-- **Fixed — `validator::` requirements and `getRoute()` (#B1153, #B1152).** A `validator::` requirement that the route does not bind reads placeholder names in any letter case (`:userId`), and `getRoute()` no longer takes a `host:port/` value for an unfilled placeholder.
-- **Fixed — Node.js 22.21.0 (#B1147).** On that release, an HTTP/1.1 request carrying `Upgrade` headers to an `https` HTTP/2 bundle threw inside Node.js's parser and stopped the bundle (nodejs/node#60336, fixed in Node.js 22.21.1). gina now gives such a server Node.js 22.21.1's own callback at `listen()`; other Node.js releases and Bun are unchanged.
-- **Fixed — storage and spent streams (#B1060).** `put()` and `writeSegment()` refuse a source stream that has already ended or been destroyed, before anything opens. Handed such a stream (most often an action's `req`, whose body gina has already read), `put()` stored an empty object and reported success.
-- **Added — a boot warning for a segment holding two or more placeholders (#B692).** A bundle warns once at boot about each route URL segment that holds two or more placeholders (`/range/:from-:to`), whatever the route's method: gina never matches such a segment against a value. Nothing is rewritten.
+- **Security — the output cache stores a page per host and language (#B1132).** A route's output cache keyed a page on its URL alone, so the request that filled an entry decided, for every later visitor until the entry expired, the host in its links and form actions, its webroot and its language; where a bundle accepts a client's `Host` or `X-Forwarded-Host`, a request carrying another host could send every visitor's links and form submissions there. The key now also carries the request's forwarded scheme and host, its forwarded prefix and the culture its headers select, and `GET /_gina/cache/stats` lists each entry's `variant`.
+- **Security — a malformed `Origin` or `Host` no longer stops a bundle (#B1166).** The rule that picks `Access-Control-Allow-Origin` compiled regular expressions from the request: an `Origin` or `Host` that is not a valid pattern, or a request with no `Host`, made it throw, which stopped the bundle on a static file and left a page unanswered. It now compiles nothing from the request, and a rule that throws sends no header and logs the error.
+- **Security — an empty `access-control-allow-origin` (#B1167).** The `{bundle@project}` token substitution meant for a configured value also ran on the request's own `Origin`. A token is now resolved in a configured value only, and the request's origin is answered as received.
+- **Security — HTTP/2 request methods (#B1168).** gina compiled the request's method as a regular expression. Over HTTP/2, where a client can send any token as its method, `*` or `+` left the request unanswered, `.` matched every rule, and a long run of `.*` held the bundle for seconds. A method that is not in Node's `http.METHODS` now gets a 501, and the method is matched as text.
+- **Fixed — output-cache headers (#B1164, #B1104, #B1105).** A cached route's responses name in `Vary` the request headers its page depends on; a hit answers each cross-origin caller with its own `Access-Control-Allow-Origin`, by the same rule as an uncached response; and a hit no longer sends the `RateLimit` and `RateLimit-Policy` headers of the caller that filled the entry.
+- **Fixed — `server.rateLimit` and `server.idempotency` (#B1165).** A bundle that enables either no longer refuses to boot with "[kv] not configured": the kv namespaces are installed before the engine starts.
+- **Fixed — SQLite statements that return rows (#B1169, #B1173).** A `.sql` method whose statement starts with `WITH`, `VALUES` or a reading `PRAGMA` returns its rows, and one whose statement is `INSERT`, `UPDATE` or `DELETE … RETURNING` returns the rows its `RETURNING` clause lists: the connector asks each statement whether it returns rows (`columns()` on node:sqlite, `reader` or `columnNames` on bun:sqlite).
+- **Fixed — JSON files with comments (#B1170).** A `//` inside a quoted value no longer cuts its line when `requireJSON()` or `parseJSONWithComments()` strips comments.
+- **Fixed — `req.routing.method` (#B1171).** It is upper case on every request to a route; the requests answered from the route cache read it in lower case.
+- **Fixed — the dev Inspector and Couchbase plans (#B1161, #B1162, #B1163).** The index badge reads the plans Couchbase lists for subqueries; a statement that reads no keyspace (`SELECT 1`, a `FROM` over an expression, a `bulkInsert`) shows `no keyspace read`; and a `bulkInsert` sends no `EXPLAIN`.
+- **Fixed — swig includes are compiled once per process (#B1176).** Outside dev mode an `{% include %}` was read and compiled again on every render, once per iteration inside a `{% for %}` loop; it is now compiled once per bundle process, so a template change reaches a running bundle at its restart.
 
 ## Documentation
 

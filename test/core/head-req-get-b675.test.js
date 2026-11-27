@@ -7,8 +7,8 @@
  * send (RFC 9110 §9.3.2). processRequestData keeps a HEAD's params in `req.head` and clears
  * `req.get`, so a GET action reading `req.get.<param>` without a guard threw on the undefined
  * bag and the request answered 500. Fix: once a rule has matched, `_handleDispatch`
- * (core/server.js) exposes the settled `req.head` as `req.get` — the same object — as the
- * first statement inside `if (matched) {`.
+ * (core/server.js) exposes the settled `req.head` as `req.get` — the same object — at the
+ * top of `if (matched) {`, where only #B1171's method normalisation precedes it.
  *
  * §01 pins the statement and its placement on the comment-stripped source; §02 lifts the
  * statement out of the SHIPPED source and executes it (its only free identifier is `req`).
@@ -81,10 +81,12 @@ describe('head-req-get-b675 §01 — the alias in _handleDispatch', function () 
         liftStatement();
     });
 
-    it('01.2  it is the first statement inside `if (matched) {`, before the render-cache read', function () {
+    it('01.2  inside `if (matched) {` only #B1171\'s method normalisation may precede it, and it precedes the render-cache read', function () {
         assert.equal(count(SERVER_ST, MATCHED), 1, 'control: the dispatch branch is found once');
         assert.equal(count(SERVER_ST, CACHE_READ), 1, 'control: the render-cache read is found once');
-        var re = new RegExp(escapeRe(MATCHED) + '\\s*' + escapeRe(GATE) + '\\s*' + escapeRe(ALIAS) + '\\s*\\}\\s*' + escapeRe(CACHE_READ));
+        var NORM_IF  = "if ( req.routing && typeof(req.routing.method) == 'string' ) {";
+        var NORM_SET = 'req.routing.method = req.routing.method.toUpperCase();';
+        var re = new RegExp(escapeRe(MATCHED) + '\\s*(?:' + escapeRe(NORM_IF) + '\\s*' + escapeRe(NORM_SET) + '\\s*\\}\\s*)?' + escapeRe(GATE) + '\\s*' + escapeRe(ALIAS) + '\\s*\\}\\s*' + escapeRe(CACHE_READ));
         assert.match(SERVER_ST, re);
     });
 
