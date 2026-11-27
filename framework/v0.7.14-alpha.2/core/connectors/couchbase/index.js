@@ -449,7 +449,7 @@ function Couchbase(conn, infos) {
      * the subquery plans listed beside the plan count too (#B1161).
      *
      * @param {object} conn - The Couchbase connection object. May have `_cluster`
-     *   directly (entity query path) or nested at `_scope._bucket._cluster` (bulk insert path).
+     *   directly or nested at `_scope._bucket._cluster`; `resolveCluster` reads both.
      * @param {string} statement - The original N1QL statement (without EXPLAIN prefix)
      * @param {object} queryEntry - The QI entry to patch with index info
      * @param {object} queryOptions - Query options (for parameters)
@@ -1872,16 +1872,16 @@ function Couchbase(conn, infos) {
                                 // _startMs is kept for the Flow tab timeline (#FI)
                                 _biQueryEntry.resultCount = _data ? (Array.isArray(_data) ? _data.length : 1) : 0;
                                 try { _biQueryEntry.resultSize = _data ? JSON.stringify(_data).length : 0; } catch(_e) { _biQueryEntry.resultSize = 0; }
-                                // #QI — extract index usage from query profile or EXPLAIN cache
+                                // #QI — extract index usage from the query profile when the SDK returns one
                                 if (_meta && _meta.profile) {
                                     _biQueryEntry.indexes = extractIndexes(_meta.profile);
                                 } else {
-                                    var _biStmt = _biQueryEntry.statement;
-                                    if (_explainCache.has(_biStmt)) {
-                                        _biQueryEntry.indexes = _explainCache.get(_biStmt);
-                                    } else {
-                                        explainForIndexes(conn, _biStmt, _biQueryEntry, queryOptions);
-                                    }
+                                    // #B1163 — no EXPLAIN: the entry's statement is the logged form, by default
+                                    // the redacted line, which the server rejects (error 3000 on 8.0.2), and with
+                                    // captureValues on the record values, which an EXPLAIN cache entry would keep.
+                                    // The statement run is gina's own INSERT … VALUES … RETURNING, whose plan
+                                    // reads no keyspace (8.0.2: ValueScan, SendInsert, InitialProject).
+                                    _biQueryEntry.indexes = [ { name: 'no keyspace read', primary: false } ];
                                 }
                             }
 

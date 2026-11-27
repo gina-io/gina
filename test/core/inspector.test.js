@@ -3726,16 +3726,17 @@ describe('33 - EXPLAIN fallback: explainForIndexes and _explainCache', function(
         );
     });
 
-    // ── bulkInsert also uses EXPLAIN fallback ──
+    // ── bulkInsert reports "no keyspace read", no EXPLAIN fallback (#B1163) ──
 
-    it('bulkInsert path also uses _explainCache fallback', function() {
+    it('bulkInsert path reports "no keyspace read" without the _explainCache fallback (#B1163)', function() {
         var src = getCbSrc33();
         var bulkIdx = src.indexOf('_biQueryEntry');
         assert.ok(bulkIdx > -1, 'expected _biQueryEntry in bulkInsert');
         var afterBulk = src.indexOf('_explainCache.has(', bulkIdx);
+        assert.equal(afterBulk, -1, 'expected no _explainCache.has() in bulkInsert path');
         assert.ok(
-            afterBulk > -1,
-            'expected _explainCache.has() in bulkInsert path'
+            src.indexOf("_biQueryEntry.indexes = [ { name: 'no keyspace read', primary: false } ];", bulkIdx) > -1,
+            'expected the bulkInsert entry to report "no keyspace read"'
         );
     });
 });
@@ -6014,7 +6015,7 @@ describe('49 - explainForIndexes: dual conn shape and error safety', function() 
         );
     });
 
-    // ── both call sites are safe ──
+    // ── the call site is safe; bulkInsert has none (#B1163) ──
 
     it('entity query call site (onQueryCallback) calls explainForIndexes without external try/catch', function() {
         var src = getCbSrc49();
@@ -6029,18 +6030,13 @@ describe('49 - explainForIndexes: dual conn shape and error safety', function() 
         );
     });
 
-    it('bulk insert call site calls explainForIndexes without external try/catch', function() {
+    it('bulk insert path has no explainForIndexes call site (#B1163)', function() {
         var src = getCbSrc49();
-        // Find the second call site (bulkInsert path)
+        // bulkInsert reports "no keyspace read" without an EXPLAIN: the entity query path is the only call site
         var firstCallIdx = src.indexOf('explainForIndexes(conn,');
+        assert.ok(firstCallIdx > -1, 'control: the entity query call site is found');
         var secondCallIdx = src.indexOf('explainForIndexes(conn,', firstCallIdx + 1);
-        assert.ok(secondCallIdx > -1, 'expected second call site in bulkInsert');
-        // Should NOT have external try/catch — internal handling is sufficient
-        var preceding = src.substring(Math.max(0, secondCallIdx - 80), secondCallIdx);
-        assert.ok(
-            preceding.indexOf('try {') === -1 || preceding.indexOf('try {') < preceding.indexOf('\n'),
-            'bulk insert call site should not need external try/catch'
-        );
+        assert.equal(secondCallIdx, -1, 'expected no second call site (bulkInsert)');
     });
 
     // ── uses resolved cluster variable, not conn._cluster directly ──
