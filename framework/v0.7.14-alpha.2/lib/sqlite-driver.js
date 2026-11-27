@@ -19,10 +19,12 @@
  *   2. Under the Bun runtime, `bun:sqlite` behind a `DatabaseSync`-shaped
  *      adapter covering exactly the surface the framework uses:
  *      constructor(path) / exec() / prepare() -> get()/all()/run() with
- *      positional parameters / close(), and each statement's `reader` flag,
- *      passed through as bun:sqlite reports it (#B1169: the SQLite connector
- *      asks it whether a statement returns rows; it was not part of the
- *      parity probe below). Parity was measured probe-by-probe
+ *      positional parameters / close(), and each statement's `reader` flag:
+ *      bun:sqlite's own where its statements carry one, else whether their
+ *      `columnNames` lists a column (#B1169, #B1173: the SQLite connector
+ *      asks it whether a statement returns rows; Bun 1.2.21's statements
+ *      carry no `reader`, measured; it was not part of the parity probe
+ *      below). Parity was measured probe-by-probe
  *      against `node:sqlite` (13/13 on bun 1.2.21 and 1.3.14): file
  *      creation, WAL/synchronous/foreign_keys pragmas, `null` bindings,
  *      `run()` result `{ changes, lastInsertRowid }` (both numbers),
@@ -127,9 +129,12 @@ function makeAdapter(bunSqlite) {
      * Prepares a statement. The returned object exposes the three methods
      * the framework calls — `get` / `all` / `run` — each accepting the same
      * positional parameters as node:sqlite and normalizing errors, and
-     * `reader`, bun:sqlite's own answer to whether the statement returns rows
-     * (`undefined` on a Bun whose statements do not carry it). The SQLite
-     * connector reads it once per statement (#B1169).
+     * `reader`, whether the statement returns rows: bun:sqlite's own answer
+     * where the statement carries one, else whether its `columnNames` lists a
+     * column — the split node:sqlite's `columns()` gives, measured on Bun
+     * 1.2.21, whose statements carry no `reader` (#B1173) — and `undefined`
+     * on a Bun whose statements carry neither. The SQLite connector reads it
+     * once per statement (#B1169).
      *
      * @param {string} sql - SQL text with positional `?` placeholders.
      * @returns {{get: Function, all: Function, run: Function, reader: (boolean|undefined)}} Prepared statement.
@@ -152,8 +157,11 @@ function makeAdapter(bunSqlite) {
             run: function () {
                 try { return stmt.run.apply(stmt, arguments); } catch (e) { throw normalizeBunSqliteError(e); }
             },
-            /** Whether the statement returns rows: bun:sqlite's `Statement#reader`, read once here (#B1169). */
-            reader: stmt.reader
+            /** Whether the statement returns rows: bun:sqlite's `Statement#reader` where it is a boolean, else
+             *  whether `Statement#columnNames` lists a column (#B1173), read once here (#B1169). */
+            reader: (typeof stmt.reader === 'boolean')
+                ? stmt.reader
+                : (Array.isArray(stmt.columnNames) ? stmt.columnNames.length > 0 : undefined)
         };
     };
 
