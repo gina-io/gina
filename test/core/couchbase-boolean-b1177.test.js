@@ -304,7 +304,9 @@ describe('05 - the net: a result-handler catch settles a call still unsettled', 
         var got = await withErrors(function () { return bounded(ent2.hasRow('z1-none')); });
         var r = got.result;
         assert.equal(r.status, 'err', 'the net settles the call (a timeout means the net is gone)');
-        assert.match(String(r.error && r.error.message), /Cannot read properties of null/, 'the restored throw reached the caller');
+        // The restored read's TypeError names the failing read; V8 and JavaScriptCore (Bun) word it differently:
+        // "Cannot read properties of null (reading 'length')" vs "null is not an object (evaluating 'data.length')".
+        assert.match(String(r.error && r.error.message), /reading 'length'|evaluating 'data\.length'/, 'the restored throw reached the caller');
         assert.equal(r.error.status, 500);
         assert.equal(typeof r.error.isTransient, 'boolean', 'classified by lib.connectorError');
         assert.ok(got.lines.some(function (l) { return /onQueryCallbackError/.test(l); }), 'the throw is still logged');
