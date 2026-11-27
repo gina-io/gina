@@ -51,8 +51,13 @@ function Couchbase(conn, infos) {
      * Detects three operator types:
      * - `IndexScan3` — secondary index access (green badge)
      * - `PrimaryScan3` — primary index scan (amber badge)
-     * - `ExpressionScan` / `KeyScan` — USE KEYS direct KV lookup (green badge,
-     *   reported as "KV lookup (USE KEYS)")
+     * - `KeyScan` — USE KEYS direct KV lookup (green badge, reported as
+     *   "KV lookup (USE KEYS)")
+     *
+     * An `ExpressionScan` is not a key lookup (#B1162): measured on Couchbase
+     * 8.0.2, it is the plan of a FROM over an expression, such as
+     * `FROM [ … ] AS d`, and reads no keyspace. It adds no entry here;
+     * `extractExplainIndexes` counts it as a no-read source.
      *
      * Recursion covers the four child containers plans actually use: `~child`,
      * `~children`, plus (#B193) the nested-scan containers `scans`
@@ -84,8 +89,9 @@ function Couchbase(conn, infos) {
                         primary : /Primary/i.test(op)
                     });
                 }
-                // ExpressionScan / KeyScan — USE KEYS direct KV lookup (no index needed)
-                if (/ExpressionScan|KeyScan/i.test(op) && !seen['__kv_lookup']) {
+                // KeyScan — USE KEYS direct KV lookup (no index needed). Not an
+                // ExpressionScan, a FROM over an expression that reads no keyspace (#B1162)
+                if (/KeyScan/i.test(op) && !seen['__kv_lookup']) {
                     seen['__kv_lookup'] = true;
                     results.push({
                         name    : 'KV lookup (USE KEYS)',
@@ -130,13 +136,15 @@ function Couchbase(conn, infos) {
      * bucket scan. This merges every subquery plan's indexes into the
      * statement plan's, each name once.
      *
-     * A plan that reads no keyspace at all, such as `SELECT 1` (DummyScan) or
-     * an `INSERT … VALUES` (ValueScan + SendInsert), reports the pseudo-entry
+     * A plan that reads no keyspace at all, such as `SELECT 1` (DummyScan),
+     * an `INSERT … VALUES` (ValueScan + SendInsert) or a FROM over an
+     * expression (ExpressionScan, #B1162), reports the pseudo-entry
      * `no keyspace read` instead of `[]`, the way `USE KEYS` reports
      * `KV lookup (USE KEYS)`. The test is conservative: every operator in the
-     * row must belong to the no-read set measured on 8.0.2, with a DummyScan
-     * or ValueScan present. Any other operator (a scan, a fetch, a join, an
-     * operator another server version uses) keeps the plain `[]`.
+     * row must belong to the no-read set measured on 8.0.2, with a DummyScan,
+     * ValueScan or ExpressionScan present. Any other operator (a scan, a
+     * fetch, a join, an operator another server version uses) keeps the
+     * plain `[]`.
      *
      * The `meta.profile` path keeps calling `extractIndexes` directly: a
      * Community Edition 8.0.2 server returns no `profile` member for a
@@ -155,6 +163,13 @@ function Couchbase(conn, infos) {
      *   // [ { name: 'idx_a', primary: false } ]
      *
      *   extractExplainIndexes({ plan: { '#operator': 'Sequence', '~children': [ { '#operator': 'DummyScan' } ] } });
+     *   // [ { name: 'no keyspace read', primary: false } ]
+     *
+     *   // #B1162: SELECT RAW d.x FROM [ { "x": 1 } ] AS d
+     *   extractExplainIndexes({ plan: { '#operator': 'Sequence', '~children': [
+     *       { '#operator': 'ExpressionScan', alias: 'd', expr: '[{"x": 1}]', uncorrelated: true },
+     *       { '#operator': 'Parallel', '~child': { '#operator': 'Sequence', '~children': [ { '#operator': 'InitialProject' } ] } }
+     *   ] } });
      *   // [ { name: 'no keyspace read', primary: false } ]
      */
     var extractExplainIndexes = function(row) {
@@ -181,9 +196,10 @@ function Couchbase(conn, infos) {
         if (indexes.length > 0) return indexes;
 
         // #B1161: a plan made only of the no-read operators measured on 8.0.2
+        // (#B1162: an ExpressionScan, a FROM over an expression, is a source)
         var noRead = [
-            'Sequence', 'Parallel', 'DummyScan', 'ValueScan', 'InitialProject',
-            'Let', 'With', 'Alias', 'Filter', 'Limit', 'SendInsert'
+            'Sequence', 'Parallel', 'DummyScan', 'ValueScan', 'ExpressionScan',
+            'InitialProject', 'Let', 'With', 'Alias', 'Filter', 'Limit', 'SendInsert'
         ];
         var hasOwn = Object.prototype.hasOwnProperty;
         var source = false;
@@ -192,7 +208,7 @@ function Couchbase(conn, infos) {
             var op = node['#operator'];
             if (typeof(op) === 'string') {
                 if (noRead.indexOf(op) < 0) return false;
-                if (op === 'DummyScan' || op === 'ValueScan') source = true;
+                if (op === 'DummyScan' || op === 'ValueScan' || op === 'ExpressionScan') source = true;
             }
             for (var key in node) {
                 if (hasOwn.call(node, key) && !onlyNoRead(node[key])) return false;

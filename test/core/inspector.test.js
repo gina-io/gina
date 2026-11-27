@@ -3450,9 +3450,9 @@ describe('31 - Query: renderQueryContent index badge rendering in Inspector', fu
 });
 
 
-// ── 32 — extractIndexes: ExpressionScan/KeyScan (USE KEYS) detection ─────────
+// ── 32 — extractIndexes: KeyScan (USE KEYS) detection, not ExpressionScan ────
 
-describe('32 - extractIndexes: ExpressionScan/KeyScan (USE KEYS) operator detection', function() {
+describe('32 - extractIndexes: KeyScan (USE KEYS) operator detection; an ExpressionScan is not one', function() {
 
     // Reuse the same extraction technique as §30
     var extractIndexes;
@@ -3471,7 +3471,7 @@ describe('32 - extractIndexes: ExpressionScan/KeyScan (USE KEYS) operator detect
         }
     } catch (e) { /* skip runtime tests gracefully */ }
 
-    it('detects ExpressionScan as KV lookup (USE KEYS)', function() {
+    it('an ExpressionScan is not a KV lookup: a FROM over an expression reads no keyspace (#B1162)', function() {
         if (typeof extractIndexes !== 'function') return;
         var profile = {
             executionTimings: {
@@ -3483,9 +3483,7 @@ describe('32 - extractIndexes: ExpressionScan/KeyScan (USE KEYS) operator detect
             }
         };
         var result = extractIndexes(profile);
-        assert.strictEqual(result.length, 1);
-        assert.strictEqual(result[0].name, 'KV lookup (USE KEYS)');
-        assert.strictEqual(result[0].primary, false);
+        assert.deepStrictEqual(result, []);
     });
 
     it('detects KeyScan as KV lookup (USE KEYS)', function() {
@@ -3505,7 +3503,7 @@ describe('32 - extractIndexes: ExpressionScan/KeyScan (USE KEYS) operator detect
         assert.strictEqual(result[0].primary, false);
     });
 
-    it('deduplicates multiple ExpressionScan/KeyScan into one entry', function() {
+    it('a KeyScan beside an ExpressionScan reports one KV lookup entry (#B1162)', function() {
         if (typeof extractIndexes !== 'function') return;
         var profile = {
             executionTimings: {
@@ -3517,12 +3515,12 @@ describe('32 - extractIndexes: ExpressionScan/KeyScan (USE KEYS) operator detect
             }
         };
         var result = extractIndexes(profile);
-        // Both should collapse into one KV lookup entry via the __kv_lookup sentinel
+        // Only the KeyScan adds the entry (#B1162); the __kv_lookup sentinel keeps it to one
         assert.strictEqual(result.length, 1);
         assert.strictEqual(result[0].name, 'KV lookup (USE KEYS)');
     });
 
-    it('ExpressionScan coexists with IndexScan3 in the same plan', function() {
+    it('an ExpressionScan beside an IndexScan3 reports only the index (#B1162)', function() {
         if (typeof extractIndexes !== 'function') return;
         var profile = {
             executionTimings: {
@@ -3544,17 +3542,17 @@ describe('32 - extractIndexes: ExpressionScan/KeyScan (USE KEYS) operator detect
             }
         };
         var result = extractIndexes(profile);
-        assert.strictEqual(result.length, 2);
+        assert.strictEqual(result.length, 1);
         var names = result.map(function(r) { return r.name; }).sort();
-        assert.deepStrictEqual(names, ['KV lookup (USE KEYS)', 'idx_name']);
+        assert.deepStrictEqual(names, ['idx_name']);
     });
 
-    it('ExpressionScan detection is case-insensitive', function() {
+    it('KeyScan detection is case-insensitive', function() {
         if (typeof extractIndexes !== 'function') return;
-        // The regex uses /ExpressionScan|KeyScan/i
+        // The regex uses /KeyScan/i
         var profile = {
             executionTimings: {
-                '#operator': 'expressionscan'
+                '#operator': 'keyscan'
             }
         };
         var result = extractIndexes(profile);
