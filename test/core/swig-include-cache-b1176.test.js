@@ -51,11 +51,9 @@ var swig         = require(path.join(FW, 'node_modules/@rhinostone/swig'));
 var layoutSource = require(path.join(FW, 'core/controller/layout-source.js'));
 var resolver     = require(path.join(FW, 'lib/swig-resolver/src/main'));
 
-/** Block comments removed, and every line that is only a `//` comment emptied (line numbers kept). */
-function strip(s) {
-    return s.replace(/\/\*[\s\S]*?\*\//g, function (m) { return m.replace(/[^\n]/g, ''); })
-        .split('\n').map(function (l) { return /^\s*\/\//.test(l) ? '' : l; }).join('\n');
-}
+// Block comments removed and every line that is only a `//` comment emptied, line numbers kept: the shared
+// lexer-based helper (#B1157), never a block regex.
+var strip = require('../strip-comments').lines;
 var C = strip(CTRL), R = strip(RSWIG), V = strip(RV1);
 
 /** The `cache` value of the shipped swigOptions literal, as source text. */
