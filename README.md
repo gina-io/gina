@@ -84,8 +84,9 @@ open http://localhost:3100
 > cookie changes; check how a shared cache in front of a `public` route treats
 > `Vary: Cookie`. A SQLite method whose statement is `INSERT`, `UPDATE` or
 > `DELETE … RETURNING` now returns its rows. `req.routing.method` is upper case
-> on every request. The [migration notes](https://gina.io/docs/migration) list
-> every behaviour change.
+> on every request. Outside dev mode a changed swig template reaches a running
+> bundle at its restart. The [migration notes](https://gina.io/docs/migration)
+> list every behaviour change.
 
 **A security and output-cache release.** Four security fixes: a route's output
 cache no longer serves the host and language of the request that filled an
@@ -96,7 +97,8 @@ instead of being compiled as a regular expression. A cache hit now sends the
 right `Vary`, `Access-Control-Allow-Origin` and rate-limit headers; a bundle that
 enables `server.rateLimit` or `server.idempotency` boots; SQLite methods return
 the rows their statements return; and the dev Inspector reads Couchbase plans
-more exactly. Full detail in [CHANGELOG.md](./CHANGELOG.md).
+more exactly, and outside dev mode swig compiles each include once per
+process. Full detail in [CHANGELOG.md](./CHANGELOG.md).
 
 - **Security — the output cache stores a page per host and language (#B1132).** A route's output cache keyed a page on its URL alone, so the request that filled an entry decided, for every later visitor until the entry expired, the host in its links and form actions, its webroot and its language; where a bundle accepts a client's `Host` or `X-Forwarded-Host`, a request carrying another host could send every visitor's links and form submissions there. The key now also carries the request's forwarded scheme and host, its forwarded prefix and the culture its headers select, and `GET /_gina/cache/stats` lists each entry's `variant`.
 - **Security — a malformed `Origin` or `Host` no longer stops a bundle (#B1166).** The rule that picks `Access-Control-Allow-Origin` compiled regular expressions from the request: an `Origin` or `Host` that is not a valid pattern, or a request with no `Host`, made it throw, which stopped the bundle on a static file and left a page unanswered. It now compiles nothing from the request, and a rule that throws sends no header and logs the error.
@@ -108,6 +110,7 @@ more exactly. Full detail in [CHANGELOG.md](./CHANGELOG.md).
 - **Fixed — JSON files with comments (#B1170).** A `//` inside a quoted value no longer cuts its line when `requireJSON()` or `parseJSONWithComments()` strips comments.
 - **Fixed — `req.routing.method` (#B1171).** It is upper case on every request to a route; the requests answered from the route cache read it in lower case.
 - **Fixed — the dev Inspector and Couchbase plans (#B1161, #B1162, #B1163).** The index badge reads the plans Couchbase lists for subqueries; a statement that reads no keyspace (`SELECT 1`, a `FROM` over an expression, a `bulkInsert`) shows `no keyspace read`; and a `bulkInsert` sends no `EXPLAIN`.
+- **Fixed — swig includes are compiled once per process (#B1176).** Outside dev mode an `{% include %}` was read and compiled again on every render, once per iteration inside a `{% for %}` loop; it is now compiled once per bundle process, so a template change reaches a running bundle at its restart.
 
 ## Documentation
 
