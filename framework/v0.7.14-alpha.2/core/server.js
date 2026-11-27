@@ -9726,6 +9726,14 @@ function Server(options) {
         }
 
         if (matched) {
+            // #B1171 — the routing method is the method the rule serves the request under, in upper
+            // case, whichever path matched: a warm route-cache hit builds req.routing from the request,
+            // with its method lower-cased (lib/routing getCached), the cold scan from the rule. The
+            // routing guide documents `method : "GET"`, and setRequestMethod writes it upper-cased.
+            if ( req.routing && typeof(req.routing.method) == 'string' ) {
+                req.routing.method = req.routing.method.toUpperCase();
+            }
+
             // #B675 — a HEAD served by a GET rule runs the GET action in full (RFC 9110 §9.3.2),
             // but processRequestData keeps a HEAD's params in `req.head` and clears `req.get`, so a
             // GET action reading `req.get.<param>` threw on the undefined bag and answered 500.

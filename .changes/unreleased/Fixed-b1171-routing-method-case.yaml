@@ -1,0 +1,3 @@
+kind: Fixed
+body: '`req.routing.method` reads the same upper-case method on every request to a route: the first request, matched by a scan of the routing rules, read it in upper case (`GET`), and every later one, answered from the route cache, in lower case (`get`), so code comparing it with `''GET''`, as the routing guide shows the field, matched on the first request only. A bundle restart picks it up (#B1171)'
+time: 2026-11-27T01:14:06+01:00
