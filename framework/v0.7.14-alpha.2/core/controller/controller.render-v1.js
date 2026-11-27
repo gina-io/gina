@@ -496,6 +496,8 @@ module.exports = async function render(userData, displayInspector, errOptions, d
 
             // mappin conf
             mapping = { filename: path };
+            // #B1176 — compiled from content assembled per render: keep it out of the engine's cache
+            mapping.cache = false;
             if (isRenderingCustomError) {
                 // TODO - Test if there is a block call `gina-error` in the layout & replace block name from tpl
 
@@ -514,6 +516,8 @@ module.exports = async function render(userData, displayInspector, errOptions, d
                 layout = tpl;
             } else if (isUsingGinaLayout) {
                 mapping = { filename: path };
+                // #B1176 — compiled from content assembled per render: keep it out of the engine's cache
+                mapping.cache = false;
                 if ( /(\{\{|\{\{\s+)page\.content/.test(layout) ) {
 
                     if ( /\{\%(\s+extends|extends)/.test(tpl) ) {

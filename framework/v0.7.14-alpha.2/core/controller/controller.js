@@ -437,10 +437,18 @@ function exposeOptionsOnEngine(engine, opts) {
  * the instance its own `getOptions()` accessor (`exposeOptionsOnEngine`) —
  * the module's per-request one never reaches an instance.
  *
+ * #B1176 — `opts.cache` is `'memory'` outside dev on swig 2.9.6 or later, and `false` otherwise (in
+ * dev, or on an older swig a project renders with): outside dev the instance keeps every compiled
+ * `{% include %}` and `compileFile` result for the life of the process, keyed by the resolved path
+ * (as the nunjucks path keeps its templates). The page and layout compiles pass their own
+ * `cache: false` (`controller.render-swig.js`, `controller.render-v1.js`), so the instance keeps only
+ * files compiled as they are on disk, never the content gina assembles per render.
+ *
  * @inner
  * @param {*}      swigMod      - The resolved swig module (exposes `.Swig`)
  * @param {string} templateRoot - Registry key: the bundle templates root
- * @param {object} opts         - `{ autoescape, cache, loader }` for this bundle
+ * @param {object} opts         - `{ autoescape, cache, loader }` for this bundle (`cache`: `'memory'`
+ *                                outside dev on swig >= 2.9.6, `false` otherwise; #B1176)
  * @returns {*} the cached-or-built per-bundle engine
  */
 function getDefaultSwigEngine(swigMod, templateRoot, opts) {
@@ -1979,9 +1987,23 @@ function SuperController(options) {
             var swigOptions = {
                 // was: autoescape: ( typeof(local.options.autoescape) != 'undefined') ? local.options.autoescape : false,
                 autoescape  : _swigAutoescape,
-                // `memory` is no working yet ... advanced rendering setup required
+                // was (f222c6936, 2022): « `memory` is no working yet ... advanced rendering setup required »
                 // cache       : (local.options.isCacheless) ? false : 'memory'
-                cache       : false
+                // cache       : false
+                // #B1176 — with `cache: false` every {% include %} (and every compileFile through
+                // self.engine) read and compiled its file on each call, once per loop iteration.
+                // Outside dev the engine now keeps compiled templates, as the nunjucks path does
+                // (noCache in dev only): an include is compiled once per process, and a template
+                // change reaches a running bundle at its restart. Each page and layout compile
+                // passes its own `cache: false` (controller.render-swig.js, controller.render-v1.js):
+                // gina compiles the page from content it assembles per render under one filename
+                // (#B1129's tokened layout), which a filename-keyed entry would serve stale.
+                // Only from swig 2.9.6: before it, swig's memory cache carried one page's override of
+                // a nested block into a cached layout (fixed in 2.9.5) and one call's option locals
+                // into later calls for the same file (fixed in 2.9.6), so a project that renders with
+                // its own older swig (swig.useProject) keeps `cache: false`. A missing version reads
+                // as 0.0.0, so the cache stays off.
+                cache       : ( self.isCacheless() || lib.swigResolver.compareSemver(swig.version, '2.9.6') < 0 ) ? false : 'memory'
             };
             if (dir) {
                 // #TPL2 — confined loader (mirrors core/server.js initSwigEngine).

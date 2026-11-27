@@ -2130,6 +2130,11 @@ module.exports = async function render(userData, displayInspector, errOptions, d
             // Last compilation before rendering
             // Now we can use `data` instead of `swigData`
             mapping = { filename: path  };
+            // #B1176 — outside dev the engine keeps compiled templates (an include compiles once per
+            // process); this page compiles from content assembled for this render under one filename,
+            // so its own compile stays uncached: a filename-keyed entry would serve this render's page
+            // (its layout, its fragment or full variant) to every later render.
+            mapping.cache = false;
             if (isWithoutLayout && localOptions.debugMode || localOptions.debugMode ) {
                 if (self.isXMLRequest()) {
                     // popin case
