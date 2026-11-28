@@ -21,8 +21,9 @@
  *    initiated close (§5.5.1 / §7) that resets the stream when the peer
  *    stays silent, protocol violations answered with the prescribed status
  *    code then torn down.
- *  - Lifecycle: teardown on stream `close` / `error` / `aborted` (the HTTP/2
- *    analogs of TCP close/RST per RFC 8441 §5), and registration into the
+ *  - Lifecycle: teardown on stream `end` (a peer that ends its side without
+ *    a Close frame, #B1142) / `close` / `error` / `aborted` (the HTTP/2
+ *    analogs of TCP FIN/close/RST per RFC 8441 §5), and registration into the
  *    framework's graceful-shutdown drain registry
  *    (`process.gina._sseConnections`) so SIGTERM closes live sessions with a
  *    `1001 going away` instead of blocking the server drain.
@@ -201,10 +202,22 @@ function WsSession(stream, options) {
         if (self._finished) { return; }
         self._parser.feed(chunk);
     });
-    // Transport teardown (HTTP/2 END_STREAM / RST_STREAM / session GOAWAY all
-    // surface here per RFC 8441 §5). 1006 = abnormal closure — reserved on the
-    // wire, legitimate as a LOCAL report (§7.4.1).
+    // Transport teardown (RST_STREAM, a session GOAWAY, and the stream's close
+    // once both sides have ended surface here; RFC 8441 §5). 1006 = abnormal
+    // closure — reserved on the wire, legitimate as a LOCAL report (§7.4.1).
     stream.on('close', function() {
+        self._finish(1006, '');
+    });
+    // #B1142 — the peer ended its side (END_STREAM) without a Close frame.
+    // RFC 8441 §5 maps END_STREAM to the TCP FIN, and a connection that closes
+    // with no Close frame received is an abnormal closure (RFC 6455 §7.1.5:
+    // 1006). The stream emits `close` only once our side has ended too, so the
+    // session stayed open until the application or the connection closed it:
+    // end our side and report 1006 now (ws does the same on its socket's `end`).
+    // After a Close frame, onClose has already run and this returns at once.
+    stream.on('end', function() {
+        if (self._finished) { return; }
+        self._endStream();
         self._finish(1006, '');
     });
     stream.on('error', function(err) {
@@ -267,7 +280,8 @@ WsSession.prototype.onPong = function(fn) { this._handlers.pong = (typeof fn ===
  * Registers the TERMINAL close handler — `(code, reason)`, delivered exactly
  * once: peer close (the peer's code; 1005 when its Close body was empty),
  * protocol failure (the violation's code), initiated-close completion, or
- * transport teardown (1006).
+ * transport teardown (1006), a peer that ends its stream without a Close
+ * frame included (#B1142).
  *
  * @param {function} fn
  * @returns {WsSession} this (chainable)
