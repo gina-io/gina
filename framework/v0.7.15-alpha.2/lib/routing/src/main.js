@@ -2000,6 +2000,83 @@ function Routing() {
     }
 
     /**
+     * Records what a route candidate can write into: `request.params`, or the request's method bag
+     * (`request.get`, `request.post`, ...), so getRouteByUrl can put the request back before each
+     * candidate and after a lookup that matched nothing (#B1159).
+     *
+     * @inner
+     * @private
+     * @param {object} request - the request handed to getRouteByUrl
+     * @param {string} key - `params`, or the bag's key (`request.method.toLowerCase()`)
+     * @returns {?{absent: boolean, ref: ?object, ownKeys: Array<string>, ownValues: Array<*>, has: ?object}}
+     *  `absent` is true when the request holds nothing under `key`; `null` when it holds something
+     *  that is not an object, which is left as it is
+     *
+     * @example
+     *  var bagSnapshot = snapshotRequestBag(request, 'get');
+     *  // ... a candidate writes request.get.id ...
+     *  restoreRequestBag(request, 'get', bagSnapshot); // request.get as it was
+     */
+    var snapshotRequestBag = function(request, key) {
+        var bag = request[key];
+        if ( typeof(bag) == 'undefined' ) {
+            return { absent: true, ref: null, ownKeys: [], ownValues: [], has: null };
+        }
+        if ( bag === null || typeof(bag) != 'object' ) {
+            return null;
+        }
+        var ownKeys = Object.keys(bag), ownValues = [], has = Object.create(null);
+        for (var k = 0; k < ownKeys.length; ++k) {
+            ownValues[k] = bag[ownKeys[k]];
+            has[ownKeys[k]] = true;
+        }
+        return { absent: false, ref: bag, ownKeys: ownKeys, ownValues: ownValues, has: has };
+    };
+
+    /**
+     * Puts `request[key]` back as `snapshot` recorded it, in place: the keys a candidate added are
+     * deleted and the values it changed are put back, on the same object, so a bag that is also
+     * `request.body` or `request.query` stays that object and an array stays an array. A key the
+     * request did not hold is deleted again, never left as `{}` (#B1159).
+     *
+     * @inner
+     * @private
+     * @param {object} request - the request handed to getRouteByUrl
+     * @param {string} key - `params`, or the bag's key
+     * @param {?object} snapshot - from snapshotRequestBag; `null` leaves `request[key]` as it is
+     * @returns {void}
+     *
+     * @example
+     *  restoreRequestBag(request, 'params', paramsSnapshot);
+     */
+    var restoreRequestBag = function(request, key, snapshot) {
+        if ( snapshot === null ) {
+            return;
+        }
+        if ( snapshot.absent ) {
+            if ( typeof(request[key]) != 'undefined' ) {
+                delete request[key];
+            }
+            return;
+        }
+        var bag = snapshot.ref, current = null;
+        if ( request[key] !== bag ) {
+            request[key] = bag;
+        }
+        current = Object.keys(bag);
+        for (var c = 0; c < current.length; ++c) {
+            if ( snapshot.has[current[c]] !== true ) {
+                delete bag[current[c]];
+            }
+        }
+        for (var o = 0; o < snapshot.ownKeys.length; ++o) {
+            if ( bag[snapshot.ownKeys[o]] !== snapshot.ownValues[o] ) {
+                bag[snapshot.ownKeys[o]] = snapshot.ownValues[o];
+            }
+        }
+    };
+
+    /**
      * Get route by url
      * N.B.: this will only work with rules declared with `GET` method property
      *
@@ -2015,6 +2092,11 @@ function Routing() {
      * notFound registry — keyed per rule, `count` incremented on repeats —
      * and emitted via `console.warn` on the FIRST sighting of each key.
      * Server context warns on every miss (unchanged).
+     *
+     * A route candidate that does not match leaves the request as it found it (#B1159): the
+     * values it bound in `request.params` and in the method's bag
+     * (`request[request.method.toLowerCase()]`) are undone before the next candidate, and after
+     * a lookup that matched nothing, on the same objects. A match keeps the matched route's values.
      *
      * @function getRouteByUrl
      * @async
@@ -2178,6 +2260,17 @@ function Routing() {
         var paramsList = null;
         var re = new RegExp(method, 'i');
         var localMethod = null;
+        // #B1159 — a candidate that does not match leaves the request as it found it. compareUrls
+        // writes each value it binds into `request.params` and into the method's bag before a later
+        // segment fails, and a value reaches the bag only when the key is not there yet: the next
+        // candidate started from the failed one's keys (the matched route's value lost to the failed
+        // one's), and on a miss the caller kept them. redirect() looks its target up twice (its own
+        // method, then GET) and carries the bag across the redirect. Both are put back, in place,
+        // before every candidate and after a lookup that matched nothing (restoreRequestBag). The key
+        // is the one the writers use, read once the method is set above.
+        var reqMethodKey    = request.method.toLowerCase();
+        var paramsSnapshot  = snapshotRequestBag(request, 'params');
+        var bagSnapshot     = snapshotRequestBag(request, reqMethodKey);
         // N.B.: this part of the code must remain identical to the one used in `server.js`
         out:
             for (var name in routing) {
@@ -2193,6 +2286,10 @@ function Routing() {
                     localMethod = request.method
                 }
                 if (typeof (routing[name].method) != 'undefined' && !re.test(localMethod)) continue;
+
+                // #B1159 — each candidate starts from the request as it came (see the snapshot above)
+                restoreRequestBag(request, 'params', paramsSnapshot);
+                restoreRequestBag(request, reqMethodKey, bagSnapshot);
 
                 //Preparing params to relay to the core/router.
                 params = {
@@ -2247,6 +2344,10 @@ function Routing() {
             } //EO for break out
 
         if (!matched) {
+            // #B1159 — nothing matched: the last candidate's writes are undone too
+            restoreRequestBag(request, 'params', paramsSnapshot);
+            restoreRequestBag(request, reqMethodKey, bagSnapshot);
+
             if (isGFFCtx) {
                 var urlHasChanged = false;
                 if (
