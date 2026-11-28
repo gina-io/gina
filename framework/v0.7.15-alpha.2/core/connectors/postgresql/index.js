@@ -45,10 +45,15 @@ var console   = lib.logger;
  *
  * `@return` annotation controls result shape:
  *   {object}  → first row or null
- *   {Array}   → all rows (default for SELECT)
- *   {boolean} → rowCount > 0 (write) / rows.length > 0 (SELECT)
+ *   {Array}   → all rows (default for a statement that returns rows)
+ *   {boolean} → rowCount > 0 (write) / rows.length > 0 (returns rows)
  *   {number}  → first key of first row (COUNT(*) queries)
- *   (none)    → { changes, command } for write ops; all rows for SELECT
+ *   (none)    → { changes, command } for write ops; all rows otherwise
+ *
+ * A statement returns rows when pg's answer lists result columns
+ * (`result.fields`, filled from the server's row description): a SELECT,
+ * a WITH … SELECT, a VALUES, a SHOW, an EXPLAIN, a write with RETURNING
+ * (#B1172; before 0.7.15, only a statement that starts with SELECT).
  *
  * Methods return a native Promise with `.onComplete(cb)` for backward compatibility.
  *
@@ -272,14 +277,32 @@ function Postgresql(conn, infos) {
         var isSELECT = /^\s*SELECT\b/i.test(queryString);
         var trigger  = 'PG:' + entityName.toLowerCase() + '#' + name;
 
+        // ── Helper: does pg's answer carry rows? ──────────────────────────────
+        //
+        // #B1172 — ask the driver's answer, not the statement's first keyword.
+        // pg fills result.fields from the server's row description, which only a
+        // statement that returns rows sends: a SELECT, a WITH … SELECT, a VALUES,
+        // a SHOW, an EXPLAIN, a write with RETURNING. A write without RETURNING,
+        // and a SELECT … INTO, leave it []. The leading-SELECT keyword still
+        // decides an answer that carries no fields array (a text holding several
+        // statements answers with an array of results).
+        // ─────────────────────────────────────────────────────────────────────
+        var returnsRows = function(result) {
+            if ( result && Array.isArray(result.fields) ) {
+                return result.fields.length > 0;
+            }
+            return isSELECT;
+        };
+
         // ── Helper: coerce pg result to the annotated return type ─────────────
         //
-        // SELECT → result.rows is plain object[] and result.rowCount is the count
+        // Rows   → result.rows is plain object[] and result.rowCount is the count
         // Write  → result.rows is [] and result.rowCount is affected row count
         //          result.command is 'INSERT', 'UPDATE', 'DELETE', etc.
         // ─────────────────────────────────────────────────────────────────────
         var coerce = function(result) {
-            if (isSELECT) {
+            // was: if (isSELECT)
+            if ( returnsRows(result) ) {
                 var rows = result.rows;
 
                 if (returnType === 'object') {

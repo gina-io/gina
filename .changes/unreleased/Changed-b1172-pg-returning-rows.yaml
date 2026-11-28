@@ -1,0 +1,3 @@
+kind: Changed
+body: 'PostgreSQL: a write with `RETURNING` now returns the rows it returned: the first one under `@return {object}`, all of them without `@return`, where it returned `{ changes, command }`. `@return {boolean}` still answers whether rows came back, and `@return {number}` follows the row rule (all rows, unless the statement counts with `COUNT(`). A caller that read `changes` from such a statement reads the rows instead (#B1172).'
+time: 2026-11-28T09:06:13+01:00

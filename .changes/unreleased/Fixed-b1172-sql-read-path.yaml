@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'The MySQL and PostgreSQL connectors now ask the driver''s answer whether a statement returned rows, instead of reading its first keyword. A `WITH … SELECT`, a `VALUES` (PostgreSQL) or a `SHOW` came back shaped as a write and its rows were lost; it now returns its rows under every `@return`. A `SELECT … INTO`, which returns no rows, now gets the write shape. Restart each bundle after the upgrade (#B1172).'
+time: 2026-11-28T09:06:13+01:00

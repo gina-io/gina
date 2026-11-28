@@ -45,10 +45,15 @@ var console   = lib.logger;
  *
  * `@return` annotation controls result shape:
  *   {object}  → first row or null
- *   {Array}   → all rows (default for SELECT)
- *   {boolean} → affectedRows > 0 (write) / rows.length > 0 (SELECT)
+ *   {Array}   → all rows (default for a statement that returns rows)
+ *   {boolean} → affectedRows > 0 (write) / rows.length > 0 (returns rows)
  *   {number}  → first key of first row (COUNT(*) queries)
- *   (none)    → { changes, insertId } for write ops; all rows for SELECT
+ *   (none)    → { changes, insertId } for write ops; all rows otherwise
+ *
+ * A statement returns rows when mysql2 answers with an array of rows (a
+ * SELECT, a WITH … SELECT, a SHOW, an EXPLAIN, a write with RETURNING on
+ * MariaDB) instead of a ResultSetHeader (#B1172; before 0.7.15, only a
+ * statement that starts with SELECT).
  *
  * Methods return a native Promise with `.onComplete(cb)` for backward compatibility.
  *
@@ -286,13 +291,33 @@ function Mysql(conn, infos) {
         var isSELECT = /^\s*SELECT\b/i.test(queryString);
         var trigger  = 'MySQL:' + entityName.toLowerCase() + '#' + name;
 
+        // ── Helper: does mysql2's answer carry rows? ──────────────────────────
+        //
+        // #B1172 — ask the driver's answer, not the statement's first keyword.
+        // mysql2 answers a statement that returns a result set with an array of
+        // rows, and any other statement with a ResultSetHeader (it hands the
+        // header when the server reports no columns). Several result sets at
+        // once (a CALL) answer with an array of arrays: the leading-SELECT
+        // keyword still decides there, and for an answer of neither shape.
+        // ─────────────────────────────────────────────────────────────────────
+        var returnsRows = function(results) {
+            if ( Array.isArray(results) ) {
+                return ( results.length > 0 && Array.isArray(results[0]) ) ? isSELECT : true;
+            }
+            if ( results !== null && typeof(results) === 'object' ) {
+                return false;
+            }
+            return isSELECT;
+        };
+
         // ── Helper: coerce mysql2 result to the annotated return type ─────────
         //
-        // SELECT → results is RowDataPacket[] (behaves like plain objects[])
+        // Rows   → results is RowDataPacket[] (behaves like plain objects[])
         // Write  → results is ResultSetHeader { affectedRows, insertId, … }
         // ─────────────────────────────────────────────────────────────────────
         var coerce = function(results) {
-            if (isSELECT) {
+            // was: if (isSELECT)
+            if ( returnsRows(results) ) {
                 var rows = results;
 
                 if (returnType === 'object') {
