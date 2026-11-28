@@ -48,11 +48,14 @@ function Couchbase(conn, infos) {
      * The EXPLAIN fallback reaches it through `extractExplainIndexes`, which
      * also walks the subquery plans listed beside the plan (#B1161).
      *
-     * Detects three operator types:
+     * Detects four operator types:
      * - `IndexScan3` — secondary index access (green badge)
      * - `PrimaryScan3` — primary index scan (amber badge)
      * - `KeyScan` — USE KEYS direct KV lookup (green badge, reported as
      *   "KV lookup (USE KEYS)")
+     * - `Join` / `Nest` carrying `on_keys` — a key-based JOIN or NEST … ON KEYS
+     *   (#B1174; measured on Couchbase 8.0.2, it reads the joined keyspace by
+     *   key: green badge, reported as "KV lookup (ON KEYS)")
      *
      * An `ExpressionScan` is not a key lookup (#B1162): measured on Couchbase
      * 8.0.2, it is the plan of a FROM over an expression, such as
@@ -105,6 +108,18 @@ function Couchbase(conn, infos) {
                     walk(node['~children'][i]);
                 }
             }
+            // #B1174 — a key-based JOIN or NEST (`… ON KEYS`): measured on Couchbase
+            // 8.0.2, a `Join` or a `Nest` operator carrying `on_keys` reads the joined
+            // keyspace by key. Nothing labelled it, so a FROM over an expression
+            // feeding one reported [] (the red badge), and an indexed one showed only
+            // its index. Such an operator has no child plan, so this sits after the walks
+            if ( (op === 'Join' || op === 'Nest') && typeof(node.on_keys) === 'string' && !seen['__kv_on_keys'] ) {
+                seen['__kv_on_keys'] = true;
+                results.push({
+                    name    : 'KV lookup (ON KEYS)',
+                    primary : false
+                });
+            }
             // #B193 — the multi-index operators nest their child scans under
             // `scans` (IntersectScan / UnionScan / OrderedIntersectScan) or
             // `scan` (DistinctScan), NOT ~child/~children. Unwalked, every
@@ -144,7 +159,8 @@ function Couchbase(conn, infos) {
      * row must belong to the no-read set measured on 8.0.2, with a DummyScan,
      * ValueScan or ExpressionScan present. Any other operator (a scan, a
      * fetch, a join, an operator another server version uses) keeps the
-     * plain `[]`.
+     * plain `[]`. A `JOIN` or `NEST … ON KEYS` never reaches this test:
+     * `extractIndexes` reports it as `KV lookup (ON KEYS)` (#B1174).
      *
      * The `meta.profile` path keeps calling `extractIndexes` directly: a
      * Community Edition 8.0.2 server returns no `profile` member for a

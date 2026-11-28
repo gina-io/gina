@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'The dev Inspector''s index badge now labels a Couchbase `JOIN` or `NEST … ON KEYS`. Couchbase plans one as a `Join` or `Nest` operator carrying `on_keys`, which reads the joined keyspace by key, and the plan walker labelled neither: a `FROM` over an expression feeding one showed the red "no index" badge, and a join from an indexed keyspace showed only that index. Such a join now adds the green "KV lookup (ON KEYS)" chip; `USE KEYS` keeps "KV lookup (USE KEYS)". Dev Inspector only. Restart each bundle after the upgrade (#B1174).'
+time: 2026-11-28T00:11:26+01:00
